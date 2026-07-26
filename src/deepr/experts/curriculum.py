@@ -451,8 +451,11 @@ class CurriculumGenerator:
                 if api_key in ("***", ""):
                     api_key = os.getenv("OPENAI_API_KEY")
 
-                # Create client with timeout
-                client = AsyncOpenAI(api_key=api_key, timeout=httpx.Timeout(timeout, connect=10.0))
+                # Create client with timeout. max_retries=0: the SDK defaults
+                # to 2 silent retries UNDER this function's own 3-attempt
+                # loop, so one intent could issue up to 9 paid requests. This
+                # loop owns all retry decisions.
+                client = AsyncOpenAI(api_key=api_key, timeout=httpx.Timeout(timeout, connect=10.0), max_retries=0)
 
                 try:
                     # Make API call using Chat Completions (synchronous, not Responses API)
@@ -494,10 +497,9 @@ class CurriculumGenerator:
                         response_format={"type": "json_object"},  # Ensure JSON output
                     )
 
-                    # Extract response from chat completion
-                    response = response_obj.choices[0].message.content or ""
-
-                    # Settle the cost into the canonical ledger.
+                    # Settle the cost the moment the billed call returns:
+                    # recording only after extraction meant a malformed
+                    # response left real spend with no ledger record.
                     from deepr.experts.chat_turns import chat_token_cost as _tc
 
                     _actual_cost = _tc(response_obj.usage, model_name) if response_obj.usage else _est_cost
@@ -510,6 +512,9 @@ class CurriculumGenerator:
                         model=model_name,
                         source="experts.curriculum.generate_curriculum",
                     )
+
+                    # Extract response from chat completion
+                    response = response_obj.choices[0].message.content or ""
 
                     if progress:
                         progress.complete("Done")

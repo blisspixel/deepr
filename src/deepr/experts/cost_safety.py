@@ -30,6 +30,7 @@ from deepr.experts.cost_safety_ledger import (
     CostRecord,
     DurableCostReservationError,
     append_cost_record,
+    seed_window_costs,
 )
 from deepr.experts.research_reservation_store import (
     ResearchReservationLimitExceeded,
@@ -348,13 +349,11 @@ class CostSafetyManager:
         self._ledger = CostLedger(lock_timeout_seconds=5.0)
         self._strict_tracking = os.getenv("DEEPR_COST_TRACKING_STRICT", "1").lower() in {"1", "true", "yes", "on"}
 
-        # Global daily/monthly tracking. Limits honor the same env caps the
-        # research budget gate reads (DEEPR_MAX_COST_PER_DAY/_MONTH), so a
-        # dev machine capped at $1/day is capped for autonomous expert
-        # operations too - one knob, every spender. Values are clamped to
-        # the absolute ceilings; unset/invalid env falls back to defaults.
-        self.daily_cost: float = 0.0
-        self.monthly_cost: float = 0.0
+        # Global daily/monthly tracking honoring the same env caps the
+        # research budget gate reads (DEEPR_MAX_COST_PER_DAY/_MONTH): one
+        # knob, every spender. Clamped to absolute ceilings; bad env -> defaults.
+        # Ledger-seeded so day/month caps see other processes' spend
+        self.daily_cost, self.monthly_cost = seed_window_costs(self._ledger)
         self.max_daily: float = self._env_limit("DEEPR_MAX_COST_PER_DAY", 50.0, self.ABSOLUTE_MAX_DAILY)
         self.max_monthly: float = self._env_limit("DEEPR_MAX_COST_PER_MONTH", 500.0, self.ABSOLUTE_MAX_MONTHLY)
         self._last_daily_reset: float = time.time()
