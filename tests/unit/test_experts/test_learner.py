@@ -195,6 +195,7 @@ class TestAutonomousLearnerProgressPersistence:
             patch("deepr.experts.learner.create_provider"),
             patch("deepr.experts.learner.create_storage"),
             patch("deepr.experts.learner.ExpertStore", return_value=store),
+            patch("deepr.experts.learner_persistence.ExpertStore", return_value=store),
         ):
             learner = AutonomousLearner(mock_config)
 
@@ -291,6 +292,7 @@ class TestAutonomousLearnerProgressPersistence:
             patch("deepr.experts.learner.create_provider"),
             patch("deepr.experts.learner.create_storage"),
             patch("deepr.experts.learner.ExpertStore", return_value=store),
+            patch("deepr.experts.learner_persistence.ExpertStore", return_value=store),
         ):
             learner = AutonomousLearner(mock_config)
 
@@ -310,6 +312,7 @@ class TestAutonomousLearnerProgressPersistence:
             patch("deepr.experts.learner.create_provider"),
             patch("deepr.experts.learner.create_storage"),
             patch("deepr.experts.learner.ExpertStore", return_value=store),
+            patch("deepr.experts.learner_persistence.ExpertStore", return_value=store),
         ):
             learner = AutonomousLearner(mock_config)
 
@@ -331,6 +334,7 @@ class TestAutonomousLearnerProgressPersistence:
             patch("deepr.experts.learner.create_provider"),
             patch("deepr.experts.learner.create_storage"),
             patch("deepr.experts.learner.ExpertStore", return_value=store),
+            patch("deepr.experts.learner_persistence.ExpertStore", return_value=store),
         ):
             learner = AutonomousLearner(mock_config)
 
@@ -348,6 +352,7 @@ class TestAutonomousLearnerProgressPersistence:
             patch("deepr.experts.learner.create_provider"),
             patch("deepr.experts.learner.create_storage"),
             patch("deepr.experts.learner.ExpertStore", return_value=store),
+            patch("deepr.experts.learner_persistence.ExpertStore", return_value=store),
         ):
             learner = AutonomousLearner(mock_config)
 

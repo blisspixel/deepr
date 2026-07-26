@@ -571,7 +571,7 @@ class CostDashboard:
                 idempotency_key=idempotency_key,
             )
         except OSError as e:
-            strict_tracking = os.getenv("DEEPR_COST_TRACKING_STRICT", "0").lower() in {"1", "true", "yes", "on"}
+            strict_tracking = os.getenv("DEEPR_COST_TRACKING_STRICT", "1").lower() in {"1", "true", "yes", "on"}
             if strict_tracking:
                 raise RuntimeError(f"Cost ledger write failed in strict mode: {e}") from e
             logger.warning("Failed to write cost ledger event: %s", e)

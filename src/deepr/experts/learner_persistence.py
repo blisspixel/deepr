@@ -85,4 +85,70 @@ async def sync_job_status_in_queue(
         logger.warning("Could not sync learner job %s status in local queue: %s", provider_job_id, exc)
 
 
-__all__ = ["persist_completed_report", "sync_job_status_in_queue"]
+def save_learning_progress(
+    *,
+    expert_name: str,
+    completed_topics: list[str],
+    failed_topics: list[str],
+    remaining_topics: list[Any],
+    total_cost: float,
+    started_at: Any,
+) -> None:
+    """Save learning progress to the expert's data directory for resume."""
+    import json
+    from datetime import UTC, datetime
+
+    progress_file = ExpertStore().get_knowledge_dir(expert_name) / "learning_progress.json"
+    progress_file.parent.mkdir(parents=True, exist_ok=True)
+
+    done = set(completed_topics) | set(failed_topics)
+    remaining = [t for t in remaining_topics if t.title not in done]
+    progress_data = {
+        "expert_name": expert_name,
+        "paused_at": datetime.now(UTC).isoformat(),
+        "completed_topics": completed_topics,
+        "failed_topics": failed_topics,
+        "remaining_topics": [
+            {
+                "title": t.title,
+                "research_prompt": t.research_prompt,
+                "research_mode": t.research_mode,
+                "research_type": t.research_type,
+                "estimated_cost": t.estimated_cost,
+                "estimated_minutes": t.estimated_minutes,
+            }
+            for t in remaining
+        ],
+        "total_cost_so_far": total_cost,
+        "started_at": started_at.isoformat(),
+        "reason": "daily_or_monthly_limit",
+    }
+    with open(progress_file, "w", encoding="utf-8") as f:
+        json.dump(progress_data, f, indent=2)
+
+
+def load_learning_progress(expert_name: str) -> dict[str, Any] | None:
+    """Load saved learning progress for resume, or None if absent."""
+    import json
+
+    progress_file = ExpertStore().get_knowledge_dir(expert_name) / "learning_progress.json"
+    if not progress_file.exists():
+        return None
+    with open(progress_file, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def clear_learning_progress(expert_name: str) -> None:
+    """Clear saved learning progress after successful completion."""
+    progress_file = ExpertStore().get_knowledge_dir(expert_name) / "learning_progress.json"
+    if progress_file.exists():
+        progress_file.unlink()
+
+
+__all__ = [
+    "clear_learning_progress",
+    "load_learning_progress",
+    "persist_completed_report",
+    "save_learning_progress",
+    "sync_job_status_in_queue",
+]

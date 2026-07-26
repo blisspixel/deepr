@@ -57,6 +57,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   downstream as a misleading "authentication failed") even when a valid key was
   present. The factory now falls back to the provider's environment variable
   and treats the "***" redaction placeholder as absent.
+- Fixed the metered consult-quality judge erasing billed spend: any
+  exception after the provider call (response parsing, settlement itself)
+  refunded the cost reservation even though the call had been billed. The
+  judge now tracks dispatch explicitly - failures after dispatch settle
+  conservatively at the reserved estimate; only a failure before any call
+  went out refunds.
+- Changed cost tracking to strict by default: a spend event that cannot be
+  written to the canonical ledger now raises instead of logging a warning
+  and continuing (invisible money was the disease behind the surprise
+  bill). Set DEEPR_COST_TRACKING_STRICT=0 to opt into the old lenient
+  behavior.
 - Fixed expert learning settling spend hours before persisting the paid
   reports - the exact shape of the July 1 incident. The learner recorded
   cost and marked queue jobs COMPLETED (with empty report paths) the moment
