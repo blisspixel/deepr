@@ -823,6 +823,20 @@ class DeeprMCPServer:
                     retry_hint=f"Set budget >= ${cost_estimate:.2f}",
                 )
 
+            # The monthly budget gate (deepr budget set) binds this entry
+            # point too. MCP is headless, so a spend the gate flags for human
+            # judgment is REFUSED with instructions - an agent cannot consent
+            # on the operator's behalf (same semantics as `deepr run -y`).
+            from deepr.cli.commands.budget import check_budget_approval
+
+            if not check_budget_approval(cost_estimate):
+                return _make_error(
+                    "BUDGET_CONFIRMATION_REQUIRED",
+                    f"Estimated ${cost_estimate:.2f} needs confirmation: over/near the monthly "
+                    "budget, above the cautious-mode floor, or the spend ledger is unreadable.",
+                    retry_hint="Raise the budget with 'deepr budget set <amount>' to authorize this spend level",
+                )
+
             # SSRF: validate any user-provided file URLs
             if files:
                 for f in files:
