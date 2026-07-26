@@ -57,10 +57,17 @@ class TestGetApiKey:
 
         assert key == "azure-test-key"
 
-    def test_missing_api_key_raises_error(self):
-        """Test that missing API key raises ValueError."""
+    def test_missing_api_key_raises_error(self, monkeypatch):
+        """Test that missing API key raises ValueError.
+
+        get_api_key falls back to the provider's environment variable when the
+        redacted config has no key, so the env must be explicitly empty here -
+        a leaked OPENAI_API_KEY from a neighboring test or the host env made
+        this pass silently instead of raising.
+        """
         from deepr.cli.commands.provider_factory import get_api_key
 
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         config = {}
 
         with pytest.raises(ValueError, match="No API key found"):
