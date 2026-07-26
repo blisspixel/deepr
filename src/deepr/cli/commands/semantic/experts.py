@@ -35,13 +35,9 @@ def _require_metered_expert_cli(operation: str, *, safe_alternative: str) -> Non
 def expert(ctx, list_flag):
     """Create and maintain domain experts.
 
-    An expert is not a list of facts: it is a maintained knowledge role with
-    beliefs (provenance, confidence, decay), a temporal graph that answers
-    what changed and what is contested, explicit gaps and stances, scheduled
-    research over time, and a reviewed purpose measured on repeated
-    decisions. Maintenance and consultation run on bounded local or
-    plan-quota capacity. Legacy metered lifecycle and chat execution fail
-    closed in v2.36.
+    Not a list of facts: a maintained role with beliefs (provenance, decay),
+    a temporal graph (what changed, what is contested), gaps, stances, and
+    scheduled research over time; see README. Legacy metered paths fail closed.
 
     COMMON COMMANDS:
       deepr expert list              List all experts
