@@ -233,10 +233,13 @@ deepr doctor --skip-connectivity
 | Metered batch, campaign, team, and agentic research | No dispatch | Gated in v2.36 |
 | Standalone metered expert chat and unsafe lifecycle paths | No dispatch | Gated in v2.36 |
 
-`deepr budget set <amount>` controls monthly approval behavior. For an
-authoritative hard cap, set `DEEPR_MAX_COST_PER_JOB`,
-`DEEPR_MAX_COST_PER_DAY`, and `DEEPR_MAX_COST_PER_MONTH`; use
-`DEEPR_COST_TRACKING_STRICT=1` so a required ledger write fails closed.
+`deepr budget set <amount>` controls monthly approval behavior and binds
+`deepr run`, `deepr research`, and MCP research. For an authoritative hard
+cap on every surface (CLI, web, REST), set `DEEPR_MAX_COST_PER_JOB`,
+`DEEPR_MAX_COST_PER_DAY`, and `DEEPR_MAX_COST_PER_MONTH`. Ledger writes fail
+closed by default (`DEEPR_COST_TRACKING_STRICT=0` opts out). Audit spend vs
+artifacts anytime with `deepr costs doctor`; `deepr doctor` and the web
+dashboard surface over-budget and orphaned spend loudly.
 
 ---
 

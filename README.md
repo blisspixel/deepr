@@ -697,8 +697,17 @@ deepr costs doctor
 deepr research --auto --batch queries.txt --dry-run
 ```
 
-Set `DEEPR_COST_TRACKING_STRICT=1` to fail fast when cost events cannot be
-persisted. Provider prompt-cache controls remain planned until TTL, cache-key,
+Cost tracking is strict by default: a spend event that cannot be written to
+the canonical ledger raises instead of silently continuing (set
+`DEEPR_COST_TRACKING_STRICT=0` to opt out). The monthly budget gate
+(`deepr budget set`) binds `deepr run`, `deepr research`, and MCP research
+alike; `DEEPR_MAX_COST_PER_JOB/_DAY/_MONTH` are hard ceilings enforced on the
+CLI, web, and REST surfaces (the legacy `DEEPR_*_LIMIT` names are still
+honored - the tighter bound wins, and malformed values never fall open).
+`deepr budget status`, `deepr doctor`, `deepr costs doctor`, and the web
+dashboard all report the same ledger-reconciled spend, including settled money
+whose report artifact no longer exists on disk (orphaned spend). Provider
+prompt-cache controls remain planned until TTL, cache-key,
 and pre-warm estimators are explicit and budget-gated. See
 [docs/CAPACITY.md](docs/CAPACITY.md#costing-deep-dive) for provider-specific
 cost buckets such as cached tokens, server-side tools, batch modifiers, and
