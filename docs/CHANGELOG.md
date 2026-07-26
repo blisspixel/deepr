@@ -57,6 +57,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   downstream as a misleading "authentication failed") even when a valid key was
   present. The factory now falls back to the provider's environment variable
   and treats the "***" redaction placeholder as absent.
+- Fixed the MCP research tool bypassing the monthly budget gate: it now
+  consults the `deepr budget set` approval gate before dispatch with the
+  same headless semantics as `deepr run -y` - a spend the gate flags for
+  human judgment returns a typed BUDGET_CONFIRMATION_REQUIRED error with
+  instructions instead of being waved through, since an agent cannot
+  consent on the operator's behalf.
 - Fixed the metered consult-quality judge erasing billed spend: any
   exception after the provider call (response parsing, settlement itself)
   refunded the cost reservation even though the call had been billed. The
