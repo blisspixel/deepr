@@ -23,7 +23,7 @@ docx2pdf>=0.1.8
 
 # Utilities
 requests>=2.31.0
-pytz>=2026.2
+pytz>=2026.3.post1
 
 # Web scraping (Playwright for JS-heavy sites)
 playwright>=1.60.0
