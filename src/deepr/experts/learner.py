@@ -138,6 +138,14 @@ class AutonomousLearner:
                     f"Cost so far: ${saved_progress.get('total_cost_so_far', 0):.2f}",
                     callback=progress_callback,
                 )
+                # Already-paid jobs still at the provider are retrieved, never
+                # re-submitted: their topics are excluded from remaining.
+                for entry in saved_progress.get("in_flight_topics", []):
+                    self._log_progress(
+                        f"In flight (already paid, retrieve via deepr status): "
+                        f"{entry.get('title', '?')} [{entry.get('provider_job_id', '?')[:16]}]",
+                        callback=progress_callback,
+                    )
             else:
                 self._log_progress("No saved progress found - starting fresh", callback=progress_callback)
 
@@ -451,6 +459,10 @@ class AutonomousLearner:
         """Save learning progress for later resume (see learner_persistence)."""
         from deepr.experts import learner_persistence
 
+        # Topics with jobs already submitted this run are in flight, not
+        # remaining: their money is spent and resume must retrieve, not re-buy.
+        terminal = set(progress.completed_topics) | set(progress.failed_topics)
+        in_flight = {title: job_id for job_id, title in progress.job_topics.items() if title not in terminal}
         learner_persistence.save_learning_progress(
             expert_name=expert.name,
             completed_topics=progress.completed_topics,
@@ -458,6 +470,7 @@ class AutonomousLearner:
             remaining_topics=remaining_topics,
             total_cost=progress.total_cost,
             started_at=progress.started_at,
+            in_flight=in_flight,
         )
 
     def load_learning_progress(self, expert_name: str) -> dict | None:

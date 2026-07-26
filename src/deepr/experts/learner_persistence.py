@@ -93,21 +93,33 @@ def save_learning_progress(
     remaining_topics: list[Any],
     total_cost: float,
     started_at: Any,
+    in_flight: dict[str, str] | None = None,
 ) -> None:
-    """Save learning progress to the expert's data directory for resume."""
+    """Save learning progress to the expert's data directory for resume.
+
+    Topics whose jobs are already submitted (in_flight: title -> provider job
+    id) are excluded from remaining and recorded separately: resume must
+    retrieve their already-paid results, never re-submit them as fresh paid
+    research. Without this, pausing at a daily limit re-bought every job that
+    was still running at the provider.
+    """
     import json
     from datetime import UTC, datetime
 
     progress_file = ExpertStore().get_knowledge_dir(expert_name) / "learning_progress.json"
     progress_file.parent.mkdir(parents=True, exist_ok=True)
 
-    done = set(completed_topics) | set(failed_topics)
+    in_flight = in_flight or {}
+    done = set(completed_topics) | set(failed_topics) | set(in_flight)
     remaining = [t for t in remaining_topics if t.title not in done]
     progress_data = {
         "expert_name": expert_name,
         "paused_at": datetime.now(UTC).isoformat(),
         "completed_topics": completed_topics,
         "failed_topics": failed_topics,
+        "in_flight_topics": [
+            {"title": title, "provider_job_id": job_id} for title, job_id in sorted(in_flight.items())
+        ],
         "remaining_topics": [
             {
                 "title": t.title,
