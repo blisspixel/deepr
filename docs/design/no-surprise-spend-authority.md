@@ -1,7 +1,7 @@
 # No-surprise spend authority and bounded workflow graphs
 
-Status: accepted; phases 1 and 2 implemented, phase 4 partially implemented,
-2026-07-25
+Status: accepted; phases 1 and 2 implemented, phases 4 and 5 partially
+implemented, 2026-07-27
 
 ## Decision
 
@@ -94,6 +94,34 @@ After dispatch:
 No human confirmation, `--yes`, unrestricted MCP mode, dashboard mutation,
 retry, or model-generated instruction can bypass these invariants.
 
+## Spend truth and receipt identity
+
+Every operator-facing cost view must distinguish:
+
+1. Canonical settled spend for the exact UTC window.
+2. Durable active holds that may still become spend.
+3. Exposure, defined as settled spend plus active holds.
+4. Per-window remaining capacity.
+5. The maximum new paid call allowed by the per-job, day, week, and month
+   ceilings together.
+
+An unreadable ledger or reservation store is unknown money state, not zero.
+Unknown money state reports zero authorizable headroom and blocks paid work.
+Derived dashboard preferences are not spend authority and must not be labeled
+as limits unless they are clamped through the shared resolver.
+
+For later invoice reconciliation, supported central metered calls preserve a
+local client correlation ID, a provider HTTP request ID when exposed, and a
+separate provider object ID. The extractor is bounded and reads only declared
+fields, known mappings, known request-ID headers, and bounded exception chains.
+It does not record prompts, responses, credentials, authentication headers, or
+provider endpoints. An absent provider request ID remains honest missing data.
+
+These identifiers improve joining but do not make the local ledger a provider
+invoice. Provider billing remains authoritative. Deepr does not currently
+import provider billing exports, verify paid API account hard limits, or detect
+calls made outside Deepr. Those controls remain required defense in depth.
+
 ## Graph execution contract
 
 Deepr does not need a new graph framework merely to parallelize work. Existing
@@ -131,6 +159,9 @@ The useful graph rules are:
 4. Add provider-complete envelopes, divergence freeze, strict ledger-root
    reconciliation, and durable attempt receipts for all capacity classes.
 5. Add threshold notifications and graph-level partial-completion telemetry.
+6. Import provider-authoritative billing evidence and freeze paid work on
+   unexplained positive drift. Keep provider hard-limit and overage-off posture
+   explicitly verified, operator-attested, or unknown.
 
 Implementation note, 2026-07-25: the shared wallet, job/day/week/month
 hierarchy, manual freeze, durable aggregate reservations, pre-dispatch
@@ -138,6 +169,14 @@ revalidation, exact bounded chat and embedding envelopes, dual MCP consent,
 terminal success/failure settlement, canonical REST spend view, and static paid
 boundary are shipped in the working tree. Paid composed fan-out remains gated;
 parent reservation slices and branch-completion telemetry are not yet shipped.
+
+Implementation note, 2026-07-27: strict budget history, active-hold visibility,
+effective CLI cap displays, live pull-based CLI threshold state, and provider
+receipt identifiers are shipped. Outbound threshold delivery, billing-export
+import, paid API account hard-limit verification, and external-spend detection
+are not shipped. A provider account can still accrue charges through another
+application, a shared or compromised credential, a vendor-side pricing change,
+or taxes outside Deepr's usage ledger.
 
 Each phase is independently fail-closed. A later phase may improve
 availability, reporting, or efficiency, but it must not weaken an earlier

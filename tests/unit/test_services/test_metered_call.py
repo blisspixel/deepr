@@ -74,6 +74,76 @@ def test_sync_call_settles_reported_token_cost_and_releases_ceiling() -> None:
     assert settled == [events[0].cost_usd]
 
 
+def test_sync_call_preserves_http_and_object_receipt_identifiers() -> None:
+    response = SimpleNamespace(
+        _request_id="req-http-123",
+        id="response-object-456",
+        headers={"x-request-id": "req-header-lower-priority"},
+        usage=SimpleNamespace(input_tokens=100, output_tokens=20),
+    )
+
+    execute_reserved_sync_call(
+        operation_prefix="receipt",
+        provider="openai",
+        model="gpt-5",
+        source="test.receipt",
+        call=lambda: response,
+    )
+
+    event = CostLedger().get_events()[0]
+    assert event.request_id == "req-http-123"
+    assert event.metadata["provider_http_request_id"] == "req-http-123"
+    assert event.metadata["provider_object_id"] == "response-object-456"
+    assert event.metadata["client_correlation_id"].startswith("receipt-")
+
+
+def test_sync_failure_preserves_nested_provider_request_id() -> None:
+    provider_error = RuntimeError("provider rejected request")
+    provider_error.request_id = "req-error-789"  # type: ignore[attr-defined]
+    wrapper_error = RuntimeError("wrapped provider failure")
+    wrapper_error.__cause__ = provider_error
+
+    with pytest.raises(RuntimeError, match="wrapped provider failure"):
+        execute_reserved_sync_call(
+            operation_prefix="failure-receipt",
+            provider="openai",
+            model="gpt-5",
+            source="test.failure_receipt",
+            call=Mock(side_effect=wrapper_error),
+        )
+
+    event = CostLedger().get_events()[0]
+    assert event.request_id == "req-error-789"
+    assert event.metadata["provider_http_request_id"] == "req-error-789"
+    assert event.metadata["metered_call_settlement_reason"] == "provider_call_failed"
+
+
+def test_sync_call_does_not_probe_undeclared_dynamic_receipt_fields() -> None:
+    class DynamicResponse:
+        def __init__(self) -> None:
+            self.usage = SimpleNamespace(input_tokens=100, output_tokens=20)
+            self.dynamic_reads: list[str] = []
+
+        def __getattr__(self, name: str) -> object:
+            self.dynamic_reads.append(name)
+            raise AssertionError(f"unexpected dynamic field read: {name}")
+
+    response = DynamicResponse()
+    execute_reserved_sync_call(
+        operation_prefix="no-dynamic-receipt",
+        provider="openai",
+        model="gpt-5",
+        source="test.no_dynamic_receipt",
+        call=lambda: response,
+    )
+
+    assert response.dynamic_reads == []
+    event = CostLedger().get_events()[0]
+    assert event.request_id == ""
+    assert "provider_http_request_id" not in event.metadata
+    assert "provider_object_id" not in event.metadata
+
+
 def test_sync_call_does_not_replay_ambiguous_failure() -> None:
     call = Mock(side_effect=TimeoutError("response lost"))
 
@@ -271,6 +341,28 @@ async def test_async_call_settles_once_without_replay() -> None:
     call.assert_awaited_once_with()
     assert ResearchReservationStore().active_cost() == 0
     assert len(CostLedger().get_events()) == 1
+
+
+@pytest.mark.asyncio
+async def test_async_call_preserves_header_request_and_object_ids() -> None:
+    response = SimpleNamespace(
+        id="message-object-123",
+        headers={"X-Request-ID": "req-async-123"},
+        usage=SimpleNamespace(prompt_tokens=20, completion_tokens=10),
+    )
+
+    await execute_reserved_async_call(
+        operation_prefix="async-receipt",
+        provider="anthropic",
+        model="gpt-5",
+        source="test.async_receipt",
+        call=AsyncMock(return_value=response),
+    )
+
+    event = CostLedger().get_events()[0]
+    assert event.request_id == "req-async-123"
+    assert event.metadata["provider_http_request_id"] == "req-async-123"
+    assert event.metadata["provider_object_id"] == "message-object-123"
 
 
 @pytest.mark.asyncio
@@ -536,6 +628,32 @@ async def test_async_stream_settles_final_usage_and_releases_ceiling() -> None:
 
 
 @pytest.mark.asyncio
+async def test_async_stream_preserves_receipt_identifiers_from_chunks() -> None:
+    chunk = SimpleNamespace(_request_id="req-stream-123", id="chunk-object-123")
+
+    async def events():
+        yield chunk, SimpleNamespace(input_tokens=50, output_tokens=10)
+
+    chunks = [
+        item
+        async for item in execute_reserved_async_stream(
+            operation_prefix="stream-receipt",
+            provider="openai",
+            model="gpt-5",
+            source="test.stream_receipt",
+            events=events,
+            max_cost_per_job=1.0,
+        )
+    ]
+
+    assert chunks == [chunk]
+    event = CostLedger().get_events()[0]
+    assert event.request_id == "req-stream-123"
+    assert event.metadata["provider_http_request_id"] == "req-stream-123"
+    assert event.metadata["provider_object_id"] == "chunk-object-123"
+
+
+@pytest.mark.asyncio
 async def test_fixed_cost_call_settles_success_cost_and_releases_ceiling() -> None:
     settled: list[float] = []
 
@@ -563,6 +681,31 @@ async def test_fixed_cost_call_settles_success_cost_and_releases_ceiling() -> No
     assert len(events) == 1
     assert events[0].cost_usd == pytest.approx(0.05)
     assert settled == [pytest.approx(0.05)]
+
+
+@pytest.mark.asyncio
+async def test_fixed_cost_call_preserves_mapping_receipt_identifiers() -> None:
+    result = await execute_reserved_fixed_cost_async_call(
+        operation_prefix="fixed-receipt",
+        provider="skill",
+        model="recon:lookup",
+        source="test.fixed_receipt",
+        max_cost_per_job=0.05,
+        call=AsyncMock(
+            return_value={
+                "request_id": "req-fixed-123",
+                "id": "tool-object-123",
+                "cost": 0.05,
+            }
+        ),
+        cost_from_result=lambda value: float(value["cost"]),
+    )
+
+    assert result["id"] == "tool-object-123"
+    event = CostLedger().get_events()[0]
+    assert event.request_id == "req-fixed-123"
+    assert event.metadata["provider_http_request_id"] == "req-fixed-123"
+    assert event.metadata["provider_object_id"] == "tool-object-123"
 
 
 @pytest.mark.asyncio

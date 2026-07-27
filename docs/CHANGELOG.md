@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.38.2] - 2026-07-27
+
+### Added
+
+- Added a bounded provider receipt contract for every central sync, async,
+  streaming, and fixed-cost metered wrapper. Settlement now preserves a local
+  client correlation ID, the provider HTTP request ID when exposed, and the
+  distinct provider object ID. Extraction reads only declared fields and known
+  headers, rejects unsafe values, traverses bounded wrapped-error evidence, and
+  never records prompts, responses, credentials, or endpoints.
+- Added live 50, 80, 95, and 100 percent CLI threshold reporting based on the
+  strict canonical ledger plus durable active holds. This is pull-based CLI
+  visibility. Outbound notification delivery and provider billing import remain
+  roadmap work.
+
+### Changed
+
+- Refreshed the remaining direct development tools to Hypothesis 6.161.6 and
+  Twine 7.0.0. The frozen Python dependency graph now has no direct package
+  reported behind its current compatible release, and the vulnerability audit
+  reports no known findings.
+- `deepr costs show`, `costs alerts`, and `costs limits` now resolve the same
+  per-job, UTC-day, UTC-week, and UTC-month hard ceilings used at dispatch. They
+  distinguish settled spend, active holds, individual window headroom, and the
+  maximum new paid call allowed by all windows together.
+- `deepr costs limits --monthly` now updates the binding operator budget. The
+  legacy `--daily` setter is refused with instructions for the authoritative
+  `DEEPR_MAX_COST_PER_DAY` runtime cap instead of persisting a dashboard-only
+  preference that did not govern paid dispatch.
+
+### Fixed
+
+- `deepr budget history` now reads a strict, locked snapshot of the append-only
+  cost ledger. It no longer reports no history when canonical spend exists, and
+  it shows provider, model, operation, source, task identity, all-time settled
+  spend, and current active holds.
+- Budget approval, status, safety, configuration feedback, and unfreeze now
+  include strictly reconciled durable active holds. Unreadable ledger or hold
+  state reports unknown money state and zero authorizable headroom.
+- Strict status reconciliation closes a stale active reservation when an
+  idempotent canonical completion already proves its cost, without appending a
+  duplicate charge or deleting spend evidence.
+
 ## [2.38.1] - 2026-07-26
 
 ### Changed

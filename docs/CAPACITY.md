@@ -94,6 +94,15 @@ deepr capacity next --task-class sync --context-mode deep --expert "Platform Tea
 deepr costs spend-decisions
 deepr costs spend-decisions --expert "Platform Team Expert" --decision deferred
 deepr costs spend-decisions --json
+
+# Read strict spend truth and current authority. These make no provider call.
+deepr budget status
+deepr budget history --limit 20
+deepr budget safety
+deepr costs show
+deepr costs alerts
+deepr costs limits
+deepr costs doctor --json
 ```
 
 The OneDrive example relocates expert, report, and `DEEPR_DATA_DIR` runtime
@@ -401,6 +410,50 @@ API work in scheduled mode. `sync-all --plan <id>` and
 - Value-of-spend gates write their allow/defer decisions to
   `spend_decisions.jsonl` under the cost data root. Inspect them with
   `deepr costs spend-decisions`; this command is read-only and costs `$0`.
+- Budget history and current cost views read a strict locked ledger snapshot.
+  They report settled spend, durable active holds, exposure, per-window
+  remaining capacity, and the maximum new paid call allowed by every cap. If
+  either money store is unreadable, authorizable headroom is zero.
+- `deepr costs limits --monthly N` updates the binding operator month budget.
+  The old dashboard-only daily setter is refused because it never governed
+  paid dispatch. Set `DEEPR_MAX_COST_PER_DAY` in the Deepr runtime environment
+  and restart the process to change authoritative daily policy.
+- Central metered wrappers preserve a client correlation ID, provider HTTP
+  request ID when exposed, and a separate provider object ID. These are billing
+  join evidence, not proof of the provider invoice.
+
+## Provider Account Controls
+
+Deepr's hard ceiling controls calls admitted through Deepr. It cannot prevent a
+manual provider call, another application using the same credential, a leaked
+credential, a provider pricing defect, delayed billing, or invoice tax. Treat
+provider-side controls as an independent boundary.
+
+For each paid API account or project, record each control as one of:
+
+- `verified by Deepr`: current authoritative evidence was read and bound to the
+  exact account or project.
+- `operator-attested`: the operator confirmed the setting, but Deepr cannot
+  verify it.
+- `unknown`: no usable evidence exists. Unknown never authorizes more spend.
+
+The minimum account checklist is:
+
+1. A dedicated project or billing scope for Deepr, not a shared general key.
+2. The smallest available provider hard limit, prepaid balance, or disabled
+   paid-overage setting. A soft alert is not a hard limit.
+3. Alerts at 50, 80, 95, and 100 percent delivered to a monitored destination.
+4. A non-secret account, project, workspace, and key fingerprint recorded for
+   invoice joining. Never store the credential value in cost metadata.
+5. Regular read-only billing exports containing UTC period, currency, request
+   or job IDs, exact model and tier, token, tool, cache, storage, and other
+   billed units, actual charge, credits, adjustments, and tax.
+6. A freeze and credential-rotation procedure for any unexplained positive
+   invoice drift.
+
+Provider billing export import and provider account hard-limit verification are
+not shipped in v2.38.2. Until they are, reconcile exports outside the tracked
+repository and keep paid dispatch frozen whenever a charge cannot be explained.
 
 ## Costing Deep Dive
 

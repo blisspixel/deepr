@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.38.1 current main, 2026-07-26. This document defines what users and host
+Status: v2.38.2 current main, 2026-07-27. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops.
 
@@ -29,7 +29,10 @@ must not be described as usable capacity.
   ambiguous-outcome settlement, and terminal-state reconciliation before new
   spend is admitted. Paid synchronous planning calls reserve the full
   configured per-call ceiling and settle provider token usage. Adapters retry
-  creation only with a supported server-side idempotency contract.
+  creation only with a supported server-side idempotency contract. Strict CLI
+  views expose settled spend, active holds, effective authority, and maximum
+  new-call headroom. Central metered wrappers retain provider receipt IDs when
+  available.
 - Explicit provider selection and automatic single-route selection when the
   chosen request has a complete finite cost envelope. Automatic cross-provider
   metered fallback is disabled in v2.36.
@@ -580,7 +583,12 @@ source text through the verified absorb path.
 ## Operator Responsibilities
 
 - Provider API keys are user-owned credentials. Deepr enforces budget ceilings,
-  but users choose when to provide keys and when to allow paid tools.
+  but users choose when to provide keys and when to allow paid tools. Use a
+  dedicated provider project, the smallest available account hard limit or
+  disabled paid overage, monitored provider alerts, and regular billing-export
+  reconciliation. Deepr v2.38.2 does not verify those account controls or
+  import provider invoices, and cannot govern another application using the
+  same credential.
 - Local Ollama capacity is only as available as the local machine and admitted
   model evidence.
 - Remote MCP endpoints must use HTTPS outside loopback, scoped keys per agent,

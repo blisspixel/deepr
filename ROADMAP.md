@@ -324,7 +324,19 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.38.1)
+## Current Status (v2.38.2)
+
+**v2.38.2 additions:** budget history now reads the strict canonical ledger
+instead of an empty legacy side counter; budget and cost displays distinguish
+settled spend, durable active holds, per-window remaining capacity, and the
+maximum new paid call allowed by every cap together. The legacy `costs limits`
+daily setter now fails instead of claiming that a dashboard preference is spend
+authority, while its monthly setter updates the binding operator budget.
+Current CLI thresholds are recomputed from canonical exposure. Central sync,
+async, streaming, and fixed-cost metered wrappers preserve provider HTTP
+request IDs, provider object IDs, and a local client correlation ID for later
+invoice joins. No provider billing export import or account hard-limit
+verification is claimed.
 
 **v2.38.1 additions:** current stable Python and frontend dependencies, clean
 Python and npm vulnerability audits, frozen lock consumption in CI and
@@ -571,10 +583,19 @@ memory surface. This order is dependency-based, not calendar-based:
    - [x] **Weekly cap** (2026-07-25): `DEEPR_MAX_COST_PER_WEEK` joins
      job/day/month in `core/cost_caps.py`; the hierarchy is normalized as
      per-job <= day <= week <= month and the tightest authority wins.
-   - [ ] **Threshold alerts that reach the operator**: 50/80/95% of any cap
-     surfaces on the CLI at dispatch time and in the dashboard status bar,
-     not only on the costs page; 100% is a doctor error (shipped) and a
-     dispatch freeze (above).
+   - [~] **Threshold alerts that reach the operator**: `costs show` and `costs
+     alerts` now recompute live 50/80/95/100% state from strict settled spend
+     plus durable holds, and 100% remains a doctor error and dispatch block.
+     Still surface thresholds at dispatch time and in the dashboard status bar,
+     then add a durable notification outbox and monitored delivery sink.
+   - [ ] **Provider-authoritative billing reconciliation and account controls**:
+     import read-only billing exports with provider account/project scope,
+     billing period, currency, source hash, request/job/object identifiers,
+     billed units, actual charge, credits, adjustments, tax, and plan-versus-API
+     classification. Freeze paid dispatch on unexplained positive invoice drift.
+     Record provider hard-limit or overage-off posture only as verified,
+     operator-attested, or unknown. Never infer account protection from Deepr's
+     internal cap.
    - [ ] **Settle-time divergence and provider-complete pricing**: the
      divergence event and cross-process freeze are shipped, and unknown token
      pricing now blocks exact-envelope calls. Finish provider tool-fee coverage
@@ -587,8 +608,9 @@ memory surface. This order is dependency-based, not calendar-based:
      branches, and report incomplete fan-in as partial. Composed docs, team,
      campaign, and other paid fan-out remain gated until this contract ships.
    - [ ] **Remaining audit follow-up** (`.agent/cost-audit-2026-07-25.json`):
-     finish threshold delivery, batch-auto attribution, prep-campaign resume
-     identity, provider-complete tool fees, and fsync fault-injection coverage.
+     finish threshold delivery, provider billing import, provider account-control
+     evidence, batch-auto attribution, prep-campaign resume identity,
+     provider-complete tool fees, and fsync fault-injection coverage.
      Curriculum hidden retries, canonical counter seeding, legacy terminal
      pollers, immediate missing-usage settlement, and REST spend truth were
      closed on 2026-07-25.

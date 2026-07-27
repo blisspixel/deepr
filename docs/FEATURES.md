@@ -60,7 +60,7 @@ for the bounded browser and transport contract.
 
 **Expert Profile** - Six tabs: Chat (the interface remains visible, but metered streaming and slash-command execution fail closed in v2.36; use explicit local or plan query and consult surfaces), Claims (tracked assertions with confidence scores and source provenance), Knowledge Gaps (view gaps with EV/cost priority), Decisions (reasoning audit trail with rationale and alternatives), History (learning timeline with costs), and Skills (install/remove domain-specific capability packages). Chat includes a read-only stored-conversation sidebar when sessions exist; metered resume is gated. Each secondary view distinguishes a retrieval failure from a legitimate empty state and offers a scoped retry without hiding the loaded profile.
 
-**Cost Intelligence** - Append-only ledger spending trends over configurable time ranges (7/30/90 days), per-model cost breakdown with charts, budget limit controls with debounced sliders, all-operation ledger total, and queue completion progress. The scope note explains that imported or demo result costs do not create ledger spend and provider billing remains authoritative.
+**Cost Intelligence** - Append-only ledger spending trends over configurable time ranges (7/30/90 days), per-model cost breakdown with charts, strict budget history, settled-spend and active-hold exposure, live CLI thresholds, all-operation ledger total, and queue completion progress. Every CLI limit display resolves the binding per-job, day, week, and month authority. Provider billing remains authoritative; billing-export import and provider account hard-limit verification are not shipped.
 
 **Models & Benchmarks** - Model registry browser with provider grouping, saved benchmark results with quality rankings by tier (chat/news/research), quality charts, dry-run estimates, retained historical output, benchmark file selection, and routing configuration display. Available-only filtering requires verified provider configuration and fails closed when readiness is unavailable. All live provider validation, evaluation, and judge dispatch is gated in v2.36, including direct script execution; a larger estimate cap or approval does not unlock it.
 
@@ -1419,20 +1419,21 @@ deepr costs expert "Expert Name"
 deepr costs doctor
 deepr costs doctor --drift-threshold 0.05
 
-# View active cost alerts
+# View live thresholds from canonical settled spend plus active holds
 deepr costs alerts
 
-# View or set cost limits
+# View effective authority or set the binding monthly budget
 deepr costs limits
-deepr costs limits --daily 15 --monthly 150
+deepr costs limits --monthly 10
+deepr budget history --limit 20
 ```
 
 **Shows:**
-- Daily and monthly spending with budget utilization
+- Daily, weekly, and monthly settled spend, active holds, exposure, and maximum authorizable headroom
 - Cost breakdown by provider, operation, model, or expert
 - Timeline chart with anomaly detection (days > 2x average highlighted)
 - Per-expert costs: total research cost, monthly spending, budget usage, per-operation breakdown
-- Active alerts at configurable thresholds (50%, 80%, 95%)
+- Live pull-based CLI thresholds at 50%, 80%, 95%, and 100%; outbound delivery remains planned
 - Tracker integrity checks (ledger writable + drift vs dashboard totals) plus paid-events-vs-artifacts reconciliation via `deepr costs doctor`: every settled dollar either maps to a report directory on disk or is flagged as orphaned spend, with a nonzero exit so schedulers can alarm
 - A Spend section in `deepr doctor` that errors when the month is over budget or settled spend has no surviving artifact
 
@@ -1440,13 +1441,20 @@ Cost tracking is strict by default: a spend event that cannot be written to the 
 
 ### Budget Limits
 
-Configure in `.env`:
+Set the binding operator budget, then optionally narrow individual windows in
+the Deepr runtime environment. The tightest value always wins:
 
 ```bash
-DEEPR_MAX_COST_PER_JOB=10.0
-DEEPR_MAX_COST_PER_DAY=100.0
-DEEPR_MAX_COST_PER_MONTH=1000.0
+deepr budget set 10
+DEEPR_MAX_COST_PER_JOB=2.0
+DEEPR_MAX_COST_PER_DAY=5.0
+DEEPR_MAX_COST_PER_WEEK=10.0
+DEEPR_MAX_COST_PER_MONTH=10.0
 ```
+
+`deepr costs limits --daily` is intentionally refused because its historical
+dashboard preference did not control dispatch. Change the named environment
+cap, restart Deepr, and verify with `deepr costs limits`.
 
 ## Queue Operations
 

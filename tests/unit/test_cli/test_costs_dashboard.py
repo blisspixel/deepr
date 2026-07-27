@@ -76,39 +76,161 @@ def _make_dashboard_mock(entries=None, days=7, base_cost=1.0, anomaly_day=None):
 
 
 class TestShow:
-    def test_command_line_limits_override_persisted_dashboard_limits(self, runner):
-        dashboard = MagicMock(spec=CostDashboard)
-        dashboard.daily_limit = 10.0
-        dashboard.monthly_limit = 100.0
+    def test_current_authority_uses_strict_calendar_totals_and_active_holds(self):
+        from deepr.cli.commands.costs import _current_cost_authority
 
-        def get_summary():
-            return {
-                "daily": {
-                    "total": 0.2,
-                    "limit": dashboard.daily_limit,
-                    "remaining": dashboard.daily_limit - 0.2,
-                    "utilization": 0.2 / dashboard.daily_limit,
-                },
-                "monthly": {
-                    "total": 1.0,
-                    "limit": dashboard.monthly_limit,
-                    "remaining": dashboard.monthly_limit - 1.0,
-                    "utilization": 1.0 / dashboard.monthly_limit,
-                },
-                "active_alerts": [],
-            }
+        now = datetime.now(UTC)
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        events = [
+            MagicMock(timestamp=now, cost_usd=1.0),
+            MagicMock(timestamp=month_start, cost_usd=2.0),
+            MagicMock(timestamp=month_start - timedelta(seconds=1), cost_usd=8.0),
+        ]
+        ledger = MagicMock()
+        ledger.with_locked_accounting_events.side_effect = lambda operation: operation(events)
+        store = MagicMock()
+        store.active_cost.return_value = 0.5
 
-        dashboard.get_summary.side_effect = get_summary
-        with patch("deepr.cli.commands.costs.CostDashboard", return_value=dashboard) as dashboard_cls:
+        with (
+            patch("deepr.cli.commands.costs.CostLedger", return_value=ledger),
+            patch(
+                "deepr.core.cost_caps.resolve_spend_caps",
+                return_value={"per_job": 2.0, "daily": 5.0, "weekly": 10.0, "monthly": 10.0},
+            ),
+            patch("deepr.experts.research_reservation_store.ResearchReservationStore", return_value=store),
+        ):
+            summary = _current_cost_authority(daily_display_limit=20.0, monthly_display_limit=7.0)
+
+        assert summary["daily_limit"] == 5.0
+        assert summary["monthly_limit"] == 7.0
+        expected_daily = 3.0 if now.date() == month_start.date() else 1.0
+        week_start = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=now.weekday())
+        expected_weekly = sum(event.cost_usd for event in events if event.timestamp >= week_start)
+        assert summary["daily_settled"] == pytest.approx(expected_daily)
+        assert summary["weekly_settled"] == pytest.approx(expected_weekly)
+        assert summary["monthly_settled"] == pytest.approx(3.0)
+        assert summary["daily_exposure"] == pytest.approx(expected_daily + 0.5)
+        assert summary["weekly_exposure"] == pytest.approx(expected_weekly + 0.5)
+        assert summary["monthly_exposure"] == pytest.approx(3.5)
+        expected_headroom = min(2.0, 5.0 - expected_daily - 0.5, 10.0 - expected_weekly - 0.5, 3.5)
+        assert summary["authorizable_headroom"] == pytest.approx(max(0.0, expected_headroom))
+
+    def test_command_line_limits_cannot_raise_effective_authority(self, runner):
+        summary = {
+            "per_job_limit": 2.0,
+            "daily_limit": 2.0,
+            "weekly_limit": 10.0,
+            "monthly_limit": 10.0,
+            "daily_settled": 0.2,
+            "weekly_settled": 1.0,
+            "monthly_settled": 1.0,
+            "active_holds": 0.5,
+            "daily_exposure": 0.7,
+            "weekly_exposure": 1.5,
+            "monthly_exposure": 1.5,
+            "authorizable_headroom": 1.3,
+        }
+        with patch("deepr.cli.commands.costs._current_cost_authority", return_value=summary) as current:
             result = runner.invoke(
                 cli,
                 ["costs", "show", "--daily-limit", "2", "--monthly-limit", "20"],
             )
 
         assert result.exit_code == 0
-        assert "$0.20 / $2.00" in result.output
-        assert "$1.00 / $20.00" in result.output
-        dashboard_cls.assert_called_once_with()
+        assert "Exposure: $0.70 / $2.00" in result.output
+        assert "Exposure: $1.50 / $10.00" in result.output
+        assert "Active holds: $0.50" in result.output
+        assert "Maximum currently authorizable new paid call: $1.30" in result.output
+        current.assert_called_once_with(daily_display_limit=2.0, monthly_display_limit=20.0)
+
+    def test_show_reports_live_hard_ceiling_alert(self, runner):
+        summary = {
+            "per_job_limit": 2.0,
+            "daily_limit": 5.0,
+            "weekly_limit": 10.0,
+            "monthly_limit": 10.0,
+            "daily_settled": 0.0,
+            "weekly_settled": 10.0,
+            "monthly_settled": 10.0,
+            "active_holds": 0.25,
+            "daily_exposure": 0.25,
+            "weekly_exposure": 10.25,
+            "monthly_exposure": 10.25,
+            "authorizable_headroom": 0.0,
+        }
+        with patch("deepr.cli.commands.costs._current_cost_authority", return_value=summary):
+            result = runner.invoke(cli, ["costs", "show"])
+
+        assert result.exit_code == 0
+        assert "Monthly alert" in result.output
+        assert "100% hard ceiling reached" in result.output
+
+
+class TestLiveCostAlertsAndLimits:
+    def test_alerts_recomputes_from_current_exposure(self, runner):
+        summary = {
+            "per_job_limit": 2.0,
+            "daily_limit": 5.0,
+            "weekly_limit": 10.0,
+            "monthly_limit": 10.0,
+            "daily_settled": 0.0,
+            "weekly_settled": 8.0,
+            "monthly_settled": 8.0,
+            "active_holds": 0.5,
+            "daily_exposure": 0.5,
+            "weekly_exposure": 8.5,
+            "monthly_exposure": 8.5,
+            "authorizable_headroom": 1.5,
+        }
+        with patch("deepr.cli.commands.costs._current_cost_authority", return_value=summary):
+            result = runner.invoke(cli, ["costs", "alerts"])
+
+        assert result.exit_code == 0
+        assert "80% warning threshold reached" in result.output
+        assert "Settled plus active holds: $8.50" in result.output
+
+    def test_legacy_daily_setter_is_rejected_as_non_authoritative(self, runner):
+        result = runner.invoke(cli, ["costs", "limits", "--daily", "2"])
+
+        assert result.exit_code == 1
+        assert "legacy dashboard daily setter was not spend authority" in result.output
+        assert "DEEPR_MAX_COST_PER_DAY" in result.output
+
+    def test_monthly_setter_updates_authoritative_budget(self, runner):
+        summary = {
+            "per_job_limit": 2.0,
+            "daily_limit": 5.0,
+            "weekly_limit": 7.0,
+            "monthly_limit": 7.0,
+            "daily_settled": 0.0,
+            "weekly_settled": 1.0,
+            "monthly_settled": 1.0,
+            "active_holds": 0.5,
+            "daily_exposure": 0.5,
+            "weekly_exposure": 1.5,
+            "monthly_exposure": 1.5,
+            "authorizable_headroom": 2.0,
+        }
+        config = {"monthly_limit": 10.0}
+
+        def mutate(update):
+            update(config)
+            return config
+
+        with (
+            patch("deepr.cli.commands.budget.mutate_budget_config", side_effect=mutate),
+            patch("deepr.cli.commands.costs._current_cost_authority", return_value=summary),
+            patch(
+                "deepr.core.cost_caps.resolve_spend_caps",
+                return_value={"per_job": 2.0, "daily": 5.0, "weekly": 7.0, "monthly": 7.0},
+            ),
+        ):
+            result = runner.invoke(cli, ["costs", "limits", "--monthly", "7"])
+
+        assert result.exit_code == 0
+        assert config["monthly_limit"] == 7.0
+        assert "Authoritative monthly paid API budget set to $7.00" in result.output
+        assert "Monthly hard ceiling: $7.00" in result.output
 
 
 class TestTimeline:
