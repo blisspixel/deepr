@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Isolated map-reduce orchestration tests from the durable paid-call reservation
   store so concurrent test scheduling cannot consume shared budget state. The
   production reservation gate and its dedicated tests are unchanged.
+- Refreshed Hypothesis from 6.161.7 to 6.161.8 and the transitive tqdm lock from
+  4.69.1 to 4.70.0 after the release-time registry resolution found compatible
+  same-day updates.
 
 ## [2.38.3] - 2026-07-27
 

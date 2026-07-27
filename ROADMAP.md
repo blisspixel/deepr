@@ -327,7 +327,8 @@ reliable product, not a four-language architecture diagram.
 ## Current Status (v2.38.4)
 
 **v2.38.4 additions:** the frontend development lock now uses Globals 17.8.0,
-the current compatible release found by the final npm registry audit. Package
+and the Python lock uses Hypothesis 6.161.8 plus transitive tqdm 4.70.0, the
+current compatible releases found by the final registry audits. Package
 metadata, the exported version, and `deepr --version` now have a blocking
 release invariant after the final artifact smoke test caught a stale exported
 version. No runtime behavior or paid-capacity boundary changed.
