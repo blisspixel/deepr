@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.38.2 current main, 2026-07-27. This document defines what users and host
+Status: v2.38.3 current main, 2026-07-27. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops.
 
@@ -586,7 +586,7 @@ source text through the verified absorb path.
   but users choose when to provide keys and when to allow paid tools. Use a
   dedicated provider project, the smallest available account hard limit or
   disabled paid overage, monitored provider alerts, and regular billing-export
-  reconciliation. Deepr v2.38.2 does not verify those account controls or
+  reconciliation. Deepr v2.38.3 does not verify those account controls or
   import provider invoices, and cannot govern another application using the
   same credential.
 - Local Ollama capacity is only as available as the local machine and admitted

@@ -324,7 +324,11 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.38.2)
+## Current Status (v2.38.3)
+
+**v2.38.3 addition:** the development lock now uses Hypothesis 6.161.7, the
+current compatible release discovered by the final dependency audit after
+v2.38.2 was published. No runtime behavior or paid-capacity boundary changed.
 
 **v2.38.2 additions:** budget history now reads the strict canonical ledger
 instead of an empty legacy side counter; budget and cost displays distinguish

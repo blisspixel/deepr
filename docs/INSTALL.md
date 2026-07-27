@@ -156,7 +156,7 @@ That's it! You're ready to use Deepr.
 
 ```bash
 # Download the wheel for the selected release, then install it locally.
-python -m pip install ./deepr_research-2.38.2-py3-none-any.whl
+python -m pip install ./deepr_research-2.38.3-py3-none-any.whl
 deepr --version
 ```
 

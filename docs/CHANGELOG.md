@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.38.3] - 2026-07-27
+
+### Changed
+
+- Refreshed Hypothesis from 6.161.6 to 6.161.7 after the final dependency audit
+  found the same-day upstream patch. The frozen direct dependency graph is
+  current within declared compatibility, with no runtime or cost-boundary
+  change.
+
 ## [2.38.2] - 2026-07-27
 
 ### Added
