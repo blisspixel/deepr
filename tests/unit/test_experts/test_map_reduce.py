@@ -198,8 +198,6 @@ class TestIngest:
 
     @pytest.mark.asyncio
     async def test_large_document_processed(self):
-        mock_client = AsyncMock()
-
         # Map response (returned for every map call)
         map_response = MagicMock()
         map_response.choices = [MagicMock()]
@@ -210,13 +208,17 @@ class TestIngest:
         reduce_response.choices = [MagicMock()]
         reduce_response.choices[0].message.content = "Condensed document summary"
 
-        # Use a function to return map responses for any number of chunks, then reduce
-        call_count = {"n": 0}
-        ingester = MapReduceIngester(client=mock_client, chunk_size=50)
-        # Pre-calculate chunk count to set up exact side_effect
+        ingester = MapReduceIngester(chunk_size=50)
         chunks = ingester._split_document("x" * 200)
-        responses = [map_response] * len(chunks) + [reduce_response]
-        mock_client.chat.completions.create = AsyncMock(side_effect=responses)
+
+        async def complete_by_operation(*, operation: str, **_kwargs):
+            if operation == "map-chunk":
+                return map_response
+            if operation == "reduce-document":
+                return reduce_response
+            raise AssertionError(f"unexpected operation: {operation}")
+
+        ingester._complete_bounded = AsyncMock(side_effect=complete_by_operation)
 
         docs = [{"filename": "big.md", "content": "x" * 200}]
 
@@ -224,11 +226,10 @@ class TestIngest:
         assert len(result) == 1
         assert result[0]["filename"] == "big.md"
         assert "Condensed" in result[0]["content"]
+        assert ingester._complete_bounded.await_count == len(chunks) + 1
 
     @pytest.mark.asyncio
     async def test_mixed_document_sizes(self):
-        mock_client = AsyncMock()
-
         map_response = MagicMock()
         map_response.choices = [MagicMock()]
         map_response.choices[0].message.content = json.dumps({"facts": ["F1"]})
@@ -237,11 +238,17 @@ class TestIngest:
         reduce_response.choices = [MagicMock()]
         reduce_response.choices[0].message.content = "Summary"
 
-        ingester = MapReduceIngester(client=mock_client, chunk_size=50)
-        # Pre-calculate chunk count for the big doc
+        ingester = MapReduceIngester(chunk_size=50)
         chunks = ingester._split_document("x" * 100)
-        responses = [map_response] * len(chunks) + [reduce_response]
-        mock_client.chat.completions.create = AsyncMock(side_effect=responses)
+
+        async def complete_by_operation(*, operation: str, **_kwargs):
+            if operation == "map-chunk":
+                return map_response
+            if operation == "reduce-document":
+                return reduce_response
+            raise AssertionError(f"unexpected operation: {operation}")
+
+        ingester._complete_bounded = AsyncMock(side_effect=complete_by_operation)
 
         docs = [
             {"filename": "small.md", "content": "Small"},
@@ -252,13 +259,12 @@ class TestIngest:
         assert len(result) == 2
         assert result[0]["content"] == "Small"  # Passed through
         assert result[1]["content"] == "Summary"  # Processed
+        assert ingester._complete_bounded.await_count == len(chunks) + 1
 
     @pytest.mark.asyncio
     async def test_all_map_failures_fallback(self):
-        mock_client = AsyncMock()
-        mock_client.chat.completions.create = AsyncMock(side_effect=Exception("Fail"))
-
-        ingester = MapReduceIngester(client=mock_client, chunk_size=50)
+        ingester = MapReduceIngester(chunk_size=50)
+        ingester._complete_bounded = AsyncMock(side_effect=Exception("Fail"))
         docs = [{"filename": "doc.md", "content": "x" * 100}]
 
         result = await ingester.ingest(docs, "domain")

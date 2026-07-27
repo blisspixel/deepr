@@ -2,8 +2,14 @@
 
 import importlib
 import io
+import tomllib
+from pathlib import Path
 
 from click.testing import CliRunner
+
+import deepr
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 class _FakeCLI:
@@ -84,3 +90,15 @@ def test_root_no_color_option_applies_policy(monkeypatch):
     assert result.exit_code == 0
     assert calls == ["applied"]
     assert "--no-color" in result.output
+
+
+def test_cli_version_matches_project_metadata():
+    project = tomllib.loads((_REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    expected = project["project"]["version"]
+    main_module = importlib.import_module("deepr.cli.main")
+
+    result = CliRunner().invoke(main_module.cli, ["--version"])
+
+    assert result.exit_code == 0
+    assert deepr.__version__ == expected
+    assert result.output.strip() == f"Deepr, version {expected}"

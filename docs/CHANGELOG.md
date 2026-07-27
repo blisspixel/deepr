@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refreshed the frontend Globals development dependency from 17.7.0 to 17.8.0
   after the final npm registry audit found the compatible release. Runtime
   behavior and paid-capacity boundaries are unchanged.
+- Corrected the exported package and CLI version to 2.38.4 and added a release
+  invariant that fails when project metadata, the package export, and actual
+  `deepr --version` output disagree.
+- Isolated map-reduce orchestration tests from the durable paid-call reservation
+  store so concurrent test scheduling cannot consume shared budget state. The
+  production reservation gate and its dedicated tests are unchanged.
 
 ## [2.38.3] - 2026-07-27
 

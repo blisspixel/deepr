@@ -326,9 +326,11 @@ reliable product, not a four-language architecture diagram.
 
 ## Current Status (v2.38.4)
 
-**v2.38.4 addition:** the frontend development lock now uses Globals 17.8.0,
-the current compatible release found by the final npm registry audit. No
-runtime behavior or paid-capacity boundary changed.
+**v2.38.4 additions:** the frontend development lock now uses Globals 17.8.0,
+the current compatible release found by the final npm registry audit. Package
+metadata, the exported version, and `deepr --version` now have a blocking
+release invariant after the final artifact smoke test caught a stale exported
+version. No runtime behavior or paid-capacity boundary changed.
 
 **v2.38.3 addition:** the development lock now uses Hypothesis 6.161.7, AWS CLI
 1.45.57, and Boto3 1.43.57, the current compatible releases discovered by the
