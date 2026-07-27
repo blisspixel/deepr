@@ -6,8 +6,10 @@ without making any external API calls.
 
 import sys
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime
 from pathlib import Path
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
@@ -116,12 +118,48 @@ class TestBudgetStatusCommand:
             ),
             patch("deepr.cli.commands.budget.resolve_spend_caps", return_value={"monthly": 10.0}),
             patch("deepr.cli.commands.budget._ledger_month_spend", return_value=2.0),
+            patch("deepr.cli.commands.budget._durable_active_cost", return_value=0.0),
         ):
             result = runner.invoke(cli, ["budget", "status"])
 
         assert result.exit_code == 0
         assert "$2.00 / $10.00" in result.output
         assert "Configured monthly budget: $50.00; tighter policy is active" in result.output
+
+    def test_budget_status_counts_active_holds_in_exposure(self, runner):
+        with (
+            patch(
+                "deepr.cli.commands.budget.load_budget_config",
+                return_value={"monthly_limit": 10.0, "monthly_spending": 0.0, "current_month": "2026-07"},
+            ),
+            patch("deepr.cli.commands.budget.resolve_spend_caps", return_value={"monthly": 10.0}),
+            patch("deepr.cli.commands.budget._ledger_month_spend", return_value=2.0),
+            patch("deepr.cli.commands.budget._durable_active_cost", return_value=0.5),
+        ):
+            result = runner.invoke(cli, ["budget", "status"])
+
+        assert result.exit_code == 0
+        assert "Settled this month: $2.00" in result.output
+        assert "Active durable holds: $0.50" in result.output
+        assert "Budget: $2.50 / $10.00" in result.output
+        assert "Remaining: $7.50" in result.output
+
+    def test_budget_status_fails_closed_when_holds_are_unreadable(self, runner):
+        with (
+            patch(
+                "deepr.cli.commands.budget.load_budget_config",
+                return_value={"monthly_limit": 10.0, "monthly_spending": 0.0, "current_month": "2026-07"},
+            ),
+            patch("deepr.cli.commands.budget.resolve_spend_caps", return_value={"monthly": 10.0}),
+            patch("deepr.cli.commands.budget._ledger_month_spend", return_value=2.0),
+            patch("deepr.cli.commands.budget._durable_active_cost", return_value=None),
+        ):
+            result = runner.invoke(cli, ["budget", "status"])
+
+        assert result.exit_code == 0
+        assert "Active durable holds: UNKNOWN" in result.output
+        assert "Paid API blocked" in result.output
+        assert "Remaining: $0.00 (fail closed)" in result.output
 
 
 class TestBudgetHistoryCommand:
@@ -141,6 +179,42 @@ class TestBudgetHistoryCommand:
         """Test that --limit option exists."""
         result = runner.invoke(cli, ["budget", "history", "--help"])
         assert "--limit" in result.output or "-n" in result.output
+
+    def test_budget_history_reads_canonical_ledger(self, runner):
+        event = SimpleNamespace(
+            timestamp=datetime(2026, 7, 1, 0, 22, tzinfo=UTC),
+            cost_usd=1.25,
+            provider="openai",
+            model="gpt-5",
+            operation="research_completion",
+            source="test.canonical",
+            task_id="research_job-123",
+            session_id="",
+        )
+        ledger = MagicMock()
+        ledger.with_locked_accounting_events.side_effect = lambda operation: operation([event])
+
+        with (
+            patch("deepr.observability.cost_ledger.CostLedger", return_value=ledger),
+            patch("deepr.cli.commands.budget._durable_active_cost", return_value=0.5),
+        ):
+            result = runner.invoke(cli, ["budget", "history"])
+
+        assert result.exit_code == 0
+        assert "openai/gpt-5" in result.output
+        assert "research_completion | test.canonical | research_job-123" in result.output
+        assert "Total all-time settled spending: $1.250000" in result.output
+        assert "Active durable holds: $0.500000" in result.output
+
+    def test_budget_history_fails_closed_when_ledger_is_unreadable(self, runner):
+        ledger = MagicMock()
+        ledger.with_locked_accounting_events.side_effect = OSError("ledger unavailable")
+
+        with patch("deepr.observability.cost_ledger.CostLedger", return_value=ledger):
+            result = runner.invoke(cli, ["budget", "history"])
+
+        assert result.exit_code == 1
+        assert "Canonical cost ledger is unreadable" in result.output
 
 
 class TestBudgetSafetyCommand:

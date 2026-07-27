@@ -18,6 +18,16 @@ from deepr.experts.research_cost_gate import (
     settle_research_cost,
 )
 from deepr.experts.research_reservation_store import ResearchReservationStore
+from deepr.services.provider_receipts import (
+    ProviderReceiptIdentifiers as _ProviderReceiptIdentifiers,
+)
+from deepr.services.provider_receipts import (
+    extract_provider_receipt_identifiers as _provider_receipt_identifiers,
+)
+from deepr.services.provider_receipts import (
+    merge_provider_receipt_identifiers as _merge_receipt_identifiers,
+)
+from deepr.services.provider_receipts import provider_receipt_settlement_fields
 
 T = TypeVar("T")
 
@@ -43,7 +53,20 @@ def _optional_declared_attribute(value: object, name: str) -> object | None:
         inspect.getattr_static(value, name)
     except AttributeError:
         return None
-    return getattr(value, name, None)
+    try:
+        return getattr(value, name, None)
+    except Exception:
+        return None
+
+
+def _receipt_settlement_fields(
+    reservation: ResearchCostReservation,
+    identifiers: _ProviderReceiptIdentifiers,
+) -> tuple[str, dict[str, str]]:
+    return provider_receipt_settlement_fields(
+        client_correlation_id=reservation.job_id,
+        identifiers=identifiers,
+    )
 
 
 def _usage_tokens(usage: object, primary: str, fallback: str) -> int:
@@ -85,13 +108,20 @@ def _settle_conservative(
     source: str,
     reason: str,
     on_settled: Callable[[float], None] | None,
+    identifiers: _ProviderReceiptIdentifiers | None = None,
 ) -> None:
+    request_id, metadata = _receipt_settlement_fields(
+        reservation,
+        identifiers or _ProviderReceiptIdentifiers(),
+    )
+    metadata["metered_call_settlement_reason"] = reason
     settle_research_cost(
         reservation,
         actual_cost=None,
+        request_id=request_id,
         source=f"{source}.conservative",
         actual_cost_reported=False,
-        settlement_metadata={"metered_call_settlement_reason": reason},
+        settlement_metadata=metadata,
     )
     if on_settled is not None:
         on_settled(reservation.estimated_cost)
@@ -104,12 +134,19 @@ def _settle_response(
     output_tokens: int,
     source: str,
     on_settled: Callable[[float], None] | None,
+    identifiers: _ProviderReceiptIdentifiers | None = None,
 ) -> None:
+    request_id, metadata = _receipt_settlement_fields(
+        reservation,
+        identifiers or _ProviderReceiptIdentifiers(),
+    )
     settle_research_cost(
         reservation,
         actual_cost=actual_cost,
         tokens=output_tokens,
+        request_id=request_id,
         source=source,
+        settlement_metadata=metadata,
     )
     if on_settled is not None:
         on_settled(actual_cost if actual_cost is not None else reservation.estimated_cost)
@@ -127,13 +164,22 @@ def _settle_sync_failure(
     source: str,
     reason: str,
     on_settled: Callable[[float], None] | None,
+    operation_error: BaseException | None = None,
+    identifiers: _ProviderReceiptIdentifiers | None = None,
 ) -> None:
+    receipt_identifiers = identifiers or _ProviderReceiptIdentifiers()
+    if operation_error is not None:
+        receipt_identifiers = _merge_receipt_identifiers(
+            receipt_identifiers,
+            _provider_receipt_identifiers(operation_error),
+        )
     try:
         _settle_conservative(
             reservation,
             source=source,
             reason=reason,
             on_settled=on_settled,
+            identifiers=receipt_identifiers,
         )
     except BaseException as accounting_error:
         raise _accounting_error("Post-dispatch metered call cost settlement failed", accounting_error)
@@ -175,15 +221,17 @@ def execute_reserved_sync_call(
 
     try:
         response = call()
-    except BaseException:
+    except BaseException as operation_error:
         _settle_sync_failure(
             reservation,
             source=source,
             reason="provider_call_failed",
             on_settled=on_settled,
+            operation_error=operation_error,
         )
         raise
 
+    identifiers = _provider_receipt_identifiers(response)
     try:
         actual_cost, output_tokens = _response_cost(response, model)
     except BaseException:
@@ -192,6 +240,7 @@ def execute_reserved_sync_call(
             source=source,
             reason="malformed_or_unpriceable_usage",
             on_settled=on_settled,
+            identifiers=identifiers,
         )
         raise
 
@@ -202,6 +251,7 @@ def execute_reserved_sync_call(
             output_tokens=output_tokens,
             source=source,
             on_settled=on_settled,
+            identifiers=identifiers,
         )
     except BaseException as exc:
         raise _accounting_error("Metered call cost settlement failed", exc)
@@ -323,7 +373,13 @@ async def _settle_after_async_error(
     reason: str,
     on_settled: Callable[[float], None] | None,
     operation_error: BaseException,
+    identifiers: _ProviderReceiptIdentifiers | None = None,
 ) -> NoReturn:
+    receipt_identifiers = identifiers or _ProviderReceiptIdentifiers()
+    receipt_identifiers = _merge_receipt_identifiers(
+        receipt_identifiers,
+        _provider_receipt_identifiers(operation_error),
+    )
     task = asyncio.create_task(
         asyncio.to_thread(
             _settle_conservative,
@@ -331,6 +387,7 @@ async def _settle_after_async_error(
             source=source,
             reason=reason,
             on_settled=on_settled,
+            identifiers=receipt_identifiers,
         ),
         name=f"metered-call-conservative-settle-{reservation.job_id}",
     )
@@ -362,6 +419,7 @@ async def _settle_response_async(
     output_tokens: int,
     source: str,
     on_settled: Callable[[float], None] | None,
+    identifiers: _ProviderReceiptIdentifiers | None = None,
 ) -> None:
     task = asyncio.create_task(
         asyncio.to_thread(
@@ -371,6 +429,7 @@ async def _settle_response_async(
             output_tokens=output_tokens,
             source=source,
             on_settled=on_settled,
+            identifiers=identifiers,
         ),
         name=f"metered-call-settle-{reservation.job_id}",
     )
@@ -439,6 +498,7 @@ async def execute_reserved_async_call(
             operation_error=operation_error,
         )
 
+    identifiers = _provider_receipt_identifiers(response)
     try:
         actual_cost, output_tokens = _response_cost(response, model)
     except BaseException as usage_error:
@@ -448,6 +508,7 @@ async def execute_reserved_async_call(
             reason="malformed_or_unpriceable_usage",
             on_settled=on_settled,
             operation_error=usage_error,
+            identifiers=identifiers,
         )
 
     await _settle_response_async(
@@ -456,6 +517,7 @@ async def execute_reserved_async_call(
         output_tokens=output_tokens,
         source=source,
         on_settled=on_settled,
+        identifiers=identifiers,
     )
     return response
 
@@ -502,7 +564,12 @@ async def _settle_stream_usage_async(
     source: str,
     final_usage: object | None,
     on_settled: Callable[[float], None] | None,
+    identifiers: _ProviderReceiptIdentifiers,
 ) -> None:
+    identifiers = _merge_receipt_identifiers(
+        identifiers,
+        _provider_receipt_identifiers(final_usage) if final_usage is not None else _ProviderReceiptIdentifiers(),
+    )
     if final_usage is None:
         await asyncio.to_thread(
             _settle_conservative,
@@ -510,6 +577,7 @@ async def _settle_stream_usage_async(
             source=source,
             reason="stream_missing_usage",
             on_settled=on_settled,
+            identifiers=identifiers,
         )
         return
     try:
@@ -521,6 +589,7 @@ async def _settle_stream_usage_async(
             source=source,
             reason="malformed_or_unpriceable_usage",
             on_settled=on_settled,
+            identifiers=identifiers,
         )
         return
     if actual_cost is None and output_tokens <= 0:
@@ -530,6 +599,7 @@ async def _settle_stream_usage_async(
             source=source,
             reason="stream_missing_usage",
             on_settled=on_settled,
+            identifiers=identifiers,
         )
         return
     await _settle_response_async(
@@ -538,6 +608,7 @@ async def _settle_stream_usage_async(
         output_tokens=output_tokens,
         source=source,
         on_settled=on_settled,
+        identifiers=identifiers,
     )
 
 
@@ -566,8 +637,10 @@ async def execute_reserved_async_stream(
     )
 
     final_usage: object | None = None
+    identifiers = _ProviderReceiptIdentifiers()
     try:
         async for item, usage in events():
+            identifiers = _merge_receipt_identifiers(identifiers, _provider_receipt_identifiers(item))
             if usage is not None:
                 final_usage = usage
             yield item
@@ -580,6 +653,7 @@ async def execute_reserved_async_stream(
             else "provider_call_failed",
             on_settled=on_settled,
             operation_error=operation_error,
+            identifiers=identifiers,
         )
 
     await _settle_stream_usage_async(
@@ -588,6 +662,7 @@ async def execute_reserved_async_stream(
         source=source,
         final_usage=final_usage,
         on_settled=on_settled,
+        identifiers=identifiers,
     )
 
 
@@ -634,6 +709,7 @@ async def execute_reserved_fixed_cost_async_call(
             operation_error=operation_error,
         )
 
+    identifiers = _provider_receipt_identifiers(result)
     try:
         raw_cost = float(cost_from_result(result))
     except BaseException as cost_error:
@@ -643,6 +719,7 @@ async def execute_reserved_fixed_cost_async_call(
             reason="malformed_or_unpriceable_usage",
             on_settled=on_settled,
             operation_error=cost_error,
+            identifiers=identifiers,
         )
 
     if not math.isfinite(raw_cost) or raw_cost < 0:
@@ -652,6 +729,7 @@ async def execute_reserved_fixed_cost_async_call(
             reason="malformed_or_unpriceable_usage",
             on_settled=on_settled,
             operation_error=ValueError("cost_from_result must return a finite non-negative number"),
+            identifiers=identifiers,
         )
 
     if raw_cost > reservation.estimated_cost:
@@ -661,6 +739,7 @@ async def execute_reserved_fixed_cost_async_call(
             reason="reported_cost_exceeds_reserved_ceiling",
             on_settled=on_settled,
             operation_error=ValueError("reported cost exceeds reserved ceiling"),
+            identifiers=identifiers,
         )
 
     settled = raw_cost
@@ -670,6 +749,7 @@ async def execute_reserved_fixed_cost_async_call(
         output_tokens=0,
         source=source,
         on_settled=on_settled,
+        identifiers=identifiers,
     )
     return result
 

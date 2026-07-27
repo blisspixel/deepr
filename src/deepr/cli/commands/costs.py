@@ -10,7 +10,7 @@ Provides commands for viewing and managing costs:
 """
 
 import json
-from datetime import UTC
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +26,81 @@ console = Console()
 
 SPEND_DECISIONS_SCHEMA_VERSION = "deepr-cost-spend-decisions-v1"
 SPEND_DECISIONS_KIND = "deepr.costs.spend_decisions"
+
+
+def _current_cost_authority(
+    *,
+    daily_display_limit: float | None = None,
+    monthly_display_limit: float | None = None,
+) -> dict[str, float]:
+    """Return strict settled spend, active holds, and effective authority."""
+    from deepr.core.cost_caps import resolve_spend_caps
+    from deepr.experts.research_reservation_store import ResearchReservationStore
+
+    caps = resolve_spend_caps()
+    daily_limit = float(caps["daily"])
+    weekly_limit = float(caps["weekly"])
+    monthly_limit = float(caps["monthly"])
+    if daily_display_limit is not None:
+        daily_limit = min(daily_limit, daily_display_limit)
+    if monthly_display_limit is not None:
+        monthly_limit = min(monthly_limit, monthly_display_limit)
+
+    now = datetime.now(UTC)
+    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = day_start - timedelta(days=day_start.weekday())
+    month_start = day_start.replace(day=1)
+
+    def totals(events: list[Any]) -> tuple[float, float, float]:
+        daily = sum(event.cost_usd for event in events if event.timestamp >= day_start)
+        weekly = sum(event.cost_usd for event in events if event.timestamp >= week_start)
+        monthly = sum(event.cost_usd for event in events if event.timestamp >= month_start)
+        return daily, weekly, monthly
+
+    daily_settled, weekly_settled, monthly_settled = CostLedger().with_locked_accounting_events(totals)
+    active_holds = ResearchReservationStore().active_cost()
+    daily_exposure = daily_settled + active_holds
+    weekly_exposure = weekly_settled + active_holds
+    monthly_exposure = monthly_settled + active_holds
+    authorizable_headroom = max(
+        0.0,
+        min(
+            float(caps["per_job"]),
+            daily_limit - daily_exposure,
+            weekly_limit - weekly_exposure,
+            monthly_limit - monthly_exposure,
+        ),
+    )
+    return {
+        "per_job_limit": float(caps["per_job"]),
+        "daily_limit": daily_limit,
+        "weekly_limit": weekly_limit,
+        "monthly_limit": monthly_limit,
+        "daily_settled": daily_settled,
+        "weekly_settled": weekly_settled,
+        "monthly_settled": monthly_settled,
+        "active_holds": active_holds,
+        "daily_exposure": daily_exposure,
+        "weekly_exposure": weekly_exposure,
+        "monthly_exposure": monthly_exposure,
+        "authorizable_headroom": authorizable_headroom,
+    }
+
+
+def _threshold_label(exposure: float, limit: float) -> str | None:
+    """Return the strongest live threshold crossed by current exposure."""
+    if limit <= 0:
+        return "paid API frozen at a $0.00 hard ceiling"
+    utilization = exposure / limit
+    if utilization >= 1:
+        return "100% hard ceiling reached; paid API dispatch is blocked"
+    if utilization >= 0.95:
+        return "95% critical threshold reached"
+    if utilization >= 0.80:
+        return "80% warning threshold reached"
+    if utilization >= 0.50:
+        return "50% notice threshold reached"
+    return None
 
 
 @click.group()
@@ -72,58 +147,66 @@ def estimate(prompt: str, model: str, web_search: bool):
 
 
 @costs.command()
-@click.option("--daily-limit", type=click.FloatRange(min=0.0, min_open=True), help="Daily spending limit")
-@click.option("--monthly-limit", type=click.FloatRange(min=0.0, min_open=True), help="Monthly spending limit")
+@click.option(
+    "--daily-limit",
+    type=click.FloatRange(min=0.0, min_open=True),
+    help="Narrow this display only; cannot raise effective daily authority",
+)
+@click.option(
+    "--monthly-limit",
+    type=click.FloatRange(min=0.0, min_open=True),
+    help="Narrow this display only; cannot raise effective monthly authority",
+)
 def show(daily_limit: float | None, monthly_limit: float | None):
-    """Show cost summary."""
-    dashboard = CostDashboard()
-    if daily_limit is not None:
-        dashboard.daily_limit = daily_limit
-    if monthly_limit is not None:
-        dashboard.monthly_limit = monthly_limit
-
-    summary = dashboard.get_summary()
+    """Show canonical settled spend, holds, and effective hard ceilings."""
+    try:
+        summary = _current_cost_authority(
+            daily_display_limit=daily_limit,
+            monthly_display_limit=monthly_limit,
+        )
+    except Exception as exc:
+        raise click.ClickException("Canonical money state is unreadable; cost summary is unavailable.") from exc
 
     # Daily summary
-    daily = summary["daily"]
-    daily_pct = daily["utilization"] * 100
+    daily_pct = summary["daily_exposure"] / summary["daily_limit"] * 100 if summary["daily_limit"] > 0 else 0
     daily_color = "green" if daily_pct < 50 else "yellow" if daily_pct < 80 else "red"
+    daily_remaining = max(0.0, summary["daily_limit"] - summary["daily_exposure"])
 
     console.print(
         Panel(
             f"[bold]Today's Spending[/bold]\n"
-            f"Total: [bold]${daily['total']:.2f}[/bold] / ${daily['limit']:.2f}\n"
-            f"Remaining: ${daily['remaining']:.2f}\n"
+            f"Settled: [bold]${summary['daily_settled']:.2f}[/bold]\n"
+            f"Active holds: ${summary['active_holds']:.2f}\n"
+            f"Exposure: [bold]${summary['daily_exposure']:.2f}[/bold] / ${summary['daily_limit']:.2f}\n"
+            f"Daily window headroom: ${daily_remaining:.2f}\n"
             f"Utilization: [{daily_color}]{daily_pct:.1f}%[/{daily_color}]",
             title="Daily Costs",
         )
     )
 
     # Monthly summary
-    monthly = summary["monthly"]
-    monthly_pct = monthly["utilization"] * 100
+    monthly_pct = summary["monthly_exposure"] / summary["monthly_limit"] * 100 if summary["monthly_limit"] > 0 else 0
     monthly_color = "green" if monthly_pct < 50 else "yellow" if monthly_pct < 80 else "red"
+    monthly_remaining = max(0.0, summary["monthly_limit"] - summary["monthly_exposure"])
 
     console.print(
         Panel(
             f"[bold]This Month's Spending[/bold]\n"
-            f"Total: [bold]${monthly['total']:.2f}[/bold] / ${monthly['limit']:.2f}\n"
-            f"Remaining: ${monthly['remaining']:.2f}\n"
+            f"Settled: [bold]${summary['monthly_settled']:.2f}[/bold]\n"
+            f"Active holds: ${summary['active_holds']:.2f}\n"
+            f"Exposure: [bold]${summary['monthly_exposure']:.2f}[/bold] / ${summary['monthly_limit']:.2f}\n"
+            f"Monthly window headroom: ${monthly_remaining:.2f}\n"
             f"Utilization: [{monthly_color}]{monthly_pct:.1f}%[/{monthly_color}]",
             title="Monthly Costs",
         )
     )
 
-    # Active alerts
-    if summary["active_alerts"]:
-        console.print("\n[bold red]Active Alerts:[/bold red]")
-        for alert in summary["active_alerts"]:
-            level_color = "red" if alert["level"] == "critical" else "yellow"
-            console.print(
-                f"  [{level_color}]>[/{level_color}] "
-                f"{alert['period'].title()}: {alert['threshold'] * 100:.0f}% threshold exceeded "
-                f"(${alert['current_value']:.2f} / ${alert['limit']:.2f})"
-            )
+    console.print(f"[bold]Maximum currently authorizable new paid call:[/bold] ${summary['authorizable_headroom']:.2f}")
+
+    for period in ("daily", "weekly", "monthly"):
+        label = _threshold_label(summary[f"{period}_exposure"], summary[f"{period}_limit"])
+        if label is not None:
+            console.print(f"[bold red]{period.title()} alert:[/bold red] {label}")
 
 
 @costs.command()
@@ -204,74 +287,79 @@ def breakdown(by: str, period: str):
 
 @costs.command()
 def alerts():
-    """Show active cost alerts."""
-    dashboard = CostDashboard()
-    active = dashboard.get_active_alerts()
+    """Show live cost thresholds from canonical settled spend and holds."""
+    try:
+        summary = _current_cost_authority()
+    except Exception as exc:
+        raise click.ClickException("Canonical money state is unreadable; paid dispatch remains blocked.") from exc
+
+    active = []
+    for period in ("daily", "weekly", "monthly"):
+        exposure = summary[f"{period}_exposure"]
+        limit = summary[f"{period}_limit"]
+        label = _threshold_label(exposure, limit)
+        if label is not None:
+            active.append((period, exposure, limit, label))
 
     if not active:
-        console.print("[green]OK No active cost alerts[/green]")
+        console.print("[green]OK No live cost thresholds crossed[/green]")
         return
 
-    console.print(f"[bold red]Active Alerts ({len(active)}):[/bold red]\n")
-
-    for alert in active:
-        level_color = "red" if alert.level == "critical" else "yellow"
-        level_icon = "CRITICAL" if alert.level == "critical" else "WARNING"
-
+    console.print(f"[bold red]Live Cost Alerts ({len(active)}):[/bold red]\n")
+    for period, exposure, limit, label in active:
         console.print(
             Panel(
-                f"[bold]{alert.period.title()} Budget Alert[/bold]\n\n"
-                f"Level: [{level_color}]{alert.level.upper()}[/{level_color}]\n"
-                f"Threshold: {alert.threshold * 100:.0f}%\n"
-                f"Current: ${alert.current_value:.2f}\n"
-                f"Limit: ${alert.limit:.2f}\n"
-                f"Triggered: {alert.triggered_at.strftime('%Y-%m-%d %H:%M')}",
-                title=f"{level_icon} {alert.level.title()} Alert",
+                f"[bold]{period.title()} Budget Alert[/bold]\n\n"
+                f"Status: {label}\n"
+                f"Settled plus active holds: ${exposure:.2f}\n"
+                f"Effective hard ceiling: ${limit:.2f}",
+                title="CURRENT EXPOSURE",
             )
         )
 
 
 @costs.command()
-@click.option("--daily", type=float, help="Set daily limit")
-@click.option("--monthly", type=float, help="Set monthly limit")
+@click.option("--daily", type=click.FloatRange(min=0.0), help="Unsupported legacy setter; use the named env cap")
+@click.option("--monthly", type=click.FloatRange(min=0.0), help="Set the authoritative monthly paid API budget")
 def limits(daily: float | None, monthly: float | None):
-    """View or set cost limits."""
-    dashboard = CostDashboard()
-
-    if daily is None and monthly is None:
-        # Show current limits
-        console.print(
-            Panel(
-                f"Daily Limit: ${dashboard.daily_limit:.2f}\n"
-                f"Monthly Limit: ${dashboard.monthly_limit:.2f}\n\n"
-                f"Alert Thresholds: {', '.join(f'{t * 100:.0f}%' for t in dashboard.alert_thresholds)}",
-                title="Current Cost Limits",
-            )
+    """View effective caps or set the authoritative monthly budget."""
+    if daily is not None:
+        raise click.ClickException(
+            "The legacy dashboard daily setter was not spend authority. Set DEEPR_MAX_COST_PER_DAY "
+            "in the runtime environment, then restart Deepr and verify this command."
         )
-    else:
-        # Update limits, then persist them. The previous implementation
-        # mutated the in-memory dashboard but never called ``_save()``,
-        # so the next process started back at defaults - users saw
-        # "limit set" feedback but nothing took effect.
-        if daily is not None:
-            if daily < 0:
-                console.print("[red]Daily limit must be >= 0[/red]")
-                raise click.Abort()
-            dashboard.daily_limit = daily
-            console.print(f"[green]OK Daily limit set to ${daily:.2f}[/green]")
 
-        if monthly is not None:
-            if monthly < 0:
-                console.print("[red]Monthly limit must be >= 0[/red]")
-                raise click.Abort()
-            dashboard.monthly_limit = monthly
-            console.print(f"[green]OK Monthly limit set to ${monthly:.2f}[/green]")
+    if monthly is not None:
+        from deepr.cli.commands.budget import mutate_budget_config
 
-        try:
-            dashboard._save()
-        except Exception as exc:
-            console.print(f"[red]Failed to persist limits to disk: {exc}[/red]")
-            raise click.Abort() from exc
+        def update(config: dict[str, Any]) -> None:
+            config["monthly_limit"] = monthly
+
+        mutate_budget_config(update)
+        console.print(f"[green]Authoritative monthly paid API budget set to ${monthly:.2f}[/green]")
+
+    try:
+        summary = _current_cost_authority()
+    except Exception as exc:
+        raise click.ClickException("Canonical money state is unreadable; paid dispatch remains blocked.") from exc
+
+    from deepr.core.cost_caps import resolve_spend_caps
+
+    caps = resolve_spend_caps()
+    console.print(
+        Panel(
+            f"Per-job hard ceiling: ${caps['per_job']:.2f}\n"
+            f"Daily hard ceiling: ${caps['daily']:.2f}\n"
+            f"Weekly hard ceiling: ${caps['weekly']:.2f}\n"
+            f"Monthly hard ceiling: ${caps['monthly']:.2f}\n\n"
+            f"Monthly settled: ${summary['monthly_settled']:.2f}\n"
+            f"Active durable holds: ${summary['active_holds']:.2f}\n"
+            f"Monthly exposure: ${summary['monthly_exposure']:.2f}\n"
+            f"Maximum authorizable new paid call: ${summary['authorizable_headroom']:.2f}\n"
+            "Live thresholds: 50%, 80%, 95%, and 100%",
+            title="Effective Cost Authority",
+        )
+    )
 
 
 @costs.command()

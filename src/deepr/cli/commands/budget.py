@@ -93,7 +93,19 @@ def _ledger_month_spend() -> float | None:
 
         now = datetime.now(UTC)
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        return CostLedger().get_total_cost(start_date=month_start)
+        return CostLedger().with_locked_accounting_events(
+            lambda events: sum(event.cost_usd for event in events if event.timestamp >= month_start)
+        )
+    except Exception:
+        return None
+
+
+def _durable_active_cost() -> float | None:
+    """Return strictly reconciled active paid holds, or None on uncertainty."""
+    try:
+        from deepr.experts.research_reservation_store import ResearchReservationStore
+
+        return ResearchReservationStore().active_cost()
     except Exception:
         return None
 
@@ -118,13 +130,14 @@ def check_budget_approval(estimated_cost: float) -> bool:
         return False
 
     ledger_spend = _ledger_month_spend()
-    if monthly_limit <= 0 or ledger_spend is None:
+    active_cost = _durable_active_cost()
+    if monthly_limit <= 0 or ledger_spend is None or active_cost is None:
         return False
 
     # Spend = max(side counter, canonical ledger) so
     # spend recorded by other entry points (web, MCP, expert learning)
     # counts against the month even if record_spending never saw it.
-    current_spending = max(config.get("monthly_spending", 0.0), ledger_spend)
+    current_spending = max(config.get("monthly_spending", 0.0), ledger_spend) + active_cost
     # The durable reservation boundary enforces the absolute ceiling. Keep the
     # interactive auto-approval threshold deliberately lower so approaching a
     # hard cap still requires an explicit human decision.
@@ -191,13 +204,18 @@ def set(amount: float):
         # counter alone once displayed $0.00 while the canonical ledger held
         # $37.99 of campaign spend - the display must never lie about money.
         ledger_spend = _ledger_month_spend()
-        spent = max(float(config.get("monthly_spending", 0) or 0), ledger_spend or 0.0)
+        active_cost = _durable_active_cost()
+        settled = max(float(config.get("monthly_spending", 0) or 0), ledger_spend or 0.0)
         effective_limit = resolve_spend_caps()["monthly"]
         click.echo(f"\nConfigured budget: ${amount:.2f}/month")
         click.echo(f"Effective hard ceiling: ${effective_limit:.2f}/month")
-        click.echo(f"Current spending (ledger-reconciled): ${spent:.2f}")
-        if ledger_spend is None:
-            click.echo("Warning: the canonical cost ledger could not be read; real spend may be higher.")
+        if ledger_spend is None or active_cost is None:
+            click.echo("Current exposure: UNKNOWN")
+            click.echo("Warning: canonical money state is unreadable; paid dispatch remains blocked.")
+        else:
+            click.echo(f"Settled spending: ${settled:.2f}")
+            click.echo(f"Active durable holds: ${active_cost:.2f}")
+            click.echo(f"Current exposure: ${settled + active_cost:.2f}")
         click.echo(f"Resets: {datetime.now(UTC).strftime('%B')} 1 UTC")
 
 
@@ -218,32 +236,39 @@ def status():
     ledger_raw = _ledger_month_spend()
     ledger_unreadable = ledger_raw is None
     ledger_spending = ledger_raw or 0.0
-    current_spending = max(counter_spending, ledger_spending)
+    settled_spending = max(counter_spending, ledger_spending)
+    active_raw = _durable_active_cost()
+    holds_unreadable = active_raw is None
+    active_cost = active_raw or 0.0
+    money_state_unreadable = ledger_unreadable or holds_unreadable
+    current_exposure = settled_spending + active_cost
     current_month = config.get("current_month", datetime.now(UTC).strftime("%Y-%m"))
+
+    click.echo(f"\nSettled this month: ${settled_spending:.2f}")
+    click.echo(f"Active durable holds: {'UNKNOWN' if holds_unreadable else f'${active_cost:.2f}'}")
 
     if config.get("paid_api_frozen", False):
         reason = str(config.get("freeze_reason", "") or "manual operator freeze")
-        click.echo(f"\nMode: Paid API frozen ({reason})")
+        click.echo(f"Mode: Paid API frozen ({reason})")
         click.echo(f"Configured monthly ceiling: ${configured_monthly:.2f}")
         click.echo("Effective monthly ceiling: $0.00")
     elif effective_monthly == 0:
-        click.echo("\nMode: Paid API frozen ($0 hard ceiling)")
+        click.echo("Mode: Paid API frozen ($0 hard ceiling)")
+    elif money_state_unreadable:
+        click.echo("Mode: Paid API blocked (canonical money state is unreadable)")
+        click.echo(f"Budget: UNKNOWN / ${effective_monthly:.2f}")
+        click.echo("Remaining: $0.00 (fail closed)")
     else:
-        percentage = current_spending / effective_monthly * 100
-        remaining = max(0.0, effective_monthly - current_spending)
-        overage = max(0.0, current_spending - effective_monthly)
+        percentage = current_exposure / effective_monthly * 100
+        remaining = max(0.0, effective_monthly - current_exposure)
+        overage = max(0.0, current_exposure - effective_monthly)
 
-        click.echo(f"\nBudget: ${current_spending:.2f} / ${effective_monthly:.2f} ({percentage:.0f}%)")
+        click.echo(f"Budget: ${current_exposure:.2f} / ${effective_monthly:.2f} ({percentage:.0f}%)")
         if configured_monthly != effective_monthly:
             click.echo(f"Configured monthly budget: ${configured_monthly:.2f}; tighter policy is active")
         click.echo(f"Remaining: ${remaining:.2f}")
         if overage > 0:
             click.echo(f"Over hard ceiling by: ${overage:.2f}")
-        if ledger_unreadable:
-            click.echo(
-                "Warning: the canonical cost ledger could not be read; real spend may be "
-                "higher and metered auto-approval is disabled until it is readable."
-            )
         if ledger_spending - counter_spending > 0.01:
             click.echo(
                 f"Note: ${ledger_spending - counter_spending:.2f} of this month's spend was recorded "
@@ -298,9 +323,10 @@ def unfreeze() -> None:
         except (TypeError, ValueError) as exc:
             raise click.ClickException(str(exc)) from exc
         ledger_spend = _ledger_month_spend()
-        if ledger_spend is None:
-            raise click.ClickException("The canonical cost ledger is unreadable; paid dispatch remains frozen.")
-        current_spending = max(float(config.get("monthly_spending", 0.0) or 0.0), ledger_spend)
+        active_cost = _durable_active_cost()
+        if ledger_spend is None or active_cost is None:
+            raise click.ClickException("Canonical money state is unreadable; paid dispatch remains frozen.")
+        current_spending = max(float(config.get("monthly_spending", 0.0) or 0.0), ledger_spend) + active_cost
         if effective_limit <= 0:
             raise click.ClickException("Set a positive finite monthly budget before unfreezing paid dispatch.")
         if current_spending >= effective_limit:
@@ -318,29 +344,43 @@ def unfreeze() -> None:
 
 
 @budget.command()
-@click.option("--limit", "-n", default=10, help="Number of recent transactions to show")
+@click.option(
+    "--limit",
+    "-n",
+    default=10,
+    type=click.IntRange(min=1, max=1000),
+    show_default=True,
+    help="Number of recent canonical transactions to show",
+)
 def history(limit: int):
-    """Show spending history."""
+    """Show canonical append-only spending history."""
     print_header("Spending History")
 
-    config = load_budget_config()
-    history = config.get("history", [])
+    try:
+        from deepr.observability.cost_ledger import CostLedger
+
+        history, total = CostLedger().with_locked_accounting_events(
+            lambda events: ([event for event in events if event.cost_usd > 0], sum(event.cost_usd for event in events))
+        )
+    except Exception as exc:
+        raise click.ClickException("Canonical cost ledger is unreadable; spending history is unavailable.") from exc
 
     if not history:
-        click.echo("\nNo spending history yet")
+        click.echo("\nNo canonical spending history yet")
         return
 
-    click.echo(f"\nShowing last {limit} transactions:\n")
+    click.echo(f"\nShowing last {min(limit, len(history))} canonical transactions:\n")
 
     for entry in reversed(history[-limit:]):
-        timestamp = datetime.fromisoformat(entry["timestamp"])
-        click.echo(f"{timestamp.strftime('%Y-%m-%d %H:%M')} | ${entry['cost']:.4f} | {entry.get('job_id', 'N/A')[:8]}")
-        if entry.get("description"):
-            click.echo(f"  {entry['description'][:80]}")
+        target = entry.task_id or entry.session_id or "N/A"
+        model = entry.model or "unknown-model"
+        click.echo(f"{entry.timestamp.strftime('%Y-%m-%d %H:%M')} | ${entry.cost_usd:.6f} | {entry.provider}/{model}")
+        click.echo(f"  {entry.operation} | {entry.source} | {target[:80]}")
         click.echo()
 
-    total = sum(e["cost"] for e in history)
-    click.echo(f"Total all-time spending: ${total:.2f}")
+    click.echo(f"Total all-time settled spending: ${total:.6f}")
+    active_cost = _durable_active_cost()
+    click.echo(f"Active durable holds: {'UNKNOWN' if active_cost is None else f'${active_cost:.6f}'}")
 
 
 @budget.command()
@@ -357,13 +397,14 @@ def safety():
 
     manager = get_cost_safety_manager()
     summary = manager.get_spending_summary()
+    active_cost = _durable_active_cost()
 
     # Daily spending
     console.print("[bold]Daily Spending[/bold]")
     daily = summary["daily"]
     percent_color = "green" if daily["percent_used"] < 50 else "yellow" if daily["percent_used"] < 80 else "red"
-    print_key_value("Spent", f"${daily['spent']:.2f} / ${daily['limit']:.2f}")
-    print_key_value("Remaining", f"${daily['remaining']:.2f}")
+    print_key_value("Settled", f"${daily['spent']:.2f} / ${daily['limit']:.2f}")
+    print_key_value("Window Remaining", f"${daily['remaining']:.2f}")
     console.print(f"  [dim]Usage:[/dim] [{percent_color}]{daily['percent_used']:.0f}%[/{percent_color}]")
     console.print()
 
@@ -371,8 +412,8 @@ def safety():
     console.print("[bold]Weekly Spending[/bold]")
     weekly = summary["weekly"]
     percent_color = "green" if weekly["percent_used"] < 50 else "yellow" if weekly["percent_used"] < 80 else "red"
-    print_key_value("Spent", f"${weekly['spent']:.2f} / ${weekly['limit']:.2f}")
-    print_key_value("Remaining", f"${weekly['remaining']:.2f}")
+    print_key_value("Settled", f"${weekly['spent']:.2f} / ${weekly['limit']:.2f}")
+    print_key_value("Window Remaining", f"${weekly['remaining']:.2f}")
     console.print(f"  [dim]Usage:[/dim] [{percent_color}]{weekly['percent_used']:.0f}%[/{percent_color}]")
     console.print()
 
@@ -380,9 +421,29 @@ def safety():
     console.print("[bold]Monthly Spending[/bold]")
     monthly = summary["monthly"]
     percent_color = "green" if monthly["percent_used"] < 50 else "yellow" if monthly["percent_used"] < 80 else "red"
-    print_key_value("Spent", f"${monthly['spent']:.2f} / ${monthly['limit']:.2f}")
-    print_key_value("Remaining", f"${monthly['remaining']:.2f}")
+    print_key_value("Settled", f"${monthly['spent']:.2f} / ${monthly['limit']:.2f}")
+    print_key_value("Window Remaining", f"${monthly['remaining']:.2f}")
     console.print(f"  [dim]Usage:[/dim] [{percent_color}]{monthly['percent_used']:.0f}%[/{percent_color}]")
+    console.print()
+
+    console.print("[bold]Durable Reservation Exposure[/bold]")
+    if active_cost is None:
+        print_key_value("Active Holds", "UNKNOWN")
+        print_key_value("Maximum New Paid Call", "$0.00 (fail closed)")
+    else:
+        exposure = monthly["spent"] + active_cost
+        authorizable_headroom = max(
+            0.0,
+            min(
+                summary["limits"]["per_operation"],
+                daily["limit"] - daily["spent"] - active_cost,
+                weekly["limit"] - weekly["spent"] - active_cost,
+                monthly["limit"] - monthly["spent"] - active_cost,
+            ),
+        )
+        print_key_value("Active Holds", f"${active_cost:.2f}")
+        print_key_value("Settled + Holds", f"${exposure:.2f} / ${monthly['limit']:.2f}")
+        print_key_value("Maximum New Paid Call", f"${authorizable_headroom:.2f}")
     console.print()
 
     # Limits

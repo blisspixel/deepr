@@ -83,6 +83,27 @@ def test_settlement_releases_reservation_and_records_actual_cost() -> None:
     assert ResearchReservationStore().state(reservation.reservation_id) == "settled"
 
 
+def test_active_cost_reconciles_existing_canonical_completion_without_duplicate_spend() -> None:
+    reservation = _reserve(CostSafetyManager(), "job-existing-completion", 0.8)
+    store = ResearchReservationStore()
+    store.mark_provider_work_may_have_run(reservation.reservation_id)
+    CostLedger().record_event(
+        operation="research_job",
+        provider="openai",
+        model="test-model",
+        cost_usd=0.25,
+        task_id=reservation.job_id,
+        source="test.existing_completion",
+        idempotency_key=f"job:{reservation.job_id}:completion",
+    )
+
+    assert store.active_cost() == 0.0
+    assert store.state(reservation.reservation_id) == "settled"
+    events = CostLedger().get_events()
+    assert len(events) == 1
+    assert events[0].cost_usd == pytest.approx(0.25)
+
+
 def test_conservative_settlement_is_not_labeled_as_reported_actual_cost() -> None:
     manager = CostSafetyManager()
     reservation = _reserve(manager, "job-conservative", 0.8)

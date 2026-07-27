@@ -1,6 +1,6 @@
 # Deepr Threat Model
 
-Status: current with Deepr v2.38.1. Last reviewed: 2026-07-26.
+Status: current with Deepr v2.38.2. Last reviewed: 2026-07-27.
 
 This document is the repository-scoped threat model for Deepr. It is intended
 for security reviews, design reviews, and future bug discovery. It should stay
@@ -125,6 +125,10 @@ The main boundaries are:
   plan CLI credentials. Deepr should warn and gate dangerous use, but it cannot
   prove vendor billing policy beyond observed usage, official metadata, and
   configured auth mode.
+- Deepr's hard ceiling governs calls admitted through Deepr. It cannot stop
+  another application, a manual call, or a compromised shared credential from
+  spending against the same provider account. Provider account controls and
+  authoritative billing exports remain an independent trust boundary.
 - Local filesystem state is trusted only within validated roots. User-supplied
   path segments, artifact IDs, report IDs, expert names, source paths, and URLs
   are attacker-controlled until validated.
@@ -287,6 +291,10 @@ Relevant attacker stories:
 - A metered-at-margin CLI is auto-routed as if it were free quota.
 - A subscription CLI has paid extra usage enabled, so a request that appears
   to consume only included quota becomes a billed call.
+- Another application or compromised shared credential creates provider spend
+  that is absent from Deepr's local ledger.
+- A forged, oversized, or secret-bearing provider identifier enters cost
+  metadata and frustrates invoice joins or leaks sensitive state.
 
 Existing controls:
 
@@ -295,6 +303,11 @@ Existing controls:
   reservations where supported.
 - `src/deepr/observability/cost_ledger.py` writes append-only cost events under
   the runtime data root.
+- Strict budget and cost views include canonical settled spend plus durable
+  active holds and report zero authorizable headroom when money state cannot be
+  read. Central metered wrappers preserve bounded provider HTTP request and
+  object identifiers without recording prompts, responses, credentials, or
+  endpoints.
 - `src/deepr/backends/plan_quota/safety.py` and plan-quota adapters enforce
   auth-mode, stored-provider provenance, native-tool posture, marginal-cost,
   and no-surprise-bills decisions before explicit plan launches. Claude is the
@@ -318,7 +331,9 @@ Security invariant:
 Budget is a hard ceiling, not a suggestion. Any path that can spend money or
 consume scarce external quota must estimate before dispatch, require explicit
 operator intent for premium paths, record usage afterward, and fail closed when
-cost cannot be bounded.
+cost cannot be bounded. This invariant applies to Deepr-controlled dispatch; a
+provider-side hard limit, disabled paid overage, scoped credential, monitored
+alert, and billing reconciliation are required for account-wide protection.
 
 ### Local Filesystem, Storage, and Artifact Surface
 

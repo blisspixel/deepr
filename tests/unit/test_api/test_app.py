@@ -126,6 +126,11 @@ def client(mock_queue, mock_provider, mock_storage):
         patch.object(app_module, "_provider_resolver", resolved_provider),
         patch.object(app_module.limiter, "enabled", False),
         patch.object(app_module, "_allow_unauthenticated_loopback", True),
+        patch.object(
+            app_module,
+            "reconcile_research_cost_reservations",
+            new_callable=AsyncMock,
+        ),
         patch.object(app_module, "reserve_api_research_cost", side_effect=reserve_expected) as reserve_cost,
         patch(
             "deepr.services.research_submission.restore_active_queued_reservation",
@@ -869,7 +874,7 @@ class TestAPIResponseStructure:
 
         This ensures frontend can reliably parse responses.
         """
-        import sys
+        import importlib
 
         # Create fresh mocks for each test iteration
         mock_queue = MagicMock()
@@ -890,7 +895,7 @@ class TestAPIResponseStructure:
         mock_storage = MagicMock()
 
         # Import and patch
-        app_module = sys.modules["deepr.api.app"]
+        app_module = importlib.import_module("deepr.api.app")
         estimate = MagicMock(min_cost=0.1, max_cost=0.3, expected_cost=0.2)
         reservation = MagicMock(reservation_id="property-reservation")
         reservation.manager = MagicMock()
@@ -920,6 +925,11 @@ class TestAPIResponseStructure:
             patch.object(app_module, "storage", mock_storage),
             patch.object(app_module, "_provider_resolver", resolved_provider),
             patch.object(app_module, "_allow_unauthenticated_loopback", True),
+            patch.object(
+                app_module,
+                "reconcile_research_cost_reservations",
+                new_callable=AsyncMock,
+            ),
             patch.object(app_module, "reserve_api_research_cost", side_effect=reserve_expected),
             patch(
                 "deepr.services.research_submission.restore_active_queued_reservation",
@@ -986,7 +996,7 @@ class TestAPIResponseStructure:
 
         Invalid status filters should return 500 error with 'error' field.
         """
-        import sys
+        import importlib
 
         from deepr.queue.base import JobStatus, ResearchJob
 
@@ -1001,7 +1011,7 @@ class TestAPIResponseStructure:
         mock_provider = MagicMock()
         mock_storage = MagicMock()
 
-        app_module = sys.modules["deepr.api.app"]
+        app_module = importlib.import_module("deepr.api.app")
 
         # Pin the lazy provider resolver so the property holds without an
         # ambient OPENAI_API_KEY (see the `client` fixture for the rationale).
@@ -1049,7 +1059,7 @@ class TestAPIResponseStructure:
         - HTTP 404 status
         - 'error' field with descriptive message
         """
-        import sys
+        import importlib
 
         mock_queue = MagicMock()
         mock_queue.get_job = AsyncMock(return_value=None)
@@ -1057,7 +1067,7 @@ class TestAPIResponseStructure:
         mock_provider = MagicMock()
         mock_storage = MagicMock()
 
-        app_module = sys.modules["deepr.api.app"]
+        app_module = importlib.import_module("deepr.api.app")
 
         # Pin the lazy provider resolver so the property holds without an
         # ambient OPENAI_API_KEY (see the `client` fixture for the rationale).

@@ -174,7 +174,11 @@ class TestPromptRefiner:
         client.chat.completions.create.return_value = make_chat_response(
             {"refined_prompt": "Better", "changes_made": []}
         )
-        reservation = SimpleNamespace(reservation_id="reservation-1", estimated_cost=0.25)
+        reservation = SimpleNamespace(
+            reservation_id="reservation-1",
+            job_id="prompt-refiner-test-1",
+            estimated_cost=0.25,
+        )
 
         def reserve(**_kwargs):
             events.append("reserve")
@@ -212,7 +216,11 @@ class TestPromptRefiner:
 
         client = MagicMock()
         client.chat.completions.create.side_effect = TimeoutError("ambiguous provider outcome")
-        reservation = SimpleNamespace(reservation_id="reservation-2", estimated_cost=0.25)
+        reservation = SimpleNamespace(
+            reservation_id="reservation-2",
+            job_id="prompt-refiner-test-2",
+            estimated_cost=0.25,
+        )
 
         with (
             patch(
@@ -231,5 +239,6 @@ class TestPromptRefiner:
         assert settle.call_args.kwargs["actual_cost"] is None
         assert settle.call_args.kwargs["actual_cost_reported"] is False
         assert settle.call_args.kwargs["settlement_metadata"] == {
-            "metered_call_settlement_reason": "provider_call_failed"
+            "client_correlation_id": "prompt-refiner-test-2",
+            "metered_call_settlement_reason": "provider_call_failed",
         }
