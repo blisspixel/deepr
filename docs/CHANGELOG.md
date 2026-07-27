@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.38.4] - 2026-07-27
+
+### Changed
+
+- Refreshed the frontend Globals development dependency from 17.7.0 to 17.8.0
+  after the final npm registry audit found the compatible release. Runtime
+  behavior and paid-capacity boundaries are unchanged.
+
 ## [2.38.3] - 2026-07-27
 
 ### Changed

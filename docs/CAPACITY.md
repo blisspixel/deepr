@@ -452,7 +452,7 @@ The minimum account checklist is:
    invoice drift.
 
 Provider billing export import and provider account hard-limit verification are
-not shipped in v2.38.3. Until they are, reconcile exports outside the tracked
+not shipped in v2.38.4. Until they are, reconcile exports outside the tracked
 repository and keep paid dispatch frozen whenever a charge cannot be explained.
 
 ## Costing Deep Dive
