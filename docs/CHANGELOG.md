@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   found the same-day upstream patch. The frozen direct dependency graph is
   current within declared compatibility, with no runtime or cost-boundary
   change.
+- Refreshed AWS CLI from 1.45.56 to 1.45.57 and Boto3 from 1.43.56 to
+  1.43.57 after the release-time currency check found same-day patches.
 
 ## [2.38.2] - 2026-07-27
 
