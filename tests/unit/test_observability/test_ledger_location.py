@@ -139,6 +139,136 @@ def test_default_ledger_unions_well_known_locations(tmp_path: Path, monkeypatch:
     assert total == pytest.approx(7.0)
 
 
+def test_registered_legacy_ledger_survives_installed_layout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("DEEPR_COST_DATA_DIR", raising=False)
+    fake_home = tmp_path / "home"
+    legacy_root = tmp_path / "checkout" / "data" / "costs"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: fake_home))
+    monkeypatch.setattr(ledger_module, "_source_checkout_cost_data_dir", lambda: legacy_root)
+
+    CostLedger(ledger_path=legacy_root / "cost_ledger.jsonl").record_event(
+        operation="research_completion",
+        provider="openai",
+        cost_usd=38.52,
+        idempotency_key="persistent-legacy-ledger",
+    )
+    source_health = CostLedger().get_health()
+    assert source_health["total_cost_usd"] == pytest.approx(38.52)
+    assert source_health["primary_write_path"] == str(fake_home / ".deepr" / "costs" / "cost_ledger.jsonl")
+    assert source_health["accounting_complete"] is True
+    assert {item["path"] for item in source_health["accounting_sources"]} == {
+        str(fake_home / ".deepr" / "costs" / "cost_ledger.jsonl"),
+        str(legacy_root / "cost_ledger.jsonl"),
+    }
+
+    monkeypatch.setattr(ledger_module, "_source_checkout_cost_data_dir", lambda: None)
+    monkeypatch.setattr(ledger_module, "_cwd_checkout_cost_data_dir", lambda: None)
+    monkeypatch.chdir(outside)
+    assert CostLedger().get_total_cost() == pytest.approx(38.52)
+
+
+def test_missing_registered_legacy_ledger_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("DEEPR_COST_DATA_DIR", raising=False)
+    fake_home = tmp_path / "home"
+    legacy_root = tmp_path / "checkout" / "data" / "costs"
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: fake_home))
+    monkeypatch.setattr(ledger_module, "_source_checkout_cost_data_dir", lambda: legacy_root)
+
+    legacy_path = legacy_root / "cost_ledger.jsonl"
+    CostLedger(ledger_path=legacy_path).record_event(
+        operation="research_completion",
+        provider="openai",
+        cost_usd=1.0,
+        idempotency_key="missing-registered-ledger",
+    )
+    assert CostLedger().get_total_cost() == pytest.approx(1.0)
+    legacy_path.unlink()
+    monkeypatch.setattr(ledger_module, "_source_checkout_cost_data_dir", lambda: None)
+    monkeypatch.setattr(ledger_module, "_cwd_checkout_cost_data_dir", lambda: None)
+
+    with pytest.raises(CostLedgerReadError, match="registered cost ledger is missing"):
+        CostLedger().get_total_cost()
+    health = CostLedger().get_health()
+    assert health["accounting_complete"] is False
+    assert "registered cost ledger is missing" in health["error"]
+
+
+def test_malformed_accounting_source_registry_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("DEEPR_COST_DATA_DIR", raising=False)
+    fake_home = tmp_path / "home"
+    registry = fake_home / ".deepr" / "costs" / "accounting_sources.jsonl"
+    registry.parent.mkdir(parents=True)
+    registry.write_text('{"schema_version":1,"root":"relative"}\n', encoding="utf-8")
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: fake_home))
+    monkeypatch.setattr(ledger_module, "_source_checkout_cost_data_dir", lambda: None)
+    monkeypatch.setattr(ledger_module, "_cwd_checkout_cost_data_dir", lambda: None)
+
+    with pytest.raises(CostLedgerReadError, match="registry"):
+        CostLedger().get_total_cost()
+
+
+def test_installed_layout_registers_validated_checkout_from_cwd(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("DEEPR_COST_DATA_DIR", raising=False)
+    fake_home = tmp_path / "home"
+    checkout = tmp_path / "checkout"
+    nested = checkout / ".agent" / "smoke"
+    nested.mkdir(parents=True)
+    (checkout / "src" / "deepr").mkdir(parents=True)
+    (checkout / "pyproject.toml").write_text('[project]\nname = "deepr-research"\n', encoding="utf-8")
+    legacy_root = checkout / "data" / "costs"
+    CostLedger(ledger_path=legacy_root / "cost_ledger.jsonl").record_event(
+        operation="research_completion",
+        provider="openai",
+        cost_usd=2.5,
+        idempotency_key="wheel-cwd-ledger",
+    )
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: fake_home))
+    monkeypatch.setattr(ledger_module, "_source_checkout_cost_data_dir", lambda: None)
+    monkeypatch.chdir(nested)
+
+    assert CostLedger().get_total_cost() == pytest.approx(2.5)
+
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    monkeypatch.chdir(outside)
+    assert CostLedger().get_total_cost() == pytest.approx(2.5)
+
+
+def test_installed_layout_ignores_unvalidated_cwd_data(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("DEEPR_COST_DATA_DIR", raising=False)
+    fake_home = tmp_path / "home"
+    arbitrary = tmp_path / "arbitrary"
+    legacy_root = arbitrary / "data" / "costs"
+    CostLedger(ledger_path=legacy_root / "cost_ledger.jsonl").record_event(
+        operation="research_completion",
+        provider="openai",
+        cost_usd=4.0,
+        idempotency_key="unvalidated-cwd-ledger",
+    )
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: fake_home))
+    monkeypatch.setattr(ledger_module, "_source_checkout_cost_data_dir", lambda: None)
+    monkeypatch.chdir(arbitrary)
+
+    assert CostLedger().get_total_cost() == 0.0
+
+
 def test_strict_accounting_rejects_malformed_sibling_ledger(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -314,6 +444,33 @@ def test_canonical_reservations_count_legacy_source_checkout_holds(
         )
 
 
+def test_registered_legacy_reservation_survives_installed_layout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("DEEPR_COST_DATA_DIR", raising=False)
+    fake_home = tmp_path / "home"
+    legacy_root = tmp_path / "checkout" / "data" / "costs"
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: fake_home))
+    monkeypatch.setattr(ledger_module, "_source_checkout_cost_data_dir", lambda: legacy_root)
+    legacy = ResearchReservationStore(legacy_root / "research_reservations.db")
+    _seed_reservation(
+        legacy,
+        reservation_id="registered-legacy-hold",
+        job_id="registered-legacy-job",
+        reserved_cost=0.75,
+    )
+    assert ResearchReservationStore().active_cost() == pytest.approx(0.75)
+
+    monkeypatch.setattr(ledger_module, "_source_checkout_cost_data_dir", lambda: None)
+    monkeypatch.setattr(ledger_module, "_cwd_checkout_cost_data_dir", lambda: None)
+    assert ResearchReservationStore().active_cost() == pytest.approx(0.75)
+
+    legacy.path.unlink()
+    with pytest.raises(ResearchReservationStoreError, match="registered reservation state is missing"):
+        ResearchReservationStore().active_cost()
+
+
 def test_long_lived_store_discovers_and_settles_late_legacy_hold(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -410,7 +567,9 @@ def test_explicit_reservation_path_stays_isolated(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("DEEPR_COST_DATA_DIR", raising=False)
+    fake_home = tmp_path / "home"
     legacy_root = tmp_path / "checkout" / "data" / "costs"
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: fake_home))
     monkeypatch.setattr(ledger_module, "_source_checkout_cost_data_dir", lambda: legacy_root)
     legacy = ResearchReservationStore(legacy_root / "research_reservations.db")
     _seed_reservation(

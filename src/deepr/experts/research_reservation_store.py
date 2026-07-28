@@ -15,6 +15,7 @@ from deepr.observability.cost_ledger import (
     CostLedger,
     CostLedgerEvent,
     default_cost_data_dir,
+    registered_cost_artifact_paths,
     well_known_cost_data_dirs,
 )
 
@@ -65,21 +66,8 @@ class ResearchReservationStore:
 
     def __init__(self, path: Path | None = None, *, lock_timeout_seconds: float = 5.0) -> None:
         using_default_path = path is None and not os.environ.get("DEEPR_COST_DATA_DIR", "").strip()
+        self._using_default_path = using_default_path
         self.path = path or default_cost_data_dir() / "research_reservations.db"
-        self._candidate_sibling_paths: tuple[Path, ...] = ()
-        if using_default_path:
-            siblings: list[Path] = []
-            for root in well_known_cost_data_dirs():
-                candidate = root / "research_reservations.db"
-                try:
-                    if candidate.resolve() != self.path.resolve():
-                        siblings.append(candidate)
-                except OSError:
-                    continue
-            # Keep stable candidate paths even before their databases exist.
-            # A long-lived process must see legacy state created later by a
-            # concurrently rolling older process.
-            self._candidate_sibling_paths = tuple(siblings)
         if (
             isinstance(lock_timeout_seconds, bool)
             or not isinstance(lock_timeout_seconds, (int, float))
@@ -102,13 +90,35 @@ class ResearchReservationStore:
         connection.execute(f"PRAGMA busy_timeout = {int(self._lock_timeout_seconds * 1000)}")
         return connection
 
+    def _sibling_reservation_paths(self) -> tuple[Path, ...]:
+        if not self._using_default_path:
+            return ()
+        siblings: list[Path] = []
+        for root in well_known_cost_data_dirs():
+            candidate = root / "research_reservations.db"
+            try:
+                if candidate.resolve() != self.path.resolve():
+                    siblings.append(candidate)
+            except OSError as error:
+                raise ResearchReservationStoreError("legacy reservation state cannot be resolved") from error
+        return tuple(siblings)
+
     def _reservation_paths(self) -> tuple[Path, ...]:
         """Rediscover stable reservation databases for every authority read."""
         paths = [self.path]
-        for candidate in self._candidate_sibling_paths:
+        required = (
+            {path.resolve() for path in registered_cost_artifact_paths("research_reservations.db")}
+            if self._using_default_path
+            else set()
+        )
+        for candidate in self._sibling_reservation_paths():
             try:
                 if candidate.exists():
                     paths.append(candidate)
+                elif candidate.resolve() in required:
+                    raise ResearchReservationStoreError("registered reservation state is missing")
+            except ResearchReservationStoreError:
+                raise
             except OSError as error:
                 raise ResearchReservationStoreError("legacy reservation state cannot be located") from error
         return tuple(paths)

@@ -553,6 +553,10 @@ class TestCostsDoctor:
         mock_ledger = MagicMock()
         mock_ledger.get_health.return_value = {
             "path": "data/costs/cost_ledger.jsonl",
+            "primary_write_path": "data/costs/cost_ledger.jsonl",
+            "accounting_read_paths": ["data/costs/cost_ledger.jsonl"],
+            "accounting_sources": [{"path": "data/costs/cost_ledger.jsonl", "event_count": 1, "total_cost_usd": 1.0}],
+            "accounting_complete": True,
             "writable": True,
             "accounting_ready": True,
             "event_count": 1,
@@ -580,6 +584,10 @@ class TestCostsDoctor:
         mock_ledger = MagicMock()
         mock_ledger.get_health.return_value = {
             "path": "data/costs/cost_ledger.jsonl",
+            "primary_write_path": "data/costs/cost_ledger.jsonl",
+            "accounting_read_paths": ["data/costs/cost_ledger.jsonl"],
+            "accounting_sources": [{"path": "data/costs/cost_ledger.jsonl", "event_count": 1, "total_cost_usd": 2.0}],
+            "accounting_complete": True,
             "writable": True,
             "accounting_ready": True,
             "event_count": 1,

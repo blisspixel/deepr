@@ -110,6 +110,17 @@ Unknown money state reports zero authorizable headroom and blocks paid work.
 Derived dashboard preferences are not spend authority and must not be labeled
 as limits unless they are clamped through the shared resolver.
 
+The canonical write root is `~/.deepr/costs` unless an absolute
+`DEEPR_COST_DATA_DIR` explicitly isolates a deployment. During legacy
+migration, a validated checkout can contribute read-only ledger and reservation
+state. Each discovered artifact is durably appended to
+`accounting_sources.jsonl` under the canonical root before it is trusted. A
+wheel later launched outside the checkout reads that registry instead of
+depending on package location or current directory. A registered artifact that
+is missing, malformed, or unreadable makes accounting incomplete and blocks
+paid work. Health output distinguishes the primary write path from every
+accounting read path and its contribution.
+
 For later invoice reconciliation, supported central metered calls preserve a
 local client correlation ID, a provider HTTP request ID when exposed, and a
 separate provider object ID. The extractor is bounded and reads only declared
@@ -175,6 +186,9 @@ though its provider-invoice cost is `$0`. See
    shipped. Keep paid authority blocked until provider-specific authenticated
    source and credential-identity adapters can prove hard-limit or overage-off
    posture.
+7. Consolidate registered legacy roots into one lock-protected canonical state
+   and bind any future paid authorization to a stable cost-state manifest.
+   Root, policy, digest, or migration-status drift must invalidate authority.
 
 Implementation note, 2026-07-25: the shared wallet, job/day/week/month
 hierarchy, manual freeze, durable aggregate reservations, pre-dispatch
@@ -191,6 +205,11 @@ delivery, provider-specific authenticated account-control adapters, and
 external-spend detection are not shipped. A provider account can still accrue
 charges through another application, a shared or compromised credential, a
 vendor-side pricing change, or taxes outside Deepr's usage ledger.
+
+Implementation note, 2026-07-28: validated legacy accounting roots persist in
+an append-only home registry shared by editable and installed processes.
+Missing registered state is unknown and fail-closed. Canonical consolidation
+and a cost-state identity remain required before paid authority can be enabled.
 
 Each phase is independently fail-closed. A later phase may improve
 availability, reporting, or efficiency, but it must not weaken an earlier

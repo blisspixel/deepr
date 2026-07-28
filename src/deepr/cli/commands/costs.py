@@ -646,12 +646,26 @@ def _tracking_integrity_checks(dashboard, ledger, ledger_path: Path, drift_thres
 
     # Ledger storage sanity
     health = ledger.get_health()
-    checks.append(("Ledger writable", bool(health.get("writable")), str(health.get("path", ledger_path))))
+    write_path = str(health.get("primary_write_path") or health.get("path", ledger_path))
+    read_paths = [str(path) for path in health.get("accounting_read_paths", [])]
+    checks.append(("Ledger writable", bool(health.get("writable")), write_path))
     checks.append(
         (
             "Ledger accounting ready",
             bool(health.get("accounting_ready")),
-            str(health.get("error") or health.get("path", ledger_path)),
+            str(health.get("error") or f"write={write_path}; reads={', '.join(read_paths) or 'UNKNOWN'}"),
+        )
+    )
+    source_details = "; ".join(
+        f"{source.get('path')} ({int(source.get('event_count', 0))} events, "
+        f"${float(source.get('total_cost_usd', 0.0)):.4f})"
+        for source in health.get("accounting_sources", [])
+    )
+    checks.append(
+        (
+            "Accounting source coverage",
+            bool(health.get("accounting_complete")) and bool(read_paths),
+            source_details or str(health.get("error") or "UNKNOWN: no accounting roots resolved"),
         )
     )
 

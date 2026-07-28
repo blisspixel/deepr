@@ -447,6 +447,11 @@ provider API.
 ### Audit Logging
 
 The append-only cost ledger records bounded spend decisions and settlement.
+New writes use one home-anchored cost root. Validated legacy checkout ledgers
+and reservation stores are strict read-only contributors recorded in an
+append-only home registry, so installed and editable processes use the same
+accounting set. Missing registered state is an error, never zero spend. The
+health contract reports the primary write path and all accounting read paths.
 Experimental HTTP MCP has a separate schema-validated remote-call audit. A
 general security-audit event model exists, but authentication, permission,
 research, expert, and configuration call sites are not yet wired to one
