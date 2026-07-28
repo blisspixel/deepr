@@ -33,9 +33,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Moved new cost writes to the stable per-user cost root and made strict
   accounting include the legacy source-checkout ledger and reservation store.
   Absolute relocation remains available through `DEEPR_COST_DATA_DIR`.
-  Long-lived processes rediscover late legacy state, exact duplicate events are
-  counted once, conflicts and malformed state fail closed, and cross-root
-  reservation or job identity collisions block authority.
+  Validated checkout roots are recorded in an append-only registry under the
+  per-user cost root, so installed wheels retain the same accounting sources
+  after leaving the checkout. Missing registered ledgers or reservation stores,
+  conflicting or malformed state, and cross-root reservation or job identity
+  collisions block authority. Health output names the sole write path and every
+  contributing read path with event and cost totals.
 - Unified CLI, REST, MCP, and dashboard cost status around one locked exposure
   snapshot containing settled spend, active holds, unresolved post-dispatch
   holds, effective caps, headroom, and freeze state. Unknown state is rendered

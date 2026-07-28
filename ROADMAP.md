@@ -608,10 +608,16 @@ memory surface. This order is dependency-based, not calendar-based:
      the shared operator wallet, zero is a freeze, and `deepr budget freeze` /
      `unfreeze` provide a manual kill switch. A reported cost above its exact
      reservation freezes paid API capacity before another process can reserve.
-   - [x] **Headroom reservations** (2026-07-25): the durable transaction proves
+    - [x] **Headroom reservations** (2026-07-25): the durable transaction proves
      settled + every active hold + the new worst-case ceiling against each
      window. Dispatch rechecks the aggregate under the same policy lock, so
-     positive cap reductions and newly recorded spend stop old holds too.
+      positive cap reductions and newly recorded spend stop old holds too.
+    - [x] **Package-independent legacy accounting** (2026-07-28): validated
+      checkout ledger and reservation roots are persisted in an append-only
+      registry under the canonical home root. Installed wheels and editable
+      source therefore retain the same known accounting set, and a missing
+      registered artifact blocks authority instead of reporting zero. Doctor
+      health names the primary write path and every contributing read path.
    - [x] **Weekly cap** (2026-07-25): `DEEPR_MAX_COST_PER_WEEK` joins
      job/day/month in `core/cost_caps.py`; the hierarchy is normalized as
      per-job <= day <= week <= month and the tightest authority wins.
@@ -638,11 +644,17 @@ memory surface. This order is dependency-based, not calendar-based:
      before enabling any autonomous server-side tool loop. Grok search and
      legacy deep-research chat remain gated because a token cap does not bound
      their autonomous tool bill.
-   - [ ] **One parent graph budget before paid fan-out**: reserve the sum of all
+    - [ ] **One parent graph budget before paid fan-out**: reserve the sum of all
      runnable child envelopes before enqueue, give each child a non-increasing
      slice, count every expected success/failure/timeout, retry only failed
      branches, and report incomplete fan-in as partial. Composed docs, team,
-     campaign, and other paid fan-out remain gated until this contract ships.
+      campaign, and other paid fan-out remain gated until this contract ships.
+    - [ ] **Canonical cost-state consolidation before paid recovery**: migrate
+      every registered legacy ledger and reservation database under locks,
+      preserve recoverable source evidence, and bind paid authorization to a
+      stable cost-state identity containing root, policy, source, and digest
+      status. Any incomplete migration or identity drift must keep paid
+      authority at zero.
    - [ ] **Remaining audit follow-up** (`.agent/cost-audit-2026-07-25.json`):
      finish threshold delivery, provider-specific authenticated account-control
      verification, batch-auto attribution, prep-campaign resume identity,

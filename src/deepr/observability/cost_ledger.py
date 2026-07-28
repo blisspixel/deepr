@@ -6,6 +6,7 @@ import logging
 import os
 import threading
 import time
+import tomllib
 from collections.abc import Callable, Iterator
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass, field
@@ -14,9 +15,15 @@ from math import isfinite
 from pathlib import Path
 from typing import Any, TypeVar
 
+from filelock import FileLock
+from filelock import Timeout as FileLockTimeout
+
 logger = logging.getLogger(__name__)
 T = TypeVar("T")
 _REQUIRED_EVENT_FIELDS = frozenset({"timestamp", "operation", "provider", "cost_usd"})
+_ACCOUNTING_SOURCE_REGISTRY = "accounting_sources.jsonl"
+_ACCOUNTING_SOURCE_ARTIFACTS = frozenset({"cost_ledger.jsonl", "research_reservations.db"})
+_ACCOUNTING_SOURCE_SCHEMA_VERSION = 1
 
 
 class CostLedgerLockTimeout(TimeoutError):
@@ -91,9 +98,147 @@ def _source_checkout_cost_data_dir() -> Path | None:
         root = Path(__file__).resolve().parents[3]
     except (IndexError, OSError):
         return None
-    if not (root / "pyproject.toml").is_file() or not (root / "src" / "deepr").is_dir():
+    if not _is_deepr_checkout(root):
         return None
     return root / "data" / "costs"
+
+
+def _is_deepr_checkout(root: Path) -> bool:
+    """Accept only a checkout whose package metadata identifies Deepr."""
+    pyproject = root / "pyproject.toml"
+    if not pyproject.is_file() or not (root / "src" / "deepr").is_dir():
+        return False
+    try:
+        with pyproject.open("rb") as handle:
+            project = tomllib.load(handle).get("project", {})
+    except (OSError, tomllib.TOMLDecodeError):
+        return False
+    return isinstance(project, dict) and project.get("name") == "deepr-research"
+
+
+def _cwd_checkout_cost_data_dir() -> Path | None:
+    """Find a validated checkout when installed code runs below its root."""
+    try:
+        current = Path.cwd().resolve()
+    except OSError:
+        return None
+    for root in (current, *current.parents):
+        if _is_deepr_checkout(root):
+            return root / "data" / "costs"
+    return None
+
+
+def _discover_checkout_cost_data_dirs() -> tuple[Path, ...]:
+    """Discover one checkout without making CWD the canonical write root."""
+    source_checkout = _source_checkout_cost_data_dir()
+    if source_checkout is not None:
+        return (source_checkout,)
+    cwd_checkout = _cwd_checkout_cost_data_dir()
+    return (cwd_checkout,) if cwd_checkout is not None else ()
+
+
+def _accounting_source_registry_path() -> Path:
+    return default_cost_data_dir() / _ACCOUNTING_SOURCE_REGISTRY
+
+
+def _normalized_registered_root(value: object) -> Path:
+    if not isinstance(value, str) or not value.strip():
+        raise CostLedgerReadError("accounting source registry contains an invalid root")
+    root = Path(value)
+    if not root.is_absolute():
+        raise CostLedgerReadError("accounting source registry contains a relative root")
+    try:
+        return root.resolve()
+    except OSError as exc:
+        raise CostLedgerReadError("accounting source registry root cannot be resolved") from exc
+
+
+def _parse_accounting_source_record(line: str) -> tuple[Path, str]:
+    document = _loads_strict_json(line)
+    if set(document) != {"schema_version", "registered_at", "root", "artifact"}:
+        raise CostLedgerReadError("accounting source registry contains a malformed record")
+    if document.get("schema_version") != _ACCOUNTING_SOURCE_SCHEMA_VERSION:
+        raise CostLedgerReadError("accounting source registry schema is unsupported")
+    artifact = document.get("artifact")
+    if artifact not in _ACCOUNTING_SOURCE_ARTIFACTS:
+        raise CostLedgerReadError("accounting source registry contains an unknown artifact")
+    registered_at = document.get("registered_at")
+    if not isinstance(registered_at, str):
+        raise CostLedgerReadError("accounting source registry contains an invalid timestamp")
+    _validated_timestamp(registered_at)
+    return _normalized_registered_root(document.get("root")), str(artifact)
+
+
+def _read_registered_cost_sources() -> dict[Path, set[str]]:
+    """Read the append-only home registry strictly."""
+    if os.environ.get("DEEPR_COST_DATA_DIR", "").strip():
+        return {}
+    registry = _accounting_source_registry_path()
+    if not registry.exists():
+        return {}
+    sources: dict[Path, set[str]] = {}
+    try:
+        with registry.open(encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                root, artifact = _parse_accounting_source_record(line)
+                sources.setdefault(root, set()).add(artifact)
+    except CostLedgerReadError:
+        raise
+    except (OSError, UnicodeError, json.JSONDecodeError, TypeError, ValueError) as exc:
+        raise CostLedgerReadError("accounting source registry is unreadable") from exc
+    return sources
+
+
+def _register_cost_source(root: Path, artifact: str) -> None:
+    """Persist a discovered legacy artifact before relying on it."""
+    if os.environ.get("DEEPR_COST_DATA_DIR", "").strip():
+        return
+    if artifact not in _ACCOUNTING_SOURCE_ARTIFACTS:
+        raise ValueError("unsupported accounting source artifact")
+    try:
+        resolved_root = root.resolve()
+        canonical_root = default_cost_data_dir().resolve()
+    except OSError as exc:
+        raise CostLedgerReadError("accounting source root cannot be resolved") from exc
+    if resolved_root == canonical_root or not (resolved_root / artifact).is_file():
+        return
+    registry = _accounting_source_registry_path()
+    try:
+        registry.parent.mkdir(parents=True, exist_ok=True)
+        with FileLock(str(registry.with_name(f"{registry.name}.lock")), timeout=5.0, thread_local=False):
+            registered = _read_registered_cost_sources()
+            if artifact in registered.get(resolved_root, set()):
+                return
+            record = {
+                "schema_version": _ACCOUNTING_SOURCE_SCHEMA_VERSION,
+                "registered_at": _utc_now().isoformat(),
+                "root": str(resolved_root),
+                "artifact": artifact,
+            }
+            with registry.open("a", encoding="utf-8", newline="\n") as handle:
+                handle.write(json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+    except FileLockTimeout as exc:
+        raise CostLedgerLockTimeout("accounting source registry lock timed out") from exc
+    except CostLedgerReadError:
+        raise
+    except OSError as exc:
+        raise CostLedgerDurabilityError("accounting source registry could not be persisted") from exc
+
+
+def registered_cost_artifact_paths(artifact: str) -> tuple[Path, ...]:
+    """Return every persisted legacy artifact path required for accounting."""
+    if artifact not in _ACCOUNTING_SOURCE_ARTIFACTS:
+        raise ValueError("unsupported accounting source artifact")
+    return tuple(
+        root / artifact
+        for root, artifacts in sorted(_read_registered_cost_sources().items(), key=lambda item: str(item[0]).casefold())
+        if artifact in artifacts
+    )
 
 
 def well_known_cost_data_dirs() -> tuple[Path, ...]:
@@ -101,9 +246,12 @@ def well_known_cost_data_dirs() -> tuple[Path, ...]:
     if os.environ.get("DEEPR_COST_DATA_DIR", "").strip():
         return (default_cost_data_dir(),)
     candidates = [default_cost_data_dir()]
-    source_checkout = _source_checkout_cost_data_dir()
-    if source_checkout is not None:
-        candidates.append(source_checkout)
+    discovered = _discover_checkout_cost_data_dirs()
+    for root in discovered:
+        for artifact in _ACCOUNTING_SOURCE_ARTIFACTS:
+            _register_cost_source(root, artifact)
+        candidates.append(root)
+    candidates.extend(_read_registered_cost_sources())
     unique: list[Path] = []
     seen: set[Path] = set()
     for candidate in candidates:
@@ -196,22 +344,9 @@ class CostLedger:
         lock_timeout_seconds: float | None = None,
     ):
         using_default_path = ledger_path is None and not os.environ.get("DEEPR_COST_DATA_DIR", "").strip()
+        self._using_default_path = using_default_path
         self.ledger_path = ledger_path or default_cost_data_dir() / "cost_ledger.jsonl"
         self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
-        # New default writes always use the home-anchored ledger. Strict reads
-        # include any source-checkout legacy ledger. Keep the candidate even
-        # before it exists so a long-lived process sees rolling-upgrade state.
-        # Explicit ledger_path and DEEPR_COST_DATA_DIR remain isolated.
-        self._candidate_sibling_ledger_paths: tuple[Path, ...] = ()
-        if using_default_path:
-            siblings: list[Path] = []
-            for candidate in well_known_ledger_paths():
-                try:
-                    if candidate.resolve() != self.ledger_path.resolve():
-                        siblings.append(candidate)
-                except OSError:
-                    continue
-            self._candidate_sibling_ledger_paths = tuple(siblings)
         self._lock = threading.Lock()
         self._lock_timeout_seconds = _validated_lock_timeout(lock_timeout_seconds)
         self._idempotency_keys: set[str] = set()
@@ -277,13 +412,35 @@ class CostLedger:
                 finally:
                     fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
+    def _sibling_ledger_paths(self) -> tuple[Path, ...]:
+        """Rediscover checkout and persisted roots for every authority read."""
+        if not self._using_default_path:
+            return ()
+        siblings: list[Path] = []
+        for candidate in well_known_ledger_paths():
+            try:
+                if candidate.resolve() != self.ledger_path.resolve():
+                    siblings.append(candidate)
+            except OSError as exc:
+                raise CostLedgerReadError("cost ledger location could not be resolved") from exc
+        return tuple(siblings)
+
     def _accounting_ledger_paths(self) -> tuple[Path, ...]:
         """Rediscover existing sibling ledgers without creating them."""
         paths = [self.ledger_path]
-        for candidate in self._candidate_sibling_ledger_paths:
+        required = (
+            {path.resolve() for path in registered_cost_artifact_paths("cost_ledger.jsonl")}
+            if self._using_default_path
+            else set()
+        )
+        for candidate in self._sibling_ledger_paths():
             try:
                 if candidate.exists():
                     paths.append(candidate)
+                elif candidate.resolve() in required:
+                    raise CostLedgerReadError("registered cost ledger is missing")
+            except CostLedgerReadError:
+                raise
             except OSError as exc:
                 raise CostLedgerReadError("cost ledger location could not be inspected") from exc
         return tuple(paths)
@@ -292,10 +449,19 @@ class CostLedger:
     def _accounting_locks(self, *, deadline: float | None = None) -> Iterator[tuple[Path, ...]]:
         """Lock canonical and existing legacy ledgers in one stable order."""
         lock_candidates = [self.ledger_path]
-        for candidate in self._candidate_sibling_ledger_paths:
+        required = (
+            {path.resolve() for path in registered_cost_artifact_paths("cost_ledger.jsonl")}
+            if self._using_default_path
+            else set()
+        )
+        for candidate in self._sibling_ledger_paths():
             try:
                 if candidate.exists() or candidate.parent.exists():
                     lock_candidates.append(candidate)
+                elif candidate.resolve() in required:
+                    raise CostLedgerReadError("registered cost ledger is missing")
+            except CostLedgerReadError:
+                raise
             except OSError as exc:
                 raise CostLedgerReadError("cost ledger location could not be inspected") from exc
         paths = sorted(
@@ -658,10 +824,26 @@ class CostLedger:
 
         accounting_ready = False
         events: list[CostLedgerEvent] = []
+        accounting_paths: tuple[Path, ...] = ()
+        source_contributions: list[dict[str, Any]] = []
         if writable:
             try:
-                events = self.with_locked_accounting_events(list)
-                accounting_ready = True
+                with self._thread_lock():
+                    with self._accounting_locks() as accounting_paths:
+                        for path in accounting_paths:
+                            if path.exists():
+                                self._require_durable_file(path)
+                        events = self._get_accounting_events_unlocked(paths=accounting_paths)
+                        for path in accounting_paths:
+                            path_events = self._read_ledger_file(path)
+                            source_contributions.append(
+                                {
+                                    "path": str(path),
+                                    "event_count": len(path_events),
+                                    "total_cost_usd": sum(event.cost_usd for event in path_events),
+                                }
+                            )
+                        accounting_ready = True
             except (
                 CostLedgerDurabilityError,
                 CostLedgerIdempotencyConflict,
@@ -673,10 +855,19 @@ class CostLedger:
         if not accounting_ready:
             try:
                 events = self.get_events()
-            except (CostLedgerLockTimeout, OSError) as exc:
+            except (
+                CostLedgerIdempotencyConflict,
+                CostLedgerLockTimeout,
+                CostLedgerReadError,
+                OSError,
+            ) as exc:
                 error = error or f"{type(exc).__name__}: {exc}"
         return {
             "path": str(self.ledger_path),
+            "primary_write_path": str(self.ledger_path),
+            "accounting_read_paths": [str(path) for path in accounting_paths],
+            "accounting_sources": source_contributions,
+            "accounting_complete": accounting_ready,
             "exists": self.ledger_path.exists(),
             "writable": writable,
             "accounting_ready": accounting_ready,
