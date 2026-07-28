@@ -4,12 +4,13 @@ Provides semantic and keyword search across research reports.
 Part of Context Discovery (6.1) feature.
 """
 
+from math import isfinite
+
 import click
 
 from deepr.cli.async_runner import run_async_command
 from deepr.cli.colors import (
     console,
-    print_error,
     print_header,
     print_info,
     print_key_value,
@@ -17,6 +18,55 @@ from deepr.cli.colors import (
     print_warning,
     truncate_text,
 )
+
+_SEMANTIC_BACKEND = "openai"
+
+
+def _require_semantic_consent(
+    *,
+    semantic_backend: str | None,
+    max_total_cost: float | None,
+    confirm_metered_cost: bool,
+    keyword_only: bool = False,
+) -> float | None:
+    """Return the explicit aggregate ceiling for a paid semantic request."""
+    if semantic_backend is None:
+        if max_total_cost is not None or confirm_metered_cost:
+            raise click.UsageError(
+                "--max-total-cost and --confirm-metered-cost require an explicit --semantic-backend."
+            )
+        return None
+    if keyword_only:
+        raise click.UsageError("--keyword-only cannot be combined with --semantic-backend.")
+    if semantic_backend != _SEMANTIC_BACKEND:
+        raise click.UsageError(f"Unsupported semantic backend: {semantic_backend}")
+    if (
+        max_total_cost is None
+        or isinstance(max_total_cost, bool)
+        or not isinstance(max_total_cost, (int, float))
+        or not isfinite(float(max_total_cost))
+        or float(max_total_cost) <= 0
+    ):
+        raise click.UsageError("Paid semantic search requires an explicit finite positive --max-total-cost ceiling.")
+    if not confirm_metered_cost:
+        raise click.UsageError(
+            "Paid semantic search requires --confirm-metered-cost; the ceiling is not permission to spend."
+        )
+    return float(max_total_cost)
+
+
+def _require_query_envelope(query: str, ceiling: float) -> None:
+    """Prove the single semantic-query embedding fits the aggregate ceiling."""
+    from deepr.services.metered_envelope import bounded_embedding_envelope
+
+    envelope = bounded_embedding_envelope(
+        model="text-embedding-3-small",
+        inputs=(query[:8000],),
+    )
+    if envelope.cost_usd > ceiling + 1e-12:
+        raise click.UsageError(
+            f"Semantic query requires up to ${envelope.cost_usd:.6f}, above --max-total-cost ${ceiling:.6f}."
+        )
 
 
 class SearchGroup(click.Group):
@@ -50,25 +100,80 @@ def search():
 @click.argument("query")
 @click.option("--top", "-n", default=5, help="Number of results to return")
 @click.option("--threshold", "-t", default=0.7, help="Minimum similarity threshold (0-1)")
-@click.option("--keyword-only", is_flag=True, help="Only use keyword search, skip embeddings")
+@click.option("--keyword-only", is_flag=True, help="Use only local keyword search")
+@click.option(
+    "--semantic-backend",
+    "--backend",
+    type=click.Choice([_SEMANTIC_BACKEND]),
+    default=None,
+    help="Explicit paid embedding backend. Omit for local keyword search.",
+)
+@click.option(
+    "--max-total-cost",
+    "--max-cost",
+    type=float,
+    default=None,
+    help="Finite aggregate USD ceiling required with --semantic-backend.",
+)
+@click.option(
+    "--confirm-metered-cost",
+    is_flag=True,
+    help="Confirm paid semantic embedding calls up to --max-total-cost.",
+)
 @click.option("--json", "json_output", is_flag=True, help="Output as JSON")
-def search_query(query: str, top: int, threshold: float, keyword_only: bool, json_output: bool):
+def search_query(
+    query: str,
+    top: int,
+    threshold: float,
+    keyword_only: bool,
+    semantic_backend: str | None,
+    max_total_cost: float | None,
+    confirm_metered_cost: bool,
+    json_output: bool,
+):
     """Search for related research reports.
 
-    Uses semantic similarity (embeddings) combined with keyword matching
-    to find the most relevant prior research.
+    Uses local keyword matching by default. Semantic similarity is an explicit
+    paid path requiring a backend, aggregate ceiling, and cost confirmation.
 
     Examples:
         deepr search query "kubernetes vs ECS"
         deepr search query "authentication patterns" --top 10
         deepr search query "AWS security" --threshold 0.8
     """
-    run_async_command(_search_query(query, top, threshold, keyword_only, json_output))
+    ceiling = _require_semantic_consent(
+        semantic_backend=semantic_backend,
+        max_total_cost=max_total_cost,
+        confirm_metered_cost=confirm_metered_cost,
+        keyword_only=keyword_only,
+    )
+    if ceiling is not None:
+        _require_query_envelope(query, ceiling)
+    run_async_command(
+        _search_query(
+            query,
+            top,
+            threshold,
+            keyword_only,
+            json_output,
+            semantic_backend=semantic_backend,
+            max_total_cost=ceiling,
+        )
+    )
 
 
-async def _search_query(query: str, top: int, threshold: float, keyword_only: bool, json_output: bool):
+async def _search_query(
+    query: str,
+    top: int,
+    threshold: float,
+    keyword_only: bool,
+    json_output: bool,
+    *,
+    semantic_backend: str | None = None,
+    max_total_cost: float | None = None,
+):
     """Execute search query."""
-    from deepr.services.context_index import ContextIndex
+    from deepr.services.context_index import ContextIndex, PaidSemanticOperationError
 
     index = ContextIndex()
 
@@ -85,19 +190,17 @@ async def _search_query(query: str, top: int, threshold: float, keyword_only: bo
     if not json_output:
         console.print(f"[dim]Searching {stats['indexed_reports']} reports...[/dim]")
 
-    results = await index.search(
-        query=query,
-        top_k=top,
-        threshold=threshold,
-        # ``--keyword-only`` switches off the semantic-embedding lane.
-        # The previous expression was ``not keyword_only or True`` which,
-        # because of Python's precedence (parsed as ``(not keyword_only)
-        # or True``), evaluated to True unconditionally - the flag was a
-        # no-op. The intent is: keyword pass runs by default, and stays
-        # the only retrieval pass when ``--keyword-only`` is set.
-        include_keyword=True,
-        include_semantic=not keyword_only,
-    )
+    try:
+        results = await index.search(
+            query=query,
+            top_k=top,
+            threshold=threshold,
+            include_keyword=True,
+            include_semantic=semantic_backend is not None and not keyword_only and max_total_cost is not None,
+            max_total_cost_usd=max_total_cost,
+        )
+    except PaidSemanticOperationError as exc:
+        raise click.ClickException(str(exc)) from exc
 
     if json_output:
         console.print_json(
@@ -132,23 +235,62 @@ async def _search_query(query: str, top: int, threshold: float, keyword_only: bo
 
 @search.command("index")
 @click.option("--force", "-f", is_flag=True, help="Re-index all reports")
-def index_reports(force: bool):
+@click.option(
+    "--semantic-backend",
+    "--backend",
+    type=click.Choice([_SEMANTIC_BACKEND]),
+    default=None,
+    help="Explicit paid embedding backend. Omit for local keyword indexing.",
+)
+@click.option(
+    "--max-total-cost",
+    "--max-cost",
+    type=float,
+    default=None,
+    help="Finite aggregate USD ceiling required with --semantic-backend.",
+)
+@click.option(
+    "--confirm-metered-cost",
+    is_flag=True,
+    help="Confirm paid report embedding calls up to --max-total-cost.",
+)
+def index_reports(
+    force: bool,
+    semantic_backend: str | None,
+    max_total_cost: float | None,
+    confirm_metered_cost: bool,
+):
     """Index reports for search.
 
-    Scans the reports directory and indexes any new reports
-    for semantic search. Run this periodically or after
-    completing research jobs.
+    Scans the reports directory and builds the local keyword index. Paid
+    semantic embeddings require explicit metered authorization.
 
     Examples:
         deepr search index
         deepr search index --force
     """
-    run_async_command(_index_reports(force))
+    ceiling = _require_semantic_consent(
+        semantic_backend=semantic_backend,
+        max_total_cost=max_total_cost,
+        confirm_metered_cost=confirm_metered_cost,
+    )
+    run_async_command(
+        _index_reports(
+            force,
+            semantic_backend=semantic_backend,
+            max_total_cost=ceiling,
+        )
+    )
 
 
-async def _index_reports(force: bool):
+async def _index_reports(
+    force: bool,
+    *,
+    semantic_backend: str | None = None,
+    max_total_cost: float | None = None,
+):
     """Execute report indexing."""
-    from deepr.services.context_index import ContextIndex
+    from deepr.services.context_index import ContextIndex, PaidSemanticOperationError
 
     print_header("Indexing Reports")
 
@@ -160,7 +302,11 @@ async def _index_reports(force: bool):
         console.print("[dim]Indexing new reports...[/dim]")
 
     try:
-        count = await index.index_reports(force=force)
+        count = await index.index_reports(
+            force=force,
+            include_semantic=semantic_backend is not None,
+            max_total_cost_usd=max_total_cost,
+        )
 
         if count > 0:
             print_success(f"Indexed {count} reports")
@@ -173,9 +319,10 @@ async def _index_reports(force: bool):
         print_key_value("Total indexed", str(stats["indexed_reports"]))
         print_key_value("Embeddings", str(stats["embedding_count"]))
 
-    except Exception as e:
-        print_error(f"Indexing failed: {e}")
-        console.print("[dim]Make sure OPENAI_API_KEY is set for embedding generation[/dim]")
+    except PaidSemanticOperationError as exc:
+        raise click.ClickException(str(exc)) from exc
+    except Exception as exc:
+        raise click.ClickException(f"Indexing failed: {exc}") from exc
 
 
 @search.command("stats")

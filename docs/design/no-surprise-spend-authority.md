@@ -118,9 +118,13 @@ It does not record prompts, responses, credentials, authentication headers, or
 provider endpoints. An absent provider request ID remains honest missing data.
 
 These identifiers improve joining but do not make the local ledger a provider
-invoice. Provider billing remains authoritative. Deepr does not currently
-import provider billing exports, verify paid API account hard limits, or detect
-calls made outside Deepr. Those controls remain required defense in depth.
+invoice. Provider billing remains authoritative. Deepr now imports a bounded
+normalized statement offline, separates capacity classes, performs exact
+receipt reconciliation, and freezes on non-clean applied evidence. It still
+cannot detect calls made outside Deepr. Provider-specific authenticated hard-
+limit verification and current account, scope, and credential resolution are
+not installed, so production paid dispatch remains blocked. Those controls
+remain required defense in depth.
 
 ## Graph execution contract
 
@@ -147,6 +151,13 @@ The useful graph rules are:
 - Isolate mutable state per parallel worker and merge through a controlled
   write boundary.
 
+The structured expert-consult graph is a narrower prototype. It is eval-only,
+read-only, and owned-local. Every model node must prove provider `local` and a
+literal-loopback Ollama endpoint, with no plan-quota or metered fallback. Its
+token, call, context, artifact, concurrency, and time ceilings are binding even
+though its provider-invoice cost is `$0`. See
+[local-structured-consult-graph.md](local-structured-consult-graph.md).
+
 ## Rollout
 
 1. Unify cap resolution, make the operator budget binding, add manual freeze,
@@ -160,8 +171,10 @@ The useful graph rules are:
    reconciliation, and durable attempt receipts for all capacity classes.
 5. Add threshold notifications and graph-level partial-completion telemetry.
 6. Import provider-authoritative billing evidence and freeze paid work on
-   unexplained positive drift. Keep provider hard-limit and overage-off posture
-   explicitly verified, operator-attested, or unknown.
+   unexplained positive drift. The bounded offline importer and freeze are
+   shipped. Keep paid authority blocked until provider-specific authenticated
+   source and credential-identity adapters can prove hard-limit or overage-off
+   posture.
 
 Implementation note, 2026-07-25: the shared wallet, job/day/week/month
 hierarchy, manual freeze, durable aggregate reservations, pre-dispatch
@@ -171,12 +184,13 @@ boundary are shipped in the working tree. Paid composed fan-out remains gated;
 parent reservation slices and branch-completion telemetry are not yet shipped.
 
 Implementation note, 2026-07-27: strict budget history, active-hold visibility,
-effective CLI cap displays, live pull-based CLI threshold state, and provider
-receipt identifiers are shipped. Outbound threshold delivery, billing-export
-import, paid API account hard-limit verification, and external-spend detection
-are not shipped. A provider account can still accrue charges through another
-application, a shared or compromised credential, a vendor-side pricing change,
-or taxes outside Deepr's usage ledger.
+effective CLI cap displays, live pull-based CLI threshold state, provider
+receipt identifiers, offline billing import, capacity-class reconciliation,
+immutable apply evidence, and divergence freeze are shipped. Outbound threshold
+delivery, provider-specific authenticated account-control adapters, and
+external-spend detection are not shipped. A provider account can still accrue
+charges through another application, a shared or compromised credential, a
+vendor-side pricing change, or taxes outside Deepr's usage ledger.
 
 Each phase is independently fail-closed. A later phase may improve
 availability, reporting, or efficiency, but it must not weaken an earlier
@@ -229,7 +243,7 @@ money invariant.
 - At or beyond a cap, every new paid reservation fails before client
   construction. The failure remains true under concurrent processes.
 - `budget set 0` and `budget freeze` block all paid dispatch. `budget unfreeze`
-  cannot bypass an exhausted cap.
+  cannot bypass an exhausted cap or use self-asserted account-control evidence.
 - Malformed or unreadable cap policy fails closed.
 - Web endpoints cannot raise limits above current authority.
 - No maintenance command selects an API merely because local or plan capacity

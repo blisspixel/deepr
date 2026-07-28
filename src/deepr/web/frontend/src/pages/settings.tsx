@@ -85,8 +85,8 @@ export default function Settings() {
     default_model: 'o4-mini-deep-research',
     default_priority: '1',
     enable_web_search: true,
-    daily_limit: '100',
-    monthly_limit: '1000',
+    daily_limit: '0',
+    monthly_limit: '0',
   })
 
   useEffect(() => {
@@ -94,10 +94,10 @@ export default function Settings() {
       setFormData(prev => ({
         ...prev,
         default_model: config.default_model || prev.default_model,
-        default_priority: config.default_priority?.toString() || prev.default_priority,
+        default_priority: config.default_priority?.toString() ?? prev.default_priority,
         enable_web_search: config.enable_web_search ?? prev.enable_web_search,
-        daily_limit: config.daily_limit?.toString() || prev.daily_limit,
-        monthly_limit: config.monthly_limit?.toString() || prev.monthly_limit,
+        daily_limit: config.daily_limit?.toString() ?? prev.daily_limit,
+        monthly_limit: config.monthly_limit?.toString() ?? prev.monthly_limit,
       }))
     }
   }, [config])
@@ -118,13 +118,11 @@ export default function Settings() {
       updates.default_priority = parseInt(formData.default_priority)
       updates.enable_web_search = formData.enable_web_search
     } else if (activeSection === 'limits') {
-      const daily = parseFloat(formData.daily_limit)
       const monthly = parseFloat(formData.monthly_limit)
-      if (isNaN(daily) || isNaN(monthly) || daily < 0 || monthly < 0) {
+      if (isNaN(monthly) || monthly < 0) {
         toast.error('Please enter valid budget amounts')
         return
       }
-      updates.daily_limit = daily
       updates.monthly_limit = monthly
     }
     updateMutation.mutate(updates)
@@ -371,9 +369,10 @@ export default function Settings() {
                     step={0.01}
                     min={0}
                     value={formData.daily_limit}
-                    onChange={(e) => handleChange('daily_limit', e.target.value)}
+                    readOnly
+                    disabled
                   />
-                  <p className="text-xs text-muted-foreground">Maximum per day</p>
+                  <p className="text-xs text-muted-foreground">Effective environment-managed global cap</p>
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="monthly-limit">Monthly Spending Limit ($)</Label>
@@ -385,7 +384,7 @@ export default function Settings() {
                     value={formData.monthly_limit}
                     onChange={(e) => handleChange('monthly_limit', e.target.value)}
                   />
-                  <p className="text-xs text-muted-foreground">Maximum per month</p>
+                  <p className="text-xs text-muted-foreground">Canonical global ceiling. The dashboard may only narrow it; $0 freezes paid APIs.</p>
                 </div>
               </div>
               <div className="flex justify-end">

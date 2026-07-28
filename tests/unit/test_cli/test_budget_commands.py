@@ -6,7 +6,7 @@ without making any external API calls.
 
 import sys
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -18,6 +18,50 @@ from click.testing import CliRunner
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from deepr.cli.main import cli
+from deepr.experts.research_reservation_store import ReconciledResearchExposure
+from deepr.observability import provider_account_controls as account_controls_module
+from deepr.observability.provider_account_controls import (
+    PaidApiAccountEvidence,
+    ProviderAccountBinding,
+    ProviderAccountEvidenceStore,
+)
+
+_TEST_AUTHORIZATION = {
+    "authority": "verified_by_deepr",
+    "evidence_ids": ["verified-unit-test-control"],
+    "valid_until": "2099-01-01T00:00:00+00:00",
+}
+
+
+def _recovery_evidence(*, freeze_id: str = "freeze-cli-test") -> tuple[str, str]:
+    observed_at = datetime.now(UTC)
+    store = ProviderAccountEvidenceStore()
+    base_evidence = next(
+        evidence
+        for path in (store.root / "account_evidence").glob("*.json")
+        if (evidence := store.load(path.stem)).provider == "openai"
+    )
+    evidence = PaidApiAccountEvidence(
+        schema_version="deepr-paid-api-account-evidence-v1",
+        kind="deepr.costs.paid_api_account_evidence",
+        provider="openai",
+        account_id="test-openai-account",
+        scope_ref="test-openai-scope",
+        credential_fingerprint="sha256:" + "3" * 64,
+        freeze_id=freeze_id,
+        freeze_frozen_at=observed_at.isoformat(),
+        observed_at=observed_at.isoformat(),
+        valid_until=(observed_at + timedelta(hours=1)).isoformat(),
+        source_posture="provider_api",
+        source_evidence_sha256=base_evidence.source_evidence_sha256,
+        billing_reconciliation_sha256=base_evidence.billing_reconciliation_sha256,
+        control_mode="hard_monthly_limit",
+        currency="USD",
+        overage_enabled=False,
+        hard_monthly_limit_usd="10.00",
+    )
+    evidence_id, _path = store.store(evidence)
+    return evidence_id, observed_at.isoformat()
 
 
 class TestBudgetCommandStructure:
@@ -81,6 +125,16 @@ class TestBudgetSetCommand:
         assert result.exit_code == 0
         assert "paid api dispatch frozen" in result.output.lower()
 
+    def test_zero_then_positive_budget_remains_frozen(self, runner):
+        assert runner.invoke(cli, ["budget", "set", "0"]).exit_code == 0
+        assert runner.invoke(cli, ["budget", "set", "10"]).exit_code == 0
+
+        result = runner.invoke(cli, ["budget", "status"])
+
+        assert result.exit_code == 0
+        assert "Mode: Paid API frozen" in result.output
+        assert "Effective monthly ceiling: $0.00" in result.output
+
     def test_budget_set_rejects_unlimited(self, runner):
         """Unlimited paid autonomy is not a valid budget state."""
         result = runner.invoke(cli, ["budget", "set", "--", "-1"])
@@ -104,7 +158,12 @@ class TestBudgetStatusCommand:
     def test_budget_status_shows_info(self, runner):
         """Test that 'budget status' shows budget information."""
         with patch("deepr.cli.commands.budget.load_budget_config") as mock_load:
-            mock_load.return_value = {"monthly_limit": 50.0, "monthly_spending": 10.0, "current_month": "2026-01"}
+            mock_load.return_value = {
+                "monthly_limit": 50.0,
+                "monthly_spending": 10.0,
+                "current_month": "2026-01",
+                "paid_api_authorization": _TEST_AUTHORIZATION,
+            }
             result = runner.invoke(cli, ["budget", "status"])
             assert result.exit_code == 0
             # Should show budget info
@@ -114,11 +173,18 @@ class TestBudgetStatusCommand:
         with (
             patch(
                 "deepr.cli.commands.budget.load_budget_config",
-                return_value={"monthly_limit": 50.0, "monthly_spending": 2.0, "current_month": "2026-07"},
+                return_value={
+                    "monthly_limit": 50.0,
+                    "monthly_spending": 2.0,
+                    "current_month": "2026-07",
+                    "paid_api_authorization": _TEST_AUTHORIZATION,
+                },
             ),
             patch("deepr.cli.commands.budget.resolve_spend_caps", return_value={"monthly": 10.0}),
-            patch("deepr.cli.commands.budget._ledger_month_spend", return_value=2.0),
-            patch("deepr.cli.commands.budget._durable_active_cost", return_value=0.0),
+            patch(
+                "deepr.cli.commands.budget._atomic_monthly_exposure",
+                return_value=SimpleNamespace(monthly_settled_cost=2.0, active_cost=0.0),
+            ),
         ):
             result = runner.invoke(cli, ["budget", "status"])
 
@@ -130,11 +196,18 @@ class TestBudgetStatusCommand:
         with (
             patch(
                 "deepr.cli.commands.budget.load_budget_config",
-                return_value={"monthly_limit": 10.0, "monthly_spending": 0.0, "current_month": "2026-07"},
+                return_value={
+                    "monthly_limit": 10.0,
+                    "monthly_spending": 0.0,
+                    "current_month": "2026-07",
+                    "paid_api_authorization": _TEST_AUTHORIZATION,
+                },
             ),
             patch("deepr.cli.commands.budget.resolve_spend_caps", return_value={"monthly": 10.0}),
-            patch("deepr.cli.commands.budget._ledger_month_spend", return_value=2.0),
-            patch("deepr.cli.commands.budget._durable_active_cost", return_value=0.5),
+            patch(
+                "deepr.cli.commands.budget._atomic_monthly_exposure",
+                return_value=SimpleNamespace(monthly_settled_cost=2.0, active_cost=0.5),
+            ),
         ):
             result = runner.invoke(cli, ["budget", "status"])
 
@@ -148,11 +221,15 @@ class TestBudgetStatusCommand:
         with (
             patch(
                 "deepr.cli.commands.budget.load_budget_config",
-                return_value={"monthly_limit": 10.0, "monthly_spending": 0.0, "current_month": "2026-07"},
+                return_value={
+                    "monthly_limit": 10.0,
+                    "monthly_spending": 0.0,
+                    "current_month": "2026-07",
+                    "paid_api_authorization": _TEST_AUTHORIZATION,
+                },
             ),
             patch("deepr.cli.commands.budget.resolve_spend_caps", return_value={"monthly": 10.0}),
-            patch("deepr.cli.commands.budget._ledger_month_spend", return_value=2.0),
-            patch("deepr.cli.commands.budget._durable_active_cost", return_value=None),
+            patch("deepr.cli.commands.budget._atomic_monthly_exposure", return_value=None),
         ):
             result = runner.invoke(cli, ["budget", "status"])
 
@@ -260,10 +337,15 @@ class TestBudgetFreezeCommands:
         assert config["freeze_reason"] == "operator stop"
 
     def test_unfreeze_refuses_exhausted_month(self, runner):
+        evidence_id, frozen_at = _recovery_evidence()
         config = {
             "monthly_limit": 10.0,
             "monthly_spending": 9.0,
             "paid_api_frozen": True,
+            "freeze_reason": "operator stop",
+            "freeze_id": "freeze-cli-test",
+            "freeze_kind": "manual",
+            "frozen_at": frozen_at,
         }
 
         def mutate(callback):
@@ -272,19 +354,35 @@ class TestBudgetFreezeCommands:
 
         with (
             patch("deepr.cli.commands.budget.mutate_budget_config", side_effect=mutate),
-            patch("deepr.cli.commands.budget._ledger_month_spend", return_value=10.0),
+            patch(
+                "deepr.cli.commands.budget._atomic_monthly_exposure",
+                return_value=ReconciledResearchExposure(
+                    daily_settled_cost=10.0,
+                    weekly_settled_cost=10.0,
+                    monthly_settled_cost=10.0,
+                    total_settled_cost=10.0,
+                    active_cost=0.0,
+                    unresolved_cost=0.0,
+                    unresolved_count=0,
+                ),
+            ),
         ):
-            result = runner.invoke(cli, ["budget", "unfreeze"])
+            result = runner.invoke(cli, ["budget", "unfreeze", "--evidence-id", evidence_id])
 
         assert result.exit_code == 1
         assert "exhausted" in result.output.lower()
         assert config["paid_api_frozen"] is True
 
     def test_unfreeze_requires_readable_canonical_ledger(self, runner):
+        evidence_id, frozen_at = _recovery_evidence()
         config = {
             "monthly_limit": 10.0,
             "monthly_spending": 1.0,
             "paid_api_frozen": True,
+            "freeze_reason": "operator stop",
+            "freeze_id": "freeze-cli-test",
+            "freeze_kind": "manual",
+            "frozen_at": frozen_at,
         }
 
         original = dict(config)
@@ -295,21 +393,69 @@ class TestBudgetFreezeCommands:
 
         with (
             patch("deepr.cli.commands.budget.mutate_budget_config", side_effect=mutate),
-            patch("deepr.cli.commands.budget._ledger_month_spend", return_value=None),
+            patch("deepr.cli.commands.budget._atomic_monthly_exposure", return_value=None),
         ):
-            result = runner.invoke(cli, ["budget", "unfreeze"])
+            result = runner.invoke(cli, ["budget", "unfreeze", "--evidence-id", evidence_id])
 
         assert result.exit_code == 1
         assert "unreadable" in result.output.lower()
         assert config == original
 
+    def test_unfreeze_rejects_evidence_for_an_older_ledger_snapshot(self, runner):
+        from deepr.observability.cost_ledger import CostLedger
+
+        evidence_id, frozen_at = _recovery_evidence()
+        config = {
+            "monthly_limit": 10.0,
+            "monthly_spending": 0.0,
+            "paid_api_frozen": True,
+            "freeze_reason": "operator stop",
+            "freeze_id": "freeze-cli-test",
+            "freeze_kind": "manual",
+            "frozen_at": frozen_at,
+        }
+        CostLedger().record_event(
+            operation="research_completion",
+            provider="openai",
+            cost_usd=0.25,
+            idempotency_key="unfreeze-ledger-changed",
+        )
+
+        def mutate(callback):
+            callback(config)
+            return config
+
+        with (
+            patch("deepr.cli.commands.budget.mutate_budget_config", side_effect=mutate),
+            patch(
+                "deepr.cli.commands.budget._atomic_monthly_exposure",
+                return_value=ReconciledResearchExposure(
+                    daily_settled_cost=0.25,
+                    weekly_settled_cost=0.25,
+                    monthly_settled_cost=0.25,
+                    total_settled_cost=0.25,
+                    active_cost=0.0,
+                    unresolved_cost=0.0,
+                    unresolved_count=0,
+                ),
+            ),
+        ):
+            result = runner.invoke(cli, ["budget", "unfreeze", "--evidence-id", evidence_id])
+
+        assert result.exit_code == 1
+        assert "no longer binds the current strict ledger snapshot" in result.output
+        assert config["paid_api_frozen"] is True
+
     def test_unfreeze_succeeds_only_with_positive_headroom(self, runner):
+        evidence_id, frozen_at = _recovery_evidence()
         config = {
             "monthly_limit": 10.0,
             "monthly_spending": 1.0,
             "paid_api_frozen": True,
             "freeze_reason": "operator stop",
-            "frozen_at": "2026-07-25T00:00:00",
+            "freeze_id": "freeze-cli-test",
+            "freeze_kind": "manual",
+            "frozen_at": frozen_at,
         }
 
         def mutate(callback):
@@ -318,14 +464,59 @@ class TestBudgetFreezeCommands:
 
         with (
             patch("deepr.cli.commands.budget.mutate_budget_config", side_effect=mutate),
-            patch("deepr.cli.commands.budget._ledger_month_spend", return_value=2.0),
+            patch(
+                "deepr.cli.commands.budget._atomic_monthly_exposure",
+                return_value=ReconciledResearchExposure(
+                    daily_settled_cost=2.0,
+                    weekly_settled_cost=2.0,
+                    monthly_settled_cost=2.0,
+                    total_settled_cost=2.0,
+                    active_cost=0.0,
+                    unresolved_cost=0.0,
+                    unresolved_count=0,
+                ),
+            ),
         ):
-            result = runner.invoke(cli, ["budget", "unfreeze"])
+            result = runner.invoke(cli, ["budget", "unfreeze", "--evidence-id", evidence_id])
 
         assert result.exit_code == 0
         assert config["paid_api_frozen"] is False
         assert config["freeze_reason"] == ""
         assert "frozen_at" not in config
+        assert config["paid_api_authorization"]["evidence_ids"] == [evidence_id]
+
+    def test_unfreeze_validates_current_account_scope_and_credential(self, runner, monkeypatch):
+        evidence_id, frozen_at = _recovery_evidence()
+        config = {
+            "monthly_limit": 10.0,
+            "monthly_spending": 0.0,
+            "paid_api_frozen": True,
+            "freeze_reason": "operator stop",
+            "freeze_id": "freeze-cli-test",
+            "freeze_kind": "manual",
+            "frozen_at": frozen_at,
+        }
+
+        def mutate(callback):
+            callback(config)
+            return config
+
+        monkeypatch.setattr(
+            account_controls_module,
+            "_resolve_current_provider_account_binding",
+            lambda provider: ProviderAccountBinding(
+                provider=provider,
+                account_id="wrong-account",
+                scope_ref="test-openai-scope",
+                credential_fingerprint="sha256:" + "3" * 64,
+            ),
+        )
+        with patch("deepr.cli.commands.budget.mutate_budget_config", side_effect=mutate):
+            result = runner.invoke(cli, ["budget", "unfreeze", "--evidence-id", evidence_id])
+
+        assert result.exit_code == 1
+        assert "does not match" in result.output
+        assert config["paid_api_frozen"] is True
 
     def test_concurrent_record_and_limit_update_cannot_clear_freeze(self):
         from deepr.cli.commands.budget import load_budget_config, mutate_budget_config, record_spending
@@ -418,7 +609,12 @@ class TestBudgetDisplay:
     def test_budget_status_displays_currency_format(self, runner):
         """Test that budget status displays amounts in currency format."""
         with patch("deepr.cli.commands.budget.load_budget_config") as mock_load:
-            mock_load.return_value = {"monthly_limit": 50.0, "monthly_spending": 10.0, "current_month": "2026-01"}
+            mock_load.return_value = {
+                "monthly_limit": 50.0,
+                "monthly_spending": 10.0,
+                "current_month": "2026-01",
+                "paid_api_authorization": _TEST_AUTHORIZATION,
+            }
             result = runner.invoke(cli, ["budget", "status"])
 
             # Should display dollar amounts

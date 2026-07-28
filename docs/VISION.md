@@ -6,11 +6,12 @@
 
 Transform research from isolated queries into cumulative understanding. Build systems that learn and improve over time.
 
-## Current State (v2.38.4)
+## Current State (v2.39.0)
 
 What works today:
-- Bounded single-job provider research where exact pricing and finite request,
-  output, tool, and payload ceilings are available.
+- Write-free bounded provider-research preview and offline billing
+  reconciliation. Production metered dispatch remains blocked until provider-
+  authenticated account controls can be bound to the exact active credential.
 - Local Ollama and explicit non-metered plan-quota expert maintenance.
 - Persistent expert beliefs, gaps, provenance, temporal state, generated views,
   and portable handoff artifacts.
@@ -23,8 +24,8 @@ What works today:
 - An enforced no-key test and coverage gate.
 
 Automatic paid fallback, hosted file/vector context, metered multi-call
-campaigns, standalone metered expert chat, and several legacy direct metered
-commands fail closed in v2.36. [Supported Surface](SUPPORTED_SURFACE.md) is the
+campaigns, standalone metered expert chat, and every production metered
+dispatch fail closed in v2.39. [Supported Surface](SUPPORTED_SURFACE.md) is the
 current capability contract; the sections below describe direction and existing
 substrate, not permission to use a gated runtime path.
 

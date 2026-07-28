@@ -7,6 +7,79 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.39.0] - 2026-07-28
+
+### Added
+
+- Added bounded offline provider-billing import and reconciliation with strict
+  schemas, duplicate-key and credential rejection, exact receipt joins,
+  microdollar arithmetic, explicit metered, prepaid-plan, owned-local, and
+  unknown capacity classes, content-addressed evidence, and write-free preview.
+  Applied reconciliation freezes paid work on incomplete, ambiguous, unknown,
+  provisional, unsupported, or positively divergent evidence and never
+  unfreezes it automatically.
+- Added a content-addressed paid-account evidence contract bound to the current
+  freeze, provider, account, billing scope, credential fingerprint, overage-off
+  posture, and provider hard monthly limit. Locally constructed posture labels
+  and hashes are non-authoritative. No production provider-specific verifier or
+  identity resolver is installed, so metered API dispatch remains blocked.
+- Added explicit metered semantic-indexing admission. Keyword indexing and
+  search remain local by default; OpenAI embeddings require an aggregate finite
+  ceiling plus explicit metered confirmation and preserve successful partial
+  work when a later bounded batch fails.
+
+### Changed
+
+- Moved new cost writes to the stable per-user cost root and made strict
+  accounting include the legacy source-checkout ledger and reservation store.
+  Absolute relocation remains available through `DEEPR_COST_DATA_DIR`.
+  Long-lived processes rediscover late legacy state, exact duplicate events are
+  counted once, conflicts and malformed state fail closed, and cross-root
+  reservation or job identity collisions block authority.
+- Unified CLI, REST, MCP, and dashboard cost status around one locked exposure
+  snapshot containing settled spend, active holds, unresolved post-dispatch
+  holds, effective caps, headroom, and freeze state. Unknown state is rendered
+  as unknown or blocked, never as zero or healthy. Dashboard limits now narrow
+  the canonical operator wallet instead of writing a second authority file.
+- Tightened the README to a short product and safety overview with detailed
+  behavior routed to canonical documents.
+- Accepted an eval-first design for deeper structured expert consultation that
+  is locked to proven loopback-owned local inference, fixed graph and token
+  envelopes, exact completion accounting, no fallback, and no expert-state
+  writes. No new runtime consult mode ships in this release.
+- Refreshed the frozen dependency graph to OpenAI 2.49.0, Anthropic 0.120.2,
+  Azure AI Projects 2.4.0, Hypothesis 6.163.0, Framer Motion 12.43.0, and
+  PostCSS 8.5.24 after the final 2026-07-28 registry and clean-install audit,
+  plus compatible transitive Wrapt 2.3.0. The
+  frontend remains on TypeScript 6.0.3 because the latest TypeScript ESLint
+  8.65.0 peer contract excludes TypeScript 7. Newer Pydantic Core, Docutils,
+  RSA, and Readme Renderer releases remain resolver-incompatible with exact or
+  upper bounds from current Pydantic and AWS CLI dependencies; forcing them
+  would make the declared extras unsatisfiable. All other declared frontend
+  and direct Python dependencies are current.
+
+### Fixed
+
+- Bound reservation authority and restored queued work to the exact provider
+  and a versioned account-control contract. Legacy queued jobs without that
+  contract cannot cross the provider boundary after a future unfreeze.
+- Prevented reservation completions from closing another cross-root hold that
+  reused a job ID, and prevented a cost root selected by the current working
+  directory from hiding settled spend or concurrent holds.
+- Made `budget set 0` create a durable typed freeze and remove stale
+  authorization, so a later positive limit cannot silently reactivate paid
+  work. Relative budget and cost-state paths are rejected.
+- Moved API judge and paid semantic client construction behind durable
+  admission, disabled hidden OpenAI SDK retries, and made paid semantic failure
+  visible through nonzero CLI status. MCP reflection remains blocked before
+  client or report construction until its complete metered contract ships.
+- Made cost integrity checks use the configured reports root and strict
+  accounting. Positive exposure against a zero ceiling is displayed as a
+  breach rather than zero-percent utilization.
+- Removed the legacy `DEEPR_COST_TRACKING_STRICT=0` escape hatch. Every cost
+  append now uses a bounded lock, requires durable flush, and raises a path-safe
+  error instead of continuing with process-local-only accounting.
+
 ## [2.38.4] - 2026-07-27
 
 ### Changed

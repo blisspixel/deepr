@@ -21,7 +21,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from deepr.services.context_index import ContextIndex, SearchResult
+from deepr.services.context_index import ContextIndex, PaidSemanticOperationError, SearchResult
 
 
 @pytest.fixture
@@ -124,7 +124,7 @@ class TestIndexReports:
 
         client.embeddings.create = AsyncMock(side_effect=fake_create)
         with patch("openai.AsyncOpenAI", return_value=client):
-            n = await tmp_index.index_reports()
+            n = await tmp_index.index_reports(include_semantic=True, max_total_cost_usd=1.0)
         assert n == 2
         # Embeddings persisted on disk.
         assert tmp_index.embeddings_path.exists()
@@ -132,17 +132,62 @@ class TestIndexReports:
         assert tmp_index._is_indexed("j_alpha")
 
     @pytest.mark.asyncio
+    async def test_default_index_never_constructs_embedding_client(self, tmp_index):
+        _write_report(tmp_index.reports_dir, "j_local", "local keyword research")
+
+        with patch("openai.AsyncOpenAI", side_effect=AssertionError("paid client must not be constructed")):
+            n = await tmp_index.index_reports()
+
+        assert n == 1
+        assert tmp_index.embeddings is None
+        assert not tmp_index.embeddings_path.exists()
+
+    @pytest.mark.asyncio
+    async def test_semantic_index_requires_ceiling_before_client_construction(self, tmp_index):
+        _write_report(tmp_index.reports_dir, "j_blocked", "blocked semantic research")
+
+        with (
+            patch("openai.AsyncOpenAI", side_effect=AssertionError("paid client must not be constructed")),
+            pytest.raises(ValueError, match="aggregate cost ceiling"),
+        ):
+            await tmp_index.index_reports(include_semantic=True)
+
+    @pytest.mark.asyncio
+    async def test_semantic_index_respects_aggregate_cost_ceiling(self, tmp_index):
+        from deepr.services.metered_envelope import bounded_embedding_envelope
+
+        _write_report(tmp_index.reports_dir, "j_one", "same prompt")
+        _write_report(tmp_index.reports_dir, "j_two", "same prompt")
+        embed_text = "same prompt\n\nReport body"
+        one_call_ceiling = bounded_embedding_envelope(
+            model="text-embedding-3-small",
+            inputs=(embed_text,),
+        ).cost_usd
+        client = MagicMock()
+        client.embeddings.create = AsyncMock(return_value=MagicMock(data=[MagicMock(embedding=list(np.zeros(1536)))]))
+
+        with (
+            patch("openai.AsyncOpenAI", return_value=client),
+            pytest.raises(PaidSemanticOperationError, match="aggregate ceiling"),
+        ):
+            await tmp_index.index_reports(include_semantic=True, max_total_cost_usd=one_call_ceiling)
+
+        client.embeddings.create.assert_awaited_once()
+        assert tmp_index.get_stats()["indexed_reports"] == 1
+        assert tmp_index.get_stats()["embedding_count"] == 1
+
+    @pytest.mark.asyncio
     async def test_index_skips_already_indexed_unless_forced(self, tmp_index):
         _write_report(tmp_index.reports_dir, "j_x", "x")
         client = MagicMock()
         client.embeddings.create = AsyncMock(return_value=MagicMock(data=[MagicMock(embedding=list(np.zeros(1536)))]))
         with patch("openai.AsyncOpenAI", return_value=client):
-            await tmp_index.index_reports()
+            await tmp_index.index_reports(include_semantic=True, max_total_cost_usd=1.0)
             # second pass - already indexed, returns 0
-            n = await tmp_index.index_reports()
+            n = await tmp_index.index_reports(include_semantic=True, max_total_cost_usd=1.0)
             assert n == 0
             # force=True re-indexes
-            n2 = await tmp_index.index_reports(force=True)
+            n2 = await tmp_index.index_reports(force=True, include_semantic=True, max_total_cost_usd=1.0)
             assert n2 >= 1
 
     @pytest.mark.asyncio
@@ -150,10 +195,12 @@ class TestIndexReports:
         _write_report(tmp_index.reports_dir, "j_fail", "boom")
         client = MagicMock()
         client.embeddings.create = AsyncMock(side_effect=RuntimeError("API down"))
-        with patch("openai.AsyncOpenAI", return_value=client):
-            n = await tmp_index.index_reports()
-        # Indexed without an embedding (embedding_idx will be NULL).
-        assert n == 1
+        with (
+            patch("openai.AsyncOpenAI", return_value=client),
+            pytest.raises(PaidSemanticOperationError, match="durable metered boundary"),
+        ):
+            await tmp_index.index_reports(include_semantic=True, max_total_cost_usd=1.0)
+        assert tmp_index.get_stats()["indexed_reports"] == 0
 
     @pytest.mark.asyncio
     async def test_index_skips_report_with_empty_prompt(self, tmp_index):
@@ -161,7 +208,7 @@ class TestIndexReports:
         client = MagicMock()
         client.embeddings.create = AsyncMock(return_value=MagicMock(data=[MagicMock(embedding=list(np.zeros(1536)))]))
         with patch("openai.AsyncOpenAI", return_value=client):
-            n = await tmp_index.index_reports()
+            n = await tmp_index.index_reports(include_semantic=True, max_total_cost_usd=1.0)
         assert n == 0
 
 
@@ -216,6 +263,28 @@ def _seed(idx: ContextIndex, job_id: str, prompt: str, summary: str, embedding: 
 
 class TestSearch:
     @pytest.mark.asyncio
+    async def test_default_search_does_not_construct_embedding_client(self, populated_index):
+        vec = np.zeros(1536, dtype=np.float32)
+        vec[0] = 1.0
+        _seed(populated_index, "j_local", "local query", "local summary", vec)
+
+        with patch("openai.AsyncOpenAI", side_effect=AssertionError("paid client must not be constructed")):
+            out = await populated_index.search("local", top_k=5, threshold=0.0)
+
+        assert any(result.job_id == "j_local" for result in out)
+
+    @pytest.mark.asyncio
+    async def test_semantic_search_requires_ceiling_before_client_construction(self, populated_index):
+        vec = np.zeros(1536, dtype=np.float32)
+        _seed(populated_index, "j_blocked", "blocked", "blocked", vec)
+
+        with (
+            patch("openai.AsyncOpenAI", side_effect=AssertionError("paid client must not be constructed")),
+            pytest.raises(ValueError, match="aggregate cost ceiling"),
+        ):
+            await populated_index.search("blocked", include_semantic=True)
+
+    @pytest.mark.asyncio
     async def test_search_semantic_returns_results(self, populated_index):
         vec_a = np.zeros(1536, dtype=np.float32)
         vec_a[0] = 1.0
@@ -230,7 +299,14 @@ class TestSearch:
         query_vec[0] = 1.0
         client.embeddings.create = AsyncMock(return_value=MagicMock(data=[MagicMock(embedding=list(query_vec))]))
         with patch("openai.AsyncOpenAI", return_value=client):
-            out = await populated_index.search("alpha", top_k=5, threshold=0.5, include_keyword=False)
+            out = await populated_index.search(
+                "alpha",
+                top_k=5,
+                threshold=0.5,
+                include_keyword=False,
+                include_semantic=True,
+                max_total_cost_usd=1.0,
+            )
         assert any(r.job_id == "ja" for r in out)
 
     @pytest.mark.asyncio
@@ -276,9 +352,11 @@ class TestSearch:
 
         client = MagicMock()
         client.embeddings.create = AsyncMock(side_effect=RuntimeError("API down"))
-        with patch("openai.AsyncOpenAI", return_value=client):
-            out = await populated_index._semantic_search("query", top_k=5, threshold=0.0)
-        assert out == []
+        with (
+            patch("openai.AsyncOpenAI", return_value=client),
+            pytest.raises(PaidSemanticOperationError, match="did not complete under the durable metered boundary"),
+        ):
+            await populated_index._semantic_search("query", top_k=5, threshold=0.0, max_total_cost_usd=1.0)
 
     @pytest.mark.asyncio
     async def test_search_boosts_when_both_match(self, populated_index):
@@ -288,7 +366,13 @@ class TestSearch:
         client = MagicMock()
         client.embeddings.create = AsyncMock(return_value=MagicMock(data=[MagicMock(embedding=list(vec))]))
         with patch("openai.AsyncOpenAI", return_value=client):
-            out = await populated_index.search("quantum", top_k=5, threshold=0.0)
+            out = await populated_index.search(
+                "quantum",
+                top_k=5,
+                threshold=0.0,
+                include_semantic=True,
+                max_total_cost_usd=1.0,
+            )
         assert any(r.job_id == "j_both" for r in out)
         # Boost gives semantic-only ~score then +0.1 for keyword match.
         score = next(r.similarity for r in out if r.job_id == "j_both")

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sqlite3
 from collections.abc import Callable
 from contextlib import closing
@@ -10,7 +11,12 @@ from datetime import UTC, datetime, timedelta
 from math import isfinite
 from pathlib import Path
 
-from deepr.observability.cost_ledger import CostLedger, CostLedgerEvent, default_cost_data_dir
+from deepr.observability.cost_ledger import (
+    CostLedger,
+    CostLedgerEvent,
+    default_cost_data_dir,
+    well_known_cost_data_dirs,
+)
 
 
 class ResearchReservationLimitExceeded(ValueError):
@@ -32,6 +38,19 @@ class ActiveResearchReservation:
     provider_work_may_have_run: bool
 
 
+@dataclass(frozen=True)
+class ReconciledResearchExposure:
+    """One locked view of settled spend and durable in-flight exposure."""
+
+    daily_settled_cost: float
+    weekly_settled_cost: float
+    monthly_settled_cost: float
+    total_settled_cost: float
+    active_cost: float
+    unresolved_cost: float
+    unresolved_count: int
+
+
 def _validated_money(value: object, *, field_name: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"{field_name} must be a finite non-negative number")
@@ -45,7 +64,22 @@ class ResearchReservationStore:
     """Serialize research reservations across API, web, and worker processes."""
 
     def __init__(self, path: Path | None = None, *, lock_timeout_seconds: float = 5.0) -> None:
+        using_default_path = path is None and not os.environ.get("DEEPR_COST_DATA_DIR", "").strip()
         self.path = path or default_cost_data_dir() / "research_reservations.db"
+        self._candidate_sibling_paths: tuple[Path, ...] = ()
+        if using_default_path:
+            siblings: list[Path] = []
+            for root in well_known_cost_data_dirs():
+                candidate = root / "research_reservations.db"
+                try:
+                    if candidate.resolve() != self.path.resolve():
+                        siblings.append(candidate)
+                except OSError:
+                    continue
+            # Keep stable candidate paths even before their databases exist.
+            # A long-lived process must see legacy state created later by a
+            # concurrently rolling older process.
+            self._candidate_sibling_paths = tuple(siblings)
         if (
             isinstance(lock_timeout_seconds, bool)
             or not isinstance(lock_timeout_seconds, (int, float))
@@ -61,9 +95,128 @@ class ResearchReservationStore:
             raise ResearchReservationStoreError("durable reservation storage initialization failed") from error
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.path, timeout=self._lock_timeout_seconds)
+        return self._connect_path(self.path)
+
+    def _connect_path(self, path: Path) -> sqlite3.Connection:
+        connection = sqlite3.connect(path, timeout=self._lock_timeout_seconds)
         connection.execute(f"PRAGMA busy_timeout = {int(self._lock_timeout_seconds * 1000)}")
         return connection
+
+    def _reservation_paths(self) -> tuple[Path, ...]:
+        """Rediscover stable reservation databases for every authority read."""
+        paths = [self.path]
+        for candidate in self._candidate_sibling_paths:
+            try:
+                if candidate.exists():
+                    paths.append(candidate)
+            except OSError as error:
+                raise ResearchReservationStoreError("legacy reservation state cannot be located") from error
+        return tuple(paths)
+
+    def _validated_identity_state(
+        self,
+    ) -> tuple[tuple[Path, ...], dict[str, Path], dict[str, Path]]:
+        """Load one fail-closed cross-root identity index."""
+        paths = self._reservation_paths()
+        reservation_locations: dict[str, Path] = {}
+        job_locations: dict[str, Path] = {}
+        for path in paths:
+            try:
+                with closing(self._connect_path(path)) as connection:
+                    rows = connection.execute(
+                        "SELECT reservation_id, job_id FROM research_cost_reservations"
+                    ).fetchall()
+            except (OSError, sqlite3.Error) as error:
+                raise ResearchReservationStoreError("reservation identity state is unreadable") from error
+            for reservation_id, job_id in rows:
+                reservation_key = str(reservation_id)
+                job_key = str(job_id)
+                if reservation_key in reservation_locations:
+                    raise ResearchReservationStoreError("reservation identity exists in multiple cost roots")
+                if job_key in job_locations:
+                    raise ResearchReservationStoreError("reservation job identity exists in multiple cost roots")
+                reservation_locations[reservation_key] = path
+                job_locations[job_key] = path
+        return paths, reservation_locations, job_locations
+
+    @staticmethod
+    def _completion_indexes(
+        events: list[CostLedgerEvent],
+    ) -> tuple[dict[str, CostLedgerEvent], dict[str, CostLedgerEvent]]:
+        # A reservation-bound event is authoritative only for that exact
+        # reservation. Job-only matching remains a compatibility fallback for
+        # older completion events that contain no reservation identity.
+        completed_jobs = {
+            event.idempotency_key.removeprefix("job:").removesuffix(":completion"): event
+            for event in events
+            if event.idempotency_key.startswith("job:")
+            and event.idempotency_key.endswith(":completion")
+            and not event.metadata.get("cost_reservation_id")
+        }
+        completed_reservations = {
+            str(event.metadata.get("cost_reservation_id")): event
+            for event in events
+            if event.metadata.get("cost_reservation_id")
+        }
+        return completed_jobs, completed_reservations
+
+    @classmethod
+    def _unsettled_active_rows(
+        cls,
+        connection: sqlite3.Connection,
+        events: list[CostLedgerEvent],
+    ) -> list[ActiveResearchReservation]:
+        completed_jobs, completed_reservations = cls._completion_indexes(events)
+        rows = connection.execute(
+            """
+            SELECT reservation_id, job_id, reserved_cost, created_at, provider_work_may_have_run
+            FROM research_cost_reservations
+            WHERE state = 'active'
+            """
+        ).fetchall()
+        active: list[ActiveResearchReservation] = []
+        for reservation_id, job_id, reserved_cost, created_at, provider_work_may_have_run in rows:
+            reservation_key = str(reservation_id)
+            job_key = str(job_id)
+            completion = completed_reservations.get(reservation_key)
+            if completion is not None:
+                event_job_id = str(completion.metadata.get("cost_reservation_job_id", "") or "")
+                if not event_job_id or event_job_id == job_key:
+                    continue
+            if job_key in completed_jobs:
+                continue
+            active.append(
+                ActiveResearchReservation(
+                    reservation_id=reservation_key,
+                    job_id=job_key,
+                    reserved_cost=float(reserved_cost),
+                    created_at=datetime.fromisoformat(str(created_at)),
+                    provider_work_may_have_run=bool(provider_work_may_have_run),
+                )
+            )
+        return active
+
+    def _sibling_active_reservations(
+        self,
+        events: list[CostLedgerEvent],
+        *,
+        paths: tuple[Path, ...],
+        exclude_path: Path | None = None,
+    ) -> list[ActiveResearchReservation]:
+        active: list[ActiveResearchReservation] = []
+        for path in paths:
+            if exclude_path is not None and path == exclude_path:
+                continue
+            try:
+                with closing(self._connect_path(path)) as connection:
+                    active.extend(self._unsettled_active_rows(connection, events))
+            except (OSError, sqlite3.Error, TypeError, ValueError) as error:
+                raise ResearchReservationStoreError("legacy reservation state is unreadable") from error
+        return active
+
+    def _reservation_path(self, reservation_id: str) -> Path:
+        _paths, reservation_locations, _job_locations = self._validated_identity_state()
+        return reservation_locations.get(reservation_id, self.path)
 
     def _initialize(self) -> None:
         with closing(self._connect()) as connection, connection:
@@ -121,6 +274,7 @@ class ResearchReservationStore:
             max_weekly_cost = min(caller_weekly, authority["weekly"])
             max_monthly_cost = min(max_monthly_cost, authority["monthly"])
             now = datetime.now(UTC)
+            paths, reservation_locations, job_locations = self._validated_identity_state()
             ledger = CostLedger()
             with closing(self._connect()) as connection, connection:
                 connection.execute("BEGIN IMMEDIATE")
@@ -128,12 +282,23 @@ class ResearchReservationStore:
                 def commit_hold(events: list[CostLedgerEvent]) -> None:
                     self._reconcile_rows(connection, events)
                     self._expire_stale_council_predispatch_rows(connection, now)
-                    active = float(
+                    if reservation_id in reservation_locations or job_id in job_locations:
+                        raise ResearchReservationStoreError("reservation identity already exists in cost state")
+                    primary_active = float(
                         connection.execute(
                             "SELECT COALESCE(SUM(reserved_cost), 0) "
                             "FROM research_cost_reservations WHERE state = 'active'"
                         ).fetchone()[0]
                     )
+                    sibling_active = sum(
+                        row.reserved_cost
+                        for row in self._sibling_active_reservations(
+                            events,
+                            paths=paths,
+                            exclude_path=self.path,
+                        )
+                    )
+                    active = primary_active + sibling_active
                     day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
                     week_start = day_start - timedelta(days=day_start.weekday())
                     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -173,22 +338,13 @@ class ResearchReservationStore:
     @staticmethod
     def _reconcile_rows(connection: sqlite3.Connection, events: list[CostLedgerEvent]) -> int:
         """Close active holds whose canonical completion event already exists."""
-        completions = {
-            event.idempotency_key: event
-            for event in events
-            if event.idempotency_key.startswith("job:") and event.idempotency_key.endswith(":completion")
-        }
-        reservation_completions = {
-            str(event.metadata.get("cost_reservation_id")): event
-            for event in events
-            if event.metadata.get("cost_reservation_id")
-        }
+        job_completions, reservation_completions = ResearchReservationStore._completion_indexes(events)
         reconciled = 0
         rows = connection.execute(
             "SELECT reservation_id, job_id FROM research_cost_reservations WHERE state = 'active'"
         ).fetchall()
         for reservation_id, job_id in rows:
-            event = completions.get(f"job:{job_id}:completion") or reservation_completions.get(str(reservation_id))
+            event = reservation_completions.get(str(reservation_id)) or job_completions.get(str(job_id))
             if event is None:
                 continue
             event_job_id = str(event.metadata.get("cost_reservation_job_id", "") or "")
@@ -228,7 +384,9 @@ class ResearchReservationStore:
             authority = resolve_spend_caps()
             now = datetime.now(UTC)
             ledger = CostLedger()
-            with closing(self._connect()) as connection, connection:
+            paths, reservation_locations, _job_locations = self._validated_identity_state()
+            reservation_path = reservation_locations.get(reservation_id, self.path)
+            with closing(self._connect_path(reservation_path)) as connection, connection:
                 connection.execute("BEGIN IMMEDIATE")
 
                 def commit_mark(events: list[CostLedgerEvent]) -> None:
@@ -242,12 +400,21 @@ class ResearchReservationStore:
                     if row is None:
                         raise RuntimeError("durable reservation is not active")
                     reserved_cost = float(row[0])
-                    active = float(
+                    target_active = float(
                         connection.execute(
                             "SELECT COALESCE(SUM(reserved_cost), 0) "
                             "FROM research_cost_reservations WHERE state = 'active'"
                         ).fetchone()[0]
                     )
+                    other_active = sum(
+                        row.reserved_cost
+                        for row in self._sibling_active_reservations(
+                            events,
+                            paths=paths,
+                            exclude_path=reservation_path,
+                        )
+                    )
+                    active = target_active + other_active
                     day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
                     week_start = day_start - timedelta(days=day_start.weekday())
                     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -281,7 +448,8 @@ class ResearchReservationStore:
 
     def refund(self, reservation_id: str, *, provider_work_did_not_run: bool = False) -> bool:
         """Close an active durable reservation without recording spend."""
-        with closing(self._connect()) as connection, connection:
+        reservation_path = self._reservation_path(reservation_id)
+        with closing(self._connect_path(reservation_path)) as connection, connection:
             connection.execute("BEGIN IMMEDIATE")
             cursor = connection.execute(
                 """
@@ -298,7 +466,8 @@ class ResearchReservationStore:
     def settle(self, reservation_id: str, actual_cost: float, record: Callable[[], None]) -> str:
         """Write the ledger event and close its hold under one process lock."""
         actual_cost = _validated_money(actual_cost, field_name="actual_cost")
-        with closing(self._connect()) as connection, connection:
+        reservation_path = self._reservation_path(reservation_id)
+        with closing(self._connect_path(reservation_path)) as connection, connection:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
                 "SELECT state FROM research_cost_reservations WHERE reservation_id = ?",
@@ -324,50 +493,124 @@ class ResearchReservationStore:
 
     def active_cost(self) -> float:
         """Return active durable holds for diagnostics and tests."""
+        paths, _reservation_locations, _job_locations = self._validated_identity_state()
         ledger = CostLedger()
         with closing(self._connect()) as connection, connection:
             connection.execute("BEGIN IMMEDIATE")
 
             def reconcile_and_total(events: list[CostLedgerEvent]) -> float:
                 self._reconcile_rows(connection, events)
-                total = float(
+                primary_total = float(
                     connection.execute(
                         "SELECT COALESCE(SUM(reserved_cost), 0) FROM research_cost_reservations WHERE state = 'active'"
                     ).fetchone()[0]
                 )
+                sibling_total = sum(
+                    row.reserved_cost
+                    for row in self._sibling_active_reservations(
+                        events,
+                        paths=paths,
+                        exclude_path=self.path,
+                    )
+                )
                 connection.commit()
-                return total
+                return primary_total + sibling_total
 
             return ledger.with_locked_accounting_events(
                 reconcile_and_total,
                 lock_timeout_seconds=self._lock_timeout_seconds,
             )
 
+    def exposure_snapshot(self, *, now: datetime | None = None) -> ReconciledResearchExposure:
+        """Return one strict snapshot without a settlement-to-hold race."""
+        observed_at = (now or datetime.now(UTC)).astimezone(UTC)
+        day_start = observed_at.replace(hour=0, minute=0, second=0, microsecond=0)
+        week_start = day_start - timedelta(days=day_start.weekday())
+        month_start = observed_at.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        paths, _reservation_locations, _job_locations = self._validated_identity_state()
+        ledger = CostLedger()
+        with closing(self._connect()) as connection, connection:
+            connection.execute("BEGIN IMMEDIATE")
+
+            def reconcile_and_snapshot(events: list[CostLedgerEvent]) -> ReconciledResearchExposure:
+                self._reconcile_rows(connection, events)
+                primary_active, primary_unresolved, primary_unresolved_count = connection.execute(
+                    """
+                    SELECT
+                        COALESCE(SUM(reserved_cost), 0),
+                        COALESCE(SUM(CASE WHEN provider_work_may_have_run = 1 THEN reserved_cost ELSE 0 END), 0),
+                        COALESCE(SUM(CASE WHEN provider_work_may_have_run = 1 THEN 1 ELSE 0 END), 0)
+                    FROM research_cost_reservations
+                    WHERE state = 'active'
+                    """
+                ).fetchone()
+                sibling_active = self._sibling_active_reservations(
+                    events,
+                    paths=paths,
+                    exclude_path=self.path,
+                )
+                active_cost = float(primary_active) + sum(row.reserved_cost for row in sibling_active)
+                unresolved_cost = float(primary_unresolved) + sum(
+                    row.reserved_cost for row in sibling_active if row.provider_work_may_have_run
+                )
+                unresolved_count = int(primary_unresolved_count) + sum(
+                    1 for row in sibling_active if row.provider_work_may_have_run
+                )
+                daily_settled = sum(event.cost_usd for event in events if event.timestamp >= day_start)
+                weekly_settled = sum(event.cost_usd for event in events if event.timestamp >= week_start)
+                monthly_settled = sum(event.cost_usd for event in events if event.timestamp >= month_start)
+                total_settled = sum(event.cost_usd for event in events)
+                connection.commit()
+                return ReconciledResearchExposure(
+                    daily_settled_cost=float(daily_settled),
+                    weekly_settled_cost=float(weekly_settled),
+                    monthly_settled_cost=float(monthly_settled),
+                    total_settled_cost=float(total_settled),
+                    active_cost=float(active_cost),
+                    unresolved_cost=float(unresolved_cost),
+                    unresolved_count=int(unresolved_count),
+                )
+
+            return ledger.with_locked_accounting_events(
+                reconcile_and_snapshot,
+                lock_timeout_seconds=self._lock_timeout_seconds,
+            )
+
     def active_reservations(self) -> list[ActiveResearchReservation]:
         """Return active holds for queue-backed orphan reconciliation."""
-        with closing(self._connect()) as connection, connection:
-            rows = connection.execute(
-                """
-                SELECT reservation_id, job_id, reserved_cost, created_at, provider_work_may_have_run
-                FROM research_cost_reservations
-                WHERE state = 'active'
-                ORDER BY created_at, reservation_id
-                """
-            ).fetchall()
-        return [
-            ActiveResearchReservation(
-                reservation_id=str(reservation_id),
-                job_id=str(job_id),
-                reserved_cost=float(reserved_cost),
-                created_at=datetime.fromisoformat(str(created_at)),
-                provider_work_may_have_run=bool(provider_work_may_have_run),
-            )
-            for reservation_id, job_id, reserved_cost, created_at, provider_work_may_have_run in rows
-        ]
+        paths, _reservation_locations, _job_locations = self._validated_identity_state()
+        reservations: dict[str, ActiveResearchReservation] = {}
+        for path in paths:
+            try:
+                with closing(self._connect_path(path)) as connection:
+                    rows = connection.execute(
+                        """
+                        SELECT reservation_id, job_id, reserved_cost, created_at, provider_work_may_have_run
+                        FROM research_cost_reservations
+                        WHERE state = 'active'
+                        ORDER BY created_at, reservation_id
+                        """
+                    ).fetchall()
+            except (OSError, sqlite3.Error) as error:
+                raise ResearchReservationStoreError("reservation state is unreadable") from error
+            for reservation_id, job_id, reserved_cost, created_at, provider_work_may_have_run in rows:
+                key = str(reservation_id)
+                item = ActiveResearchReservation(
+                    reservation_id=key,
+                    job_id=str(job_id),
+                    reserved_cost=float(reserved_cost),
+                    created_at=datetime.fromisoformat(str(created_at)),
+                    provider_work_may_have_run=bool(provider_work_may_have_run),
+                )
+                if key in reservations and reservations[key] != item:
+                    raise ResearchReservationStoreError("reservation identity conflicts across cost roots")
+                reservations[key] = item
+        return sorted(reservations.values(), key=lambda item: (item.created_at, item.reservation_id))
 
     def is_active(self, reservation_id: str) -> bool:
         """Return whether provider work may still consume this hold."""
-        with closing(self._connect()) as connection, connection:
+        reservation_path = self._reservation_path(reservation_id)
+        with closing(self._connect_path(reservation_path)) as connection, connection:
             row = connection.execute(
                 "SELECT 1 FROM research_cost_reservations WHERE reservation_id = ? AND state = 'active'",
                 (reservation_id,),
@@ -376,7 +619,8 @@ class ResearchReservationStore:
 
     def state(self, reservation_id: str) -> str | None:
         """Return the durable reservation state for terminal accounting UX."""
-        with closing(self._connect()) as connection, connection:
+        reservation_path = self._reservation_path(reservation_id)
+        with closing(self._connect_path(reservation_path)) as connection, connection:
             row = connection.execute(
                 "SELECT state FROM research_cost_reservations WHERE reservation_id = ?",
                 (reservation_id,),
@@ -396,7 +640,8 @@ class ResearchReservationStore:
         reservation ID could let stale or corrupted queue metadata borrow an
         unrelated job's active hold.
         """
-        with closing(self._connect()) as connection, connection:
+        reservation_path = self._reservation_path(reservation_id)
+        with closing(self._connect_path(reservation_path)) as connection, connection:
             row = connection.execute(
                 """
                 SELECT 1
@@ -413,6 +658,7 @@ class ResearchReservationStore:
 
 __all__ = [
     "ActiveResearchReservation",
+    "ReconciledResearchExposure",
     "ResearchReservationLimitExceeded",
     "ResearchReservationStore",
     "ResearchReservationStoreError",

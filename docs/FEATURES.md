@@ -1135,15 +1135,15 @@ Capacity source status:
 | Source | Status | Notes |
 |---|---|---|
 | Local Ollama | Execution works for local expert setup, local sync, deep/fresh local context, local absorb, local eval, local context eval, and scored admission | `$0` marginal cost, quality-gated before automatic routing |
-| OpenAI, Gemini, Grok, Anthropic, Azure APIs | Core research execution works when configured with API keys and budget ceilings; unsafe metered expert lifecycle surfaces are gated in v2.36 | Cost ledger writes every supported spend source |
-| Codex, Claude Code, OpenCode, Antigravity, Grok Build, Kiro, and other non-metered plan CLIs | Explicit execution works through `expert sync --plan <id>`, `expert absorb --plan <id>`, topic `expert learn --plan <id>`, and the explicit `expert learn-web --plan <id>` alias behind auth-mode and no-surprise-bills gates; Codex, Claude Code, and Grok have live quota metadata probes | Automatic plan routing still requires trusted remaining-quota observations per backend; metered-at-margin Copilot is visible but execution-blocked until full cost accounting exists |
+| OpenAI, Gemini, Grok, Anthropic, Azure APIs | Write-free request preview and offline billing reconciliation work for supported finite envelopes | Production metered dispatch is blocked in v2.39 until authenticated account controls and current credential identity are proven; every supported spend source must use the canonical ledger |
+| Codex, Claude Code, OpenCode, Antigravity, Grok Build, Kiro, and other plan CLIs | Claude Code execution works behind auth-mode, tool-confinement, live no-overage, and no-surprise-bills gates; the other adapters remain visible/read-only | Automatic plan routing also requires a trusted remaining-quota observation; metered-at-margin Copilot remains execution-blocked |
 | CLI judge for local eval | Explicit opt-in only | `--allow-cli-judge` is required because Deepr cannot prove the vendor CLI's billing source |
 
 Local-model execution runs quality-tolerant steps at $0 against a local Ollama
 endpoint. Force it with `--local`, choose explicit plan-quota capacity with
 `--plan <id>`, or admit a local model so maintenance uses owned capacity.
 Metered API overrides for the gated expert lifecycle surfaces do not dispatch
-in v2.36:
+in v2.39:
 
 ```bash
 deepr expert make "Platform Team Expert" --local -d "Platform engineering knowledge"
@@ -1437,7 +1437,7 @@ deepr budget history --limit 20
 - Tracker integrity checks (ledger writable + drift vs dashboard totals) plus paid-events-vs-artifacts reconciliation via `deepr costs doctor`: every settled dollar either maps to a report directory on disk or is flagged as orphaned spend, with a nonzero exit so schedulers can alarm
 - A Spend section in `deepr doctor` that errors when the month is over budget or settled spend has no surviving artifact
 
-Cost tracking is strict by default: a spend event that cannot be written to the canonical ledger raises instead of silently continuing. Set `DEEPR_COST_TRACKING_STRICT=0` to opt into lenient tracking.
+Cost tracking is always strict: a spend event that cannot be written durably to the canonical ledger raises instead of silently continuing. There is no lenient paid-accounting mode.
 
 ### Budget Limits
 

@@ -12,7 +12,7 @@ inside Deepr but may consume a subscription quota, monthly credit pool, or
 external credits. Metered APIs cost money and must be estimated, reserved, and
 settled through the canonical ledger.
 
-Metered APIs are explicit premium paths, not an automatic fallback in v2.36. Feature
+Metered APIs are explicit premium paths, not an automatic fallback in v2.39. Feature
 surfaces that can trigger a distinct paid class, such as image generation, must
 not infer paid execution from a text-model API key alone. Portrait generation
 auto-selects only a local image endpoint. Paid portrait providers are recognized
@@ -22,7 +22,7 @@ forces local regeneration. Generated portraits live under the configured
 runtime data root, and forced regeneration archives the previous image before
 replacement.
 
-API-backed expert profile setup is gated in v2.36 because hosted storage and
+API-backed expert profile setup is gated in v2.39 because hosted storage and
 nested learning calls do not yet share one durable parent reservation. Local
 profile creation through `deepr expert make --local` stays provider-free.
 
@@ -31,9 +31,9 @@ profile creation through `deepr expert make --local` stays provider-free.
 | Source | Works now | Guardrail |
 |---|---|---|
 | Local Ollama | `expert make --local`, `expert absorb --local`, `expert sync --local`, `expert sync --local --fresh-context`, `expert sync --local --deep-context`, experimental `expert investigate`, `eval local`, `eval local-context`, and scored admission | No provider API key required; investigation pins native per-request context, requires exact `$0`, and has no fallback; automatic routing requires measured local quality evidence |
-| Provider APIs | Direct single-job research and separately bounded council synthesis for supported finite provider/model/tool envelopes | Explicit premium paths with preflight maximums, reservations, and append-only settlement; no automatic paid fallback, hosted storage, standalone metered chat, or unsafe lifecycle dispatch |
+| Provider APIs | Write-free request preview and offline billing reconciliation for supported finite provider/model/tool envelopes | Production dispatch is blocked until a provider-specific authenticated account-control verifier and current credential-identity resolver are installed; no automatic paid fallback, hosted storage, standalone metered chat, or unsafe lifecycle dispatch |
 | Plan-quota CLIs | Explicit `expert sync --plan <id>`, `expert sync-all --plan <id>`, `expert route-gaps --execute --plan <id>`, `expert absorb --plan <id>`, `expert learn --plan <id>`, `expert learn-web --plan <id>`, `expert consult --plan <id>`, and `capacity probe-plan <id>` for safety-eligible non-metered adapters | Claude Code is currently executable only after a live provider proof that paid extra usage is disabled. Codex, OpenCode, Kiro, Grok, Antigravity, and Copilot remain visible but execution-blocked for the reasons below. API-key env vars are stripped, auth, tool, and overage posture are checked, and automatic routing also requires trusted remaining-quota evidence. |
-| CLI judges | Explicit local eval judging with `--allow-cli-judge`; consult-quality judging through explicit local Ollama or `--plan <id>` | Opt-in only because Deepr cannot prove whether a vendor CLI uses quota, credits, or metered credentials; plan consult-quality judges record `$0` Deepr cost metadata and consume subscription quota; API consult-quality judging is gated in v2.36 |
+| CLI judges | Explicit local eval judging with `--allow-cli-judge`; consult-quality judging through explicit local Ollama or `--plan <id>` | Opt-in only because Deepr cannot prove whether a vendor CLI uses quota, credits, or metered credentials; plan consult-quality judges record `$0` Deepr cost metadata and consume subscription quota; API consult-quality judging shares the blocked provider-account authority gate |
 
 Expert consult synthesis already supports local and explicit plan capacity.
 Experimental `expert investigate` is narrower: it accepts only local Ollama
@@ -49,7 +49,7 @@ than treating the budget as per expert.
 MCP `deepr_query_expert backend=local|plan` now runs one read-only
 compiled-context turn through owned-capacity chat backends with live metered
 fallback disabled. MCP `deepr_query_expert backend=api` and every standalone
-metered chat path fail closed in v2.36. Full interactive `expert chat` still
+metered chat path fail closed in v2.39. Full interactive `expert chat` still
 needs the shared per-call transaction before it can honestly claim local, plan,
 tool, streaming, and paid API parity. The implementation plan is
 [expert-chat-capacity-backends.md](design/expert-chat-capacity-backends.md).
@@ -386,7 +386,10 @@ API work in scheduled mode. `sync-all --plan <id>` and
   web, REST, MCP, scripts, workers, and unrelated commands. A command budget is
   a narrower child envelope, never a separate wallet or permission to exceed N.
 - `deepr budget set 0` and `deepr budget freeze --reason TEXT` block new paid
-  dispatch. `deepr budget unfreeze` cannot restore exhausted headroom.
+  dispatch. `deepr budget unfreeze` requires fresh content-addressed evidence
+  for the current typed freeze and cannot restore exhausted headroom. Evidence
+  is authoritative only after a provider-specific authenticated source verifier
+  and current account, scope, and credential resolver both succeed.
 - Effective per-job, UTC-day, UTC-week, and UTC-month limits are the tightest of
   the operator wallet, `DEEPR_MAX_COST_PER_*`, legacy compatibility caps,
   caller envelopes, and compiled safety ceilings. Missing monthly authority,
@@ -451,9 +454,19 @@ The minimum account checklist is:
 6. A freeze and credential-rotation procedure for any unexplained positive
    invoice drift.
 
-Provider billing export import and provider account hard-limit verification are
-not shipped in v2.38.4. Until they are, reconcile exports outside the tracked
-repository and keep paid dispatch frozen whenever a charge cannot be explained.
+`deepr costs reconcile-billing FILE` now previews a bounded normalized provider
+statement offline without writing files. `--apply` stores sanitized,
+content-addressed evidence and freezes paid work on incomplete, ambiguous,
+unknown, provisional, unsupported, or positively divergent results. Capacity
+classes are explicit, and only `api_metered` lines can receipt-match paid ledger
+events. A clean result never unfreezes paid work.
+
+Provider-specific authenticated hard-limit verification is not shipped in
+v2.39.0. Locally constructed account-control JSON, a posture label, and a local
+hash are not proof. Production paid dispatch therefore remains blocked until an
+authenticated provider adapter can verify the source and bind the exact active
+account, scope, and credential fingerprint. Keep provider-side controls active
+and reconcile any unexplained charge before enabling such an adapter.
 
 ## Costing Deep Dive
 

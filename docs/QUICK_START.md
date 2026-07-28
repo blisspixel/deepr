@@ -74,7 +74,7 @@ If at least one intended capacity path is ready, continue.
 
 ---
 
-## Optional Bounded API Research
+## Optional Bounded API Preview
 
 Skip this section when you want only local or explicit plan expert workflows.
 Those paths are covered under Domain Experts below.
@@ -88,36 +88,21 @@ deepr budget set 5
 Start with a $5 ceiling and increase it only after reviewing a preview. A
 budget ceiling can block excess spend; it never authorizes a paid call.
 
-### Preview and Run One Bounded Job
+### Preview One Bounded Job
 
 ```bash
 deepr research "What are the top 3 programming languages for web development in 2026 and why?" --provider openai --model o4-mini-deep-research --preview
-deepr research "What are the top 3 programming languages for web development in 2026 and why?" --provider openai --model o4-mini-deep-research --budget 2
 ```
 
 This will:
 1. Show the exact hard request maximum without spending.
-2. Submit only if the same request envelope fits the explicit and configured budgets.
-3. Settle provider-reported usage or the conservative held maximum.
-4. Produce a cited report when the provider completes successfully.
+2. Validate whether the provider, model, tools, and payload have a finite envelope.
+3. Make no provider request and write no paid result.
 
-### Check Status
-
-While research runs:
-
-```bash
-deepr jobs list
-```
-
-### Get Results
-
-When status shows "completed":
-
-```bash
-deepr jobs get <job-id>
-```
-
-Results are saved to the `data/reports/` directory with citations and sources.
+Production metered dispatch is blocked in v2.39 until a provider-specific
+authenticated account-control verifier and current account, scope, and
+credential resolver are installed. A budget or local evidence file cannot
+remove that block. Local and safety-eligible plan workflows remain available.
 
 ---
 
@@ -129,7 +114,7 @@ Results are saved to the `data/reports/` directory with citations and sources.
 deepr research --auto --batch queries.txt --preview
 ```
 
-Metered batch and multi-phase execution are gated in v2.36 until every nested
+Metered batch and multi-phase execution are gated in v2.39 until every nested
 call belongs to one durable parent reservation.
 
 ### Create a Domain Expert
@@ -187,7 +172,7 @@ deepr expert sync "Web Dev Expert" --local --fresh-context -y
 ```
 
 Standalone metered expert chat and unsafe metered expert lifecycle commands are
-gated in v2.36. Local, explicit plan-quota, scheduled, dry-run, history-only,
+gated in v2.39. Local, explicit plan-quota, scheduled, dry-run, history-only,
 and graded-file paths remain available where the command supports them.
 
 Use `deepr expert next NAME` to inspect safe follow-up actions. No local or plan
@@ -226,18 +211,17 @@ deepr doctor --skip-connectivity
 
 | Task | Deepr cost posture | Availability |
 |------|-------------------|--------------|
-| Direct bounded research | Exact maximum from `--preview`; actual provider billing varies | Works for supported finite envelopes |
+| Direct bounded research preview | Exact maximum from `--preview`; no provider call | Works for supported finite envelopes |
 | Local expert setup and maintenance | `$0` provider cost | Works with local capacity |
 | Explicit plan expert maintenance and consult | `$0` Deepr ledger cost; consumes external plan quota | Works for supported non-metered adapters |
 | Local expert consult | `$0` provider cost | Works |
-| Metered batch, campaign, team, and agentic research | No dispatch | Gated in v2.36 |
-| Standalone metered expert chat and unsafe lifecycle paths | No dispatch | Gated in v2.36 |
+| Any metered API dispatch | No dispatch | Gated in v2.39 pending authenticated account controls |
 
 `deepr budget set <amount>` controls monthly approval behavior and binds
 `deepr run`, `deepr research`, and MCP research. For an authoritative hard
 cap on every surface (CLI, web, REST), set `DEEPR_MAX_COST_PER_JOB`,
 `DEEPR_MAX_COST_PER_DAY`, and `DEEPR_MAX_COST_PER_MONTH`. Ledger writes fail
-closed by default (`DEEPR_COST_TRACKING_STRICT=0` opts out). Audit spend vs
+closed with no lenient opt-out. Audit spend vs
 artifacts anytime with `deepr costs doctor`; `deepr doctor` and the web
 dashboard surface over-budget and orphaned spend loudly.
 
@@ -285,17 +269,13 @@ Complete workflow from zero to expert:
 # 1. Set budget
 deepr budget set 2
 
-# 2. Research a topic
-deepr research "Python async/await best practices" --provider openai --model o4-mini-deep-research --budget 2
+# 2. Preview a bounded premium request without dispatch
+deepr research "Python async/await best practices" --provider openai --model o4-mini-deep-research --preview
 
-# 3. Check results
-deepr jobs list
-deepr jobs get <job-id>
+# 3. Create and maintain a local expert
+deepr expert make "Python Async Expert" --local -d "Python asynchronous system design"
 
-# 4. Create a local expert from results
-deepr expert make "Python Async Expert" --local --files "data/reports/*/*.md"
-
-# 5. Ask for the safest next learning or repair actions at $0
+# 4. Ask for the safest next learning or repair actions at $0
 deepr expert next "Python Async Expert"
 
 # 6. Consult the expert on local capacity

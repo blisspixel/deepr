@@ -10,7 +10,7 @@ Provides commands for viewing and managing costs:
 """
 
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import UTC
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +19,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from deepr.cli.commands.provider_billing import reconcile_billing_command
 from deepr.observability.cost_ledger import CostLedger
 from deepr.observability.costs import CostDashboard
 
@@ -46,19 +47,11 @@ def _current_cost_authority(
     if monthly_display_limit is not None:
         monthly_limit = min(monthly_limit, monthly_display_limit)
 
-    now = datetime.now(UTC)
-    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    week_start = day_start - timedelta(days=day_start.weekday())
-    month_start = day_start.replace(day=1)
-
-    def totals(events: list[Any]) -> tuple[float, float, float]:
-        daily = sum(event.cost_usd for event in events if event.timestamp >= day_start)
-        weekly = sum(event.cost_usd for event in events if event.timestamp >= week_start)
-        monthly = sum(event.cost_usd for event in events if event.timestamp >= month_start)
-        return daily, weekly, monthly
-
-    daily_settled, weekly_settled, monthly_settled = CostLedger().with_locked_accounting_events(totals)
-    active_holds = ResearchReservationStore().active_cost()
+    exposure = ResearchReservationStore().exposure_snapshot()
+    daily_settled = exposure.daily_settled_cost
+    weekly_settled = exposure.weekly_settled_cost
+    monthly_settled = exposure.monthly_settled_cost
+    active_holds = exposure.active_cost
     daily_exposure = daily_settled + active_holds
     weekly_exposure = weekly_settled + active_holds
     monthly_exposure = monthly_settled + active_holds
@@ -80,6 +73,8 @@ def _current_cost_authority(
         "weekly_settled": weekly_settled,
         "monthly_settled": monthly_settled,
         "active_holds": active_holds,
+        "unresolved_holds": exposure.unresolved_count,
+        "unresolved_exposure": exposure.unresolved_cost,
         "daily_exposure": daily_exposure,
         "weekly_exposure": weekly_exposure,
         "monthly_exposure": monthly_exposure,
@@ -103,10 +98,22 @@ def _threshold_label(exposure: float, limit: float) -> str | None:
     return None
 
 
+def _utilization_display(exposure: float, limit: float) -> tuple[str, str]:
+    """Render zero ceilings as frozen or breached, never as healthy utilization."""
+    if limit <= 0:
+        return ("OVER $0.00 CEILING", "red") if exposure > 0 else ("0.0%", "green")
+    utilization = exposure / limit * 100
+    color = "green" if utilization < 50 else "yellow" if utilization < 80 else "red"
+    return f"{utilization:.1f}%", color
+
+
 @click.group()
 def costs():
     """Cost tracking and budget management."""
     pass
+
+
+costs.add_command(reconcile_billing_command)
 
 
 @costs.command()
@@ -168,8 +175,7 @@ def show(daily_limit: float | None, monthly_limit: float | None):
         raise click.ClickException("Canonical money state is unreadable; cost summary is unavailable.") from exc
 
     # Daily summary
-    daily_pct = summary["daily_exposure"] / summary["daily_limit"] * 100 if summary["daily_limit"] > 0 else 0
-    daily_color = "green" if daily_pct < 50 else "yellow" if daily_pct < 80 else "red"
+    daily_utilization, daily_color = _utilization_display(summary["daily_exposure"], summary["daily_limit"])
     daily_remaining = max(0.0, summary["daily_limit"] - summary["daily_exposure"])
 
     console.print(
@@ -177,16 +183,17 @@ def show(daily_limit: float | None, monthly_limit: float | None):
             f"[bold]Today's Spending[/bold]\n"
             f"Settled: [bold]${summary['daily_settled']:.2f}[/bold]\n"
             f"Active holds: ${summary['active_holds']:.2f}\n"
+            f"Unresolved post-dispatch holds: {int(summary['unresolved_holds'])} "
+            f"(${summary['unresolved_exposure']:.2f})\n"
             f"Exposure: [bold]${summary['daily_exposure']:.2f}[/bold] / ${summary['daily_limit']:.2f}\n"
             f"Daily window headroom: ${daily_remaining:.2f}\n"
-            f"Utilization: [{daily_color}]{daily_pct:.1f}%[/{daily_color}]",
+            f"Utilization: [{daily_color}]{daily_utilization}[/{daily_color}]",
             title="Daily Costs",
         )
     )
 
     # Monthly summary
-    monthly_pct = summary["monthly_exposure"] / summary["monthly_limit"] * 100 if summary["monthly_limit"] > 0 else 0
-    monthly_color = "green" if monthly_pct < 50 else "yellow" if monthly_pct < 80 else "red"
+    monthly_utilization, monthly_color = _utilization_display(summary["monthly_exposure"], summary["monthly_limit"])
     monthly_remaining = max(0.0, summary["monthly_limit"] - summary["monthly_exposure"])
 
     console.print(
@@ -196,7 +203,7 @@ def show(daily_limit: float | None, monthly_limit: float | None):
             f"Active holds: ${summary['active_holds']:.2f}\n"
             f"Exposure: [bold]${summary['monthly_exposure']:.2f}[/bold] / ${summary['monthly_limit']:.2f}\n"
             f"Monthly window headroom: ${monthly_remaining:.2f}\n"
-            f"Utilization: [{monthly_color}]{monthly_pct:.1f}%[/{monthly_color}]",
+            f"Utilization: [{monthly_color}]{monthly_utilization}[/{monthly_color}]",
             title="Monthly Costs",
         )
     )
@@ -650,7 +657,17 @@ def _tracking_integrity_checks(dashboard, ledger, ledger_path: Path, drift_thres
 
     # Reconciliation drift check (dashboard is legacy mirror, ledger is canonical append-only)
     dashboard_total = sum(e.cost for e in dashboard.entries)
-    ledger_total = ledger.get_total_cost()
+    try:
+        ledger_total = ledger.with_locked_accounting_events(lambda events: sum(event.cost_usd for event in events))
+    except Exception as exc:
+        checks.append(
+            (
+                "Ledger vs dashboard drift",
+                False,
+                f"UNKNOWN: canonical ledger is unreadable ({exc})",
+            )
+        )
+        return checks
     drift = abs(ledger_total - dashboard_total)
     checks.append(
         (
@@ -725,7 +742,7 @@ def _doctor_classify(events, dir_names, cutoff):
     help="Rebuild the dashboard view from the canonical ledger before checking (repairs drift)",
 )
 @click.option("--days", default=45, show_default=True, help="How many days of ledger to reconcile")
-@click.option("--reports-dir", default=None, help="Report root to reconcile against (default: data/reports)")
+@click.option("--reports-dir", default=None, help="Report root override (default: configured results_dir)")
 @click.option("--ledger-path", default=None, hidden=True, help="Override ledger path (tests)")
 @click.option("--json", "json_output", is_flag=True, help="Machine-readable output")
 def doctor(
@@ -749,7 +766,9 @@ def doctor(
     """
     from datetime import datetime, timedelta
 
-    dashboard = CostDashboard()
+    dashboard = (
+        CostDashboard(storage_path=Path(ledger_path).with_name("cost_log.json")) if ledger_path else CostDashboard()
+    )
     if rebuild:
         # The ledger is the append-only source of truth; the dashboard is a
         # derived view and may drift (several recorders write the ledger
@@ -757,16 +776,25 @@ def doctor(
         count = dashboard.rebuild_from_ledger()
         if not json_output:
             console.print(f"[green]Rebuilt dashboard view from ledger ({count} entries)[/green]")
-    tracking_ledger_path = Path(dashboard.storage_path).with_name("cost_ledger.jsonl")
+    ledger = CostLedger(ledger_path=Path(ledger_path)) if ledger_path else CostLedger()
+    tracking_ledger_path = ledger.ledger_path
     tracking_checks = _tracking_integrity_checks(
-        dashboard, CostLedger(ledger_path=tracking_ledger_path), tracking_ledger_path, drift_threshold
+        dashboard,
+        ledger,
+        tracking_ledger_path,
+        drift_threshold,
     )
 
-    ledger = CostLedger(ledger_path=Path(ledger_path)) if ledger_path else CostLedger()
-    root = Path(reports_dir) if reports_dir else Path("data/reports")
+    from deepr.config import load_config
+
+    root = Path(reports_dir) if reports_dir else Path(load_config()["results_dir"])
     dir_names = [d.name for d in root.iterdir() if d.is_dir()] if root.exists() else []
     cutoff = datetime.now(UTC) - timedelta(days=days)
-    matched, orphaned = _doctor_classify(ledger.get_events(), dir_names, cutoff)
+    try:
+        events = ledger.with_locked_accounting_events(list)
+    except Exception as exc:
+        raise click.ClickException("Canonical cost ledger is unreadable; integrity status is UNKNOWN.") from exc
+    matched, orphaned = _doctor_classify(events, dir_names, cutoff)
 
     matched_total = sum(e["cost_usd"] for e in matched)
     orphaned_total = sum(e["cost_usd"] for e in orphaned)
@@ -799,5 +827,5 @@ def doctor(
                 "a failed or cancelled job settled conservatively, or an artifact that was "
                 "lost after billing. Investigate before it compounds."
             )
-    if orphaned_total > 0.005:
+    if orphaned_total > 0.005 or not all(ok for _name, ok, _details in tracking_checks):
         raise SystemExit(1)

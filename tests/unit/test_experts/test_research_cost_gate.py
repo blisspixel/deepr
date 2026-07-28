@@ -41,6 +41,11 @@ def _estimate(expected: float, *, maximum: float | None = None) -> CostEstimate:
     )
 
 
+def _current_paid_authorization() -> dict[str, object]:
+    document = json.loads(Path(os.environ["DEEPR_BUDGET_FILE"]).read_text(encoding="utf-8"))
+    return document["paid_api_authorization"]
+
+
 def _reserve(manager: CostSafetyManager, job_id: str, expected: float):
     return reserve_research_cost(
         job_id=job_id,
@@ -148,6 +153,7 @@ def test_reported_cost_above_reservation_records_truth_then_freezes_paid_api() -
     assert event.metadata["cost_ceiling_diverged"] is True
     operator = read_operator_budget()
     assert operator.frozen is True
+    assert operator.freeze_kind == "cost_ceiling_divergence"
     assert "exceeded authorized ceiling" in operator.freeze_reason
 
 
@@ -207,6 +213,8 @@ def test_refund_cannot_release_hold_after_provider_dispatch_mark() -> None:
 
 
 def test_unreserved_missing_usage_records_configured_ceiling(monkeypatch) -> None:
+    from deepr.core.cost_caps import read_operator_budget
+
     monkeypatch.setenv("DEEPR_MAX_COST_PER_JOB", "0.75")
     manager = CostSafetyManager()
 
@@ -224,6 +232,62 @@ def test_unreserved_missing_usage_records_configured_ceiling(monkeypatch) -> Non
     assert event.cost_usd == pytest.approx(0.75)
     assert event.metadata["actual_cost_reported"] is False
     assert event.metadata["settlement_basis"] == "configured_ceiling"
+    operator = read_operator_budget()
+    assert operator.frozen is True
+    assert operator.freeze_kind == "legacy"
+    assert "legacy unreserved paid API completion" in operator.freeze_reason
+    assert "pending accounting review" in operator.freeze_reason
+
+
+def test_unreserved_reported_cost_records_truth_then_freezes_paid_api() -> None:
+    from deepr.core.cost_caps import read_operator_budget
+
+    settled = record_unreserved_research_cost(
+        job_id="legacy-reported-usage",
+        provider="openai",
+        model="o3-deep-research",
+        actual_cost=3.75,
+        tokens=1_200,
+        request_id="provider-unreserved",
+        manager=CostSafetyManager(),
+        source="test.legacy.reported",
+    )
+
+    assert settled == pytest.approx(3.75)
+    event = CostLedger().get_events()[0]
+    assert event.cost_usd == pytest.approx(3.75)
+    assert event.request_id == "provider-unreserved"
+    assert event.tokens_output == 1_200
+    assert event.metadata["legacy_unreserved_job"] is True
+    assert event.metadata["actual_cost_reported"] is True
+    assert event.metadata["settlement_basis"] == "provider_reported_cost"
+    operator = read_operator_budget()
+    assert operator.frozen is True
+    assert operator.freeze_kind == "legacy"
+    assert "legacy-reported-usage" in operator.freeze_reason
+
+
+def test_unreserved_ledger_failure_still_leaves_paid_api_frozen() -> None:
+    from deepr.core.cost_caps import read_operator_budget
+
+    manager = MagicMock(spec=CostSafetyManager)
+    manager.record_cost.side_effect = RuntimeError("ledger unavailable")
+
+    with pytest.raises(RuntimeError, match="ledger unavailable"):
+        record_unreserved_research_cost(
+            job_id="legacy-ledger-failure",
+            provider="openai",
+            model="o3-deep-research",
+            actual_cost=0.25,
+            manager=manager,
+            source="test.legacy.failure",
+        )
+
+    manager.record_cost.assert_called_once()
+    operator = read_operator_budget()
+    assert operator.frozen is True
+    assert operator.freeze_kind == "legacy"
+    assert "legacy-ledger-failure" in operator.freeze_reason
 
 
 def test_active_reservation_check_binds_job_and_reserved_cost() -> None:
@@ -319,27 +383,37 @@ def test_independent_managers_cannot_overcommit_durable_daily_limit() -> None:
 
 
 def test_operator_monthly_ceiling_binds_concurrent_direct_store_callers() -> None:
+    authorization = _current_paid_authorization()
     Path(os.environ["DEEPR_BUDGET_FILE"]).write_text(
-        json.dumps({"monthly_limit": 1.0, "paid_api_frozen": False}),
+        json.dumps(
+            {
+                "monthly_limit": 1.0,
+                "paid_api_frozen": False,
+                "paid_api_authorization": authorization,
+            }
+        ),
         encoding="utf-8",
     )
     store = ResearchReservationStore()
     barrier = Barrier(2)
 
     def attempt(index: int) -> bool:
-        barrier.wait()
-        try:
-            store.reserve(
-                reservation_id=f"operator-{index}",
-                job_id=f"job-{index}",
-                reserved_cost=0.75,
-                max_daily_cost=100.0,
-                max_weekly_cost=100.0,
-                max_monthly_cost=100.0,
-            )
-        except ResearchReservationLimitExceeded:
-            return False
-        return True
+        from deepr.core.cost_caps import paid_api_provider_scope
+
+        with paid_api_provider_scope("openai"):
+            barrier.wait()
+            try:
+                store.reserve(
+                    reservation_id=f"operator-{index}",
+                    job_id=f"job-{index}",
+                    reserved_cost=0.75,
+                    max_daily_cost=100.0,
+                    max_weekly_cost=100.0,
+                    max_monthly_cost=100.0,
+                )
+            except ResearchReservationLimitExceeded:
+                return False
+            return True
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         results = list(executor.map(attempt, range(2)))
@@ -396,8 +470,15 @@ def test_positive_budget_reduction_blocks_previously_reserved_aggregate() -> Non
 
 def test_new_ledger_spend_blocks_old_hold_at_dispatch() -> None:
     store = ResearchReservationStore()
+    authorization = _current_paid_authorization()
     Path(os.environ["DEEPR_BUDGET_FILE"]).write_text(
-        json.dumps({"monthly_limit": 1.0, "paid_api_frozen": False}),
+        json.dumps(
+            {
+                "monthly_limit": 1.0,
+                "paid_api_frozen": False,
+                "paid_api_authorization": authorization,
+            }
+        ),
         encoding="utf-8",
     )
     store.reserve(
@@ -417,6 +498,43 @@ def test_new_ledger_spend_blocks_old_hold_at_dispatch() -> None:
 
     with pytest.raises(ResearchReservationLimitExceeded, match="aggregate authority changed"):
         store.mark_provider_work_may_have_run("old-hold")
+
+
+def test_exposure_snapshot_returns_settled_active_and_unresolved_together() -> None:
+    store = ResearchReservationStore()
+    store.reserve(
+        reservation_id="snapshot-unresolved",
+        job_id="snapshot-unresolved-job",
+        reserved_cost=0.40,
+        max_daily_cost=10.0,
+        max_weekly_cost=200.0,
+        max_monthly_cost=200.0,
+    )
+    store.mark_provider_work_may_have_run("snapshot-unresolved")
+    store.reserve(
+        reservation_id="snapshot-predispatch",
+        job_id="snapshot-predispatch-job",
+        reserved_cost=0.60,
+        max_daily_cost=10.0,
+        max_weekly_cost=200.0,
+        max_monthly_cost=200.0,
+    )
+    CostLedger().record_event(
+        operation="prior_research",
+        provider="openai",
+        cost_usd=0.50,
+        idempotency_key="snapshot-prior",
+    )
+
+    exposure = store.exposure_snapshot()
+
+    assert exposure.daily_settled_cost == pytest.approx(0.50)
+    assert exposure.weekly_settled_cost == pytest.approx(0.50)
+    assert exposure.monthly_settled_cost == pytest.approx(0.50)
+    assert exposure.total_settled_cost == pytest.approx(0.50)
+    assert exposure.active_cost == pytest.approx(1.0)
+    assert exposure.unresolved_cost == pytest.approx(0.40)
+    assert exposure.unresolved_count == 1
 
 
 def test_freeze_cannot_finish_between_authority_read_and_reservation_commit(monkeypatch) -> None:
@@ -439,14 +557,17 @@ def test_freeze_cannot_finish_between_authority_read_and_reservation_commit(monk
     monkeypatch.setattr(cost_caps, "resolve_spend_caps", paused_resolve)
 
     def reserve() -> None:
-        store.reserve(
-            reservation_id="linearized-reservation",
-            job_id="linearized-job",
-            reserved_cost=0.25,
-            max_daily_cost=10.0,
-            max_weekly_cost=200.0,
-            max_monthly_cost=200.0,
-        )
+        from deepr.core.cost_caps import paid_api_provider_scope
+
+        with paid_api_provider_scope("openai"):
+            store.reserve(
+                reservation_id="linearized-reservation",
+                job_id="linearized-job",
+                reserved_cost=0.25,
+                max_daily_cost=10.0,
+                max_weekly_cost=200.0,
+                max_monthly_cost=200.0,
+            )
 
     def freeze() -> None:
         freeze_started.set()
@@ -539,6 +660,22 @@ def test_worker_settlement_does_not_leave_future_submissions_locally_blocked() -
     )
 
     assert second.estimated_cost == 0.3
+
+
+def test_legacy_reservation_metadata_without_provider_bound_version_is_not_restored() -> None:
+    restored = restore_research_cost_reservation(
+        job_id="legacy-job",
+        metadata={
+            "cost_reservation_id": "legacy-reservation",
+            "cost_reservation_estimated_usd": 1.0,
+            "cost_reservation_provider": "openai",
+            "cost_reservation_model": "test-model",
+        },
+        provider="openai",
+        model="test-model",
+    )
+
+    assert restored is None
 
 
 def test_per_job_maximum_is_checked_before_reservation() -> None:

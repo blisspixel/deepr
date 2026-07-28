@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/paid-api-account-evidence-v1.json",
+  "title": "Deepr Paid API Account Evidence v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "kind", "provider", "account_id", "scope_ref", "credential_fingerprint",
+    "freeze_id", "freeze_frozen_at", "observed_at", "valid_until", "source_posture",
+    "source_evidence_sha256", "billing_reconciliation_sha256", "control_mode", "currency", "overage_enabled",
+    "hard_monthly_limit_usd"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-paid-api-account-evidence-v1"},
+    "kind": {"const": "deepr.costs.paid_api_account_evidence"},
+    "provider": {"$ref": "#/$defs/id"},
+    "account_id": {"$ref": "#/$defs/id"},
+    "scope_ref": {"$ref": "#/$defs/id"},
+    "credential_fingerprint": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "freeze_id": {"$ref": "#/$defs/id"},
+    "freeze_frozen_at": {"$ref": "#/$defs/timestamp"},
+    "observed_at": {"$ref": "#/$defs/timestamp"},
+    "valid_until": {"$ref": "#/$defs/timestamp"},
+    "source_posture": {"enum": ["provider_api", "cryptographically_verified_provider_export"]},
+    "source_evidence_sha256": {"$ref": "#/$defs/hash"},
+    "billing_reconciliation_sha256": {"$ref": "#/$defs/hash"},
+    "control_mode": {"enum": ["hard_monthly_limit", "prepaid_no_overage"]},
+    "currency": {"const": "USD"},
+    "overage_enabled": {"const": false},
+    "hard_monthly_limit_usd": {
+      "type": "string",
+      "pattern": "^(?:0|[1-9][0-9]{0,8})(?:\\.[0-9]{1,6})?$"
+    }
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,199}$"},
+    "timestamp": {"type": "string", "format": "date-time", "maxLength": 40}
+  }
+}

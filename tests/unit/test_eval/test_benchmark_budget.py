@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
 import pytest
 
 from deepr.evals.benchmark_budget import BenchmarkBudgetExceeded, BenchmarkSpendGuard
@@ -10,9 +13,8 @@ from deepr.observability.cost_ledger import CostLedger
 
 
 @pytest.fixture
-def isolated_costs(monkeypatch, tmp_path):
-    monkeypatch.setenv("DEEPR_COST_DATA_DIR", str(tmp_path / "costs"))
-    return tmp_path
+def isolated_costs() -> Path:
+    return Path(os.environ["DEEPR_COST_DATA_DIR"])
 
 
 def test_guard_blocks_before_reserving_beyond_run_ceiling(isolated_costs):
@@ -75,10 +77,10 @@ def test_refund_releases_unsubmitted_call_without_ledger_event(isolated_costs):
     assert ResearchReservationStore().active_cost() == 0
 
 
-def test_dispatch_mark_rechecks_operator_freeze(isolated_costs, monkeypatch, tmp_path):
-    budget_file = tmp_path / "budget.json"
-    budget_file.write_text('{"monthly_limit": 10}', encoding="utf-8")
-    monkeypatch.setenv("DEEPR_BUDGET_FILE", str(budget_file))
+def test_dispatch_mark_rechecks_operator_freeze(isolated_costs):
+    from deepr.core.cost_caps import freeze_paid_api
+
+    budget_file = Path(os.environ["DEEPR_BUDGET_FILE"])
     guard = BenchmarkSpendGuard(0.5, run_id="run-freeze")
     reservation = guard.reserve(
         provider="openai",
@@ -86,10 +88,7 @@ def test_dispatch_mark_rechecks_operator_freeze(isolated_costs, monkeypatch, tmp
         cost_ceiling=0.2,
         operation="benchmark_evaluation",
     )
-    budget_file.write_text(
-        '{"monthly_limit": 10, "paid_api_frozen": true, "freeze_reason": "operator"}',
-        encoding="utf-8",
-    )
+    freeze_paid_api("operator", path=budget_file)
 
     with pytest.raises(BenchmarkBudgetExceeded, match="authority changed"):
         guard.mark_provider_work(reservation)
@@ -112,7 +111,7 @@ def test_guard_rejects_invalid_call_ceiling(isolated_costs):
 
 
 def test_guard_blocks_writable_but_corrupt_canonical_ledger(isolated_costs):
-    path = isolated_costs / "costs" / "cost_ledger.jsonl"
+    path = isolated_costs / "cost_ledger.jsonl"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("{}\n", encoding="utf-8")
     ledger = CostLedger(ledger_path=path)

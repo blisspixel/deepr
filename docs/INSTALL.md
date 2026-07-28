@@ -156,7 +156,7 @@ That's it! You're ready to use Deepr.
 
 ```bash
 # Download the wheel for the selected release, then install it locally.
-python -m pip install ./deepr_research-2.38.4-py3-none-any.whl
+python -m pip install ./deepr_research-2.39.0-py3-none-any.whl
 deepr --version
 ```
 
@@ -252,8 +252,10 @@ one terminal GET, not a start event, and never retries silently.
 registered installed plan adapters to `capacity fleet`; unadapted CLIs remain
 inventory-only. A local Ollama model or an
 explicit admitted plan-quota CLI can support `$0` marginal-cost expert
-maintenance without provider keys. For API-backed research, any single provider
-key works.
+maintenance without provider keys. Provider keys expose metered request
+metadata and offline previews, but production paid dispatch remains blocked in
+v2.39 until authenticated account controls and current credential identity can
+be proven before each call.
 
 Pick based on your priority:
 - **OpenAI** - Deep research and GPT synthesis/planning
@@ -261,10 +263,11 @@ Pick based on your priority:
 - **Grok** - Freshness-oriented Grok text models and explicit premium images
 - **Anthropic** - Claude Sonnet 5 balance, Opus/Fable premium reasoning
 
-**Recommended:** start with one provider key for bounded API research, or no key
-for local/plan expert workflows. Add another provider only when you need an
-explicit alternative. Deepr previews each bounded choice, but v2.36 does not
-automatically fall through from one metered provider to another.
+**Recommended:** start with no provider key for local and plan-quota expert
+workflows. Add a provider key only when you need request previews or are
+developing an authenticated account-control adapter. Deepr previews each
+bounded choice, but v2.39 blocks production metered dispatch and never falls
+through automatically from one metered provider to another.
 
 **All keys:** model and provider metadata becomes visible for explicit selection.
 This does not enable managed Deep Research agents, multi-agent research, hosted

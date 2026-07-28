@@ -10,13 +10,16 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from contextvars import ContextVar
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from math import isfinite
 from pathlib import Path
 from typing import Protocol
+from uuid import uuid4
 
 from filelock import FileLock
 
@@ -34,6 +37,24 @@ _LEGACY: dict[str, str] = {
     "monthly": "DEEPR_MONTHLY_LIMIT",
 }
 BUDGET_FILE_ENV = "DEEPR_BUDGET_FILE"
+_FREEZE_KINDS = frozenset(
+    {
+        "account_control_expired",
+        "account_control_unknown",
+        "account_identity_mismatch",
+        "billing_divergence",
+        "billing_evidence_storage_failure",
+        "cost_ceiling_divergence",
+        "legacy",
+        "manual",
+        "unconfigured",
+        "zero_ceiling",
+    }
+)
+_EVIDENCE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
+_PROVIDER_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
+_PAID_API_PROVIDER: ContextVar[str | None] = ContextVar("deepr_paid_api_provider", default=None)
+_VERIFIED_AUTHORITY_MARKER = object()
 
 
 class SpendCapConfigurationError(ValueError):
@@ -48,6 +69,25 @@ class MutableSpendLimits(Protocol):
     monthly_limit: float
 
 
+class VerifiedSpendAuthority(Protocol):
+    """Shape returned by immutable account-evidence verification."""
+
+    @property
+    def evidence_ids(self) -> tuple[str, ...]: ...
+
+    @property
+    def recovered_freeze_id(self) -> str: ...
+
+    @property
+    def valid_until(self) -> datetime: ...
+
+    @property
+    def providers(self) -> tuple[str, ...]: ...
+
+    @property
+    def hard_monthly_limit_usd(self) -> float: ...
+
+
 @dataclass(frozen=True)
 class OperatorBudget:
     """The spend-authority fields read from the operator budget document."""
@@ -56,17 +96,59 @@ class OperatorBudget:
     monthly_limit: float
     frozen: bool
     freeze_reason: str = ""
+    freeze_id: str = ""
+    freeze_kind: str = ""
+    frozen_at: datetime | None = None
+    authorization_evidence_ids: tuple[str, ...] = ()
+    authorized_until: datetime | None = None
+    authorization_valid: bool = False
+    authorization_providers: tuple[str, ...] = ()
+    authorization_hard_monthly_limit: float = 0.0
+    authorization_recovered_freeze_id: str = ""
+    authorization_recovered_frozen_at: datetime | None = None
+    _verified_marker: object | None = field(default=None, repr=False, compare=False)
+
+
+@dataclass(frozen=True)
+class _AuthorizationReference:
+    evidence_ids: tuple[str, ...]
+    valid_until: datetime
+    recovered_freeze_id: str
+    recovered_frozen_at: datetime | None
 
 
 def budget_file_path() -> Path:
     """Return the single persisted operator-budget path."""
     configured = os.getenv(BUDGET_FILE_ENV, "").strip()
     if configured:
-        return Path(configured)
+        target = Path(configured)
+        if not target.is_absolute():
+            raise SpendCapConfigurationError(f"{BUDGET_FILE_ENV} must be an absolute path")
+        return target
     try:
-        return Path.home() / ".deepr" / "budget.json"
-    except (OSError, RuntimeError):
-        return Path(".deepr") / "budget.json"
+        target = Path.home() / ".deepr" / "budget.json"
+    except (OSError, RuntimeError) as exc:
+        raise SpendCapConfigurationError("operator budget home path is unavailable") from exc
+    if not target.is_absolute():
+        raise SpendCapConfigurationError("operator budget home path must be absolute")
+    return target
+
+
+def _normalized_provider(provider: str) -> str:
+    normalized = provider.strip().casefold()
+    if _PROVIDER_PATTERN.fullmatch(normalized) is None:
+        raise SpendCapConfigurationError("paid API provider must be a bounded identifier")
+    return normalized
+
+
+@contextmanager
+def paid_api_provider_scope(provider: str) -> Iterator[None]:
+    """Bind legacy nested cap reads to one already identified provider."""
+    token = _PAID_API_PROVIDER.set(_normalized_provider(provider))
+    try:
+        yield
+    finally:
+        _PAID_API_PROVIDER.reset(token)
 
 
 @contextmanager
@@ -88,7 +170,7 @@ def _money(value: object, *, source: str) -> float:
     return number
 
 
-def read_operator_budget(path: Path | None = None) -> OperatorBudget:
+def read_operator_budget(path: Path | None = None, *, provider: str | None = None) -> OperatorBudget:
     """Strictly read the operator's persisted monthly authority.
 
     A missing file means paid capacity has not been authorized. Existing legacy
@@ -96,12 +178,148 @@ def read_operator_budget(path: Path | None = None) -> OperatorBudget:
     """
     target = path or budget_file_path()
     if not target.exists():
-        return OperatorBudget(configured=False, monthly_limit=0.0, frozen=False)
+        return OperatorBudget(
+            configured=False,
+            monthly_limit=0.0,
+            frozen=True,
+            freeze_reason="paid API account controls are not configured",
+            freeze_kind="unconfigured",
+        )
     try:
         document = json.loads(target.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise SpendCapConfigurationError(f"operator budget is unreadable: {target}") from exc
-    return parse_operator_budget(document)
+    operator = parse_operator_budget(document)
+    if document.get("paid_api_frozen", False) is True or operator.monthly_limit <= 0:
+        return operator
+    reference = _authorization_fields(document)
+    requested_provider = provider or _PAID_API_PROVIDER.get()
+    if requested_provider is None:
+        return replace(
+            operator,
+            frozen=True,
+            freeze_reason="paid API provider binding is required",
+            freeze_kind="account_identity_mismatch",
+        )
+    requested_provider = _normalized_provider(requested_provider)
+    if reference is None or not reference.recovered_freeze_id or reference.recovered_frozen_at is None:
+        return operator
+    try:
+        from deepr.observability.provider_account_controls import (
+            ProviderAccountControlError,
+            verify_paid_api_authorization,
+        )
+
+        try:
+            authorization = verify_paid_api_authorization(
+                reference.evidence_ids,
+                expected_freeze_id=reference.recovered_freeze_id,
+                expected_frozen_at=reference.recovered_frozen_at,
+                monthly_limit_usd=operator.monthly_limit,
+                requested_provider=requested_provider,
+            )
+        except ProviderAccountControlError as exc:
+            kind = "account_control_expired" if "expired" in str(exc).casefold() else "account_identity_mismatch"
+            return replace(
+                operator,
+                frozen=True,
+                freeze_reason=f"paid API account-control evidence is invalid: {exc}",
+                freeze_kind=kind,
+            )
+    except ImportError as exc:  # pragma: no cover - installed package invariant
+        raise SpendCapConfigurationError("paid API evidence verifier is unavailable") from exc
+    if reference.valid_until != authorization.valid_until:
+        return replace(
+            operator,
+            frozen=True,
+            freeze_reason="paid API authorization expiration does not match immutable evidence",
+            freeze_kind="account_identity_mismatch",
+        )
+    return _with_verified_authorization(operator, authorization)
+
+
+def _aware_datetime(value: object, *, source: str) -> datetime:
+    if not isinstance(value, str) or not value.strip():
+        raise SpendCapConfigurationError(f"{source} must be a timezone-aware timestamp")
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise SpendCapConfigurationError(f"{source} must be a timezone-aware timestamp") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise SpendCapConfigurationError(f"{source} must be a timezone-aware timestamp")
+    return parsed.astimezone(UTC)
+
+
+def _authorization_fields(document: dict[str, object]) -> _AuthorizationReference | None:
+    raw = document.get("paid_api_authorization")
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise SpendCapConfigurationError("operator paid_api_authorization must be a JSON object")
+    allowed = {
+        "authority",
+        "evidence_ids",
+        "valid_until",
+        "recovered_freeze_id",
+        "recovered_frozen_at",
+    }
+    if set(raw).difference(allowed):
+        raise SpendCapConfigurationError("operator paid_api_authorization contains unknown fields")
+    if raw.get("authority") != "verified_by_deepr":
+        raise SpendCapConfigurationError("operator paid_api_authorization authority is not verified")
+    evidence = raw.get("evidence_ids")
+    if not isinstance(evidence, list) or not 1 <= len(evidence) <= 32:
+        raise SpendCapConfigurationError("operator paid_api_authorization evidence_ids must be a non-empty list")
+    evidence_ids: list[str] = []
+    for value in evidence:
+        if not isinstance(value, str) or _EVIDENCE_ID_PATTERN.fullmatch(value) is None:
+            raise SpendCapConfigurationError("operator paid_api_authorization contains an invalid evidence ID")
+        evidence_ids.append(value)
+    if len(set(evidence_ids)) != len(evidence_ids):
+        raise SpendCapConfigurationError("operator paid_api_authorization evidence IDs must be unique")
+    valid_until = _aware_datetime(raw.get("valid_until"), source="operator paid_api_authorization valid_until")
+    recovered_freeze_id = raw.get("recovered_freeze_id", "")
+    if not isinstance(recovered_freeze_id, str) or (
+        recovered_freeze_id and _EVIDENCE_ID_PATTERN.fullmatch(recovered_freeze_id) is None
+    ):
+        raise SpendCapConfigurationError("operator authorization recovered_freeze_id must be a bounded identifier")
+    raw_recovered_frozen_at = raw.get("recovered_frozen_at")
+    recovered_frozen_at = (
+        None
+        if raw_recovered_frozen_at is None
+        else _aware_datetime(
+            raw_recovered_frozen_at,
+            source="operator paid_api_authorization recovered_frozen_at",
+        )
+    )
+    return _AuthorizationReference(
+        evidence_ids=tuple(evidence_ids),
+        valid_until=valid_until,
+        recovered_freeze_id=recovered_freeze_id,
+        recovered_frozen_at=recovered_frozen_at,
+    )
+
+
+def _with_verified_authorization(
+    operator: OperatorBudget,
+    authorization: VerifiedSpendAuthority,
+) -> OperatorBudget:
+    """Create an operator budget carrying evidence-derived authority."""
+    return replace(
+        operator,
+        frozen=False,
+        freeze_reason="",
+        freeze_id="",
+        freeze_kind="",
+        frozen_at=None,
+        authorization_evidence_ids=authorization.evidence_ids,
+        authorized_until=authorization.valid_until,
+        authorization_valid=True,
+        authorization_providers=authorization.providers,
+        authorization_hard_monthly_limit=authorization.hard_monthly_limit_usd,
+        authorization_recovered_freeze_id=authorization.recovered_freeze_id,
+        _verified_marker=_VERIFIED_AUTHORITY_MARKER,
+    )
 
 
 def parse_operator_budget(document: object) -> OperatorBudget:
@@ -115,11 +333,45 @@ def parse_operator_budget(document: object) -> OperatorBudget:
     reason = document.get("freeze_reason", "")
     if not isinstance(reason, str):
         raise SpendCapConfigurationError("operator freeze_reason must be a string")
+    freeze_id = document.get("freeze_id", "")
+    if not isinstance(freeze_id, str) or (freeze_id and _EVIDENCE_ID_PATTERN.fullmatch(freeze_id) is None):
+        raise SpendCapConfigurationError("operator freeze_id must be a bounded identifier")
+    freeze_kind = document.get("freeze_kind", "legacy" if frozen else "")
+    if not isinstance(freeze_kind, str) or (freeze_kind and freeze_kind not in _FREEZE_KINDS):
+        raise SpendCapConfigurationError("operator freeze_kind is not recognized")
+    raw_frozen_at = document.get("frozen_at")
+    frozen_at = None if raw_frozen_at is None else _aware_datetime(raw_frozen_at, source="operator frozen_at")
+    authorization = _authorization_fields(document)
+    evidence_ids = authorization.evidence_ids if authorization is not None else ()
+    authorized_until = authorization.valid_until if authorization is not None else None
+    effective_frozen = frozen
+    effective_reason = reason.strip()
+    effective_kind = freeze_kind
+    if not effective_frozen and monthly_limit == 0:
+        effective_frozen = True
+        effective_reason = "paid API monthly ceiling is zero"
+        effective_kind = "zero_ceiling"
+    elif not effective_frozen:
+        effective_frozen = True
+        if authorized_until is not None and authorized_until <= datetime.now(UTC):
+            effective_reason = "paid API account-control authorization expired"
+            effective_kind = "account_control_expired"
+        else:
+            effective_reason = "paid API account-control authorization is missing or unverified"
+            effective_kind = "account_control_unknown"
     return OperatorBudget(
         configured=True,
         monthly_limit=monthly_limit,
-        frozen=frozen,
-        freeze_reason=reason.strip(),
+        frozen=effective_frozen,
+        freeze_reason=effective_reason,
+        freeze_id=freeze_id,
+        freeze_kind=effective_kind,
+        frozen_at=frozen_at,
+        authorization_evidence_ids=evidence_ids,
+        authorized_until=authorized_until,
+        authorization_valid=False,
+        authorization_recovered_freeze_id=(authorization.recovered_freeze_id if authorization is not None else ""),
+        authorization_recovered_frozen_at=(authorization.recovered_frozen_at if authorization is not None else None),
     )
 
 
@@ -145,6 +397,7 @@ def resolve_spend_caps(
     *,
     budget_path: Path | None = None,
     operator_budget: OperatorBudget | None = None,
+    provider: str | None = None,
 ) -> dict[str, float]:
     """Resolve per-job, UTC day/week/month caps in USD.
 
@@ -154,7 +407,22 @@ def resolve_spend_caps(
     """
     if budget_path is not None and operator_budget is not None:
         raise ValueError("budget_path and operator_budget are mutually exclusive")
-    operator = operator_budget or read_operator_budget(budget_path)
+    requested_provider = provider or _PAID_API_PROVIDER.get()
+    if requested_provider is not None:
+        requested_provider = _normalized_provider(requested_provider)
+    operator = operator_budget or read_operator_budget(budget_path, provider=requested_provider)
+    if operator_budget is not None and (
+        requested_provider is None
+        or operator._verified_marker is not _VERIFIED_AUTHORITY_MARKER
+        or not operator.authorization_valid
+        or requested_provider not in operator.authorization_providers
+    ):
+        operator = replace(
+            operator,
+            frozen=True,
+            freeze_reason="paid API provider authority is not verified",
+            freeze_kind="account_identity_mismatch",
+        )
     per_job = _environment_limit("per_job")
     daily = _environment_limit("daily")
     weekly = _environment_limit("weekly")
@@ -184,21 +452,59 @@ def resolve_spend_caps(
 
 
 def clamp_spend_authority(settings: MutableSpendLimits) -> None:
-    """Narrow budget-shaped settings without allowing a policy increase."""
-    caps = resolve_spend_caps()
+    """Narrow settings, collapsing every paid limit to zero on policy errors."""
+    try:
+        caps = resolve_spend_caps()
+    except SpendCapConfigurationError:
+        caps = {"per_job": 0.0, "daily": 0.0, "weekly": 0.0, "monthly": 0.0}
     settings.max_cost_per_job = min(settings.max_cost_per_job, caps["per_job"])
     settings.daily_limit = min(settings.daily_limit, caps["daily"])
     settings.monthly_limit = min(settings.monthly_limit, caps["monthly"])
 
 
-def freeze_paid_api(reason: str, *, path: Path | None = None) -> OperatorBudget:
+def apply_paid_api_freeze(
+    document: dict[str, object],
+    *,
+    reason: str,
+    kind: str = "manual",
+    freeze_id: str | None = None,
+    now: datetime | None = None,
+) -> None:
+    """Apply a fresh typed freeze to an in-memory budget document."""
+    if kind not in _FREEZE_KINDS:
+        raise SpendCapConfigurationError("paid API freeze kind is not recognized")
+    identifier = freeze_id or f"freeze_{uuid4().hex}"
+    if _EVIDENCE_ID_PATTERN.fullmatch(identifier) is None:
+        raise SpendCapConfigurationError("paid API freeze ID must be a bounded identifier")
+    timestamp = (now or datetime.now(UTC)).astimezone(UTC)
+    document["paid_api_frozen"] = True
+    document["freeze_reason"] = reason.strip() or "paid cost safety invariant failed"
+    document["freeze_id"] = identifier
+    document["freeze_kind"] = kind
+    document["frozen_at"] = timestamp.isoformat()
+    document.pop("paid_api_authorization", None)
+
+
+def freeze_paid_api(
+    reason: str,
+    *,
+    path: Path | None = None,
+    kind: str = "manual",
+    freeze_id: str | None = None,
+) -> OperatorBudget:
     """Persist a cross-process paid freeze after a safety invariant breaks."""
     target = path or budget_file_path()
     with spend_policy_lock(target):
-        return _freeze_paid_api_unlocked(reason, target=target)
+        return _freeze_paid_api_unlocked(reason, target=target, kind=kind, freeze_id=freeze_id)
 
 
-def _freeze_paid_api_unlocked(reason: str, *, target: Path) -> OperatorBudget:
+def _freeze_paid_api_unlocked(
+    reason: str,
+    *,
+    target: Path,
+    kind: str = "manual",
+    freeze_id: str | None = None,
+) -> OperatorBudget:
     """Write a paid freeze while the caller holds ``spend_policy_lock``."""
     from deepr.utils.atomic_io import atomic_write_json
 
@@ -210,9 +516,7 @@ def _freeze_paid_api_unlocked(reason: str, *, target: Path) -> OperatorBudget:
     else:
         document = {"monthly_limit": 0.0}
     parse_operator_budget(document)
-    document["paid_api_frozen"] = True
-    document["freeze_reason"] = reason.strip() or "paid cost safety invariant failed"
-    document["frozen_at"] = datetime.now(UTC).isoformat()
+    apply_paid_api_freeze(document, reason=reason, kind=kind, freeze_id=freeze_id)
     parse_operator_budget(document)
     atomic_write_json(target, document, fsync=True)
     return parse_operator_budget(document)
@@ -222,9 +526,11 @@ __all__ = [
     "BUDGET_FILE_ENV",
     "OperatorBudget",
     "SpendCapConfigurationError",
+    "apply_paid_api_freeze",
     "budget_file_path",
     "clamp_spend_authority",
     "freeze_paid_api",
+    "paid_api_provider_scope",
     "parse_operator_budget",
     "read_operator_budget",
     "resolve_spend_caps",

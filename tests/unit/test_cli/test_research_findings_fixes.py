@@ -172,26 +172,51 @@ class TestBudgetGateNotBypassable:
     def test_monthly_check_uses_canonical_ledger_when_higher(self, monkeypatch, tmp_path):
         from deepr.cli.commands import budget as budget_mod
 
+        def exposure(settled: float) -> SimpleNamespace:
+            return SimpleNamespace(
+                daily_settled_cost=settled,
+                weekly_settled_cost=settled,
+                monthly_settled_cost=settled,
+                total_settled_cost=settled,
+                active_cost=0.0,
+                unresolved_cost=0.0,
+                unresolved_count=0,
+            )
+
         # Side counter thinks $0 was spent; the canonical ledger knows $95.
         monkeypatch.setattr(
             budget_mod,
             "load_budget_config",
             lambda: {"monthly_limit": 100, "monthly_spending": 0.0},
         )
-        monkeypatch.setattr(budget_mod, "_ledger_month_spend", lambda: 95.0)
+        monkeypatch.setattr(budget_mod, "resolve_spend_caps", lambda: {"monthly": 100.0})
+        monkeypatch.setattr(budget_mod, "_atomic_monthly_exposure", lambda: exposure(95.0))
         # $95 + $5 = $100 >= 80% of limit -> needs confirmation
         assert budget_mod.check_budget_approval(5.0) is False
         # Small spend well under the threshold still auto-approves
-        monkeypatch.setattr(budget_mod, "_ledger_month_spend", lambda: 10.0)
+        monkeypatch.setattr(budget_mod, "_atomic_monthly_exposure", lambda: exposure(10.0))
         assert budget_mod.check_budget_approval(5.0) is True
 
     def test_cautious_mode_has_a_cumulative_ceiling(self, monkeypatch):
         from deepr.cli.commands import budget as budget_mod
 
         monkeypatch.setattr(budget_mod, "load_budget_config", lambda: {"monthly_limit": 0})
+        monkeypatch.setattr(budget_mod, "resolve_spend_caps", lambda: {"monthly": 0.0})
         # A zero budget is now a hard paid-dispatch freeze. The old under-$1
         # convenience could be repeated into an unbounded surprise bill.
-        monkeypatch.setattr(budget_mod, "_ledger_month_spend", lambda: 0.0)
+        monkeypatch.setattr(
+            budget_mod,
+            "_atomic_monthly_exposure",
+            lambda: SimpleNamespace(
+                daily_settled_cost=0.0,
+                weekly_settled_cost=0.0,
+                monthly_settled_cost=0.0,
+                total_settled_cost=0.0,
+                active_cost=0.0,
+                unresolved_cost=0.0,
+                unresolved_count=0,
+            ),
+        )
         assert budget_mod.check_budget_approval(0.50) is False
-        monkeypatch.setattr(budget_mod, "_ledger_month_spend", lambda: 25.0)
+        monkeypatch.setattr(budget_mod, "_atomic_monthly_exposure", lambda: None)
         assert budget_mod.check_budget_approval(0.99) is False

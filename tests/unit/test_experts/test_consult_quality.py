@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 
@@ -25,6 +27,10 @@ from deepr.experts.consult_quality import (
 from deepr.experts.consult_traces import build_consult_trace, build_consult_trace_candidates
 from deepr.experts.metacognition import MetaCognitionTracker
 from deepr.experts.profile import ExpertProfile
+from deepr.experts.research_cost_gate import ResearchCostBlocked
+from deepr.experts.research_reservation_store import ResearchReservationStore
+from deepr.observability.cost_ledger import CostLedger
+from deepr.services.metered_call import MeteredCallAccountingError
 
 
 def _profile() -> ExpertProfile:
@@ -66,6 +72,53 @@ def _trace_path(tmp_path: Path, profile: ExpertProfile) -> Path:
         recorded_at=datetime(2026, 6, 27, 12, 0, tzinfo=UTC),
     )
     path = tmp_path / "consult_traces.jsonl"
+    path.write_text(json.dumps(trace) + "\n", encoding="utf-8")
+    return path
+
+
+def _api_judge_trace_path(
+    tmp_path: Path,
+    profile: ExpertProfile,
+    trace_id: str,
+    *,
+    context: dict | None = None,
+) -> Path:
+    trace = build_consult_trace(
+        question="How should consult improve the expert council?",
+        requested_experts=[profile.name],
+        max_experts=3,
+        budget=0.0,
+        payload={
+            "schema_version": "deepr-consult-v1",
+            "kind": "deepr.expert.consult",
+            "question": "How should consult improve the expert council?",
+            "answer": "Thin answer.",
+            "experts_consulted": [profile.name],
+            "perspectives": [
+                {
+                    "expert": profile.name,
+                    "confidence": 0.2,
+                    "response": "thin",
+                    "context": context or {},
+                }
+            ],
+            "agreements": [],
+            "disagreements": [],
+            "cost_usd": 0.0,
+        },
+        result={"perspectives": [{}], "synthesis_status": "completed"},
+        trace_id=trace_id,
+        recorded_at=datetime(2026, 6, 27, 12, 0, tzinfo=UTC),
+    )
+    if context is not None:
+        trace["checks"].append(
+            {
+                "name": "forced_quality_review",
+                "status": "failed",
+                "detail": "retain this trace as a quality-review candidate",
+            }
+        )
+    path = tmp_path / f"{trace_id}.jsonl"
     path.write_text(json.dumps(trace) + "\n", encoding="utf-8")
     return path
 
@@ -144,24 +197,6 @@ class _FakeConsultQualityChat:
 class _FakeConsultQualityClient:
     def __init__(self, *, expected_model: str = "judge-local", usage=None, response_id: str = ""):
         self.chat = _FakeConsultQualityChat(expected_model=expected_model, usage=usage, response_id=response_id)
-
-
-class _FakeCostSafety:
-    def __init__(self):
-        self.checks = []
-        self.records = []
-        self.refunds = []
-
-    def check_and_reserve(self, **kwargs):
-        self.checks.append(kwargs)
-        return True, "OK", False, "reservation-1"
-
-    def record_cost(self, **kwargs):
-        self.records.append(kwargs)
-        return True
-
-    def refund_reservation(self, reservation_id):
-        self.refunds.append(reservation_id)
 
 
 def test_build_consult_quality_review_records_reviewer_scores():
@@ -395,30 +430,13 @@ async def test_review_consult_quality_with_plan_judge_records_zero_dollar_quota_
 
 async def test_review_consult_quality_with_api_judge_settles_metered_cost(tmp_path):
     profile = _profile()
-    trace = build_consult_trace(
-        question="How should consult improve the expert council?",
-        requested_experts=[profile.name],
-        max_experts=3,
-        budget=0.0,
-        payload={
-            "schema_version": "deepr-consult-v1",
-            "kind": "deepr.expert.consult",
-            "question": "How should consult improve the expert council?",
-            "answer": "Thin answer.",
-            "experts_consulted": [profile.name],
-            "perspectives": [{"expert": profile.name, "confidence": 0.2, "response": "thin"}],
-            "agreements": [],
-            "disagreements": [],
-            "cost_usd": 0.0,
-        },
-        result={"perspectives": [{}], "synthesis_status": "completed"},
-        trace_id="consult_apijudge",
-        recorded_at=datetime(2026, 6, 27, 12, 0, tzinfo=UTC),
-    )
-    trace_path = tmp_path / "consult_traces.jsonl"
-    trace_path.write_text(json.dumps(trace) + "\n", encoding="utf-8")
-    cost_safety = _FakeCostSafety()
+    trace_path = _api_judge_trace_path(tmp_path, profile, "consult_apijudge")
     usage = SimpleNamespace(prompt_tokens=1_000, completion_tokens=250, prompt_tokens_details=None)
+    client = _FakeConsultQualityClient(
+        expected_model="grok-4.3",
+        usage=usage,
+        response_id="chatcmpl-test",
+    )
 
     payload = await review_consult_quality_candidate_with_api_judge(
         profile,
@@ -428,8 +446,7 @@ async def test_review_consult_quality_with_api_judge_settles_metered_cost(tmp_pa
         budget_usd=1.0,
         confirm_metered_cost=True,
         trace_path=trace_path,
-        client=_FakeConsultQualityClient(expected_model="grok-4.3", usage=usage, response_id="chatcmpl-test"),
-        cost_safety_manager=cost_safety,
+        client=client,
     )
 
     assert payload["judge"]["type"] == "calibrated_model"
@@ -443,19 +460,23 @@ async def test_review_consult_quality_with_api_judge_settles_metered_cost(tmp_pa
     assert payload["calibrated_judge"]["confirmed_metered_cost"] is True
     assert payload["calibrated_judge"]["cost_ledger_source"] == "api_metered"
     assert payload["calibrated_judge"]["request_id"] == "chatcmpl-test"
-    assert cost_safety.checks[0]["operation_type"] == "consult_quality_judge"
-    assert cost_safety.records[0]["reservation_id"] == "reservation-1"
-    assert cost_safety.records[0]["provider"] == "xai"
-    assert cost_safety.records[0]["model"] == "grok-4.3"
-    assert cost_safety.records[0]["tokens_input"] == 1_000
-    assert cost_safety.records[0]["tokens_output"] == 250
-    assert cost_safety.refunds == []
+    assert payload["calibrated_judge"]["reserved_cost_usd"] <= 1.0
+    assert client.chat.completions.calls[0]["max_completion_tokens"] <= 900
+    event = CostLedger().get_events()[0]
+    assert event.provider == "xai"
+    assert event.model == "grok-4.3"
+    assert event.cost_usd == pytest.approx(0.001875)
+    assert event.tokens_output == 250
+    assert event.request_id == "chatcmpl-test"
+    assert event.metadata["provider_object_id"] == "chatcmpl-test"
+    assert event.task_id.startswith("research_consult-quality-judge-consult_apijudge-")
+    assert ResearchReservationStore().active_cost() == pytest.approx(0.0)
     assert "Thin answer." not in json.dumps(payload)
 
 
 async def test_review_consult_quality_with_api_judge_requires_confirmation_before_client(tmp_path):
     profile = _profile()
-    cost_safety = _FakeCostSafety()
+    client = _FakeConsultQualityClient(expected_model="gpt-5.2")
 
     with pytest.raises(ConsultQualityReviewError, match="confirm-metered-cost"):
         await review_consult_quality_candidate_with_api_judge(
@@ -465,12 +486,122 @@ async def test_review_consult_quality_with_api_judge_requires_confirmation_befor
             judge_model="gpt-5.2",
             budget_usd=1.0,
             confirm_metered_cost=False,
-            cost_safety_manager=cost_safety,
-            client=_FakeConsultQualityClient(expected_model="gpt-5.2"),
+            client=client,
         )
 
-    assert cost_safety.checks == []
-    assert cost_safety.records == []
+    assert client.chat.completions.calls == []
+    assert CostLedger().get_events() == []
+
+
+async def test_review_consult_quality_reserves_before_default_client_construction(tmp_path):
+    profile = _profile()
+    trace_path = _api_judge_trace_path(tmp_path, profile, "consult_frozen")
+    Path(os.environ["DEEPR_BUDGET_FILE"]).write_text(
+        json.dumps({"monthly_limit": 0, "paid_api_frozen": True}),
+        encoding="utf-8",
+    )
+
+    with (
+        patch(
+            "deepr.experts.consult_quality_judges._build_api_judge_client",
+            side_effect=AssertionError("paid client must not be constructed"),
+        ) as builder,
+        pytest.raises(ResearchCostBlocked, match="finite and positive"),
+    ):
+        await review_consult_quality_candidate_with_api_judge(
+            profile,
+            "consult_frozen",
+            api_provider="openai",
+            judge_model="gpt-5.2",
+            budget_usd=1.0,
+            confirm_metered_cost=True,
+            trace_path=trace_path,
+        )
+
+    builder.assert_not_called()
+    assert CostLedger().get_events() == []
+
+
+async def test_review_consult_quality_with_api_judge_rejects_unpriced_model_before_client(tmp_path):
+    profile = _profile()
+    client = _FakeConsultQualityClient(expected_model="unpriced-judge-model")
+
+    with pytest.raises(ConsultQualityReviewError, match="no trusted token pricing contract"):
+        await review_consult_quality_candidate_with_api_judge(
+            profile,
+            "consult_unpriced",
+            api_provider="openai",
+            judge_model="unpriced-judge-model",
+            budget_usd=1.0,
+            confirm_metered_cost=True,
+            client=client,
+        )
+
+    assert client.chat.completions.calls == []
+    assert CostLedger().get_events() == []
+
+
+async def test_review_consult_quality_with_api_judge_rejects_oversized_prompt_before_reservation(tmp_path):
+    profile = _profile()
+    trace_path = _api_judge_trace_path(
+        tmp_path,
+        profile,
+        "consult_oversized",
+        context={"oversized": "x" * 400_000},
+    )
+    client = _FakeConsultQualityClient(expected_model="gpt-5.2")
+
+    with pytest.raises(ConsultQualityReviewError, match="cannot be safely bounded"):
+        await review_consult_quality_candidate_with_api_judge(
+            profile,
+            "consult_oversized",
+            api_provider="openai",
+            judge_model="gpt-5.2",
+            budget_usd=1.0,
+            confirm_metered_cost=True,
+            trace_path=trace_path,
+            client=client,
+        )
+
+    assert client.chat.completions.calls == []
+    assert CostLedger().get_events() == []
+    assert ResearchReservationStore().active_cost() == pytest.approx(0.0)
+
+
+async def test_review_consult_quality_with_api_judge_records_truth_and_freezes_on_ceiling_divergence(tmp_path):
+    from deepr.core.cost_caps import read_operator_budget
+
+    profile = _profile()
+    trace_path = _api_judge_trace_path(tmp_path, profile, "consult_divergence")
+    usage = SimpleNamespace(prompt_tokens=100_000, completion_tokens=5_000, prompt_tokens_details=None)
+    client = _FakeConsultQualityClient(
+        expected_model="gpt-5.2",
+        usage=usage,
+        response_id="chatcmpl-divergence",
+    )
+
+    with pytest.raises(MeteredCallAccountingError, match="cost settlement failed"):
+        await review_consult_quality_candidate_with_api_judge(
+            profile,
+            "consult_divergence",
+            api_provider="openai",
+            judge_model="gpt-5.2",
+            budget_usd=1.0,
+            confirm_metered_cost=True,
+            trace_path=trace_path,
+            client=client,
+        )
+
+    event = CostLedger().get_events()[0]
+    assert event.cost_usd == pytest.approx(0.245)
+    assert event.metadata["cost_ceiling_diverged"] is True
+    assert event.cost_usd > event.metadata["estimated_cost_usd"]
+    assert event.request_id == "chatcmpl-divergence"
+    operator = read_operator_budget()
+    assert operator.frozen is True
+    assert operator.freeze_kind == "cost_ceiling_divergence"
+    assert "exceeded authorized ceiling" in operator.freeze_reason
+    assert ResearchReservationStore().active_cost() == pytest.approx(0.0)
 
 
 def test_parse_consult_quality_judge_response_rejects_unknown_label():

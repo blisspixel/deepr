@@ -627,7 +627,7 @@ def check_spend_integrity() -> list[DiagnosticCheck]:
             check.details.append("Metered auto-approval fails closed until the ledger is readable")
         else:
             spent = max(counter, ledger)
-            if limit > 0 and spent > limit:
+            if spent > limit:
                 check.passed = False
                 check.message = f"OVER BUDGET: ${spent:.2f} spent against a ${limit:.2f}/month budget"
                 check.details.append(
@@ -655,10 +655,11 @@ def check_spend_integrity() -> list[DiagnosticCheck]:
         from deepr.cli.commands.costs import _doctor_classify
         from deepr.observability.cost_ledger import CostLedger
 
-        root = Path("data/reports")
+        root = Path(load_config()["results_dir"])
         dir_names = [d.name for d in root.iterdir() if d.is_dir()] if root.exists() else []
         cutoff = datetime.now(UTC) - timedelta(days=45)
-        matched, orphaned = _doctor_classify(CostLedger().get_events(), dir_names, cutoff)
+        events = CostLedger().with_locked_accounting_events(list)
+        matched, orphaned = _doctor_classify(events, dir_names, cutoff)
         orphaned_total = sum(e["cost_usd"] for e in orphaned)
         if orphaned_total > 0.005:
             check.passed = False
@@ -671,7 +672,8 @@ def check_spend_integrity() -> list[DiagnosticCheck]:
             )
     except Exception as exc:
         check.passed = False
-        check.message = f"Could not audit artifacts: {exc}"
+        check.message = f"Artifact accounting state is UNKNOWN: {exc}"
+        check.details.append("Paid API dispatch must remain blocked until the canonical ledger is readable")
     checks.append(check)
 
     return checks

@@ -3,6 +3,7 @@
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -76,23 +77,20 @@ def _make_dashboard_mock(entries=None, days=7, base_cost=1.0, anomaly_day=None):
 
 
 class TestShow:
-    def test_current_authority_uses_strict_calendar_totals_and_active_holds(self):
+    def test_current_authority_uses_atomic_settled_totals_and_active_holds(self):
         from deepr.cli.commands.costs import _current_cost_authority
 
-        now = datetime.now(UTC)
-        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        events = [
-            MagicMock(timestamp=now, cost_usd=1.0),
-            MagicMock(timestamp=month_start, cost_usd=2.0),
-            MagicMock(timestamp=month_start - timedelta(seconds=1), cost_usd=8.0),
-        ]
-        ledger = MagicMock()
-        ledger.with_locked_accounting_events.side_effect = lambda operation: operation(events)
         store = MagicMock()
-        store.active_cost.return_value = 0.5
+        store.exposure_snapshot.return_value = SimpleNamespace(
+            daily_settled_cost=1.0,
+            weekly_settled_cost=2.0,
+            monthly_settled_cost=3.0,
+            active_cost=0.5,
+            unresolved_count=1,
+            unresolved_cost=0.25,
+        )
 
         with (
-            patch("deepr.cli.commands.costs.CostLedger", return_value=ledger),
             patch(
                 "deepr.core.cost_caps.resolve_spend_caps",
                 return_value={"per_job": 2.0, "daily": 5.0, "weekly": 10.0, "monthly": 10.0},
@@ -103,16 +101,15 @@ class TestShow:
 
         assert summary["daily_limit"] == 5.0
         assert summary["monthly_limit"] == 7.0
-        expected_daily = 3.0 if now.date() == month_start.date() else 1.0
-        week_start = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=now.weekday())
-        expected_weekly = sum(event.cost_usd for event in events if event.timestamp >= week_start)
-        assert summary["daily_settled"] == pytest.approx(expected_daily)
-        assert summary["weekly_settled"] == pytest.approx(expected_weekly)
+        assert summary["daily_settled"] == pytest.approx(1.0)
+        assert summary["weekly_settled"] == pytest.approx(2.0)
         assert summary["monthly_settled"] == pytest.approx(3.0)
-        assert summary["daily_exposure"] == pytest.approx(expected_daily + 0.5)
-        assert summary["weekly_exposure"] == pytest.approx(expected_weekly + 0.5)
+        assert summary["unresolved_holds"] == 1
+        assert summary["unresolved_exposure"] == pytest.approx(0.25)
+        assert summary["daily_exposure"] == pytest.approx(1.5)
+        assert summary["weekly_exposure"] == pytest.approx(2.5)
         assert summary["monthly_exposure"] == pytest.approx(3.5)
-        expected_headroom = min(2.0, 5.0 - expected_daily - 0.5, 10.0 - expected_weekly - 0.5, 3.5)
+        expected_headroom = min(2.0, 3.5, 7.5, 3.5)
         assert summary["authorizable_headroom"] == pytest.approx(max(0.0, expected_headroom))
 
     def test_command_line_limits_cannot_raise_effective_authority(self, runner):
@@ -125,6 +122,8 @@ class TestShow:
             "weekly_settled": 1.0,
             "monthly_settled": 1.0,
             "active_holds": 0.5,
+            "unresolved_holds": 0,
+            "unresolved_exposure": 0.0,
             "daily_exposure": 0.7,
             "weekly_exposure": 1.5,
             "monthly_exposure": 1.5,
@@ -153,6 +152,8 @@ class TestShow:
             "weekly_settled": 10.0,
             "monthly_settled": 10.0,
             "active_holds": 0.25,
+            "unresolved_holds": 0,
+            "unresolved_exposure": 0.0,
             "daily_exposure": 0.25,
             "weekly_exposure": 10.25,
             "monthly_exposure": 10.25,
@@ -164,6 +165,31 @@ class TestShow:
         assert result.exit_code == 0
         assert "Monthly alert" in result.output
         assert "100% hard ceiling reached" in result.output
+
+    def test_show_reports_positive_exposure_over_zero_ceiling(self, runner):
+        summary = {
+            "per_job_limit": 0.0,
+            "daily_limit": 0.0,
+            "weekly_limit": 0.0,
+            "monthly_limit": 0.0,
+            "daily_settled": 1.0,
+            "weekly_settled": 38.52,
+            "monthly_settled": 38.52,
+            "active_holds": 0.0,
+            "unresolved_holds": 0,
+            "unresolved_exposure": 0.0,
+            "daily_exposure": 1.0,
+            "weekly_exposure": 38.52,
+            "monthly_exposure": 38.52,
+            "authorizable_headroom": 0.0,
+        }
+        with patch("deepr.cli.commands.costs._current_cost_authority", return_value=summary):
+            result = runner.invoke(cli, ["costs", "show"])
+
+        assert result.exit_code == 0
+        assert result.output.count("OVER $0.00 CEILING") == 2
+        assert "Utilization: 0.0%" not in result.output
+        assert "paid API frozen at a $0.00 hard ceiling" in result.output
 
 
 class TestLiveCostAlertsAndLimits:
@@ -531,15 +557,18 @@ class TestCostsDoctor:
             "accounting_ready": True,
             "event_count": 1,
         }
-        mock_ledger.get_total_cost.return_value = 1.0
+        mock_ledger.with_locked_accounting_events.side_effect = lambda operation: (
+            [] if operation is list else operation([MagicMock(cost_usd=1.0)])
+        )
 
         with (
             patch("deepr.cli.commands.costs.CostDashboard", return_value=mock_dash),
-            patch("deepr.cli.commands.costs.CostLedger", return_value=mock_ledger),
+            patch("deepr.cli.commands.costs.CostLedger", return_value=mock_ledger) as ledger_class,
         ):
             result = runner.invoke(cli, ["costs", "doctor"])
 
         assert result.exit_code == 0
+        ledger_class.assert_called_once_with()
         assert "Cost Tracking Doctor" in result.output
         assert "PASS" in result.output
 
@@ -555,7 +584,9 @@ class TestCostsDoctor:
             "accounting_ready": True,
             "event_count": 1,
         }
-        mock_ledger.get_total_cost.return_value = 2.0
+        mock_ledger.with_locked_accounting_events.side_effect = lambda operation: (
+            [] if operation is list else operation([MagicMock(cost_usd=2.0)])
+        )
 
         with (
             patch("deepr.cli.commands.costs.CostDashboard", return_value=mock_dash),
@@ -563,7 +594,7 @@ class TestCostsDoctor:
         ):
             result = runner.invoke(cli, ["costs", "doctor", "--drift-threshold", "0.1"])
 
-        assert result.exit_code == 0
+        assert result.exit_code == 1
         assert "FAIL" in result.output
         assert "drift=$" in result.output
 
@@ -578,7 +609,7 @@ class TestCostsDoctor:
             "accounting_ready": False,
             "error": "CostLedgerReadError: malformed event",
         }
-        mock_ledger.get_total_cost.return_value = 0.0
+        mock_ledger.with_locked_accounting_events.side_effect = lambda operation: operation([])
 
         with (
             patch("deepr.cli.commands.costs.CostDashboard", return_value=mock_dash),
@@ -586,7 +617,30 @@ class TestCostsDoctor:
         ):
             result = runner.invoke(cli, ["costs", "doctor"])
 
-        assert result.exit_code == 0
+        assert result.exit_code == 1
         assert "Ledger accounting ready" in result.output
         assert "malformed event" in result.output
         assert "FAIL" in result.output
+
+    def test_costs_doctor_reports_unknown_drift_when_ledger_is_unreadable(self, runner):
+        mock_dash = MagicMock(spec=CostDashboard)
+        mock_dash.storage_path = Path("data/costs/cost_log.json")
+        mock_dash.entries = []
+        mock_ledger = MagicMock()
+        mock_ledger.get_health.return_value = {
+            "path": "data/costs/cost_ledger.jsonl",
+            "writable": True,
+            "accounting_ready": False,
+            "error": "CostLedgerReadError: malformed event",
+        }
+        mock_ledger.with_locked_accounting_events.side_effect = RuntimeError("malformed accounting event")
+
+        with (
+            patch("deepr.cli.commands.costs.CostDashboard", return_value=mock_dash),
+            patch("deepr.cli.commands.costs.CostLedger", return_value=mock_ledger),
+        ):
+            result = runner.invoke(cli, ["costs", "doctor"])
+
+        assert result.exit_code == 1
+        assert "UNKNOWN" in result.output
+        assert "Canonical cost ledger is unreadable" in result.output

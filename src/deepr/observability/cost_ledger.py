@@ -7,7 +7,7 @@ import os
 import threading
 import time
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from math import isfinite
@@ -65,27 +65,61 @@ def default_cost_data_dir() -> Path:
 
     Honors DEEPR_COST_DATA_DIR so deployments can relocate cost state and -
     critically - so the test suite can isolate itself. Without the override,
-    a project-local data/costs that already holds a ledger keeps being used
-    (existing installs keep their history), but a bare CWD no longer mints a
-    fresh empty ledger: that made every budget gate read $0 spent whenever a
-    process happened to run from a different directory. The stable fallback
-    is ~/.deepr/costs, the same anchor budget.json already uses.
+    every process uses ~/.deepr/costs regardless of its current directory.
+    Legacy source-checkout ledgers remain strict read-only siblings so their
+    spend is still counted, but they can no longer split new reservations or
+    writes across working directories.
     """
     base = os.environ.get("DEEPR_COST_DATA_DIR", "").strip()
     if base:
-        return Path(base)
-    project_local = Path("data/costs")
-    if (project_local / "cost_ledger.jsonl").exists():
-        return project_local
-    return Path.home() / ".deepr" / "costs"
+        configured = Path(base)
+        if not configured.is_absolute():
+            raise ValueError("DEEPR_COST_DATA_DIR must be an absolute path")
+        return configured
+    try:
+        target = Path.home() / ".deepr" / "costs"
+    except (OSError, RuntimeError) as exc:
+        raise ValueError("cost data home path is unavailable") from exc
+    if not target.is_absolute():
+        raise ValueError("cost data home path must be absolute")
+    return target
 
 
-def _well_known_ledger_paths() -> list[Path]:
-    """Every default location a canonical ledger may live in on this machine."""
-    return [
-        Path("data/costs") / "cost_ledger.jsonl",
-        Path.home() / ".deepr" / "costs" / "cost_ledger.jsonl",
-    ]
+def _source_checkout_cost_data_dir() -> Path | None:
+    """Return the stable legacy cost root for an editable source checkout."""
+    try:
+        root = Path(__file__).resolve().parents[3]
+    except (IndexError, OSError):
+        return None
+    if not (root / "pyproject.toml").is_file() or not (root / "src" / "deepr").is_dir():
+        return None
+    return root / "data" / "costs"
+
+
+def well_known_cost_data_dirs() -> tuple[Path, ...]:
+    """Return stable canonical and legacy roots used for strict accounting."""
+    if os.environ.get("DEEPR_COST_DATA_DIR", "").strip():
+        return (default_cost_data_dir(),)
+    candidates = [default_cost_data_dir()]
+    source_checkout = _source_checkout_cost_data_dir()
+    if source_checkout is not None:
+        candidates.append(source_checkout)
+    unique: list[Path] = []
+    seen: set[Path] = set()
+    for candidate in candidates:
+        try:
+            identity = candidate.resolve()
+        except OSError:
+            identity = candidate.absolute()
+        if identity not in seen:
+            seen.add(identity)
+            unique.append(candidate)
+    return tuple(unique)
+
+
+def well_known_ledger_paths() -> tuple[Path, ...]:
+    """Return stable ledger paths without creating files or directories."""
+    return tuple(root / "cost_ledger.jsonl" for root in well_known_cost_data_dirs())
 
 
 @dataclass
@@ -164,21 +198,20 @@ class CostLedger:
         using_default_path = ledger_path is None and not os.environ.get("DEEPR_COST_DATA_DIR", "").strip()
         self.ledger_path = ledger_path or default_cost_data_dir() / "cost_ledger.jsonl"
         self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
-        # Spend queries against the default ledger also read the other
-        # well-known location (project-local data/costs vs ~/.deepr/costs):
-        # historical installs wrote wherever the CWD happened to be, and a
-        # budget gate that cannot see all recorded spend approves money it
-        # should block. Explicit ledger_path and DEEPR_COST_DATA_DIR stay
-        # fully isolated (tests, relocated deployments). Writes always go to
-        # the primary path only.
-        self._sibling_ledger_paths: list[Path] = []
+        # New default writes always use the home-anchored ledger. Strict reads
+        # include any source-checkout legacy ledger. Keep the candidate even
+        # before it exists so a long-lived process sees rolling-upgrade state.
+        # Explicit ledger_path and DEEPR_COST_DATA_DIR remain isolated.
+        self._candidate_sibling_ledger_paths: tuple[Path, ...] = ()
         if using_default_path:
-            for candidate in _well_known_ledger_paths():
+            siblings: list[Path] = []
+            for candidate in well_known_ledger_paths():
                 try:
-                    if candidate.exists() and candidate.resolve() != self.ledger_path.resolve():
-                        self._sibling_ledger_paths.append(candidate)
+                    if candidate.resolve() != self.ledger_path.resolve():
+                        siblings.append(candidate)
                 except OSError:
                     continue
+            self._candidate_sibling_ledger_paths = tuple(siblings)
         self._lock = threading.Lock()
         self._lock_timeout_seconds = _validated_lock_timeout(lock_timeout_seconds)
         self._idempotency_keys: set[str] = set()
@@ -203,10 +236,16 @@ class CostLedger:
     @contextmanager
     def _interprocess_lock(self, *, deadline: float | None = None) -> Iterator[None]:
         """Serialize ledger reads and writes across Windows and POSIX processes."""
+        with self._ledger_file_lock(self.ledger_path, deadline=deadline):
+            yield
+
+    @contextmanager
+    def _ledger_file_lock(self, ledger_path: Path, *, deadline: float | None = None) -> Iterator[None]:
+        """Lock one ledger path using the platform's cross-process primitive."""
         timeout = _remaining_timeout(deadline)
         if deadline is None:
             timeout = self._lock_timeout_seconds
-        lock_path = self.ledger_path.with_name(f"{self.ledger_path.name}.lock")
+        lock_path = ledger_path.with_name(f"{ledger_path.name}.lock")
         with open(lock_path, "a+b") as handle:
             handle.seek(0, os.SEEK_END)
             if handle.tell() == 0:
@@ -238,22 +277,63 @@ class CostLedger:
                 finally:
                     fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
-    def _load_idempotency_index(self, *, fail_closed: bool = False) -> None:
-        if not self.ledger_path.exists():
-            return
-        try:
-            with open(self.ledger_path, encoding="utf-8") as f:
-                for line_no, line in enumerate(f, start=1):
-                    line = line.strip()
-                    if not line:
-                        continue
-                    event = self._parse_index_event(line, line_no=line_no, fail_closed=fail_closed)
-                    if event is not None:
-                        self._index_idempotent_event(event)
-        except OSError as e:
-            logger.warning("Failed loading cost ledger index (%s)", type(e).__name__)
-            if fail_closed:
-                raise CostLedgerReadError("cost ledger idempotency index could not be read") from e
+    def _accounting_ledger_paths(self) -> tuple[Path, ...]:
+        """Rediscover existing sibling ledgers without creating them."""
+        paths = [self.ledger_path]
+        for candidate in self._candidate_sibling_ledger_paths:
+            try:
+                if candidate.exists():
+                    paths.append(candidate)
+            except OSError as exc:
+                raise CostLedgerReadError("cost ledger location could not be inspected") from exc
+        return tuple(paths)
+
+    @contextmanager
+    def _accounting_locks(self, *, deadline: float | None = None) -> Iterator[tuple[Path, ...]]:
+        """Lock canonical and existing legacy ledgers in one stable order."""
+        lock_candidates = [self.ledger_path]
+        for candidate in self._candidate_sibling_ledger_paths:
+            try:
+                if candidate.exists() or candidate.parent.exists():
+                    lock_candidates.append(candidate)
+            except OSError as exc:
+                raise CostLedgerReadError("cost ledger location could not be inspected") from exc
+        paths = sorted(
+            set(lock_candidates),
+            key=lambda path: str(path.resolve()).casefold(),
+        )
+        with ExitStack() as stack:
+            for path in paths:
+                stack.enter_context(self._ledger_file_lock(path, deadline=deadline))
+            # Recheck only after compatible writers are excluded. Discovery
+            # never opens or creates a missing sibling ledger.
+            accounting_paths = self._accounting_ledger_paths()
+            if any(path not in paths for path in accounting_paths):
+                raise CostLedgerReadError("cost ledger appeared before its lock could be acquired")
+            yield accounting_paths
+
+    def _load_idempotency_index(
+        self,
+        *,
+        paths: tuple[Path, ...] | None = None,
+        fail_closed: bool = False,
+    ) -> None:
+        for path in paths or (self.ledger_path,):
+            if not path.exists():
+                continue
+            try:
+                with open(path, encoding="utf-8") as f:
+                    for line_no, line in enumerate(f, start=1):
+                        line = line.strip()
+                        if not line:
+                            continue
+                        event = self._parse_index_event(line, line_no=line_no, fail_closed=fail_closed)
+                        if event is not None:
+                            self._index_idempotent_event(event)
+            except OSError as error:
+                logger.warning("Failed loading cost ledger index (%s)", type(error).__name__)
+                if fail_closed:
+                    raise CostLedgerReadError("cost ledger idempotency index could not be read") from error
 
     @staticmethod
     def _parse_index_event(
@@ -325,25 +405,32 @@ class CostLedger:
         )
 
         with self._thread_lock(deadline=deadline):
-            with self._interprocess_lock(deadline=deadline):
-                return self._record_event_locked(event, require_fsync=require_fsync)
+            with self._accounting_locks(deadline=deadline) as paths:
+                return self._record_event_locked(
+                    event,
+                    require_fsync=require_fsync,
+                    accounting_paths=paths,
+                )
 
     def _record_event_locked(
         self,
         event: CostLedgerEvent,
         *,
         require_fsync: bool,
+        accounting_paths: tuple[Path, ...],
     ) -> tuple[CostLedgerEvent, bool]:
         self._idempotency_keys.clear()
         self._idempotency_events.clear()
         self._idempotency_conflicts.clear()
-        self._load_idempotency_index(fail_closed=True)
+        self._load_idempotency_index(paths=accounting_paths, fail_closed=True)
         if self._idempotency_conflicts:
             raise CostLedgerIdempotencyConflict("cost ledger contains conflicting idempotency events")
         existing = self._matching_idempotent_event(event)
         if existing is not None:
             if require_fsync:
-                self._require_durable_file()
+                for path in accounting_paths:
+                    if path.exists():
+                        self._require_durable_file(path)
             return existing, False
         self._append_event(event, require_fsync=require_fsync)
         self._index_idempotent_event(event)
@@ -370,10 +457,10 @@ class CostLedger:
                     raise CostLedgerDurabilityError("cost ledger durability could not be confirmed") from exc
                 logger.debug("Cost ledger fsync unavailable: %s", type(exc).__name__)
 
-    def _require_durable_file(self) -> None:
+    def _require_durable_file(self, path: Path | None = None) -> None:
         """Reconfirm durability when a required append replays an existing key."""
         try:
-            with open(self.ledger_path, "a+b") as ledger_file:
+            with open(path or self.ledger_path, "a+b") as ledger_file:
                 os.fsync(ledger_file.fileno())
         except OSError as exc:
             raise CostLedgerDurabilityError("cost ledger durability could not be confirmed") from exc
@@ -421,15 +508,50 @@ class CostLedger:
     def _get_events_unlocked(
         self,
         *,
+        paths: tuple[Path, ...],
         start_date: datetime | None = None,
         end_date: datetime | None = None,
         source: str | None = None,
     ) -> list[CostLedgerEvent]:
-        events = self._read_ledger_file(self.ledger_path, start_date=start_date, end_date=end_date, source=source)
-        if self._sibling_ledger_paths:
-            for sibling in self._sibling_ledger_paths:
-                events.extend(self._read_ledger_file(sibling, start_date=start_date, end_date=end_date, source=source))
+        events: list[CostLedgerEvent] = []
+        for path in paths:
+            events.extend(self._read_ledger_file(path, start_date=start_date, end_date=end_date, source=source))
+        if len(paths) > 1:
             events.sort(key=lambda e: e.timestamp)
+        return events
+
+    def _get_accounting_events_unlocked(self, *, paths: tuple[Path, ...]) -> list[CostLedgerEvent]:
+        """Read every canonical location strictly for spend authority."""
+        events: list[CostLedgerEvent] = []
+        idempotent_events: dict[str, CostLedgerEvent] = {}
+        for path in paths:
+            if not path.exists():
+                continue
+            try:
+                with open(path, encoding="utf-8") as ledger_file:
+                    for line_no, line in enumerate(ledger_file, start=1):
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            event = CostLedgerEvent.from_dict(_loads_strict_json(line))
+                        except (AttributeError, json.JSONDecodeError, TypeError, ValueError) as exc:
+                            logger.error("Corrupted cost ledger line %d (%s)", line_no, type(exc).__name__)
+                            raise CostLedgerReadError("cost ledger contains a malformed event") from exc
+                        key = event.idempotency_key
+                        existing = idempotent_events.get(key) if key else None
+                        if existing is not None:
+                            if not _same_idempotent_cost_event(existing, event):
+                                raise CostLedgerIdempotencyConflict(
+                                    "cost ledger contains conflicting cross-root idempotency events"
+                                )
+                            continue
+                        if key:
+                            idempotent_events[key] = event
+                        events.append(event)
+            except OSError as exc:
+                raise CostLedgerReadError("cost ledger could not be read") from exc
+        events.sort(key=lambda event: event.timestamp)
         return events
 
     @staticmethod
@@ -476,8 +598,13 @@ class CostLedger:
     ) -> T:
         """Run an operation against a stable snapshot under the ledger lock."""
         with self._thread_lock():
-            with self._interprocess_lock():
-                events = self._get_events_unlocked(start_date=start_date, end_date=end_date, source=source)
+            with self._accounting_locks() as paths:
+                events = self._get_events_unlocked(
+                    paths=paths,
+                    start_date=start_date,
+                    end_date=end_date,
+                    source=source,
+                )
                 return operation(events)
 
     def with_locked_accounting_events(
@@ -490,16 +617,17 @@ class CostLedger:
         timeout = _validated_lock_timeout(lock_timeout_seconds)
         deadline = None if timeout is None else time.monotonic() + timeout
         with self._thread_lock(deadline=deadline):
-            with self._interprocess_lock(deadline=deadline):
+            with self._accounting_locks(deadline=deadline) as paths:
                 self._idempotency_keys.clear()
                 self._idempotency_events.clear()
                 self._idempotency_conflicts.clear()
-                self._load_idempotency_index(fail_closed=True)
-                if self._idempotency_conflicts:
-                    raise CostLedgerIdempotencyConflict("cost ledger contains conflicting idempotency events")
-                if self.ledger_path.exists():
-                    self._require_durable_file()
-                return operation(self._get_events_unlocked())
+                for path in paths:
+                    if path.exists():
+                        self._require_durable_file(path)
+                events = self._get_accounting_events_unlocked(paths=paths)
+                for event in events:
+                    self._index_idempotent_event(event)
+                return operation(events)
 
     def get_total_cost(
         self,
@@ -510,16 +638,12 @@ class CostLedger:
         return sum(e.cost_usd for e in self.get_events(start_date=start_date, end_date=end_date, source=source))
 
     def has_idempotency_key(self, idempotency_key: str) -> bool:
-        """Check a canonical event key against a fresh locked ledger index."""
+        """Check an event key across every strict canonical accounting root."""
         if not idempotency_key:
             return False
-        with self._thread_lock():
-            with self._interprocess_lock():
-                self._idempotency_keys.clear()
-                self._idempotency_events.clear()
-                self._idempotency_conflicts.clear()
-                self._load_idempotency_index(fail_closed=True)
-                return idempotency_key in self._idempotency_keys
+        return self.with_locked_accounting_events(
+            lambda events: any(event.idempotency_key == idempotency_key for event in events)
+        )
 
     def get_health(self) -> dict[str, Any]:
         writable = False

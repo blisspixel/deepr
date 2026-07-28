@@ -72,7 +72,7 @@ The kernel is designed to be embeddable in other agent projects. The primitives 
 
 **Interoperability model:** Deepr is built to be one role on a larger agent team, not the orchestrator. Experts produce structured, handoff-ready artifacts (reports with citations, belief states, gap backlogs) that downstream agents can consume directly. An external orchestrator assigns work to a Deepr expert the same way it would assign work to any other role - via MCP tool calls with budget contracts and trace IDs that stitch across agent boundaries. This means Deepr doesn't need to know about the full workflow; it just needs to do its job well and hand off cleanly.
 
-**Capability-adaptive principle:** the target is first-class operation on any OS with local Ollama (`$0`), non-metered subscription CLIs, or bounded cloud APIs. In v2.36, explicit local, explicit plan-quota, and fully priced single-job API paths work. Selected scheduled expert-maintenance paths can choose admitted local or trusted-quota plan capacity; global cheapest-first runtime routing and automatic metered fallback are not shipped. `deepr init` detects all three tiers and `deepr capacity` distinguishes executable, visible/read-only, blocked, and waiting capacity. Cost-efficiency is the default policy, but execution claims follow proven capability rather than CLI presence.
+**Capability-adaptive principle:** the target is first-class operation on any OS with local Ollama (`$0`), non-metered subscription CLIs, or bounded cloud APIs. In v2.39, explicit local work and safety-eligible plan-quota work are executable. Metered request preview and accounting exist, but production paid dispatch is blocked until a provider-specific authenticated account-control verifier and current credential-identity resolver are installed. Selected scheduled expert-maintenance paths can choose admitted local or trusted-quota plan capacity; global cheapest-first runtime routing and automatic metered fallback are not shipped. `deepr init` detects all three tiers and `deepr capacity` distinguishes executable, visible/read-only, blocked, and waiting capacity. Cost-efficiency is the default policy, but execution claims follow proven capability rather than CLI presence.
 
 **Deep understanding loop:** Deepr's product direction is not "better RAG" and
 not "one more deep research button." Deepr should become a durable understanding
@@ -324,7 +324,25 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.38.4)
+## Current Status (v2.39.0)
+
+**v2.39.0 additions:** offline provider-billing import now validates a bounded
+normalized statement, distinguishes metered API, prepaid-plan, owned-local, and
+unknown capacity, joins exact provider receipts to canonical cost events, and
+stores content-addressed evidence only on explicit apply. Preview is write-free.
+Unclean or failed apply freezes paid work and clean reconciliation never
+unfreezes it. Paid account authority now requires fresh authenticated evidence
+bound to the current freeze, provider, account, scope, credential fingerprint,
+disabled overage, and a provider hard monthly limit. Self-asserted local files
+cannot authorize. No production provider verifier or identity resolver is
+installed, so metered dispatch remains blocked while local and proven plan
+capacity continue. Cost state now uses a stable per-user root while strictly
+including legacy source-checkout ledgers and holds; cross-root conflicts,
+malformed state, and late migration state fail closed. CLI, REST, MCP, and web
+share settled, held, unresolved, cap, headroom, and freeze truth. Keyword search
+is local by default; metered semantic indexing requires an explicit aggregate
+ceiling and confirmation. Legacy queued work without the versioned provider-
+bound reservation contract cannot cross the provider boundary.
 
 **v2.38.4 additions:** the frontend development lock now uses Globals 17.8.0,
 and the Python lock uses Hypothesis 6.161.8 plus transitive tqdm 4.70.0, the
@@ -570,9 +588,11 @@ memory surface. This order is dependency-based, not calendar-based:
 
 0. **No Surprise Bills: spend caps that cannot be overshot (governing money
    invariant, outranks every feature).** The July 2026 incident is the
-   standard to design against: $37.99 of real spend accumulated against a
-   $10/month budget while the budget display showed $0.00 and zero paid
-   artifacts survived - a 385% overshoot that nothing surfaced for 24 days.
+   standard to design against: it was initially detected at $37.99, and the
+   canonical July ledger now shows $38.52 settled against a $10/month budget.
+   The budget display had shown $0.00 and no paid artifact for that campaign
+   survived. Exposure reached 385% of the ceiling, or 285% over it, without
+   surfacing for 24 days.
    That is an extreme, unacceptable failure class; a cap that can be exceeded
    is not a cap. Closed 2026-07-25/26 (143-agent adversarial audit, 25
    confirmed cost bugs, all criticals and highs fixed): ledger-anchored
@@ -600,11 +620,15 @@ memory surface. This order is dependency-based, not calendar-based:
      plus durable holds, and 100% remains a doctor error and dispatch block.
      Still surface thresholds at dispatch time and in the dashboard status bar,
      then add a durable notification outbox and monitored delivery sink.
-   - [ ] **Provider-authoritative billing reconciliation and account controls**:
-     import read-only billing exports with provider account/project scope,
+   - [~] **Provider-authoritative billing reconciliation and account controls**:
+     bounded offline import, strict receipt reconciliation, capacity-class
+     separation, immutable apply evidence, and divergence freeze shipped in
+     v2.39.0. Complete provider-specific authenticated source verifiers and
+     current credential-identity resolvers before paid authority can be
+     restored. Imports include provider account/project scope,
      billing period, currency, source hash, request/job/object identifiers,
      billed units, actual charge, credits, adjustments, tax, and plan-versus-API
-     classification. Freeze paid dispatch on unexplained positive invoice drift.
+     classification. Paid dispatch freezes on unexplained positive invoice drift.
      Record provider hard-limit or overage-off posture only as verified,
      operator-attested, or unknown. Never infer account protection from Deepr's
      internal cap.
@@ -620,8 +644,8 @@ memory surface. This order is dependency-based, not calendar-based:
      branches, and report incomplete fan-in as partial. Composed docs, team,
      campaign, and other paid fan-out remain gated until this contract ships.
    - [ ] **Remaining audit follow-up** (`.agent/cost-audit-2026-07-25.json`):
-     finish threshold delivery, provider billing import, provider account-control
-     evidence, batch-auto attribution, prep-campaign resume identity,
+     finish threshold delivery, provider-specific authenticated account-control
+     verification, batch-auto attribution, prep-campaign resume identity,
      provider-complete tool fees, and fsync fault-injection coverage.
      Curriculum hidden retries, canonical counter seeding, legacy terminal
      pollers, immediate missing-usage settlement, and REST spend truth were
@@ -1623,6 +1647,19 @@ quality or efficiency result. Sources:
 and
 [recent Consensus is Not Verification preprint](https://arxiv.org/abs/2603.06612).
 
+**Local graph decision, 2026-07-28.** Adopt the useful dependency-graph shape
+only as an eval-first, read-only, owned-local prototype. Independent
+question-specific positions may fan out, an exact completion gate must reconcile
+every node, and one local synthesis may fan in. The whole graph is rejected
+unless every model node proves a loopback-owned Ollama endpoint, provider
+`local`, zero SDK retries, no tools or remote retrieval, and no plan or metered
+fallback. Node, call, aggregate token, context-byte, artifact-byte, concurrency,
+time, retry, and repair ceilings are fixed before dispatch. Default local
+generation concurrency is one because graph width does not prove one GPU can
+generate requests efficiently in parallel. No generic swarm or public consult
+mode is admitted by this decision. Design:
+[local-structured-consult-graph.md](docs/design/local-structured-consult-graph.md).
+
 **Entry gate.** Before changing the public consult contract, write a design note
 and extend the existing `deepr eval consult` surface with a read-only protocol
 comparison over frozen expert snapshots and human-anchored held-out cases. Do
@@ -1663,6 +1700,15 @@ regression, stop. Only then may a secondary comparison test smaller models.
       likelihood or an interval separately from confidence in the evidence.
       Request concise rationale, not private chain-of-thought. The prototype has
       no tools, writes, or peer context in the first pass.
+- [ ] **Owned-local dependency-graph prototype:** add versioned brief,
+      position, run, and synthesis artifacts inside the eval harness. Validate
+      a fixed acyclic graph before inference, pass typed dependency artifacts
+      downstream, default to `require_all`, reconcile expected and terminal
+      counts, and enforce one immutable token/call/time/concurrency envelope.
+      The experiment is Ollama loopback-only with no plan-quota, API, tool,
+      remote-retrieval, retry, repair, or state-write path. Compare quality and
+      resource use before considering an opt-in shadow runtime. Design:
+      [local-structured-consult-graph.md](docs/design/local-structured-consult-graph.md).
 - [ ] **Evidence-linked synthesis contract:** prototype a versioned synthesis
       artifact inside the eval harness before changing `deepr-consult-v1`.
       Preserve each participant's stated position and abstention separately
@@ -1678,8 +1724,9 @@ regression, stop. Only then may a secondary comparison test smaller models.
       accounting above to `deepr eval consult`, save a versioned report, and
       attach semantic review artifacts to the existing consult-quality and
       judge-calibration spine. Structural completion remains distinct from
-      semantic acceptance. Live local or explicit plan trials remain opt-in;
-      metered trials use the shared durable reserve and settlement path.
+      semantic acceptance. Structured-graph trials are explicit owned-local
+      runs only. The existing one-shot baseline retains its separately
+      documented local, plan-quota, and gated metered-capacity behavior.
 - [ ] **Selection evidence before smarter routing:** keep keyword overlap as an
       inspectable high-recall candidate router, never an authority verdict. Add
       selection rationale and missing-discipline coverage to the consultation

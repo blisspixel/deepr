@@ -18,7 +18,6 @@ Usage:
 
 import json
 import logging
-import os
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -516,13 +515,14 @@ class CostDashboard:
             monthly_limit: Monthly spending limit
             alert_thresholds: Alert thresholds (default: 0.5, 0.8, 0.95)
         """
+        use_default_ledger = storage_path is None
         if storage_path is None:
             from deepr.observability.cost_ledger import default_cost_data_dir
 
             storage_path = default_cost_data_dir() / "cost_log.json"
         self.storage_path = storage_path
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)
-        ledger_path = self.storage_path.with_name("cost_ledger.jsonl")
+        ledger_path = None if use_default_ledger else self.storage_path.with_name("cost_ledger.jsonl")
         self.ledger = CostLedger(ledger_path=ledger_path)
 
         self.daily_limit = daily_limit
@@ -569,12 +569,11 @@ class CostDashboard:
                 source=source,
                 metadata=metadata,
                 idempotency_key=idempotency_key,
+                lock_timeout_seconds=5.0,
+                require_fsync=True,
             )
-        except OSError as e:
-            strict_tracking = os.getenv("DEEPR_COST_TRACKING_STRICT", "1").lower() in {"1", "true", "yes", "on"}
-            if strict_tracking:
-                raise RuntimeError(f"Cost ledger write failed in strict mode: {e}") from e
-            logger.warning("Failed to write cost ledger event: %s", e)
+        except (OSError, RuntimeError) as error:
+            raise RuntimeError("Canonical cost ledger write failed.") from error
 
     def record(
         self,

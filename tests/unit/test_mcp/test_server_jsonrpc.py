@@ -213,7 +213,23 @@ class TestToolsCall:
         assert result["isError"] is False
         data = json.loads(result["content"][0]["text"])
         assert data["status"] == "healthy"
+        assert data["cost_summary"]["accounting_status"] == "known"
         assert "version" in data
+
+    @pytest.mark.asyncio
+    async def test_deepr_status_marks_unknown_money_state_degraded(self, mock_server):
+        with patch(
+            "deepr.experts.research_reservation_store.ResearchReservationStore.exposure_snapshot",
+            side_effect=RuntimeError("unreadable"),
+        ):
+            data = await mock_server.deepr_status()
+
+        assert data["status"] == "degraded"
+        assert data["cost_summary"]["accounting_status"] == "unknown"
+        assert data["cost_summary"]["daily_settled"] == "UNKNOWN"
+        assert data["cost_summary"]["monthly_settled"] == "UNKNOWN"
+        assert data["cost_summary"]["paid_api_blocked"] is True
+        assert data["cost_summary"]["monthly_remaining"] == 0.0
 
     @pytest.mark.asyncio
     async def test_call_deepr_tool_search(self, mock_server):

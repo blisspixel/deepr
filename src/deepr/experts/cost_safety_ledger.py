@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from typing import Any
 
@@ -13,7 +12,6 @@ from deepr.observability.cost_ledger import (
     CostLedgerReadError,
 )
 
-logger = logging.getLogger(__name__)
 REQUIRED_COST_LEDGER_LOCK_TIMEOUT_SECONDS = 5.0
 
 
@@ -54,7 +52,7 @@ class CostLedgerCommitError(RuntimeError):
         }
 
 
-def append_cost_record(ledger: CostLedger, record: CostRecord, *, strict_tracking: bool) -> bool:
+def append_cost_record(ledger: CostLedger, record: CostRecord) -> bool:
     """Append one fully shaped cost record to the canonical ledger."""
     return append_cost_event(
         ledger,
@@ -71,7 +69,6 @@ def append_cost_record(ledger: CostLedger, record: CostRecord, *, strict_trackin
         source=record.source,
         metadata=record.metadata,
         agent_id=record.agent_id,
-        strict_tracking=strict_tracking,
         require_ledger=record.require_ledger,
     )
 
@@ -92,10 +89,9 @@ def append_cost_event(
     source: str,
     metadata: dict[str, Any] | None,
     agent_id: str,
-    strict_tracking: bool,
     require_ledger: bool,
 ) -> bool:
-    """Append one canonical event and return whether it was newly written."""
+    """Append one canonical event and fail if durable accounting is unavailable."""
     event_metadata = dict(metadata or {})
     if details:
         event_metadata["details"] = details
@@ -114,20 +110,13 @@ def append_cost_event(
             idempotency_key=idempotency_key,
             metadata=event_metadata,
             agent_id=agent_id,
-            lock_timeout_seconds=REQUIRED_COST_LEDGER_LOCK_TIMEOUT_SECONDS if require_ledger else None,
-            require_fsync=require_ledger or strict_tracking,
+            lock_timeout_seconds=REQUIRED_COST_LEDGER_LOCK_TIMEOUT_SECONDS,
+            require_fsync=True,
         )
     except (OSError, CostLedgerDurabilityError, CostLedgerLockTimeout, CostLedgerReadError) as error:
-        if strict_tracking or require_ledger:
-            mode = "strict" if strict_tracking else "required_settlement"
-            mode_label = "strict mode" if strict_tracking else "required settlement"
-            raise CostLedgerCommitError(error=error, mode=mode, mode_label=mode_label) from error
-        logger.warning(
-            "Cost ledger write failed; retaining process-local cost accounting (error_type=%s, errno=%s)",
-            type(error).__name__,
-            error.errno if isinstance(error, OSError) else None,
-        )
-        return True
+        mode = "required_settlement" if require_ledger else "strict"
+        mode_label = "required settlement" if require_ledger else "strict mode"
+        raise CostLedgerCommitError(error=error, mode=mode, mode_label=mode_label) from error
 
     # Test doubles and legacy implementations may return no tuple, which
     # represents a normal successful append for backward compatibility.
@@ -158,8 +147,12 @@ def seed_window_costs(ledger: CostLedger) -> tuple[float, float, float]:
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     week_start = day_start - timedelta(days=day_start.weekday())
-    return (
-        float(ledger.get_total_cost(start_date=day_start)),
-        float(ledger.get_total_cost(start_date=week_start)),
-        float(ledger.get_total_cost(start_date=month_start)),
-    )
+
+    def totals(events: list[Any]) -> tuple[float, float, float]:
+        return (
+            float(sum(event.cost_usd for event in events if event.timestamp >= day_start)),
+            float(sum(event.cost_usd for event in events if event.timestamp >= week_start)),
+            float(sum(event.cost_usd for event in events if event.timestamp >= month_start)),
+        )
+
+    return ledger.with_locked_accounting_events(totals)

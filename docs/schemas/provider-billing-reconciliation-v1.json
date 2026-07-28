@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/provider-billing-reconciliation-v1.json",
+  "title": "Deepr Provider Billing Reconciliation v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "kind", "source_sha256", "normalized_sha256", "ledger_snapshot_sha256",
+    "provider", "scope_ref", "account_id", "statement_id", "period_start", "period_end", "currency",
+    "statement_status", "statement_complete", "statement_source_posture",
+    "status", "provider_net_microusd", "api_metered_net_microusd",
+    "prepaid_plan_net_microusd", "owned_local_net_microusd", "unknown_net_microusd",
+    "local_ledger_microusd", "net_drift_microusd",
+    "gross_unexplained_positive_microusd", "credits_and_negative_adjustments_microusd",
+    "local_overstatement_microusd", "match_counts", "matches", "unmatched_provider_lines",
+    "unmatched_ledger_events", "authority_limitations", "freeze_required", "freeze_applied",
+    "zero_network_calls", "zero_provider_calls"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-provider-billing-reconciliation-v1"},
+    "kind": {"const": "deepr.costs.provider_billing_reconciliation"},
+    "source_sha256": {"$ref": "#/$defs/hash"},
+    "normalized_sha256": {"$ref": "#/$defs/hash"},
+    "ledger_snapshot_sha256": {"$ref": "#/$defs/hash"},
+    "provider": {"$ref": "#/$defs/id"},
+    "scope_ref": {"$ref": "#/$defs/id"},
+    "account_id": {"$ref": "#/$defs/optionalId"},
+    "statement_id": {"$ref": "#/$defs/id"},
+    "period_start": {"$ref": "#/$defs/timestamp"},
+    "period_end": {"$ref": "#/$defs/timestamp"},
+    "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+    "statement_status": {"enum": ["final", "provisional"]},
+    "statement_complete": {"type": "boolean"},
+    "statement_source_posture": {"enum": ["operator_normalized", "provider_export", "provider_api"]},
+    "status": {"enum": ["clean", "drift", "ambiguous", "incomplete", "provisional", "unsupported_currency"]},
+    "provider_net_microusd": {"type": "integer"},
+    "api_metered_net_microusd": {"type": "integer"},
+    "prepaid_plan_net_microusd": {"type": "integer"},
+    "owned_local_net_microusd": {"type": "integer"},
+    "unknown_net_microusd": {"type": "integer"},
+    "local_ledger_microusd": {"type": "integer", "minimum": 0},
+    "net_drift_microusd": {"type": "integer"},
+    "gross_unexplained_positive_microusd": {"type": "integer", "minimum": 0},
+    "credits_and_negative_adjustments_microusd": {"type": "integer", "minimum": 0},
+    "local_overstatement_microusd": {"type": "integer", "minimum": 0},
+    "match_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "statement_lines", "positive_lines", "matched_positive_lines", "ambiguous_positive_lines",
+        "unmatched_positive_lines", "local_positive_events", "unmatched_local_events"
+      ],
+      "properties": {
+        "statement_lines": {"type": "integer", "minimum": 0, "maximum": 10000},
+        "positive_lines": {"type": "integer", "minimum": 0, "maximum": 10000},
+        "matched_positive_lines": {"type": "integer", "minimum": 0, "maximum": 10000},
+        "ambiguous_positive_lines": {"type": "integer", "minimum": 0, "maximum": 10000},
+        "unmatched_positive_lines": {"type": "integer", "minimum": 0, "maximum": 10000},
+        "local_positive_events": {"type": "integer", "minimum": 0},
+        "unmatched_local_events": {"type": "integer", "minimum": 0}
+      }
+    },
+    "matches": {"type": "array", "maxItems": 10000, "items": {"$ref": "#/$defs/match"}},
+    "unmatched_provider_lines": {"type": "array", "maxItems": 10000, "items": {"$ref": "#/$defs/unmatchedProvider"}},
+    "unmatched_ledger_events": {"type": "array", "maxItems": 100000, "items": {"$ref": "#/$defs/unmatchedLedger"}},
+    "authority_limitations": {"type": "array", "minItems": 1, "maxItems": 16, "items": {"type": "string", "minLength": 1, "maxLength": 240}},
+    "freeze_required": {"type": "boolean"},
+    "freeze_applied": {"type": "boolean"},
+    "zero_network_calls": {"const": true},
+    "zero_provider_calls": {"const": true}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,199}$"},
+    "optionalId": {"oneOf": [{"const": ""}, {"$ref": "#/$defs/id"}]},
+    "timestamp": {"type": "string", "format": "date-time", "maxLength": 40},
+    "match": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["line_id", "ledger_event_ref", "basis", "provider_microusd", "ledger_microusd"],
+      "properties": {
+        "line_id": {"$ref": "#/$defs/id"},
+        "ledger_event_ref": {"$ref": "#/$defs/id"},
+        "basis": {"$ref": "#/$defs/id"},
+        "provider_microusd": {"type": "integer", "minimum": 0},
+        "ledger_microusd": {"type": "integer", "minimum": 0}
+      }
+    },
+    "unmatchedProvider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["line_id", "positive_microusd", "reason"],
+      "properties": {
+        "line_id": {"$ref": "#/$defs/id"},
+        "positive_microusd": {"type": "integer", "minimum": 0},
+        "reason": {"type": "string", "minLength": 1, "maxLength": 240}
+      }
+    },
+    "unmatchedLedger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ledger_event_ref", "cost_microusd", "reason"],
+      "properties": {
+        "ledger_event_ref": {"$ref": "#/$defs/id"},
+        "cost_microusd": {"type": "integer", "minimum": 0},
+        "reason": {"type": "string", "minLength": 1, "maxLength": 240}
+      }
+    }
+  }
+}

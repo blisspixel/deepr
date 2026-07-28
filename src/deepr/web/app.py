@@ -208,51 +208,25 @@ _experts_dir = experts_root()
 
 
 # ---------------------------------------------------------------------------
-# Persistent budget limits
+# Canonical budget authority
 # ---------------------------------------------------------------------------
-_LIMITS_FILE = config_path / "budget_limits.json"
 
 
-def _load_persisted_limits() -> dict:
-    """Load budget limits from disk, ceilinged by the env hard caps.
-
-    The env caps (DEEPR_MAX_COST_PER_* with the legacy DEEPR_*_LIMIT names
-    honored, tighter bound wins - see core/cost_caps.py) are HARD ceilings:
-    a UI-saved limit may go lower but never above them, so no dashboard
-    action can quietly out-spend the user's configured maximums.
-    """
+def _sync_cost_controller_to_authority() -> dict[str, float]:
+    """Refresh the web controller from the same caps every interface uses."""
     from deepr.core.cost_caps import resolve_spend_caps
 
     caps = resolve_spend_caps()
-    limits = dict(caps)
-    if _LIMITS_FILE.exists():
-        try:
-            with open(_LIMITS_FILE, encoding="utf-8") as f:
-                saved = _json.load(f)
-            for key, value in saved.items():
-                if key in limits:
-                    limits[key] = min(float(value), caps[key])
-        except Exception:
-            logger.warning("Could not read %s, using defaults", _LIMITS_FILE)
-    return limits
-
-
-def _save_limits(per_job: float, daily: float, monthly: float):
-    """Persist budget limits to disk (atomic write)."""
-    try:
-        from deepr.utils.atomic_io import atomic_write_json
-
-        atomic_write_json(_LIMITS_FILE, {"per_job": per_job, "daily": daily, "monthly": monthly})
-    except Exception as exc:
-        # Surface the failure so operators see why their saved limits
-        # never took effect; the previous silent warning meant the UI
-        # would return 200 OK while the file write quietly failed.
-        logger.error("Could not write budget limits to %s: %s", _LIMITS_FILE, exc)
-        raise
+    controller = globals().get("cost_controller")
+    if controller is not None:
+        controller.max_cost_per_job = caps["per_job"]
+        controller.max_daily_cost = caps["daily"]
+        controller.max_monthly_cost = caps["monthly"]
+    return caps
 
 
 def _validated_cost_limit_updates(data: dict, fields: dict[str, str]) -> dict[str, float]:
-    """Parse web limit updates without permitting an authority increase."""
+    """Parse web limit updates without inventing interface-local authority."""
     from deepr.core.cost_caps import resolve_spend_caps
 
     authority = resolve_spend_caps()
@@ -261,21 +235,49 @@ def _validated_cost_limit_updates(data: dict, fields: dict[str, str]) -> dict[st
         if request_field not in data:
             continue
         value = data[request_field]
-        ceiling = authority[cap_field]
-        if (
-            isinstance(value, bool)
-            or not isinstance(value, (int, float))
-            or not math.isfinite(value)
-            or value < 0
-            or value > ceiling
-        ):
-            raise ValueError(f"{request_field} must be a finite number between 0 and {ceiling}")
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
+            raise ValueError(f"{request_field} must be a finite non-negative number")
+        if cap_field != "monthly" and float(value) != authority[cap_field]:
+            raise ValueError(
+                f"{request_field} is controlled by canonical environment policy and cannot be changed "
+                f"from the dashboard; current effective value is {authority[cap_field]}"
+            )
         updates[cap_field] = float(value)
     return updates
 
 
+def _apply_canonical_cost_limit_updates(data: dict, fields: dict[str, str]) -> dict[str, float]:
+    """Narrow the canonical operator budget and return fresh effective caps."""
+    from deepr.cli.commands.budget import mutate_budget_config
+    from deepr.core.cost_caps import apply_paid_api_freeze, resolve_spend_caps
+
+    updates = _validated_cost_limit_updates(data, fields)
+    monthly = updates.get("monthly")
+    if monthly is not None:
+
+        def narrow(config: dict) -> None:
+            current = resolve_spend_caps(provider="openai")["monthly"]
+            if monthly > current:
+                raise ValueError(
+                    f"monthly limit may only narrow current effective authority of {current}; "
+                    "use the local CLI to review and raise operator authority"
+                )
+            config["monthly_limit"] = monthly
+            if monthly == 0 and not config.get("paid_api_frozen", False):
+                apply_paid_api_freeze(
+                    config,
+                    reason="paid API monthly ceiling is zero",
+                    kind="zero_ceiling",
+                )
+
+        mutate_budget_config(narrow)
+    return _sync_cost_controller_to_authority()
+
+
 try:
-    _limits = _load_persisted_limits()
+    from deepr.core.cost_caps import resolve_spend_caps
+
+    _limits = resolve_spend_caps()
     cost_controller = CostController(
         max_cost_per_job=_limits["per_job"],
         max_daily_cost=_limits["daily"],
@@ -1082,39 +1084,15 @@ def get_cost_summary():
     which missed every CLI-side spend path and double-counted others.
     """
     try:
-        from deepr.observability.cost_ledger import CostLedger
-
         all_jobs = run_async(queue.list_jobs(limit=10000))
-
-        now = datetime.now(UTC)
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-
-        # Read the ledger fresh per request so spend recorded by other
-        # processes (CLI runs, MCP server) is visible immediately.
-        ledger = CostLedger()
-        daily_spending = ledger.get_total_cost(start_date=today_start)
-        monthly_spending = ledger.get_total_cost(start_date=month_start)
-        total_spending = ledger.get_total_cost()
+        money = spend_truth.cost_exposure_snapshot()
 
         completed_jobs = [j for j in all_jobs if j.status == JobStatus.COMPLETED]
-        avg_cost = total_spending / len(completed_jobs) if completed_jobs else 0
-
-        # Get limits from controller or defaults
-        daily_limit = cost_controller.max_daily_cost if cost_controller else 10.0
-        monthly_limit = cost_controller.max_monthly_cost if cost_controller else 20.0
-        per_job_limit = cost_controller.max_cost_per_job if cost_controller else 5.0
+        avg_cost = money["total"] / len(completed_jobs) if completed_jobs else 0
 
         summary = {
-            "daily": round(daily_spending, 2),
-            "monthly": round(monthly_spending, 2),
-            "total": round(total_spending, 2),
-            "daily_limit": daily_limit,
-            "monthly_limit": monthly_limit,
-            # Governing ceiling + breach flag (see web/spend_truth.py).
-            **spend_truth.budget_gate_fields(monthly_spending, monthly_limit),
-            "per_job_limit": per_job_limit,
-            "avg_cost_per_job": round(avg_cost, 2),
+            **money,
+            "avg_cost_per_job": avg_cost,
             "completed_jobs": len(completed_jobs),
             "total_jobs": len(all_jobs),
         }
@@ -1126,10 +1104,6 @@ def get_cost_summary():
         return jsonify({"error": "Internal server error"}), 500
 
 
-# Where research report artifacts live, relative to the deployment root.
-_REPORTS_ROOT = Path("data/reports")
-
-
 @app.route("/api/cost/integrity", methods=["GET"])
 def get_cost_integrity():
     """Reconcile settled spend against surviving report artifacts.
@@ -1139,7 +1113,8 @@ def get_cost_integrity():
     """
     try:
         days = max(1, min(_safe_int(request.args.get("days", 45), 45), 365))
-        return jsonify({"integrity": spend_truth.audit_spend_integrity(days, _REPORTS_ROOT)})
+        reports_root = Path(load_config()["results_dir"])
+        return jsonify({"integrity": spend_truth.audit_spend_integrity(days, reports_root)})
     except Exception as e:
         logger.error(f"Error auditing cost integrity: {e}")
         return jsonify({"error": "Internal server error"}), 500
@@ -1159,8 +1134,11 @@ def get_cost_trends():
         # Group ledger events by day - every spend path writes the ledger,
         # so the trend reflects research jobs, expert learning, and tool
         # calls alike (queue job costs missed everything but jobs).
+        events = CostLedger().with_locked_accounting_events(
+            lambda ledger_events: [event for event in ledger_events if event.timestamp >= cutoff]
+        )
         daily_costs = {}
-        for event in CostLedger().get_events(start_date=cutoff):
+        for event in events:
             if event.cost_usd:
                 day_key = event.timestamp.strftime("%Y-%m-%d")
                 daily_costs[day_key] = daily_costs.get(day_key, 0) + event.cost_usd
@@ -1188,6 +1166,7 @@ def get_cost_breakdown():
         time_range = request.args.get("time_range", "30d")
         days = _parse_time_range(time_range, 30)
 
+        from deepr.observability.cost_attribution import project_cost_attribution
         from deepr.observability.cost_ledger import CostLedger
 
         now = datetime.now(UTC)
@@ -1196,8 +1175,13 @@ def get_cost_breakdown():
         # Group canonical ledger events by model (covers CLI/MCP/expert
         # spend, not just queue jobs; events without a model roll up
         # under "unknown" so the totals still reconcile with the ledger)
+        events = CostLedger().with_locked_accounting_events(
+            lambda ledger_events: [
+                event for event in project_cost_attribution(ledger_events) if event.timestamp >= cutoff
+            ]
+        )
         model_costs = {}
-        for event in CostLedger().get_attributed_events(start_date=cutoff):
+        for event in events:
             model = event.model or "unknown"
             if model not in model_costs:
                 model_costs[model] = {"cost": 0, "count": 0, "tokens": 0}
@@ -1225,30 +1209,38 @@ def get_cost_breakdown():
 
 @app.route("/api/cost/history", methods=["GET"])
 def get_cost_history():
-    """Get detailed cost history."""
+    """Get strict canonical cost history across every metered entry point."""
     try:
         time_range = request.args.get("time_range", "30d")
         days = _parse_time_range(time_range, 30)
-        limit = min(_safe_int(request.args.get("limit", 100), 100), _MAX_QUERY_LIMIT)
+        limit = max(1, min(_safe_int(request.args.get("limit", 100), 100), _MAX_QUERY_LIMIT))
 
-        all_jobs = run_async(queue.list_jobs(limit=10000))
+        from deepr.observability.cost_ledger import CostLedger
+
         now = datetime.now(UTC)
         cutoff = now - timedelta(days=days)
 
-        # Filter and sort by completion date
-        completed = [j for j in all_jobs if j.completed_at and _ensure_utc(j.completed_at) >= cutoff and j.cost]
-        completed.sort(key=lambda j: j.completed_at, reverse=True)
+        events = CostLedger().with_locked_accounting_events(
+            lambda ledger_events: sorted(
+                (event for event in ledger_events if event.timestamp >= cutoff and event.cost_usd > 0),
+                key=lambda event: event.timestamp,
+                reverse=True,
+            )[:limit]
+        )
 
         history = [
             {
-                "id": job.id,
-                "prompt": (job.prompt or "")[:100],
-                "model": job.model,
-                "cost": round(job.cost or 0, 2),
-                "tokens": job.tokens_used or 0,
-                "completed_at": job.completed_at.isoformat(),
+                "id": event.idempotency_key or event.request_id or f"ledger-event-{index + 1}",
+                "prompt": event.operation,
+                "operation": event.operation,
+                "provider": event.provider,
+                "source": event.source,
+                "model": event.model,
+                "cost": round(event.cost_usd, 6),
+                "tokens": event.tokens_input + event.tokens_output,
+                "completed_at": event.timestamp.isoformat(),
             }
-            for job in completed[:limit]
+            for index, event in enumerate(events)
         ]
 
         return jsonify({"history": history})
@@ -1271,53 +1263,52 @@ def estimate_cost():
         if not prompt:
             return jsonify({"error": "Prompt required"}), 400
 
-        # Use estimator if available, otherwise use defaults
-        est_min, est_max, est_expected = 1.0, 5.0, 2.0
-        if cost_estimator:
-            try:
-                estimate = cost_estimator.estimate_cost(prompt, model)
-                est_min = estimate.min_cost
-                est_max = estimate.max_cost
-                est_expected = estimate.expected_cost
-            except Exception as e:
-                logger.warning(f"Cost estimation failed: {e}")
-        else:
-            # Default estimates based on model
-            if "o3" in model:
-                est_min, est_max, est_expected = 2.0, 15.0, 5.0
+        estimate_payload, admission_estimate, estimate_error = spend_truth.verified_cost_estimate(
+            cost_estimator,
+            prompt,
+            model,
+        )
+        if estimate_error is not None:
+            logger.warning("Cost estimation failed: %s", estimate_error)
+        if admission_estimate is None:
+            return (
+                jsonify(
+                    {
+                        "estimate": estimate_payload,
+                        "allowed": False,
+                        "reason": "Cost estimate is unavailable; paid API dispatch is blocked.",
+                        "money_state": "unknown",
+                    }
+                ),
+                503,
+            )
 
-        # Check against limits using actual DB spending (not stale in-memory counter)
-        allowed = True
-        reason = None
-        if cost_controller:
-            if est_expected > cost_controller.max_cost_per_job:
-                allowed = False
-                reason = f"Exceeds per-job limit of ${cost_controller.max_cost_per_job}"
-            else:
-                try:
-                    # Canonical ledger, not queue job costs: CLI/MCP spend
-                    # must count against the daily limit too.
-                    from deepr.observability.cost_ledger import CostLedger
+        try:
+            from deepr.core.cost_caps import resolve_spend_caps
+            from deepr.experts.research_reservation_store import ResearchReservationStore
 
-                    now = datetime.now(UTC)
-                    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-                    daily_actual = CostLedger().get_total_cost(start_date=today_start)
-                    if daily_actual + est_expected > cost_controller.max_daily_cost:
-                        allowed = False
-                        reason = f"Would exceed daily limit of ${cost_controller.max_daily_cost}"
-                except Exception as exc:
-                    logger.warning("Could not verify daily spend limit before estimate: %s", exc)
-                    # Preserve existing permissive behavior when checks fail.
+            caps = resolve_spend_caps(provider="openai")
+            exposure = ResearchReservationStore().exposure_snapshot()
+            decision = spend_truth.paid_estimate_admission(admission_estimate, caps, exposure)
+        except Exception as exc:
+            logger.warning("Could not verify canonical cost exposure before estimate: %s", exc)
+            return (
+                jsonify(
+                    {
+                        "estimate": estimate_payload,
+                        "allowed": False,
+                        "reason": "Canonical money state is unreadable; paid API dispatch is blocked.",
+                        "money_state": "unknown",
+                    }
+                ),
+                503,
+            )
 
         return jsonify(
             {
-                "estimate": {
-                    "min_cost": round(est_min, 2),
-                    "max_cost": round(est_max, 2),
-                    "expected_cost": round(est_expected, 2),
-                },
-                "allowed": allowed,
-                "reason": reason,
+                "estimate": estimate_payload,
+                **decision,
+                "money_state": "known",
             }
         )
 
@@ -1330,11 +1321,13 @@ def estimate_cost():
 def get_cost_limits():
     """Get current budget limits."""
     try:
+        caps = _sync_cost_controller_to_authority()
         limits = {
-            "per_job": cost_controller.max_cost_per_job if cost_controller else 10.0,
-            "daily": cost_controller.max_daily_cost if cost_controller else 10.0,
-            "monthly": cost_controller.max_monthly_cost if cost_controller else 100.0,
+            "per_job": caps["per_job"],
+            "daily": caps["daily"],
+            "monthly": caps["monthly"],
             "expert_chat_max": _web_expert_chat_budget_ceiling(),
+            "mutable_fields": ["monthly"],
         }
         return jsonify({"limits": limits})
 
@@ -1354,26 +1347,20 @@ def update_cost_limits():
         if cost_controller is None:
             return jsonify({"error": "Cost controls unavailable; limits cannot be changed"}), 503
         try:
-            updates = _validated_cost_limit_updates(
+            caps = _apply_canonical_cost_limit_updates(
                 data,
                 {"per_job": "per_job", "daily": "daily", "monthly": "monthly"},
             )
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
-        if "per_job" in updates:
-            cost_controller.max_cost_per_job = updates["per_job"]
-        if "daily" in updates:
-            cost_controller.max_daily_cost = updates["daily"]
-        if "monthly" in updates:
-            cost_controller.max_monthly_cost = updates["monthly"]
 
         limits = {
-            "per_job": cost_controller.max_cost_per_job,
-            "daily": cost_controller.max_daily_cost,
-            "monthly": cost_controller.max_monthly_cost,
+            "per_job": caps["per_job"],
+            "daily": caps["daily"],
+            "monthly": caps["monthly"],
             "expert_chat_max": _web_expert_chat_budget_ceiling(),
+            "mutable_fields": ["monthly"],
         }
-        _save_limits(limits["per_job"], limits["daily"], limits["monthly"])
         return jsonify({"limits": limits, "updated": True})
 
     except Exception as e:
@@ -1602,11 +1589,12 @@ _config = {
 def get_config():
     """Get current configuration."""
     try:
+        caps = _sync_cost_controller_to_authority()
         with _config_lock:
             config = {
                 **_config,
-                "daily_limit": cost_controller.max_daily_cost if cost_controller else 10.0,
-                "monthly_limit": cost_controller.max_monthly_cost if cost_controller else 20.0,
+                "daily_limit": caps["daily"],
+                "monthly_limit": caps["monthly"],
                 "has_api_key": bool(os.getenv("OPENAI_API_KEY")),
                 "provider_keys": {
                     "openai": bool(os.getenv("OPENAI_API_KEY")),
@@ -1631,10 +1619,10 @@ def update_config():
         if not isinstance(data, dict) or not data:
             return jsonify({"error": "Request body required"}), 400
 
-        cost_updates: dict[str, float] = {}
-        if cost_controller:
+        caps: dict[str, float] | None = None
+        if cost_controller and ("daily_limit" in data or "monthly_limit" in data):
             try:
-                cost_updates = _validated_cost_limit_updates(
+                caps = _apply_canonical_cost_limit_updates(
                     data,
                     {"daily_limit": "daily", "monthly_limit": "monthly"},
                 )
@@ -1648,19 +1636,15 @@ def update_config():
                 if key in data:
                     _config[key] = data[key]
 
-        # Update cost limits if provided
-        if cost_controller:
-            if "daily" in cost_updates:
-                cost_controller.max_daily_cost = cost_updates["daily"]
-            if "monthly" in cost_updates:
-                cost_controller.max_monthly_cost = cost_updates["monthly"]
-            _save_limits(
-                cost_controller.max_cost_per_job,
-                cost_controller.max_daily_cost,
-                cost_controller.max_monthly_cost,
-            )
-
-        return jsonify({"config": _config})
+        if caps is None:
+            caps = _sync_cost_controller_to_authority()
+        with _config_lock:
+            response_config = {
+                **_config,
+                "daily_limit": caps["daily"],
+                "monthly_limit": caps["monthly"],
+            }
+        return jsonify({"config": response_config})
 
     except Exception as e:
         logger.error(f"Error updating config: {e}")

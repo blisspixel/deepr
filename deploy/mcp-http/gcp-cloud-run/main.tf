@@ -202,10 +202,6 @@ resource "google_cloud_run_v2_service" "mcp" {
         value = tostring(var.max_concurrent_requests)
       }
       env {
-        name  = "DEEPR_COST_TRACKING_STRICT"
-        value = "1"
-      }
-      env {
         name  = "LOG_LEVEL"
         value = "INFO"
       }

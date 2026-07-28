@@ -64,6 +64,7 @@ from deepr.experts.chat import ExpertChatSession
 from deepr.experts.consult_transaction import DEFAULT_CONSULT_MAX_ELAPSED_SECONDS
 from deepr.experts.profile import ExpertStore
 from deepr.mcp.consult_tool import CONSULT_EXPERTS_INPUT_SCHEMA, CONSULT_EXPERTS_OUTPUT_SCHEMA, consult_experts_tool
+from deepr.mcp.cost_status import current_cost_status
 from deepr.mcp.expert_reads import get_expert_handoff, get_expert_loop_status, get_semantic_recall, get_temporal_edges
 from deepr.mcp.metered_contract import MeteredMCPContractError, require_metered_api_contract
 from deepr.mcp.protocol_compat import LEGACY_METHOD_MAP
@@ -195,28 +196,18 @@ class DeeprMCPServer:
     # ------------------------------------------------------------------ #
     async def deepr_status(self) -> dict[str, Any]:
         """Health check returning server version, uptime, active jobs, and cost summary."""
-        try:
-            from deepr.experts.cost_safety import get_cost_safety_manager
-
-            cost_safety = get_cost_safety_manager()
-            spending = cost_safety.get_spending_summary()
-        except (ImportError, KeyError, ValueError):
-            spending = {"daily": {"spent": 0, "remaining": "unknown"}, "monthly": {"spent": 0}}
+        health_status, cost_summary = current_cost_status()
 
         uptime = time.time() - _server_start_time if _server_start_time else 0
         active_count = len(self.resource_handler.jobs.list_jobs(phase=None))
 
         return {
-            "status": "healthy",
+            "status": health_status,
             "version": SERVER_VERSION,
             "uptime_seconds": round(uptime, 1),
             "active_jobs": active_count,
             "transport": "stdio",
-            "cost_summary": {
-                "daily_spent": spending.get("daily", {}).get("spent", 0),
-                "daily_remaining": spending.get("daily", {}).get("remaining", "unknown"),
-                "monthly_spent": spending.get("monthly", {}).get("spent", 0),
-            },
+            "cost_summary": cost_summary,
             "capabilities": {
                 "tools": self.registry.count(),
                 "dynamic_discovery": True,
@@ -670,15 +661,30 @@ class DeeprMCPServer:
         report_id: str,
         min_confidence: float = 0.6,
         dry_run: bool = False,
-        budget: float = 0.10,
+        budget: float | None = None,
+        allow_metered_api: bool = False,
+        confirm_metered_cost: bool = False,
     ) -> dict[str, Any]:
-        """Promote a research report into an expert's beliefs, verification-gated.
+        """Promote report claims; dry runs still require explicit paid authorization."""
+        try:
+            ceiling = require_metered_api_contract(
+                budget=budget,
+                allow_metered_api=allow_metered_api,
+                confirm_metered_cost=confirm_metered_cost,
+            )
+        except MeteredMCPContractError as exc:
+            return _make_error(exc.code, str(exc))
 
-        Extracts report-grounded claims, drops weak ones and any that contradict
-        existing beliefs, then integrates the survivors with the report id as
-        provenance (deduped). Mutates the expert and runs one small extraction
-        call. Set dry_run to preview without writing.
-        """
+        return await self._expert_absorb_authorized(expert_name, report_id, min_confidence, dry_run, ceiling)
+
+    async def _expert_absorb_authorized(
+        self,
+        expert_name: str,
+        report_id: str,
+        min_confidence: float,
+        dry_run: bool,
+        ceiling: float,
+    ) -> dict[str, Any]:
         from deepr.experts.loop_lock import expert_verb_lock
         from deepr.experts.report_absorber import (
             ReportAbsorber,
@@ -716,7 +722,7 @@ class DeeprMCPServer:
                     report_text,
                     min_confidence=min_confidence,
                     dry_run=dry_run,
-                    budget=budget,
+                    budget=ceiling,
                 )
 
                 settled_cost = absorption_result_cost(result)
@@ -742,34 +748,14 @@ class DeeprMCPServer:
     # Tool: deepr_reflect
     # ------------------------------------------------------------------ #
     async def reflect(self, report_id: str, depth: int = 1) -> dict[str, Any]:
-        """Self-evaluate a completed research report before relying on it.
+        """Block paid MCP reflection before report access or provider setup."""
+        from deepr.experts.metered_mutation_gate import MeteredExpertMutationDisabledError
 
-        Loads the report by id, scores it (grounding, completeness, calibration,
-        directness), and returns a verdict (accept/revise/re_research) with
-        issues and follow-up queries.
-        """
-        from deepr.experts import metered_mutation_gate as mutation_gate
-        from deepr.experts.reflection import ReflectionEngine, ReflectionError
-        from deepr.services.context_index import ContextIndex
-
-        try:
-            index = ContextIndex()
-            result = index.get_report_by_job_id(report_id)
-            report_text = index.get_report_content(report_id, max_chars=100000)
-            if not report_text or not result:
-                return _make_error("REPORT_NOT_FOUND", f"No report found for id '{report_id}'")
-            try:
-                mutation_gate.require_metered_expert_mutation(
-                    "api_expert_reflect", safe_alternative="use scheduled local or plan expert reflection"
-                )
-            except mutation_gate.MeteredExpertMutationDisabledError as error:
-                return _make_error(error.code, str(error), fallback=error.safe_alternative, category=error.category)
-            report = await ReflectionEngine().reflect(result.prompt, report_text, depth=depth)
-            return report.to_dict()
-        except ReflectionError as e:
-            return _make_error("REFLECT_INVALID_INPUT", str(e))
-        except (OSError, KeyError, ValueError) as e:
-            return _make_error("REFLECT_FAILED", str(e))
+        error = MeteredExpertMutationDisabledError(
+            "api_expert_reflect",
+            safe_alternative="use scheduled local or plan expert reflection",
+        )
+        return _make_error(error.code, str(error), fallback=error.safe_alternative, category=error.category)
 
     # ------------------------------------------------------------------ #
     # Tool: deepr_research
@@ -1731,7 +1717,9 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
             report_id=args.get("report_id", ""),
             min_confidence=args.get("min_confidence", 0.6),
             dry_run=args.get("dry_run", False),
-            budget=args.get("budget", 0.10),
+            budget=args.get("budget"),
+            allow_metered_api=args.get("allow_metered_api", False),
+            confirm_metered_cost=args.get("confirm_metered_cost", False),
         ),
         # Task durability endpoints
         "deepr_get_task_progress": lambda args: server.deepr_get_task_progress(

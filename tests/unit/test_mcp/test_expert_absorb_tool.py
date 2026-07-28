@@ -24,6 +24,12 @@ from deepr.mcp.search.registry import create_default_registry
 from deepr.mcp.security.tool_allowlist import ResearchMode, ToolAllowlist
 from deepr.mcp.server import DeeprMCPServer
 
+_METERED_AUTH = {
+    "budget": 0.10,
+    "allow_metered_api": True,
+    "confirm_metered_cost": True,
+}
+
 
 @pytest.fixture
 def mock_server():
@@ -43,7 +49,13 @@ class TestSchemaRegistration:
 
     def test_schema_requires_expert_and_report(self):
         schema = next(t for t in create_default_registry().all_tools() if t.name == "deepr_expert_absorb")
-        assert {"expert_name", "report_id"} <= set(schema.input_schema.get("required", []))
+        assert {
+            "expert_name",
+            "report_id",
+            "budget",
+            "allow_metered_api",
+            "confirm_metered_cost",
+        } <= set(schema.input_schema.get("required", []))
         assert "dry_run" in schema.input_schema["properties"]
 
 
@@ -83,7 +95,7 @@ class TestAbsorbTool:
             patch("deepr.experts.loop_lock.expert_verb_lock", held_lock),
             patch("deepr.experts.report_absorber.ReportAbsorber") as mock_absorber,
         ):
-            result = await mock_server.expert_absorb(expert_name="Busy Expert", report_id="rep1")
+            result = await mock_server.expert_absorb(expert_name="Busy Expert", report_id="rep1", **_METERED_AUTH)
 
         assert result["error_code"] == "ABSORB_OVERLAP_LOCKED"
         assert result["category"] == "conflict"
@@ -94,7 +106,7 @@ class TestAbsorbTool:
     @pytest.mark.asyncio
     async def test_missing_expert(self, mock_server):
         mock_server.store.load = MagicMock(return_value=None)
-        result = await mock_server.expert_absorb(expert_name="Ghost", report_id="rep1")
+        result = await mock_server.expert_absorb(expert_name="Ghost", report_id="rep1", **_METERED_AUTH)
         assert result.get("error_code") == "EXPERT_NOT_FOUND"
 
     @pytest.mark.asyncio
@@ -102,8 +114,38 @@ class TestAbsorbTool:
         mock_server.store.load = MagicMock(return_value=MagicMock(name="Test Expert"))
         with patch("deepr.services.context_index.ContextIndex") as mock_idx:
             mock_idx.return_value.get_report_content.return_value = None
-            result = await mock_server.expert_absorb(expert_name="Test Expert", report_id="missing")
+            result = await mock_server.expert_absorb(expert_name="Test Expert", report_id="missing", **_METERED_AUTH)
         assert result.get("error_code") == "REPORT_NOT_FOUND"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("kwargs", "expected_code"),
+        [
+            ({}, "METERED_API_NOT_APPROVED"),
+            ({"budget": 0.10, "allow_metered_api": True}, "METERED_API_NOT_APPROVED"),
+            (
+                {"budget": 0.10, "confirm_metered_cost": True},
+                "METERED_API_NOT_APPROVED",
+            ),
+            (
+                {"allow_metered_api": True, "confirm_metered_cost": True},
+                "INVALID_BUDGET",
+            ),
+        ],
+    )
+    async def test_metered_contract_is_required_before_store_or_absorber(self, mock_server, kwargs, expected_code):
+        mock_server.store.load = MagicMock(side_effect=AssertionError("store must not be read"))
+        with patch("deepr.experts.report_absorber.ReportAbsorber") as mock_absorber:
+            result = await mock_server.expert_absorb(
+                expert_name="Test Expert",
+                report_id="rep1",
+                dry_run=True,
+                **kwargs,
+            )
+
+        assert result["error_code"] == expected_code
+        mock_server.store.load.assert_not_called()
+        mock_absorber.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_paid_dry_run_saves_cost_but_not_refresh(self, mock_server):
@@ -121,7 +163,12 @@ class TestAbsorbTool:
             inst.absorb = AsyncMock(return_value=_stub_result(dry_run=True))
             mock_absorber.return_value = inst
 
-            result = await mock_server.expert_absorb(expert_name="Test Expert", report_id="rep1", dry_run=True)
+            result = await mock_server.expert_absorb(
+                expert_name="Test Expert",
+                report_id="rep1",
+                dry_run=True,
+                **_METERED_AUTH,
+            )
 
         assert result["dry_run"] is True
         assert expert.total_research_cost == 0.0125
@@ -143,7 +190,7 @@ class TestAbsorbTool:
             inst.absorb = AsyncMock(return_value=_stub_result(dry_run=False))
             mock_absorber.return_value = inst
 
-            result = await mock_server.expert_absorb(expert_name="Test Expert", report_id="rep1")
+            result = await mock_server.expert_absorb(expert_name="Test Expert", report_id="rep1", **_METERED_AUTH)
 
         assert result["report_id"] == "rep1"
         mock_server.store.save.assert_called_once()  # applied -> persisted
@@ -166,7 +213,7 @@ class TestAbsorbTool:
             mock_idx.return_value.get_report_content.return_value = "report body"
             mock_absorber.return_value.absorb = AsyncMock(return_value=accepted)
 
-            result = await mock_server.expert_absorb(expert_name="Test Expert", report_id="rep1")
+            result = await mock_server.expert_absorb(expert_name="Test Expert", report_id="rep1", **_METERED_AUTH)
 
         assert result["absorbed_count"] == 1
         assert expert.knowledge_cutoff_date == accepted.generated_at
@@ -189,7 +236,7 @@ class TestAbsorbTool:
             )
             mock_absorber.return_value = inst
 
-            result = await mock_server.expert_absorb(expert_name="Test Expert", report_id="rep1")
+            result = await mock_server.expert_absorb(expert_name="Test Expert", report_id="rep1", **_METERED_AUTH)
 
         assert result["error_code"] == "BUDGET_EXCEEDED"
         assert "settlement unavailable" in result["message"]

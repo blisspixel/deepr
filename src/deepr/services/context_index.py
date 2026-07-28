@@ -10,12 +10,17 @@ import logging
 import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from math import isfinite
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
+
+
+class PaidSemanticOperationError(RuntimeError):
+    """A requested semantic operation did not complete under its paid envelope."""
 
 
 @dataclass
@@ -166,7 +171,7 @@ class ContextIndex:
 
     def _scan_reports(self) -> list[dict[str, Any]]:
         """Scan reports directory for unindexed reports."""
-        reports = []
+        reports: list[dict[str, Any]] = []
 
         self._warn_if_legacy_root()
 
@@ -206,16 +211,34 @@ class ContextIndex:
         conn.close()
         return result is not None
 
-    async def index_reports(self, force: bool = False) -> int:
+    async def index_reports(
+        self,
+        force: bool = False,
+        *,
+        include_semantic: bool = False,
+        max_total_cost_usd: float | None = None,
+    ) -> int:
         """Index all unindexed reports.
 
         Args:
             force: Re-index all reports even if already indexed
+            include_semantic: Generate paid semantic embeddings when true
+            max_total_cost_usd: Optional aggregate embedding-cost ceiling
 
         Returns:
             Number of reports indexed
         """
-        from openai import AsyncOpenAI
+        if include_semantic and max_total_cost_usd is None:
+            raise ValueError("semantic indexing requires a finite aggregate cost ceiling")
+        if max_total_cost_usd is not None and (
+            isinstance(max_total_cost_usd, bool)
+            or not isinstance(max_total_cost_usd, (int, float))
+            or not isfinite(float(max_total_cost_usd))
+            or float(max_total_cost_usd) <= 0
+        ):
+            raise ValueError("max_total_cost_usd must be finite and positive")
+        if not include_semantic and max_total_cost_usd is not None:
+            raise ValueError("max_total_cost_usd requires semantic indexing")
 
         reports = self._scan_reports()
         if not reports:
@@ -232,9 +255,21 @@ class ContextIndex:
 
         logger.info("Indexing %d reports", len(reports))
 
-        client = AsyncOpenAI(max_retries=0)
-        new_embeddings = []
+        client: Any | None = None
+
+        async def create_embedding(text: str) -> Any:
+            nonlocal client
+            if client is None:
+                from openai import AsyncOpenAI
+
+                client = AsyncOpenAI(max_retries=0)
+            return await client.embeddings.create(model="text-embedding-3-small", input=text)
+
+        new_embeddings: list[Any] = []
         indexed_count = 0
+        aggregate_embedding_cost = 0.0
+        semantic_failure: PaidSemanticOperationError | None = None
+        semantic_failure_cause: Exception | None = None
 
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -264,8 +299,11 @@ class ContextIndex:
                 except OSError:
                     pass
 
-            # Generate embedding
-            try:
+            # Generate an embedding only after the interface explicitly chose
+            # the paid semantic lane. The running estimate is conservative:
+            # failed calls retain their slice so retries cannot exceed the
+            # caller's aggregate ceiling.
+            if include_semantic:
                 embed_text = f"{prompt}\n\n{summary}"[:8000]
                 from deepr.services.metered_call import execute_reserved_async_call
                 from deepr.services.metered_envelope import bounded_embedding_envelope
@@ -274,25 +312,49 @@ class ContextIndex:
                     model="text-embedding-3-small",
                     inputs=(embed_text,),
                 )
+                projected_cost = aggregate_embedding_cost + envelope.cost_usd
+                if max_total_cost_usd is not None and projected_cost > max_total_cost_usd + 1e-12:
+                    semantic_failure = PaidSemanticOperationError(
+                        "Paid semantic indexing stopped before another provider call because the aggregate "
+                        f"ceiling of ${max_total_cost_usd:.6f} was exhausted. {indexed_count} report(s) were "
+                        "preserved; increase the explicit ceiling or rerun local keyword indexing."
+                    )
+                    break
+                else:
+                    aggregate_embedding_cost = projected_cost
+                    try:
 
-                response = await execute_reserved_async_call(
-                    operation_prefix="context-index",
-                    provider="openai",
-                    model="text-embedding-3-small",
-                    source="services.context_index.index_reports",
-                    max_cost_per_job=envelope.cost_usd,
-                    call=lambda text=embed_text: client.embeddings.create(model="text-embedding-3-small", input=text),
-                )
-                embedding = np.array(response.data[0].embedding)
-                embedding_idx = len(new_embeddings)
-                if self.embeddings is not None:
-                    embedding_idx += len(self.embeddings)
-                new_embeddings.append(embedding)
-            except Exception as e:
-                logger.error("Failed to embed report %s: %s", job_id, e)
+                        async def create_report_embedding(text: str = embed_text) -> Any:
+                            return await create_embedding(text)
+
+                        response = await execute_reserved_async_call(
+                            operation_prefix="context-index",
+                            provider="openai",
+                            model="text-embedding-3-small",
+                            source="services.context_index.index_reports",
+                            max_cost_per_job=envelope.cost_usd,
+                            call=create_report_embedding,
+                        )
+                        embedding = np.array(response.data[0].embedding)
+                        embedding_idx = len(new_embeddings)
+                        if self.embeddings is not None:
+                            embedding_idx += len(self.embeddings)
+                        new_embeddings.append(embedding)
+                    except Exception as e:
+                        logger.error("Paid embedding failed for report %s (%s)", job_id, type(e).__name__)
+                        semantic_failure = PaidSemanticOperationError(
+                            "Paid semantic indexing did not complete under the durable metered boundary. "
+                            "If provider work may have begun, its cost was settled conservatively or remains held; "
+                            f"{indexed_count} earlier report(s) were preserved. Review `deepr budget status` "
+                            "before retrying."
+                        )
+                        semantic_failure_cause = e
+                        break
+            else:
                 embedding_idx = None
 
             # Insert into database
+            cursor.execute("SAVEPOINT index_report")
             try:
                 cursor.execute(
                     """
@@ -322,9 +384,22 @@ class ContextIndex:
                     (report_id, prompt, summary),
                 )
 
+                cursor.execute("RELEASE SAVEPOINT index_report")
                 indexed_count += 1
             except sqlite3.Error as e:
-                logger.error("Failed to index report %s: %s", job_id, e)
+                cursor.execute("ROLLBACK TO SAVEPOINT index_report")
+                cursor.execute("RELEASE SAVEPOINT index_report")
+                logger.error("Failed to index report %s (%s)", job_id, type(e).__name__)
+                if include_semantic:
+                    if embedding_idx is not None and new_embeddings:
+                        new_embeddings.pop()
+                    semantic_failure = PaidSemanticOperationError(
+                        "Paid semantic indexing could not persist a completed embedding. Its provider cost is "
+                        "already accounted, earlier reports were preserved, and the run stopped to prevent "
+                        "untracked retry waste. Review the index and `deepr budget status` before retrying."
+                    )
+                    semantic_failure_cause = e
+                    break
 
         conn.commit()
 
@@ -349,6 +424,11 @@ class ContextIndex:
                 self.embeddings = np.vstack([self.embeddings, new_embeddings_array])
             self._save_embeddings()
 
+        if semantic_failure is not None:
+            if semantic_failure_cause is not None:
+                raise semantic_failure from semantic_failure_cause
+            raise semantic_failure
+
         logger.info("Indexed %d reports", indexed_count)
         return indexed_count
 
@@ -358,7 +438,8 @@ class ContextIndex:
         top_k: int = 5,
         threshold: float = 0.7,
         include_keyword: bool = True,
-        include_semantic: bool = True,
+        include_semantic: bool = False,
+        max_total_cost_usd: float | None = None,
     ) -> list[SearchResult]:
         """Search for related reports.
 
@@ -367,15 +448,37 @@ class ContextIndex:
             top_k: Maximum results to return
             threshold: Minimum similarity threshold (0-1)
             include_keyword: Also include keyword matches
+            include_semantic: Generate a paid query embedding when true
+            max_total_cost_usd: Required aggregate ceiling for semantic search
 
         Returns:
             List of SearchResult objects sorted by relevance
         """
+        semantic_cost_ceiling: float | None = None
+        if include_semantic and max_total_cost_usd is None:
+            raise ValueError("semantic search requires a finite aggregate cost ceiling")
+        if max_total_cost_usd is not None and (
+            isinstance(max_total_cost_usd, bool)
+            or not isinstance(max_total_cost_usd, (int, float))
+            or not isfinite(float(max_total_cost_usd))
+            or float(max_total_cost_usd) <= 0
+        ):
+            raise ValueError("max_total_cost_usd must be finite and positive")
+        if max_total_cost_usd is not None:
+            semantic_cost_ceiling = float(max_total_cost_usd)
+        if not include_semantic and max_total_cost_usd is not None:
+            raise ValueError("max_total_cost_usd requires semantic search")
+
         results: dict[str, SearchResult] = {}
 
         # Semantic search
         if include_semantic and self.embeddings is not None and len(self.embeddings) > 0:
-            semantic_results = await self._semantic_search(query, top_k * 2, threshold)
+            semantic_results = await self._semantic_search(
+                query,
+                top_k * 2,
+                threshold,
+                max_total_cost_usd=cast(float, semantic_cost_ceiling),
+            )
             for r in semantic_results:
                 results[r.report_id] = r
 
@@ -393,36 +496,53 @@ class ContextIndex:
         sorted_results = sorted(results.values(), key=lambda x: x.similarity, reverse=True)
         return sorted_results[:top_k]
 
-    async def _semantic_search(self, query: str, top_k: int, threshold: float) -> list[SearchResult]:
+    async def _semantic_search(
+        self,
+        query: str,
+        top_k: int,
+        threshold: float,
+        *,
+        max_total_cost_usd: float,
+    ) -> list[SearchResult]:
         """Perform semantic similarity search."""
-        from openai import AsyncOpenAI
-
         if self.embeddings is None or len(self.embeddings) == 0:
             return []
 
         # Embed query
-        try:
-            from deepr.services.metered_call import execute_reserved_async_call
-            from deepr.services.metered_envelope import bounded_embedding_envelope
+        from deepr.services.metered_call import execute_reserved_async_call
+        from deepr.services.metered_envelope import bounded_embedding_envelope
+
+        bounded_query = query[:8000]
+        envelope = bounded_embedding_envelope(
+            model="text-embedding-3-small",
+            inputs=(bounded_query,),
+        )
+        if envelope.cost_usd > max_total_cost_usd + 1e-12:
+            raise ValueError("semantic query embedding exceeds the aggregate cost ceiling")
+
+        async def create_embedding() -> Any:
+            from openai import AsyncOpenAI
 
             client = AsyncOpenAI(max_retries=0)
-            bounded_query = query[:8000]
-            envelope = bounded_embedding_envelope(
-                model="text-embedding-3-small",
-                inputs=(bounded_query,),
-            )
+            return await client.embeddings.create(model="text-embedding-3-small", input=bounded_query)
+
+        try:
             response = await execute_reserved_async_call(
                 operation_prefix="context-query",
                 provider="openai",
                 model="text-embedding-3-small",
                 source="services.context_index.semantic_search",
                 max_cost_per_job=envelope.cost_usd,
-                call=lambda: client.embeddings.create(model="text-embedding-3-small", input=bounded_query),
+                call=create_embedding,
             )
             query_embedding = np.array(response.data[0].embedding)
         except Exception as e:
-            logger.error("Failed to embed query: %s", e)
-            return []
+            logger.error("Paid semantic query embedding failed (%s)", type(e).__name__)
+            raise PaidSemanticOperationError(
+                "Paid semantic search did not complete under the durable metered boundary. If provider work may "
+                "have begun, its cost was settled conservatively or remains held. Review `deepr budget status` "
+                "before retrying."
+            ) from e
 
         # Cosine similarity
         query_norm = query_embedding / (np.linalg.norm(query_embedding) + 1e-8)
@@ -432,7 +552,7 @@ class ContextIndex:
         # Get top results above threshold
         top_indices = np.argsort(similarities)[::-1]
 
-        results = []
+        results: list[SearchResult] = []
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()

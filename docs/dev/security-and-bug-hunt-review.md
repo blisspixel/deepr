@@ -179,7 +179,7 @@ Additional exhaustive passes performed:
 - Consider connection pooling or context-managed SQLite for queue under very high concurrency.
 - Expand redaction to wrap more exception reprs in MCP and agent traces.
 - Add property-based tests asserting "no cost event lost on retry paths" and "append-only logs survive simulated kill after write".
-- For high-stakes releases: run with DEEPR_COST_TRACKING_STRICT=1 + explicit plan capacity + red-team on every release. Consider external signing of ledgers if tamper-evidence needed beyond fsync.
+- For high-stakes releases: cost tracking is unconditionally strict; use explicit plan capacity and run the red-team suite on every release. Consider external signing of ledgers if tamper-evidence is needed beyond fsync.
 - Full supply-chain (deps, SBOM already in CI) + reproducible builds beyond current.
 - Memory/disk bounds on long expert graphs or large context packs (current pruners exist but ratchet limits?).
 

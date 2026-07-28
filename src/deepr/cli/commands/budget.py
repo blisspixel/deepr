@@ -12,6 +12,8 @@ import click
 from deepr.cli.colors import print_header
 from deepr.core.cost_caps import (
     OperatorBudget,
+    _with_verified_authorization,
+    apply_paid_api_freeze,
     budget_file_path,
     parse_operator_budget,
     read_operator_budget,
@@ -30,8 +32,9 @@ def _load_budget_config_unlocked() -> dict[str, Any]:
     if not budget_file.exists():
         return {
             "monthly_limit": 0,
-            "paid_api_frozen": False,
-            "freeze_reason": "",
+            "paid_api_frozen": True,
+            "freeze_reason": "paid API account controls are not configured",
+            "freeze_kind": "unconfigured",
             "current_month": datetime.now(UTC).strftime("%Y-%m"),
             "monthly_spending": 0.0,
             "history": [],
@@ -110,6 +113,16 @@ def _durable_active_cost() -> float | None:
         return None
 
 
+def _atomic_monthly_exposure():
+    """Return settled, active, and unresolved exposure from one locked view."""
+    try:
+        from deepr.experts.research_reservation_store import ResearchReservationStore
+
+        return ResearchReservationStore().exposure_snapshot()
+    except Exception:
+        return None
+
+
 def check_budget_approval(estimated_cost: float) -> bool:
     """
     Check if job should auto-execute based on budget.
@@ -125,19 +138,18 @@ def check_budget_approval(estimated_cost: float) -> bool:
 
     try:
         config = load_budget_config()
-        monthly_limit = resolve_spend_caps(operator_budget=parse_operator_budget(config))["monthly"]
+        monthly_limit = resolve_spend_caps()["monthly"]
     except Exception:
         return False
 
-    ledger_spend = _ledger_month_spend()
-    active_cost = _durable_active_cost()
-    if monthly_limit <= 0 or ledger_spend is None or active_cost is None:
+    exposure = _atomic_monthly_exposure()
+    if monthly_limit <= 0 or exposure is None:
         return False
 
     # Spend = max(side counter, canonical ledger) so
     # spend recorded by other entry points (web, MCP, expert learning)
     # counts against the month even if record_spending never saw it.
-    current_spending = max(config.get("monthly_spending", 0.0), ledger_spend) + active_cost
+    current_spending = max(config.get("monthly_spending", 0.0), exposure.monthly_settled_cost) + exposure.active_cost
     # The durable reservation boundary enforces the absolute ceiling. Keep the
     # interactive auto-approval threshold deliberately lower so approaching a
     # hard cap still requires an explicit human decision.
@@ -194,6 +206,22 @@ def set(amount: float):
 
     def update(config: dict[str, Any]) -> None:
         config["monthly_limit"] = amount
+        authorization = config.get("paid_api_authorization")
+        has_recovered_authorization = isinstance(authorization, dict) and bool(
+            authorization.get("recovered_freeze_id") and authorization.get("recovered_frozen_at")
+        )
+        if not config.get("freeze_id") and (
+            amount == 0 or config.get("paid_api_frozen", False) or not has_recovered_authorization
+        ):
+            apply_paid_api_freeze(
+                config,
+                reason=(
+                    "paid API monthly ceiling is zero"
+                    if amount == 0
+                    else str(config.get("freeze_reason") or "paid API account controls are not configured")
+                ),
+                kind="zero_ceiling" if amount == 0 else "unconfigured",
+            )
 
     config = mutate_budget_config(update)
 
@@ -226,20 +254,19 @@ def status():
 
     config = load_budget_config()
     configured_monthly = float(config.get("monthly_limit", 0) or 0)
-    effective_monthly = resolve_spend_caps(operator_budget=parse_operator_budget(config))["monthly"]
+    effective_monthly = resolve_spend_caps()["monthly"]
     # The approval gate spends against max(session counter, canonical ledger),
     # so the status display must show that same reconciled number. Showing only
     # the session counter once reported $0.00 while the ledger held $37.99 of
     # campaign spend recorded by other entry points - the exact blindfold that
     # let a surprise bill go unnoticed for 24 days.
     counter_spending = float(config.get("monthly_spending", 0.0) or 0.0)
-    ledger_raw = _ledger_month_spend()
-    ledger_unreadable = ledger_raw is None
-    ledger_spending = ledger_raw or 0.0
+    exposure = _atomic_monthly_exposure()
+    ledger_unreadable = exposure is None
+    ledger_spending = exposure.monthly_settled_cost if exposure is not None else 0.0
     settled_spending = max(counter_spending, ledger_spending)
-    active_raw = _durable_active_cost()
-    holds_unreadable = active_raw is None
-    active_cost = active_raw or 0.0
+    holds_unreadable = exposure is None
+    active_cost = exposure.active_cost if exposure is not None else 0.0
     money_state_unreadable = ledger_unreadable or holds_unreadable
     current_exposure = settled_spending + active_cost
     current_month = config.get("current_month", datetime.now(UTC).strftime("%Y-%m"))
@@ -247,8 +274,9 @@ def status():
     click.echo(f"\nSettled this month: ${settled_spending:.2f}")
     click.echo(f"Active durable holds: {'UNKNOWN' if holds_unreadable else f'${active_cost:.2f}'}")
 
-    if config.get("paid_api_frozen", False):
-        reason = str(config.get("freeze_reason", "") or "manual operator freeze")
+    operator = read_operator_budget()
+    if operator.frozen:
+        reason = operator.freeze_reason or "paid API safety freeze"
         click.echo(f"Mode: Paid API frozen ({reason})")
         click.echo(f"Configured monthly ceiling: ${configured_monthly:.2f}")
         click.echo("Effective monthly ceiling: $0.00")
@@ -298,35 +326,81 @@ def freeze(reason: str) -> None:
     print_header("Budget Freeze")
 
     def update(config: dict[str, Any]) -> None:
-        config["paid_api_frozen"] = True
-        config["freeze_reason"] = reason.strip() or "manual operator freeze"
-        config["frozen_at"] = datetime.now(UTC).isoformat()
+        apply_paid_api_freeze(
+            config,
+            reason=reason.strip() or "manual operator freeze",
+            kind="manual",
+        )
 
     mutate_budget_config(update)
     click.echo("\nPaid API dispatch is frozen. Local and safety-eligible plan capacity remain available.")
 
 
 @budget.command()
-def unfreeze() -> None:
-    """Remove a manual freeze only when positive monthly headroom remains."""
+@click.option(
+    "--evidence-id",
+    "evidence_ids",
+    multiple=True,
+    required=True,
+    help="Content-addressed account-control evidence ID; repeat for each provider",
+)
+def unfreeze(evidence_ids: tuple[str, ...]) -> None:
+    """Remove a freeze only with current verified account-control evidence."""
     print_header("Budget Unfreeze")
     result: dict[str, float] = {}
 
     def update(config: dict[str, Any]) -> None:
         try:
-            candidate = OperatorBudget(
-                configured=True,
-                monthly_limit=float(config.get("monthly_limit", 0.0)),
-                frozen=False,
+            current = parse_operator_budget(config)
+            if config.get("paid_api_frozen") is not True or not current.freeze_id or current.frozen_at is None:
+                raise click.ClickException(
+                    "A current typed freeze ID and timestamp are required; paid dispatch remains frozen."
+                )
+            exposure = _atomic_monthly_exposure()
+            if exposure is None:
+                raise click.ClickException("Canonical money state is unreadable; paid dispatch remains frozen.")
+            if exposure.unresolved_count:
+                raise click.ClickException(
+                    "Provider work has unresolved durable holds; paid dispatch remains frozen until settlement is reconciled."
+                )
+            if exposure.active_cost > 0:
+                raise click.ClickException(
+                    "Active durable paid holds must be settled or refunded before unfreezing paid dispatch."
+                )
+            from deepr.observability.provider_account_controls import (
+                ProviderAccountControlError,
+                verify_paid_api_authorization,
             )
-            effective_limit = resolve_spend_caps(operator_budget=candidate)["monthly"]
+
+            try:
+                authorization = verify_paid_api_authorization(
+                    evidence_ids,
+                    expected_freeze_id=current.freeze_id,
+                    expected_frozen_at=current.frozen_at,
+                    monthly_limit_usd=current.monthly_limit,
+                )
+            except ProviderAccountControlError as exc:
+                raise click.ClickException(
+                    f"Verified provider account-control evidence is required; paid dispatch remains frozen: {exc}"
+                ) from exc
+            candidate = _with_verified_authorization(
+                OperatorBudget(
+                    configured=True,
+                    monthly_limit=current.monthly_limit,
+                    frozen=True,
+                    authorization_recovered_frozen_at=current.frozen_at,
+                ),
+                authorization,
+            )
+            effective_limit = resolve_spend_caps(
+                operator_budget=candidate,
+                provider=authorization.providers[0],
+            )["monthly"]
         except (TypeError, ValueError) as exc:
             raise click.ClickException(str(exc)) from exc
-        ledger_spend = _ledger_month_spend()
-        active_cost = _durable_active_cost()
-        if ledger_spend is None or active_cost is None:
-            raise click.ClickException("Canonical money state is unreadable; paid dispatch remains frozen.")
-        current_spending = max(float(config.get("monthly_spending", 0.0) or 0.0), ledger_spend) + active_cost
+        current_spending = (
+            max(float(config.get("monthly_spending", 0.0) or 0.0), exposure.monthly_settled_cost) + exposure.active_cost
+        )
         if effective_limit <= 0:
             raise click.ClickException("Set a positive finite monthly budget before unfreezing paid dispatch.")
         if current_spending >= effective_limit:
@@ -334,9 +408,18 @@ def unfreeze() -> None:
                 f"Current monthly spend ${current_spending:.2f} has exhausted the ${effective_limit:.2f} hard ceiling. "
                 "Wait for the UTC month rollover or explicitly raise the ceiling before unfreezing."
             )
+        config["paid_api_authorization"] = {
+            "authority": "verified_by_deepr",
+            "evidence_ids": list(authorization.evidence_ids),
+            "valid_until": authorization.valid_until.isoformat(),
+            "recovered_freeze_id": current.freeze_id,
+            "recovered_frozen_at": current.frozen_at.isoformat(),
+        }
         config["paid_api_frozen"] = False
         config["freeze_reason"] = ""
         config.pop("frozen_at", None)
+        config.pop("freeze_id", None)
+        config.pop("freeze_kind", None)
         result["headroom"] = effective_limit - current_spending
 
     mutate_budget_config(update)

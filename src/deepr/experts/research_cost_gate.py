@@ -21,6 +21,7 @@ from deepr.services.research_bounds import bounded_research_cost_estimate
 
 _configuration_lock = threading.Lock()
 _configured_managers: weakref.WeakKeyDictionary[CostSafetyManager, bool] = weakref.WeakKeyDictionary()
+_RESERVATION_AUTHORITY_VERSION = "provider-account-bound-v1"
 
 
 def _configure_manager(
@@ -36,13 +37,23 @@ def _configure_manager(
         if manager not in _configured_managers:
             now = datetime.now(UTC)
             ledger = CostLedger()
+            day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+            def settled_totals(events: list[Any]) -> tuple[float, float]:
+                return (
+                    float(sum(event.cost_usd for event in events if event.timestamp >= day_start)),
+                    float(sum(event.cost_usd for event in events if event.timestamp >= month_start)),
+                )
+
+            daily_settled, monthly_settled = ledger.with_locked_accounting_events(settled_totals)
             manager.daily_cost = max(
                 manager.daily_cost,
-                ledger.get_total_cost(start_date=now.replace(hour=0, minute=0, second=0, microsecond=0)),
+                daily_settled,
             )
             manager.monthly_cost = max(
                 manager.monthly_cost,
-                ledger.get_total_cost(start_date=now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)),
+                monthly_settled,
             )
             _configured_managers[manager] = True
         if max_cost_per_job >= 0:
@@ -80,6 +91,7 @@ class ResearchCostReservation:
 
     def metadata(self) -> dict[str, Any]:
         return {
+            "cost_reservation_authority_version": _RESERVATION_AUTHORITY_VERSION,
             "cost_reservation_id": self.reservation_id,
             "cost_reservation_estimated_usd": self.estimated_cost,
             "cost_reservation_provider": self.provider,
@@ -100,11 +112,40 @@ def reserve_configured_research_cost(
     request: ResearchRequest | None = None,
 ) -> tuple[CostEstimate, ResearchCostReservation]:
     """Estimate and reserve one research job under configured hard limits."""
+    from deepr.core.cost_caps import paid_api_provider_scope
+
+    with paid_api_provider_scope(provider):
+        return _reserve_configured_research_cost_under_provider_scope(
+            job_id=job_id,
+            provider=provider,
+            prompt=prompt,
+            model=model,
+            enable_web_search=enable_web_search,
+            enable_code_interpreter=enable_code_interpreter,
+            enable_file_search=enable_file_search,
+            max_cost_per_job=max_cost_per_job,
+            request=request,
+        )
+
+
+def _reserve_configured_research_cost_under_provider_scope(
+    *,
+    job_id: str,
+    provider: str,
+    prompt: str,
+    model: str,
+    enable_web_search: bool,
+    enable_code_interpreter: bool,
+    enable_file_search: bool,
+    max_cost_per_job: float | None,
+    request: ResearchRequest | None,
+) -> tuple[CostEstimate, ResearchCostReservation]:
+    """Reserve configured research after binding all nested cap reads."""
     from deepr.config import load_config
     from deepr.core.cost_caps import resolve_spend_caps
 
     config = load_config()
-    spend_caps = resolve_spend_caps()
+    spend_caps = resolve_spend_caps(provider=provider)
     configured_per_job = float(config.get("max_cost_per_job", 5.0))
     per_job = min(configured_per_job, max_cost_per_job) if max_cost_per_job is not None else configured_per_job
     bounded_request = request
@@ -144,11 +185,30 @@ def reserve_configured_cost_ceiling(
     max_cost_per_job: float | None = None,
 ) -> ResearchCostReservation:
     """Reserve the full configured per-call ceiling when usage is not yet known."""
+    from deepr.core.cost_caps import paid_api_provider_scope
+
+    with paid_api_provider_scope(provider):
+        return _reserve_configured_cost_ceiling_under_provider_scope(
+            job_id=job_id,
+            provider=provider,
+            model=model,
+            max_cost_per_job=max_cost_per_job,
+        )
+
+
+def _reserve_configured_cost_ceiling_under_provider_scope(
+    *,
+    job_id: str,
+    provider: str,
+    model: str,
+    max_cost_per_job: float | None,
+) -> ResearchCostReservation:
+    """Reserve a full ceiling after binding all nested cap reads."""
     from deepr.config import load_config
     from deepr.core.cost_caps import resolve_spend_caps
 
     config = load_config()
-    spend_caps = resolve_spend_caps()
+    spend_caps = resolve_spend_caps(provider=provider)
     configured_per_job = float(config.get("max_cost_per_job", 5.0))
     if max_cost_per_job is not None and (
         isinstance(max_cost_per_job, bool) or not isfinite(max_cost_per_job) or max_cost_per_job <= 0
@@ -187,6 +247,35 @@ def reserve_research_cost(
     manager: CostSafetyManager | None = None,
 ) -> ResearchCostReservation:
     """Atomically reserve expected cost against cumulative safety limits."""
+    from deepr.core.cost_caps import paid_api_provider_scope
+
+    with paid_api_provider_scope(provider):
+        return _reserve_research_cost_under_provider_scope(
+            job_id=job_id,
+            provider=provider,
+            model=model,
+            estimate=estimate,
+            max_cost_per_job=max_cost_per_job,
+            max_daily_cost=max_daily_cost,
+            max_monthly_cost=max_monthly_cost,
+            max_weekly_cost=max_weekly_cost,
+            manager=manager,
+        )
+
+
+def _reserve_research_cost_under_provider_scope(
+    *,
+    job_id: str,
+    provider: str,
+    model: str,
+    estimate: CostEstimate,
+    max_cost_per_job: float,
+    max_daily_cost: float,
+    max_monthly_cost: float,
+    max_weekly_cost: float | None,
+    manager: CostSafetyManager | None,
+) -> ResearchCostReservation:
+    """Reserve after provider evidence has been bound to this context."""
     costs = (estimate.min_cost, estimate.expected_cost, estimate.max_cost)
     if not all(isfinite(cost) for cost in costs) or not 0 <= costs[0] <= costs[1] <= costs[2]:
         raise ResearchCostBlocked("Research cost estimate must be finite, non-negative, and ordered")
@@ -261,7 +350,10 @@ def refund_research_cost(
 
 def mark_research_provider_work(reservation: ResearchCostReservation) -> None:
     """Durably mark that the provider boundary is about to be crossed."""
-    ResearchReservationStore().mark_provider_work_may_have_run(reservation.reservation_id)
+    from deepr.core.cost_caps import paid_api_provider_scope
+
+    with paid_api_provider_scope(reservation.provider):
+        ResearchReservationStore().mark_provider_work_may_have_run(reservation.reservation_id)
 
 
 def restore_research_cost_reservation(
@@ -274,6 +366,8 @@ def restore_research_cost_reservation(
 ) -> ResearchCostReservation | None:
     """Rebuild a durable reservation handle from queue metadata after restart."""
     if not isinstance(metadata, dict):
+        return None
+    if metadata.get("cost_reservation_authority_version") != _RESERVATION_AUTHORITY_VERSION:
         return None
     reservation_id = metadata.get("cost_reservation_id")
     estimated_cost = metadata.get("cost_reservation_estimated_usd")
@@ -366,7 +460,7 @@ def settle_research_cost(
             # Persist the cross-process stop while reservations and dispatch
             # marks are excluded, then record the overrun truth. If ledger
             # settlement fails, the freeze remains in force and the hold stays.
-            _freeze_paid_api_unlocked(reason, target=budget_path)
+            _freeze_paid_api_unlocked(reason, target=budget_path, kind="cost_ceiling_divergence")
             outcome = ResearchReservationStore().settle(reservation.reservation_id, settled_cost, record)
     else:
         outcome = ResearchReservationStore().settle(reservation.reservation_id, settled_cost, record)
@@ -401,7 +495,7 @@ def record_unreserved_research_cost(
     source: str,
     manager: CostSafetyManager | None = None,
 ) -> float:
-    """Record a legacy completion, using a ceiling when usage is missing."""
+    """Record a legacy completion and freeze paid dispatch pending review."""
     missing_usage = actual_cost is None or (actual_cost == 0 and tokens <= 0)
     if missing_usage:
         from deepr.config import load_config
@@ -414,23 +508,42 @@ def record_unreserved_research_cost(
         if actual_cost is None:  # pragma: no cover - guarded by missing_usage
             raise ValueError("actual_cost is required when usage is reported")
         settled_cost = float(actual_cost)
-    (manager or get_cost_safety_manager()).record_cost(
-        session_id=f"research_{job_id}",
-        operation_type="research_completion",
-        actual_cost=settled_cost,
-        provider=provider,
-        model=model,
-        tokens_output=max(0, int(tokens)),
-        request_id=request_id,
-        idempotency_key=f"job:{job_id}:completion",
-        source=source,
-        metadata={
-            "legacy_unreserved_job": True,
-            "actual_cost_reported": not missing_usage,
-            "settlement_basis": "configured_ceiling" if missing_usage else "provider_reported_cost",
-        },
-        require_ledger=True,
+    if not isfinite(settled_cost) or settled_cost < 0:
+        raise ValueError("actual_cost must be finite and non-negative")
+
+    from deepr.core.cost_caps import (
+        _freeze_paid_api_unlocked,
+        budget_file_path,
+        spend_policy_lock,
     )
+
+    budget_path = budget_file_path()
+    reason = (
+        "legacy unreserved paid API completion detected for job "
+        f"{str(job_id)[:128]}; paid API frozen pending accounting review"
+    )
+    active_manager = manager or get_cost_safety_manager()
+    with spend_policy_lock(budget_path):
+        # Freeze first so even a required ledger failure leaves paid dispatch
+        # disabled. The worker can retry the idempotent truth record later.
+        _freeze_paid_api_unlocked(reason, target=budget_path, kind="legacy")
+        active_manager.record_cost(
+            session_id=f"research_{job_id}",
+            operation_type="research_completion",
+            actual_cost=settled_cost,
+            provider=provider,
+            model=model,
+            tokens_output=max(0, int(tokens)),
+            request_id=request_id,
+            idempotency_key=f"job:{job_id}:completion",
+            source=source,
+            metadata={
+                "legacy_unreserved_job": True,
+                "actual_cost_reported": not missing_usage,
+                "settlement_basis": "configured_ceiling" if missing_usage else "provider_reported_cost",
+            },
+            require_ledger=True,
+        )
     return settled_cost
 
 
