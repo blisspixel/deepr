@@ -14,8 +14,7 @@ from deepr.observability.cost_ledger import CostLedger
 
 
 @pytest.fixture(autouse=True)
-def _isolate(tmp_path, monkeypatch):
-    monkeypatch.setenv("DEEPR_COST_DATA_DIR", str(tmp_path / "costs"))
+def _isolate():
     reset_cost_safety_manager()
     yield
     reset_cost_safety_manager()

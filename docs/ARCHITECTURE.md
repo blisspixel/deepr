@@ -104,7 +104,7 @@ metered multi-call fan-out fail closed.
   quality, local readiness, trusted plan-quota evidence, and exact API envelopes
   inform previews and selected scheduled maintenance paths. Global
   cheapest-first runtime execution and automatic cross-provider metered
-  fallback are not shipped in v2.36. Lexical signals may route a preview but
+  fallback are not shipped in v2.39. Lexical signals may route a preview but
   never decide semantic complexity or authorize spend.
 
 - **Multi-layer budget controls because research costs real money.** Per-operation limits, daily caps, monthly ceilings, pre-submission estimates, and a circuit breaker that pauses after repeated failures. The system saves progress on pause so you can resume later. An uncapped loop calling o3-deep-research could burn $100+ before you notice.

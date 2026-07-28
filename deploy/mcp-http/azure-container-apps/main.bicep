@@ -246,10 +246,6 @@ resource mcpContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
               value: string(maxConcurrentRequests)
             }
             {
-              name: 'DEEPR_COST_TRACKING_STRICT'
-              value: '1'
-            }
-            {
               name: 'LOG_LEVEL'
               value: 'INFO'
             }

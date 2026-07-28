@@ -1,6 +1,6 @@
 # Deepr Threat Model
 
-Status: current with Deepr v2.38.4. Last reviewed: 2026-07-27.
+Status: current with Deepr v2.39.0. Last reviewed: 2026-07-28.
 
 This document is the repository-scoped threat model for Deepr. It is intended
 for security reviews, design reviews, and future bug discovery. It should stay
@@ -293,6 +293,8 @@ Relevant attacker stories:
   to consume only included quota becomes a billed call.
 - Another application or compromised shared credential creates provider spend
   that is absent from Deepr's local ledger.
+- A locally constructed account-control file claims a hard provider limit or
+  disabled overage without authenticated provider evidence.
 - A forged, oversized, or secret-bearing provider identifier enters cost
   metadata and frustrates invoice joins or leaks sensitive state.
 
@@ -301,8 +303,9 @@ Existing controls:
 - `src/deepr/core/research.py` validates explicit per-job budgets and reserves
   cost before provider calls, then settles reported usage and refunds failed
   reservations where supported.
-- `src/deepr/observability/cost_ledger.py` writes append-only cost events under
-  the runtime data root.
+- `src/deepr/observability/cost_ledger.py` writes new append-only cost events
+  under one stable per-user cost root and strictly includes legacy source-
+  checkout cost state during migration.
 - Strict budget and cost views include canonical settled spend plus durable
   active holds and report zero authorizable headroom when money state cannot be
   read. Central metered wrappers preserve bounded provider HTTP request and
@@ -322,6 +325,13 @@ Existing controls:
 - Registry pricing and provider-specific usage settlement account for cached
   token buckets and conservative fallback rates where the registry lookup
   cannot safely price a metered path.
+- Offline provider-billing reconciliation validates bounded normalized input,
+  separates capacity classes, joins exact receipt identities, stores immutable
+  applied evidence, and freezes on non-clean or failed apply. Paid account
+  evidence is non-authoritative unless a provider-specific authenticated source
+  verifier and current account, scope, and credential resolver both succeed.
+  Neither production adapter is installed in v2.39, so metered dispatch remains
+  blocked.
 - Image generation auto-selects only local `$0` image endpoints by default.
   Premium image APIs require explicit provider choice or the single premium
   auto opt-in.
@@ -331,7 +341,9 @@ Security invariant:
 Budget is a hard ceiling, not a suggestion. Any path that can spend money or
 consume scarce external quota must estimate before dispatch, require explicit
 operator intent for premium paths, record usage afterward, and fail closed when
-cost cannot be bounded. This invariant applies to Deepr-controlled dispatch; a
+cost cannot be bounded. Production paid dispatch also requires authenticated
+provider-side account control bound to the active credential. This invariant
+applies to Deepr-controlled dispatch; a
 provider-side hard limit, disabled paid overage, scoped credential, monitored
 alert, and billing reconciliation are required for account-wide protection.
 

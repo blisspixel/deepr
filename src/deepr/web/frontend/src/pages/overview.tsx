@@ -20,7 +20,6 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Sparkline } from '@/components/charts/sparkline'
-import { BUDGET_DEFAULTS } from '@/lib/constants'
 
 export default function Overview() {
   const navigate = useNavigate()
@@ -66,7 +65,7 @@ export default function Overview() {
     queryFn: () => costApi.getTrends(14),
   })
 
-  const { data: integrity } = useQuery({
+  const { data: integrity, isError: isIntegrityError } = useQuery({
     queryKey: ['cost', 'integrity'],
     queryFn: () => costApi.getIntegrity(),
     refetchInterval: 60000,
@@ -79,9 +78,17 @@ export default function Overview() {
   const queuedCount = jobStats?.queued ?? liveJobs.filter(j => j.status === 'queued').length
   const processingCount = jobStats?.processing ?? liveJobs.filter(j => j.status === 'processing').length
   const activeCount = queuedCount + processingCount
-  const dailyUtilization = costSummary && costSummary.daily_limit > 0
-    ? (costSummary.daily / costSummary.daily_limit) * 100
-    : 0
+  const moneyKnown = !isCostError && costSummary !== undefined
+  const moneyLabel = (value: number | undefined) =>
+    moneyKnown && value !== undefined ? formatCurrency(value) : 'UNKNOWN'
+  const dailyUtilization = !moneyKnown
+    ? null
+    : costSummary.effective_caps.daily > 0
+      ? (costSummary.exposure.daily / costSummary.effective_caps.daily) * 100
+      : costSummary.exposure.daily > 0 ? Number.POSITIVE_INFINITY : 0
+  const dailyUtilizationLabel = dailyUtilization === null
+    ? 'UNKNOWN'
+    : Number.isFinite(dailyUtilization) ? `${dailyUtilization.toFixed(0)}%` : 'OVER $0 CEILING'
 
   const trendData = trends?.daily?.map((t: { cost: number }) => ({ value: t.cost })) || []
 
@@ -110,11 +117,11 @@ export default function Overview() {
       </div>
 
       {/* Connection warning */}
-      {(isJobsError || isCostError) && (
+      {isJobsError && (
         <div className="rounded-lg border border-warning/30 bg-warning/5 px-4 py-3 flex items-center gap-3">
           <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
           <p className="text-sm text-muted-foreground">
-            Unable to connect to the backend. Data below may be incomplete.
+            Unable to load job state. Operational data below may be incomplete.
             Start the server or go to{' '}
             <button onClick={() => navigate('/settings')} className="text-primary hover:underline">Settings</button>
             {' '}to load demo data.
@@ -125,13 +132,50 @@ export default function Overview() {
       {/* Spend truth: over-budget and orphaned spend must be impossible to
           miss. A 30-job campaign once billed $37.79 with zero surviving
           artifacts and the dashboard showed nothing. */}
+      {costSummary?.paid_api_frozen && (
+        <div className="rounded-lg border border-warning/40 bg-warning/5 px-4 py-3 flex items-center gap-3">
+          <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
+          <p className="text-sm text-foreground">
+            <span className="font-semibold text-warning">Paid API frozen:</span>{' '}
+            {costSummary.freeze_reason || 'the effective monthly paid API ceiling is $0.'} Local and proven
+            plan-quota capacity remain available.
+          </p>
+        </div>
+      )}
+      {moneyKnown && costSummary.unresolved_holds > 0 && (
+        <div className="rounded-lg border border-warning/40 bg-warning/5 px-4 py-3 flex items-center gap-3">
+          <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
+          <p className="text-sm text-foreground">
+            <span className="font-semibold text-warning">Unresolved provider exposure:</span>{' '}
+            {costSummary.unresolved_holds} post-dispatch hold{costSummary.unresolved_holds === 1 ? '' : 's'} totaling{' '}
+            {formatCurrency(costSummary.unresolved_exposure)} require settlement reconciliation.
+          </p>
+        </div>
+      )}
+      {!moneyKnown && (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 flex items-center gap-3">
+          <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
+          <p className="text-sm text-foreground">
+            <span className="font-semibold text-destructive">Canonical money state UNKNOWN:</span>{' '}
+            paid API dispatch must remain blocked until accounting is readable.
+          </p>
+        </div>
+      )}
+      {isIntegrityError && (
+        <div className="rounded-lg border border-warning/40 bg-warning/5 px-4 py-3 flex items-center gap-3">
+          <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
+          <p className="text-sm text-foreground">
+            Artifact reconciliation is UNKNOWN. No conclusion about orphaned spend is available.
+          </p>
+        </div>
+      )}
       {costSummary?.over_budget && (
         <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 flex items-center gap-3">
           <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
           <p className="text-sm text-foreground">
             <span className="font-semibold text-destructive">Over budget:</span>{' '}
-            {formatCurrency(costSummary.monthly)} spent this month against a{' '}
-            {formatCurrency(costSummary.effective_monthly_limit || 0)} limit. Metered dispatch
+            {formatCurrency(costSummary.exposure.monthly)} exposed this month, including active holds, against a{' '}
+            {formatCurrency(costSummary.effective_monthly_limit)} limit. Metered dispatch
             should be blocked; review{' '}
             <Link to="/costs" className="text-primary hover:underline">Costs</Link> before approving anything.
           </p>
@@ -191,21 +235,21 @@ export default function Overview() {
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Today</p>
           </div>
           <p className="text-2xl sm:text-3xl font-semibold text-foreground tabular-nums">
-            {formatCurrency(costSummary?.daily || 0)}
+            {moneyLabel(costSummary?.exposure.daily)}
           </p>
           <div className="space-y-1">
             <div className="flex justify-between text-xs text-muted-foreground">
-              <span>{formatCurrency(costSummary?.daily_limit || BUDGET_DEFAULTS.DAILY)} limit</span>
-              <span>{dailyUtilization.toFixed(0)}%</span>
+              <span>{moneyLabel(costSummary?.effective_caps.daily)} limit</span>
+              <span>{dailyUtilizationLabel}</span>
             </div>
             <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
               <div
                 className={cn(
                   'h-full rounded-full transition-all',
-                  dailyUtilization > 90 ? 'bg-destructive' :
+                  dailyUtilization === null || dailyUtilization > 90 ? 'bg-destructive' :
                   dailyUtilization > 70 ? 'bg-warning' : 'bg-success'
                 )}
-                style={{ width: `${Math.min(dailyUtilization, 100)}%` }}
+                style={{ width: `${dailyUtilization === null ? 100 : Math.min(dailyUtilization, 100)}%` }}
               />
             </div>
           </div>
@@ -420,21 +464,25 @@ export default function Overview() {
             <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">Monthly</h2>
             <div className="space-y-3">
               <div className="flex justify-between items-baseline">
-                <span className="text-sm text-muted-foreground">Spent</span>
-                <span className="text-lg font-semibold tabular-nums">{formatCurrency(costSummary?.monthly || 0)}</span>
+                <span className="text-sm text-muted-foreground">Exposure</span>
+                <span className="text-lg font-semibold tabular-nums">{moneyLabel(costSummary?.exposure.monthly)}</span>
               </div>
               <div className="flex justify-between items-baseline">
                 <span className="text-sm text-muted-foreground">Limit</span>
-                <span className="text-sm text-muted-foreground tabular-nums">{formatCurrency(costSummary?.monthly_limit || BUDGET_DEFAULTS.MONTHLY)}</span>
+                <span className="text-sm text-muted-foreground tabular-nums">{moneyLabel(costSummary?.effective_caps.monthly)}</span>
+              </div>
+              <div className="flex justify-between items-baseline">
+                <span className="text-sm text-muted-foreground">Active holds</span>
+                <span className="text-sm text-muted-foreground tabular-nums">{moneyLabel(costSummary?.active_holds)}</span>
               </div>
               <div className="flex justify-between items-baseline">
                 <span className="text-sm text-muted-foreground">Ledger total</span>
-                <span className="text-sm text-muted-foreground tabular-nums">{formatCurrency(costSummary?.total || 0)}</span>
+                <span className="text-sm text-muted-foreground tabular-nums">{moneyLabel(costSummary?.settled.total)}</span>
               </div>
               <div className="flex justify-between items-baseline">
                 <span className="text-sm text-muted-foreground">Queue progress</span>
                 <span className="text-sm text-muted-foreground tabular-nums">
-                  {costSummary?.completed_jobs || 0} of {costSummary?.total_jobs || 0}
+                  {costSummary?.completed_jobs ?? 0} of {costSummary?.total_jobs ?? 0}
                 </span>
               </div>
             </div>

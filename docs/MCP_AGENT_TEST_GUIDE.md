@@ -34,20 +34,22 @@ explicit plan-capacity path.
 - `deepr_consult_experts` can stay off metered APIs when the caller sets
   `synthesis_backend` to `local` or `plan`. These modes disable live metered
   expert fallback and return a `capacity.live_metered_fallback=false` marker.
-- API consult synthesis may set `provider` to `openai` or `anthropic` and may
-  set `model` explicitly. This is metered capacity and requires a positive
-  budget; use local or plan modes for no-metered tests.
+- API consult synthesis exposes explicit `provider`, `model`, and budget
+  inputs for preview and contract testing. Production metered dispatch remains
+  blocked in v2.39 until authenticated provider account controls and current
+  credential identity are proven. Use local or plan modes for execution.
 - `deepr_query_expert` stays off metered APIs when the caller sets
   `backend` to `local` or `plan`. Those modes route one named expert through
   a read-only compiled-context chat turn, attach `readonly_chat_artifact`, set
   `research_triggered=0`, and reject `agentic=true`. Omitted or
-  `backend="api"` is blocked before provider work in v2.36 with
+  `backend="api"` is blocked before provider work in v2.39 with
   `metered_expert_chat_accounting_unavailable`.
-- `deepr_agentic_research` is always execution-blocked in v2.36.
-  `deepr_research` is metered and requires separate explicit approval for one
-  exact bounded request. Mutating tools are not safe for automatic no-cost
-  testing unless their schema exposes an explicit local/plan mode and the
-  result proves `$0` capacity with no metered fallback.
+- `deepr_agentic_research` is always execution-blocked in v2.39.
+  `deepr_research` exposes a bounded metered request contract, but production
+  dispatch is blocked by the same provider-account authority gate. Mutating
+  tools are not safe for automatic no-cost testing unless their schema exposes
+  an explicit local/plan mode and the result proves `$0` capacity with no
+  metered fallback.
 - Do not pass provider API keys into the MCP server for a no-cost test. For
   plan tests, the plan CLI must be authenticated as subscription or prepaid
   capacity and pass Deepr's no-surprise-bills gate.
@@ -393,7 +395,7 @@ must not fall through to a metered provider.
   no-metered testing.
 - Use `deepr_query_expert` for focused single-expert advice only when
   `backend="local"` or `backend="plan"` is explicit. The legacy
-  `backend="api"` chat path fails closed before provider work in v2.36 even if
+  `backend="api"` chat path fails closed before provider work in v2.39 even if
   a caller supplies approval metadata.
 - Use `deepr_expert_absorb` only on operator-approved source material. It
   mutates beliefs and should be dry-run first.

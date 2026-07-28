@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.38.4 current main, 2026-07-27. This document defines what users and host
+Status: v2.39.0 current main, 2026-07-28. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops.
 
@@ -20,22 +20,19 @@ must not be described as usable capacity.
 
 ## Stable Today
 
-- Direct bounded research through `deepr research` for provider/model/tool
-  combinations with a complete finite cost envelope. `--preview` and dispatch
-  use the same maximum request bound.
+- Write-free bounded research preview through `deepr research --preview` for
+  provider/model/tool combinations with a complete finite cost envelope.
+  Production metered dispatch remains blocked until authenticated provider
+  account-control and current credential-identity adapters are installed.
 - Budget ceilings, cost estimates, and the canonical append-only cost ledger.
-  Provider-backed REST, web, direct CLI, MCP, and internal single-job
-  orchestrator jobs use cross-process maximum-cost reservations, conservative
-  ambiguous-outcome settlement, and terminal-state reconciliation before new
-  spend is admitted. Paid synchronous planning calls reserve the full
-  configured per-call ceiling and settle provider token usage. Adapters retry
-  creation only with a supported server-side idempotency contract. Strict CLI
-  views expose settled spend, active holds, effective authority, and maximum
-  new-call headroom. Central metered wrappers retain provider receipt IDs when
-  available.
-- Explicit provider selection and automatic single-route selection when the
-  chosen request has a complete finite cost envelope. Automatic cross-provider
-  metered fallback is disabled in v2.36.
+  The dormant metered transaction substrate uses cross-process maximum-cost
+  reservations, conservative ambiguous-outcome settlement, terminal-state
+  reconciliation, disabled hidden SDK retries, and provider receipt IDs.
+  Strict CLI and web views expose settled spend, active and unresolved holds,
+  effective authority, and maximum new-call headroom. Offline provider-billing
+  preview and explicit fail-closed apply are stable.
+- Explicit local and safety-eligible plan selection. Automatic cross-provider
+  metered fallback is disabled.
 - Local report storage under the configured reports root.
 - Local expert creation, expert import/export, profile storage, and bounded
   local or explicit plan consult/query surfaces.
@@ -183,7 +180,7 @@ must not be described as usable capacity.
   no-metered single-expert consult; `deepr_query_expert` also supports explicit
   `backend=local|plan` as a read-only compiled-context chat turn with
   `readonly_chat_artifact`, `research_triggered=0`, and no live metered fallback.
-  In v2.36, `deepr_query_expert backend=api` and every other standalone
+  In v2.39, `deepr_query_expert backend=api` and every other standalone
   metered `ExpertChatSession` path fail closed before provider dispatch. Local
   and explicit plan read-only query turns are unchanged. API council synthesis
   is a separate bounded surface. Its approval covers final synthesis only;
@@ -195,7 +192,10 @@ must not be described as usable capacity.
   call produces the proposal. The generated contract exposes zero expert
   generation calls, zero peer turns, at most one synthesis call, and no belief
   or graph write authority. API mode reserves the complete transaction ceiling
-  while its only metered synthesis call has a 10 percent sub-ceiling. CLI
+  while its only metered synthesis call has a 10 percent sub-ceiling.
+  Production API council synthesis is blocked by the authenticated
+  provider-account authority gate in v2.39; this contract does not itself
+  authorize dispatch. CLI
   `--output` explicitly saves the full artifact; no separate full artifact path
   is written by default.
   Experimental CLI `deepr expert investigate` is a distinct local-only
@@ -499,7 +499,7 @@ must not be described as usable capacity.
   cancellation settlement, canonical-ledger idempotency, zero hidden retries,
   and concurrency and ledger-failure regressions. Local and explicit plan
   read-only query is shipped and unaffected.
-- Unsafe metered expert lifecycle surfaces also fail closed in v2.36:
+- Unsafe metered expert lifecycle surfaces also fail closed in v2.39:
   nonlocal `expert make` and `--learn`, API curriculum `expert plan`,
   provider-backed `expert refresh` and `--synthesize`, `expert resume`, normal
   metered `expert reflect` and MCP `deepr_reflect`, API `fill-gaps` including
@@ -582,13 +582,15 @@ source text through the verified absorb path.
 
 ## Operator Responsibilities
 
-- Provider API keys are user-owned credentials. Deepr enforces budget ceilings,
-  but users choose when to provide keys and when to allow paid tools. Use a
+- Provider API keys are user-owned credentials. Deepr's metered transaction
+  substrate enforces budget ceilings, but production dispatch is currently
+  blocked because local assertions cannot prove account-side controls. Use a
   dedicated provider project, the smallest available account hard limit or
   disabled paid overage, monitored provider alerts, and regular billing-export
-  reconciliation. Deepr v2.38.4 does not verify those account controls or
-  import provider invoices, and cannot govern another application using the
-  same credential.
+  reconciliation. Deepr v2.39.0 imports bounded normalized statements offline
+  and freezes on non-clean applied evidence. It does not yet ship an
+  authenticated provider verifier or current credential-identity resolver and
+  cannot govern another application using the same credential.
 - Local Ollama capacity is only as available as the local machine and admitted
   model evidence.
 - Remote MCP endpoints must use HTTPS outside loopback, scoped keys per agent,

@@ -339,8 +339,6 @@ Resources:
               Value: /data/security/mcp_keys.json
             - Name: DEEPR_MCP_HTTP_MAX_CONCURRENCY
               Value: !Sub '${MaxConcurrentRequests}'
-            - Name: DEEPR_COST_TRACKING_STRICT
-              Value: '1'
             - Name: LOG_LEVEL
               Value: INFO
             - !If

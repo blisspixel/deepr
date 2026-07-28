@@ -50,7 +50,13 @@ export const costApi = {
   // Get budget limits
   getLimits: async () => {
     const response = await apiClient.get<{
-      limits: { per_job: number; daily: number; monthly: number; expert_chat_max: number }
+      limits: {
+        per_job: number
+        daily: number
+        monthly: number
+        expert_chat_max: number
+        mutable_fields: string[]
+      }
     }>(
       '/cost/limits'
     )
@@ -58,7 +64,7 @@ export const costApi = {
   },
 
   // Update budget limits
-  updateLimits: async (limits: { per_job?: number; daily?: number; monthly?: number }) => {
+  updateLimits: async (limits: { monthly: number }) => {
     const response = await apiClient.patch('/cost/limits', limits)
     return response.data
   },

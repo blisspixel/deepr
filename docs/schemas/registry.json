@@ -655,6 +655,30 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "provider-billing-import",
+      "schema_version": "deepr-provider-billing-import-v1",
+      "kind": "deepr.costs.provider_billing_import",
+      "path": "provider-billing-import-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "provider-billing-reconciliation",
+      "schema_version": "deepr-provider-billing-reconciliation-v1",
+      "kind": "deepr.costs.provider_billing_reconciliation",
+      "path": "provider-billing-reconciliation-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "paid-api-account-evidence",
+      "schema_version": "deepr-paid-api-account-evidence-v1",
+      "kind": "deepr.costs.paid_api_account_evidence",
+      "path": "paid-api-account-evidence-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
       "name": "cli-operation-result",
       "schema_version": "deepr-cli-operation-result-v1",
       "kind": "deepr.cli.operation_result",

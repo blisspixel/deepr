@@ -241,7 +241,6 @@ For a strict current-shell ceiling on Windows PowerShell:
 $env:DEEPR_MAX_COST_PER_JOB = "10.00"
 $env:DEEPR_MAX_COST_PER_DAY = "10.00"
 $env:DEEPR_MAX_COST_PER_MONTH = "10.00"
-$env:DEEPR_COST_TRACKING_STRICT = "1"
 deepr costs show
 deepr costs doctor
 ```

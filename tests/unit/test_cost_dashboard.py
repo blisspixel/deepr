@@ -663,6 +663,22 @@ class TestCostDashboard:
 
         assert entry.metadata == {"session_id": "sess-001"}
 
+    def test_record_cannot_continue_after_ledger_failure(self, temp_storage, monkeypatch, tmp_path):
+        """Dashboard recording has no lenient silent-money mode."""
+        dashboard = CostDashboard(storage_path=temp_storage)
+        sensitive_path = tmp_path / "private" / "cost_ledger.jsonl"
+        error = OSError(28, "No space left on device", str(sensitive_path))
+
+        def fail_record(**_kwargs):
+            raise error
+
+        monkeypatch.setattr(dashboard.ledger, "record_event", fail_record)
+
+        with pytest.raises(RuntimeError, match="Canonical cost ledger write failed") as exc_info:
+            dashboard.record("research", "openai", 0.15)
+
+        assert str(sensitive_path) not in str(exc_info.value)
+
     def test_get_daily_total_today(self, temp_storage):
         """Daily total should sum today's costs."""
         dashboard = CostDashboard(storage_path=temp_storage)

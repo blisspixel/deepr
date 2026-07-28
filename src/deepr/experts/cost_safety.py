@@ -6,7 +6,6 @@ Provides defense against accidental or malicious cost spikes.
 Requirements: 8.2 - Implement rapid cost accumulation detection and circuit breaker
 """
 
-import os
 import threading
 import time
 from dataclasses import dataclass
@@ -362,8 +361,6 @@ class CostSafetyManager:
         self._session_costs: dict[str, float] = {}
         self._sessions: dict[str, CostSession] = {}
         self._ledger = CostLedger(lock_timeout_seconds=5.0)
-        self._strict_tracking = os.getenv("DEEPR_COST_TRACKING_STRICT", "1").lower() in {"1", "true", "yes", "on"}
-
         # Every secondary metered call shares the same operator and environment
         # authority as research submissions. Ledger seeding is strict: broken
         # accounting cannot be reinterpreted as $0 already spent.
@@ -732,7 +729,7 @@ class CostSafetyManager:
         def append_only() -> None:
             nonlocal callback_ran, ledger_appended
             callback_ran = True
-            ledger_appended = append_cost_record(self._ledger, record, strict_tracking=self._strict_tracking)
+            ledger_appended = append_cost_record(self._ledger, record)
 
         try:
             outcome = self._get_reservation_store().settle(
@@ -762,7 +759,7 @@ class CostSafetyManager:
 
     def _record_cost_once(self, record: CostRecord) -> bool:
         try:
-            ledger_appended = append_cost_record(self._ledger, record, strict_tracking=self._strict_tracking)
+            ledger_appended = append_cost_record(self._ledger, record)
         except CostLedgerCommitError as error:
             self._remember_durability_failure(record, error)
             raise

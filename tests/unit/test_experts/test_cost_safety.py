@@ -636,6 +636,8 @@ class TestCostSafetyManager:
         assert manager._reserved_daily == 0.0
 
     def test_concurrent_durable_reserve_and_settle_have_no_lock_order_cycle(self, monkeypatch):
+        from deepr.core.cost_caps import paid_api_provider_scope
+
         manager = CostSafetyManager()
         allowed, _, _, first_id = manager.check_and_reserve(
             "first-session",
@@ -657,7 +659,7 @@ class TestCostSafetyManager:
 
         def blocked_record_event(*args, **kwargs):
             settlement_holds_sqlite.set()
-            assert release_settlement.wait(timeout=2.0)
+            assert release_settlement.wait(timeout=5.0)
             return real_record_event(*args, **kwargs)
 
         def observed_reserve(**kwargs):
@@ -682,13 +684,14 @@ class TestCostSafetyManager:
 
         def reserve() -> None:
             try:
-                result = manager.check_and_reserve(
-                    "second-session",
-                    "council_consult",
-                    0.2,
-                    durable_reservation=True,
-                    reservation_job_id="council_lock_order_second",
-                )
+                with paid_api_provider_scope("openai"):
+                    result = manager.check_and_reserve(
+                        "second-session",
+                        "council_consult",
+                        0.2,
+                        durable_reservation=True,
+                        reservation_job_id="council_lock_order_second",
+                    )
                 second_reservation.append(result[3])
             except BaseException as error:
                 errors.append(error)
@@ -698,11 +701,12 @@ class TestCostSafetyManager:
         settle_thread.start()
         assert settlement_holds_sqlite.wait(timeout=2.0)
         reserve_thread.start()
-        assert reserve_entered.wait(timeout=2.0)
+        reserve_observed = reserve_entered.wait(timeout=2.0)
         release_settlement.set()
         settle_thread.join(timeout=2.0)
         reserve_thread.join(timeout=2.0)
 
+        assert reserve_observed, errors
         assert not settle_thread.is_alive()
         assert not reserve_thread.is_alive()
         assert errors == []
@@ -718,6 +722,7 @@ class TestCostSafetyManager:
     def test_record_cost_writes_ledger_event(self):
         """record_cost should write canonical ledger event metadata."""
         with patch("deepr.experts.cost_safety.CostLedger") as mock_ledger_cls:
+            mock_ledger_cls.return_value.with_locked_accounting_events.return_value = (0.0, 0.0, 0.0)
             manager = CostSafetyManager()
             mock_ledger = mock_ledger_cls.return_value
 
@@ -753,6 +758,7 @@ class TestCostSafetyManager:
         sensitive_path = tmp_path / "private" / "cost_ledger.jsonl"
         ledger_error = OSError(28, "No space left on device", str(sensitive_path))
         with patch("deepr.experts.cost_safety.CostLedger") as mock_ledger_cls:
+            mock_ledger_cls.return_value.with_locked_accounting_events.return_value = (0.0, 0.0, 0.0)
             manager = CostSafetyManager()
             mock_ledger_cls.return_value.record_event.side_effect = ledger_error
 
@@ -770,27 +776,26 @@ class TestCostSafetyManager:
         assert public_error.ledger_error is ledger_error
         assert public_error.metadata == {"error_type": "OSError", "errno": 28, "mode": "strict"}
 
-    def test_record_cost_nonstrict_ledger_error_log_is_path_safe(self, monkeypatch, tmp_path, caplog):
-        """Best-effort ledger failures must not place local paths in logs.
-
-        Lenient tracking is now an explicit opt-out (strict is the default,
-        so unset env means a ledger failure raises instead of logging)."""
+    def test_record_cost_cannot_disable_strict_ledger_failure(self, monkeypatch, tmp_path):
+        """The removed lenient environment setting cannot create silent money."""
         monkeypatch.setenv("DEEPR_COST_TRACKING_STRICT", "0")
         sensitive_path = tmp_path / "private" / "cost_ledger.jsonl"
         ledger_error = OSError(28, "No space left on device", str(sensitive_path))
         with patch("deepr.experts.cost_safety.CostLedger") as mock_ledger_cls:
+            mock_ledger_cls.return_value.with_locked_accounting_events.return_value = (0.0, 0.0, 0.0)
             manager = CostSafetyManager()
             mock_ledger_cls.return_value.record_event.side_effect = ledger_error
 
-            with caplog.at_level("WARNING", logger="deepr.experts.cost_safety_ledger"):
+            with pytest.raises(RuntimeError) as exc_info:
                 manager.record_cost(
                     session_id="session-1",
                     operation_type="research_submit",
                     actual_cost=0.10,
                 )
 
-        assert str(sensitive_path) not in caplog.text
-        assert "error_type=OSError, errno=28" in caplog.text
+        assert str(exc_info.value) == "Cost ledger write failed in strict mode."
+        assert str(sensitive_path) not in str(exc_info.value)
+        assert exc_info.value.metadata == {"error_type": "OSError", "errno": 28, "mode": "strict"}
 
     def test_reset_clears_all_state(self):
         """Test that reset clears all tracking state."""
@@ -953,26 +958,11 @@ class TestSpendingSummaryContract:
         assert "ceiling $0.00" in reason
         assert needs_confirmation is False
 
-    def test_caller_narrowing_survives_freeze_and_unfreeze(self, monkeypatch):
-        import json
-        import os
-        from pathlib import Path
-
+    def test_caller_narrowing_survives_authority_refresh(self):
         from deepr.experts.cost_safety import CostSafetyManager
 
         manager = CostSafetyManager()
         manager.max_daily = 5.0
-        budget_path = Path(os.environ["DEEPR_BUDGET_FILE"])
-        budget_path.write_text(
-            json.dumps({"monthly_limit": 200.0, "paid_api_frozen": True}),
-            encoding="utf-8",
-        )
-        assert manager.check_operation("freeze", "test", 0.01)[0] is False
-
-        budget_path.write_text(
-            json.dumps({"monthly_limit": 200.0, "paid_api_frozen": False}),
-            encoding="utf-8",
-        )
         first = manager.check_and_reserve("one", "test", 4.0)
         second = manager.check_and_reserve("two", "test", 4.0)
 

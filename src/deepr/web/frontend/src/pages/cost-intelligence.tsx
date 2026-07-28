@@ -10,7 +10,6 @@ import {
   AlertTriangle,
   TrendingUp,
 } from 'lucide-react'
-import { BUDGET_DEFAULTS } from '@/lib/constants'
 import { FormSkeleton } from '@/components/ui/skeleton'
 
 type TimeRange = '7d' | '30d' | '90d'
@@ -42,33 +41,30 @@ export default function CostIntelligence() {
     queryFn: () => costApi.getBreakdown(timeRange),
   })
 
-  const { data: limits } = useQuery({
+  const { data: limits, isError: isLimitsError } = useQuery({
     queryKey: ['cost', 'limits'],
     queryFn: () => costApi.getLimits(),
   })
 
-  // Local state for sliders so they don't snap back during debounce
-  const [localLimits, setLocalLimits] = useState<{ per_job: number; daily: number; monthly: number } | null>(null)
-  const effectiveLimits = localLimits ?? limits
-
-  // Sync from server when query data arrives (only if user hasn't overridden locally)
-  useEffect(() => {
-    if (limits && !localLimits) {
-      setLocalLimits({ per_job: limits.per_job, daily: limits.daily, monthly: limits.monthly })
-    }
-  }, [limits, localLimits])
+  // Local state keeps the canonical monthly slider stable during debounce.
+  const [localMonthlyLimit, setLocalMonthlyLimit] = useState<number | null>(null)
+  const moneyKnown = !isSummaryError && summary !== undefined
+  const limitsKnown = !isLimitsError && limits !== undefined
+  const effectiveMonthlyLimit = localMonthlyLimit ?? (limitsKnown ? limits.monthly : null)
+  const moneyLabel = (value: number | undefined) =>
+    moneyKnown && value !== undefined ? formatCurrency(value) : 'UNKNOWN'
+  const limitLabel = (value: number | undefined) =>
+    limitsKnown && value !== undefined ? formatCurrency(value) : 'UNKNOWN'
 
   const updateLimitsMutation = useMutation({
     mutationFn: costApi.updateLimits,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cost'] })
-      // Allow server values to re-sync (e.g. if server clamped the values)
-      setLocalLimits(null)
+      setLocalMonthlyLimit(null)
     },
     onError: () => {
       toast.error('Failed to update budget limits')
-      // Reset local state to server values on error
-      setLocalLimits(null)
+      setLocalMonthlyLimit(null)
     },
   })
 
@@ -79,29 +75,32 @@ export default function CostIntelligence() {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
   }, [])
-  const localLimitsRef = useRef(localLimits)
-  localLimitsRef.current = localLimits
+  const localMonthlyLimitRef = useRef(localMonthlyLimit)
+  localMonthlyLimitRef.current = localMonthlyLimit
 
-  const handleSliderChange = useCallback((key: 'per_job' | 'daily' | 'monthly', value: number) => {
-    setLocalLimits(prev => {
-      const next = prev ? { ...prev, [key]: value } : { per_job: BUDGET_DEFAULTS.PER_JOB, daily: BUDGET_DEFAULTS.DAILY, monthly: BUDGET_DEFAULTS.MONTHLY, [key]: value }
-      localLimitsRef.current = next
-      return next
-    })
+  const handleMonthlySliderChange = useCallback((value: number) => {
+    setLocalMonthlyLimit(value)
+    localMonthlyLimitRef.current = value
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
-      if (localLimitsRef.current) {
-        updateLimitsMutation.mutate(localLimitsRef.current)
+      if (localMonthlyLimitRef.current !== null) {
+        updateLimitsMutation.mutate({ monthly: localMonthlyLimitRef.current })
       }
     }, 500)
   }, [updateLimitsMutation])
 
-  const dailyUtilization = summary && summary.daily_limit > 0
-    ? (summary.daily / summary.daily_limit) * 100
-    : 0
-  const monthlyUtilization = summary && summary.monthly_limit > 0
-    ? (summary.monthly / summary.monthly_limit) * 100
-    : 0
+  const dailyUtilization = !moneyKnown
+    ? null
+    : summary.effective_caps.daily > 0
+      ? (summary.exposure.daily / summary.effective_caps.daily) * 100
+      : summary.exposure.daily > 0 ? Number.POSITIVE_INFINITY : 0
+  const monthlyUtilization = !moneyKnown
+    ? null
+    : summary.effective_caps.monthly > 0
+      ? (summary.exposure.monthly / summary.effective_caps.monthly) * 100
+      : summary.exposure.monthly > 0 ? Number.POSITIVE_INFINITY : 0
+  const utilizationLabel = (value: number | null) =>
+    value === null ? 'UNKNOWN' : Number.isFinite(value) ? `${value.toFixed(0)}%` : 'OVER $0 CEILING'
 
   const trendData = trends?.daily?.map((t: { date: string; cost: number }) => ({
     date: t.date,
@@ -159,9 +158,11 @@ export default function CostIntelligence() {
 
       {/* Error Banner */}
       {isSummaryError && (
-        <div className="rounded-lg border border-warning/30 bg-warning/5 p-4 flex items-center gap-3">
-          <AlertTriangle className="w-5 h-5 text-warning shrink-0" />
-          <p className="text-sm text-muted-foreground flex-1">Unable to load cost data. The backend may not be running.</p>
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 flex items-center gap-3">
+          <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
+          <p className="text-sm text-foreground flex-1">
+            Canonical money state is UNKNOWN. Paid API dispatch must remain blocked until accounting is readable.
+          </p>
           <button
             onClick={() => refetchSummary()}
             className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:bg-primary/90 transition-colors"
@@ -171,21 +172,46 @@ export default function CostIntelligence() {
         </div>
       )}
 
+      {/* A zero ceiling is an explicit paid freeze, never a missing default. */}
+      {summary?.paid_api_frozen && (
+        <div className="rounded-lg border border-warning/40 bg-warning/5 p-4 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-warning shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-foreground">Paid API dispatch is frozen</p>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {summary.freeze_reason || 'The effective monthly paid API ceiling is $0.'} Local and proven plan-quota capacity remain available.
+            </p>
+          </div>
+        </div>
+      )}
+      {moneyKnown && summary.unresolved_holds > 0 && (
+        <div className="rounded-lg border border-warning/40 bg-warning/5 p-4 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-warning shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-foreground">Unresolved provider exposure</p>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {summary.unresolved_holds} post-dispatch hold{summary.unresolved_holds === 1 ? '' : 's'} totaling{' '}
+              {formatCurrency(summary.unresolved_exposure)} require settlement reconciliation.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Monthly */}
         <div className="rounded-lg border bg-card p-5 space-y-2">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Monthly</p>
-          <p className="text-2xl font-semibold text-foreground tabular-nums">{formatCurrency(summary?.monthly || 0)}</p>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Monthly Exposure</p>
+          <p className="text-2xl font-semibold text-foreground tabular-nums">{moneyLabel(summary?.exposure.monthly)}</p>
           <div className="space-y-1">
             <div className="flex justify-between text-xs text-muted-foreground">
-              <span>{formatCurrency(summary?.monthly_limit || BUDGET_DEFAULTS.MONTHLY)} limit</span>
-              <span>{monthlyUtilization.toFixed(0)}%</span>
+              <span>{moneyLabel(summary?.effective_caps.monthly)} limit</span>
+              <span>{utilizationLabel(monthlyUtilization)}</span>
             </div>
             <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
               <div
-                className={cn('h-full rounded-full transition-all', monthlyUtilization > 90 ? 'bg-destructive' : monthlyUtilization > 70 ? 'bg-warning' : 'bg-success')}
-                style={{ width: `${Math.min(monthlyUtilization, 100)}%` }}
+                className={cn('h-full rounded-full transition-all', monthlyUtilization === null || monthlyUtilization > 90 ? 'bg-destructive' : monthlyUtilization > 70 ? 'bg-warning' : 'bg-success')}
+                style={{ width: `${monthlyUtilization === null ? 100 : Math.min(monthlyUtilization, 100)}%` }}
               />
             </div>
           </div>
@@ -193,50 +219,49 @@ export default function CostIntelligence() {
 
         {/* Today */}
         <div className="rounded-lg border bg-card p-5 space-y-2">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Today</p>
-          <p className="text-2xl font-semibold text-foreground tabular-nums">{formatCurrency(summary?.daily || 0)}</p>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Today Exposure</p>
+          <p className="text-2xl font-semibold text-foreground tabular-nums">{moneyLabel(summary?.exposure.daily)}</p>
           <div className="space-y-1">
             <div className="flex justify-between text-xs text-muted-foreground">
-              <span>{formatCurrency(summary?.daily_limit || BUDGET_DEFAULTS.DAILY)} limit</span>
-              <span>{dailyUtilization.toFixed(0)}%</span>
+              <span>{moneyLabel(summary?.effective_caps.daily)} limit</span>
+              <span>{utilizationLabel(dailyUtilization)}</span>
             </div>
             <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
               <div
-                className={cn('h-full rounded-full transition-all', dailyUtilization > 90 ? 'bg-destructive' : dailyUtilization > 70 ? 'bg-warning' : 'bg-success')}
-                style={{ width: `${Math.min(dailyUtilization, 100)}%` }}
+                className={cn('h-full rounded-full transition-all', dailyUtilization === null || dailyUtilization > 90 ? 'bg-destructive' : dailyUtilization > 70 ? 'bg-warning' : 'bg-success')}
+                style={{ width: `${dailyUtilization === null ? 100 : Math.min(dailyUtilization, 100)}%` }}
               />
             </div>
           </div>
         </div>
 
+        {/* Active Holds */}
+        <div className="rounded-lg border bg-card p-5 space-y-2">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Active Holds</p>
+          <p className="text-2xl font-semibold text-foreground tabular-nums">{moneyLabel(summary?.active_holds)}</p>
+          <p className="text-xs text-muted-foreground">Accepted work awaiting settlement</p>
+        </div>
+
         {/* Ledger Total */}
         <div className="rounded-lg border bg-card p-5 space-y-2">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Ledger Total</p>
-          <p className="text-2xl font-semibold text-foreground tabular-nums">{formatCurrency(summary?.total || 0)}</p>
-          <p className="text-xs text-muted-foreground">All recorded Deepr operations</p>
-        </div>
-
-        {/* Queue Progress */}
-        <div className="rounded-lg border bg-card p-5 space-y-2">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Queue Progress</p>
-          <p className="text-2xl font-semibold text-foreground tabular-nums">
-            {summary?.total_jobs ? `${((summary.completed_jobs / summary.total_jobs) * 100).toFixed(0)}%` : 'N/A'}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {summary?.completed_jobs || 0} of {summary?.total_jobs || 0} completed
-          </p>
+          <p className="text-2xl font-semibold text-foreground tabular-nums">{moneyLabel(summary?.settled.total)}</p>
+          <p className="text-xs text-muted-foreground">All settled Deepr operations</p>
         </div>
       </div>
 
       {/* Budget Alert */}
-      {(dailyUtilization > 80 || monthlyUtilization > 80) && (
+      {moneyKnown && !summary.paid_api_frozen && (
+        (dailyUtilization !== null && dailyUtilization > 80) ||
+        (monthlyUtilization !== null && monthlyUtilization > 80)
+      ) && (
         <div className="rounded-lg border border-warning/30 bg-warning/5 p-4 flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-warning shrink-0 mt-0.5" />
           <div>
             <p className="text-sm font-medium text-foreground">Budget Alert</p>
             <div className="text-sm text-muted-foreground mt-0.5">
-              {dailyUtilization > 80 && <p>Daily spending at {dailyUtilization.toFixed(0)}% of limit</p>}
-              {monthlyUtilization > 80 && <p>Monthly spending at {monthlyUtilization.toFixed(0)}% of limit</p>}
+              {dailyUtilization !== null && dailyUtilization > 80 && <p>Daily exposure at {dailyUtilization.toFixed(0)}% of limit</p>}
+              {monthlyUtilization !== null && monthlyUtilization > 80 && <p>Monthly exposure at {monthlyUtilization.toFixed(0)}% of limit</p>}
             </div>
           </div>
         </div>
@@ -272,42 +297,49 @@ export default function CostIntelligence() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">Budget Controls</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">Set spending limits to prevent runaway costs</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Review effective caps and narrow monthly authority</p>
           </div>
           {updateLimitsMutation.isPending && (
             <span className="text-xs text-muted-foreground animate-pulse">Saving...</span>
           )}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-          {[
-            { label: 'Per-job limit', key: 'per_job' as const, value: effectiveLimits?.per_job || BUDGET_DEFAULTS.PER_JOB, max: 25, step: 1 },
-            { label: 'Daily limit', key: 'daily' as const, value: effectiveLimits?.daily || BUDGET_DEFAULTS.DAILY, max: 50, step: 1 },
-            { label: 'Monthly limit', key: 'monthly' as const, value: effectiveLimits?.monthly || BUDGET_DEFAULTS.MONTHLY, max: 200, step: 5 },
-          ].map((control) => (
-            <div key={control.key} className="space-y-2">
-              <div className="flex justify-between items-baseline">
-                <span className="text-xs font-medium text-muted-foreground">{control.label}</span>
-                <span className="text-lg font-semibold text-foreground tabular-nums">{formatCurrency(control.value)}</span>
-              </div>
-              <input
-                type="range"
-                min={1}
-                max={control.max}
-                step={control.step}
-                value={control.value}
-                onChange={(e) => handleSliderChange(control.key, parseFloat(e.target.value))}
-                aria-label={`${control.label}, currently ${formatCurrency(control.value)}`}
-                aria-valuemin={1}
-                aria-valuemax={control.max}
-                aria-valuenow={control.value}
-                className="w-full h-2 bg-secondary rounded-full appearance-none cursor-pointer accent-primary"
-              />
-              <div className="flex justify-between text-[10px] text-muted-foreground/60">
-                <span>$1</span>
-                <span>{formatCurrency(control.max)}</span>
-              </div>
+          <div className="rounded-lg border bg-muted/20 p-3 space-y-1">
+            <p className="text-xs font-medium text-muted-foreground">Effective per-job limit</p>
+            <p className="text-lg font-semibold text-foreground tabular-nums">{limitLabel(limits?.per_job)}</p>
+            <p className="text-[10px] text-muted-foreground">Environment-managed global cap</p>
+          </div>
+          <div className="rounded-lg border bg-muted/20 p-3 space-y-1">
+            <p className="text-xs font-medium text-muted-foreground">Effective daily limit</p>
+            <p className="text-lg font-semibold text-foreground tabular-nums">{limitLabel(limits?.daily)}</p>
+            <p className="text-[10px] text-muted-foreground">Environment-managed global cap</p>
+          </div>
+          <div className="space-y-2">
+            <div className="flex justify-between items-baseline">
+              <span className="text-xs font-medium text-muted-foreground">Canonical monthly limit</span>
+              <span className="text-lg font-semibold text-foreground tabular-nums">
+                {effectiveMonthlyLimit === null ? 'UNKNOWN' : formatCurrency(effectiveMonthlyLimit)}
+              </span>
             </div>
-          ))}
+            <input
+              type="range"
+              min={0}
+              max={Math.max(limits?.monthly ?? 0, 1)}
+              step={0.01}
+              value={effectiveMonthlyLimit ?? 0}
+              onChange={(e) => handleMonthlySliderChange(parseFloat(e.target.value))}
+              aria-label={`Canonical monthly limit, currently ${effectiveMonthlyLimit === null ? 'UNKNOWN' : formatCurrency(effectiveMonthlyLimit)}`}
+              aria-valuemin={0}
+              aria-valuemax={Math.max(limits?.monthly ?? 0, 1)}
+              aria-valuenow={effectiveMonthlyLimit ?? undefined}
+              disabled={!moneyKnown || !limitsKnown || limits.monthly <= 0}
+              className="w-full h-2 bg-secondary rounded-full appearance-none cursor-pointer accent-primary disabled:cursor-not-allowed disabled:opacity-50"
+            />
+            <div className="flex justify-between text-[10px] text-muted-foreground/60">
+              <span>$0 freezes paid APIs</span>
+              <span>{limitsKnown ? formatCurrency(Math.max(limits.monthly, 1)) : 'UNKNOWN'}</span>
+            </div>
+          </div>
         </div>
       </div>
 

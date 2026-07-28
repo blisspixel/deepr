@@ -49,13 +49,49 @@ export interface CostEstimate {
 }
 
 export interface CostSummary {
+  settled: {
+    daily: number
+    weekly: number
+    monthly: number
+    total: number
+  }
+  active_holds: number
+  unresolved_holds: number
+  unresolved_exposure: number
+  exposure: {
+    daily: number
+    weekly: number
+    monthly: number
+  }
+  effective_caps: {
+    per_job: number
+    daily: number
+    weekly: number
+    monthly: number
+  }
+  remaining: {
+    daily: number
+    weekly: number
+    monthly: number
+  }
   daily: number
+  weekly: number
   daily_limit: number
+  weekly_limit: number
   monthly: number
   monthly_limit: number
-  budget_monthly_limit?: number
-  effective_monthly_limit?: number
-  over_budget?: boolean
+  daily_exposure: number
+  weekly_exposure: number
+  monthly_exposure: number
+  budget_monthly_limit: number
+  effective_per_job_limit: number
+  effective_daily_limit: number
+  effective_weekly_limit: number
+  effective_monthly_limit: number
+  paid_api_frozen: boolean
+  freeze_reason: string
+  over_budget: boolean
+  authority_exhausted: boolean
   total: number
   per_job_limit: number
   avg_cost_per_job: number

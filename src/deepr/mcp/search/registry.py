@@ -831,11 +831,9 @@ def create_default_registry() -> ToolRegistry:
         ToolSchema(
             name="deepr_reflect",
             description=(
-                "Self-evaluate a completed research report before relying on or absorbing it. Scores "
-                "the report against its question on grounding, completeness, calibration, and directness, "
-                "and returns a verdict (accept / revise / re_research) with concrete issues and follow-up "
-                "queries. Read-only; one small evaluation call. Use as a quality gate before acting on "
-                "research. Example: deepr_reflect(report_id='<id>', depth=1)"
+                "Currently execution-blocked before report access or provider construction. Paid MCP reflection "
+                "is unavailable until it has explicit per-call consent, an aggregate USD ceiling, durable "
+                "reservation, and canonical settlement. Use scheduled local or safety-eligible plan reflection."
             ),
             input_schema={
                 "type": "object",
@@ -867,8 +865,9 @@ def create_default_registry() -> ToolRegistry:
                 "integrates the survivors as beliefs with the report id as provenance "
                 "(deduped against existing beliefs). MUTATES the expert and runs one small "
                 "extraction call plus only the contradiction or dedup verdicts dynamically "
-                "routed by the report. The budget argument is a hard run ceiling; pass "
-                "dry_run=true to preview without writing. "
+                "routed by the report. The budget argument is a hard run ceiling, not "
+                "permission to spend. Both metered-consent fields are required, including "
+                "for dry_run=true previews because extraction still calls a paid model. "
                 "Example: deepr_expert_absorb(expert_name='AI Strategy Expert', report_id='<id>', dry_run=true)"
             ),
             input_schema={
@@ -891,12 +890,25 @@ def create_default_registry() -> ToolRegistry:
                     },
                     "budget": {
                         "type": "number",
-                        "default": 0.10,
                         "exclusiveMinimum": 0,
                         "description": ("Hard USD ceiling across extraction and dynamically routed semantic verdicts"),
                     },
+                    "allow_metered_api": {
+                        "type": "boolean",
+                        "description": "Must be true to permit paid API dispatch for this call",
+                    },
+                    "confirm_metered_cost": {
+                        "type": "boolean",
+                        "description": "Must be true to confirm the stated per-call USD ceiling",
+                    },
                 },
-                "required": ["expert_name", "report_id"],
+                "required": [
+                    "expert_name",
+                    "report_id",
+                    "budget",
+                    "allow_metered_api",
+                    "confirm_metered_cost",
+                ],
             },
             category="experts",
             cost_tier="low",

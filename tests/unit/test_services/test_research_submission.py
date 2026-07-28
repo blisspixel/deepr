@@ -39,6 +39,7 @@ def _job() -> ResearchJob:
         model=_MODEL,
         status=JobStatus.QUEUED,
         metadata={
+            "cost_reservation_authority_version": "provider-account-bound-v1",
             "cost_reservation_id": "reservation-1",
             "cost_reservation_estimated_usd": 0.6,
             "cost_reservation_provider": "openai",

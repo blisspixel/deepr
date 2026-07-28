@@ -11,6 +11,7 @@ making actual API calls or incurring costs.
 """
 
 import os
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -78,7 +79,8 @@ def _isolate_cost_data(tmp_path, monkeypatch):
     fake spend (caught during live validation). DEEPR_COST_DATA_DIR is
     honored by both components; point it at a per-test tmp dir.
     """
-    monkeypatch.setenv("DEEPR_COST_DATA_DIR", str(tmp_path / "costs"))
+    cost_root = tmp_path.parent / f"{tmp_path.name}-costs"
+    monkeypatch.setenv("DEEPR_COST_DATA_DIR", str(cost_root))
 
 
 @pytest.fixture(autouse=True)
@@ -121,9 +123,118 @@ def _isolate_budget_env(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def _isolate_operator_budget(tmp_path, monkeypatch):
+def _isolate_operator_budget(tmp_path, monkeypatch, _isolate_cost_data):
     """Give tests explicit paid authority without reading the user's budget."""
+    import hashlib
     import json
+
+    from deepr.observability.cost_ledger import CostLedger
+    from deepr.observability.provider_account_controls import PaidApiAccountEvidence, ProviderAccountEvidenceStore
+    from deepr.observability.provider_billing import (
+        BillingEvidenceStore,
+        LoadedBillingImport,
+        ProviderBillingImport,
+        locked_ledger_snapshot,
+        reconcile_billing,
+    )
+
+    observed_at = datetime.now(UTC)
+    freeze_id = "unit_test_bootstrap_freeze"
+    evidence_ids = []
+    store = ProviderAccountEvidenceStore()
+    ledger_snapshot = locked_ledger_snapshot(CostLedger())
+    for provider in (
+        "openai",
+        "anthropic",
+        "xai",
+        "gemini",
+        "google",
+        "azure",
+        "azure_openai",
+        "skill",
+        "pending",
+    ):
+        document = ProviderBillingImport.model_validate(
+            {
+                "schema_version": "deepr-provider-billing-import-v1",
+                "kind": "deepr.costs.provider_billing_import",
+                "provider": provider,
+                "billing_scope": {
+                    "scope_ref": f"test-{provider}-scope",
+                    "account_id": f"test-{provider}-account",
+                },
+                "statement": {
+                    "statement_id": f"test-{provider}-statement",
+                    "status": "final",
+                    "complete": True,
+                    "period_start": (observed_at - timedelta(days=365)).isoformat(),
+                    "period_end": (observed_at + timedelta(hours=1)).isoformat(),
+                    "currency": "USD",
+                    "source_posture": "provider_api",
+                    "net_total_usd": "0",
+                },
+                "lines": [
+                    {
+                        "line_id": f"test-{provider}-zero-line",
+                        "category": "metered_api",
+                        "capacity_class": "api_metered",
+                        "usage_start": observed_at.isoformat(),
+                        "usage_end": observed_at.isoformat(),
+                        "charge_usd": "0",
+                        "credit_usd": "0",
+                        "adjustment_usd": "0",
+                        "tax_usd": "0",
+                        "net_usd": "0",
+                    }
+                ],
+            }
+        )
+        normalized_payload = json.dumps(
+            document.model_dump(mode="json"),
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            allow_nan=False,
+        ).encode()
+        source_sha256 = hashlib.sha256(normalized_payload).hexdigest()
+        loaded = LoadedBillingImport(
+            document=document,
+            source_sha256=source_sha256,
+            normalized_sha256=source_sha256,
+            normalized_bytes=normalized_payload,
+        )
+        report = reconcile_billing(loaded, ledger_snapshot)
+        BillingEvidenceStore(store.root).store(loaded, report)
+        report_payload = json.dumps(
+            report.model_dump(mode="json"),
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            allow_nan=False,
+        ).encode()
+        reconciliation_sha256 = hashlib.sha256(report_payload).hexdigest()
+        evidence_id, _path = store.store(
+            PaidApiAccountEvidence(
+                schema_version="deepr-paid-api-account-evidence-v1",
+                kind="deepr.costs.paid_api_account_evidence",
+                provider=provider,
+                account_id=f"test-{provider}-account",
+                scope_ref=f"test-{provider}-scope",
+                credential_fingerprint="sha256:" + "3" * 64,
+                freeze_id=freeze_id,
+                freeze_frozen_at=observed_at.isoformat(),
+                observed_at=observed_at.isoformat(),
+                valid_until=(observed_at + timedelta(hours=12)).isoformat(),
+                source_posture="provider_api",
+                source_evidence_sha256=source_sha256,
+                billing_reconciliation_sha256=reconciliation_sha256,
+                control_mode="hard_monthly_limit",
+                currency="USD",
+                overage_enabled=False,
+                hard_monthly_limit_usd="500.00",
+            )
+        )
+        evidence_ids.append(evidence_id)
 
     # Keep the injected control file outside a test's caller-supplied input
     # root. Folder-ingestion tests must see only the files they created.
@@ -133,6 +244,13 @@ def _isolate_operator_budget(tmp_path, monkeypatch):
             {
                 "monthly_limit": 200.0,
                 "paid_api_frozen": False,
+                "paid_api_authorization": {
+                    "authority": "verified_by_deepr",
+                    "evidence_ids": evidence_ids,
+                    "valid_until": (observed_at + timedelta(hours=12)).isoformat(),
+                    "recovered_freeze_id": freeze_id,
+                    "recovered_frozen_at": observed_at.isoformat(),
+                },
                 "current_month": "2026-07",
                 "monthly_spending": 0.0,
                 "history": [],
@@ -141,6 +259,39 @@ def _isolate_operator_budget(tmp_path, monkeypatch):
         encoding="utf-8",
     )
     monkeypatch.setenv("DEEPR_BUDGET_FILE", str(budget_path))
+
+
+@pytest.fixture(autouse=True)
+def _bind_default_paid_test_provider(_isolate_operator_budget, monkeypatch):
+    """Give generic cap tests an explicit provider context without production fallback."""
+    from deepr.core.cost_caps import paid_api_provider_scope
+    from deepr.observability import provider_account_controls
+    from deepr.observability.provider_account_controls import ProviderAccountBinding
+
+    def trust_test_evidence(evidence):
+        del evidence
+
+    def resolve_test_binding(provider):
+        return ProviderAccountBinding(
+            provider=provider,
+            account_id=f"test-{provider}-account",
+            scope_ref=f"test-{provider}-scope",
+            credential_fingerprint="sha256:" + "3" * 64,
+        )
+
+    monkeypatch.setattr(
+        provider_account_controls,
+        "_verify_authenticated_account_evidence_source",
+        trust_test_evidence,
+    )
+    monkeypatch.setattr(
+        provider_account_controls,
+        "_resolve_current_provider_account_binding",
+        resolve_test_binding,
+    )
+
+    with paid_api_provider_scope("openai"):
+        yield
 
 
 @pytest.fixture(autouse=True)

@@ -4,10 +4,8 @@ from __future__ import annotations
 
 from deepr.core.cost_caps import resolve_spend_caps
 from deepr.core.costs import CostEstimate
-from deepr.experts.cost_safety import CostSafetyManager
 from deepr.experts.research_cost_gate import ResearchCostReservation, reserve_research_cost
 from deepr.experts.research_reservation_store import ResearchReservationStore
-from deepr.observability.cost_ledger import CostLedger
 from deepr.providers.base import ResearchRequest, ToolConfig
 from deepr.services.research_bounds import bounded_research_cost_estimate
 
@@ -52,19 +50,21 @@ def build_api_cost_summary(
     completed_jobs: int,
 ) -> dict[str, float | int | str]:
     """Build a REST cost summary from canonical spend and reservation state."""
-    spending = CostSafetyManager().get_spending_summary()
-    active_reserved = ResearchReservationStore().active_cost()
-    monthly = spending["monthly"]
+    exposure = ResearchReservationStore().exposure_snapshot()
+    limits = resolve_spend_caps()
     return {
-        "daily": spending["daily"]["spent"],
-        "weekly": spending["weekly"]["spent"],
-        "monthly": monthly["spent"],
-        "total": CostLedger().get_total_cost(),
-        "daily_limit": spending["daily"]["limit"],
-        "weekly_limit": spending["weekly"]["limit"],
-        "monthly_limit": monthly["limit"],
-        "active_reserved": active_reserved,
-        "monthly_headroom": max(0.0, monthly["limit"] - monthly["spent"] - active_reserved),
+        "daily": exposure.daily_settled_cost,
+        "weekly": exposure.weekly_settled_cost,
+        "monthly": exposure.monthly_settled_cost,
+        "total": exposure.total_settled_cost,
+        "daily_limit": limits["daily"],
+        "weekly_limit": limits["weekly"],
+        "monthly_limit": limits["monthly"],
+        "active_reserved": exposure.active_cost,
+        "monthly_headroom": max(
+            0.0,
+            limits["monthly"] - exposure.monthly_settled_cost - exposure.active_cost,
+        ),
         "queue_reported_cost": queue_reported_cost,
         "total_jobs": total_jobs,
         "completed_jobs": completed_jobs,

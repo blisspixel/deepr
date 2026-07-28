@@ -153,6 +153,9 @@ class TestSettings:
         with patch.dict(os.environ, {}, clear=True):
             settings = Settings.load(reset_singleton=True)
         assert settings.storage.local_path == "data/reports"
+        assert settings.budget.max_cost_per_job == 0.0
+        assert settings.budget.daily_limit == 0.0
+        assert settings.budget.monthly_limit == 0.0
 
     def test_load_with_reset(self):
         """Test load() with reset creates new instance."""

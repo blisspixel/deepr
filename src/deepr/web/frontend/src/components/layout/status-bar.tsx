@@ -24,7 +24,7 @@ export default function StatusBar() {
     refetchInterval: 15000,
   })
 
-  const { data: costSummary, isSuccess: costOk } = useQuery({
+  const { data: costSummary, isSuccess: costOk, isError: costError } = useQuery({
     queryKey: ['cost', 'summary'],
     queryFn: () => costApi.getSummary(),
     refetchInterval: 60000,
@@ -35,10 +35,11 @@ export default function StatusBar() {
   const isOnline = wsConnected || jobsOk || costOk
 
   const activeJobs = (jobStats?.queued ?? 0) + (jobStats?.processing ?? 0)
-  const todaySpend = costSummary?.daily ?? 0
-  const monthSpend = costSummary?.monthly ?? 0
-  const monthLimit = costSummary?.effective_monthly_limit ?? 0
-  const overBudget = costSummary?.over_budget ?? false
+  const moneyKnown = costOk && !costError && costSummary !== undefined
+  const overBudget = moneyKnown && costSummary.over_budget
+  const paidApiFrozen = moneyKnown && costSummary.paid_api_frozen
+  const paidApiBlocked = !moneyKnown || paidApiFrozen
+  const unresolvedHolds = moneyKnown ? costSummary.unresolved_holds : 0
   const connectionLabel = wsConnected
     ? 'Live updates connected'
     : isOnline && wsStatus === 'reconnecting'
@@ -67,7 +68,7 @@ export default function StatusBar() {
 
         <div className="hidden items-center gap-1.5 sm:flex">
           <DollarSign className="h-3 w-3" />
-          <span>Today: {formatCurrency(todaySpend)}</span>
+          <span>Today: {moneyKnown ? formatCurrency(costSummary.exposure.daily) : 'UNKNOWN'}</span>
         </div>
 
         {/* Month spend vs the governing budget, always visible: the exact
@@ -76,14 +77,28 @@ export default function StatusBar() {
         <div
           className={cn(
             'flex items-center gap-1.5 whitespace-nowrap',
-            overBudget && 'font-semibold text-destructive'
+            overBudget && 'font-semibold text-destructive',
+            (paidApiBlocked || unresolvedHolds > 0) && !overBudget && 'font-semibold text-warning'
           )}
-          title={overBudget ? 'Monthly budget exceeded - metered dispatch should be blocked' : undefined}
+          title={
+            !moneyKnown
+              ? 'Canonical money state is unavailable; paid API dispatch must remain blocked'
+              : overBudget
+              ? 'Monthly exposure exceeds the effective ceiling'
+              : paidApiFrozen
+                ? costSummary.freeze_reason || 'Paid API dispatch is frozen'
+                : `Includes ${formatCurrency(costSummary.active_holds)} in active holds`
+          }
         >
-          {overBudget && <AlertTriangle className="h-3 w-3" />}
+          {(overBudget || paidApiBlocked || unresolvedHolds > 0) && <AlertTriangle className="h-3 w-3" />}
           <span>
-            Month: {formatCurrency(monthSpend)}
-            {monthLimit > 0 && ` / ${formatCurrency(monthLimit)}`}
+            Month exposure:{' '}
+            {moneyKnown
+              ? `${formatCurrency(costSummary.exposure.monthly)} / ${formatCurrency(costSummary.effective_monthly_limit)}`
+              : 'UNKNOWN / UNKNOWN'}
+            {!moneyKnown && ' PAID API BLOCKED'}
+            {paidApiFrozen && ' PAID API FROZEN'}
+            {unresolvedHolds > 0 && ` ${unresolvedHolds} UNRESOLVED HOLD${unresolvedHolds === 1 ? '' : 'S'}`}
             {overBudget && ' OVER BUDGET'}
           </span>
         </div>
