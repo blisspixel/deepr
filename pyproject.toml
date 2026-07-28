@@ -100,8 +100,8 @@ scrape = [
 
 # AWS worker runtime. Exact pins make the deployment lock authoritative.
 aws = [
-    "awscli==1.45.57",
-    "boto3==1.43.57",
+    "awscli==1.45.58",
+    "boto3==1.43.58",
 ]
 
 # Full install with all features
