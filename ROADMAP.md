@@ -343,6 +343,8 @@ share settled, held, unresolved, cap, headroom, and freeze truth. Keyword search
 is local by default; metered semantic indexing requires an explicit aggregate
 ceiling and confirmation. Legacy queued work without the versioned provider-
 bound reservation contract cannot cross the provider boundary.
+The final dependency audit also advances AWS CLI to 1.45.58 and Boto3 to
+1.43.58 without changing runtime or paid-capacity behavior.
 
 **v2.38.4 additions:** the frontend development lock now uses Globals 17.8.0,
 and the Python lock uses Hypothesis 6.161.8 plus transitive tqdm 4.70.0, the

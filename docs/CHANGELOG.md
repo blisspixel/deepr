@@ -53,7 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refreshed the frozen dependency graph to OpenAI 2.49.0, Anthropic 0.120.2,
   Azure AI Projects 2.4.0, Hypothesis 6.163.0, Framer Motion 12.43.0, and
   PostCSS 8.5.24 after the final 2026-07-28 registry and clean-install audit,
-  plus compatible transitive Wrapt 2.3.0. The
+  plus AWS CLI 1.45.58, Boto3 1.43.58, and compatible transitive Wrapt 2.3.0. The
   frontend remains on TypeScript 6.0.3 because the latest TypeScript ESLint
   8.65.0 peer contract excludes TypeScript 7. Newer Pydantic Core, Docutils,
   RSA, and Readme Renderer releases remain resolver-incompatible with exact or
