@@ -34,7 +34,7 @@ capable), `medium`/`high` (metered, confirm budget first).
 - Read-only single-expert query -> `deepr_query_expert` with
   `backend="local"` or `backend="plan"`. These modes compile stored expert
   context into one no-tool turn and never fall through to a metered API. In
-  v2.36, `backend="api"` fails closed before provider dispatch with
+  v2.39, `backend="api"` fails closed before provider dispatch with
   `metered_expert_chat_accounting_unavailable`.
 - Multi-turn follow-ups against frozen expert state ->
   `deepr_start_expert_conversation` then `deepr_continue_expert_conversation`
@@ -48,7 +48,7 @@ capable), `medium`/`high` (metered, confirm budget first).
   qualifiers -> `deepr_temporal_edges`. All `$0`, read-only, versioned.
 - A deep autonomous investigation -> decompose it with the user into separately
   approved bounded jobs. `deepr_agentic_research` is visible for compatibility
-  but execution-blocked in v2.36 before provider work.
+  but execution-blocked in v2.39 before provider work.
 
 **Spend $0 by default.** For cross-expert consults, pass
 `synthesis_backend: "local"` (Ollama) or `"plan"` with `plan: "codex"` (also
@@ -58,15 +58,20 @@ context" rather than a surprise charge. Local and plan consults allow a zero
 budget. API-backed consults require a positive budget. `deepr_query_expert` is
 available at `$0` through explicit local or plan read-only capacity. Its API
 backend and every other standalone metered `ExpertChatSession` path are gated
-in v2.36 pending durable per-call reserve, dispatch-mark, and settlement,
+in v2.39 pending durable per-call reserve, dispatch-mark, and settlement,
 hard output ceilings, parent-budget accounting for auxiliary calls, and
-per-session turn serialization. API council synthesis is separate and remains
-available with explicit approval.
+per-session turn serialization. API council synthesis exposes preview and
+contract inputs, but production metered dispatch also fails closed until Deepr
+can prove current provider-account controls and credential identity.
 
-Query and consult are one-shot today. They do not return a durable conversation
-handle, and repeating a call does not continue model history. Durable
-start/continue/inspect/close tools are planned behind a protocol-neutral store,
-local-only evaluator, and authenticated LAN validation. See
+`deepr_query_expert` and `deepr_consult_experts` are one-shot. Repeating either
+call does not continue model history. For bounded follow-ups against the same
+frozen expert snapshot, use the shipped local-only
+`deepr_start_expert_conversation`, `deepr_continue_expert_conversation`,
+`deepr_get_expert_conversation`, and `deepr_close_expert_conversation` tools.
+They cost `$0`, cannot fall through to a metered provider, and do not write back
+to expert memory. Pass the opaque `conversation_id`, `expected_version`, and a
+unique `idempotency_key` on each continuation. See
 [remote-expert-conversations.md](../docs/design/remote-expert-conversations.md).
 
 **Errors are structured, not prose.** A failed call returns
@@ -132,7 +137,7 @@ Copy `mcp/openclaw-config.json` to your OpenClaw MCP configuration:
 
 The `autoAllow` list includes read-only tools that do not incur costs.
 `deepr_research` requires approval for one exact bounded request.
-`deepr_agentic_research` is execution-blocked in v2.36 and should not be added
+`deepr_agentic_research` is execution-blocked in v2.39 and should not be added
 to an approval list. `deepr_query_expert` is no-metered only when the caller
 explicitly selects local or plan capacity; its API backend is gated. For
 no-cost expert synthesis, use `deepr_consult_experts` with
@@ -227,15 +232,19 @@ Add to `~/.config/zed/settings.json` under `"language_models"` -> `"mcp"`:
 | `deepr_check_status` | Check job progress | Free |
 | `deepr_get_result` | Get completed report | Free |
 | `deepr_cancel_job` | Cancel running job | Free |
-| `deepr_agentic_research` | Compatibility adapter; fails closed before provider work in v2.36 | Blocked |
+| `deepr_agentic_research` | Compatibility adapter; fails closed before provider work in v2.39 | Blocked |
 
 ### Expert Tools
 
 | Tool | Purpose | Cost |
 |------|---------|------|
 | `deepr_list_experts` | List domain experts | Free |
-| `deepr_query_expert` | Read-only single-expert query through explicit local or plan capacity; API backend gated in v2.36 | Free |
+| `deepr_query_expert` | Read-only single-expert query through explicit local or plan capacity; API backend gated in v2.39 | Free |
 | `deepr_consult_experts` | Consult one or more experts and synthesize a versioned `deepr-consult-v1` artifact; supports `synthesis_backend=local|plan` to avoid live metered fallback | Free to low |
+| `deepr_start_expert_conversation` | Start a local-only conversation against a frozen expert snapshot | Free |
+| `deepr_continue_expert_conversation` | Continue a local-only conversation with optimistic version and idempotency checks | Free |
+| `deepr_get_expert_conversation` | Inspect durable conversation state | Free |
+| `deepr_close_expert_conversation` | Close a durable expert conversation | Free |
 | `deepr_get_expert_info` | Expert details and stats | Free |
 | `deepr_expert_manifest` | Expert manifest (policy + knowledge snapshot) | Free |
 | `deepr_expert_validate` | Validate a claim against expert knowledge (guardrail mode) | Low |
@@ -246,7 +255,7 @@ Add to `~/.config/zed/settings.json` under `"language_models"` -> `"mcp"`:
 | `deepr_expert_handoff` | Versioned read-only expert handoff payload for downstream agents | Free |
 | `deepr_route_gaps` | Route an expert's gaps to the best fill instrument (recon/distillr/primr/research) | Free |
 | `deepr_expert_absorb` | Promote a research report into expert beliefs, verification-gated (mutating) | Low |
-| `deepr_reflect` | Metered evaluation is gated in v2.36; use scheduled CLI reflection on local or plan capacity | Gated |
+| `deepr_reflect` | Metered evaluation is gated in v2.39; use scheduled CLI reflection on local or plan capacity | Gated |
 | `deepr_what_changed` | Perspective delta since a timestamp (added/revised/contested/archived) | Free |
 | `deepr_contested` | Open contradiction pairs with both sides' claims and provenance | Free |
 | `deepr_explain_belief` | Why the expert believes something (evidence, history, support chains) | Free |

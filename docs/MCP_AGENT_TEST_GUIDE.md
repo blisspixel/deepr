@@ -162,6 +162,34 @@ Use the operator's actual portable data root when different. Do not add
 `OPENAI_API_KEY`, `XAI_API_KEY`, `GEMINI_API_KEY`, or
 `AZURE_OPENAI_API_KEY` for a no-cost test.
 
+### Process and background model
+
+Deepr does not ship a tray application or an always-on desktop daemon. With
+stdio, the MCP host starts Deepr as a child process and owns its lifetime. This
+is the simplest local setup and requires no separately managed background
+service.
+
+`deepr_consult_experts` and the durable conversation tools wait for local model
+generation and return the result in the same MCP call. They are cancellable and
+record durable lifecycle evidence, but they are not detached queue jobs. Keep
+the host's tool timeout above the consult's `max_elapsed_seconds` ceiling.
+
+`deepr_research` uses the separate job interface: submit the bounded job, retain
+its `job_id`, poll with `deepr_check_status`, fetch it with `deepr_get_result`,
+or stop it with `deepr_cancel_job`. Production metered dispatch currently fails
+closed at the provider-account authority gate, so this is not a local-expert
+consult replacement.
+
+For a shared endpoint, run the HTTP server as a foreground process:
+
+```powershell
+deepr mcp serve --http --host 127.0.0.1 --port 8765
+```
+
+Use the operating system, a container, or another service manager if that HTTP
+process must survive a terminal session. Keep it on loopback unless scoped
+authentication and the remote-host controls in this guide are configured.
+
 ## Minimal Agent Test Script
 
 Ask the agent to do this:
