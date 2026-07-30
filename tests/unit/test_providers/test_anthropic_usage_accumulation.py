@@ -16,6 +16,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from tests.unit.test_providers._provider_authority import submit_adapter
+
 ANTHROPIC_AVAILABLE = True
 try:
     from deepr.providers.anthropic_provider import ANTHROPIC_AVAILABLE  # type: ignore
@@ -57,7 +59,7 @@ class TestAnthropicUsageAccumulation:
 
         req = ResearchRequest(prompt="What is the answer?", model="claude-opus-4-5", system_message="sys")
 
-        job_id = await provider.submit_research(req)
+        job_id = await submit_adapter(provider, req)
 
         # Job is stored
         assert job_id in provider._jobs
@@ -93,7 +95,7 @@ class TestAnthropicUsageAccumulation:
 
         req = ResearchRequest(prompt="Use cache", model="claude-opus-4-5", system_message="sys")
 
-        job_id = await provider.submit_research(req)
+        job_id = await submit_adapter(provider, req)
         stored = provider._jobs[job_id]
 
         assert stored.usage is not None
@@ -124,7 +126,7 @@ class TestAnthropicUsageAccumulation:
         provider.client.messages = MagicMock()
         provider.client.messages.create = blocking_create
         task = asyncio.create_task(
-            provider.submit_research(ResearchRequest(prompt="question", model="claude-opus-4-5", system_message=""))
+            submit_adapter(provider, ResearchRequest(prompt="question", model="claude-opus-4-5", system_message=""))
         )
         assert await asyncio.to_thread(entered.wait, 0.5)
         released.set()

@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
-import ipaddress
 import math
 import os
 from collections.abc import AsyncIterator, Awaitable, Callable
 from types import SimpleNamespace
 from typing import Any
-from urllib.parse import urlsplit
 
-from deepr.backends.capacity import _OLLAMA_DEFAULT_URL
+from deepr.backends.capacity import (
+    _OLLAMA_DEFAULT_URL,
+    select_materialized_local_ollama_model,
+    validate_owned_local_ollama_cloud_status,
+    validate_owned_local_ollama_url,
+)
 from deepr.experts.chat_backends import (
     ExpertChatRequest,
     ExpertChatResult,
@@ -19,42 +22,39 @@ from deepr.experts.chat_backends import (
 )
 
 PostJson = Callable[[str, dict[str, Any], float], Awaitable[dict[str, Any]]]
+GetJson = Callable[[str, float], Awaitable[dict[str, Any]]]
 
 
-def validate_owned_local_ollama_url(value: str) -> str:
-    """Return a canonical loopback-only Ollama endpoint."""
-    raw = value.strip()
-    if not raw:
-        raise ValueError("Ollama URL cannot be empty")
-    candidate = raw if "://" in raw else f"http://{raw}"
-    parsed = urlsplit(candidate)
-    if parsed.scheme not in {"http", "https"}:
-        raise ValueError("Owned local Ollama capacity requires an http or https URL")
-    if parsed.username is not None or parsed.password is not None:
-        raise ValueError("Owned local Ollama URL cannot contain credentials")
-    if parsed.query or parsed.fragment or parsed.path not in {"", "/"}:
-        raise ValueError("Owned local Ollama URL cannot contain a path, query, or fragment")
-    host = (parsed.hostname or "").lower()
-    if host == "localhost":
-        host = "127.0.0.1"
-    try:
-        address = ipaddress.ip_address(host)
-    except ValueError as exc:
-        raise ValueError("Owned local Ollama capacity requires a literal loopback host") from exc
-    if not address.is_loopback:
-        raise ValueError("Owned local Ollama capacity requires a loopback host")
-    try:
-        port = parsed.port
-    except ValueError as exc:
-        raise ValueError("Owned local Ollama URL has an invalid port") from exc
-    rendered_host = f"[{address.compressed}]" if address.version == 6 else address.compressed
-    return f"{parsed.scheme}://{rendered_host}{f':{port}' if port is not None else ''}"
+async def _get_json(url: str, timeout: float) -> dict[str, Any]:
+    import httpx
+
+    async with httpx.AsyncClient(
+        timeout=timeout,
+        trust_env=False,
+        follow_redirects=False,
+        headers={"Accept": "application/json", "User-Agent": "deepr-local-investigation/1"},
+    ) as client:
+        response = await client.get(url)
+        response.raise_for_status()
+    data = response.json()
+    if not isinstance(data, dict):
+        raise RuntimeError("Ollama returned a non-object preflight response")
+    return data
 
 
 async def _post_json(url: str, payload: dict[str, Any], timeout: float) -> dict[str, Any]:
     import httpx
 
-    async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
+    async with httpx.AsyncClient(
+        timeout=timeout,
+        trust_env=False,
+        follow_redirects=False,
+        headers={
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "User-Agent": "deepr-local-investigation/1",
+        },
+    ) as client:
         response = await client.post(url, json=payload)
         response.raise_for_status()
     data = response.json()
@@ -79,6 +79,7 @@ class NativeOllamaInvestigationBackend:
         base_url: str | None = None,
         timeout: float | None = None,
         keep_alive: str = "30m",
+        get_json: GetJson | None = None,
         post_json: PostJson | None = None,
     ) -> None:
         self.model: str | None = model
@@ -87,7 +88,26 @@ class NativeOllamaInvestigationBackend:
         if not math.isfinite(self.timeout) or self.timeout <= 0.0:
             raise ValueError("Ollama timeout must be a finite positive number")
         self.keep_alive = keep_alive
+        self._get_json = get_json or _get_json
         self._post_json = post_json or _post_json
+
+    async def _attest_model(self, model: str) -> None:
+        preflight_timeout = min(self.timeout, 5.0)
+        status = await self._get_json(f"{self.base_url}/api/status", preflight_timeout)
+        try:
+            validate_owned_local_ollama_cloud_status(status)
+        except ValueError as exc:
+            raise ExpertChatUnsupportedFeature(str(exc)) from exc
+        inventory = await self._get_json(f"{self.base_url}/api/tags", preflight_timeout)
+        entries = inventory.get("models")
+        if not isinstance(entries, list):
+            raise ExpertChatUnsupportedFeature("Owned local Ollama model inventory is malformed")
+        try:
+            selected = select_materialized_local_ollama_model(entries, requested=model)
+        except ValueError as exc:
+            raise ExpertChatUnsupportedFeature(str(exc)) from exc
+        if selected.get("name") != model:
+            raise ExpertChatUnsupportedFeature("Owned local Ollama model attestation did not bind the request")
 
     async def complete(self, request: ExpertChatRequest) -> ExpertChatResult:
         if request.tools:
@@ -126,6 +146,7 @@ class NativeOllamaInvestigationBackend:
         }
         if isinstance(response_format, dict) and response_format.get("type") == "json_object":
             payload["format"] = "json"
+        await self._attest_model(model)
         data = await self._post_json(f"{self.base_url}/api/chat", payload, self.timeout)
         if data.get("error"):
             raise RuntimeError(f"Ollama chat failed: {data['error']}")
@@ -149,4 +170,4 @@ class NativeOllamaInvestigationBackend:
         raise ExpertChatUnsupportedFeature("native Ollama investigation backend does not support streaming")
 
 
-__all__ = ["NativeOllamaInvestigationBackend", "PostJson", "validate_owned_local_ollama_url"]
+__all__ = ["GetJson", "NativeOllamaInvestigationBackend", "PostJson", "validate_owned_local_ollama_url"]

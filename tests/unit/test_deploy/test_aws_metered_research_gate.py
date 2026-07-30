@@ -147,8 +147,10 @@ def test_api_and_worker_publish_the_same_dependency_local_gate(monkeypatch: pyte
 def test_aws_validation_proves_the_gate_without_enqueuing_a_job() -> None:
     script = AWS_VALIDATE.read_text(encoding="utf-8")
 
-    assert BLOCK_CODE in script
-    assert "POST /jobs returns the v2.36 accounting gate" in script
+    assert "BLOCKED: hosted cloud validation is reference-only in v2.40" in script
+    assert "cannot enforce the operator's total dollar ceiling" in script
+    assert "cannot contact AWS, an HTTP endpoint, or a provider" in script
+    assert "exit 2" in script
     assert "JOB_ID=" not in script
     assert "GET /jobs/{id}" not in script
     assert "grok-" not in script
@@ -156,9 +158,12 @@ def test_aws_validation_proves_the_gate_without_enqueuing_a_job() -> None:
 
 def test_deploy_guide_does_not_publish_stale_aws_model_allowlist() -> None:
     guide = DEPLOY_README.read_text(encoding="utf-8")
+    normalized = " ".join(guide.split())
 
-    assert BLOCK_CODE in guide
-    assert "No model identifier is valid for AWS execution in v2.36" in guide
+    assert "They are not a supported cloud deployment surface." in normalized
+    assert "cannot guarantee the repository's `$5` ceiling" in normalized
+    assert "fail closed before authentication or cloud operations" in normalized
+    assert "templates are mechanically inert markers" in normalized
     for stale_model in (
         "gemini-2.0-flash-thinking-exp",
         "gemini-2.5-pro-exp-03-25",

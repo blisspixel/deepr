@@ -1,6 +1,6 @@
 # Three Expert Council And Learning Workflow
 
-Status: works-now guide, verified against the CLI on 2026-07-18. The one-shot
+Status: works-now guide, verified against the CLI on 2026-07-29. The one-shot
 consult is stable. The deeper local investigation surface is experimental and
 has not passed its semantic-quality promotion gate.
 
@@ -15,7 +15,8 @@ different kinds of learning for each expert. Factual claims need replayable
 source evidence and independent verification. Hypotheses, concepts, stances,
 and original ideas remain non-factual perspective state with uncertainty and
 disconfirming tests. The default path uses local Ollama and costs `$0` in Deepr.
-An optional API synthesis is bounded by one explicit transaction ceiling.
+The API synthesis request shape remains visible, but production metered
+dispatch is blocked before provider construction.
 
 ## What Works Now
 
@@ -29,7 +30,7 @@ An optional API synthesis is bounded by one explicit transaction ceiling.
 | Investigation changes beliefs or graph state | Never automatically; `--learning stage` creates separate factual and non-factual perspective envelopes that still require explicit apply |
 | Local synthesis | Works with Ollama at `$0` provider cost |
 | Explicit plan synthesis | Works for eligible plan CLIs with no metered API fallback; external quota or billing cannot be proven by Deepr |
-| API synthesis | Works as one priced, reserved, and settled call |
+| API synthesis | Blocked before provider construction even with consent and a positive budget |
 | Investigation capacity | Local Ollama only, exact `$0`, no fallback; plan-quota and metered API investigation execution are planned, not shipped |
 
 `deepr expert consult` is a one-shot stored-context council. The expert names
@@ -158,8 +159,8 @@ is not requested or retained.
 
 The first release supports only `--capacity local --budget-usd 0`. A nonzero
 budget, plan-quota investigation, or API investigation fails before execution.
-The desired `$10` API form is one total ceiling across every expert, checker,
-synthesizer, retry, and learning call, not `$10` per expert. That form remains
+The desired `$5` API form is one total ceiling across every expert, checker,
+synthesizer, retry, and learning call, not `$5` per expert. That form remains
 gated until every child call shares canonical reservation and settlement.
 
 ### Understand The Result And Learning Labels
@@ -238,34 +239,32 @@ consult, independent research, and the bounded discussion arm.
 For a strict current-shell ceiling on Windows PowerShell:
 
 ```powershell
-$env:DEEPR_MAX_COST_PER_JOB = "10.00"
-$env:DEEPR_MAX_COST_PER_DAY = "10.00"
-$env:DEEPR_MAX_COST_PER_MONTH = "10.00"
+$env:DEEPR_MAX_COST_PER_JOB = "1.00"
+$env:DEEPR_MAX_COST_PER_DAY = "2.00"
+$env:DEEPR_MAX_COST_PER_MONTH = "5.00"
 deepr costs show
 deepr costs doctor
 ```
 
-These environment limits are the authoritative cost-admission caps for the
-currently enabled metered paths. The daily and monthly limits include earlier
-ledger spend in the same periods, so the available amount can be less than
-`$10`. Unsafe legacy metered expert paths remain disabled rather than escaping
-the cap.
+These environment limits are authoritative cost-admission caps. The daily and
+monthly limits include earlier ledger spend in the same periods, so available
+headroom can be less than `$5`. Unsafe metered expert paths remain disabled
+rather than escaping the cap.
 
-A budget is never spend permission. Remote and API request bodies must also
-carry the exact booleans `allow_metered_api=true` and
-`confirm_metered_cost=true`. CLI paid execution requires an interactive
-confirmation, or the command's explicit noninteractive cost-confirmation flag.
-Missing consent, finite pricing, reservation, or ledger settlement fails closed
+A budget is never spend permission. Legacy remote and API request bodies still
+require the exact booleans `allow_metered_api=true` and
+`confirm_metered_cost=true`, but those inputs cannot lift the production
+quarantine. Missing consent, finite pricing, authenticated account controls,
+current credential identity, reservation, or ledger settlement fails closed
 before provider construction.
 
 This is a current-period ceiling, not a lifetime wallet. The daily and monthly
 windows reset. Deepr does not yet ship a reusable parent budget spanning an
-arbitrary list of shell commands. Keep a paid council to one transaction with
-`--budget 10`, or keep the period caps in place for the whole experiment and
-stop before their reset boundary. Local `--budget 0` work remains the safest
-way to prepare experts without consuming that allowance.
+arbitrary list of shell commands. Keep the period caps in place for the whole
+experiment and stop before their reset boundary. Local `--budget 0` work remains
+the safest way to prepare experts without consuming that allowance.
 
-`deepr budget set 10` is a monthly approval policy. It is not a substitute for
+`deepr budget set 5` is a monthly approval policy. It is not a substitute for
 the hard environment caps above. A command-level `--budget` is also a ceiling
 for that one command, not a shared budget across an arbitrary shell script.
 
@@ -275,11 +274,10 @@ quota or credits, and Deepr cannot prove the vendor's final billing treatment.
 An explicit plan selection never bypasses the auth, native-tool, or marginal-
 cost gate.
 
-The current API council meters only final synthesis. It reserves the complete
-requested transaction ceiling, while the synthesis request is limited to 10
-percent of that ceiling. With `--budget 10`, the transaction cannot exceed
-`$10` and the one synthesis call cannot exceed `$1`. Stored expert perspectives
-make no provider calls.
+The API council contract models only final synthesis, a complete transaction
+ceiling, and a 10 percent synthesis sub-ceiling. Production execution is frozen,
+so it currently makes no provider call even when consent and budget inputs are
+present. Stored expert perspectives also make no provider calls.
 
 ## 1. Prepare The Purpose Contracts Without Claiming Review
 
@@ -407,14 +405,16 @@ which credential the CLI will use. `deepr capacity refresh-quota claude --json`
 is a metadata-only `$0` check; `deepr capacity probe-plan claude --json` consumes
 one subscription request only after the same live overage proof.
 
-An optional metered synthesis, still under the global and transaction caps, is:
+The legacy API command shape is not runnable in v2.40. Even with a budget and
+confirmation, it exits before provider construction. Use the local or eligible
+plan command above. To inspect a provider request envelope without spending:
 
 ```powershell
-deepr expert consult "Which cross-domain assumption should we test next?" --expert "Temporal Knowledge Graphs" --expert "Digital Consciousness" --expert "Model Context Protocol" --provider openai --model MODEL_FROM_THE_CURRENT_REGISTRY --budget 10 --output .\three-expert-council-api.json
+deepr research "Which cross-domain assumption should we test next?" --provider openai --model o4-mini-deep-research --budget 1 --preview
 ```
 
-Review the confirmation and exact model pricing before approving. Do not add
-`-y` to a first paid run.
+The preview is write-free. It creates no reservation and makes no provider
+request.
 
 ## 6. Turn Discussion Into Research, Not Facts
 
@@ -484,7 +484,7 @@ select a winner or change a default.
 | `reflect NAME --local` | Invalid. Reflection requires a report id and uses the scheduled capacity path where supported. |
 | `propose-self-model NAME --local --evidence-from-recent-loops` | Invalid. It requires a concrete monitor proposal id. |
 | `eval consult-quality` | Invalid. Use `expert review-consult-quality` or `expert judge-consult-quality`. |
-| Repeated `--budget` flags keep the script under `$10` | False. Each flag scopes one command unless a command explicitly owns a parent run ceiling. |
+| Repeated `--budget` flags keep the script under `$5` | False. Each flag scopes one command unless a command explicitly owns a parent run ceiling. |
 | Absorb prior discussion to close the loop | Unsafe. Discussion is not external evidence. |
 | `export-okf` provides rollback | False. OKF is a regenerated portability view, not canonical history or rollback. |
 | Run the meta-expert on itself for recursion | Not a verified improvement loop. It can amplify synthetic errors without held-out evidence. |
@@ -510,10 +510,11 @@ were applied. The same run found low-relevance general-web sources in one
 expert pack. Safe staging worked; answer and learning quality remain unproven.
 
 Plan-quota investigation remains explicit-only future work. A paid runtime must
-reserve one parent ceiling, meter every dispatch, enforce aggregate token and
-context limits, support replay and resume, and keep all output proposal-only.
-Its requested `$10` must be the maximum for the whole run, not a per-expert or
-per-phase allowance. Explicit bulk apply works now. Automatic learning apply
+   reserve one parent ceiling, meter every dispatch, enforce aggregate token and
+   context limits, support replay and resume, and keep all output proposal-only.
+   Its requested ceiling must be the maximum for the whole run, not a per-expert
+   or per-phase allowance, and active examples must not exceed `$5` monthly.
+   Explicit bulk apply works now. Automatic learning apply
 remains a separate later gate.
 
 This direction matches current evidence:
@@ -569,9 +570,10 @@ This direction matches current evidence:
   reports a systematic novelty mirage and weakens any case for automatic
   novelty certification. Deepr's checker is limited to form, internal
   coherence, and testability; `novelty_verified` remains false.
-- The official [MCP 2026-07-28 release candidate](https://blog.modelcontextprotocol.io/posts/2026-07-28-release-candidate/)
-  moves toward a stateless core and extension-based durable Tasks. As of
-  2026-07-16 it is a release candidate, not the final specification.
+- The final [MCP 2026-07-28 specification](https://modelcontextprotocol.io/specification/2026-07-28)
+  defines a stateless core and an optional Tasks extension for `tools/call`.
+  Deepr does not claim background Tasks support; promotion requires
+  per-request capability negotiation and task authorization binding.
 - Final [SEP-2577](https://modelcontextprotocol.io/seps/2577-deprecate-roots-sampling-and-logging)
   deprecates core sampling, roots, and logging. Deepr should keep the host as
   orchestrator instead of building new expert recursion around server-initiated

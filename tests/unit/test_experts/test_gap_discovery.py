@@ -12,6 +12,16 @@ from deepr.experts.gap_discovery import (
     _cosine_similarity,
 )
 
+
+@pytest.fixture(autouse=True)
+def _trust_injected_unit_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Bypass the production client-attestation freeze in downstream unit tests."""
+    monkeypatch.setattr(
+        "deepr.providers.dispatch_authority.require_official_paid_client",
+        lambda _client, _provider: "test-attested",
+    )
+
+
 # ---------------------------------------------------------------------------
 # _cosine_similarity
 # ---------------------------------------------------------------------------

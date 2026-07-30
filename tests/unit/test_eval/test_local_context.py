@@ -6,6 +6,7 @@ import json
 import re
 from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
 
 from deepr.backends.fresh_context import FreshContext, FreshSource
@@ -19,6 +20,7 @@ from deepr.evals.local_context import (
     run_local_context_eval,
     write_context_report,
 )
+from deepr.experts.semantic_model_gate import _mark_zero_dollar_client
 
 
 class _FakeMessage:
@@ -70,8 +72,10 @@ class _FakeChat:
 
 
 class _FakeClient:
-    def __init__(self, *, invalid_citation: bool = False):
+    def __init__(self, *, invalid_citation: bool = False, zero_dollar_proof: bool = True):
         self.chat = _FakeChat(invalid_citation=invalid_citation)
+        if zero_dollar_proof:
+            _mark_zero_dollar_client(self, capacity_source="local")
 
 
 def _prompt() -> LocalContextPrompt:
@@ -141,6 +145,21 @@ async def test_run_local_context_eval_compares_modes_with_local_judge():
     assert report.results[1].source_count == 1
     assert report.results[1].citation_count == 1
     assert report.to_dict()["cost"] == 0.0
+
+
+async def test_run_local_context_eval_rejects_unsealed_client_before_dispatch():
+    client = _FakeClient(zero_dollar_proof=False)
+
+    with pytest.raises(ValueError, match="zero-dollar capacity proof"):
+        await run_local_context_eval(
+            "local",
+            judge_model="judge",
+            prompts=[_prompt()],
+            client=client,
+            context_builders={"fresh": _fresh_context, "deep": _deep_context},
+        )
+
+    assert client.chat.completions.calls == []
 
 
 async def test_run_local_context_eval_caps_invalid_source_labels():

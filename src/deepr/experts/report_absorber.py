@@ -1,15 +1,13 @@
 """Verification-gated absorption of a research report into expert beliefs.
 
-``ReportAbsorber`` is the output-to-knowledge feedback loop (ROADMAP Phase 4):
-it promotes a completed research report into an expert's permanent beliefs,
-instead of treating the report as a terminal artifact. The compounding-knowledge
-value is real, but so is the failure mode the roadmap names - "the model writes
+``ReportAbsorber`` promotes verified research reports into durable expert beliefs.
+The compounding-knowledge value is real, but so is the failure mode the roadmap
+names - "the model writes
 something slightly wrong, you save it back, and the next answer builds on the
 mistake." So absorption is gated, not blind:
 
 1. Extraction: one LLM call turns the report into atomic, report-grounded
-   candidate claims, each self-rated for how strongly the report supports it.
-   (One call regardless of claim count, so cost stays predictable.)
+   candidate claims, each self-rated for report support.
 2. Confidence gate: candidates below ``min_confidence`` are dropped.
 3. Contradiction gate (router, screen, disconfirmation): the free word-overlap
    heuristic is a high-recall *router*, not a semantic verdict (lexical overlap
@@ -22,9 +20,9 @@ mistake." So absorption is gated, not blind:
    normally - the brittle lexical check no longer mints false contested beliefs.
    A twice-confirmed candidate becomes a
    *flagged contradiction*: stored as a contested belief with contradiction edges
-   both ways (contradiction-as-signal - queryable, feeds
-   ``expert resolve-conflicts``), while the existing belief is guaranteed
-   untouched. The core safety property holds either way: a contradicting claim
+   both ways (contradiction-as-signal - queryable, feeds ``expert
+   resolve-conflicts``), while the existing belief is guaranteed untouched. The
+   core safety property holds either way: a contradicting claim
    never overwrites a belief without adjudication or approval. Pass
    ``flag_contradictions=False`` for the legacy silent drop. Disabling semantic
    verification never restores lexical-only graph writes.
@@ -35,12 +33,12 @@ mistake." So absorption is gated, not blind:
    pointers; those pointers replace the coarse report ref on the belief while
    the durable report id remains on events and edges.
 
-The service is deliberately decoupled from report loading and user approval:
-callers pass the report text in and own confirmation and run-level budgets.
+The service is deliberately decoupled from report loading and user approval: callers
+pass the report text in and own confirmation and run-level budgets.
 The absorber owns the provider-call boundary, however, because extraction and
 the routed contradiction/dedup verdicts must each reserve durable cost and
-settle canonical usage. Passing ``estimated_cost=0.0`` is the explicit local or
-prepaid-plan path and makes those calls directly without metered reservations.
+settle canonical usage. Passing ``estimated_cost=0.0`` selects the local or
+prepaid-plan path only when the client carries Deepr-minted capacity proof.
 """
 
 from __future__ import annotations
@@ -96,6 +94,7 @@ from deepr.experts.report_absorber_contracts import (
     normalize_source_ref_catalog as _normalize_source_ref_catalog,
 )
 from deepr.experts.report_absorber_costs import bounded_metered_completion_kwargs as _bounded_metered_completion_kwargs
+from deepr.experts.semantic_model_gate import require_zero_dollar_client
 from deepr.utils.prompt_security import sanitize_untrusted_content
 
 __all__ = [
@@ -263,7 +262,13 @@ class ReportAbsorber:
             # This endpoint has no supported application idempotency key. Keep
             # one provider POST behind each durable reservation outcome instead
             # of letting SDK retries hide duplicate paid attempts.
-            self._client = AsyncOpenAI(api_key=api_key, max_retries=0)
+            from deepr.providers.dispatch_authority import default_paid_endpoint
+
+            self._client = AsyncOpenAI(
+                api_key=api_key,
+                base_url=default_paid_endpoint("openai"),
+                max_retries=0,
+            )
         return self._client
 
     async def _create_completion(self, operation: str, **kwargs: Any) -> Any:
@@ -276,6 +281,10 @@ class ReportAbsorber:
         """
         if self.estimated_cost <= 0:
             client = self._get_client()
+            try:
+                require_zero_dollar_client(client)
+            except ValueError as exc:
+                raise ReportAbsorberError(str(exc)) from exc
             return await client.chat.completions.create(**kwargs)
 
         from deepr.experts.research_cost_gate import ResearchCostBlocked
@@ -300,6 +309,9 @@ class ReportAbsorber:
             exc.actual_cost = run.settled if run is not None else 0.0
             raise
         client = self._get_client()
+        from deepr.providers.dispatch_authority import require_official_paid_client
+
+        require_official_paid_client(client, "openai")
 
         try:
             response = await execute_reserved_async_call(
@@ -308,6 +320,7 @@ class ReportAbsorber:
                 model=self.model,
                 source=f"expert_absorb.{operation}",
                 call=lambda: client.chat.completions.create(**bounded_kwargs),
+                request_envelope=bounded_kwargs,
                 max_cost_per_job=call_ceiling,
                 on_settled=run.record if run is not None else None,
             )

@@ -283,6 +283,7 @@ def test_xai_search_dispatch_is_blocked_before_network(benchmark_module, monkeyp
 
 
 def test_provider_validation_redacts_and_fails_unexpected_response(benchmark_module, monkeypatch, capsys):
+    monkeypatch.setattr(benchmark_module, "require_metered_expert_mutation", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
         benchmark_module,
         "check_api_keys",
@@ -354,3 +355,25 @@ def test_direct_dry_run_skips_network_discovery(benchmark_module, monkeypatch):
     )
 
     benchmark_module.main()
+
+
+def test_dry_run_validate_conflict_blocks_before_validation(benchmark_module, monkeypatch, capsys):
+    called = False
+
+    def unexpected_validation(*_args, **_kwargs):
+        nonlocal called
+        called = True
+
+    monkeypatch.setattr(benchmark_module, "run_validation", unexpected_validation)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [str(_SCRIPT), "--dry-run", "--validate", "--budget", "0.01"],
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        benchmark_module.main()
+
+    assert exc_info.value.code == 2
+    assert called is False
+    assert "cannot be combined" in capsys.readouterr().out

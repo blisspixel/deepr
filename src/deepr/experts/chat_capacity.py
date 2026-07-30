@@ -2,13 +2,25 @@
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
 METERED_EXPERT_CHAT_EXECUTION_ENABLED = False
+HOSTED_EXPERT_STORAGE_LIFECYCLE_ACCOUNTING_ENABLED = False
 METERED_EXPERT_CHAT_BLOCK_CODE = "metered_expert_chat_accounting_unavailable"
 METERED_EXPERT_CHAT_CONFIRM_CODE = "metered_expert_chat_confirmation_required"
 _METERED_CHAT_ALLOW_ENV = "DEEPR_ALLOW_METERED_EXPERT_CHAT"
+
+
+def validate_expert_chat_release_invariants() -> None:
+    """Prevent a release from enabling chat without a hard provider charge bound."""
+    if METERED_EXPERT_CHAT_EXECUTION_ENABLED:
+        raise RuntimeError(
+            "Metered expert chat cannot be enabled until serialized input, output, tools, cache writes, "
+            "and hosted storage all have provider-enforceable maximum-charge envelopes"
+        )
+
+
+validate_expert_chat_release_invariants()
 
 
 class MeteredExpertChatDisabledError(RuntimeError):
@@ -26,8 +38,8 @@ class MeteredExpertChatDisabledError(RuntimeError):
         super().__init__(
             message
             or (
-                "Metered expert chat is temporarily disabled until every provider call "
-                "shares durable reserve, dispatch-mark, and settlement accounting. "
+                "Metered expert chat is disabled because its serialized input, output, tools, "
+                "cache writes, and hosted storage do not have one provider-enforceable maximum charge. "
                 "Use explicit local or non-metered plan capacity."
             )
         )
@@ -51,14 +63,8 @@ def expert_chat_backend_is_metered(backend: Any) -> bool:
 
 
 def explicit_metered_chat_allowed() -> bool:
-    """Return True only when the operator opted into live metered chat spend.
-
-    Even after ``METERED_EXPERT_CHAT_EXECUTION_ENABLED`` is flipped true, live
-    metered dispatch still requires ``DEEPR_ALLOW_METERED_EXPERT_CHAT=1`` (or
-    true/yes/on). That keeps re-enable behind an explicit operator action.
-    """
-    raw = os.environ.get(_METERED_CHAT_ALLOW_ENV, "").strip().lower()
-    return raw in {"1", "true", "yes", "on"}
+    """Return False because an environment variable cannot waive a hard cost proof."""
+    return False
 
 
 def require_expert_chat_dispatch(
@@ -71,19 +77,7 @@ def require_expert_chat_dispatch(
     uses_metered_capacity = expert_chat_backend_is_metered(backend) if metered is None else metered
     if not uses_metered_capacity:
         return
-    if not METERED_EXPERT_CHAT_EXECUTION_ENABLED:
-        raise MeteredExpertChatDisabledError(operation)
-    if not explicit_metered_chat_allowed():
-        raise MeteredExpertChatDisabledError(
-            operation,
-            code=METERED_EXPERT_CHAT_CONFIRM_CODE,
-            message=(
-                "Metered expert chat execution substrate is present, but live spend "
-                f"requires explicit operator confirmation via {_METERED_CHAT_ALLOW_ENV}=1. "
-                "Use local or non-metered plan capacity, or set that env var under a "
-                "reviewed budget policy."
-            ),
-        )
+    raise MeteredExpertChatDisabledError(operation)
 
 
 def expert_chat_capacity(backend: Any) -> dict[str, Any]:
@@ -97,25 +91,17 @@ def expert_chat_capacity(backend: Any) -> dict[str, Any]:
             "block_code": "",
             "explicit_allow": True,
         }
-    if not METERED_EXPERT_CHAT_EXECUTION_ENABLED:
-        return {
-            "metered": True,
-            "execution_enabled": False,
-            "status": "blocked",
-            "block_code": METERED_EXPERT_CHAT_BLOCK_CODE,
-            "explicit_allow": explicit_metered_chat_allowed(),
-        }
-    allowed = explicit_metered_chat_allowed()
     return {
         "metered": True,
-        "execution_enabled": allowed,
-        "status": "available" if allowed else "blocked",
-        "block_code": "" if allowed else METERED_EXPERT_CHAT_CONFIRM_CODE,
-        "explicit_allow": allowed,
+        "execution_enabled": False,
+        "status": "blocked",
+        "block_code": METERED_EXPERT_CHAT_BLOCK_CODE,
+        "explicit_allow": False,
     }
 
 
 __all__ = [
+    "HOSTED_EXPERT_STORAGE_LIFECYCLE_ACCOUNTING_ENABLED",
     "METERED_EXPERT_CHAT_BLOCK_CODE",
     "METERED_EXPERT_CHAT_CONFIRM_CODE",
     "METERED_EXPERT_CHAT_EXECUTION_ENABLED",
@@ -124,4 +110,5 @@ __all__ = [
     "expert_chat_capacity",
     "explicit_metered_chat_allowed",
     "require_expert_chat_dispatch",
+    "validate_expert_chat_release_invariants",
 ]

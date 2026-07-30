@@ -6,7 +6,7 @@
 
 Transform research from isolated queries into cumulative understanding. Build systems that learn and improve over time.
 
-## Current State (v2.39.0)
+## Current State (v2.40.0)
 
 What works today:
 - Write-free bounded provider-research preview and offline billing
@@ -17,6 +17,9 @@ What works today:
   and portable handoff artifacts.
 - One-shot local, explicit plan, and separately bounded API expert councils with
   dissent preservation and proposal-only authority.
+- An eval-only structured local consult graph with frozen expert snapshots,
+  independent positions, exact completion accounting, and one require-all
+  synthesis. It does not replace the public consult or MCP contracts.
 - Experimental `$0` local expert investigations with independent research,
   bounded blinded discussion, checking, synthesis, and separately staged
   factual and non-factual learning.
@@ -25,7 +28,7 @@ What works today:
 
 Automatic paid fallback, hosted file/vector context, metered multi-call
 campaigns, standalone metered expert chat, and every production metered
-dispatch fail closed in v2.39. [Supported Surface](SUPPORTED_SURFACE.md) is the
+dispatch fail closed in v2.40. [Supported Surface](SUPPORTED_SURFACE.md) is the
 current capability contract; the sections below describe direction and existing
 substrate, not permission to use a gated runtime path.
 

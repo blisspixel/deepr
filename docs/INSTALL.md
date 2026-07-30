@@ -43,7 +43,7 @@ pip install -e .          # core
 
 cp .env.example .env
 deepr doctor --skip-connectivity
-deepr budget set 50
+deepr budget set 5
 deepr --version
 ```
 
@@ -60,7 +60,7 @@ pip install -e .          # core
 
 cp .env.example .env
 deepr doctor --skip-connectivity
-deepr budget set 50
+deepr budget set 5
 deepr --version
 ```
 
@@ -94,8 +94,9 @@ cp .env.example .env
 # Or use any text editor
 ```
 
-Deepr can start with local Ollama, explicit plan-quota CLIs, metered API keys,
-or any mix of those. Add API keys only when you want metered cloud providers:
+Deepr can start with local Ollama, explicit plan-quota CLIs, provider API
+metadata, or any mix of those. Add API keys only for intentional readiness
+checks and write-free previews. They do not enable production metered dispatch:
 
 ```bash
 # Metered cloud capacity. Pick any one to start, or use none for local/plan
@@ -112,8 +113,8 @@ ANTHROPIC_API_KEY=...       # Claude Sonnet 5, Opus 4.8, Fable 5, Haiku 4.5
 # AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
 # AZURE_PROJECT_ENDPOINT=...  # Azure AI Foundry (deep research + Bing)
 
-# Budget limits (recommended):
-DEEPR_MAX_COST_PER_MONTH=50.0
+# Binding monthly ceiling. Keep active examples at $5 or less.
+DEEPR_MAX_COST_PER_MONTH=5.0
 ```
 
 **Optional enhancement:** `deepr doctor` may suggest `pip install -U recon-tool` for native passive DNS recon in experts. This is **not a hard dependency** - it only unlocks extra signals when present.
@@ -129,7 +130,7 @@ DEEPR_MAX_COST_PER_MONTH=50.0
 
 ```bash
 # Set monthly budget (one-time setup)
-deepr budget set 50
+deepr budget set 5
 
 # This blocks work whose estimate exceeds the ceiling
 # A budget ceiling never authorizes spend; preview and confirmation still apply
@@ -141,8 +142,8 @@ deepr budget set 50
 # Free preflight
 deepr research "What is 2+2?" --provider openai --model o4-mini-deep-research --preview
 
-# One bounded live query
-deepr research "What are the latest developments in quantum computing?" --provider openai --model o4-mini-deep-research --budget 2
+# A positive budget still produces no live request while metered dispatch is quarantined
+deepr research "What are the latest developments in quantum computing?" --provider openai --model o4-mini-deep-research --budget 1 --preview
 
 # Bounded xAI text without unpriced server-side tools
 deepr research "Explain transformer architecture" --provider xai -m grok-4.3 --no-web --no-code --preview
@@ -156,7 +157,7 @@ That's it! You're ready to use Deepr.
 
 ```bash
 # Download the wheel for the selected release, then install it locally.
-python -m pip install ./deepr_research-2.39.0-py3-none-any.whl
+python -m pip install ./deepr_research-2.40.0-py3-none-any.whl
 deepr --version
 ```
 
@@ -208,17 +209,17 @@ ANTHROPIC_API_KEY=...               # Anthropic Claude models
 # AZURE_PROJECT_ENDPOINT=...        # Azure AI Foundry (enterprise deep research)
 
 # Cost Controls
-DEEPR_MAX_COST_PER_JOB=10.0         # Max cost per research job
-DEEPR_MAX_COST_PER_DAY=100.0        # Daily spending limit
-DEEPR_MAX_COST_PER_MONTH=1000.0     # Monthly spending limit
+DEEPR_MAX_COST_PER_JOB=1.0          # Max cost per research job
+DEEPR_MAX_COST_PER_DAY=2.0          # Daily spending limit
+DEEPR_MAX_COST_PER_MONTH=5.0        # Binding monthly spending limit
 
 # Features
 DEEPR_AUTO_REFINE=false             # Auto-optimize prompts before submission
 DEEPR_AUTO_EVAL=false               # Explicit opt-in to cost-capped model evals
 SCRAPE_MAX_RESPONSE_BYTES=8388608   # Decompressed HTTP body ceiling per page
 
-# Optional scheduled fleet liveness. The full URL is a secret and must use a
-# public HTTPS Healthchecks-compatible success and /fail endpoint contract.
+# Optional scheduled fleet liveness configuration. Delivery is blocked because
+# Deepr cannot prove the external service's marginal cost before dispatch.
 # DEEPR_HEARTBEAT_URL=https://hc-ping.com/CHECK_ID
 
 # Storage
@@ -227,23 +228,19 @@ DEEPR_REPORTS_PATH=data/reports     # Separate report root
 # DEEPR_QUEUE_DB_PATH=queue/research_queue.db  # Optional explicit queue override
 ```
 
-For an installed host schedule, put `DEEPR_HEARTBEAT_URL` in the scheduled
-account's Deepr `.env`, not in the generated command or recipe. Deepr loads an
-`.env` from the process working directory and the per-user Deepr data directory
-(default `~/.deepr/.env`); the latter is reliable when a scheduler starts in a
-different directory. Keep that file private. Validate endpoint form without a
-request or expert-state write:
+`DEEPR_HEARTBEAT_URL` is configuration-visible for compatibility. If retained,
+put it in the scheduled account's private Deepr `.env`, not in a generated
+command or recipe. Validate endpoint form without a request or expert-state
+write:
 
 ```bash
 deepr expert sync-all --scheduled --dry-run --json
 ```
 
 `configuration_valid: true` means only that the secret URL has safe local form.
-It does not prove DNS, TLS, reachability, or remote acceptance. A real scheduled
-pass publishes `disposition: delivered` only after a 2xx response. Configure the
-remote check period to match the recipe cadence and set grace above host wake
-delay, recipe jitter, and the longest expected maintenance runtime. Deepr sends
-one terminal GET, not a start event, and never retries silently.
+It does not prove DNS, TLS, reachability, remote acceptance, or zero marginal
+cost. Real delivery is blocked as `unmetered_external_service`; no HTTP request
+is attempted and Deepr cannot report `delivered`.
 
 ### Recommended Provider Setup
 
@@ -254,7 +251,7 @@ inventory-only. A local Ollama model or an
 explicit admitted plan-quota CLI can support `$0` marginal-cost expert
 maintenance without provider keys. Provider keys expose metered request
 metadata and offline previews, but production paid dispatch remains blocked in
-v2.39 until authenticated account controls and current credential identity can
+v2.40 until authenticated account controls and current credential identity can
 be proven before each call.
 
 Pick based on your priority:
@@ -266,7 +263,7 @@ Pick based on your priority:
 **Recommended:** start with no provider key for local and plan-quota expert
 workflows. Add a provider key only when you need request previews or are
 developing an authenticated account-control adapter. Deepr previews each
-bounded choice, but v2.39 blocks production metered dispatch and never falls
+bounded choice, but v2.40 blocks production metered dispatch and never falls
 through automatically from one metered provider to another.
 
 **All keys:** model and provider metadata becomes visible for explicit selection.

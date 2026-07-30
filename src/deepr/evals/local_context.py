@@ -27,6 +27,7 @@ from deepr.backends.fresh_context import (
 from deepr.backends.local import ollama_chat_client
 from deepr.config import runtime_data_path
 from deepr.evals.local_compare import parse_judge_verdict
+from deepr.experts.semantic_model_gate import require_zero_dollar_client
 
 METHODOLOGY_VERSION = "1.0"
 PROMPT_SET_LOCAL_FRESHNESS = "local-freshness"
@@ -216,6 +217,7 @@ async def run_local_context_eval(
         raise ValueError("at least one context mode is required")
 
     chat = client if client is not None else ollama_chat_client(base_url)
+    require_zero_dollar_client(chat, capacity_source="local")
     builders = context_builders or _default_context_builders()
     results: list[LocalContextModeResult] = []
     for prompt in prompt_tuple:

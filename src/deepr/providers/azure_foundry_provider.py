@@ -39,6 +39,7 @@ from .base import (
     UsageStats,
     VectorStore,
 )
+from .dispatch_authority import require_official_paid_endpoint, require_unproxied_paid_transport
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +65,8 @@ class AzureFoundryProvider(DeepResearchProvider):
     Authentication is via DefaultAzureCredential (Azure AD, Managed Identity).
     No API key option - use `az login` for local development.
     """
+
+    provider_key = "azure-foundry"
 
     def __init__(
         self,
@@ -91,7 +94,12 @@ class AzureFoundryProvider(DeepResearchProvider):
         endpoint = project_endpoint or os.getenv("AZURE_PROJECT_ENDPOINT")
         if not endpoint:
             raise ValueError("Azure AI Foundry project endpoint is required (set AZURE_PROJECT_ENDPOINT)")
-        self.project_endpoint: str = endpoint
+        self.project_endpoint = require_official_paid_endpoint(
+            self.provider_key,
+            endpoint,
+            source="AzureFoundryProvider.project_endpoint",
+        )
+        self._paid_endpoint = self.project_endpoint
 
         self.deep_research_deployment = (
             deep_research_deployment or os.getenv("AZURE_DEEP_RESEARCH_DEPLOYMENT") or "o3-deep-research"
@@ -143,12 +151,14 @@ class AzureFoundryProvider(DeepResearchProvider):
 
     def _get_credential(self) -> Any:
         """Get Azure credential via DefaultAzureCredential."""
+        require_unproxied_paid_transport()
         from azure.identity import DefaultAzureCredential
 
         return DefaultAzureCredential()
 
     def _get_project_client(self) -> Any:
         """Get or create AIProjectClient (lazy init)."""
+        require_unproxied_paid_transport()
         if self._project_client is None:
             from azure.ai.projects import AIProjectClient
 
@@ -160,6 +170,7 @@ class AzureFoundryProvider(DeepResearchProvider):
 
     def _get_agents_client(self) -> Any:
         """Get or create AgentsClient (lazy init)."""
+        require_unproxied_paid_transport()
         if self._agents_client is None:
             from azure.ai.agents import AgentsClient
 
@@ -266,7 +277,7 @@ class AzureFoundryProvider(DeepResearchProvider):
     # Submit research - dispatches to deep research or regular mode
     # =========================================================================
 
-    async def submit_research(self, request: ResearchRequest) -> str:
+    async def _submit_research_impl(self, request: ResearchRequest) -> str:
         """Submit a research job via Azure AI Foundry.
 
         Routes to the deep research path (Agent + DeepResearchTool + Bing) for
@@ -560,7 +571,7 @@ class AzureFoundryProvider(DeepResearchProvider):
     # Document / vector store operations (not natively supported)
     # =========================================================================
 
-    async def upload_document(self, file_path: str, purpose: str = "assistants") -> str:
+    async def _upload_document_accounted(self, file_path: str, purpose: str = "assistants") -> str:
         """Upload a document. Azure Foundry uses thread-level attachments."""
         raise ProviderError(
             message="Azure Foundry deep research does not support standalone file uploads. "
@@ -568,7 +579,7 @@ class AzureFoundryProvider(DeepResearchProvider):
             provider="azure-foundry",
         )
 
-    async def create_vector_store(self, name: str, file_ids: list[str]) -> VectorStore:
+    async def _create_vector_store_accounted(self, name: str, file_ids: list[str]) -> VectorStore:
         """Create vector store. Not supported by Foundry deep research."""
         raise ProviderError(
             message="Azure Foundry deep research does not support vector stores. "
@@ -647,6 +658,8 @@ class AzureFoundryProvider(DeepResearchProvider):
 
     def close(self) -> None:
         """Clean up all reusable agents."""
+        if self._agents_client and (self._deep_research_agent_id or self._regular_agent_ids):
+            require_unproxied_paid_transport()
         if self._deep_research_agent_id and self._agents_client:
             try:
                 self._agents_client.delete_agent(self._deep_research_agent_id)

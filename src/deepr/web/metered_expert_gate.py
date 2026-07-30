@@ -12,7 +12,7 @@ def metered_expert_mutation_block(operation: str, *, safe_alternative: str) -> t
     error = MeteredExpertMutationDisabledError(operation, safe_alternative=safe_alternative)
     return (
         {
-            "error": str(error),
+            "error": "Metered expert mutation is disabled until durable cost accounting is available",
             "error_code": error.code,
             "status": "blocked",
             "retryable": False,

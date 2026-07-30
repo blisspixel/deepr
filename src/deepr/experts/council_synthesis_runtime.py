@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from typing import Any
 
@@ -11,6 +10,13 @@ from deepr.experts.council_synthesis_costs import (
     anthropic_completion_usage,
     openai_completion_usage,
 )
+from deepr.experts.semantic_model_gate import require_zero_dollar_client
+
+
+class MeteredCouncilSynthesisDisabledError(RuntimeError):
+    """A paid council synthesis was refused before provider dispatch."""
+
+    provider_work_dispatched = False
 
 
 @dataclass(frozen=True)
@@ -119,25 +125,14 @@ async def dispatch_synthesis(
     pre_dispatch_callback: Any,
 ) -> SynthesisProviderResponse:
     """Resolve the provider shape, mark dispatch, and perform one call."""
-    if provider == "anthropic":
-        if client is None:
-            from deepr.experts.consult import AnthropicConsultSynthesisClient
-
-            client = AnthropicConsultSynthesisClient()
-        messages_api = client.messages
-        if cost_bound is None:
-            raise RuntimeError("Anthropic synthesis reached dispatch without a metered cost bound")
-        if pre_dispatch_callback is not None:
-            await pre_dispatch_callback()
-        return await _anthropic_synthesis(
-            messages_api,
-            model=model,
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            output_tokens=output_tokens,
-            cost_bound=cost_bound,
+    owned = provider == "local" or provider.startswith("plan_quota:")
+    if not owned:
+        raise MeteredCouncilSynthesisDisabledError(
+            "Metered council synthesis is disabled until account identity and a provider-enforceable "
+            "maximum charge are bound to the one-use dispatch grant. No provider request was sent."
         )
-    client = client or openai_client_factory(api_key=os.getenv("OPENAI_API_KEY"), max_retries=0)
+    require_zero_dollar_client(client, capacity_source=provider)
+    del openai_client_factory
     completions_api = client.chat.completions
     if pre_dispatch_callback is not None:
         await pre_dispatch_callback()
@@ -152,4 +147,4 @@ async def dispatch_synthesis(
     )
 
 
-__all__ = ["SynthesisProviderResponse", "dispatch_synthesis"]
+__all__ = ["MeteredCouncilSynthesisDisabledError", "SynthesisProviderResponse", "dispatch_synthesis"]

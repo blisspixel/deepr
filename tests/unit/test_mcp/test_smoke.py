@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
+import aiohttp
 import pytest
 
 from deepr.mcp import smoke
@@ -14,101 +16,47 @@ from deepr.mcp.smoke import (
     MCPHttpSmokeStep,
     build_http_registration_manifest,
 )
-from deepr.mcp.transport.http import HttpMessage
-
-
-class _FakeHttpClient:
-    instances: list[_FakeHttpClient] = []
-
-    def __init__(self, base_url: str, timeout: float = 30.0, auth_token: str | None = None):
-        self.base_url = base_url
-        self.timeout = timeout
-        self.auth_token = auth_token
-        self.sent: list[HttpMessage] = []
-        self.connected = False
-        self.disconnected = False
-        _FakeHttpClient.instances.append(self)
-
-    async def connect(self) -> None:
-        self.connected = True
-
-    async def disconnect(self) -> None:
-        self.disconnected = True
-
-    async def send(self, message: HttpMessage) -> HttpMessage | None:
-        self.sent.append(message)
-        if message.method == "initialize":
-            return HttpMessage(
-                id=message.id,
-                result={"serverInfo": {"name": "deepr-research", "version": "test"}},
-            )
-        if message.method == "tools/list":
-            return HttpMessage(id=message.id, result={"tools": [{"name": "deepr_tool_search"}]})
-        if message.method == "tools/call":
-            payload = {"count": 1, "tools": [{"name": "deepr_status"}]}
-            return HttpMessage(
-                id=message.id,
-                result={
-                    "content": [{"type": "text", "text": json.dumps(payload)}],
-                    "isError": False,
-                },
-            )
-        raise AssertionError(f"Unexpected method: {message.method}")
-
-
-async def _healthy_probe(_base_url: str, _auth_token: str | None, _timeout_seconds: float) -> MCPHttpSmokeStep:
-    return MCPHttpSmokeStep("health", True, "healthy", status_code=200)
 
 
 @pytest.mark.asyncio
-async def test_run_http_smoke_passes_core_checks(monkeypatch):
-    _FakeHttpClient.instances = []
-    monkeypatch.setattr(smoke, "HttpClient", _FakeHttpClient)
-    monkeypatch.setattr(smoke, "_probe_health", _healthy_probe)
+@pytest.mark.parametrize("url", ["http://127.0.0.1:8765/mcp/", "https://mcp.example.com/mcp"])
+async def test_run_http_smoke_blocks_before_network(url: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    def fail_client(*args: Any, **kwargs: Any) -> None:
+        del args, kwargs
+        raise AssertionError("network client must not be constructed")
+
+    monkeypatch.setattr(aiohttp, "ClientSession", fail_client)
 
     report = await smoke.run_http_smoke(
-        "http://127.0.0.1:8765/mcp/",
+        url,
         auth_token="secret",
         timeout_seconds=2.0,
     )
+    payload = report.to_dict()
 
-    assert report.ok is True
-    assert report.url == "http://127.0.0.1:8765/mcp"
-    assert [step.name for step in report.steps] == ["health", "initialize", "tools/list", "tools/call"]
-    assert _FakeHttpClient.instances[0].base_url == "http://127.0.0.1:8765/mcp"
-    assert _FakeHttpClient.instances[0].auth_token == "secret"
-    assert _FakeHttpClient.instances[0].disconnected is True
-    assert [message.method for message in _FakeHttpClient.instances[0].sent] == [
-        "initialize",
-        "tools/list",
-        "tools/call",
-    ]
+    assert report.ok is False
+    assert report.steps[0].name == "remote_cost_authority"
+    assert payload["contract"]["network_opened"] is False
+    assert payload["contract"]["remote_tool_call_attempted"] is False
+    assert payload["contract"]["remote_tool_calls_metered_api"] is None
 
 
 @pytest.mark.asyncio
-async def test_run_http_smoke_reports_rpc_error(monkeypatch):
-    class DenyingHttpClient(_FakeHttpClient):
-        async def send(self, message: HttpMessage) -> HttpMessage | None:
-            if message.method == "tools/call":
-                return HttpMessage(
-                    id=message.id,
-                    error={
-                        "code": -32003,
-                        "message": "Denied",
-                        "data": {"error_code": "KEY_SCOPE_DENIED"},
-                    },
-                )
-            return await super().send(message)
+@pytest.mark.parametrize("timeout", [float("nan"), float("inf"), 0.0, -1.0, 301.0])
+async def test_run_http_smoke_rejects_timeout_before_network(timeout: float, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        aiohttp,
+        "ClientSession",
+        lambda *args, **kwargs: pytest.fail("network client must not be constructed"),
+    )
 
-    monkeypatch.setattr(smoke, "HttpClient", DenyingHttpClient)
-    monkeypatch.setattr(smoke, "_probe_health", _healthy_probe)
-
-    report = await smoke.run_http_smoke("http://127.0.0.1:8765/mcp")
+    report = await smoke.run_http_smoke(
+        "https://mcp.example.com/mcp",
+        timeout_seconds=timeout,
+    )
 
     assert report.ok is False
-    assert report.steps[-1].name == "tools/call"
-    assert report.steps[-1].ok is False
-    assert "KEY_SCOPE_DENIED" in report.steps[-1].detail
+    assert report.steps[0].name == "http_preflight"
 
 
 def test_smoke_report_serializes_status_code():
@@ -141,5 +89,8 @@ def test_registration_manifest_redacts_auth_secret_and_embeds_smoke_report():
     assert manifest["transport"]["health_url"] == "https://mcp.example.com/mcp/health"
     assert manifest["auth"]["secret_included"] is False
     assert manifest["auth"]["token_env_var"] == "DEEPR_MCP_KEY"
+    assert manifest["registration"]["smoke_command"] is None
+    assert manifest["registration"]["free_smoke_tool"] is None
+    assert manifest["registration"]["remote_smoke_status"] == "blocked_pending_cost_authority"
     assert manifest["smoke"]["ok"] is True
     assert "test-token-value" not in json.dumps(manifest)

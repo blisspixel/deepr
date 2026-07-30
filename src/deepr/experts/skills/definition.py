@@ -21,8 +21,8 @@ logger = logging.getLogger(__name__)
 _VALID_COST_TIERS = frozenset({"free", "low", "medium", "high"})
 _MAX_TOOL_TIMEOUT_SECONDS = 300
 _MIN_TOOL_TIMEOUT_SECONDS = 1
-_MAX_PER_CALL_USD = 25.0
-_MAX_DEFAULT_BUDGET_USD = 100.0
+_MAX_PER_CALL_USD = 1.0
+_MAX_DEFAULT_BUDGET_USD = 5.0
 
 
 def _bounded_timeout_seconds(raw: Any, *, default: int = 30) -> int:

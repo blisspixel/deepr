@@ -16,7 +16,7 @@ from deepr.experts.skills.definition import (
     SkillTool,
     SkillTrigger,
 )
-from deepr.experts.skills.executor import MCPClientProxy, SkillExecutor
+from deepr.experts.skills.executor import SkillExecutor
 from deepr.experts.skills.expert_skill import (
     ExpertSkillWrapper,
     KnowledgeGap,
@@ -32,7 +32,6 @@ __all__ = [
     "ExpertSkillWrapper",
     "KnowledgeAbsorber",
     "KnowledgeGap",
-    "MCPClientProxy",
     "ResearchContext",
     "SkillBudget",
     "SkillDefinition",

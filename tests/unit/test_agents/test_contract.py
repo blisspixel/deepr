@@ -1,5 +1,7 @@
 """Tests for subagent runtime contract primitives."""
 
+import pytest
+
 from deepr.agents.contract import (
     AgentBudget,
     AgentIdentity,
@@ -61,9 +63,9 @@ class TestAgentIdentity:
 class TestAgentBudget:
     def test_defaults(self):
         budget = AgentBudget()
-        assert budget.max_cost == 10.0
+        assert budget.max_cost == 5.0
         assert budget.cost_accumulated == 0.0
-        assert budget.remaining == 10.0
+        assert budget.remaining == 5.0
         assert budget.utilization == 0.0
 
     def test_remaining_calculation(self):
@@ -71,10 +73,9 @@ class TestAgentBudget:
         assert budget.remaining == 2.0
         assert budget.utilization == 0.6
 
-    def test_remaining_never_negative(self):
-        budget = AgentBudget(max_cost=1.0, cost_accumulated=5.0)
-        assert budget.remaining == 0.0
-        assert budget.utilization == 1.0
+    def test_initial_accumulation_cannot_exceed_cap(self):
+        with pytest.raises(ValueError, match="cannot exceed"):
+            AgentBudget(max_cost=1.0, cost_accumulated=5.0)
 
     def test_zero_budget_utilization(self):
         budget = AgentBudget(max_cost=0.0)
@@ -103,6 +104,12 @@ class TestAgentBudget:
         assert allowed is False
         assert "negative" in reason.lower()
 
+    @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+    def test_check_rejects_non_finite_cost(self, value):
+        allowed, reason = AgentBudget(max_cost=5.0).check(value)
+        assert allowed is False
+        assert "finite" in reason.lower()
+
     def test_record(self):
         budget = AgentBudget(max_cost=10.0)
         budget.record(3.0)
@@ -110,6 +117,18 @@ class TestAgentBudget:
         budget.record(2.5)
         assert budget.cost_accumulated == 5.5
         assert budget.remaining == 4.5
+
+    @pytest.mark.parametrize("value", [-1.0, float("nan"), float("inf")])
+    def test_record_rejects_invalid_cost(self, value):
+        budget = AgentBudget(max_cost=10.0)
+        with pytest.raises(ValueError):
+            budget.record(value)
+        assert budget.cost_accumulated == 0.0
+
+    def test_record_cannot_exceed_cap(self):
+        budget = AgentBudget(max_cost=1.0)
+        with pytest.raises(ValueError, match="Insufficient budget"):
+            budget.record(1.01)
 
     def test_to_dict(self):
         budget = AgentBudget(max_cost=10.0, cost_accumulated=2.5)
@@ -150,6 +169,11 @@ class TestAgentResult:
         result = AgentResult(cost=0.1 + 0.2)
         d = result.to_dict()
         assert d["cost"] == 0.3
+
+    @pytest.mark.parametrize("value", [-1.0, float("nan"), float("inf")])
+    def test_cost_must_be_finite_and_non_negative(self, value):
+        with pytest.raises(ValueError, match="finite and non-negative"):
+            AgentResult(cost=value)
 
 
 class TestAgentStatus:

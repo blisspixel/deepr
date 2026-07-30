@@ -176,6 +176,7 @@ def _clean_browser_chat_states(monkeypatch, chat_accounting):
     monkeypatch.delenv("DEEPR_API_KEY", raising=False)
     monkeypatch.setattr(web_app, "_API_KEY", "")
     monkeypatch.setattr(web_app, "_ALLOW_UNAUTHENTICATED_LOOPBACK", True)
+    monkeypatch.setattr(web_app.cost_controller, "max_cost_per_job", 1.0)
     web_app.app.config.update(TESTING=True, RATELIMIT_ENABLED=False)
     events._shutdown_browser_chat_states_for_tests()
     yield
@@ -282,6 +283,26 @@ def test_saved_session_restore_keeps_only_chat_roles_and_rejects_unsafe_ids(tmp_
         {"role": "user", "content": "question"},
         {"role": "assistant", "content": "answer"},
     ]
+
+
+def test_saved_session_restore_rejects_expert_symlink_escape(tmp_path) -> None:
+    outside = tmp_path.parent / "outside-session"
+    conversations = outside / "conversations"
+    conversations.mkdir(parents=True, exist_ok=True)
+    (conversations / "safe-session.json").write_text(
+        '{"messages": [{"role": "assistant", "content": "outside secret"}]}',
+        encoding="utf-8",
+    )
+    link = tmp_path / "budget_expert"
+    try:
+        link.symlink_to(outside, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"directory symlinks unavailable: {exc}")
+    session = SimpleNamespace(messages=[])
+
+    restore_session_messages(session, "Budget Expert", "safe-session", experts_dir=tmp_path)
+
+    assert session.messages == []
 
 
 def test_contract_rejects_unsafe_expert_names_and_oversized_session_ids() -> None:
@@ -622,6 +643,7 @@ def test_rest_metered_chat_gate_runs_before_reservation_or_provider(monkeypatch,
 
     assert response.status_code == 409
     payload = response.get_json()
+    assert payload["error"] == "Metered expert chat is not available for this operation"
     assert payload["error_code"] == "metered_expert_chat_accounting_unavailable"
     assert payload["status"] == "blocked"
     assert payload["provider_work_dispatched"] is False
@@ -647,4 +669,4 @@ def test_rest_chat_honors_explicit_budget_and_mode(monkeypatch) -> None:
     assert payload["mode"] == "advise"
     assert session.turns == [("REST question", ChatMode.ADVISE)]
     assert session.closed.is_set()
-    start.assert_awaited_once_with("Budget Expert", budget=0.25, agentic=True, quiet=True)
+    start.assert_awaited_once_with("budget_expert", budget=0.25, agentic=True, quiet=True)

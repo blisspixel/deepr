@@ -4,7 +4,7 @@ Deepr has three capacity rungs:
 
 1. Local hardware through Ollama.
 2. Explicit non-metered plan-quota CLIs the operator already pays for.
-3. Metered provider APIs with budget ceilings.
+3. Metered provider API previews and accounting, with production dispatch blocked.
 
 The routing principle is cheapest capable path first, but only when the path is
 honest. Local capacity can be `$0` at the margin. Plan capacity can be `$0`
@@ -12,7 +12,7 @@ inside Deepr but may consume a subscription quota, monthly credit pool, or
 external credits. Metered APIs cost money and must be estimated, reserved, and
 settled through the canonical ledger.
 
-Metered APIs are explicit premium paths, not an automatic fallback in v2.39. Feature
+Metered APIs are explicit premium paths, not an automatic fallback in v2.40. Feature
 surfaces that can trigger a distinct paid class, such as image generation, must
 not infer paid execution from a text-model API key alone. Portrait generation
 auto-selects only a local image endpoint. Paid portrait providers are recognized
@@ -22,7 +22,7 @@ forces local regeneration. Generated portraits live under the configured
 runtime data root, and forced regeneration archives the previous image before
 replacement.
 
-API-backed expert profile setup is gated in v2.39 because hosted storage and
+API-backed expert profile setup is gated in v2.40 because hosted storage and
 nested learning calls do not yet share one durable parent reservation. Local
 profile creation through `deepr expert make --local` stays provider-free.
 
@@ -33,7 +33,7 @@ profile creation through `deepr expert make --local` stays provider-free.
 | Local Ollama | `expert make --local`, `expert absorb --local`, `expert sync --local`, `expert sync --local --fresh-context`, `expert sync --local --deep-context`, experimental `expert investigate`, `eval local`, `eval local-context`, and scored admission | No provider API key required; investigation pins native per-request context, requires exact `$0`, and has no fallback; automatic routing requires measured local quality evidence |
 | Provider APIs | Write-free request preview and offline billing reconciliation for supported finite provider/model/tool envelopes | Production dispatch is blocked until a provider-specific authenticated account-control verifier and current credential-identity resolver are installed; no automatic paid fallback, hosted storage, standalone metered chat, or unsafe lifecycle dispatch |
 | Plan-quota CLIs | Explicit `expert sync --plan <id>`, `expert sync-all --plan <id>`, `expert route-gaps --execute --plan <id>`, `expert absorb --plan <id>`, `expert learn --plan <id>`, `expert learn-web --plan <id>`, `expert consult --plan <id>`, and `capacity probe-plan <id>` for safety-eligible non-metered adapters | Claude Code is currently executable only after a live provider proof that paid extra usage is disabled. Codex, OpenCode, Kiro, Grok, Antigravity, and Copilot remain visible but execution-blocked for the reasons below. API-key env vars are stripped, auth, tool, and overage posture are checked, and automatic routing also requires trusted remaining-quota evidence. |
-| CLI judges | Explicit local eval judging with `--allow-cli-judge`; consult-quality judging through explicit local Ollama or `--plan <id>` | Opt-in only because Deepr cannot prove whether a vendor CLI uses quota, credits, or metered credentials; plan consult-quality judges record `$0` Deepr cost metadata and consume subscription quota; API consult-quality judging shares the blocked provider-account authority gate |
+| CLI judges | Local-eval CLI judge flags remain visible for compatibility; consult-quality judging still has separate explicit local Ollama or safety-eligible `--plan <id>` paths | `--judge-cli`, `--judge-command`, and legacy `--allow-cli-judge` never start a local-eval vendor process because Deepr cannot prove its billing source, paid-overage posture, or total cost. The allow flag is not spend authority. API consult-quality judging shares the blocked provider-account authority gate. |
 
 Expert consult synthesis already supports local and explicit plan capacity.
 Experimental `expert investigate` is narrower: it accepts only local Ollama
@@ -43,13 +43,13 @@ one parent envelope includes every roster generation, checker, synthesizer,
 learning, retrieval, token, time, disk, and cost allowance. A plan preview does
 not contact Ollama, so model installation and hardware fit are execution-time
 facts. Plan-quota investigation remains a later explicit-only stage, and the
-future API form must enforce one total `$10` maximum across all children rather
+future API form must enforce one total `$5` maximum across all children rather
 than treating the budget as per expert.
 
 MCP `deepr_query_expert backend=local|plan` now runs one read-only
 compiled-context turn through owned-capacity chat backends with live metered
 fallback disabled. MCP `deepr_query_expert backend=api` and every standalone
-metered chat path fail closed in v2.39. Full interactive `expert chat` still
+metered chat path fail closed in v2.40. Full interactive `expert chat` still
 needs the shared per-call transaction before it can honestly claim local, plan,
 tool, streaming, and paid API parity. The implementation plan is
 [expert-chat-capacity-backends.md](design/expert-chat-capacity-backends.md).
@@ -146,9 +146,11 @@ deepr expert sync "Platform Team Expert" --local --fresh-context --compile-claim
 
 `--fresh-context` builds a small free-only retrieval pack. `--deep-context`
 builds a bounded multi-query retrieval pack. These paths can fetch explicit
-URLs, use configured SearXNG through `DEEPR_SEARXNG_URL`, or use DuckDuckGo
-when the optional `ddgs` dependency is installed. They do not use Brave, Tavily,
-or other API-key search backends. Before any local or plan model dispatch,
+URLs or use direct DuckDuckGo when the optional `ddgs` dependency is installed.
+`DEEPR_SEARXNG_URL` remains configuration-readable, but Deepr does not dispatch
+to it because a loopback or self-hosted label cannot prove that its upstream
+engines have zero marginal cost. They do not use Brave, Tavily, or other
+API-key search backends. Before any local or plan model dispatch,
 search-discovered fresh context must contain at least two content-addressed
 sources, deep context must contain at least three, and an explicit-URL request
 must contain at least one. Under-ready packs are still persisted for diagnosis,
@@ -254,8 +256,8 @@ claude --safe-mode --tools "" --no-session-persistence --disable-slash-commands 
 ```
 
 This means `--plan-model` currently accepts only `sonnet` for Claude plan
-capacity. Use a separately estimated and budgeted provider API path for another
-billing class. On Windows, Deepr never executes `.cmd` or `.bat` shims. For the
+capacity. Another billing class is preview-only while production provider API
+dispatch remains quarantined. On Windows, Deepr never executes `.cmd` or `.bat` shims. For the
 official Claude npm package it resolves the confined packaged `claude.exe`
 directly; an absent, redirected, or non-native package binary fails closed.
 
@@ -462,11 +464,14 @@ classes are explicit, and only `api_metered` lines can receipt-match paid ledger
 events. A clean result never unfreezes paid work.
 
 Provider-specific authenticated hard-limit verification is not shipped in
-v2.39.0. Locally constructed account-control JSON, a posture label, and a local
+v2.40.0. Locally constructed account-control JSON, a posture label, and a local
 hash are not proof. Production paid dispatch therefore remains blocked until an
 authenticated provider adapter can verify the source and bind the exact active
-account, scope, and credential fingerprint. Keep provider-side controls active
-and reconcile any unexplained charge before enabling such an adapter.
+account, scope, credential fingerprint, owned client, official endpoint, and
+canonical outbound model. The provider hard no-overage ceiling must be no
+higher than the operator ceiling and must be observed live for each one-use
+dispatch. Keep provider-side controls active and reconcile any unexplained
+charge before enabling such an adapter.
 
 ## Costing Deep Dive
 
@@ -487,6 +492,11 @@ reserve, settle, and audit every bucket it can trigger.
   xAI documents that one agent turn may invoke multiple tools in parallel, so
   `max_turns` is not a hard tool-invocation or dollar ceiling. Deepr keeps that
   legacy metered search path gated until the total tool bill is bounded.
+- OpenAI Code Interpreter is memory-tiered and billed per 20-minute session.
+  Deepr blocks it before dispatch until memory, session count, duration, and
+  reuse fit the same reservation. Provider webhooks and retained response
+  context are also blocked because they can trigger separately billed work or
+  hidden input outside the admitted envelope.
 - Batch, flex, priority, provisioned, data-residency, and deployment-tier
   modifiers must be modeled as first-class pricing dimensions, not hidden in a
   single model price.

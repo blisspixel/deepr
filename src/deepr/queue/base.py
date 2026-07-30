@@ -10,10 +10,13 @@ from typing import Any
 _INTERNAL_JOB_METADATA_KEYS = frozenset(
     {
         "cleanup_vector_store",
+        "cost_reservation_authority_version",
+        "cost_reservation_dispatch_binding_id",
         "cost_reservation_estimated_usd",
         "cost_reservation_id",
         "cost_reservation_model",
         "cost_reservation_provider",
+        "cost_reservation_request_envelope_sha256",
         "provider_file_ids",
         "research_max_input_tokens",
         "research_max_output_tokens",

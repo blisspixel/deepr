@@ -54,6 +54,8 @@ def heartbeat_evidence(*, scheduled: bool, dry_run: bool, success: bool) -> dict
         failure_kind = delivery.failure_kind
         if delivery.delivered:
             disposition = "delivered"
+        elif delivery.failure_kind == "unmetered_external_service":
+            disposition = "blocked_unmetered_external_service"
         elif delivery.failure_kind == "unsafe_target":
             disposition = "blocked_unsafe_target"
         elif delivery.failure_kind == "invalid_configuration":
@@ -95,6 +97,11 @@ def render_heartbeat_evidence(heartbeat: dict[str, Any], *, json_output: bool) -
         console.print("[dim]Off-box heartbeat configuration is valid; dry-run did not contact it.[/dim]")
     elif disposition == "blocked_unsafe_target":
         print_warning("Configured heartbeat target is not a public address; no request was sent.")
+    elif disposition == "blocked_unmetered_external_service":
+        print_warning(
+            "Configured off-box heartbeat is blocked because its external cost cannot be proven before dispatch. "
+            "No request was sent."
+        )
     elif disposition == "delivered":
         console.print(f"[dim]Off-box heartbeat delivered as {heartbeat['reported_status']}.[/dim]")
     elif disposition == "delivery_failed" and heartbeat["http_status"] is not None:

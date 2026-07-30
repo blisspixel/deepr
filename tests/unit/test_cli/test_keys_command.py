@@ -66,15 +66,16 @@ def test_check_reports_no_key_without_network(env_file: Path, monkeypatch: pytes
     assert calls == []  # nothing to validate, nothing pinged
 
 
-def test_check_validates_present_keys(env_file: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_check_blocks_present_keys_before_network(env_file: Path) -> None:
     env_file.write_text("XAI_API_KEY=xai-fresh-key-0001\n", encoding="utf-8")  # gitleaks:allow (fake fixture)
-    monkeypatch.setattr(
-        keys_module,
-        "_validate",
-        lambda p, k: {"status": "valid", "models_visible": 7} if p == "xai" else {"status": "no_key"},
-    )
     result = CliRunner().invoke(keys_module.keys, ["check", "--provider", "xai", "--json"])
     payload = json.loads(result.output)
     assert payload["results"] == [
-        {"provider": "xai", "env_var": "XAI_API_KEY", "shadowed": False, "status": "valid", "models_visible": 7}
+        {
+            "provider": "xai",
+            "env_var": "XAI_API_KEY",
+            "shadowed": False,
+            "status": "blocked",
+            "reason": "external_metadata_cost_unverified",
+        }
     ]

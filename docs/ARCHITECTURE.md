@@ -67,10 +67,11 @@ graph TB
 ```
 
 Provider edges show registry and adapter boundaries, not unconditional runtime
-dispatch. In v2.36, one request runs only when its provider/model/tool envelope
-is finite and fully priced. Managed Gemini Deep Research, xAI multi-agent
-research, Azure Foundry agents, hosted context, automatic metered fallback, and
-metered multi-call fan-out fail closed.
+dispatch. In v2.40, finite provider/model/tool envelopes support write-free
+preview only. Production metered dispatch is blocked pending authenticated
+provider account controls and current credential identity. Managed Gemini Deep
+Research, xAI multi-agent research, Azure Foundry agents, hosted context,
+automatic metered fallback, and metered multi-call fan-out also fail closed.
 
 ## Design Decisions
 
@@ -79,7 +80,7 @@ metered multi-call fan-out fail closed.
 - **Experts are not just RAG.** Deepr experts track claims, confidence, evidence,
   contradictions, gaps, perspective state, and durable loop outcomes. Explicit
   local and non-metered plan workflows can propose and verify updates. Standalone
-  metered agentic chat and expert lifecycle mutation are gated in v2.36, and no
+  metered agentic chat and expert lifecycle mutation are gated in v2.40, and no
   conversation can authorize its own spend or permanent belief writes.
 
 - **Epistemic simulations are authority-isolated data, not identities.** The
@@ -104,10 +105,10 @@ metered multi-call fan-out fail closed.
   quality, local readiness, trusted plan-quota evidence, and exact API envelopes
   inform previews and selected scheduled maintenance paths. Global
   cheapest-first runtime execution and automatic cross-provider metered
-  fallback are not shipped in v2.39. Lexical signals may route a preview but
+  fallback are not shipped in v2.40. Lexical signals may route a preview but
   never decide semantic complexity or authorize spend.
 
-- **Multi-layer budget controls because research costs real money.** Per-operation limits, daily caps, monthly ceilings, pre-submission estimates, and a circuit breaker that pauses after repeated failures. The system saves progress on pause so you can resume later. An uncapped loop calling o3-deep-research could burn $100+ before you notice.
+- **Multi-layer budget controls because research costs real money.** Per-operation limits, daily caps, monthly ceilings, pre-submission estimates, and a circuit breaker remain mandatory defense in depth for any future paid recovery. Production metered dispatch is frozen in v2.40. Saved progress stays inspectable, but provider-backed resume remains gated. No internal ceiling is treated as proof of a provider-side hard limit or overage-off state.
 
 - **Provider abstraction preserves lifecycle ownership.** Each accepted job
   records its provider for polling, cancellation, settlement, and cleanup.
@@ -122,7 +123,7 @@ metered multi-call fan-out fail closed.
 - **Policy modes** (via `ResearchMode` in `core/settings.py`) classify tool
   permissions. They are not cost quotes or execution claims. `READ_ONLY` is
   provider-free; `STANDARD`, `EXTENDED`, and `UNRESTRICTED` remain subordinate
-  to the v2.36 request, parent-budget, and interface gates.
+  to the v2.40 request, parent-budget, account-authority, and interface gates.
 
 ### 2. Expert System
 - **Location**: `src/deepr/experts/`
@@ -177,7 +178,7 @@ metered multi-call fan-out fail closed.
 - **Providers**:
   - OpenAI (GPT-5.5 family, GPT-5.4 family, GPT-5 family, GPT-4.1 family, o3/o4-mini deep research)
   - Azure OpenAI (same models, Azure-hosted)
-  - Azure AI Foundry model metadata (Agent/Thread/Run execution gated in v2.36)
+  - Azure AI Foundry model metadata (Agent/Thread/Run execution gated in v2.40)
   - xAI (Grok 4.3, Grok 4.20, explicit premium image generation)
   - Google (Gemini 3.6 Flash, Gemini 3.5 Flash-Lite, and retained 3.5/3.1/2.5 models; managed Deep Research gated)
   - Anthropic (Claude Sonnet 5, Opus 4.8, Fable 5, Haiku 4.5)
@@ -238,7 +239,7 @@ Local or Plan Query and Consult
 ```
 
 Metered curriculum generation, hosted vector storage, standalone expert chat,
-and API lifecycle mutation fail closed in v2.36 until their nested calls and
+and API lifecycle mutation fail closed in v2.40 until their nested calls and
 storage side effects share one durable parent transaction.
 
 ## Model Selection
@@ -251,9 +252,9 @@ secondary docs.
 
 ### Current Registry Highlights
 
-- **OpenAI**: GPT-5.5 and GPT-5.4 families for synthesis and planning, plus o3/o4-mini deep research for explicitly deep async jobs.
-- **xAI**: Grok text-model metadata is available where pricing is complete; multi-agent research is gated in v2.36.
-- **Google Gemini**: Gemini 3.6 Flash and Gemini 3.5 Flash-Lite are the current stable Flash entries; retained 3.5/3.1/2.5 metadata remains available, and the managed Deep Research Agent is gated in v2.36. Gemini 3.5 Flash Cyber is not registered because it is not general Gemini API capacity.
+- **OpenAI**: GPT-5.5 and GPT-5.4 synthesis and planning metadata, plus o3/o4-mini deep-research metadata and write-free request preview. Production metered dispatch is blocked in v2.40.
+- **xAI**: Grok text-model metadata is available where pricing is complete; multi-agent research is gated in v2.40.
+- **Google Gemini**: Gemini 3.6 Flash and Gemini 3.5 Flash-Lite are the current stable Flash entries; retained 3.5/3.1/2.5 metadata remains available, and the managed Deep Research Agent is gated in v2.40. Gemini 3.5 Flash Cyber is not registered because it is not general Gemini API capacity.
 - **Anthropic**: Claude Sonnet 5 for balanced chat/synthesis, Opus 4.8 for high-reasoning work, and Fable 5 as premium opt-in capacity.
 - **Azure AI Foundry**: Deployment metadata remains available; Agent/Thread/Run work with Bing grounding is gated until the multi-call and tool-cost envelope is complete.
 
@@ -409,31 +410,31 @@ artifact for release-to-release trend review.
 
 Multiple layers prevent runaway costs. Implementation in `src/deepr/experts/cost_safety.py`.
 
-**Hard Limits (Cannot Be Overridden):**
-- Per Operation: $10 maximum
-- Per Day: $50 maximum
-- Per Month: $500 maximum
+**Binding Limits:**
 
-**Configurable Limits (Defaults):**
-- Per Operation: $5
-- Per Day: $25
-- Per Month: $200
+Deepr does not publish fixed dollar defaults in this document. Effective
+per-job, daily, weekly, and monthly ceilings are the minimum of all trusted
+operator authorities. Missing authority, missing accounting state, or an
+explicit freeze reduces paid authority to zero. Inspect the current values with
+`deepr costs limits` and validate their evidence with `deepr costs doctor`.
+A positive ceiling is never permission to spend and cannot remove the v2.40
+production dispatch freeze.
 
 **Features:**
 - Session-level cost tracking with alerts at 50%, 80%, 95%
 - Circuit breaker for repeated failures (auto-pause after 3 consecutive failures)
-- Audit logging of all cost-incurring operations
-- Graceful pause/resume for daily/monthly limits
+- Canonical ledger enforcement at every supported spend boundary
+- Fail-closed hold and status recovery; provider-backed resume remains gated
 
 **CLI Budget Validation:**
-- Warns for budgets > $10
-- Requires confirmation for budgets > $25
-- Shows daily/monthly spending status with `/status` command in expert chat
+- `deepr costs limits` shows the binding per-job, daily, weekly, and monthly ceilings.
+- `deepr budget set <amount>` changes the persisted monthly approval ceiling; it never authorizes a paid call or removes the production freeze.
+- `deepr costs doctor` verifies the canonical accounting state before any future paid recovery.
 
 **Paused long-running expert state:**
 
 Historical learning progress remains inspectable for recovery. The metered
-`deepr expert resume` dispatch path is gated in v2.36 until every nested call
+`deepr expert resume` dispatch path is gated in v2.40 until every nested call
 shares the durable parent budget and exact settlement transaction. Use explicit
 local or documented non-metered plan maintenance instead of resuming through a
 provider API.
@@ -504,9 +505,9 @@ The `src/deepr/observability/` module provides monitoring and cost management:
 
 ### Routing (`routing/`)
 - Read-only route previews and registry/eligibility metadata
-- Explicit local, plan, and bounded API capacity selection
+- Explicit local and safety-eligible plan selection, plus bounded API preview
 - Health, success, latency, and cost metrics
-- No automatic cross-provider metered fallback in v2.36
+- No automatic cross-provider metered fallback in v2.40
 
 ### Quality Metrics (`quality_metrics.py`)
 - Response quality scoring

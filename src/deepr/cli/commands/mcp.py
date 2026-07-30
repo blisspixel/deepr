@@ -8,6 +8,8 @@ from deepr.cli.async_runner import run_async_command
 from deepr.cli.commands.mcp_consult_validation import validate_consult_fleet
 from deepr.cli.commands.mcp_conversation_validation import validate_conversation
 
+_HTTP_VALIDATION_TIMEOUT = click.FloatRange(min=0.1, max=300.0)
+
 
 @click.group()
 def mcp():
@@ -539,7 +541,7 @@ def summarize_audit(
     show_default=True,
     help="No-metered consult backend to instruct the agent to use.",
 )
-@click.option("--plan", help="Plan id when --synthesis-backend=plan, such as codex or claude.")
+@click.option("--plan", help="Plan id when --synthesis-backend=plan; currently executable: claude.")
 @click.option("--output", type=click.Path(dir_okay=False, path_type=str), help="Write the guide to a file.")
 @click.option(
     "--allow-tracked-output",
@@ -603,7 +605,7 @@ def agent_guide(
             raise click.ClickException(str(exc)) from exc
         record_id = record.key_id
     if synthesis_backend.lower() == "plan" and not plan:
-        plan = "codex"
+        plan = "claude"
 
     guide_args = dict(
         endpoint=resolved_endpoint,
@@ -682,32 +684,30 @@ def serve(
     max_concurrent_requests: int | None,
     allow_unauthenticated_public_bind: bool,
 ):
-    """Start MCP server for AI agent integration.
+    """Start the MCP server for agent integration.
 
     The MCP server exposes Deepr experts via stdin/stdout protocol,
-    allowing AI agents like Claude Desktop and Cursor to chat with
-    your domain experts.
+    allowing any compatible host to list and consult local domain experts.
+    No provider API key is required to list experts or to consult with the
+    explicit local synthesis backend. Paid API capacity remains fail-closed.
 
     Usage:
         deepr mcp serve
 
     Configuration:
-        Add to Claude Desktop config (claude_desktop_config.json):
+        Add to the MCP host configuration:
         {
           "mcpServers": {
             "deepr-experts": {
-              "command": "python",
-              "args": ["-m", "deepr.mcp.server"],
-              "env": {
-                "OPENAI_API_KEY": "sk-..."
-              }
+              "command": "deepr",
+              "args": ["mcp", "serve"]
             }
           }
         }
 
-    Then restart Claude Desktop and ask:
+    Then restart the host and ask:
         "List my Deepr experts"
-        "Ask my Azure Architect expert about Landing Zones"
+        "Consult my local Deepr experts"
     """
     try:
         if use_http:
@@ -748,11 +748,11 @@ def serve(
 
 @mcp.command("smoke-http")
 @click.argument("url")
-@click.option("--auth-token", help="Bearer token or scoped-key secret for the HTTP MCP endpoint.")
-@click.option("--timeout", "timeout_seconds", default=10.0, show_default=True, type=click.FloatRange(min=0.1))
+@click.option("--auth-token", help="Reserved for future cost-attested HTTP smoke validation.")
+@click.option("--timeout", "timeout_seconds", default=10.0, show_default=True, type=_HTTP_VALIDATION_TIMEOUT)
 @click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON.")
 def smoke_http(url: str, auth_token: str | None, timeout_seconds: float, as_json: bool):
-    """Smoke-test a Deepr HTTP MCP endpoint without provider calls."""
+    """Report the fail-closed remote MCP smoke posture without opening a connection."""
     import json
 
     from deepr.mcp.smoke import run_http_smoke
@@ -783,7 +783,7 @@ def smoke_http(url: str, auth_token: str | None, timeout_seconds: float, as_json
 
 @mcp.command("validate-consult")
 @click.argument("url", required=False)
-@click.option("--auth-token", help="Bearer token or scoped-key secret for a remote HTTP MCP endpoint.")
+@click.option("--auth-token", help="Reserved for future cost-attested remote consult validation.")
 @click.option(
     "--live",
     is_flag=True,
@@ -797,7 +797,7 @@ def smoke_http(url: str, auth_token: str | None, timeout_seconds: float, as_json
     help="No-metered consult backend to validate.",
 )
 @click.option("--local-model", help="Optional Ollama model when --synthesis-backend=local.")
-@click.option("--plan", help="Explicit plan id when --synthesis-backend=plan, such as codex or claude.")
+@click.option("--plan", help="Explicit plan id when --synthesis-backend=plan; currently executable: claude.")
 @click.option("--plan-model", help="Optional model hint for the plan-quota CLI.")
 @click.option("--expert", "experts", multiple=True, help="Expert to target. Repeatable.")
 @click.option(
@@ -805,7 +805,7 @@ def smoke_http(url: str, auth_token: str | None, timeout_seconds: float, as_json
     default=None,
     help="Validation consult question. Defaults to a contract-focused prompt.",
 )
-@click.option("--timeout", "timeout_seconds", default=60.0, show_default=True, type=click.FloatRange(min=0.1))
+@click.option("--timeout", "timeout_seconds", default=60.0, show_default=True, type=_HTTP_VALIDATION_TIMEOUT)
 @click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON.")
 def validate_consult(
     url: str | None,
@@ -820,7 +820,7 @@ def validate_consult(
     timeout_seconds: float,
     as_json: bool,
 ):
-    """Validate no-metered expert consult for another agent."""
+    """Validate offline or in-process consults; remote tool calls are blocked."""
     import json
     from typing import cast
 
@@ -894,9 +894,9 @@ def validate_consult(
 @mcp.command("registration-manifest")
 @click.argument("url")
 @click.option("--agent-name", help="Optional remote agent or host label.")
-@click.option("--auth-token", help="Bearer token or scoped-key secret used only for the smoke check.")
-@click.option("--timeout", "timeout_seconds", default=10.0, show_default=True, type=click.FloatRange(min=0.1))
-@click.option("--skip-smoke", is_flag=True, help="Build the manifest without probing the endpoint.")
+@click.option("--auth-token", help="Reserved for future cost-attested remote smoke validation.")
+@click.option("--timeout", "timeout_seconds", default=10.0, show_default=True, type=_HTTP_VALIDATION_TIMEOUT)
+@click.option("--smoke/--skip-smoke", "run_smoke", default=False, help="Return blocked report; no network.")
 @click.option("--output", type=click.Path(dir_okay=False, path_type=str), help="Write the manifest JSON to a file.")
 @click.option("--json", "as_json", is_flag=True, help="Print JSON even when --output is provided.")
 def registration_manifest(
@@ -904,11 +904,11 @@ def registration_manifest(
     agent_name: str | None,
     auth_token: str | None,
     timeout_seconds: float,
-    skip_smoke: bool,
+    run_smoke: bool,
     output: str | None,
     as_json: bool,
 ):
-    """Build a token-redacted hosted MCP registration manifest."""
+    """Build a token-redacted manifest without remote probing by default."""
     import json
     from pathlib import Path
 
@@ -916,7 +916,7 @@ def registration_manifest(
 
     try:
         report = None
-        if not skip_smoke:
+        if run_smoke:
             report = run_async_command(
                 run_http_smoke(
                     url,

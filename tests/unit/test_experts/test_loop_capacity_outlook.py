@@ -96,7 +96,8 @@ def test_note_is_honest_about_liveness(monkeypatch):
     assert "no" in note.lower() and "probe" in note.lower()
     assert "metered" in note.lower()
     assert "never falls through" in note
-    assert "may wait, require explicit metered approval, or refuse" in note
+    assert "must wait, use explicit safe capacity, or refuse" in note
+    assert "never a fallback" in note
 
 
 def test_real_admission_ledger_round_trip(tmp_path):

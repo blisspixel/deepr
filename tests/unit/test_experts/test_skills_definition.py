@@ -434,7 +434,7 @@ budget:
             encoding="utf-8",
         )
         defn = SkillDefinition.load(skill_dir, tier="global")
-        assert defn.budget.max_per_call == 25.0
+        assert defn.budget.max_per_call == 1.0
         assert defn.budget.default_budget == 5.0
 
     def test_load_name_defaults_to_dir_name(self, tmp_path):

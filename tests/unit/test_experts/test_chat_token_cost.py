@@ -77,6 +77,23 @@ class TestChatTokenCost:
         # Should return a non-negative number, not raise.
         assert cost >= 0.0
 
+    def test_generic_usage_selects_pricing_tier_from_actual_prompt_tokens(self, monkeypatch):
+        observed: list[int | None] = []
+
+        def pricing(_model: str, *, input_tokens: int | None = None):
+            observed.append(input_tokens)
+            return {"input": 2.0, "output": 4.0}
+
+        monkeypatch.setattr("deepr.providers.registry.get_token_pricing", pricing)
+        usage = SimpleNamespace(
+            prompt_tokens=200_000,
+            completion_tokens=1_000,
+            prompt_tokens_details=None,
+        )
+
+        assert _chat_token_cost(usage, "grok-4-5") == pytest.approx(0.404)
+        assert observed == [200_000]
+
     def test_anthropic_usage_falls_back_to_conservative_pricing(self, monkeypatch):
         """Anthropic usage must not settle as zero when pricing lookup fails."""
 

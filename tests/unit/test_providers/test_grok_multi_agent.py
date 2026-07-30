@@ -4,7 +4,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from deepr.agents.contract import GenericSubagentExecutionBlockedError
 from deepr.providers.base import ResearchRequest
+from tests.unit.test_providers._provider_authority import submit_adapter
 
 
 def _make_mock_response(content="Agent output", prompt_tokens=100, completion_tokens=200):
@@ -128,12 +130,10 @@ class TestMultiAgentExecution:
             agent_count=4,
         )
 
-        job_id = await mock_grok_provider.submit_research(request)
-        job = mock_grok_provider.jobs[job_id]
+        with pytest.raises(GenericSubagentExecutionBlockedError, match="advisory AgentBudget"):
+            await submit_adapter(mock_grok_provider, request)
 
-        assert job["status"] == "completed"
-        assert job.get("agent_count", 0) >= 1
-        assert job.get("trace_id") is not None
+        mock_grok_provider.client.chat.completions.create.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_single_model_routes_normally(self, mock_grok_provider):
@@ -146,7 +146,7 @@ class TestMultiAgentExecution:
             system_message="",
         )
 
-        job_id = await mock_grok_provider.submit_research(request)
+        job_id = await submit_adapter(mock_grok_provider, request)
         job = mock_grok_provider.jobs[job_id]
 
         assert job["status"] == "completed"
@@ -166,12 +166,10 @@ class TestMultiAgentExecution:
             agent_count=4,
         )
 
-        job_id = await mock_grok_provider.submit_research(request)
-        job = mock_grok_provider.jobs[job_id]
+        with pytest.raises(GenericSubagentExecutionBlockedError):
+            await submit_adapter(mock_grok_provider, request)
 
-        assert job["cost"] > 0
-        # 4 agents + 1 synthesis = 5 API calls
-        assert mock_grok_provider.client.chat.completions.create.call_count == 5
+        mock_grok_provider.client.chat.completions.create.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_multi_agent_fallback_on_partial_failure(self, mock_grok_provider):
@@ -194,15 +192,10 @@ class TestMultiAgentExecution:
             agent_count=4,
         )
 
-        job_id = await mock_grok_provider.submit_research(request)
-        job = mock_grok_provider.jobs[job_id]
+        with pytest.raises(GenericSubagentExecutionBlockedError):
+            await submit_adapter(mock_grok_provider, request)
 
-        # Should still complete (some agents succeeded + synthesis)
-        assert job["status"] == "completed"
-        # At least some agents should have results via agent_attribution
-        agent_attribution = job.get("agent_attribution", [])
-        completed_agents = [r for r in agent_attribution if r["status"] == "success"]
-        assert len(completed_agents) >= 3  # 3 out of 4 succeeded
+        assert call_count == 0
 
 
 class TestSynthesiseMultiAgent:
@@ -212,34 +205,33 @@ class TestSynthesiseMultiAgent:
             return_value=_make_mock_response("Unified synthesis")
         )
 
-        result = await mock_grok_provider._synthesise_multi_agent(
-            "test query",
-            ["Output A", "Output B"],
-            "grok-4.20-0309-reasoning",
-        )
+        with pytest.raises(GenericSubagentExecutionBlockedError):
+            await mock_grok_provider._synthesise_multi_agent(
+                "test query",
+                ["Output A", "Output B"],
+                "grok-4.20-0309-reasoning",
+            )
 
-        assert result["content"] == "Unified synthesis"
-        assert result["cost"] > 0
+        mock_grok_provider.client.chat.completions.create.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_synthesis_empty_outputs(self, mock_grok_provider):
-        result = await mock_grok_provider._synthesise_multi_agent(
-            "test query",
-            [],
-            "grok-4.20-0309-reasoning",
-        )
-        assert "No agent outputs" in result["content"]
-        assert result["cost"] == 0.0
+        with pytest.raises(GenericSubagentExecutionBlockedError):
+            await mock_grok_provider._synthesise_multi_agent(
+                "test query",
+                [],
+                "grok-4.20-0309-reasoning",
+            )
 
     @pytest.mark.asyncio
     async def test_synthesis_fallback_on_error(self, mock_grok_provider):
         mock_grok_provider.client.chat.completions.create = AsyncMock(side_effect=Exception("API error"))
 
-        result = await mock_grok_provider._synthesise_multi_agent(
-            "test query",
-            ["Output A"],
-            "grok-4.20-0309-reasoning",
-        )
+        with pytest.raises(GenericSubagentExecutionBlockedError):
+            await mock_grok_provider._synthesise_multi_agent(
+                "test query",
+                ["Output A"],
+                "grok-4.20-0309-reasoning",
+            )
 
-        assert "Synthesis failed" in result["content"]
-        assert "Output A" in result["content"]  # Raw output included as fallback
+        mock_grok_provider.client.chat.completions.create.assert_not_awaited()

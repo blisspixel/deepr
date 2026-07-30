@@ -128,7 +128,7 @@ def _isolate_operator_budget(tmp_path, monkeypatch, _isolate_cost_data):
     import hashlib
     import json
 
-    from deepr.observability.cost_ledger import CostLedger
+    from deepr.observability.cost_ledger import CostLedger, current_cost_state_id
     from deepr.observability.provider_account_controls import PaidApiAccountEvidence, ProviderAccountEvidenceStore
     from deepr.observability.provider_billing import (
         BillingEvidenceStore,
@@ -231,7 +231,7 @@ def _isolate_operator_budget(tmp_path, monkeypatch, _isolate_cost_data):
                 control_mode="hard_monthly_limit",
                 currency="USD",
                 overage_enabled=False,
-                hard_monthly_limit_usd="500.00",
+                hard_monthly_limit_usd="5.00",
             )
         )
         evidence_ids.append(evidence_id)
@@ -242,7 +242,7 @@ def _isolate_operator_budget(tmp_path, monkeypatch, _isolate_cost_data):
     budget_path.write_text(
         json.dumps(
             {
-                "monthly_limit": 200.0,
+                "monthly_limit": 5.0,
                 "paid_api_frozen": False,
                 "paid_api_authorization": {
                     "authority": "verified_by_deepr",
@@ -250,6 +250,7 @@ def _isolate_operator_budget(tmp_path, monkeypatch, _isolate_cost_data):
                     "valid_until": (observed_at + timedelta(hours=12)).isoformat(),
                     "recovered_freeze_id": freeze_id,
                     "recovered_frozen_at": observed_at.isoformat(),
+                    "cost_state_id": current_cost_state_id(),
                 },
                 "current_month": "2026-07",
                 "monthly_spending": 0.0,
@@ -406,10 +407,13 @@ def mock_provider():
     Returns:
         AsyncMock configured as a DeepResearchProvider
     """
-    provider = AsyncMock()
+    from deepr.providers.base import DeepResearchProvider
+
+    provider = AsyncMock(spec=DeepResearchProvider)
     # Cost-bound research needs an explicit adapter pricing identity. Production
     # providers fall back to their concrete class name.
     provider.provider_name = "openai"
+    provider.provider_key = "openai"
 
     # Configure submit_research to return a job ID
     provider.submit_research = AsyncMock(return_value="job-test-12345")

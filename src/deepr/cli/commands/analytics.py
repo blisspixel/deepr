@@ -149,11 +149,7 @@ def report(period: str):
             console.print(f"[warning]High failure rate detected ({failure_rate:.1f}%)[/warning]")
             console.print("   [dim]Consider reviewing failed jobs for patterns[/dim]")
 
-        # NOTE: the legacy config dict never had a "max_cost_per_month" key (it
-        # was "max_monthly_cost"), so this threshold was always the 1000.0
-        # default. Behavior preserved verbatim; the typo'd-key bug is tracked
-        # separately rather than folded into the config migration.
-        monthly_budget = 1000.0
+        monthly_budget = float(cfg.get("max_monthly_cost", 5.0))
         if total_cost > monthly_budget * 0.8:
             console.print("[warning]Approaching monthly budget limit[/warning]")
             console.print(f"   Current: ${total_cost:.2f}")

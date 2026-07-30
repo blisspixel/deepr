@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
@@ -348,7 +349,13 @@ def test_property_9_fan_out_concurrency_bound(max_concurrent: int, agent_count: 
     """
     import asyncio
 
-    from deepr.agents.contract import AgentBudget, AgentIdentity, AgentResult, AgentStatus
+    from deepr.agents.contract import (
+        AgentBudget,
+        AgentIdentity,
+        AgentResult,
+        AgentStatus,
+        GenericSubagentExecutionBlockedError,
+    )
     from deepr.agents.runtime import FanOutConfig, SubagentRuntime
 
     config = FanOutConfig(
@@ -383,10 +390,10 @@ def test_property_9_fan_out_concurrency_bound(max_concurrent: int, agent_count: 
     planner = AgentIdentity(trace_id="test-trace")
     queries = [f"query-{i}" for i in range(agent_count)]
 
-    asyncio.run(runtime.fan_out(queries, mock_agent, planner))
+    with pytest.raises(GenericSubagentExecutionBlockedError):
+        asyncio.run(runtime.fan_out(queries, mock_agent, planner))
 
-    # Max observed concurrency must not exceed max_concurrent
-    assert max_observed <= max_concurrent
+    assert max_observed == 0
 
 
 # Feature: grok-4-3-migration, Property 10: Circuit Breaker Preserves Partial Results

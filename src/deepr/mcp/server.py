@@ -766,13 +766,13 @@ class DeeprMCPServer:
         model: str = "o4-mini-deep-research",
         provider: str = "openai",
         enable_web_search: bool = True,
-        enable_code_interpreter: bool = True,
+        enable_code_interpreter: bool = False,
         budget: float | None = None,
         files: list[str] | None = None,
         allow_metered_api: bool = False,
         confirm_metered_cost: bool = False,
     ) -> dict[str, Any]:
-        """Submit a deep research job."""
+        """Validate a bounded research request; production metered dispatch is blocked."""
         try:
             ceiling = require_metered_api_contract(
                 budget=budget,

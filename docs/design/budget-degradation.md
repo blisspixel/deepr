@@ -12,7 +12,7 @@ workflow gate on spend, never a semantic verdict.
 `CostSafetyManager` already enforces hard daily/monthly caps (a request that
 would breach the cap is denied) and a circuit breaker. That is a cliff: under
 the cap everything is allowed at full cost; at the cap everything stops. For a
-fleet running on a small monthly reserve (the `$20/month` roster), the useful
+fleet running on a small monthly reserve (the `$5/month` roster), the useful
 behavior is a **graded** one - spend freely early in the month, get pickier as
 the pool drains, fall back to local-only before the cap, and pause (resumably)
 at the cap - and to spend metered dollars only when the expected value of the

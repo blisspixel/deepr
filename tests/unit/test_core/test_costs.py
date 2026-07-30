@@ -178,9 +178,9 @@ class TestCostController:
 
     def test_init_defaults(self):
         ctrl = CostController()
-        assert ctrl.max_cost_per_job == 5.0
-        assert ctrl.max_daily_cost == 25.0
-        assert ctrl.max_monthly_cost == 200.0
+        assert ctrl.max_cost_per_job == 1.0
+        assert ctrl.max_daily_cost == 2.0
+        assert ctrl.max_monthly_cost == 5.0
         assert ctrl.daily_spending == 0.0
         assert ctrl.monthly_spending == 0.0
 

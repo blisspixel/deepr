@@ -1,4 +1,4 @@
-"""Azure Blob Storage implementation."""
+"""Blocked Azure Blob Storage compatibility surface."""
 
 import os
 from datetime import UTC, datetime, timedelta
@@ -12,8 +12,15 @@ from deepr.utils.security import InvalidInputError, PathTraversalError, sanitize
 from .base import ReportMetadata, StorageBackend, StorageError
 
 
+def _require_blob_storage_accounting() -> None:
+    """Block cloud storage before client construction or any network operation."""
+    from deepr.services.research_bounds import require_research_storage_accounting
+
+    require_research_storage_accounting()
+
+
 class AzureBlobStorage(StorageBackend):
-    """Azure Blob Storage implementation of storage backend."""
+    """Azure Blob backend blocked until its full billed lifecycle is bounded."""
 
     def __init__(
         self,
@@ -31,6 +38,7 @@ class AzureBlobStorage(StorageBackend):
             container_name: Name of the blob container
             use_managed_identity: Use Azure Managed Identity for authentication
         """
+        _require_blob_storage_accounting()
         self.container_name = container_name
 
         if use_managed_identity:
@@ -56,6 +64,7 @@ class AzureBlobStorage(StorageBackend):
 
     async def _ensure_container(self) -> None:
         """Ensure container exists, create if necessary."""
+        _require_blob_storage_accounting()
         if self.container_client is None:
             self.container_client = self.client.get_container_client(self.container_name)
             try:

@@ -151,7 +151,13 @@ class ExpertValidator:
             api_key = os.getenv("OPENAI_API_KEY")
             if not api_key:
                 raise ExpertValidatorError("OPENAI_API_KEY is not set. Pass a client explicitly or set the env var.")
-            client = AsyncOpenAI(api_key=api_key, max_retries=0)
+            from deepr.providers.dispatch_authority import default_paid_endpoint
+
+            client = AsyncOpenAI(
+                api_key=api_key,
+                base_url=default_paid_endpoint("openai"),
+                max_retries=0,
+            )
         self.client = client
         # Reject an out-of-allowlist model override rather than trusting it:
         # the validate surface is advertised as a cheap "free" tool, so a
@@ -230,20 +236,32 @@ class ExpertValidator:
 
         requested_ceiling = resolve_spend_caps()["per_job"] if max_cost_per_job is None else float(max_cost_per_job)
         envelope = bounded_chat_envelope(
+            provider="openai",
             model=self.model,
             prompt_parts=(system, user),
             budget_usd=requested_ceiling,
             maximum_output_tokens=1_200,
             minimum_output_tokens=128,
         )
+        from deepr.providers.dispatch_authority import require_official_paid_client
         from deepr.services.metered_call import execute_reserved_async_call
 
+        require_official_paid_client(self.client, "openai")
         response = await execute_reserved_async_call(
             operation_prefix="expert-validation",
             provider="openai",
             model=self.model,
             source="services.expert_validator.validate",
             max_cost_per_job=envelope.cost_usd,
+            request_envelope={
+                "model": self.model,
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                "response_format": {"type": "json_object"},
+                "max_completion_tokens": envelope.output_tokens,
+            },
             call=lambda: self.client.chat.completions.create(
                 model=self.model,
                 messages=[
@@ -311,7 +329,7 @@ class ExpertValidator:
         return "\n".join(lines)
 
     @staticmethod
-    def _format_gaps(gaps: list) -> str:
+    def _format_gaps(gaps: list[Any]) -> str:
         if not gaps:
             return "(none recorded)"
         lines = []

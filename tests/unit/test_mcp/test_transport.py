@@ -6,10 +6,13 @@ Tests both Stdio and HTTP transports for correctness.
 
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
+
+from deepr.mcp.http_client_policy import MCPHttpDispatchBlockedError
 
 # Add deepr to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
@@ -412,24 +415,10 @@ async def test_http_broadcast_logs_and_counts_subscriber_put_failures(caplog):
 
 
 @pytest.mark.asyncio
-async def test_http_client_stream_loop_logs_errors(caplog):
-    """Stream loop should log connection/read failures instead of silently swallowing."""
-
-    class _BrokenResponse:
-        async def __aenter__(self):
-            raise RuntimeError("stream boom")
-
-        async def __aexit__(self, exc_type, exc, tb):
-            return False
-
-    class _BrokenSession:
-        def get(self, _url):
-            return _BrokenResponse()
-
+async def test_http_client_stream_loop_is_cost_blocked_before_get():
     client = HttpClient("http://localhost:9999")
-    client._session = _BrokenSession()
+    client._session = MagicMock()
 
-    with caplog.at_level("WARNING"):
+    with pytest.raises(MCPHttpDispatchBlockedError, match="remote service cost"):
         await client._stream_loop("http://localhost:9999/mcp/stream")
-
-    assert "MCP HTTP stream loop terminated with error" in caplog.text
+    client._session.get.assert_not_called()

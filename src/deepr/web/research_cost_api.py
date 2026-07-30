@@ -74,7 +74,8 @@ def retryable_dispatch_payload(error: Exception, job_id: str) -> dict[str, Any] 
     if not isinstance(error, ResearchDispatchReservationError) or not error.retryable:
         return None
     return {
-        "error": str(error),
+        "error": "Research dispatch is waiting for durable cost authority",
+        "error_code": "cost_authority_temporarily_unavailable",
         "job_id": job_id,
         "status": "queued",
         "retryable": True,
@@ -383,7 +384,7 @@ class WebResearchCostCoordinator:
             job_id=str(job.id),
             provider=str(getattr(job, "provider", "") or "openai"),
             model=str(getattr(job, "model", "") or ""),
-            actual_cost=float(actual_cost or 0.0),
+            actual_cost=actual_cost,
             tokens=tokens,
             request_id=request_id,
             source="web.poller._handle_completion",

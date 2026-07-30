@@ -21,9 +21,16 @@ from pathlib import Path
 from typing import Protocol
 from uuid import uuid4
 
+from dotenv import dotenv_values
 from filelock import FileLock
 
-_DEFAULTS: dict[str, float] = {"per_job": 5.0, "daily": 10.0}
+_DEFAULTS: dict[str, float] = {"per_job": 1.0, "daily": 2.0}
+_ABSOLUTE_CEILINGS: dict[str, float] = {
+    "per_job": 5.0,
+    "daily": 5.0,
+    "weekly": 5.0,
+    "monthly": 5.0,
+}
 _PRIMARY: dict[str, str] = {
     "per_job": "DEEPR_MAX_COST_PER_JOB",
     "daily": "DEEPR_MAX_COST_PER_DAY",
@@ -106,6 +113,7 @@ class OperatorBudget:
     authorization_hard_monthly_limit: float = 0.0
     authorization_recovered_freeze_id: str = ""
     authorization_recovered_frozen_at: datetime | None = None
+    authorization_cost_state_id: str = ""
     _verified_marker: object | None = field(default=None, repr=False, compare=False)
 
 
@@ -115,6 +123,7 @@ class _AuthorizationReference:
     valid_until: datetime
     recovered_freeze_id: str
     recovered_frozen_at: datetime | None
+    cost_state_id: str
 
 
 def budget_file_path() -> Path:
@@ -170,6 +179,44 @@ def _money(value: object, *, source: str) -> float:
     return number
 
 
+def _reject_budget_json_constant(value: str) -> None:
+    raise ValueError(f"non-standard JSON constant {value!r} is not allowed")
+
+
+def _reject_budget_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    document: dict[str, object] = {}
+    for key, value in pairs:
+        if key in document:
+            raise ValueError(f"duplicate JSON key {key!r} is not allowed")
+        document[key] = value
+    return document
+
+
+def _loads_operator_budget(text: str) -> dict[str, object]:
+    document = json.loads(
+        text,
+        parse_constant=_reject_budget_json_constant,
+        object_pairs_hook=_reject_budget_duplicate_keys,
+    )
+    if not isinstance(document, dict):
+        raise ValueError("operator budget must be a JSON object")
+    return document
+
+
+def _active_cost_state_id() -> str:
+    try:
+        from deepr.observability.cost_ledger import (
+            CostLedgerDurabilityError,
+            CostLedgerLockTimeout,
+            CostLedgerReadError,
+            current_cost_state_id,
+        )
+
+        return current_cost_state_id()
+    except (CostLedgerDurabilityError, CostLedgerLockTimeout, CostLedgerReadError, ValueError) as exc:
+        raise SpendCapConfigurationError("cost-state identity is unavailable") from exc
+
+
 def read_operator_budget(path: Path | None = None, *, provider: str | None = None) -> OperatorBudget:
     """Strictly read the operator's persisted monthly authority.
 
@@ -186,8 +233,8 @@ def read_operator_budget(path: Path | None = None, *, provider: str | None = Non
             freeze_kind="unconfigured",
         )
     try:
-        document = json.loads(target.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        document = _loads_operator_budget(target.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
         raise SpendCapConfigurationError(f"operator budget is unreadable: {target}") from exc
     operator = parse_operator_budget(document)
     if document.get("paid_api_frozen", False) is True or operator.monthly_limit <= 0:
@@ -204,6 +251,13 @@ def read_operator_budget(path: Path | None = None, *, provider: str | None = Non
     requested_provider = _normalized_provider(requested_provider)
     if reference is None or not reference.recovered_freeze_id or reference.recovered_frozen_at is None:
         return operator
+    if reference.cost_state_id != _active_cost_state_id():
+        return replace(
+            operator,
+            frozen=True,
+            freeze_reason="paid API authorization belongs to another cost state",
+            freeze_kind="account_identity_mismatch",
+        )
     try:
         from deepr.observability.provider_account_controls import (
             ProviderAccountControlError,
@@ -250,6 +304,16 @@ def _aware_datetime(value: object, *, source: str) -> datetime:
     return parsed.astimezone(UTC)
 
 
+def _authorization_cost_state_id(value: object) -> str:
+    if not isinstance(value, str) or len(value) != 32:
+        raise SpendCapConfigurationError("operator authorization cost_state_id is invalid")
+    try:
+        int(value, 16)
+    except ValueError as exc:
+        raise SpendCapConfigurationError("operator authorization cost_state_id is invalid") from exc
+    return value
+
+
 def _authorization_fields(document: dict[str, object]) -> _AuthorizationReference | None:
     raw = document.get("paid_api_authorization")
     if raw is None:
@@ -262,6 +326,7 @@ def _authorization_fields(document: dict[str, object]) -> _AuthorizationReferenc
         "valid_until",
         "recovered_freeze_id",
         "recovered_frozen_at",
+        "cost_state_id",
     }
     if set(raw).difference(allowed):
         raise SpendCapConfigurationError("operator paid_api_authorization contains unknown fields")
@@ -292,11 +357,13 @@ def _authorization_fields(document: dict[str, object]) -> _AuthorizationReferenc
             source="operator paid_api_authorization recovered_frozen_at",
         )
     )
+    cost_state_id = _authorization_cost_state_id(raw.get("cost_state_id"))
     return _AuthorizationReference(
         evidence_ids=tuple(evidence_ids),
         valid_until=valid_until,
         recovered_freeze_id=recovered_freeze_id,
         recovered_frozen_at=recovered_frozen_at,
+        cost_state_id=cost_state_id,
     )
 
 
@@ -305,6 +372,8 @@ def _with_verified_authorization(
     authorization: VerifiedSpendAuthority,
 ) -> OperatorBudget:
     """Create an operator budget carrying evidence-derived authority."""
+    from deepr.observability.cost_ledger import current_cost_state_id
+
     return replace(
         operator,
         frozen=False,
@@ -318,6 +387,7 @@ def _with_verified_authorization(
         authorization_providers=authorization.providers,
         authorization_hard_monthly_limit=authorization.hard_monthly_limit_usd,
         authorization_recovered_freeze_id=authorization.recovered_freeze_id,
+        authorization_cost_state_id=current_cost_state_id(),
         _verified_marker=_VERIFIED_AUTHORITY_MARKER,
     )
 
@@ -372,6 +442,7 @@ def parse_operator_budget(document: object) -> OperatorBudget:
         authorization_valid=False,
         authorization_recovered_freeze_id=(authorization.recovered_freeze_id if authorization is not None else ""),
         authorization_recovered_frozen_at=(authorization.recovered_frozen_at if authorization is not None else None),
+        authorization_cost_state_id=(authorization.cost_state_id if authorization is not None else ""),
     )
 
 
@@ -388,8 +459,72 @@ def _parse_env_limit(env_name: str) -> float | None:
     return value
 
 
-def _environment_limit(key: str) -> float | None:
-    values = [value for value in (_parse_env_limit(_PRIMARY[key]), _parse_env_limit(_LEGACY[key])) if value is not None]
+def _checkout_policy_value(path: Path, env_name: str, raw: object) -> float:
+    if not isinstance(raw, str) or not raw.strip():
+        raise SpendCapConfigurationError(f"{path}:{env_name} must be a finite non-negative number")
+    try:
+        value = float(raw.strip())
+    except ValueError as exc:
+        raise SpendCapConfigurationError(f"{path}:{env_name} must be a finite non-negative number") from exc
+    if not isfinite(value) or value < 0:
+        raise SpendCapConfigurationError(f"{path}:{env_name} must be a finite non-negative number")
+    return value
+
+
+def _read_checkout_policy(path: Path) -> dict[str, float]:
+    try:
+        document = dotenv_values(dotenv_path=path, interpolate=False)
+    except (OSError, UnicodeError) as exc:
+        raise SpendCapConfigurationError(f"spend-cap source is unreadable: {path}") from exc
+    if not path.is_file():
+        raise SpendCapConfigurationError(f"spend-cap source disappeared while being read: {path}")
+    current: dict[str, list[float]] = {key: [] for key in _PRIMARY}
+    for key in _PRIMARY:
+        for env_name in (_PRIMARY[key], _LEGACY[key]):
+            if env_name in document:
+                current[key].append(_checkout_policy_value(path, env_name, document[env_name]))
+    normalized = {key: min(values) for key, values in current.items() if values}
+    for key in normalized:
+        runtime_values = [
+            value for value in (_parse_env_limit(_PRIMARY[key]), _parse_env_limit(_LEGACY[key])) if value is not None
+        ]
+        if runtime_values:
+            normalized[key] = min(normalized[key], *runtime_values)
+    return normalized
+
+
+def _trusted_checkout_limits() -> dict[str, tuple[float, ...]]:
+    """Load caps from validated checkout env files persisted by cost authority.
+
+    ``load_dotenv`` makes a checkout-local cap look like a process variable but
+    loses its provenance. A wheel launched elsewhere must retain that tighter
+    bound, so only validated checkout files discovered through the canonical
+    cost-source registry are consulted here.
+    """
+    from deepr.observability.cost_ledger import (
+        CostLedgerReadError,
+        register_spend_cap_env_source,
+        well_known_spend_cap_env_paths,
+    )
+
+    limits: dict[str, list[float]] = {key: [] for key in _PRIMARY}
+    try:
+        paths = well_known_spend_cap_env_paths()
+        for path in paths:
+            effective = register_spend_cap_env_source(path, _read_checkout_policy(path))
+            for key, value in effective.items():
+                limits[key].append(value)
+    except CostLedgerReadError as exc:
+        raise SpendCapConfigurationError(f"spend-cap provenance is incomplete: {exc}") from exc
+    return {key: tuple(values) for key, values in limits.items()}
+
+
+def _environment_limit(key: str, trusted_values: tuple[float, ...] = ()) -> float | None:
+    values = [
+        value
+        for value in (_parse_env_limit(_PRIMARY[key]), _parse_env_limit(_LEGACY[key]), *trusted_values)
+        if value is not None
+    ]
     return min(values) if values else None
 
 
@@ -423,10 +558,11 @@ def resolve_spend_caps(
             freeze_reason="paid API provider authority is not verified",
             freeze_kind="account_identity_mismatch",
         )
-    per_job = _environment_limit("per_job")
-    daily = _environment_limit("daily")
-    weekly = _environment_limit("weekly")
-    monthly = _environment_limit("monthly")
+    trusted_limits = _trusted_checkout_limits()
+    per_job = _environment_limit("per_job", trusted_limits["per_job"])
+    daily = _environment_limit("daily", trusted_limits["daily"])
+    weekly = _environment_limit("weekly", trusted_limits["weekly"])
+    monthly = _environment_limit("monthly", trusted_limits["monthly"])
 
     per_job = _DEFAULTS["per_job"] if per_job is None else per_job
     daily = _DEFAULTS["daily"] if daily is None else daily
@@ -437,12 +573,14 @@ def resolve_spend_caps(
     if operator.configured:
         monthly_candidates.append(operator.monthly_limit)
     monthly = min(monthly_candidates) if monthly_candidates else 0.0
+    monthly = min(monthly, _ABSOLUTE_CEILINGS["monthly"])
     if operator.frozen:
         monthly = 0.0
 
     weekly = monthly if weekly is None else min(weekly, monthly)
-    daily = min(daily, weekly)
-    per_job = min(per_job, daily)
+    weekly = min(weekly, _ABSOLUTE_CEILINGS["weekly"])
+    daily = min(daily, weekly, _ABSOLUTE_CEILINGS["daily"])
+    per_job = min(per_job, daily, _ABSOLUTE_CEILINGS["per_job"])
     return {
         "per_job": per_job,
         "daily": daily,
@@ -510,8 +648,8 @@ def _freeze_paid_api_unlocked(
 
     if target.exists():
         try:
-            document = json.loads(target.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            document = _loads_operator_budget(target.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
             raise SpendCapConfigurationError(f"operator budget is unreadable: {target}") from exc
     else:
         document = {"monthly_limit": 0.0}

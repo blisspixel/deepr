@@ -1,7 +1,7 @@
 """ExpertChatSession budget handling (no-surprise-bills).
 
-Regression for a live-hunt finding (2026-06-14): `budget or 10.0` silently
-turned an explicit budget=0.0 ("do not spend") into a $10 ceiling, because 0.0
+Regression for a live-hunt finding (2026-06-14): a truthiness default silently
+turned an explicit budget=0.0 ("do not spend") into a positive ceiling because 0.0
 is falsy. An agent or `--budget 0` caller meaning no spend got a real budget.
 """
 
@@ -75,13 +75,20 @@ class RecordingNoToolChatBackend(RecordingChatBackend):
         )
 
 
-def test_unspecified_budget_defaults_to_ten(monkeypatch):
-    assert _session(monkeypatch, None).budget == 10.0
+def test_unspecified_budget_defaults_to_one(monkeypatch):
+    assert _session(monkeypatch, None).budget == 1.0
 
 
 def test_explicit_zero_budget_is_honored_not_coerced_to_default(monkeypatch):
-    # budget=0.0 means "do not spend" - it must NOT become $10.
+    # budget=0.0 means "do not spend" - it must not become a positive cap.
     assert _session(monkeypatch, 0.0).budget == 0.0
+
+
+def test_zero_budget_stays_zero_in_agentic_prompt(monkeypatch):
+    session = _session(monkeypatch, 0.0)
+    session.agentic = True
+
+    assert "Budget remaining: $0.00" in session.get_system_message()
 
 
 def test_positive_budget_passes_through(monkeypatch):
@@ -145,26 +152,27 @@ async def test_standard_research_fails_closed_before_any_provider_or_fallback(mo
     assert session.cost_accumulated == 0.0
 
 
-async def test_successful_research_document_write_advances_both_freshness_fields(monkeypatch):
-    from deepr.experts.profile import ExpertStore
+async def test_research_document_upload_is_blocked_before_hosted_storage_dispatch(monkeypatch):
+    from deepr.services.research_bounds import ResearchRequestBoundsError
 
     session = _session(monkeypatch, 1.0)
     session.chat_backend = RecordingChatBackend()
     session.client.files.create = AsyncMock(return_value=SimpleNamespace(id="file-1"))
     session.client.vector_stores.files.create = AsyncMock(return_value=None)
 
-    written = await session._add_research_to_knowledge_base(
-        "What changed in the test domain?",
-        "A verified research answer.",
-        "standard_research",
-    )
+    with pytest.raises(
+        ResearchRequestBoundsError,
+        match="upload, operations, indexing, retention, retrieval, egress, and cleanup",
+    ):
+        await session._add_research_to_knowledge_base(
+            "What changed in the test domain?",
+            "A verified research answer.",
+            "standard_research",
+        )
 
-    assert written is True
-    assert session.expert.knowledge_cutoff_date is not None
-    assert session.expert.last_knowledge_refresh == session.expert.knowledge_cutoff_date
-    loaded = ExpertStore().load(session.expert.name)
-    assert loaded is not None
-    assert loaded.knowledge_cutoff_date == session.expert.knowledge_cutoff_date
+    session.client.files.create.assert_not_awaited()
+    session.client.vector_stores.files.create.assert_not_awaited()
+    assert session.expert.knowledge_cutoff_date is None
 
 
 async def test_quick_lookup_uses_chat_backend(monkeypatch):
@@ -203,7 +211,7 @@ async def test_standard_research_does_not_reach_owned_fallback_after_metered_gat
     assert backend.requests == []
 
 
-async def test_standard_research_uses_durable_admission_when_enabled(monkeypatch):
+async def test_standard_research_cannot_be_enabled_without_provider_charge_bound(monkeypatch):
     from deepr.experts import chat_capacity
     from deepr.experts.research_reservation_store import ResearchReservationStore
 
@@ -233,15 +241,15 @@ async def test_standard_research_uses_durable_admission_when_enabled(monkeypatch
     monkeypatch.setitem(__import__("sys").modules, "xai_sdk.chat", fake_xai.chat)
     monkeypatch.setitem(__import__("sys").modules, "xai_sdk.tools", fake_xai.tools)
 
-    result = await session._standard_research("latest ai infrastructure funding")
+    with pytest.raises(MeteredExpertChatDisabledError) as blocked:
+        await session._standard_research("latest ai infrastructure funding")
 
-    assert result["answer"].startswith("live answer")
-    assert result["mode"] == "standard_research_grok_agentic"
+    assert blocked.value.provider_work_dispatched is False
     assert ResearchReservationStore().active_cost() == 0
-    assert session.cost_accumulated > 0
+    assert session.cost_accumulated == 0
 
 
-async def test_deep_research_uses_durable_admission_when_enabled(monkeypatch, tmp_path):
+async def test_deep_research_cannot_be_enabled_without_provider_charge_bound(monkeypatch, tmp_path):
     from deepr.experts import chat_capacity
     from deepr.experts.profile import ExpertStore
     from deepr.experts.research_reservation_store import ResearchReservationStore
@@ -249,19 +257,27 @@ async def test_deep_research_uses_durable_admission_when_enabled(monkeypatch, tm
     monkeypatch.setattr(chat_capacity, "METERED_EXPERT_CHAT_EXECUTION_ENABLED", True)
     monkeypatch.setenv("DEEPR_ALLOW_METERED_EXPERT_CHAT", "1")
     monkeypatch.setattr(CostSafetyManager, "ABSOLUTE_MAX_PER_OPERATION", 10.0)
+    monkeypatch.setenv("DEEPR_MAX_COST_PER_JOB", "5")
+    monkeypatch.setenv("DEEPR_MAX_COST_PER_DAY", "5")
+    monkeypatch.setenv("DEEPR_MAX_COST_PER_MONTH", "5")
     session = _session(monkeypatch, 5.0)
     session.chat_backend = SimpleNamespace(metered=True, provider="openai")
     monkeypatch.setattr(ExpertStore, "save", lambda self, expert: None)
 
+    calls = 0
+
     async def fake_create(**_kwargs):
+        nonlocal calls
+        calls += 1
         return SimpleNamespace(id="resp_deep_1", usage=None)
 
     monkeypatch.setattr(session.client.responses, "create", fake_create)
 
-    result = await session._deep_research("design a migration strategy")
+    with pytest.raises(MeteredExpertChatDisabledError) as blocked:
+        await session._deep_research("design a migration strategy")
 
-    assert result.get("status") != "blocked"
-    assert "error" not in result or result.get("job_id")
+    assert blocked.value.provider_work_dispatched is False
+    assert calls == 0
     assert ResearchReservationStore().active_cost() == 0
 
 
@@ -356,8 +372,9 @@ async def test_owned_no_tool_chat_omits_tools_and_stays_zero_cost(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "anthropic-test-not-real")
 
     class FakeAsyncAnthropic:
-        def __init__(self, *, api_key, max_retries):
+        def __init__(self, *, api_key, base_url, max_retries):
             assert api_key == "anthropic-test-not-real"
+            assert base_url == "https://api.anthropic.com"
             assert max_retries == 0
 
     monkeypatch.setattr("deepr.experts.chat_api_backends.AsyncAnthropic", FakeAsyncAnthropic)

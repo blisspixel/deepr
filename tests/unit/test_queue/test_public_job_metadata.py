@@ -18,10 +18,13 @@ def test_client_job_metadata_preserves_annotations() -> None:
     "reserved_key",
     [
         "cleanup_vector_store",
+        "cost_reservation_authority_version",
+        "cost_reservation_dispatch_binding_id",
         "cost_reservation_estimated_usd",
         "cost_reservation_id",
         "cost_reservation_model",
         "cost_reservation_provider",
+        "cost_reservation_request_envelope_sha256",
         "provider_file_ids",
         "uploaded_files",
         "vector_store_id",
@@ -40,7 +43,10 @@ def test_client_job_metadata_rejects_non_object() -> None:
 def test_public_job_metadata_redacts_lifecycle_fields() -> None:
     metadata = {
         "campaign": "launch",
+        "cost_reservation_authority_version": "provider-request-bound-v2",
+        "cost_reservation_dispatch_binding_id": "a" * 64,
         "cost_reservation_id": "reservation-private",
+        "cost_reservation_request_envelope_sha256": "b" * 64,
         "provider_file_ids": ["file-private"],
         "vector_store_id": "vs-private",
     }

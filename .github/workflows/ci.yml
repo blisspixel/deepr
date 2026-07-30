@@ -9,9 +9,14 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -74,6 +79,7 @@ jobs:
 
   security:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -111,6 +117,7 @@ jobs:
           name: sbom-requirements
           path: sbom-requirements.txt
           if-no-files-found: error
+          retention-days: 7
 
   core-install:
     # The dev/test/[full] installs always include numpy, bs4, etc., so a broken
@@ -121,6 +128,7 @@ jobs:
     # This job installs CORE ONLY and exercises the no-network command surface,
     # so that class fails here, not on a user's machine.
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -147,6 +155,7 @@ jobs:
     # a missing ESLint config both survived for months (found 2026-06-11
     # while verifying dependency bumps locally). This job closes that gap.
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: src/deepr/web/frontend
@@ -204,6 +213,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:

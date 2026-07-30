@@ -8,8 +8,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from deepr.experts.research_cost_gate import ResearchCostReservation
-from deepr.providers.base import ResearchRequest
+from deepr.experts.research_cost_gate import ResearchCostBlocked, ResearchCostReservation
+from deepr.providers.base import DeepResearchProvider, ResearchRequest, ToolConfig
+from deepr.providers.dispatch_authority import (
+    _mint_paid_dispatch_grant,
+    default_paid_endpoint,
+    research_request_sha256,
+)
 from deepr.queue.base import JobStatus, ResearchJob
 from deepr.services.research_bounds import ResearchRequestBoundsError
 from deepr.services.research_submission import (
@@ -26,10 +31,21 @@ def _durable_reservation_is_active(monkeypatch):
         "deepr.services.research_submission.ResearchReservationStore.is_active_for_job",
         lambda _self, **_kwargs: True,
     )
-    monkeypatch.setattr("deepr.services.research_submission.mark_research_provider_work", lambda _reservation: None)
+
+    def mark(reservation: ResearchCostReservation, request: ResearchRequest):
+        return _mint_paid_dispatch_grant(
+            provider=reservation.provider,
+            model=reservation.model,
+            reservation_id=reservation.reservation_id,
+            job_id=reservation.job_id,
+            request_sha256=research_request_sha256(request),
+        )
+
+    monkeypatch.setattr("deepr.services.research_submission.mark_research_provider_work", mark)
 
 
 _MODEL = "o4-mini-deep-research"
+_BINDING_ID = "a" * 64
 
 
 def _job() -> ResearchJob:
@@ -39,7 +55,8 @@ def _job() -> ResearchJob:
         model=_MODEL,
         status=JobStatus.QUEUED,
         metadata={
-            "cost_reservation_authority_version": "provider-account-bound-v1",
+            "cost_reservation_authority_version": "provider-request-bound-v2",
+            "cost_reservation_dispatch_binding_id": _BINDING_ID,
             "cost_reservation_id": "reservation-1",
             "cost_reservation_estimated_usd": 0.6,
             "cost_reservation_provider": "openai",
@@ -56,6 +73,7 @@ def _reservation() -> ResearchCostReservation:
         estimated_cost=0.6,
         reservation_id="reservation-1",
         manager=MagicMock(),
+        dispatch_binding_id=_BINDING_ID,
     )
 
 
@@ -78,10 +96,25 @@ def _queue(**overrides) -> MagicMock:
     return queue
 
 
+def _provider(
+    *,
+    submit_research: AsyncMock | None = None,
+    cancel_job: AsyncMock | None = None,
+    provider_key: str = "openai",
+) -> MagicMock:
+    provider = MagicMock(spec=DeepResearchProvider)
+    provider.provider_key = provider_key
+    provider._paid_endpoint = default_paid_endpoint(provider_key)
+    provider.get_model_name.side_effect = lambda model: model
+    provider.submit_research = submit_research or AsyncMock()
+    provider.cancel_job = cancel_job or AsyncMock()
+    return provider
+
+
 @pytest.mark.asyncio
 async def test_dispatch_enqueues_submits_and_persists_provider_id() -> None:
     queue = _queue()
-    provider = MagicMock(submit_research=AsyncMock(return_value="provider-1"), cancel_job=AsyncMock())
+    provider = _provider(submit_research=AsyncMock(return_value="provider-1"))
     reservation = _reservation()
 
     provider_job_id = await dispatch_reserved_research(
@@ -95,6 +128,10 @@ async def test_dispatch_enqueues_submits_and_persists_provider_id() -> None:
     assert provider_job_id == "provider-1"
     submitted_request = provider.submit_research.await_args.args[0]
     assert submitted_request.idempotency_key == "deepr-research-job-1"
+    expected_request_sha256 = research_request_sha256(submitted_request)
+    queued_job = queue.enqueue.await_args.args[0]
+    assert queued_job.metadata["cost_reservation_request_envelope_sha256"] == expected_request_sha256
+    assert reservation.request_envelope_sha256 == expected_request_sha256
     queue.enqueue.assert_awaited_once()
     queue.update_status.assert_awaited_once_with(
         job_id="job-1",
@@ -105,9 +142,33 @@ async def test_dispatch_enqueues_submits_and_persists_provider_id() -> None:
 
 
 @pytest.mark.asyncio
+async def test_dispatch_rejects_conflicting_request_digest_before_enqueue() -> None:
+    queue = _queue()
+    provider = _provider()
+    reservation = _reservation()
+    object.__setattr__(reservation, "request_envelope_sha256", "f" * 64)
+
+    with (
+        patch("deepr.services.research_submission.refund_research_cost") as refund,
+        pytest.raises(ResearchCostBlocked, match="does not match"),
+    ):
+        await dispatch_reserved_research(
+            queue=queue,
+            provider=provider,
+            job=_job(),
+            request=ResearchRequest(prompt="Research", model=_MODEL, system_message="Test"),
+            reservation=reservation,
+        )
+
+    refund.assert_called_once_with(reservation)
+    queue.enqueue.assert_not_awaited()
+    provider.submit_research.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_dispatch_settles_maximum_when_provider_rejects_after_mark() -> None:
     queue = _queue()
-    provider = MagicMock(submit_research=AsyncMock(side_effect=RuntimeError("rejected")))
+    provider = _provider(submit_research=AsyncMock(side_effect=RuntimeError("rejected")))
     reservation = _reservation()
 
     with (
@@ -141,7 +202,7 @@ async def test_dispatch_settles_maximum_when_provider_rejects_after_mark() -> No
 @pytest.mark.asyncio
 async def test_dispatch_settles_when_tracking_failure_provider_cancelled() -> None:
     queue = _queue(update_status=AsyncMock(side_effect=[False, True]))
-    provider = MagicMock(
+    provider = _provider(
         submit_research=AsyncMock(return_value="provider-1"),
         cancel_job=AsyncMock(return_value=True),
     )
@@ -174,7 +235,7 @@ async def test_dispatch_settles_when_tracking_failure_provider_cancelled() -> No
 @pytest.mark.asyncio
 async def test_dispatch_settles_estimate_when_accepted_job_cannot_be_cancelled() -> None:
     queue = _queue(update_status=AsyncMock(side_effect=OSError("queue unavailable")))
-    provider = MagicMock(
+    provider = _provider(
         submit_research=AsyncMock(return_value="provider-1"),
         cancel_job=AsyncMock(return_value=False),
     )
@@ -205,7 +266,7 @@ async def test_dispatch_settles_estimate_when_accepted_job_cannot_be_cancelled()
 @pytest.mark.asyncio
 async def test_dispatch_settles_maximum_when_submission_outcome_is_ambiguous() -> None:
     queue = _queue()
-    provider = MagicMock(submit_research=AsyncMock(side_effect=TimeoutError("response lost")))
+    provider = _provider(submit_research=AsyncMock(side_effect=TimeoutError("response lost")))
     reservation = _reservation()
 
     with (
@@ -239,7 +300,7 @@ async def test_dispatch_refuses_provider_work_after_reservation_was_closed(monke
         lambda _self, **_kwargs: False,
     )
     queue = _queue()
-    provider = MagicMock(submit_research=AsyncMock())
+    provider = _provider()
 
     with pytest.raises(ResearchDispatchReservationError, match="missing or closed") as raised:
         await dispatch_reserved_research(
@@ -273,7 +334,7 @@ async def test_dispatch_checks_exact_reservation_ownership(monkeypatch) -> None:
         active_for_job,
     )
     queue = _queue()
-    provider = MagicMock(submit_research=AsyncMock())
+    provider = _provider()
 
     with pytest.raises(ResearchDispatchReservationError) as raised:
         await dispatch_reserved_research(
@@ -303,7 +364,7 @@ async def test_dispatch_waits_when_reservation_store_is_unavailable(monkeypatch)
         unavailable,
     )
     queue = _queue()
-    provider = MagicMock(submit_research=AsyncMock())
+    provider = _provider()
     reservation = _reservation()
 
     with pytest.raises(ResearchDispatchReservationError) as raised:
@@ -328,7 +389,7 @@ async def test_dispatch_fails_when_persisted_reservation_metadata_does_not_match
     persisted = _job()
     persisted.metadata["cost_reservation_id"] = "stale-reservation"
     queue = _queue(get_job=AsyncMock(return_value=persisted))
-    provider = MagicMock(submit_research=AsyncMock())
+    provider = _provider()
 
     with pytest.raises(ResearchDispatchReservationError) as raised:
         await dispatch_reserved_research(
@@ -347,7 +408,7 @@ async def test_dispatch_fails_when_persisted_reservation_metadata_does_not_match
 @pytest.mark.asyncio
 async def test_dispatch_refuses_provider_work_when_queue_claim_lost() -> None:
     queue = _queue(claim_submission=AsyncMock(return_value=False))
-    provider = MagicMock(submit_research=AsyncMock())
+    provider = _provider()
 
     with pytest.raises(RuntimeError, match="cancelled before provider"):
         await dispatch_reserved_research(
@@ -371,7 +432,7 @@ async def test_cancellation_during_provider_call_conservatively_settles() -> Non
         await asyncio.Event().wait()
         return "unreachable"
 
-    provider = MagicMock(submit_research=AsyncMock(side_effect=submit))
+    provider = _provider(submit_research=AsyncMock(side_effect=submit))
     reservation = _reservation()
     with patch("deepr.services.research_submission.settle_research_cost") as settle:
         task = asyncio.create_task(
@@ -411,7 +472,7 @@ async def test_cancellation_waits_for_provider_id_handoff() -> None:
         return True
 
     queue = _queue(update_status=AsyncMock(side_effect=persist_handoff))
-    provider = MagicMock(submit_research=AsyncMock(return_value="provider-1"))
+    provider = _provider(submit_research=AsyncMock(return_value="provider-1"))
     reservation = _reservation()
     with patch("deepr.services.research_submission.settle_research_cost") as settle:
         task = asyncio.create_task(
@@ -440,13 +501,13 @@ async def test_cancellation_during_dispatch_mark_refunds_before_provider(monkeyp
     entered = threading.Event()
     release = threading.Event()
 
-    def mark(_reservation: ResearchCostReservation) -> None:
+    def mark(_reservation: ResearchCostReservation, _request: ResearchRequest) -> None:
         entered.set()
         release.wait(timeout=2)
 
     monkeypatch.setattr("deepr.services.research_submission.mark_research_provider_work", mark)
     queue = _queue()
-    provider = MagicMock(submit_research=AsyncMock())
+    provider = _provider()
     reservation = _reservation()
     with patch("deepr.services.research_submission.refund_research_cost") as refund:
         task = asyncio.create_task(
@@ -481,7 +542,7 @@ async def test_cancellation_during_enqueue_cancels_snapshot_before_refund() -> N
 
     queue = _queue(enqueue=AsyncMock(side_effect=enqueue))
     queue.cancel_queued_submission = AsyncMock(return_value=True)
-    provider = MagicMock(submit_research=AsyncMock())
+    provider = _provider()
     reservation = _reservation()
     with patch("deepr.services.research_submission.refund_research_cost") as refund:
         task = asyncio.create_task(
@@ -514,9 +575,10 @@ async def test_dispatch_refuses_reservation_smaller_than_full_envelope() -> None
         estimated_cost=0.01,
         reservation_id=reservation.reservation_id,
         manager=reservation.manager,
+        dispatch_binding_id=reservation.dispatch_binding_id,
     )
     queue = _queue()
-    provider = MagicMock(submit_research=AsyncMock())
+    provider = _provider()
     with (
         patch("deepr.services.research_submission.refund_research_cost") as refund,
         pytest.raises(ResearchRequestBoundsError) as raised,
@@ -545,11 +607,12 @@ async def test_gemini_deep_research_fails_closed_before_dispatch() -> None:
         estimated_cost=5.0,
         reservation_id="reservation-1",
         manager=MagicMock(),
+        dispatch_binding_id=_BINDING_ID,
     )
     job = _job()
     job.model = model
     queue = _queue()
-    provider = MagicMock(submit_research=AsyncMock())
+    provider = _provider(provider_key="gemini")
     with (
         patch("deepr.services.research_submission.refund_research_cost") as refund,
         pytest.raises(ResearchRequestBoundsError) as raised,
@@ -564,4 +627,34 @@ async def test_gemini_deep_research_fails_closed_before_dispatch() -> None:
 
     assert raised.value.code == "gemini_deep_research_budget_unbounded"
     refund.assert_called_once_with(reservation)
+    provider.submit_research.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_code_interpreter_fails_closed_before_enqueue_or_dispatch() -> None:
+    reservation = _reservation()
+    queue = _queue()
+    provider = _provider()
+    request = ResearchRequest(
+        prompt="Research",
+        model=_MODEL,
+        system_message="Test",
+        tools=[ToolConfig(type="code_interpreter", container={"type": "auto", "memory_limit": "4g"})],
+    )
+
+    with (
+        patch("deepr.services.research_submission.refund_research_cost") as refund,
+        pytest.raises(ResearchRequestBoundsError) as raised,
+    ):
+        await dispatch_reserved_research(
+            queue=queue,
+            provider=provider,
+            job=_job(),
+            request=request,
+            reservation=reservation,
+        )
+
+    assert raised.value.code == "research_code_interpreter_cost_unbounded"
+    refund.assert_called_once_with(reservation)
+    queue.enqueue.assert_not_awaited()
     provider.submit_research.assert_not_awaited()

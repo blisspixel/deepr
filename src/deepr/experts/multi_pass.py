@@ -95,7 +95,9 @@ class MultiPassPipeline:
         if self.client is None:
             from openai import AsyncOpenAI
 
-            self.client = AsyncOpenAI(max_retries=0)
+            from deepr.providers.dispatch_authority import default_paid_endpoint
+
+            self.client = AsyncOpenAI(base_url=default_paid_endpoint("openai"), max_retries=0)
         return self.client
 
     async def _complete_bounded(
@@ -110,6 +112,7 @@ class MultiPassPipeline:
     ) -> Any:
         """Execute one pass without exceeding its caller allocation."""
         from deepr.experts.report_absorber_costs import bounded_metered_completion_kwargs
+        from deepr.providers.dispatch_authority import require_official_paid_client
         from deepr.services.metered_call import execute_reserved_async_call
 
         if not math.isfinite(float(budget)) or float(budget) <= 0:
@@ -127,8 +130,10 @@ class MultiPassPipeline:
             },
         )
 
+        client = await self._get_client()
+        require_official_paid_client(client, "openai")
+
         async def dispatch() -> Any:
-            client = await self._get_client()
             return await client.chat.completions.create(**kwargs)
 
         return await execute_reserved_async_call(
@@ -138,6 +143,7 @@ class MultiPassPipeline:
             source=source,
             max_cost_per_job=worst_case_cost,
             call=dispatch,
+            request_envelope=kwargs,
         )
 
     async def fill_gap(

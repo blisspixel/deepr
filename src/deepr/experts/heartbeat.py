@@ -1,38 +1,22 @@
-"""Off-box liveness heartbeat for scheduled fleet maintenance.
+"""Quarantined off-box heartbeat configuration for fleet maintenance.
 
-A same-host watchdog cannot catch the one failure that matters most for an
-unattended fleet: the machine never woke up (Win11 Modern Standby missed the
-timer, the laptop stayed asleep, the box was off). Nothing on that host runs to
-notice, so nothing alerts. The only signal is *absence* of an expected check-in,
-observed off-box.
-
-On each expected scheduled, non-dry terminal outcome we ping an
-operator-configured, public HTTPS endpoint that follows the Healthchecks
-success and ``/fail`` path convention. Completed and no-work outcomes report
-success; non-completion and failed outcomes report failure. The service also
-alerts when no ping arrives on schedule. This is opt-in (set
-``DEEPR_HEARTBEAT_URL``) and strictly best-effort: a heartbeat delivery failure
-must never change the maintenance result. Pure side-effect at the edge - no
-model judgment.
+Remote heartbeat delivery cannot prove whether the operator-configured service
+is free, prepaid with overages disabled, or metered. Deepr therefore validates
+and reports the configuration but never sends it in the no-surprise-spend
+release profile.
 """
 
 from __future__ import annotations
 
-import logging
 import math
 import os
 from dataclasses import dataclass
 from urllib.parse import urlsplit, urlunsplit
 
-import requests
-
-from deepr.utils.pinned_http import close_pinned_response, pinned_get
-from deepr.utils.security import SSRFError
-
-logger = logging.getLogger(__name__)
-
 HEARTBEAT_ENV = "DEEPR_HEARTBEAT_URL"
 MAX_HEARTBEAT_URL_LENGTH = 2048
+REMOTE_HEARTBEAT_EXECUTION_ENABLED = False
+REMOTE_HEARTBEAT_BLOCK_REASON = "unmetered_external_service"
 
 
 class HeartbeatConfigurationError(ValueError):
@@ -86,71 +70,24 @@ def validate_heartbeat_url(url: str) -> str:
     return urlunsplit(("https", parsed.netloc, parsed.path, parsed.query, ""))
 
 
-def _heartbeat_target(url: str, *, success: bool) -> str:
-    base = validate_heartbeat_url(url)
-    if success:
-        return base
-    parsed = urlsplit(base)
-    failure_path = parsed.path.rstrip("/") + "/fail"
-    return urlunsplit((parsed.scheme, parsed.netloc, failure_path, parsed.query, ""))
-
-
 def deliver_heartbeat(
     *,
     success: bool = True,
     url: str | None = None,
     timeout: float = 5.0,
 ) -> HeartbeatDelivery:
-    """Attempt one bounded ping and return a credential-safe typed outcome.
-
-    The endpoint uses the Healthchecks-compatible convention: GET the base URL
-    for success and append ``/fail`` to its path for failure while preserving
-    its query. Redirects are refused. The response is streamed and closed after
-    header inspection, so endpoint-controlled response content is not consumed.
-    No error includes the credential-bearing target.
-    """
+    """Validate configuration and block before any remote request."""
+    _ = success
     base = url or heartbeat_url()
     if not base:
         return HeartbeatDelivery(attempted=False, delivered=False, failure_kind="not_configured")
     if not math.isfinite(timeout) or timeout <= 0:
         return HeartbeatDelivery(attempted=False, delivered=False, failure_kind="invalid_configuration")
     try:
-        target = _heartbeat_target(base, success=success)
+        validate_heartbeat_url(base)
     except HeartbeatConfigurationError:
-        logger.debug("heartbeat configuration is invalid")
         return HeartbeatDelivery(attempted=False, delivered=False, failure_kind="invalid_configuration")
-    response: requests.Response | None = None
-    try:
-        response = pinned_get(
-            target,
-            timeout=timeout,
-            allow_redirects=False,
-            stream=True,
-            address_failover=False,
-            redact_request_target=True,
-        )
-    except SSRFError:
-        logger.debug("heartbeat target failed peer-bound public-address safety checks")
-        return HeartbeatDelivery(attempted=False, delivered=False, failure_kind="unsafe_target")
-    except requests.RequestException:
-        logger.debug("heartbeat request failed")
-        return HeartbeatDelivery(attempted=True, delivered=False, failure_kind="network_error")
-    try:
-        status = int(response.status_code)
-        if 200 <= status < 300:
-            return HeartbeatDelivery(attempted=True, delivered=True, http_status=status)
-        logger.debug("heartbeat request returned HTTP %s", status)
-        return HeartbeatDelivery(
-            attempted=True,
-            delivered=False,
-            failure_kind="http_error",
-            http_status=status,
-        )
-    finally:
-        try:
-            close_pinned_response(response)
-        except Exception:
-            logger.debug("heartbeat response close failed")
+    return HeartbeatDelivery(attempted=False, delivered=False, failure_kind=REMOTE_HEARTBEAT_BLOCK_REASON)
 
 
 def send_heartbeat(*, success: bool = True, url: str | None = None, timeout: float = 5.0) -> bool:

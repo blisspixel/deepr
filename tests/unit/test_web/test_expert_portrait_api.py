@@ -29,16 +29,19 @@ def client(monkeypatch, tmp_path):
 
 def _install_fake_store(monkeypatch, profile, saved):
     import deepr.experts.profile_store as profile_store
+    from deepr.experts.paths import expert_slug
+
+    storage_name = expert_slug(profile.name)
 
     class FakeStore:
         def __init__(self, *_args, **_kwargs):
             pass
 
         def exists(self, name):
-            return name == profile.name
+            return name == storage_name
 
         def load(self, name):
-            return profile if name == profile.name else None
+            return profile if name == storage_name else None
 
         def save(self, saved_profile):
             saved.append(saved_profile)
@@ -121,7 +124,7 @@ def test_portrait_generation_settles_reserved_cost(client, monkeypatch):
     assert resp.get_json() == {"portrait_url": "/portraits/budget-expert.png"}
     assert profile.portrait_url == "/portraits/budget-expert.png"
     assert saved == [profile]
-    assert checks[0]["session_id"] == "portrait_Budget Expert"
+    assert checks[0]["session_id"] == "portrait_budget_expert"
     assert records[0]["reservation_id"] == "reservation-1"
     assert records[0]["actual_cost"] == 0.04
     assert records[0]["provider"] == "openai"
@@ -171,7 +174,7 @@ def test_portrait_generation_settles_and_returns_generic_error_on_provider_failu
     assert saved == []
 
 
-def test_portrait_generation_allows_explicit_local_without_cost_reservation(client, monkeypatch):
+def test_portrait_generation_blocks_unattested_local_before_cost_reservation(client, monkeypatch):
     import deepr.experts.cost_safety as cost_safety
     import deepr.experts.portraits as portraits
 
@@ -179,19 +182,14 @@ def test_portrait_generation_allows_explicit_local_without_cost_reservation(clie
     saved = []
     _install_fake_store(monkeypatch, profile, saved)
 
-    async def fake_generate_portrait(**kwargs):
-        assert kwargs["provider"] == "local"
-        return "/portraits/local-expert.png"
-
-    monkeypatch.setattr(cost_safety, "get_cost_safety_manager", lambda: pytest.fail("local portraits are free"))
-    monkeypatch.setattr(portraits, "portrait_cost", lambda provider: 0.0 if provider == "local" else 0.04)
-    monkeypatch.setattr(portraits, "generate_portrait", fake_generate_portrait)
+    monkeypatch.setattr(cost_safety, "get_cost_safety_manager", lambda: pytest.fail("must not reserve"))
+    monkeypatch.setattr(portraits, "generate_portrait", pytest.fail)
 
     resp = client.post("/api/experts/Local%20Expert/generate-portrait", json={"provider": "local"})
 
-    assert resp.status_code == 200
-    assert resp.get_json() == {"portrait_url": "/portraits/local-expert.png"}
-    assert saved == [profile]
+    assert resp.status_code == 400
+    assert resp.get_json() == {"error": "Portrait generation failed"}
+    assert saved == []
 
 
 def test_portrait_generation_refuses_existing_without_force(client, monkeypatch):

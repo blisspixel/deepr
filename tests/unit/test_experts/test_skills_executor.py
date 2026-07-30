@@ -1,1007 +1,167 @@
-"""Tests for skill tool execution and budget tracking.
-
-Tests the MCPClientProxy, SkillExecutor, and budget management logic
-in deepr.experts.skills.executor.
-"""
+"""Fail-closed regressions for expert skill tool execution."""
 
 from __future__ import annotations
 
 import asyncio
-import sys
+import importlib.util
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import Any
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from deepr.experts.skills.definition import SkillBudget, SkillDefinition, SkillTool
-from deepr.experts.skills.executor import _COST_TIER_ESTIMATES, MCPClientProxy, SkillExecutor
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+from deepr.experts.skills.definition import SkillDefinition, SkillTool
+from deepr.experts.skills.executor import SKILL_TOOL_EXECUTION_DISABLED, SkillExecutor
 
 
-def _make_python_tool(
-    name: str = "add",
-    module: str = "tools.math_tools",
-    function: str = "add",
-    cost_tier: str = "free",
-) -> SkillTool:
+def _tool(*, name: str = "run", tool_type: str = "python", cost_tier: str = "free") -> SkillTool:
     return SkillTool(
         name=name,
-        type="python",
-        description=f"Python tool {name}",
-        module=module,
-        function=function,
+        description="test tool",
+        type=tool_type,
         cost_tier=cost_tier,
+        module="tools",
+        function="run",
+        server_command="python",
+        server_args=["server.py"],
     )
 
 
-def _make_mcp_tool(
-    name: str = "search",
-    cost_tier: str = "low",
-    server_command: str = "node",
-    server_args: list[str] | None = None,
-    server_env: dict[str, str] | None = None,
-    remote_tool_name: str | None = None,
-) -> SkillTool:
-    return SkillTool(
-        name=name,
-        type="mcp",
-        description=f"MCP tool {name}",
-        cost_tier=cost_tier,
-        server_command=server_command,
-        server_args=server_args or ["server.js"],
-        server_env=server_env or {},
-        remote_tool_name=remote_tool_name,
+def _skill(tmp_path: Path, tool: SkillTool) -> SkillDefinition:
+    return SkillDefinition(
+        name="test-skill",
+        version="1.0.0",
+        description="test",
+        path=tmp_path,
+        tier="built-in",
+        tools=[tool],
     )
 
 
-def _make_skill(
+def _assert_quarantined(result: dict[str, Any], *, tool_type: str) -> None:
+    assert result == {
+        "error": SKILL_TOOL_EXECUTION_DISABLED,
+        "status": "blocked",
+        "detail": (
+            "Skill tool execution is quarantined because arbitrary Python and MCP tools "
+            "can incur external spend that manifest estimates and self-reported costs "
+            "cannot enforce. Skill inventory and inspection remain available."
+        ),
+        "tool_type": tool_type,
+        "cost": 0.0,
+    }
+
+
+@pytest.mark.parametrize("tool_type", ["python", "mcp", "shell", "future-provider"])
+@pytest.mark.parametrize("cost_tier", ["free", "low", "medium", "high", "unknown"])
+@pytest.mark.parametrize("allow_metered_tools", [False, True])
+@pytest.mark.asyncio
+async def test_every_inventoried_tool_is_quarantined(
     tmp_path: Path,
-    tools: list[SkillTool] | None = None,
-    name: str = "test-skill",
-) -> SkillDefinition:
-    skill_dir = tmp_path / name
-    skill_dir.mkdir(exist_ok=True)
-    return SkillDefinition(
-        name=name,
-        version="1.0.0",
-        description="Test skill",
-        path=skill_dir,
-        tier="built-in",
-        tools=tools or [],
+    tool_type: str,
+    cost_tier: str,
+    allow_metered_tools: bool,
+) -> None:
+    tool = _tool(tool_type=tool_type, cost_tier=cost_tier)
+    executor = SkillExecutor(
+        _skill(tmp_path, tool),
+        budget_remaining=10.0,
+        allow_metered_tools=allow_metered_tools,
     )
 
+    result = await executor.execute_tool(tool.name, {"budget": 999_999.0})
 
-def _create_python_skill(tmp_path: Path) -> Path:
-    """Create a real Python skill directory with a tools module."""
-    skill_dir = tmp_path / "test-skill"
-    skill_dir.mkdir(exist_ok=True)
-    tools_dir = skill_dir / "tools"
-    tools_dir.mkdir(exist_ok=True)
-    (tools_dir / "__init__.py").write_text("")
-    (tools_dir / "math_tools.py").write_text(
-        "def add(a, b):\n    return a + b\n\n"
-        "async def async_add(a, b):\n    return a + b\n\n"
-        "def broken():\n    raise ValueError('test error')\n"
-    )
-    return skill_dir
-
-
-# ---------------------------------------------------------------------------
-# MCPClientProxy._resolve_env
-# ---------------------------------------------------------------------------
-
-
-class TestMCPClientProxyResolveEnv:
-    """Tests for MCPClientProxy._resolve_env static method."""
-
-    def test_literal_values_pass_through(self):
-        """Literal string values are returned unchanged."""
-        env = {"KEY1": "value1", "KEY2": "value2"}
-        result = MCPClientProxy._resolve_env(env)
-        assert result == {"KEY1": "value1", "KEY2": "value2"}
-
-    def test_resolve_existing_env_var(self, monkeypatch):
-        """${VAR} references are resolved from os.environ."""
-        monkeypatch.setenv("MY_SECRET", "s3cret")
-        env = {"API_KEY": "${MY_SECRET}"}
-        result = MCPClientProxy._resolve_env(env)
-        assert result == {"API_KEY": "s3cret"}
-
-    def test_resolve_missing_env_var_returns_empty(self, monkeypatch):
-        """${VAR} for a missing env var resolves to empty string."""
-        monkeypatch.delenv("NONEXISTENT_VAR_XYZ", raising=False)
-        env = {"MISSING": "${NONEXISTENT_VAR_XYZ}"}
-        result = MCPClientProxy._resolve_env(env)
-        assert result == {"MISSING": ""}
-
-    def test_mixed_literal_and_variable(self, monkeypatch):
-        """Mix of literal values and ${VAR} references."""
-        monkeypatch.setenv("DB_HOST", "localhost")
-        env = {"HOST": "${DB_HOST}", "PORT": "5432"}
-        result = MCPClientProxy._resolve_env(env)
-        assert result == {"HOST": "localhost", "PORT": "5432"}
-
-    def test_non_string_values_cast_to_string(self):
-        """Non-string values are cast to str (defensive)."""
-        # The env dict is typed as dict[str, str], but we test robustness
-        env = {"NUM": 42, "BOOL": True}  # type: ignore[dict-item]
-        result = MCPClientProxy._resolve_env(env)
-        assert result == {"NUM": "42", "BOOL": "True"}
-
-    def test_empty_env(self):
-        """Empty dict returns empty dict."""
-        assert MCPClientProxy._resolve_env({}) == {}
-
-    def test_partial_dollar_braces_not_resolved(self):
-        """Values like '$VAR' or '${VAR' are treated as literals."""
-        env = {"A": "$VAR", "B": "${VAR", "C": "VAR}"}
-        result = MCPClientProxy._resolve_env(env)
-        assert result == {"A": "$VAR", "B": "${VAR", "C": "VAR}"}
-
-
-# ---------------------------------------------------------------------------
-# MCPClientProxy.close
-# ---------------------------------------------------------------------------
-
-
-class TestMCPClientProxyClose:
-    """Tests for MCPClientProxy.close."""
-
-    @pytest.mark.asyncio
-    async def test_close_no_process(self):
-        """close() is safe when no process has been started."""
-        proxy = MCPClientProxy(command="echo", args=[], env={})
-        await proxy.close()  # should not raise
-        assert proxy._process is None
-
-    @pytest.mark.asyncio
-    async def test_close_terminates_running_process(self):
-        """close() terminates a running process and sets _process to None."""
-        proxy = MCPClientProxy(command="echo", args=[], env={})
-        mock_proc = MagicMock()
-        mock_proc.returncode = None
-        mock_proc.terminate = MagicMock()
-        mock_proc.kill = MagicMock()
-        mock_proc.wait = AsyncMock(return_value=0)
-        proxy._process = mock_proc
-
-        await proxy.close()
-
-        mock_proc.terminate.assert_called_once()
-        assert proxy._process is None
-
-    @pytest.mark.asyncio
-    async def test_close_kills_on_timeout(self):
-        """close() kills the process if terminate does not finish in time."""
-        proxy = MCPClientProxy(command="echo", args=[], env={})
-        mock_proc = MagicMock()
-        mock_proc.returncode = None
-        mock_proc.terminate = MagicMock()
-        mock_proc.kill = MagicMock()
-        mock_proc.wait = AsyncMock(side_effect=asyncio.TimeoutError)
-        proxy._process = mock_proc
-
-        await proxy.close()
-
-        mock_proc.terminate.assert_called_once()
-        mock_proc.kill.assert_called_once()
-        assert proxy._process is None
-
-    @pytest.mark.asyncio
-    async def test_close_already_exited_process(self):
-        """close() is a no-op when process has already exited."""
-        proxy = MCPClientProxy(command="echo", args=[], env={})
-        mock_proc = MagicMock()
-        mock_proc.returncode = 0  # already exited
-        proxy._process = mock_proc
-
-        await proxy.close()
-
-        mock_proc.terminate.assert_not_called()
-
-
-class TestMCPClientProxyCalls:
-    @pytest.mark.asyncio
-    async def test_call_timeout_propagates_ambiguous_dispatched_failure(self):
-        proxy = MCPClientProxy(command="echo", args=[], env={})
-        proxy._ensure_started = AsyncMock(return_value=MagicMock())
-
-        async def never_responds(*_args, **_kwargs):
-            await asyncio.Event().wait()
-
-        proxy._send_jsonrpc = never_responds
-
-        with pytest.raises(TimeoutError, match="timed out"):
-            await proxy.call_tool("research", {}, timeout=0.001)
-
-
-# ---------------------------------------------------------------------------
-# SkillExecutor.execute_tool - routing and error cases
-# ---------------------------------------------------------------------------
-
-
-class TestSkillExecutorExecuteTool:
-    """Tests for SkillExecutor.execute_tool dispatch and error handling."""
-
-    @pytest.mark.asyncio
-    async def test_unknown_tool_returns_error(self, tmp_path):
-        """Requesting a tool not in the skill returns an error dict."""
-        skill = _make_skill(tmp_path, tools=[_make_python_tool()])
-        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
-
-        result = await executor.execute_tool("nonexistent", {})
-
-        assert result["error"] == "Unknown tool: nonexistent"
-        assert result["cost"] == 0.0
-
-    @pytest.mark.asyncio
-    async def test_budget_exceeded_for_costly_tool(self, tmp_path):
-        """A tool whose estimated cost exceeds remaining budget is rejected."""
-        tool = _make_mcp_tool(name="expensive", cost_tier="high")
-        skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=0.10, allow_metered_tools=True)
-
-        result = await executor.execute_tool("expensive", {})
-
-        assert result["error"] == "BUDGET_EXCEEDED"
-        assert "0.20" in result["detail"]
-        assert "0.10" in result["detail"]
-        assert result["cost"] == 0.0
-
-    @pytest.mark.asyncio
-    async def test_concurrent_metered_tools_cannot_overspend_session_budget(self, tmp_path):
-        """Budget hold is taken under lock so two concurrent tools cannot both pass."""
-        tool = _make_mcp_tool(name="paid", cost_tier="medium")  # $0.05
-        skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=0.08, allow_metered_tools=True)
-
-        started = asyncio.Event()
-        release = asyncio.Event()
-        metered_calls = 0
-
-        async def _slow_metered(*_args, **_kwargs):
-            nonlocal metered_calls
-            metered_calls += 1
-            _kwargs["on_settled"](0.05)
-            started.set()
-            await release.wait()
-            return {"result": "ok", "cost": 0.05}
-
-        with patch.object(executor, "_execute_metered_tool", side_effect=_slow_metered):
-            first = asyncio.create_task(executor.execute_tool("paid", {}))
-            await asyncio.wait_for(started.wait(), timeout=2.0)
-            second = await executor.execute_tool("paid", {})
-            release.set()
-            first_result = await asyncio.wait_for(first, timeout=2.0)
-
-        assert first_result.get("result") == "ok"
-        assert second.get("error") == "BUDGET_EXCEEDED"
-        assert metered_calls == 1
-        assert executor._budget_remaining == pytest.approx(0.03)
-
-    @pytest.mark.asyncio
-    async def test_free_tool_not_blocked_by_zero_budget(self, tmp_path):
-        """Free tools are never blocked by budget checks."""
-        skill_dir = _create_python_skill(tmp_path)
-        tool = _make_python_tool(cost_tier="free")
-        skill = SkillDefinition(
-            name="test-skill",
-            version="1.0.0",
-            description="Test",
-            path=skill_dir,
-            tier="built-in",
-            tools=[tool],
-        )
-        executor = SkillExecutor(skill, budget_remaining=0.0, allow_metered_tools=True)
-
-        result = await executor.execute_tool("add", {"a": 1, "b": 2})
-
-        assert result["result"] == 3
-        assert result["cost"] == 0.0
-
-    @pytest.mark.asyncio
-    async def test_unknown_tool_type_returns_error(self, tmp_path):
-        """A tool with an unrecognized type returns an error."""
-        tool = SkillTool(
-            name="weird",
-            type="grpc",
-            description="Unknown type tool",
-        )
-        skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
-
-        result = await executor.execute_tool("weird", {})
-
-        assert result["error"] == "Unknown tool type: grpc"
-        assert result["cost"] == 0.0
-
-    @pytest.mark.asyncio
-    async def test_routes_to_python_executor(self, tmp_path):
-        """Python tool type routes to _execute_python."""
-        skill_dir = _create_python_skill(tmp_path)
-        tool = _make_python_tool()
-        skill = SkillDefinition(
-            name="test-skill",
-            version="1.0.0",
-            description="Test",
-            path=skill_dir,
-            tier="built-in",
-            tools=[tool],
-        )
-        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
-
-        result = await executor.execute_tool("add", {"a": 5, "b": 3})
-
-        assert result["result"] == 8
-
-    @pytest.mark.asyncio
-    async def test_routes_to_mcp_executor(self, tmp_path):
-        """MCP tool type routes to _execute_mcp (mocked proxy)."""
-        tool = _make_mcp_tool(name="search", cost_tier="low")
-        skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
-
-        with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
-            mock_call.return_value = {"result": "found it"}
-            result = await executor.execute_tool("search", {"query": "test"})
-
-        assert result["result"] == "found it"
-        assert result["cost"] == _COST_TIER_ESTIMATES["low"]
-
-    @pytest.mark.asyncio
-    async def test_metered_mcp_tool_writes_durable_ledger(self, tmp_path):
-        """Paid skill tools reserve, mark dispatch, and settle the tier cost."""
-        from deepr.experts.research_reservation_store import ResearchReservationStore
-        from deepr.observability.cost_ledger import CostLedger
-
-        tool = _make_mcp_tool(name="search", cost_tier="low")
-        skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
-
-        with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
-            mock_call.return_value = {"result": "found it"}
-            result = await executor.execute_tool("search", {"query": "test"})
-
-        assert result["result"] == "found it"
-        assert result["cost"] == pytest.approx(_COST_TIER_ESTIMATES["low"])
-        assert ResearchReservationStore().active_cost() == 0
-        events = CostLedger().get_events()
-        assert len(events) == 1
-        assert events[0].cost_usd == pytest.approx(_COST_TIER_ESTIMATES["low"])
-        assert events[0].provider == "skill"
-
-    @pytest.mark.asyncio
-    async def test_metered_mcp_tool_soft_failure_settles_zero(self, tmp_path):
-        """Failed MCP results do not charge the skill budget or ledger hold."""
-        from deepr.observability.cost_ledger import CostLedger
-
-        tool = _make_mcp_tool(name="search", cost_tier="medium")
-        skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
-
-        with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
-            mock_call.return_value = {"error": "upstream timeout"}
-            result = await executor.execute_tool("search", {})
-
-        assert result["error"] == "upstream timeout"
-        assert result["cost"] == 0.0
-        assert executor._budget_remaining == pytest.approx(10.0)
-        events = CostLedger().get_events()
-        assert len(events) == 1
-        assert events[0].cost_usd == pytest.approx(0.0)
-
-    @pytest.mark.asyncio
-    async def test_metered_tools_blocked_when_disallowed(self, tmp_path):
-        """Chat paths keep metered skill tools fail-closed without durable spend."""
-        tool = _make_mcp_tool(name="search", cost_tier="low")
-        skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=False)
-
-        with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
-            result = await executor.execute_tool("search", {})
-
-        assert result["error"] == "METERED_SKILL_TOOL_DISABLED"
-        assert result["status"] == "blocked"
-        assert result["cost"] == 0.0
-        mock_call.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_default_disallows_metered_tools(self, tmp_path):
-        """SkillExecutor fails closed unless allow_metered_tools is explicit."""
-        tool = _make_mcp_tool(name="search", cost_tier="low")
-        skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=10.0)
-
-        result = await executor.execute_tool("search", {})
-
-        assert result["error"] == "METERED_SKILL_TOOL_DISABLED"
-        assert result["cost"] == 0.0
-
-    @pytest.mark.asyncio
-    async def test_unknown_cost_tier_is_not_free(self, tmp_path):
-        """Hand-built tools with unknown tiers require metered admission as high."""
-        tool = _make_mcp_tool(name="search", cost_tier="not-a-tier")
-        skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=False)
-
-        result = await executor.execute_tool("search", {})
-
-        assert result["error"] == "METERED_SKILL_TOOL_DISABLED"
-
-
-# ---------------------------------------------------------------------------
-# SkillExecutor._execute_python - real module execution
-# ---------------------------------------------------------------------------
-
-
-class TestSkillExecutorPython:
-    """Tests for SkillExecutor._execute_python with real modules."""
-
-    @pytest.mark.asyncio
-    async def test_sync_function_execution(self, tmp_path):
-        """A synchronous Python tool function executes and returns result."""
-        skill_dir = _create_python_skill(tmp_path)
-        tool = _make_python_tool(function="add")
-        skill = SkillDefinition(
-            name="test-skill",
-            version="1.0.0",
-            description="Test",
-            path=skill_dir,
-            tier="built-in",
-            tools=[tool],
-        )
-        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
-
-        result = await executor.execute_tool("add", {"a": 10, "b": 20})
-
-        assert result["result"] == 30
-        assert result["cost"] == 0.0
-
-    @pytest.mark.asyncio
-    async def test_async_function_execution(self, tmp_path):
-        """An async Python tool function is awaited and returns result."""
-        skill_dir = _create_python_skill(tmp_path)
-        tool = _make_python_tool(name="async_add", function="async_add")
-        skill = SkillDefinition(
-            name="test-skill",
-            version="1.0.0",
-            description="Test",
-            path=skill_dir,
-            tier="built-in",
-            tools=[tool],
-        )
-        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
-
-        result = await executor.execute_tool("async_add", {"a": 7, "b": 3})
-
-        assert result["result"] == 10
-        assert result["cost"] == 0.0
-
-    @pytest.mark.asyncio
-    async def test_function_raises_returns_error(self, tmp_path):
-        """A Python function that raises returns an error dict."""
-        skill_dir = _create_python_skill(tmp_path)
-        tool = _make_python_tool(name="broken", function="broken")
-        skill = SkillDefinition(
-            name="test-skill",
-            version="1.0.0",
-            description="Test",
-            path=skill_dir,
-            tier="built-in",
-            tools=[tool],
-        )
-        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
-
-        result = await executor.execute_tool("broken", {})
-
-        assert "test error" in result["error"]
-        assert result["cost"] == 0.0
-
-    @pytest.mark.asyncio
-    async def test_missing_module_returns_error(self, tmp_path):
-        """A tool with no module field returns an error."""
-        tool = SkillTool(
-            name="nomod",
-            type="python",
-            description="Missing module",
-            module=None,
-            function="add",
-        )
-        skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
-
-        result = await executor.execute_tool("nomod", {})
-
-        assert result["error"] == "Python tool missing module/function"
-        assert result["cost"] == 0.0
-
-    @pytest.mark.asyncio
-    async def test_missing_function_returns_error(self, tmp_path):
-        """A tool with no function field returns an error."""
-        tool = SkillTool(
-            name="nofunc",
-            type="python",
-            description="Missing function",
-            module="tools.math_tools",
-            function=None,
-        )
-        skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
-
-        result = await executor.execute_tool("nofunc", {})
-
-        assert result["error"] == "Python tool missing module/function"
-        assert result["cost"] == 0.0
-
-    @pytest.mark.asyncio
-    async def test_nonexistent_module_returns_error(self, tmp_path):
-        """Importing a module that does not exist returns an error."""
-        skill_dir = _create_python_skill(tmp_path)
-        tool = _make_python_tool(module="tools.does_not_exist", function="nope")
-        skill = SkillDefinition(
-            name="test-skill",
-            version="1.0.0",
-            description="Test",
-            path=skill_dir,
-            tier="built-in",
-            tools=[tool],
-        )
-        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
-
-        result = await executor.execute_tool("add", {})
-
-        assert "error" in result
-        assert result["cost"] == 0.0
-
-    @pytest.mark.asyncio
-    async def test_sys_path_not_polluted(self, tmp_path):
-        """The skill directory must NOT be added to sys.path during execution.
-
-        Round-3 hardening: the previous executor used
-        ``sys.path.insert(0, skill_dir)`` which (a) persisted for the
-        process lifetime and (b) allowed two skills shipping the same
-        module name to silently collide via ``sys.modules`` cache.
-        The new executor uses ``importlib.util.spec_from_file_location``
-        with a unique qualname per skill so ``sys.path`` is left
-        untouched.
-        """
-        skill_dir = _create_python_skill(tmp_path)
-        tool = _make_python_tool()
-        skill = SkillDefinition(
-            name="test-skill",
-            version="1.0.0",
-            description="Test",
-            path=skill_dir,
-            tier="built-in",
-            tools=[tool],
-        )
-        before = list(sys.path)
-        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
-
-        await executor.execute_tool("add", {"a": 1, "b": 1})
-
-        assert sys.path == before, "Skill execution must not mutate sys.path"
-
-
-# ---------------------------------------------------------------------------
-# SkillExecutor._execute_mcp
-# ---------------------------------------------------------------------------
-
-
-class TestSkillExecutorMCP:
-    """Tests for SkillExecutor._execute_mcp with mocked proxy."""
-
-    @pytest.mark.asyncio
-    async def test_mcp_missing_server_command(self, tmp_path):
-        """An MCP tool with no server_command returns error."""
-        tool = SkillTool(
-            name="noserver",
-            type="mcp",
-            description="No server",
-            server_command=None,
-        )
-        skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
-
-        result = await executor.execute_tool("noserver", {})
-
-        assert result["error"] == "MCP tool missing server command"
-        assert result["cost"] == 0.0
-
-    @pytest.mark.asyncio
-    async def test_mcp_creates_proxy_and_calls(self, tmp_path):
-        """MCP execution creates a proxy and calls call_tool on it."""
-        tool = _make_mcp_tool(name="search", cost_tier="medium")
-        skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
-
-        with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
-            mock_call.return_value = {"result": "data"}
-            result = await executor.execute_tool("search", {"q": "test"})
-
-        assert result["result"] == "data"
-        assert result["cost"] == _COST_TIER_ESTIMATES["medium"]
-        # A proxy should have been stored
-        assert len(executor._mcp_proxies) == 1
-
-    @pytest.mark.asyncio
-    async def test_mcp_reuses_proxy_for_same_server(self, tmp_path):
-        """Multiple calls to the same MCP server reuse the proxy instance."""
-        tool = _make_mcp_tool(name="search", cost_tier="low")
-        skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
-
-        with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
-            mock_call.return_value = {"result": "r1"}
-            await executor.execute_tool("search", {"q": "a"})
-
-            mock_call.return_value = {"result": "r2"}
-            await executor.execute_tool("search", {"q": "b"})
-
-        # Still only one proxy
-        assert len(executor._mcp_proxies) == 1
-        assert mock_call.call_count == 2
-
-    @pytest.mark.asyncio
-    async def test_mcp_uses_remote_tool_name(self, tmp_path):
-        """When remote_tool_name is set, it is used instead of the local name."""
-        tool = _make_mcp_tool(name="local_search", remote_tool_name="remote_search", cost_tier="low")
-        skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
-
-        with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
-            mock_call.return_value = {"result": "ok"}
-            await executor.execute_tool("local_search", {"q": "test"})
-
-        # call_tool should have been called with the remote name
-        mock_call.assert_called_once_with("remote_search", {"q": "test"}, timeout=30)
-
-    @pytest.mark.asyncio
-    async def test_mcp_falls_back_to_tool_name(self, tmp_path):
-        """When remote_tool_name is None, the local tool name is used."""
-        tool = _make_mcp_tool(name="search", remote_tool_name=None, cost_tier="low")
-        skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
-
-        with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
-            mock_call.return_value = {"result": "ok"}
-            await executor.execute_tool("search", {"q": "test"})
-
-        mock_call.assert_called_once_with("search", {"q": "test"}, timeout=30)
-
-
-# ---------------------------------------------------------------------------
-# Budget tracking
-# ---------------------------------------------------------------------------
-
-
-class TestSkillExecutorBudget:
-    """Tests for budget tracking across tool executions."""
-
-    @pytest.mark.asyncio
-    async def test_budget_decreases_after_execution(self, tmp_path):
-        """Budget is reduced by the cost returned from tool execution."""
-        tool = _make_mcp_tool(name="search", cost_tier="medium")
-        skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=1.0, allow_metered_tools=True)
-
-        with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
-            mock_call.return_value = {"result": "ok"}
-            await executor.execute_tool("search", {})
-
-        expected_remaining = 1.0 - _COST_TIER_ESTIMATES["medium"]
-        assert executor._budget_remaining == pytest.approx(expected_remaining)
-
-    @pytest.mark.asyncio
-    async def test_budget_tracks_across_multiple_calls(self, tmp_path):
-        """Budget accumulates deductions across multiple tool calls."""
-        tool = _make_mcp_tool(name="search", cost_tier="low")
-        skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=0.05, allow_metered_tools=True)
-
-        with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
-            mock_call.return_value = {"result": "r1"}
-            r1 = await executor.execute_tool("search", {})
-
-            # After first call: 0.05 - 0.01 = 0.04
-            assert executor._budget_remaining == pytest.approx(0.04)
-
-            mock_call.return_value = {"result": "r2"}
-            r2 = await executor.execute_tool("search", {})
-
-            # After second call: 0.04 - 0.01 = 0.03
-            assert executor._budget_remaining == pytest.approx(0.03)
-
-        assert "error" not in r1
-        assert "error" not in r2
-
-    @pytest.mark.asyncio
-    async def test_budget_not_charged_on_error(self, tmp_path):
-        """Budget exceeded errors do not deduct cost."""
-        tool = _make_mcp_tool(name="costly", cost_tier="high")
-        skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=0.10, allow_metered_tools=True)
-
-        result = await executor.execute_tool("costly", {})
-
-        assert result["error"] == "BUDGET_EXCEEDED"
-        assert executor._budget_remaining == pytest.approx(0.10)
-
-    @pytest.mark.asyncio
-    async def test_free_tool_does_not_reduce_budget(self, tmp_path):
-        """Free Python tools don't deduct anything from budget."""
-        skill_dir = _create_python_skill(tmp_path)
-        tool = _make_python_tool(cost_tier="free")
-        skill = SkillDefinition(
-            name="test-skill",
-            version="1.0.0",
-            description="Test",
-            path=skill_dir,
-            tier="built-in",
-            tools=[tool],
-        )
-        executor = SkillExecutor(skill, budget_remaining=5.0, allow_metered_tools=True)
-
-        await executor.execute_tool("add", {"a": 1, "b": 2})
-
-        assert executor._budget_remaining == pytest.approx(5.0)
-
-    @pytest.mark.asyncio
-    async def test_budget_eventually_blocks_repeated_calls(self, tmp_path):
-        """Repeated tool calls eventually exhaust the budget."""
-        tool = _make_mcp_tool(name="search", cost_tier="low")  # $0.01 each
-        skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=0.025, allow_metered_tools=True)
-
-        results = []
-        with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
-            mock_call.return_value = {"result": "ok"}
-            for _ in range(5):
-                r = await executor.execute_tool("search", {})
-                results.append(r)
-
-        # First two should succeed ($0.01 each, 0.025 - 0.02 = 0.005)
-        assert "error" not in results[0]
-        assert "error" not in results[1]
-        # Third call: budget is 0.005, cost is 0.01 -> BUDGET_EXCEEDED
-        assert results[2]["error"] == "BUDGET_EXCEEDED"
-
-
-# ---------------------------------------------------------------------------
-# SkillExecutor.cleanup
-# ---------------------------------------------------------------------------
-
-
-class TestSkillExecutorCleanup:
-    """Tests for SkillExecutor.cleanup."""
-
-    @pytest.mark.asyncio
-    async def test_cleanup_closes_all_proxies(self, tmp_path):
-        """cleanup() calls close() on every MCP proxy and clears the dict."""
-        tool = _make_mcp_tool(name="search", cost_tier="low")
-        skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
-
-        with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
-            mock_call.return_value = {"result": "ok"}
-            await executor.execute_tool("search", {})
-
-        assert len(executor._mcp_proxies) == 1
-
-        with patch.object(MCPClientProxy, "close", new_callable=AsyncMock) as mock_close:
-            await executor.cleanup()
-            mock_close.assert_called_once()
-
-        assert len(executor._mcp_proxies) == 0
-
-    @pytest.mark.asyncio
-    async def test_cleanup_with_no_proxies(self, tmp_path):
-        """cleanup() is safe when no proxies exist."""
-        skill = _make_skill(tmp_path, tools=[])
-        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
-
-        await executor.cleanup()  # should not raise
-
-        assert len(executor._mcp_proxies) == 0
-
-    @pytest.mark.asyncio
-    async def test_cleanup_multiple_proxies(self, tmp_path):
-        """cleanup() closes multiple proxies from different servers."""
-        tool_a = _make_mcp_tool(name="tool_a", server_command="node", server_args=["a.js"], cost_tier="low")
-        tool_b = _make_mcp_tool(name="tool_b", server_command="python", server_args=["b.py"], cost_tier="low")
-        skill = _make_skill(tmp_path, tools=[tool_a, tool_b])
-        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
-
-        with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
-            mock_call.return_value = {"result": "ok"}
-            await executor.execute_tool("tool_a", {})
-            await executor.execute_tool("tool_b", {})
-
-        assert len(executor._mcp_proxies) == 2
-
-        with patch.object(MCPClientProxy, "close", new_callable=AsyncMock) as mock_close:
-            await executor.cleanup()
-            assert mock_close.call_count == 2
-
-        assert len(executor._mcp_proxies) == 0
-
-
-# ---------------------------------------------------------------------------
-# _COST_TIER_ESTIMATES sanity
-# ---------------------------------------------------------------------------
-
-
-class TestCostTierEstimates:
-    """Sanity checks on the module-level cost tier mapping."""
-
-    def test_expected_tiers_present(self):
-        assert "free" in _COST_TIER_ESTIMATES
-        assert "low" in _COST_TIER_ESTIMATES
-        assert "medium" in _COST_TIER_ESTIMATES
-        assert "high" in _COST_TIER_ESTIMATES
-
-    def test_free_is_zero(self):
-        assert _COST_TIER_ESTIMATES["free"] == 0.0
-
-    def test_tiers_are_ordered(self):
-        assert (
-            _COST_TIER_ESTIMATES["free"]
-            < _COST_TIER_ESTIMATES["low"]
-            < _COST_TIER_ESTIMATES["medium"]
-            < _COST_TIER_ESTIMATES["high"]
-        )
-
-
-# ---------------------------------------------------------------------------
-# Budget-argument clamping for paid MCP tools (security regression)
-# ---------------------------------------------------------------------------
-
-
-def _make_budgeted_mcp_tool(name: str = "ingest", cost_tier: str = "high") -> SkillTool:
-    """An MCP tool that declares a ``budget`` parameter (like primr/distillr)."""
-    return SkillTool(
-        name=name,
-        type="mcp",
-        description=f"MCP tool {name}",
-        parameters={
-            "type": "object",
-            "properties": {
-                "query": {"type": "string"},
-                "budget": {"type": "number"},
-            },
-        },
-        cost_tier=cost_tier,
-        server_command="distill-mcp",
-        server_args=[],
-    )
-
-
-def _make_skill_with_budget(tmp_path: Path, tools: list[SkillTool], max_per_call: float) -> SkillDefinition:
-    skill_dir = tmp_path / "paid-skill"
-    skill_dir.mkdir(exist_ok=True)
-    return SkillDefinition(
-        name="paid-skill",
-        version="1.0.0",
-        description="Paid skill",
-        path=skill_dir,
-        tier="built-in",
-        tools=tools,
-        budget=SkillBudget(max_per_call=max_per_call, default_budget=max_per_call),
-    )
-
-
-class TestSkillExecutorBudgetArgClamp:
-    """Regression: a caller/model-supplied ``budget`` argument to a paid MCP
-    tool must be clamped to the manifest ``max_per_call`` and the remaining
-    skill budget so prompt-injection cannot drive unbounded provider spend."""
-
-    @pytest.mark.asyncio
-    async def test_oversized_budget_clamped_to_max_per_call(self, tmp_path):
-        tool = _make_budgeted_mcp_tool()
-        skill = _make_skill_with_budget(tmp_path, [tool], max_per_call=2.0)
-        executor = SkillExecutor(skill, budget_remaining=100.0, allow_metered_tools=True)
-
-        with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
-            mock_call.return_value = {"result": "ok"}
-            await executor.execute_tool("ingest", {"query": "x", "budget": 999.0})
-
-        sent_args = mock_call.call_args.args[1]
-        assert sent_args["budget"] == pytest.approx(2.0)
-
-    @pytest.mark.asyncio
-    async def test_missing_budget_is_injected_at_cap(self, tmp_path):
-        tool = _make_budgeted_mcp_tool()
-        skill = _make_skill_with_budget(tmp_path, [tool], max_per_call=2.0)
-        executor = SkillExecutor(skill, budget_remaining=100.0, allow_metered_tools=True)
-
-        with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
-            mock_call.return_value = {"result": "ok"}
-            await executor.execute_tool("ingest", {"query": "x"})
-
-        sent_args = mock_call.call_args.args[1]
-        assert sent_args["budget"] == pytest.approx(2.0)
-
-    @pytest.mark.asyncio
-    async def test_budget_clamped_to_remaining_when_below_cap(self, tmp_path):
-        tool = _make_budgeted_mcp_tool()
-        skill = _make_skill_with_budget(tmp_path, [tool], max_per_call=5.0)
-        executor = SkillExecutor(skill, budget_remaining=0.75, allow_metered_tools=True)
-
-        with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
-            mock_call.return_value = {"result": "ok"}
-            await executor.execute_tool("ingest", {"query": "x", "budget": 5.0})
-
-        sent_args = mock_call.call_args.args[1]
-        assert sent_args["budget"] == pytest.approx(0.75)
-
-    @pytest.mark.asyncio
-    async def test_smaller_caller_budget_is_respected(self, tmp_path):
-        tool = _make_budgeted_mcp_tool()
-        skill = _make_skill_with_budget(tmp_path, [tool], max_per_call=5.0)
-        executor = SkillExecutor(skill, budget_remaining=100.0, allow_metered_tools=True)
-
-        with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
-            mock_call.return_value = {"result": "ok"}
-            await executor.execute_tool("ingest", {"query": "x", "budget": 0.5})
-
-        sent_args = mock_call.call_args.args[1]
-        assert sent_args["budget"] == pytest.approx(0.5)
-
-    @pytest.mark.asyncio
-    async def test_forwarded_budget_is_the_durable_reservation_and_settlement(self, tmp_path):
-        from deepr.observability.cost_ledger import CostLedger
-
-        tool = _make_budgeted_mcp_tool()
-        skill = _make_skill_with_budget(tmp_path, [tool], max_per_call=2.0)
-        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
-
-        with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
-            mock_call.return_value = {"result": "ok"}
-            result = await executor.execute_tool("ingest", {"query": "x"})
-
-        assert result["cost"] == pytest.approx(2.0)
-        assert executor._budget_remaining == pytest.approx(8.0)
-        event = CostLedger().get_events()[0]
-        assert event.cost_usd == pytest.approx(2.0)
-        assert event.metadata["estimated_cost_usd"] == pytest.approx(2.0)
-
-    @pytest.mark.asyncio
-    async def test_reported_actual_cost_settles_below_authorized_ceiling(self, tmp_path):
-        from deepr.observability.cost_ledger import CostLedger
-
-        tool = _make_budgeted_mcp_tool()
-        skill = _make_skill_with_budget(tmp_path, [tool], max_per_call=2.0)
-        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
-
-        with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
-            mock_call.return_value = {"result": "ok", "cost": 1.25}
-            result = await executor.execute_tool("ingest", {"query": "x"})
-
-        assert result["cost"] == pytest.approx(1.25)
-        assert executor._budget_remaining == pytest.approx(8.75)
-        assert CostLedger().get_events()[0].cost_usd == pytest.approx(1.25)
-
-    @pytest.mark.asyncio
-    async def test_timeout_settles_authorized_ceiling_and_charges_session(self, tmp_path):
-        from deepr.observability.cost_ledger import CostLedger
-
-        tool = _make_budgeted_mcp_tool()
-        skill = _make_skill_with_budget(tmp_path, [tool], max_per_call=2.0)
-        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
-
-        with patch.object(
-            MCPClientProxy,
-            "call_tool",
-            new_callable=AsyncMock,
-            side_effect=TimeoutError("remote result unknown"),
-        ):
-            with pytest.raises(TimeoutError, match="unknown"):
-                await executor.execute_tool("ingest", {"query": "x"})
-
-        assert executor._budget_remaining == pytest.approx(8.0)
-        event = CostLedger().get_events()[0]
-        assert event.cost_usd == pytest.approx(2.0)
-        assert event.metadata["actual_cost_reported"] is False
+    _assert_quarantined(result, tool_type=tool_type)
+    assert executor._budget_remaining == 10.0
+
+
+@pytest.mark.asyncio
+async def test_python_tool_is_blocked_before_code_load(tmp_path: Path) -> None:
+    tool = _tool(tool_type="python", cost_tier="high")
+    executor = SkillExecutor(_skill(tmp_path, tool), 10.0, allow_metered_tools=True)
+
+    with patch.object(
+        importlib.util,
+        "spec_from_file_location",
+        side_effect=AssertionError("quarantined Python skill must not load code"),
+    ) as load_code:
+        result = await executor.execute_tool(tool.name, {})
+
+    _assert_quarantined(result, tool_type="python")
+    load_code.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_mcp_tool_is_blocked_before_subprocess_spawn(tmp_path: Path) -> None:
+    tool = _tool(tool_type="mcp", cost_tier="high")
+    executor = SkillExecutor(_skill(tmp_path, tool), 10.0, allow_metered_tools=True)
+    spawn = AsyncMock(side_effect=AssertionError("quarantined MCP skill must not spawn"))
+
+    with patch("asyncio.create_subprocess_exec", spawn):
+        result = await executor.execute_tool(tool.name, {})
+
+    _assert_quarantined(result, tool_type="mcp")
+    spawn.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_unknown_tool_remains_an_inventory_error(tmp_path: Path) -> None:
+    executor = SkillExecutor(_skill(tmp_path, _tool()), 10.0)
+
+    result = await executor.execute_tool("missing", {})
+
+    assert result == {"error": "Unknown tool: missing", "cost": 0.0}
+
+
+@pytest.mark.asyncio
+async def test_arguments_are_not_read_or_mutated(tmp_path: Path) -> None:
+    executor = SkillExecutor(_skill(tmp_path, _tool()), 10.0)
+    arguments = {"nested": {"secret": "unchanged"}}
+
+    await executor.execute_tool("run", arguments)
+
+    assert arguments == {"nested": {"secret": "unchanged"}}
+
+
+@pytest.mark.asyncio
+async def test_parallel_calls_cannot_dispatch_or_change_budget(tmp_path: Path) -> None:
+    tool = _tool(tool_type="mcp", cost_tier="high")
+    executor = SkillExecutor(_skill(tmp_path, tool), 0.01, allow_metered_tools=True)
+    spawn = AsyncMock(side_effect=AssertionError("quarantined MCP skill must not spawn"))
+
+    with patch("asyncio.create_subprocess_exec", spawn):
+        results = await asyncio.gather(*(executor.execute_tool(tool.name, {}) for _ in range(20)))
+
+    assert all(result["error"] == SKILL_TOOL_EXECUTION_DISABLED for result in results)
+    assert executor._budget_remaining == 0.01
+    spawn.assert_not_awaited()
+
+
+@pytest.mark.parametrize("budget", [True, False, -1, float("nan"), float("inf"), "10", None])
+def test_invalid_budget_is_rejected(tmp_path: Path, budget: Any) -> None:
+    with pytest.raises(ValueError, match="finite non-negative"):
+        SkillExecutor(_skill(tmp_path, _tool()), budget)
+
+
+@pytest.mark.parametrize("budget", [0, 0.0, 10, 10.5])
+def test_valid_budget_is_retained_for_contract_compatibility(tmp_path: Path, budget: float) -> None:
+    executor = SkillExecutor(_skill(tmp_path, _tool()), budget)
+
+    assert executor._budget_remaining == float(budget)
+
+
+@pytest.mark.asyncio
+async def test_cleanup_is_a_resource_free_noop(tmp_path: Path) -> None:
+    executor = SkillExecutor(_skill(tmp_path, _tool()), 10.0)
+
+    assert await executor.cleanup() is None
+
+
+def test_skills_package_does_not_export_proxy_transport() -> None:
+    import deepr.experts.skills as skills_package
+    import deepr.experts.skills.executor as executor_module
+
+    assert not hasattr(skills_package, "MCPClientProxy")
+    assert "MCPClientProxy" not in skills_package.__all__
+    assert not hasattr(executor_module, "MCPClientProxy")
+    assert not hasattr(executor_module, "_MCPClientProxy")

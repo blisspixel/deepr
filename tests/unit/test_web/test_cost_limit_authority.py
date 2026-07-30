@@ -22,6 +22,28 @@ def _headers() -> dict[str, str]:
     return {"Authorization": "Bearer budget-test-secret"}
 
 
+def test_connection_probe_is_blocked_before_provider_construction(client, monkeypatch) -> None:
+    constructed = False
+
+    class ForbiddenClient:
+        def __init__(self, *_args, **_kwargs):
+            nonlocal constructed
+            constructed = True
+
+    monkeypatch.setenv("OPENAI_API_KEY", "configured-test-key")
+    monkeypatch.setattr("openai.OpenAI", ForbiddenClient)
+
+    response = client.post(
+        "/api/config/test-connection",
+        json={"provider": "openai"},
+        headers=_headers(),
+    )
+
+    assert response.status_code == 503
+    assert response.get_json()["error_code"] == "external_metadata_cost_unverified"
+    assert constructed is False
+
+
 def test_cost_endpoint_cannot_raise_any_authoritative_limit(client, monkeypatch) -> None:
     controller = web_app.cost_controller
     assert controller is not None
@@ -69,7 +91,7 @@ def test_config_endpoint_validates_atomically_before_mutation(client, monkeypatc
     assert controller.max_monthly_cost == 3.0
 
 
-def test_web_monthly_limit_narrows_canonical_cross_interface_authority(client, monkeypatch) -> None:
+def test_web_monthly_limit_below_provider_hard_limit_freezes_paid_authority(client, monkeypatch) -> None:
     controller = web_app.cost_controller
     assert controller is not None
     monkeypatch.setenv("DEEPR_MAX_COST_PER_JOB", "2")
@@ -84,10 +106,10 @@ def test_web_monthly_limit_narrows_canonical_cross_interface_authority(client, m
 
     assert response.status_code == 200
     assert read_operator_budget().monthly_limit == 3.0
-    assert resolve_spend_caps() == {"per_job": 2.0, "daily": 3.0, "weekly": 3.0, "monthly": 3.0}
-    assert controller.max_cost_per_job == 2.0
-    assert controller.max_daily_cost == 3.0
-    assert controller.max_monthly_cost == 3.0
+    assert resolve_spend_caps() == {"per_job": 0.0, "daily": 0.0, "weekly": 0.0, "monthly": 0.0}
+    assert controller.max_cost_per_job == 0.0
+    assert controller.max_daily_cost == 0.0
+    assert controller.max_monthly_cost == 0.0
 
 
 def test_dashboard_rejects_interface_local_per_job_or_daily_limits(client, monkeypatch) -> None:
@@ -102,8 +124,11 @@ def test_dashboard_rejects_interface_local_per_job_or_daily_limits(client, monke
     )
 
     assert response.status_code == 400
-    assert "canonical environment policy" in response.get_json()["error"]
-    assert read_operator_budget().monthly_limit == 200.0
+    assert response.get_json() == {
+        "error": "Cost limit update rejected by canonical budget policy",
+        "error_code": "cost_limit_update_rejected",
+    }
+    assert read_operator_budget().monthly_limit == 5.0
 
 
 def test_cost_limit_write_preserves_operator_freeze_metadata(client) -> None:

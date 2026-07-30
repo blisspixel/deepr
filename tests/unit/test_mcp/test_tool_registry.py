@@ -149,7 +149,10 @@ class TestDefaultRegistry:
     def test_default_registry_has_research_tools(self):
         """Default registry should have research tools."""
         registry = create_default_registry()
-        assert registry.get("deepr_research") is not None
+        research = registry.get("deepr_research")
+        assert research is not None
+        assert "Production metered submission is blocked before provider dispatch" in research.description
+        assert "even with explicit consent flags" in research.description
         assert registry.get("deepr_check_status") is not None
         assert registry.get("deepr_get_result") is not None
 
@@ -159,6 +162,14 @@ class TestDefaultRegistry:
         assert registry.get("deepr_list_experts") is not None
         assert registry.get("deepr_query_expert") is not None
         assert registry.get("deepr_expert_loop_status") is not None
+        validate = registry.get("deepr_expert_validate")
+        absorb = registry.get("deepr_expert_absorb")
+        assert validate is not None
+        assert absorb is not None
+        assert "production-frozen before provider dispatch" in validate.description
+        assert "cannot remove that block" in validate.description
+        assert "production-frozen before provider dispatch" in absorb.description
+        assert "including dry_run=true" in absorb.description
 
     def test_query_expert_description_marks_metered_backend_block(self):
         registry = create_default_registry()

@@ -21,6 +21,7 @@ from deepr.experts.council import ExpertCouncil, ExpertPerspective
 from deepr.experts.maker_checker import VERIFIED_ASSURANCES, assurance_short_label
 from deepr.experts.metacognition import MetaCognitionTracker
 from deepr.experts.profile import ExpertProfile, ExpertStore
+from deepr.experts.semantic_model_gate import _mark_zero_dollar_client
 from deepr.observability.cost_ledger import CostLedger
 
 
@@ -115,7 +116,11 @@ async def test_consult_queries_experts_with_bounded_concurrency(monkeypatch):
     monkeypatch.setattr("deepr.experts.council.MAX_COUNCIL_CONCURRENCY", 2)
     monkeypatch.setattr(ExpertCouncil, "_query_expert", fake_query)
 
-    council = ExpertCouncil(synthesis_provider="local", allow_live_fallback=False)
+    council = ExpertCouncil(
+        synthesis_client=_mark_zero_dollar_client(SimpleNamespace(), capacity_source="local"),
+        synthesis_provider="local",
+        allow_live_fallback=False,
+    )
     experts = [{"name": f"Expert {idx}", "domain": "validation"} for idx in range(6)]
 
     with patch.object(council, "_synthesise", new_callable=AsyncMock) as synth:
@@ -183,7 +188,11 @@ async def test_lifecycle_progress_failure_cancels_sibling_council_work(monkeypat
             sibling_cancelled.set()
 
     monkeypatch.setattr(ExpertCouncil, "_query_expert", fake_query)
-    council = ExpertCouncil(synthesis_provider="local", allow_live_fallback=False)
+    council = ExpertCouncil(
+        synthesis_client=_mark_zero_dollar_client(SimpleNamespace(), capacity_source="local"),
+        synthesis_provider="local",
+        allow_live_fallback=False,
+    )
     experts = [
         {"name": "Guard Failure", "domain": "validation"},
         {"name": "Sibling", "domain": "validation"},
@@ -309,7 +318,7 @@ def test_stored_perspective_read_does_not_migrate_or_write_expert_storage():
 
     with patch.object(BeliefStore, "_save", side_effect=AssertionError("consult read attempted a write")):
         with patch("deepr.experts.beliefs.BeliefStore", wraps=BeliefStore) as store_type:
-            perspective = council._load_stored_perspective(
+            perspective = council.load_stored_perspective(
                 "How do bounded queues improve agent reliability?",
                 name,
                 "agent reliability",
@@ -608,19 +617,25 @@ Unified answer.
                 usage=SimpleNamespace(prompt_tokens=100, completion_tokens=50),
             )
 
-    fake_client = SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions()))
+    fake_client = _mark_zero_dollar_client(
+        SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions())),
+        capacity_source="plan_quota:test",
+    )
 
-    with patch("deepr.experts.council.AsyncOpenAI", return_value=fake_client):
-        result = await ExpertCouncil()._synthesise(
-            "q",
-            [ExpertPerspective(expert_name="A", domain="d", response="r")],
-            budget=1.0,
-        )
+    result = await ExpertCouncil(
+        synthesis_client=fake_client,
+        synthesis_model="gpt-5.2",
+        synthesis_provider="plan_quota:test",
+    )._synthesise(
+        "q",
+        [ExpertPerspective(expert_name="A", domain="d", response="r")],
+        budget=0.0,
+    )
 
     assert result["agreements"] == ["Shared point", "Callable Role: Deepr is a callable knowledge role."]
     assert result["disagreements"] == ["Divergent point"]
-    assert result["tokens_input"] == 100
-    assert result["tokens_output"] == 50
+    assert result["tokens_input"] == 0
+    assert result["tokens_output"] == 0
 
 
 @pytest.mark.asyncio
@@ -645,7 +660,10 @@ Local answer.
                 usage=None,
             )
 
-    fake_client = SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions()))
+    fake_client = _mark_zero_dollar_client(
+        SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions())),
+        capacity_source="local",
+    )
 
     result = await ExpertCouncil(
         synthesis_client=fake_client,
@@ -680,7 +698,10 @@ async def test_plan_synthesis_does_not_receive_local_reasoning_control():
                 usage=None,
             )
 
-    fake_client = SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions()))
+    fake_client = _mark_zero_dollar_client(
+        SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions())),
+        capacity_source="plan_quota:codex",
+    )
     result = await ExpertCouncil(
         synthesis_client=fake_client,
         synthesis_model="codex",
@@ -694,6 +715,53 @@ async def test_plan_synthesis_does_not_receive_local_reasoning_control():
     assert result["text"] == "### SYNTHESIS:\nPlan answer."
     assert result["cost"] == 0.0
     assert result["synthesis_status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_owned_synthesis_rejects_unproven_client_before_call():
+    calls = 0
+
+    class FakeCompletions:
+        async def create(self, **_kwargs):
+            nonlocal calls
+            calls += 1
+            raise AssertionError("unproven zero-dollar client dispatched")
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions()))
+    council = ExpertCouncil(
+        synthesis_client=client,
+        synthesis_model="qwen-local",
+        synthesis_provider="local",
+    )
+
+    with pytest.raises(ValueError, match="zero-dollar capacity proof"):
+        await council._synthesise(
+            "q",
+            [ExpertPerspective(expert_name="A", domain="d", response="r")],
+            budget=0.0,
+        )
+
+    assert calls == 0
+
+
+@pytest.mark.asyncio
+async def test_owned_synthesis_rejects_capacity_proof_for_another_source():
+    client = _mark_zero_dollar_client(
+        SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace())),
+        capacity_source="local",
+    )
+    council = ExpertCouncil(
+        synthesis_client=client,
+        synthesis_model="codex",
+        synthesis_provider="plan_quota:codex",
+    )
+
+    with pytest.raises(ValueError, match="does not match the declared source"):
+        await council._synthesise(
+            "q",
+            [ExpertPerspective(expert_name="A", domain="d", response="r")],
+            budget=0.0,
+        )
 
 
 @pytest.mark.asyncio
@@ -715,7 +783,10 @@ Partial answer
                 usage=None,
             )
 
-    fake_client = SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions()))
+    fake_client = _mark_zero_dollar_client(
+        SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions())),
+        capacity_source="local",
+    )
     result = await ExpertCouncil(
         synthesis_client=fake_client,
         synthesis_model="qwen-local",
@@ -752,7 +823,10 @@ async def test_local_reasoning_only_output_stays_typed_and_never_becomes_answer(
                 usage=None,
             )
 
-    fake_client = SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions()))
+    fake_client = _mark_zero_dollar_client(
+        SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions())),
+        capacity_source="local",
+    )
     result = await ExpertCouncil(
         synthesis_client=fake_client,
         synthesis_model="qwen-thinking-local",
@@ -776,29 +850,14 @@ async def test_local_reasoning_only_output_stays_typed_and_never_becomes_answer(
 
 
 @pytest.mark.asyncio
-async def test_anthropic_synthesis_uses_messages_api_and_cache_bucket_costs():
-    text = """### SYNTHESIS:
-Anthropic answer.
-
-### AGREEMENTS:
-- Anthropic agreement
-"""
-    captured: dict[str, object] = {}
+async def test_anthropic_synthesis_is_blocked_before_injected_client_dispatch():
+    calls = 0
 
     class FakeMessages:
-        async def create(self, **kwargs):
-            captured.update(kwargs)
-            return SimpleNamespace(
-                id="msg_123",
-                stop_reason="end_turn",
-                content=[SimpleNamespace(type="text", text=text)],
-                usage=SimpleNamespace(
-                    input_tokens=1000,
-                    output_tokens=200,
-                    cache_creation_input_tokens=300,
-                    cache_read_input_tokens=400,
-                ),
-            )
+        async def create(self, **_kwargs):
+            nonlocal calls
+            calls += 1
+            raise AssertionError("paid synthesis must remain blocked")
 
     fake_client = SimpleNamespace(messages=FakeMessages())
 
@@ -812,72 +871,38 @@ Anthropic answer.
         budget=1.0,
     )
 
-    assert captured["model"] == "claude-opus-4-8"
-    assert captured["max_tokens"] == 800
-    assert "temperature" not in captured
-    assert "top_p" not in captured
-    assert "cache_control" not in captured
-    assert isinstance(captured["system"], str)
-    messages = captured["messages"]
-    assert isinstance(messages, list)
-    assert messages[0]["role"] == "user"
-    assert "Include quantitative analysis only" in messages[0]["content"]
-    assert result["agreements"] == ["Anthropic agreement"]
-    assert result["tokens_input"] == 1700
-    assert result["tokens_output"] == 200
-    assert result["cache_creation_input_tokens"] == 300
-    assert result["cache_read_input_tokens"] == 400
-    assert result["provider_request_id"] == "msg_123"
-    assert result["stop_reason"] == "end_turn"
-    assert result["cost"] == 0.012075
+    assert calls == 0
+    assert result["dispatch_status"] == "not_dispatched"
+    assert result["synthesis_status"] == "failed"
+    assert result["synthesis_error_type"] == "MeteredCouncilSynthesisDisabledError"
+    assert result["cost"] == 0.0
 
 
 @pytest.mark.asyncio
-async def test_anthropic_synthesis_without_injected_client_uses_anthropic_client():
-    text = """### SYNTHESIS:
-Anthropic answer.
+async def test_anthropic_synthesis_without_client_is_blocked_before_construction():
+    result = await ExpertCouncil(
+        synthesis_model="claude-opus-4-8",
+        synthesis_provider="anthropic",
+    )._synthesise(
+        "q",
+        [ExpertPerspective(expert_name="A", domain="d", response="r")],
+        budget=1.0,
+    )
 
-### AGREEMENTS:
-- Anthropic agreement
-"""
-
-    class FakeMessages:
-        async def create(self, **_kwargs):
-            return SimpleNamespace(
-                content=[SimpleNamespace(type="text", text=text)],
-                usage=SimpleNamespace(input_tokens=10, output_tokens=5),
-            )
-
-    fake_client = SimpleNamespace(messages=FakeMessages())
-
-    with (
-        patch("deepr.experts.consult.AnthropicConsultSynthesisClient", return_value=fake_client),
-        patch("deepr.experts.council.AsyncOpenAI", side_effect=AssertionError("wrong provider client")),
-    ):
-        result = await ExpertCouncil(
-            synthesis_model="claude-opus-4-8",
-            synthesis_provider="anthropic",
-        )._synthesise(
-            "q",
-            [ExpertPerspective(expert_name="A", domain="d", response="r")],
-            budget=1.0,
-        )
-
-    assert result["agreements"] == ["Anthropic agreement"]
-    assert result["tokens_input"] == 10
-    assert result["tokens_output"] == 5
+    assert result["dispatch_status"] == "not_dispatched"
+    assert result["synthesis_status"] == "failed"
+    assert result["cost"] == 0.0
 
 
 @pytest.mark.asyncio
-async def test_anthropic_synthesis_refusal_fails_closed():
+async def test_anthropic_synthesis_refusal_path_is_unreachable_while_paid_is_blocked():
+    calls = 0
+
     class FakeMessages:
         async def create(self, **_kwargs):
-            return SimpleNamespace(
-                stop_reason="refusal",
-                stop_details=SimpleNamespace(category="safety"),
-                content=[],
-                usage=SimpleNamespace(input_tokens=10, output_tokens=0),
-            )
+            nonlocal calls
+            calls += 1
+            raise AssertionError("paid synthesis must remain blocked")
 
     fake_client = SimpleNamespace(messages=FakeMessages())
 
@@ -892,11 +917,12 @@ async def test_anthropic_synthesis_refusal_fails_closed():
     )
 
     assert result["text"] == "Synthesis unavailable."
-    assert result["cost"] > 0.0
-    assert result["cost_estimated"] is True
-    assert result["cost_estimate_reason"] == "post_dispatch_failure"
+    assert calls == 0
+    assert result["cost"] == 0.0
+    assert result["cost_estimated"] is False
+    assert result["dispatch_status"] == "not_dispatched"
     assert result["synthesis_status"] == "failed"
-    assert result["synthesis_error_type"] == "RuntimeError"
+    assert result["synthesis_error_type"] == "MeteredCouncilSynthesisDisabledError"
 
 
 @pytest.mark.asyncio
@@ -928,7 +954,11 @@ async def test_owned_capacity_consult_does_not_reserve_paid_budget(monkeypatch):
         lambda: NoPaidReservationManager(),
     )
 
-    council = ExpertCouncil(synthesis_provider="local", allow_live_fallback=False)
+    council = ExpertCouncil(
+        synthesis_client=_mark_zero_dollar_client(SimpleNamespace(), capacity_source="local"),
+        synthesis_provider="local",
+        allow_live_fallback=False,
+    )
     with patch.object(council, "_synthesise", new_callable=AsyncMock) as synth:
         synth.return_value = {"text": "Local synthesis", "agreements": [], "disagreements": [], "cost": 0.0}
         result = await council.consult(

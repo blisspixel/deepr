@@ -11,13 +11,12 @@ import math
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from typing import Any, TypeVar
 
-from deepr.services.metered_call import execute_reserved_async_call, execute_reserved_async_stream
+from deepr.experts.chat_capacity import MeteredExpertChatDisabledError
 
 T = TypeVar("T")
 
 _ACCOUNTING_EXTRA_KEYS = frozenset({"max_cost_per_job"})
-_DEFAULT_OUTPUT_TOKEN_CAP = 4096
-_DEFAULT_OUTPUT_PRICE_PER_1M = 10.0
+_DEFAULT_OUTPUT_TOKEN_CAP = 4_096
 
 
 def split_accounting_extra(extra: Mapping[str, Any]) -> tuple[dict[str, Any], float | None]:
@@ -41,27 +40,9 @@ def apply_output_token_ceiling(
     max_cost_per_job: float | None,
     default_cap: int = _DEFAULT_OUTPUT_TOKEN_CAP,
 ) -> dict[str, Any]:
-    """Bound max_tokens from the dollar ceiling when the caller did not set one.
-
-    Uses half the call ceiling for output so input tokens keep headroom. Caps at
-    ``default_cap``. Existing explicit max_tokens / max_completion_tokens win.
-    """
-    if max_cost_per_job is None:
-        return provider_extra
-    if "max_tokens" in provider_extra or "max_completion_tokens" in provider_extra:
-        return provider_extra
-    try:
-        from deepr.providers.registry import get_token_pricing
-
-        output_price = float(get_token_pricing(model).get("output", _DEFAULT_OUTPUT_PRICE_PER_1M))
-    except Exception:
-        output_price = _DEFAULT_OUTPUT_PRICE_PER_1M
-    if not math.isfinite(output_price) or output_price <= 0:
-        output_price = _DEFAULT_OUTPUT_PRICE_PER_1M
-    spendable = max_cost_per_job * 0.5
-    tokens = int((spendable / output_price) * 1_000_000)
-    bounded = max(1, min(int(default_cap), tokens))
-    return {**provider_extra, "max_tokens": bounded}
+    """Refuse the legacy output-only bound because it cannot cap total cost."""
+    del provider_extra, model, max_cost_per_job, default_cap
+    raise MeteredExpertChatDisabledError("expert_chat_unbounded_token_envelope")
 
 
 async def execute_metered_chat_provider_call(
@@ -71,16 +52,11 @@ async def execute_metered_chat_provider_call(
     source: str,
     max_cost_per_job: float | None,
     call: Callable[[], Awaitable[T]],
+    request_envelope: Mapping[str, Any],
 ) -> T:
-    """Run one metered expert-chat provider call under durable admission."""
-    return await execute_reserved_async_call(
-        operation_prefix="expert-chat",
-        provider=provider,
-        model=model,
-        source=source,
-        call=call,
-        max_cost_per_job=max_cost_per_job,
-    )
+    """Refuse metered chat until the full provider charge has a hard bound."""
+    del provider, model, source, max_cost_per_job, call, request_envelope
+    raise MeteredExpertChatDisabledError("expert_chat_unbounded_provider_charge")
 
 
 def execute_metered_chat_provider_stream(
@@ -90,16 +66,11 @@ def execute_metered_chat_provider_stream(
     source: str,
     max_cost_per_job: float | None,
     events: Callable[[], AsyncIterator[tuple[T, object | None]]],
+    request_envelope: Mapping[str, Any],
 ) -> AsyncIterator[T]:
-    """Stream one metered expert-chat provider call under durable admission."""
-    return execute_reserved_async_stream(
-        operation_prefix="expert-chat",
-        provider=provider,
-        model=model,
-        source=source,
-        events=events,
-        max_cost_per_job=max_cost_per_job,
-    )
+    """Refuse metered streams until the full provider charge has a hard bound."""
+    del provider, model, source, max_cost_per_job, events, request_envelope
+    raise MeteredExpertChatDisabledError("expert_chat_unbounded_provider_charge")
 
 
 def mirror_chat_session_spend(

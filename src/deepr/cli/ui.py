@@ -316,7 +316,7 @@ def print_status(
         expert_name: Name of the expert
         messages_count: Number of messages exchanged
         cost: Total cost accumulated
-        budget: Budget limit (None if unlimited)
+        budget: Budget limit, or None when authority is unavailable
         research_jobs: Number of research jobs triggered
         model: Model being used
         documents: Number of documents in knowledge base
@@ -329,7 +329,8 @@ def print_status(
     console.print("[bold]Chat Session Status[/bold]")
     console.print(f"Expert: {expert_name}")
     console.print(f"Messages: {messages_count}")
-    console.print(f"Session cost: ${cost:.4f}" + (f" / ${budget:.2f}" if budget else " (no limit)"))
+    budget_status = f" / ${budget:.2f}" if budget is not None else " (budget unavailable)"
+    console.print(f"Session cost: ${cost:.4f}{budget_status}")
     console.print(f"Research jobs: {research_jobs}")
     console.print(f"Model: {model}")
     console.print(f"Knowledge base: {documents} documents")

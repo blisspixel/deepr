@@ -366,7 +366,9 @@ def benchmark(quick: bool, target_provider: str | None, iterations: int, history
                     if provider == "openai":
                         from openai import OpenAI
 
-                        client = OpenAI()
+                        from deepr.providers.dispatch_authority import default_paid_endpoint
+
+                        client = OpenAI(base_url=default_paid_endpoint("openai"))
                         client.chat.completions.create(
                             model=model,
                             messages=[{"role": "user", "content": test_prompt}],
@@ -375,7 +377,17 @@ def benchmark(quick: bool, target_provider: str | None, iterations: int, history
                     elif provider == "gemini":
                         from google import genai
 
-                        client = genai.Client()
+                        from deepr.providers.dispatch_authority import default_paid_endpoint
+
+                        client = genai.Client(
+                            vertexai=False,
+                            http_options={
+                                "base_url": default_paid_endpoint("gemini"),
+                                "retry_options": {"attempts": 1},
+                                "client_args": {"trust_env": False, "follow_redirects": False},
+                                "async_client_args": {"trust_env": False, "follow_redirects": False},
+                            },
+                        )
                         client.models.generate_content(
                             model=model,
                             contents=test_prompt,
@@ -383,8 +395,10 @@ def benchmark(quick: bool, target_provider: str | None, iterations: int, history
                     elif provider == "xai":
                         from openai import OpenAI
 
+                        from deepr.providers.dispatch_authority import default_paid_endpoint
+
                         client = OpenAI(
-                            base_url="https://api.x.ai/v1",
+                            base_url=default_paid_endpoint("xai"),
                         )
                         client.chat.completions.create(
                             model=model,
@@ -487,37 +501,12 @@ def benchmark(quick: bool, target_provider: str | None, iterations: int, history
 @click.option("--json", "json_output", is_flag=True, help="Output as JSON (for CI / scripting)")
 @click.option("--no-stubs", is_flag=True, help="Don't print suggested registry-entry stubs")
 def models(show_all: bool, target_provider: str | None, json_output: bool, no_stubs: bool):
-    """Discover newer provider models missing from the registry.
-
-    Queries each configured provider's live model list and flags newer versions
-    of model families already in the registry (e.g. a new mini/nano tier, or a
-    preview that has gone GA). Use --all to see every discovered model.
-
-    Examples:
-        deepr providers models
-        deepr providers models --provider openai
-        deepr providers models --all
-        deepr providers models --json
-    """
-    import subprocess
-    import sys
-    from pathlib import Path
-
-    script = Path(__file__).resolve().parents[3] / "scripts" / "discover_models.py"
-    cmd = [sys.executable, str(script)]
-    if show_all:
-        cmd.append("--all")
-    if no_stubs:
-        cmd.append("--no-stubs")
-    if json_output:
-        cmd += ["--format", "json"]
-    if target_provider:
-        cmd += ["--provider", target_provider]
-
-    # Internal discover_models.py; CLI user-invoked, controlled arguments only.
-    result = subprocess.run(cmd, check=False)
-    if result.returncode != 0:
-        raise click.ClickException(f"Model discovery exited with status {result.returncode}")
+    """Refuse external model discovery until its marginal cost is provable."""
+    _ = show_all, target_provider, json_output, no_stubs
+    raise click.ClickException(
+        "Live provider model discovery is blocked because endpoint, proxy, retry, and account cost cannot be proven. "
+        "Use `deepr providers list` for the offline registry."
+    )
 
 
 @providers.command()

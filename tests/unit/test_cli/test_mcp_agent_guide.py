@@ -94,6 +94,23 @@ def test_mcp_agent_guide_json_redacts_existing_token():
     assert "existing-secret" not in result.output
     assert "<redacted-token>" in payload["guide"]
 
+    plan_result = CliRunner().invoke(
+        mcp,
+        [
+            "agent-guide",
+            "--auth-token",
+            "existing-secret",
+            "--no-create-key",
+            "--synthesis-backend",
+            "plan",
+            "--json",
+        ],
+    )
+    assert plan_result.exit_code == 0, plan_result.output
+    plan_payload = json.loads(plan_result.output)
+    assert '"plan": "claude"' in plan_payload["guide"]
+    assert '"plan": "codex"' not in plan_payload["guide"]
+
 
 def test_mcp_agent_guide_can_write_existing_token_guide(tmp_path):
     guide_path = tmp_path / "agent-guide.md"

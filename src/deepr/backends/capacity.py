@@ -11,9 +11,12 @@ from __future__ import annotations
 
 import ipaddress
 import os
+import re
 import shutil
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, cast
 from urllib.parse import SplitResult, urlsplit
 
 
@@ -187,6 +190,51 @@ def validate_owned_local_ollama_url(value: str) -> str:
     return validate_owned_local_http_url(value, service_name="Ollama")
 
 
+def validate_owned_local_ollama_cloud_status(payload: Mapping[str, Any]) -> None:
+    """Require stable server-side proof that Ollama cloud access is disabled."""
+    cloud = payload.get("cloud")
+    if not isinstance(cloud, Mapping) or cloud.get("disabled") is not True or cloud.get("source") != "config":
+        raise ValueError(
+            "Owned local Ollama requires cloud.disabled=true from config; set OLLAMA_NO_CLOUD=1 and restart Ollama"
+        )
+
+
+def select_materialized_local_ollama_model(
+    entries: list[Any],
+    *,
+    requested: str | None,
+) -> Mapping[str, Any]:
+    """Select an exact local GGUF inventory entry with no remote provenance."""
+    requested_name = (requested or "").strip()
+    candidates = [cast(Mapping[str, Any], entry) for entry in entries if isinstance(entry, Mapping)]
+    if requested_name:
+        candidates = [entry for entry in candidates if entry.get("name") == requested_name]
+        if not candidates:
+            raise ValueError("requested model is not an exact entry in the local Ollama inventory")
+    for entry in candidates:
+        name = entry.get("name")
+        size = entry.get("size")
+        digest = entry.get("digest")
+        details = entry.get("details")
+        if not isinstance(name, str) or not name.strip() or name != entry.get("model"):
+            continue
+        if name.casefold().endswith(":cloud"):
+            continue
+        if isinstance(size, bool) or not isinstance(size, int) or size <= 0:
+            continue
+        if not isinstance(digest, str) or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+            continue
+        if not isinstance(details, Mapping) or str(details.get("format", "")).casefold() != "gguf":
+            continue
+        if any(
+            value is not None and value is not False and value != ""
+            for value in (entry.get(field) for field in ("cloud", "remote", "provider", "url"))
+        ):
+            continue
+        return entry
+    raise ValueError("no fully materialized local GGUF model satisfies the zero-cost authority gate")
+
+
 def _key_is_set(value: str | None) -> bool:
     return bool(value and value.strip() and "your-" not in value.lower())
 
@@ -204,7 +252,8 @@ def ollama_status(base_url: str | None = None, *, timeout: float = 0.5) -> tuple
     try:
         import httpx
 
-        resp = httpx.get(f"{url}/api/tags", timeout=timeout)
+        with httpx.Client(timeout=timeout, trust_env=False, follow_redirects=False) as client:
+            resp = client.get(f"{url}/api/tags")
         resp.raise_for_status()
         models = resp.json().get("models", [])
         names = [m.get("name", "") for m in models if isinstance(m, dict)]
@@ -230,7 +279,8 @@ def available_local_models(base_url: str | None = None, *, timeout: float = 2.0)
     try:
         import httpx
 
-        resp = httpx.get(f"{url}/api/tags", timeout=timeout)
+        with httpx.Client(timeout=timeout, trust_env=False, follow_redirects=False) as client:
+            resp = client.get(f"{url}/api/tags")
         resp.raise_for_status()
         models = resp.json().get("models", [])
         return [m["name"] for m in models if isinstance(m, dict) and m.get("name")]

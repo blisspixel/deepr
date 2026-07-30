@@ -23,7 +23,6 @@ def detect_research_mode(prompt: str) -> str:
     Returns:
         "docs" if prompt seems documentation-oriented, "focus" otherwise
     """
-    # Keywords that suggest documentation intent
     doc_keywords = [
         "document",
         "documentation",
@@ -44,12 +43,10 @@ def detect_research_mode(prompt: str) -> str:
 
     prompt_lower = prompt.lower()
 
-    # Check if prompt contains documentation-related keywords
     for keyword in doc_keywords:
         if keyword in prompt_lower:
             return "docs"
 
-    # Default to focused research
     return "focus"
 
 
@@ -66,7 +63,11 @@ def detect_research_mode(prompt: str) -> str:
     help="Research provider (defaults: deep-research=openai, general=xai)",
 )
 @click.option("--no-web", is_flag=True, help="Disable web search")
-@click.option("--no-code", is_flag=True, help="Disable code interpreter")
+@click.option(
+    "--no-code/--code",
+    default=True,
+    help="Keep Code Interpreter disabled; --code is rejected until session cost is bounded",
+)
 @click.option(
     "--upload",
     "-u",
@@ -190,14 +191,12 @@ def research(
     user_specified_provider = provider is not None
     user_specified_model = model is not None
 
-    # Validate query/prompt length
     try:
         query = validate_prompt(query, max_length=50000, field_name="query")
     except click.UsageError as e:
         click.echo(f"Error: {e}", err=True)
         return
 
-    # Validate files if provided
     if upload:
         try:
             upload = tuple(str(f) for f in validate_upload_files(upload))
@@ -318,7 +317,7 @@ def research(
     requested_tool_flags = (no_web, no_code)
     no_web, no_code = bounded_tool_disable_flags(provider, no_web, no_code)
     if requested_tool_flags != (no_web, no_code) and output_context.mode == OutputMode.VERBOSE:
-        click.echo(f"[Using the current tool-free bounded path for {provider}]")
+        click.echo(f"[Using the current bounded tool posture for {provider}]")
 
     # Preview / dry-run for explicit (non-auto) model+provider runs.
     # Shows the resolved choice plus an estimated cost band so users can
@@ -858,6 +857,11 @@ def _run_auto_research(
         prefer_speed=prefer_speed,
     )
 
+    requested_tool_flags = (no_web, no_code)
+    no_web, no_code = bounded_tool_disable_flags(decision.provider, no_web, no_code)
+    if requested_tool_flags != (no_web, no_code) and output_context.mode == OutputMode.VERBOSE:
+        click.echo(f"[Using the current bounded tool posture for {decision.provider}]")
+
     admission = bounded_admission_estimate(
         query=query,
         provider=decision.provider,
@@ -898,6 +902,10 @@ def _run_auto_research(
                 "routing_cost_estimate": decision.cost_estimate,
                 "admission_max_cost": admission.max_cost,
                 "admission_reasoning": admission.reasoning,
+                "tools": {
+                    "web_search": not no_web,
+                    "code_interpreter": not no_code,
+                },
             }
             # click.echo (not Rich console) so JSON is unescaped + free of
             # ANSI control codes for downstream machine consumers.

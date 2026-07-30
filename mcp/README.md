@@ -16,8 +16,9 @@ loop.
 **Orient first, for free.** `deepr_status` returns version, active jobs, and the
 day/month cost summary. `deepr_list_experts` returns the roster (each expert is a
 named domain role, not a generic search box). Both are `cost_tier: free`. Read
-the tool's `cost_tier` before calling: `free` ($0), `low` (cents, owned/prepaid
-capable), `medium`/`high` (metered, confirm budget first).
+the tool's `cost_tier` before calling: `free` ($0), `low` (owned/prepaid
+capable), and `medium`/`high` (metered contract surfaces whose production
+dispatch is frozen in v2.40).
 
 **Pick the smallest tool that gets the outcome:**
 - One expert or many experts, no-metered trial -> `deepr_consult_experts`.
@@ -34,7 +35,7 @@ capable), `medium`/`high` (metered, confirm budget first).
 - Read-only single-expert query -> `deepr_query_expert` with
   `backend="local"` or `backend="plan"`. These modes compile stored expert
   context into one no-tool turn and never fall through to a metered API. In
-  v2.39, `backend="api"` fails closed before provider dispatch with
+  v2.40, `backend="api"` fails closed before provider dispatch with
   `metered_expert_chat_accounting_unavailable`.
 - Multi-turn follow-ups against frozen expert state ->
   `deepr_start_expert_conversation` then `deepr_continue_expert_conversation`
@@ -48,17 +49,19 @@ capable), `medium`/`high` (metered, confirm budget first).
   qualifiers -> `deepr_temporal_edges`. All `$0`, read-only, versioned.
 - A deep autonomous investigation -> decompose it with the user into separately
   approved bounded jobs. `deepr_agentic_research` is visible for compatibility
-  but execution-blocked in v2.39 before provider work.
+  but execution-blocked in v2.40 before provider work.
 
 **Spend $0 by default.** For cross-expert consults, pass
-`synthesis_backend: "local"` (Ollama) or `"plan"` with `plan: "codex"` (also
-claude/grok) to run synthesis on owned or prepaid capacity. In those modes Deepr
+`synthesis_backend: "local"` (Ollama) or `"plan"` with `plan: "claude"` to run
+synthesis on owned or prepaid capacity. Claude Code is the current executable
+plan adapter; other adapters remain visible but blocked. In those modes Deepr
 disables silent metered fallback, so a missing-context answer is an honest "no
 context" rather than a surprise charge. Local and plan consults allow a zero
-budget. API-backed consults require a positive budget. `deepr_query_expert` is
+budget. API contract inputs retain a positive budget field, but that field does
+not authorize production dispatch. `deepr_query_expert` is
 available at `$0` through explicit local or plan read-only capacity. Its API
 backend and every other standalone metered `ExpertChatSession` path are gated
-in v2.39 pending durable per-call reserve, dispatch-mark, and settlement,
+in v2.40 pending durable per-call reserve, dispatch-mark, and settlement,
 hard output ceilings, parent-budget accounting for auxiliary calls, and
 per-session turn serialization. API council synthesis exposes preview and
 contract inputs, but production metered dispatch also fails closed until Deepr
@@ -91,16 +94,21 @@ pattern-matching prose. Deepr recommends and returns artifacts; your harness
 decides and enacts. See [docs/MCP_AGENT_TEST_GUIDE.md](../docs/MCP_AGENT_TEST_GUIDE.md)
 for a $0 end-to-end script.
 
-**Validate before a real remote consult.** `deepr mcp smoke-http` proves
-endpoint reachability and free tool dispatch. `deepr mcp validate-consult`
-proves the no-metered expert consult contract through an offline fixture,
-in-process live local or plan capacity, or a remote HTTP endpoint:
+**Validate the local contract before remote use.** `deepr mcp validate-consult`
+proves the no-metered expert consult contract through an offline fixture or
+explicit in-process local or safety-eligible plan capacity:
 
 ```bash
 deepr mcp validate-consult --json
 deepr mcp validate-consult --live --synthesis-backend local --expert "AI Agent Harnesses" --json
-deepr mcp validate-consult http://127.0.0.1:8765/mcp --auth-token "$DEEPR_MCP_KEY" --expert "AI Agent Harnesses" --json
 ```
+
+Deepr's inbound HTTP server remains available to authenticated remote agent
+clients. Deepr's own outbound `smoke-http`, URL-based `validate-consult`, and
+URL-based `validate-conversation` commands fail closed before opening a network
+connection because a remote endpoint cannot independently prove its cost
+authority. Do not treat endpoint self-reports or a loopback address as proof of
+`$0` execution.
 
 ---
 
@@ -137,7 +145,7 @@ Copy `mcp/openclaw-config.json` to your OpenClaw MCP configuration:
 
 The `autoAllow` list includes read-only tools that do not incur costs.
 `deepr_research` requires approval for one exact bounded request.
-`deepr_agentic_research` is execution-blocked in v2.39 and should not be added
+`deepr_agentic_research` is execution-blocked in v2.40 and should not be added
 to an approval list. `deepr_query_expert` is no-metered only when the caller
 explicitly selects local or plan capacity; its API backend is gated. For
 no-cost expert synthesis, use `deepr_consult_experts` with
@@ -228,18 +236,18 @@ Add to `~/.config/zed/settings.json` under `"language_models"` -> `"mcp"`:
 
 | Tool | Purpose | Cost |
 |------|---------|------|
-| `deepr_research` | Submit one bounded research job after approval | Metered, exact envelope |
+| `deepr_research` | Compatibility contract; production provider dispatch is blocked in v2.40 | Preview-only |
 | `deepr_check_status` | Check job progress | Free |
 | `deepr_get_result` | Get completed report | Free |
 | `deepr_cancel_job` | Cancel running job | Free |
-| `deepr_agentic_research` | Compatibility adapter; fails closed before provider work in v2.39 | Blocked |
+| `deepr_agentic_research` | Compatibility adapter; fails closed before provider work in v2.40 | Blocked |
 
 ### Expert Tools
 
 | Tool | Purpose | Cost |
 |------|---------|------|
 | `deepr_list_experts` | List domain experts | Free |
-| `deepr_query_expert` | Read-only single-expert query through explicit local or plan capacity; API backend gated in v2.39 | Free |
+| `deepr_query_expert` | Read-only single-expert query through explicit local or plan capacity; API backend gated in v2.40 | Free |
 | `deepr_consult_experts` | Consult one or more experts and synthesize a versioned `deepr-consult-v1` artifact; supports `synthesis_backend=local|plan` to avoid live metered fallback | Free to low |
 | `deepr_start_expert_conversation` | Start a local-only conversation against a frozen expert snapshot | Free |
 | `deepr_continue_expert_conversation` | Continue a local-only conversation with optimistic version and idempotency checks | Free |
@@ -247,15 +255,15 @@ Add to `~/.config/zed/settings.json` under `"language_models"` -> `"mcp"`:
 | `deepr_close_expert_conversation` | Close a durable expert conversation | Free |
 | `deepr_get_expert_info` | Expert details and stats | Free |
 | `deepr_expert_manifest` | Expert manifest (policy + knowledge snapshot) | Free |
-| `deepr_expert_validate` | Validate a claim against expert knowledge (guardrail mode) | Low |
+| `deepr_expert_validate` | Paid validation contract; production provider dispatch is blocked | Gated |
 | `deepr_rank_gaps` | Rank an expert's knowledge gaps by value | Free |
 | `deepr_expert_health_check` | Read-only knowledge-state audit (freshness, contradictions, provenance, gaps) | Free |
 | `deepr_expert_loop_status` | Durable expert loop-run status, stop reasons, and next actions | Free |
 | `deepr_semantic_recall` | Candidate belief recall for verifier or host-agent routing | Free |
 | `deepr_expert_handoff` | Versioned read-only expert handoff payload for downstream agents | Free |
 | `deepr_route_gaps` | Route an expert's gaps to the best fill instrument (recon/distillr/primr/research) | Free |
-| `deepr_expert_absorb` | Promote a research report into expert beliefs, verification-gated (mutating) | Low |
-| `deepr_reflect` | Metered evaluation is gated in v2.39; use scheduled CLI reflection on local or plan capacity | Gated |
+| `deepr_expert_absorb` | Metered absorb contract; production provider dispatch is blocked | Gated |
+| `deepr_reflect` | Metered evaluation is gated in v2.40; use scheduled CLI reflection on local or plan capacity | Gated |
 | `deepr_what_changed` | Perspective delta since a timestamp (added/revised/contested/archived) | Free |
 | `deepr_contested` | Open contradiction pairs with both sides' claims and provenance | Free |
 | `deepr_explain_belief` | Why the expert believes something (evidence, history, support chains) | Free |
@@ -401,7 +409,7 @@ deepr mcp agent-guide --host 0.0.0.0 --public-host 192.168.44.62 --key-id agent-
 The guide includes the server command, endpoint, bearer token, allowed tool
 rules, and a no-metered `deepr_consult_experts` example. Use `--expert "Name"`
 once for a single-expert consult or repeat it for a fixed expert council. Use
-`--synthesis-backend plan --plan codex` for an explicit plan-capacity consult,
+`--synthesis-backend plan --plan claude` for an explicit plan-capacity consult,
 or `--output data/security/agent-guide.md` to write a file. Because the guide
 contains a bearer token, repo-local output paths must be git-ignored unless
 `--allow-tracked-output` is passed intentionally.
@@ -430,13 +438,12 @@ IP:
 # On the host that has the experts (find its LAN IP, e.g. 192.168.44.62):
 deepr mcp serve --http --host 0.0.0.0 --port 8765 --auth-token "$DEEPR_MCP_TOKEN"
 
-# From the other machine (or to validate locally over the LAN IP):
-deepr mcp smoke-http http://192.168.44.62:8765/mcp --auth-token "$DEEPR_MCP_TOKEN"
+# Configure the other machine's MCP client with this endpoint and token.
 ```
 
-Validated 2026-06-25: the LAN-IP endpoint with the token passes health,
-initialize, tools/list, and tools/call; the same endpoint **without** the token
-is rejected `Unauthorized` on every call except the unauthenticated health ping.
+The inbound server accepts authenticated initialize, tools/list, and authorized
+tools/call requests; the same endpoint without the token is rejected
+`Unauthorized` on every call except the unauthenticated health ping.
 Two operational notes: open the chosen port in the host firewall (Windows will
 prompt on first bind), and prefer scoped keys (`--keys-path`) over a shared
 `--auth-token` so you can scope an agent to specific experts and a budget and
@@ -444,28 +451,20 @@ revoke it independently. For anything beyond a trusted LAN, terminate TLS at a
 reverse proxy (see [deploy/mcp-http.md](../deploy/mcp-http.md)) rather than
 exposing plaintext HTTP.
 
-Validate a local or proxied endpoint without provider calls:
-
-```bash
-deepr mcp smoke-http http://127.0.0.1:8765/mcp
-deepr mcp smoke-http https://mcp.example.com/mcp --auth-token "$DEEPR_MCP_KEY"
-deepr mcp validate-consult https://mcp.example.com/mcp --auth-token "$DEEPR_MCP_KEY" --expert "AI Agent Harnesses" --json
-```
-
-For remote host setup, emit a token-redacted registration manifest after the
-same `$0` smoke checks pass:
+For remote host setup, emit a token-redacted registration manifest without
+probing the endpoint:
 
 ```bash
 deepr mcp registration-manifest https://mcp.example.com/mcp \
-  --auth-token "$DEEPR_MCP_KEY" \
   --agent-name planner \
   --output mcp-registration.json
 ```
 
 The manifest uses `deepr-mcp-registration-manifest-v1`, includes endpoint,
-auth-header, scoped-key, audit-schema, and smoke-result metadata, and never
-serializes the bearer token itself. Use `--skip-smoke` only to draft a manifest
-before the endpoint is reachable.
+auth-header, scoped-key, and audit-schema metadata, and never serializes a
+bearer token. It records remote smoke as blocked pending cost authority.
+`--skip-smoke` is the default. Explicit `--smoke` still opens no connection,
+embeds the fail-closed report, and exits nonzero.
 
 For a hosted reverse-proxy recipe with TLS and scoped-key guidance, see
 [deploy/mcp-http.md](../deploy/mcp-http.md). For a repeatable containerized

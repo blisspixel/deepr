@@ -54,26 +54,42 @@ class ResearchPlanner:
         self.model = model
         self.use_azure = use_azure
 
+        if use_azure:
+            from deepr.providers.dispatch_authority import require_official_paid_endpoint
+
+            configured_endpoint = azure_endpoint or os.getenv("AZURE_OPENAI_ENDPOINT")
+            azure_root = require_official_paid_endpoint(
+                "azure",
+                configured_endpoint,
+                source="ResearchPlanner.azure_endpoint",
+            )
+            azure_base_url = f"{azure_root}/openai/v1"
         if use_azure and azure_endpoint:
             # Azure with Entra ID
             token_provider = get_bearer_token_provider(
                 DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
             )
             self.client = OpenAI(
-                base_url=f"{azure_endpoint}/openai/v1/",
+                base_url=azure_base_url,
                 api_key=token_provider,
                 max_retries=0,
             )
         elif use_azure:
             # Azure with API key
             self.client = OpenAI(
-                base_url=f"{azure_endpoint}/openai/v1/",
+                base_url=azure_base_url,
                 api_key=os.getenv("AZURE_OPENAI_API_KEY"),
                 max_retries=0,
             )
         else:
             # OpenAI
-            self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), max_retries=0)
+            from deepr.providers.dispatch_authority import default_paid_endpoint
+
+            self.client = OpenAI(
+                api_key=os.getenv("OPENAI_API_KEY"),
+                base_url=default_paid_endpoint("openai"),
+                max_retries=0,
+            )
 
     def plan_research(
         self,
@@ -179,18 +195,30 @@ Please analyze this scenario and generate {max_tasks} distinct research tasks th
                     "Azure planning is blocked until deployment-specific paid pricing can be proven before dispatch"
                 )
             envelope = bounded_chat_envelope(
+                provider="azure" if self.use_azure else "openai",
                 model=self.model,
                 prompt_parts=(system_prompt, user_prompt),
                 budget_usd=0.50,
                 maximum_output_tokens=3_000,
             )
 
+            from deepr.providers.dispatch_authority import require_official_paid_client
+
+            require_official_paid_client(self.client, "azure" if self.use_azure else "openai")
             response = execute_reserved_sync_call(
                 operation_prefix="research-plan",
                 provider="azure" if self.use_azure else "openai",
                 model=self.model,
                 source="services.research_planner.plan_research",
                 max_cost_per_job=envelope.cost_usd,
+                request_envelope={
+                    "model": self.model,
+                    "input": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    "max_output_tokens": envelope.output_tokens,
+                },
                 call=lambda: self.client.responses.create(
                     model=self.model,
                     input=[

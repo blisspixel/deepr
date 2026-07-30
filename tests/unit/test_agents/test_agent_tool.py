@@ -9,6 +9,7 @@ from deepr.agents.contract import (
     AgentResult,
     AgentRole,
     AgentStatus,
+    GenericSubagentExecutionBlockedError,
     SubagentContract,
 )
 
@@ -61,54 +62,40 @@ class TestAgentToolExecution:
         tool = AgentTool(name="worker", description="Worker", agent=MockAgent("done"), budget_limit=2.0)
         parent = AgentIdentity(role=AgentRole.PLANNER, name="parent")
 
-        result = await tool.execute({"query": "test query"}, parent)
-
-        assert result.status == AgentStatus.SUCCESS
-        assert "done: test query" in result.output
-        assert result.cost == 0.10
-        assert result.trace_id == parent.trace_id
+        with pytest.raises(GenericSubagentExecutionBlockedError, match="advisory AgentBudget"):
+            await tool.execute({"query": "test query"}, parent)
 
     @pytest.mark.asyncio
     async def test_execute_with_json_string(self):
         tool = AgentTool(name="worker", description="Worker", agent=MockAgent())
         parent = AgentIdentity()
 
-        result = await tool.execute('{"query": "json test"}', parent)
-
-        assert result.status == AgentStatus.SUCCESS
-        assert "json test" in result.output
+        with pytest.raises(GenericSubagentExecutionBlockedError):
+            await tool.execute('{"query": "json test"}', parent)
 
     @pytest.mark.asyncio
     async def test_execute_creates_child_identity(self):
         tool = AgentTool(name="worker", description="Worker", agent=MockAgent())
         parent = AgentIdentity(agent_id="parent-1", trace_id="trace-abc")
 
-        result = await tool.execute({"query": "test"}, parent)
-
-        # Result should inherit parent's trace_id
-        assert result.trace_id == "trace-abc"
-        # But have its own agent_id
-        assert result.agent_id != "parent-1"
+        with pytest.raises(GenericSubagentExecutionBlockedError):
+            await tool.execute({"query": "test"}, parent)
 
     @pytest.mark.asyncio
     async def test_execute_respects_budget_limit(self):
         tool = AgentTool(name="worker", description="Worker", agent=MockAgent(cost=0.10), budget_limit=3.0)
         parent = AgentIdentity()
 
-        result = await tool.execute({"query": "test"}, parent)
-
-        assert result.cost == 0.10
+        with pytest.raises(GenericSubagentExecutionBlockedError):
+            await tool.execute({"query": "test"}, parent)
 
     @pytest.mark.asyncio
     async def test_execute_handles_failure(self):
         tool = AgentTool(name="failing", description="Fails", agent=FailingAgent())
         parent = AgentIdentity()
 
-        result = await tool.execute({"query": "test"}, parent)
-
-        assert result.status == AgentStatus.FAILED
-        assert "Agent tool failed" in result.output
-        assert "exploded" in result.metadata.get("error", "")
+        with pytest.raises(GenericSubagentExecutionBlockedError):
+            await tool.execute({"query": "test"}, parent)
 
     @pytest.mark.asyncio
     async def test_execute_missing_query(self):

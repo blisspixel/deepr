@@ -152,7 +152,7 @@ class ResearchOrchestrator:
         metadata: dict[str, Any] | None = None,
         cost_sensitive: bool = False,
         enable_web_search: bool = True,
-        enable_code_interpreter: bool = True,
+        enable_code_interpreter: bool = False,
         custom_system_message: str | None = None,
         budget_limit: float | None = None,
         session_id: str | None = None,
@@ -288,6 +288,9 @@ class ResearchOrchestrator:
                 "estimated_cost": estimated_cost,
                 "provider": provider_identity,
                 "model": model,
+                "enable_web_search": any(tool.type == "web_search_preview" for tool in request.tools),
+                "enable_code_interpreter": any(tool.type == "code_interpreter" for tool in request.tools),
+                "research_max_tool_calls": request.max_tool_calls,
                 "prompt_preview": prompt[:50],
             }
 
@@ -365,51 +368,54 @@ class ResearchOrchestrator:
         *,
         source: str,
     ) -> float:
-        """Settle reserved research cost using provider-reported usage."""
+        """Settle reserved research cost using canonical completion evidence."""
         tracking = self._cost_tracking.get(job_id)
         if tracking is None:
             raise RuntimeError(f"Completion accounting state is unavailable for job {job_id}")
 
         from ..experts.research_cost_gate import ResearchCostReservation, settle_research_cost
 
-        usage = getattr(response, "usage", None)
         estimated_cost = float(tracking.get("estimated_cost", 0.0) or 0.0)
         if not isfinite(estimated_cost) or estimated_cost < 0:
             raise RuntimeError(f"Completion cost estimate is invalid for job {job_id}")
-        raw_actual_cost = getattr(usage, "cost", None) if usage is not None else None
-        if (
-            not isinstance(raw_actual_cost, bool)
-            and isinstance(raw_actual_cost, (int, float))
-            and isfinite(float(raw_actual_cost))
-            and float(raw_actual_cost) >= 0
-        ):
-            actual_cost = float(raw_actual_cost)
-            cost_source = "provider_usage"
-        else:
-            actual_cost = estimated_cost
-            cost_source = "estimate_fallback"
-
-        tokens_output = getattr(usage, "output_tokens", 0) if usage is not None else 0
         reservation = tracking.get("reservation")
         if not isinstance(reservation, ResearchCostReservation):
             raise RuntimeError(f"Completion reservation is invalid for job {job_id}")
+        from types import SimpleNamespace
+
+        from ..services.provider_completion import authoritative_completion_usage
+
+        completion_contract = SimpleNamespace(
+            provider=str(tracking.get("provider", reservation.provider)),
+            model=str(tracking.get("model", reservation.model)),
+            enable_web_search=tracking.get("enable_web_search") is True,
+            enable_code_interpreter=tracking.get("enable_code_interpreter") is True,
+            metadata={
+                "cost_reservation_model": reservation.model,
+                "research_max_tool_calls": tracking.get("research_max_tool_calls"),
+            },
+        )
+        actual_cost, tokens = authoritative_completion_usage(completion_contract, response)
+        accounted_cost = actual_cost if actual_cost is not None else estimated_cost
+        cost_source = "canonical_completion" if actual_cost is not None else "reservation_ceiling"
         settle_research_cost(
             reservation,
             actual_cost=actual_cost,
-            tokens=tokens_output if isinstance(tokens_output, int) else 0,
+            tokens=tokens,
             request_id=job_id,
             source=source,
+            settlement_metadata={"settlement_basis": cost_source},
         )
         op.add_event(
             "cost_settled",
             {
-                "actual_cost": actual_cost,
+                "actual_cost": accounted_cost,
                 "estimated_cost": estimated_cost,
                 "cost_source": cost_source,
             },
         )
-        op.set_cost(actual_cost)
-        return actual_cost
+        op.set_cost(accounted_cost)
+        return accounted_cost
 
     def _settle_completion_with_operation(
         self,
@@ -466,7 +472,7 @@ class ResearchOrchestrator:
         self,
         vector_store_id: str | None = None,
         enable_web_search: bool = True,
-        enable_code_interpreter: bool = True,
+        enable_code_interpreter: bool = False,
     ) -> list[ToolConfig]:
         """Build tools configuration based on requirements."""
         tools = []

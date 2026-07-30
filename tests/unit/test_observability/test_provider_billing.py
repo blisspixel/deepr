@@ -13,7 +13,7 @@ from jsonschema import Draft202012Validator, FormatChecker
 
 from deepr.observability import provider_account_controls as account_controls_module
 from deepr.observability import provider_billing as billing_module
-from deepr.observability.cost_ledger import CostLedger, CostLedgerEvent
+from deepr.observability.cost_ledger import CostLedger, CostLedgerEvent, current_cost_state_id
 from deepr.observability.provider_account_controls import (
     PaidApiAccountEvidence,
     ProviderAccountBinding,
@@ -107,7 +107,7 @@ def _account_evidence(
     *,
     provider: str = "openai",
     freeze_id: str = "freeze-current",
-    hard_limit: str = "10.00",
+    hard_limit: str = "5.00",
     source_sha256: str = "1" * 64,
     reconciliation_sha256: str = "2" * 64,
 ) -> PaidApiAccountEvidence:
@@ -137,6 +137,7 @@ def _store_authenticated_account_evidence(
     observed_at: datetime,
     *,
     provider: str = "openai",
+    hard_limit: str = "5.00",
 ) -> tuple[str, ProviderAccountEvidenceStore]:
     source = root.parent / f"{provider}-account-bill.json"
     document = _document(lines=[_line(charge="0", net="0")], total="0")
@@ -160,6 +161,7 @@ def _store_authenticated_account_evidence(
         _account_evidence(
             observed_at,
             provider=provider,
+            hard_limit=hard_limit,
             source_sha256=loaded.source_sha256,
             reconciliation_sha256=reconciliation_sha256,
         )
@@ -173,6 +175,7 @@ def _budget_document() -> dict[str, object]:
         "paid_api_frozen": False,
         "paid_api_authorization": {
             "authority": "verified_by_deepr",
+            "cost_state_id": current_cost_state_id(),
             "evidence_ids": ["verified-account-control"],
             "valid_until": "2099-01-01T00:00:00+00:00",
         },
@@ -527,7 +530,7 @@ def test_authenticated_account_evidence_binds_freeze_provider_and_hard_limit(tmp
     )
 
     assert authorization.providers == ("openai",)
-    assert authorization.hard_monthly_limit_usd == 10.0
+    assert authorization.hard_monthly_limit_usd == 5.0
     assert authorization.evidence_ids == (evidence_id,)
 
     with pytest.raises(ProviderAccountControlError, match="current freeze ID"):
@@ -548,14 +551,19 @@ def test_authenticated_account_evidence_binds_freeze_provider_and_hard_limit(tmp
             requested_provider="xai",
             store_root=tmp_path / "store",
         )
-    with pytest.raises(ProviderAccountControlError, match="exceeds the provider account"):
+    excessive_evidence_id, _store = _store_authenticated_account_evidence(
+        tmp_path / "store-excessive",
+        observed_at,
+        hard_limit="10.00",
+    )
+    with pytest.raises(ProviderAccountControlError, match="exceeds the operator monthly budget"):
         verify_paid_api_authorization(
-            [evidence_id],
+            [excessive_evidence_id],
             expected_freeze_id="freeze-current",
             expected_frozen_at=observed_at,
-            monthly_limit_usd=11.0,
+            monthly_limit_usd=5.0,
             requested_provider="openai",
-            store_root=tmp_path / "store",
+            store_root=tmp_path / "store-excessive",
         )
 
 

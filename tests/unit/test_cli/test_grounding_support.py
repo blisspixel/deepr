@@ -16,11 +16,13 @@ from deepr.cli.commands.semantic.grounding_support import (
     validate_grounding_flags,
 )
 from deepr.experts.grounding_escalation import GroundingEscalator
+from deepr.experts.semantic_model_gate import _mark_zero_dollar_client
 
 
 class _FakeClient:
     def __init__(self) -> None:
         self.calls = []
+        _mark_zero_dollar_client(self, capacity_source="local")
 
         async def _create(**kwargs):
             self.calls.append(kwargs)
@@ -151,6 +153,7 @@ class _RecordingPlanClient:
         self.adapter = adapter
         self.model = model
         self.operation = operation
+        _mark_zero_dollar_client(self, capacity_source=f"plan_quota:{adapter.backend_id}")
 
 
 def _patch_plan_quota(monkeypatch, *, backend_id="claude", is_plan_quota=True, reason="ok"):

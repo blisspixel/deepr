@@ -818,7 +818,7 @@ class ExpertPolicy:
     """
 
     refresh_frequency_days: int = 7
-    budget_cap_monthly: float = 50.0
+    budget_cap_monthly: float = 5.0
     domain_velocity: str = "medium"  # slow | medium | fast
     auto_refresh_enabled: bool = True
     high_trust_only: bool = False  # If True, only use primary/secondary sources
@@ -840,7 +840,7 @@ class ExpertPolicy:
     def from_dict(cls, data: dict[str, Any]) -> "ExpertPolicy":
         return cls(
             refresh_frequency_days=int(data.get("refresh_frequency_days", 7)),
-            budget_cap_monthly=float(data.get("budget_cap_monthly", 50.0)),
+            budget_cap_monthly=float(data.get("budget_cap_monthly", 5.0)),
             domain_velocity=data.get("domain_velocity", "medium"),
             auto_refresh_enabled=bool(data.get("auto_refresh_enabled", True)),
             high_trust_only=bool(data.get("high_trust_only", False)),

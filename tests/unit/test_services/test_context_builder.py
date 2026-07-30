@@ -7,6 +7,15 @@ import pytest
 from tests.unit.test_services.conftest import make_chat_response
 
 
+@pytest.fixture(autouse=True)
+def _trust_injected_unit_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Bypass the production client-attestation freeze in downstream unit tests."""
+    monkeypatch.setattr(
+        "deepr.providers.dispatch_authority.require_official_paid_client",
+        lambda _client, _provider: "test-attested",
+    )
+
+
 class TestContextBuilder:
     """Test ContextBuilder context generation."""
 
@@ -27,7 +36,11 @@ class TestContextBuilder:
             from deepr.services.context_builder import ContextBuilder
 
             ContextBuilder(api_key="explicit-key")
-            mock_cls.assert_called_once_with(api_key="explicit-key", max_retries=0)
+            mock_cls.assert_called_once_with(
+                api_key="explicit-key",
+                base_url="https://api.openai.com/v1",
+                max_retries=0,
+            )
 
     def test_init_with_env_key(self, mock_openai_env):
         """Falls back to OPENAI_API_KEY env var."""

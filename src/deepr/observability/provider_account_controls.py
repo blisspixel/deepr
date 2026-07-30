@@ -369,8 +369,8 @@ def _validate_evidence_window(
     if valid_until <= current:
         raise ProviderAccountControlError("account-control evidence has expired")
     hard_limit = _money(evidence.hard_monthly_limit_usd, field_name="hard_monthly_limit_usd")
-    if monthly_limit > hard_limit:
-        raise ProviderAccountControlError("operator monthly budget exceeds the provider account hard monthly limit")
+    if hard_limit > monthly_limit:
+        raise ProviderAccountControlError("provider account hard monthly limit exceeds the operator monthly budget")
     return valid_until, hard_limit
 
 

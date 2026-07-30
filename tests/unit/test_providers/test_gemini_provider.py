@@ -3,7 +3,7 @@
 import asyncio
 import os
 import threading
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import httpx
 import pytest
@@ -16,6 +16,7 @@ from deepr.providers.gemini_provider import (
     GeminiProvider,
     _is_deep_research_model,
 )
+from tests.unit.test_providers._provider_authority import submit_adapter
 
 
 class TestGeminiProvider:
@@ -34,6 +35,17 @@ class TestGeminiProvider:
         assert "gemini-3.5-flash-lite" in provider.model_mappings
         assert "gemini-2.5-pro" in provider.model_mappings
         assert "gemini-2.5-flash" in provider.model_mappings
+
+    def test_provider_disables_sdk_automatic_retries(self, provider):
+        """One reservation authorizes one direct Gemini HTTP attempt."""
+        http_options = provider.client._api_client._http_options
+        retry_options = http_options.retry_options
+        assert retry_options is not None
+        assert retry_options.attempts == 1
+        assert http_options.client_args["trust_env"] is False
+        assert http_options.client_args["follow_redirects"] is False
+        assert http_options.async_client_args["trust_env"] is False
+        assert http_options.async_client_args["follow_redirects"] is False
 
     def test_provider_initialization_no_api_key(self):
         """Test provider fails without API key."""
@@ -160,7 +172,7 @@ class TestGeminiProvider:
         )
 
         with patch.object(provider.client.models, "generate_content_stream", return_value=[]) as generate:
-            await provider.submit_research(request)
+            await submit_adapter(provider, request)
 
         config = generate.call_args.kwargs["config"]
         payload = config.model_dump(mode="json", exclude_none=True)
@@ -181,7 +193,7 @@ class TestGeminiProvider:
 
         with patch.object(provider.client.models, "generate_content_stream", return_value=[]) as generate:
             with pytest.raises(ProviderError, match="deprecated"):
-                await provider.submit_research(request)
+                await submit_adapter(provider, request)
 
         generate.assert_not_called()
 
@@ -214,7 +226,7 @@ class TestGeminiProvider:
                 tools=[],
             )
 
-            job_id = await provider.submit_research(request)
+            job_id = await submit_adapter(provider, request)
 
             # Gemini provider generates a job ID locally
             assert job_id is not None
@@ -350,6 +362,29 @@ class TestGeminiCostCalculation:
         # Note: Flash and Flash-Lite may have same pricing if not configured differently
         assert cost_flash >= cost_lite
 
+    @pytest.mark.parametrize(
+        ("input_tokens", "expected_cost"),
+        [(200_000, 0.35), (200_001, 0.6500025)],
+    )
+    def test_gemini_2_5_pro_long_context_boundary(self, provider, input_tokens, expected_cost):
+        cost = provider._calculate_cost(input_tokens, 10_000, "gemini-2.5-pro")
+
+        assert cost == pytest.approx(expected_cost)
+
+    @pytest.mark.parametrize(
+        ("input_tokens", "expected_cost"),
+        [(200_000, 0.2375), (200_001, 0.4250025)],
+    )
+    def test_gemini_2_5_pro_cached_input_uses_same_boundary(self, provider, input_tokens, expected_cost):
+        cost = provider._calculate_cost(
+            input_tokens,
+            10_000,
+            "gemini-2.5-pro",
+            cached_input_tokens=100_000,
+        )
+
+        assert cost == pytest.approx(expected_cost)
+
     def test_cost_scales_linearly(self, provider):
         """Test that cost scales linearly with token count."""
         model = "gemini-2.5-flash"
@@ -417,12 +452,12 @@ class TestDeepResearchSubmission:
 
         request = ResearchRequest(
             prompt="Research quantum computing applications",
-            model="gemini-deep-research",
+            model="deep-research-pro-preview-12-2025",
             system_message="You are a research assistant",
             tools=[],
         )
 
-        job_id = await provider.submit_research(request)
+        job_id = await submit_adapter(provider, request)
 
         assert job_id == "interaction-abc123"
         provider.client.interactions.create.assert_called_once()
@@ -438,8 +473,13 @@ class TestDeepResearchSubmission:
         mock_interaction.id = "interaction-xyz"
         provider.client.interactions.create.return_value = mock_interaction
 
-        request = ResearchRequest(prompt="Test", model="deep-research", system_message="", tools=[])
-        job_id = await provider.submit_research(request)
+        request = ResearchRequest(
+            prompt="Test",
+            model="deep-research-pro-preview-12-2025",
+            system_message="",
+            tools=[],
+        )
+        job_id = await submit_adapter(provider, request)
 
         assert job_id in provider._deep_research_jobs
         assert provider._deep_research_jobs[job_id]["status"] == "in_progress"
@@ -461,7 +501,7 @@ class TestDeepResearchSubmission:
             system_message="",
             tools=[],
         )
-        job_id = await provider.submit_research(request)
+        job_id = await submit_adapter(provider, request)
 
         assert job_id.startswith("gemini-")
         assert job_id not in provider._deep_research_jobs
@@ -479,7 +519,7 @@ class TestDeepResearchSubmission:
             tools=[],
         )
 
-        job_id = await provider.submit_research(request)
+        job_id = await submit_adapter(provider, request)
 
         provider.client.models.generate_content_stream.assert_called_once()
         assert provider.jobs[job_id]["status"] == "failed"
@@ -502,7 +542,7 @@ class TestDeepResearchSubmission:
             system_message="",
             tools=[],
         )
-        task = asyncio.create_task(provider.submit_research(request))
+        task = asyncio.create_task(submit_adapter(provider, request))
         assert await asyncio.to_thread(entered.wait, 0.5)
         released.set()
 
@@ -640,19 +680,59 @@ class TestCitationUrlResolution:
     async def test_redirect_url_resolved(self):
         """Google redirect URLs are resolved via httpx."""
         redirect_url = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc123"
-
-        mock_response = MagicMock()
-        mock_response.url = "https://real-source.com/article"
+        final_url = "https://real-source.com/article"
+        redirect_response = httpx.Response(
+            302,
+            headers={"location": final_url},
+            request=httpx.Request("HEAD", redirect_url),
+        )
+        final_response = httpx.Response(
+            200,
+            request=httpx.Request("HEAD", final_url),
+        )
 
         mock_client = AsyncMock()
-        mock_client.head.return_value = mock_response
+        mock_client.head.side_effect = [redirect_response, final_response]
 
         with patch("httpx.AsyncClient") as mock_cls, patch("deepr.utils.security.is_safe_url", return_value=True):
             mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
             mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
 
             result = await GeminiProvider.resolve_redirect_url(redirect_url)
-            assert result == "https://real-source.com/article"
+            assert result == final_url
+            assert mock_client.head.await_args_list == [call(redirect_url), call(final_url)]
+            mock_cls.assert_called_once_with(
+                follow_redirects=False,
+                timeout=10.0,
+                trust_env=False,
+            )
+
+    @pytest.mark.asyncio
+    async def test_redirect_url_blocks_unsafe_hop_before_second_request(self):
+        redirect_url = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc123"
+        unsafe_url = "http://127.0.0.1/private"
+        redirect_response = httpx.Response(
+            302,
+            headers={"location": unsafe_url},
+            request=httpx.Request("HEAD", redirect_url),
+        )
+        mock_client = AsyncMock()
+        mock_client.head.return_value = redirect_response
+
+        with (
+            patch("httpx.AsyncClient") as mock_cls,
+            patch(
+                "deepr.utils.security.is_safe_url",
+                side_effect=[True, False],
+            ),
+        ):
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            result = await GeminiProvider.resolve_redirect_url(redirect_url)
+
+        assert result == redirect_url
+        mock_client.head.assert_awaited_once_with(redirect_url)
 
     @pytest.mark.asyncio
     async def test_redirect_url_fallback_on_error(self):
@@ -686,13 +766,13 @@ class TestDeepResearchWithFileStore:
 
         request = ResearchRequest(
             prompt="Research with context",
-            model="gemini-deep-research",
+            model="deep-research-pro-preview-12-2025",
             system_message="",
             tools=[],
             document_ids=["file-1", "file-2"],
         )
 
-        job_id = await provider.submit_research(request)
+        job_id = await submit_adapter(provider, request)
 
         assert job_id == "int-with-docs"
         provider.client.file_search_stores.create.assert_called_once()

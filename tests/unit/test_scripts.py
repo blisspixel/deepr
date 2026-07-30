@@ -73,7 +73,7 @@ def test_analyze_doc_gaps_blocks_before_env_or_client_construction(monkeypatch, 
 
     assert module.main() == 2
     assert calls == []
-    assert "metered_expert_mutation_accounting_unavailable" in capsys.readouterr().out
+    assert "documentation_gap_analysis_disabled" in capsys.readouterr().out
 
 
 def test_discover_models_llm_blocks_before_registry_or_model_work(monkeypatch, capsys):
@@ -97,23 +97,29 @@ def test_discover_models_llm_blocks_before_registry_or_model_work(monkeypatch, c
     assert "metered_expert_mutation_accounting_unavailable" in capsys.readouterr().out
 
 
-def test_discover_models_read_only_api_listing_remains_available(monkeypatch, capsys):
+def test_discover_models_api_listing_blocks_before_registry_or_network(monkeypatch, capsys):
     module = _load_script_module(monkeypatch, "discover_models.py")
-    discovered = module.DiscoveredModel(provider="openai", model_id="gpt-test", source="api")
 
-    monkeypatch.setattr(
-        module,
-        "require_metered_expert_mutation",
-        lambda *_args, **_kwargs: pytest.fail("read-only API listing used the metered model-call gate"),
-    )
-    monkeypatch.setattr(module, "load_registry", lambda: {})
-    monkeypatch.setattr(module, "preflight_check", lambda _providers: {"openai": True})
-    monkeypatch.setattr(module, "discover_via_api", lambda providers: [discovered])
+    def unexpected_work(*_args, **_kwargs):
+        raise AssertionError("API discovery reached local or network work before the external-cost gate")
+
+    monkeypatch.setattr(module, "load_registry", unexpected_work)
+    monkeypatch.setattr(module, "preflight_check", unexpected_work)
+    monkeypatch.setattr(module, "discover_via_api", unexpected_work)
     monkeypatch.setattr(sys, "argv", ["discover_models.py", "--format", "json"])
 
-    module.main()
+    with pytest.raises(SystemExit) as exc_info:
+        module.main()
 
-    assert '"model_id": "gpt-test"' in capsys.readouterr().out
+    assert exc_info.value.code == 2
+    assert "external_model_metadata_cost_unverified" in capsys.readouterr().out
+
+
+def test_discover_models_direct_api_seam_is_quarantined(monkeypatch):
+    module = _load_script_module(monkeypatch, "discover_models.py")
+
+    with pytest.raises(module.LiveModelDiscoveryBlockedError):
+        module.discover_openai_models()
 
 
 def test_create_demo_experts_uses_configured_experts_root(tmp_path: Path):

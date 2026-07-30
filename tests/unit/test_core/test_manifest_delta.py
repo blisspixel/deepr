@@ -54,7 +54,7 @@ class TestExpertPolicy:
     def test_defaults(self):
         p = ExpertPolicy()
         assert p.refresh_frequency_days == 7
-        assert p.budget_cap_monthly == 50.0
+        assert p.budget_cap_monthly == 5.0
         assert p.high_trust_only is False
         assert p.gap_fill_strategy == "ev_cost_ratio"
 

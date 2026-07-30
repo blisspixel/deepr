@@ -1,7 +1,10 @@
 """Web search tool implementation."""
 
 import asyncio
+import os
 from collections.abc import Awaitable, Callable
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as package_version
 from typing import Any, TypeVar, cast
 
 from .base import Tool, ToolResult
@@ -14,6 +17,27 @@ _T = TypeVar("_T")
 # unattended $0 work; a wrong "no sources" is not.
 _DDG_MAX_ATTEMPTS = 3
 _DDG_BACKOFF_BASE_S = 1.5
+_REVIEWED_DDGS_VERSION = "9.14.4"
+_DDG_PROXY_ENV_VARS = (
+    "DDGS_PROXY",
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "ALL_PROXY",
+    "http_proxy",
+    "https_proxy",
+    "all_proxy",
+)
+
+
+def _require_direct_duckduckgo_transport(ddgs_class: type[Any]) -> None:
+    """Reject proxy or shared remote-cache state before keyless search."""
+    configured_proxies = [name for name in _DDG_PROXY_ENV_VARS if os.environ.get(name, "").strip()]
+    if configured_proxies:
+        raise RuntimeError(
+            "DuckDuckGo free search is disabled while proxy environment is configured: " + ", ".join(configured_proxies)
+        )
+    if getattr(ddgs_class, "_network_client", None) is not None:
+        raise RuntimeError("DuckDuckGo free search is disabled because the shared DDGS remote cache is active")
 
 
 async def _retry_async(
@@ -58,15 +82,17 @@ def _parse_web_search_execute_args(args: tuple[Any, ...], kwargs: dict[str, Any]
 
 
 def _load_duckduckgo_client_class() -> type[Any] | None:
-    for module_name in ("ddgs", "duckduckgo_search"):
-        try:
-            module = __import__(module_name, fromlist=["DDGS"])
-        except ImportError:
-            continue
-        ddgs_class = getattr(module, "DDGS", None)
-        if ddgs_class is not None:
-            return cast(type[Any], ddgs_class)
-    return None
+    try:
+        module = __import__("ddgs", fromlist=["DDGS"])
+        installed_version = package_version("ddgs")
+    except (ImportError, PackageNotFoundError):
+        return None
+    if installed_version != _REVIEWED_DDGS_VERSION:
+        raise RuntimeError(
+            f"DuckDuckGo free search requires reviewed ddgs {_REVIEWED_DDGS_VERSION}; found {installed_version}"
+        )
+    ddgs_class = getattr(module, "DDGS", None)
+    return cast(type[Any], ddgs_class) if ddgs_class is not None else None
 
 
 class WebSearchTool(Tool):
@@ -138,7 +164,7 @@ class WebSearchTool(Tool):
                 data=None,
                 error=(
                     f"{normalized_backend.title()} search is disabled until Deepr can price, reserve, "
-                    "and settle every request. Use duckduckgo or a configured SearXNG backend."
+                    "and settle every request. Use the direct DuckDuckGo backend."
                 ),
             )
         if normalized_backend not in {"auto", "duckduckgo"}:
@@ -149,20 +175,22 @@ class WebSearchTool(Tool):
     async def _search_duckduckgo(self, query: str, num_results: int) -> ToolResult:
         """Search using DuckDuckGo (free, no API key).
 
-        Prefers the maintained ``ddgs`` package; falls back to the legacy
-        ``duckduckgo_search`` name. The legacy package is deprecated and its
-        endpoint now returns no results, so ``ddgs`` is what makes the free
-        retrieval path actually work. Network errors degrade to a failed
-        ToolResult so the caller records "no sources" rather than crashing.
+        Uses the exact reviewed ``ddgs`` build and selects only its DuckDuckGo
+        engine. Network errors degrade to a failed ToolResult so the caller
+        records "no sources" rather than crashing.
         """
-        ddgs_class = _load_duckduckgo_client_class()
+        try:
+            ddgs_class = _load_duckduckgo_client_class()
+        except RuntimeError as exc:
+            return ToolResult(success=False, data=None, error=str(exc))
         if ddgs_class is None:
             return ToolResult(success=False, data=None, error="No DuckDuckGo backend installed. Run: pip install ddgs")
 
         def _query() -> list[dict[str, str | None]]:
+            _require_direct_duckduckgo_transport(ddgs_class)
             return [
                 {"title": r.get("title"), "url": r.get("href") or r.get("url"), "snippet": r.get("body")}
-                for r in ddgs_class().text(query, max_results=num_results)
+                for r in ddgs_class(proxy=None).text(query, max_results=num_results, backend="duckduckgo")
             ]
 
         try:

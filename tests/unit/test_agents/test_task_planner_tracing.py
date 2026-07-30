@@ -123,7 +123,11 @@ async def test_planner_completion_has_provider_enforced_output_bound():
     mock_client.chat.completions.create = AsyncMock(return_value=response)
     planner.client = mock_client
 
-    result = await planner.decompose("Bound this plan")
+    with patch(
+        "deepr.providers.dispatch_authority.require_official_paid_client",
+        return_value="https://api.openai.com/v1",
+    ):
+        result = await planner.decompose("Bound this plan")
 
     assert result["steps"] == []
     request = mock_client.chat.completions.create.await_args.kwargs

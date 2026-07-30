@@ -191,6 +191,38 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "structured-consult-brief",
+      "schema_version": "deepr-structured-consult-brief-v1",
+      "kind": "deepr.eval.structured_consult_brief",
+      "path": "structured-consult-brief-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "structured-consult-position",
+      "schema_version": "deepr-structured-consult-position-v1",
+      "kind": "deepr.eval.structured_consult_position",
+      "path": "structured-consult-position-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "structured-consult-synthesis",
+      "schema_version": "deepr-structured-consult-synthesis-v1",
+      "kind": "deepr.eval.structured_consult_synthesis",
+      "path": "structured-consult-synthesis-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "structured-consult-run",
+      "schema_version": "deepr-structured-consult-run-v1",
+      "kind": "deepr.eval.structured_consult_run",
+      "path": "structured-consult-run-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
       "name": "consult-trace",
       "schema_version": "deepr-consult-trace-v1",
       "kind": "deepr.expert.consult_trace",

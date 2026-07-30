@@ -82,7 +82,7 @@ class ExpertChatSession:
     ):
         self.agent_identity = agent_identity
         self.expert = expert
-        self.budget = 10.0 if budget is None else budget  # None=default $10; explicit 0.0=no-spend (not falsy-coerced)
+        self.budget = 1.0 if budget is None else budget  # None uses the safe default; explicit 0.0 remains no-spend.
         self.agentic = agentic  # Enable research triggering
         self.cost_accumulated = 0.0
         self.messages: list[dict[str, Any]] = []
@@ -312,7 +312,7 @@ KNOWLEDGE BASE:
 
         # Add agentic research instructions if enabled
         if self.agentic:
-            budget_remaining = self.budget - self.cost_accumulated if self.budget else float("inf")
+            budget_remaining = max(0.0, self.budget - self.cost_accumulated)
             base_message += f"""
 
 RESEARCH TOOLS AVAILABLE:
@@ -418,9 +418,7 @@ Budget remaining: ${budget_remaining:.2f}
         context_size = sum(len(str(msg.get("content", ""))) for msg in self.messages) // 4  # Rough token estimate
 
         # Calculate budget remaining
-        budget_remaining = None
-        if self.budget is not None:
-            budget_remaining = self.budget - self.cost_accumulated
+        budget_remaining = max(0.0, self.budget - self.cost_accumulated)
 
         # Use router to select model
         # Constrain to OpenAI provider for vector store compatibility.
@@ -937,6 +935,9 @@ Budget remaining: ${budget_remaining:.2f}
             True if successful, False otherwise
         """
         self.require_provider_dispatch_allowed("expert_chat_research_indexing")
+        from deepr.services.research_bounds import require_research_storage_accounting
+
+        require_research_storage_accounting()
         try:
             store = ExpertStore()
             documents_dir = store.get_documents_dir(self.expert.name)
@@ -1199,7 +1200,7 @@ Budget remaining: ${budget_remaining:.2f}
             attributes={
                 "expert_name": self.expert.name,
                 "agentic_mode": self.agentic,
-                "budget_remaining": self.budget - self.cost_accumulated,
+                "budget_remaining": max(0.0, self.budget - self.cost_accumulated),
             },
         )
 
@@ -1865,7 +1866,7 @@ Budget remaining: ${budget_remaining:.2f}
             attributes={
                 "expert_name": self.expert.name,
                 "agentic_mode": self.agentic,
-                "budget_remaining": self.budget - self.cost_accumulated,
+                "budget_remaining": max(0.0, self.budget - self.cost_accumulated),
             },
         )
 

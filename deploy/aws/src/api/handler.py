@@ -438,8 +438,8 @@ def get_costs() -> dict:
             "daily": total_cost,  # Simplified - would need date filtering in production
             "monthly": total_cost,
             "total": total_cost,
-            "daily_limit": float(secrets_data.get("DEEPR_BUDGET_DAILY", 50)),
-            "monthly_limit": float(secrets_data.get("DEEPR_BUDGET_MONTHLY", 500)),
+            "daily_limit": float(secrets_data.get("DEEPR_BUDGET_DAILY", 2)),
+            "monthly_limit": float(secrets_data.get("DEEPR_BUDGET_MONTHLY", 5)),
             "total_jobs": total_jobs,
             "completed_jobs": completed_count,
             "avg_cost_per_job": total_cost / completed_count if completed_count else 0,

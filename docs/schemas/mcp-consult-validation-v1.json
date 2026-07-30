@@ -29,15 +29,25 @@
       "additionalProperties": true,
       "required": [
         "cost_usd",
+        "cost_scope",
         "writes_state",
         "calls_metered_api",
+        "calls_metered_api_scope",
+        "remote_tool_call_attempted",
+        "remote_tool_cost_status",
+        "remote_tool_calls_metered_api",
         "semantic_verdict",
         "checks_form_and_side_effects_only"
       ],
       "properties": {
         "cost_usd": {"const": 0.0},
+        "cost_scope": {"enum": ["validation_client_only", "validation_run"]},
         "writes_state": {"const": false},
         "calls_metered_api": {"const": false},
+        "calls_metered_api_scope": {"enum": ["validation_client_only", "validation_run"]},
+        "remote_tool_call_attempted": {"const": false},
+        "remote_tool_cost_status": {"const": "not_submitted"},
+        "remote_tool_calls_metered_api": {"type": "null"},
         "semantic_verdict": {"const": false},
         "checks_form_and_side_effects_only": {"const": true}
       }
@@ -73,7 +83,7 @@
         "disagreement_count": {"type": "integer", "minimum": 0},
         "synthesis_status": {"type": ["string", "null"]},
         "synthesis_error_type": {"type": ["string", "null"]},
-        "cost_usd": {"type": "number", "minimum": 0},
+        "cost_usd": {"type": ["number", "null"], "minimum": 0},
         "capacity": {"type": "object"},
         "metered_fallback_allowed": {"type": ["boolean", "null"]}
       }

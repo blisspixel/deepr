@@ -122,96 +122,28 @@ async def check_api_keys(config) -> list[DiagnosticCheck]:
 
 
 async def check_provider_connectivity(config) -> list[DiagnosticCheck]:
-    """Test basic connectivity to configured providers."""
-    checks = []
-
-    # OpenAI
-    openai_key = os.getenv("OPENAI_API_KEY")
-    if openai_key and openai_key != "your-openai-api-key":
-        check = DiagnosticCheck("OpenAI API Connection", "Connectivity")
-        try:
-            from openai import AsyncOpenAI
-
-            client = AsyncOpenAI(api_key=openai_key)
-            # Simple test: list models
-            models = await client.models.list()
-            check.passed = True
-            check.message = "Connected successfully"
-            check.details.append(f"Available models: {len(models.data)}")
-        except Exception:
-            _record_connectivity_failure(check)
-        checks.append(check)
-
-    # Gemini (uses google-genai SDK, not the deprecated google.generativeai)
-    gemini_key = os.getenv("GEMINI_API_KEY")
-    if gemini_key and gemini_key != "your-gemini-api-key":
-        check = DiagnosticCheck("Gemini API Connection", "Connectivity")
-        try:
-            from google import genai
-
-            gemini_client = genai.Client(api_key=gemini_key)
-            # Simple test: list models (makes API call to verify connectivity + key)
-            model_list = [m for m in gemini_client.models.list()]
-            check.passed = True
-            check.message = "Connected successfully"
-            check.details.append(f"Available models: {len(model_list)}")
-        except Exception:
-            _record_connectivity_failure(check)
-        checks.append(check)
-
-    # xAI Grok
-    xai_key = os.getenv("XAI_API_KEY")
-    if xai_key and xai_key != "your-xai-api-key":
-        check = DiagnosticCheck("xAI Grok Connection", "Connectivity")
-        try:
-            from openai import AsyncOpenAI
-
-            client = AsyncOpenAI(api_key=xai_key, base_url="https://api.x.ai/v1")
-            # Simple test: list models
-            models = await client.models.list()
-            check.passed = True
-            check.message = "Connected successfully"
-            check.details.append(f"Available models: {len(models.data)}")
-        except Exception:
-            _record_connectivity_failure(check)
-        checks.append(check)
-
-    # Anthropic does not expose a zero-work model-list check here. Report the
-    # boundary explicitly instead of implying that credential presence was
-    # validated by a live request.
-    anthropic_key = os.getenv("ANTHROPIC_API_KEY")
-    if anthropic_key and anthropic_key != "your-anthropic-api-key":
-        check = DiagnosticCheck("Anthropic API Connectivity", "Connectivity")
+    """Report configured providers without making external metadata requests."""
+    _ = config
+    provider_keys = (
+        ("OpenAI API Connectivity", "OPENAI_API_KEY", "your-openai-api-key"),
+        ("Gemini API Connectivity", "GEMINI_API_KEY", "your-gemini-api-key"),
+        ("xAI Grok API Connectivity", "XAI_API_KEY", "your-xai-api-key"),
+        ("Anthropic API Connectivity", "ANTHROPIC_API_KEY", "your-anthropic-api-key"),
+        ("Azure OpenAI Connectivity", "AZURE_OPENAI_API_KEY", "your-azure-key"),
+    )
+    checks: list[DiagnosticCheck] = []
+    for name, env_name, placeholder in provider_keys:
+        value = os.getenv(env_name)
+        if not value or value == placeholder:
+            continue
+        check = DiagnosticCheck(name, "Connectivity")
         check.failure_severity = "info"
-        check.message = "Configured; live connectivity not checked"
-        check.details.append("Doctor validates Anthropic credential presence only")
+        check.message = "Configured; live metadata request blocked"
+        check.details.append(
+            "External connectivity is not tested because Deepr cannot prove endpoint or proxy marginal cost"
+        )
         checks.append(check)
-
-    # Azure
-    azure_key = os.getenv("AZURE_OPENAI_API_KEY")
-    azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-    if azure_key and azure_key != "your-azure-key":
-        check = DiagnosticCheck("Azure OpenAI Connection", "Connectivity")
-        try:
-            from openai import AsyncAzureOpenAI
-
-            # Constructing the client validates the key/endpoint shape without a
-            # network call; Azure has no cheap models.list() probe to run here.
-            AsyncAzureOpenAI(api_key=azure_key, azure_endpoint=azure_endpoint or "", api_version="2024-10-21")
-            check.passed = True
-            check.message = "Configured (connectivity test skipped)"
-            check.details.append("Azure OpenAI client initialized")
-        except Exception:
-            _record_connectivity_failure(check, configuration=True)
-        checks.append(check)
-
     return checks
-
-
-def _record_connectivity_failure(check: DiagnosticCheck, *, configuration: bool = False) -> None:
-    """Keep provider-controlled exception content outside operator output."""
-    check.message = "Configuration check failed" if configuration else "Connection check failed"
-    check.details.append("Verify the configured credential, endpoint, and provider availability, then retry")
 
 
 async def check_filesystem() -> list[DiagnosticCheck]:

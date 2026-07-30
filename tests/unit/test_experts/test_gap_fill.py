@@ -16,6 +16,7 @@ from deepr.experts.beliefs import BeliefStore
 from deepr.experts.gap_fill import GapFillEngine
 from deepr.experts.gap_router import GapRoute
 from deepr.experts.report_absorber import ReportAbsorber
+from deepr.experts.semantic_model_gate import _mark_zero_dollar_client
 
 
 def _expert():
@@ -36,6 +37,7 @@ def _route(topic: str, instrument: str = "research", ev: float = 1.0, cost: floa
 
 class _FakeExtractionClient:
     def __init__(self, statement="Gap topic finding from research"):
+        _mark_zero_dollar_client(self, capacity_source="local")
         content = json.dumps({"claims": [{"statement": statement, "confidence": 0.9, "evidence": ["src"]}]})
 
         async def _create(**kwargs):
@@ -58,7 +60,12 @@ class _FakeAbsorber:
 
 def _engine(tmp_path, answers: dict[str, dict]):
     beliefs = BeliefStore("GapFill Test Expert", storage_dir=tmp_path / "beliefs")
-    absorber = ReportAbsorber(_expert(), client=_FakeExtractionClient(), belief_store=beliefs)
+    absorber = ReportAbsorber(
+        _expert(),
+        client=_FakeExtractionClient(),
+        belief_store=beliefs,
+        estimated_cost=0.0,
+    )
 
     calls: list[str] = []
 
@@ -83,8 +90,8 @@ class TestGapFillEngine:
         outcome = result.outcomes[0]
         assert outcome.status == "filled"
         assert outcome.absorbed == 1
-        assert outcome.cost == pytest.approx(0.05)
-        assert result.total_cost == pytest.approx(0.05)
+        assert outcome.cost == pytest.approx(0.02)
+        assert result.total_cost == pytest.approx(0.02)
         assert len(engine.belief_store.beliefs) == 1
         assert "Topic A" in calls[0]
         assert result.knowledge_observed_at is not None

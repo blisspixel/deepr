@@ -9,6 +9,7 @@ from deepr.providers.registry_pricing import (
     get_resolved_model_capability,
     get_resolved_token_pricing,
     get_token_pricing,
+    provider_matches_model_contract,
 )
 
 CHAT_SERIALIZATION_TOKEN_ALLOWANCE = 2_048
@@ -30,6 +31,7 @@ class TokenCostEnvelope:
 
 def bounded_chat_envelope(
     *,
+    provider: str,
     model: str,
     prompt_parts: tuple[str, ...],
     budget_usd: float,
@@ -48,6 +50,10 @@ def bounded_chat_envelope(
     capability = get_resolved_model_capability(model)
     if capability is None:
         raise MeteredEnvelopeError(f"No trusted token pricing exists for model {model!r}")
+    if not provider_matches_model_contract(provider, capability.provider):
+        raise MeteredEnvelopeError(
+            f"Provider {provider!r} cannot execute model {model!r}; the registry assigns it to {capability.provider!r}"
+        )
     input_tokens = CHAT_SERIALIZATION_TOKEN_ALLOWANCE + sum(len(part.encode("utf-8")) for part in prompt_parts)
     context_remaining = capability.context_window - input_tokens
     if context_remaining < minimum_output_tokens:

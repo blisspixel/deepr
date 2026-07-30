@@ -13,6 +13,7 @@ from deepr.cli.ui import (
     classify_query_complexity,
     print_divider,
     print_error,
+    print_status,
     print_thinking,
     print_tool_summary,
     print_tool_use,
@@ -151,6 +152,21 @@ class TestClassifyQueryComplexity:
 
 class TestPrintFunctions:
     """Tests for print functions with mocked console."""
+
+    @patch("deepr.cli.ui.console")
+    def test_print_chat_status_renders_zero_as_no_paid_spend(self, mock_console):
+        print_status("Expert", 0, 0.0, 0.0, 0, "local", 0)
+
+        rendered = "\n".join(str(call.args[0]) for call in mock_console.print.call_args_list if call.args)
+        assert "Session cost: $0.0000 / $0.00" in rendered
+        assert "no limit" not in rendered
+
+    @patch("deepr.cli.ui.console")
+    def test_print_chat_status_marks_missing_authority(self, mock_console):
+        print_status("Expert", 0, 0.0, None, 0, "local", 0)
+
+        rendered = "\n".join(str(call.args[0]) for call in mock_console.print.call_args_list if call.args)
+        assert "budget unavailable" in rendered
 
     @patch("deepr.cli.ui.console")
     def test_print_welcome(self, mock_console):

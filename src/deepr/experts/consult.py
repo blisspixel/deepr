@@ -68,11 +68,14 @@ class AnthropicConsultSynthesisClient:
 
             from anthropic import AsyncAnthropic
 
+            from deepr.providers.dispatch_authority import default_paid_endpoint
+
             api_key = self._api_key or os.getenv("ANTHROPIC_API_KEY")
-            kwargs: dict[str, Any] = {"max_retries": 0}
-            if api_key:
-                kwargs["api_key"] = api_key
-            self._client = AsyncAnthropic(**kwargs)
+            self._client = AsyncAnthropic(
+                api_key=api_key,
+                base_url=default_paid_endpoint("anthropic"),
+                max_retries=0,
+            )
         return self._client
 
     @property

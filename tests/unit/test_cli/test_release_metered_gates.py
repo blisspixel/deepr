@@ -118,7 +118,7 @@ def test_vector_create_is_gated_before_provider_construction(tmp_path):
     result = CliRunner().invoke(vector, ["create", "--name", "blocked", "--files", str(source)])
 
     assert result.exit_code == 1
-    assert "upload, indexing, retention, retrieval, and cleanup costs" in result.output
+    assert "upload, operations, indexing, retention, retrieval, egress, and cleanup costs" in result.output
     assert "local source packs" in result.output
 
 

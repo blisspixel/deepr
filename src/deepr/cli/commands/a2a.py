@@ -17,7 +17,10 @@ def a2a() -> None:
 
 @a2a.command("validate-host")
 @click.argument("endpoint", required=False)
-@click.option("--auth-token", help="Bearer token for POST /tasks on a remote A2A endpoint.")
+@click.option(
+    "--auth-token",
+    help="Reserved for future cost-attested HTTP validation; no task is currently submitted.",
+)
 @click.option(
     "--synthesis-backend",
     type=click.Choice(["local", "plan"], case_sensitive=False),
@@ -26,14 +29,24 @@ def a2a() -> None:
     help="No-metered consult backend to validate.",
 )
 @click.option("--local-model", help="Optional Ollama model when --synthesis-backend=local.")
-@click.option("--plan", help="Explicit plan id when --synthesis-backend=plan, such as codex or claude.")
+@click.option("--plan", help="Explicit plan id when --synthesis-backend=plan; currently executable: claude.")
 @click.option("--plan-model", help="Optional model hint for the plan-quota CLI.")
 @click.option("--expert", "experts", multiple=True, help="Expert to target. Repeatable.")
 @click.option("--question", default=None, help="Validation consult question.")
-@click.option("--timeout", "timeout_seconds", default=60.0, show_default=True, type=click.FloatRange(min=0.1))
-@click.option("--poll-attempts", default=5, show_default=True, type=click.IntRange(min=0))
 @click.option(
-    "--poll-interval", "poll_interval_seconds", default=0.25, show_default=True, type=click.FloatRange(min=0.0)
+    "--timeout",
+    "timeout_seconds",
+    default=60.0,
+    show_default=True,
+    type=click.FloatRange(min=0.1, max=300.0),
+)
+@click.option("--poll-attempts", default=5, show_default=True, type=click.IntRange(min=0, max=100))
+@click.option(
+    "--poll-interval",
+    "poll_interval_seconds",
+    default=0.25,
+    show_default=True,
+    type=click.FloatRange(min=0.0, max=10.0),
 )
 @click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON.")
 def validate_host(
@@ -50,7 +63,7 @@ def validate_host(
     poll_interval_seconds: float,
     as_json: bool,
 ) -> None:
-    """Validate Deepr A2A discovery plus no-metered consult task handling."""
+    """Validate offline A2A contracts; live HTTP task submission is blocked."""
     import json
     from typing import cast
 

@@ -1,7 +1,8 @@
-"""Deterministic agent orchestrator: planner -> parallel workers -> synthesizer.
+"""Blocked legacy planner -> parallel workers -> synthesizer orchestrator.
 
-Implements the canonical subagent execution pattern with budget isolation,
-trace propagation, and bounded fan-out via AsyncTaskDispatcher.
+Its deterministic scheduler is retained for compatibility, but execution is
+blocked until provider capacity has enforceable zero-dollar or durable paid
+authority. An ``AgentBudget`` alone is not authorization.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from deepr.agents.contract import (
     AgentRole,
     AgentStatus,
     SubagentContract,
+    require_generic_subagent_execution,
 )
 from deepr.experts.constants import MAX_PLAN_CONCURRENCY
 from deepr.mcp.state.async_dispatcher import AsyncTaskDispatcher
@@ -49,7 +51,7 @@ class AgentOrchestrator:
     async def run(
         self,
         query: str,
-        budget: float = 10.0,
+        budget: float = 5.0,
         trace_id: str = "",
     ) -> AgentResult:
         """Execute the full orchestration pipeline.
@@ -62,6 +64,8 @@ class AgentOrchestrator:
         Returns:
             Final AgentResult with aggregated costs and all child artifacts.
         """
+        require_generic_subagent_execution()
+
         root_identity = AgentIdentity(
             role=AgentRole.PLANNER,
             trace_id=trace_id or AgentIdentity().trace_id,

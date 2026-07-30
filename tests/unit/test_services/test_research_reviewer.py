@@ -8,6 +8,15 @@ import pytest
 from tests.unit.test_services.conftest import make_responses_response
 
 
+@pytest.fixture(autouse=True)
+def _trust_injected_unit_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Bypass client attestation only for downstream reviewer tests."""
+    monkeypatch.setattr(
+        "deepr.providers.dispatch_authority.require_official_paid_client",
+        lambda _client, _provider: "test-attested",
+    )
+
+
 class TestResearchReviewer:
     """Test ResearchReviewer review and planning logic."""
 

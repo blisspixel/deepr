@@ -8,6 +8,15 @@ from deepr.core.contracts import Claim, Source, SourceValidation, SupportClass, 
 from deepr.experts.citation_validator import CitationValidator
 
 
+@pytest.fixture(autouse=True)
+def _trust_injected_unit_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Bypass the production client-attestation freeze in downstream unit tests."""
+    monkeypatch.setattr(
+        "deepr.providers.dispatch_authority.require_official_paid_client",
+        lambda _client, _provider: "test-attested",
+    )
+
+
 def _make_claim(statement: str, source_titles: list[str], claim_id: str = "c1") -> Claim:
     sources = [Source.create(title=t, trust_class=TrustClass.SECONDARY) for t in source_titles]
     return Claim(

@@ -206,6 +206,9 @@ class PlanQuotaChatClient:
         self._operation = operation
         self._quota_snapshot_collector = quota_snapshot_collector
         self.chat = _Chat(self)
+        from deepr.experts.semantic_model_gate import _mark_zero_dollar_client
+
+        _mark_zero_dollar_client(self, capacity_source=f"plan_quota:{adapter.backend_id}")
 
     async def _run_chat(self, kwargs: dict[str, Any]) -> PlanQuotaResponse:
         try:

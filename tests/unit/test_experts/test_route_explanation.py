@@ -34,7 +34,7 @@ def test_build_route_explanation_shape_and_routing(monkeypatch, tmp_path):
             _expert("Baking Expert", domain="sourdough"),
         ],
     )
-    # A missing admissions ledger -> empty (all-metered) capacity outlook, deterministic.
+    # A missing admissions ledger means no automatic capacity, deterministically.
     payload = build_route_explanation("cloud security", max_experts=2, top_n=3, admissions_path=tmp_path / "none.jsonl")
 
     assert payload["schema_version"] == ROUTE_EXPLANATION_SCHEMA_VERSION
@@ -65,9 +65,12 @@ def test_capacity_outlook_and_backend_order_present(monkeypatch, tmp_path):
     payload = build_route_explanation("cloud", admissions_path=tmp_path / "none.jsonl")
 
     outlook = payload["capacity_outlook"]
-    # Empty ledger -> nothing admitted -> next runs fall to metered.
+    # Empty ledger -> nothing admitted -> no automatic capacity is selected.
     assert outlook["any_cheap_capacity_admitted"] is False
     assert payload["backend_fallback_order"] == list(BACKEND_FALLBACK_ORDER)
+    assert "metered API" not in payload["backend_fallback_order"]
+    assert payload["automatic_metered_fallback"] is False
+    assert payload["metered_capacity_status"] == "preview_only"
 
 
 def test_no_experts_yields_empty_consult(monkeypatch, tmp_path):

@@ -1,12 +1,10 @@
-"""Regression tests for the skill executor's RCE / sandboxing fixes.
+"""Regression tests for the skill executor's RCE and spend quarantine.
 
 Pins down the round-3 hardening:
-- ``module: os, function: system`` is refused (RCE blocked).
-- ``function`` names with dunders / underscores are refused.
+- All Python code loading is refused before module/function inspection.
 - ``prompt_file`` traversal is refused.
-- ``server_command`` outside the allowlist is refused.
-- Failed tools do not charge cost.
-- Concurrent budget access is serialised.
+- Failed tools do not charge cost or mutate the budget.
+- Concurrent calls remain side-effect free.
 """
 
 from __future__ import annotations
@@ -17,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from deepr.experts.skills.definition import SkillDefinition, SkillTool
-from deepr.experts.skills.executor import SkillExecutor
+from deepr.experts.skills.executor import SKILL_TOOL_EXECUTION_DISABLED, SkillExecutor
 
 
 def _make_skill(tmp_path: Path, tool: SkillTool, name: str = "test-skill") -> SkillDefinition:
@@ -51,10 +49,7 @@ class TestPythonModuleSandbox:
         executor = SkillExecutor(skill, budget_remaining=1.0)
         result = await executor.execute_tool("rce-attempt", {"command": "echo pwned"})
         assert "error" in result
-        # Either "not found in skill" (no os.py under skill dir) or
-        # "escapes skill directory" (path resolution refused) - both
-        # are correct rejections.
-        assert "module" in result["error"].lower() or "skill" in result["error"].lower()
+        assert result["error"] == SKILL_TOOL_EXECUTION_DISABLED
 
     @pytest.mark.asyncio
     async def test_dunder_function_refused(self, tmp_path):
@@ -68,17 +63,17 @@ class TestPythonModuleSandbox:
         executor = SkillExecutor(skill, budget_remaining=1.0)
         result = await executor.execute_tool("dunder", {})
         assert "error" in result
-        assert "function name" in result["error"].lower() or "identifier" in result["error"].lower()
+        assert result["error"] == SKILL_TOOL_EXECUTION_DISABLED
 
     @pytest.mark.asyncio
-    async def test_legitimate_module_runs(self, tmp_path):
-        """A real ``.py`` under the skill dir with a public function works."""
+    async def test_legitimate_module_is_still_quarantined(self, tmp_path):
+        """A local-looking module is not proof that its runtime behavior is free."""
         (tmp_path / "tools.py").write_text("def add(a, b):\n    return a + b\n")
         tool = SkillTool(name="add", description="", type="python", module="tools", function="add", cost_tier="free")
         skill = _make_skill(tmp_path, tool)
         executor = SkillExecutor(skill, budget_remaining=1.0)
         result = await executor.execute_tool("add", {"a": 2, "b": 3})
-        assert result.get("result") == 5
+        assert result["error"] == SKILL_TOOL_EXECUTION_DISABLED
 
     @pytest.mark.asyncio
     async def test_module_path_traversal_refused(self, tmp_path):
@@ -165,11 +160,6 @@ class TestConcurrentBudgetSerialisation:
         skill = _make_skill(tmp_path, tool)
         executor = SkillExecutor(skill, budget_remaining=0.06)
 
-        # Python tools have cost=0 in this codebase, so the budget guard
-        # in execute_tool only fires for MCP-tier tools. To exercise the
-        # cost path we patch the budget check threshold artificially.
-        # Validate the simpler invariant: two parallel calls return
-        # results (no crash, no race AttributeError on _budget_remaining).
         results = await asyncio.gather(executor.execute_tool("slow", {}), executor.execute_tool("slow", {}))
-        # Both must complete (sequentially under the lock).
-        assert all(r.get("result") == "ok" or "error" in r for r in results)
+        assert all(r["error"] == SKILL_TOOL_EXECUTION_DISABLED for r in results)
+        assert executor._budget_remaining == pytest.approx(0.06)

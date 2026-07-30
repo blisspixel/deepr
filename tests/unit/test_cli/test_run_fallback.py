@@ -37,6 +37,19 @@ COMMON_PATCHES = {
 def _enable_legacy_fallback_characterization(monkeypatch):
     """Exercise the retired fallback algorithm without enabling it in product."""
     monkeypatch.setattr("deepr.cli.commands.run.METERED_PROVIDER_FALLBACK_ENABLED", True)
+    # The characterized request envelope is $1.78. Its explicit test-only
+    # $2 cap stays below the verified $5 operator and provider hard limit.
+    for name in (
+        "DEEPR_MAX_COST_PER_JOB",
+        "DEEPR_MAX_COST_PER_DAY",
+        "DEEPR_MAX_COST_PER_WEEK",
+        "DEEPR_MAX_COST_PER_MONTH",
+    ):
+        monkeypatch.setenv(name, "2")
+    monkeypatch.setattr(
+        "deepr.config.load_config",
+        lambda: {"max_cost_per_job": 2.0, "max_daily_cost": 2.0, "max_monthly_cost": 2.0},
+    )
     monkeypatch.setattr(
         "deepr.services.research_bounds.require_research_storage_accounting",
         lambda: None,

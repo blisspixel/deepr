@@ -31,7 +31,7 @@ class TestCostCircuitBreaker:
         """Test default initialization."""
         breaker = CostCircuitBreaker()
 
-        assert breaker.cost_threshold == 10.0
+        assert breaker.cost_threshold == 5.0
         assert breaker.window_seconds == 300.0
         assert breaker.event_threshold == 50
         assert breaker.cooldown_seconds == 60.0
@@ -282,7 +282,7 @@ class TestCreateDefaultCircuitBreaker:
         """Test that default breaker has sensible values."""
         breaker = create_default_circuit_breaker()
 
-        assert breaker.cost_threshold == 10.0
+        assert breaker.cost_threshold == 5.0
         assert breaker.window_seconds == 300.0
         assert breaker.event_threshold == 50
         assert breaker.cooldown_seconds == 60.0
@@ -380,7 +380,7 @@ class TestCostSafetyManager:
         manager = CostSafetyManager()
 
         assert manager.circuit_breaker is not None
-        assert manager.circuit_breaker.cost_threshold == 10.0
+        assert manager.circuit_breaker.cost_threshold == 5.0
 
     def test_init_custom_circuit_breaker(self):
         """Test initialization with custom circuit breaker."""
@@ -422,7 +422,7 @@ class TestCostSafetyManager:
         manager = CostSafetyManager()
 
         allowed, reason, needs_confirm = manager.check_operation(
-            session_id="test-session", operation_type="research_submit", estimated_cost=2.0, require_confirmation=True
+            session_id="test-session", operation_type="research_submit", estimated_cost=1.0, require_confirmation=True
         )
 
         assert allowed
@@ -870,7 +870,7 @@ class TestResetCostSafetyManager:
 class TestCostSessionHardCeiling:
     """CostSession.can_proceed must enforce the absolute per-op ceiling.
 
-    Previously only CostSafetyManager.check_and_reserve enforced the $10
+    Previously only CostSafetyManager.check_and_reserve enforced the outer
     ceiling; legacy callers using CostSession directly could approve a
     single operation above it as long as the session budget allowed.
     """
@@ -883,6 +883,7 @@ class TestCostSessionHardCeiling:
             session_type="chat",
             budget_limit=100.0,  # plenty of session budget
         )
+        assert session.budget_limit == 5.0
         over = CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION + 0.50
         ok, reason = session.can_proceed(over)
         assert ok is False
@@ -896,7 +897,7 @@ class TestCostSessionHardCeiling:
             session_type="chat",
             budget_limit=100.0,
         )
-        ok, reason = session.can_proceed(5.0)
+        ok, reason = session.can_proceed(0.5)
         assert ok is True
         assert reason == "OK"
 
@@ -940,7 +941,7 @@ class TestSpendingSummaryContract:
         monkeypatch.setenv("DEEPR_MAX_COST_PER_MONTH", "25.00")
         manager = CostSafetyManager()
         assert manager.max_daily == 1.0
-        assert manager.max_monthly == 25.0
+        assert manager.max_monthly == 5.0
 
     def test_zero_per_operation_authority_blocks_soft_admission(self, monkeypatch):
         from deepr.experts.cost_safety import CostSafetyManager
@@ -962,14 +963,14 @@ class TestSpendingSummaryContract:
         from deepr.experts.cost_safety import CostSafetyManager
 
         manager = CostSafetyManager()
-        manager.max_daily = 5.0
-        first = manager.check_and_reserve("one", "test", 4.0)
-        second = manager.check_and_reserve("two", "test", 4.0)
+        manager.max_daily = 1.5
+        first = manager.check_and_reserve("one", "test", 1.0)
+        second = manager.check_and_reserve("two", "test", 1.0)
 
         assert first[0] is True
         assert second[0] is False
-        assert "Daily limit $5.00" in second[1]
-        assert manager.max_daily == 5.0
+        assert "Daily limit $1.50" in second[1]
+        assert manager.max_daily == 1.5
 
     def test_env_caps_invalid_fail_closed(self, monkeypatch):
         from deepr.core.cost_caps import SpendCapConfigurationError

@@ -466,7 +466,7 @@ def print_capacity_outlook(outlook: dict):
             rungs.append(f"$0 local ({_escape(', '.join(entry.get('admitted_local_models') or []))})")
         if entry.get("plan_capacity_admitted"):
             rungs.append(f"prepaid plan ({_escape(', '.join(entry.get('admitted_plan_backends') or []))})")
-        summary = ", ".join(rungs) if rungs else "metered budget (no cheap capacity admitted)"
+        summary = ", ".join(rungs) if rungs else "no automatic cheap capacity admitted"
         console.print(f"  [bold]{_escape(task_class)}[/bold]: {summary}")
 
 

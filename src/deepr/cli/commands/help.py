@@ -157,8 +157,8 @@ def costs():
     table.add_row("deepr research (focus)", "$0.50-$2.00", "5-15 min")
     table.add_row("deepr research (deep)", "$2.00-$5.00", "15-30 min")
     table.add_row("deepr learn (3 phases)", "$5.00-$15.00", "45-90 min")
-    table.add_row("deepr team (6 perspectives)", "$3.00-$10.00", "20-40 min")
-    table.add_row("deepr expert make --learn", "$10.00-$20.00", "1-2 hours")
+    table.add_row("deepr team (6 perspectives)", "$1.00-$5.00", "20-40 min")
+    table.add_row("deepr expert make --learn", "$1.00-$5.00", "1-2 hours")
 
     console.print(table)
     console.print()

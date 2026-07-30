@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from deepr.providers.base import ResearchRequest, ToolConfig
+from deepr.providers.base import ResearchRequest, ToolConfig, UsageStats
 from deepr.services.research_bounds import (
     ResearchRequestBoundsError,
     bounded_research_cost_estimate,
@@ -21,14 +21,13 @@ def _no_provider_keys(monkeypatch) -> None:
         monkeypatch.delenv(name, raising=False)
 
 
-def test_openai_envelope_includes_exact_token_web_and_container_ceilings() -> None:
+def test_openai_envelope_includes_exact_token_and_web_ceilings() -> None:
     request = ResearchRequest(
         prompt="Research",
         model="o4-mini-deep-research",
         system_message="Test",
         tools=[
             ToolConfig(type="web_search_preview"),
-            ToolConfig(type="code_interpreter", container={"type": "auto", "memory_limit": "1g"}),
         ],
         max_input_tokens=128_000,
         max_output_tokens=16_000,
@@ -38,9 +37,27 @@ def test_openai_envelope_includes_exact_token_web_and_container_ceilings() -> No
 
     estimate = bounded_research_cost_estimate(request=request, provider="openai")
 
-    # $1/$4 per MTok + $0.025 per web call + one $0.03 1 GB container.
-    assert estimate.max_cost == pytest.approx(0.472)
+    # $1/$4 per MTok + $0.025 per web call.
+    assert estimate.max_cost == pytest.approx(0.442)
     assert estimate.expected_cost == estimate.max_cost
+
+
+def test_code_interpreter_fails_closed_without_memory_and_session_envelope() -> None:
+    request = ResearchRequest(
+        prompt="Research",
+        model="o4-mini-deep-research",
+        system_message="Test",
+        tools=[ToolConfig(type="code_interpreter", container={"type": "auto", "memory_limit": "4g"})],
+        max_input_tokens=128_000,
+        max_output_tokens=16_000,
+        max_tool_calls=10,
+        max_provider_requests=1,
+    )
+
+    with pytest.raises(ResearchRequestBoundsError) as raised:
+        bounded_research_cost_estimate(request=request, provider="openai")
+
+    assert raised.value.code == "research_code_interpreter_cost_unbounded"
 
 
 def test_multiple_provider_requests_multiply_model_and_tool_ceiling() -> None:
@@ -151,6 +168,75 @@ def test_current_gemini_aliases_enforce_provider_output_limit(model: str) -> Non
 
     assert raised.value.code == "research_output_bound_unsupported"
     assert "65,536" in str(raised.value)
+
+
+@pytest.mark.parametrize(
+    ("model", "provider", "max_input_tokens", "expected_maximum"),
+    [
+        ("gemini-2.5-pro", "gemini", 200_000, 0.7),
+        ("gemini-2.5-pro", "gemini", 200_001, 1.300005),
+        ("gemini-3.1-pro-preview", "gemini", 200_000, 1.04),
+        ("gemini-3.1-pro-preview", "gemini", 200_001, 1.960008),
+        ("grok-4.5", "xai", 199_999, 0.919996),
+        ("grok-4.5", "xai", 200_000, 1.84),
+        ("grok-4.5", "xai", 200_001, 1.840008),
+        ("grok-4.3", "xai", 199_999, 0.5499975),
+        ("grok-4.3", "xai", 200_000, 1.1),
+        ("grok-4.3", "xai", 200_001, 1.100005),
+        ("grok-4.20-0309-reasoning", "xai", 199_999, 0.5499975),
+        ("grok-4.20-0309-reasoning", "xai", 200_000, 1.1),
+        ("grok-4.20-0309-reasoning", "xai", 200_001, 1.100005),
+        ("grok-4.20-0309-non-reasoning", "xai", 199_999, 0.5499975),
+        ("grok-4.20-0309-non-reasoning", "xai", 200_000, 1.1),
+        ("grok-4.20-0309-non-reasoning", "xai", 200_001, 1.100005),
+    ],
+)
+def test_tiered_research_reservation_covers_maximum_settlement(
+    model: str,
+    provider: str,
+    max_input_tokens: int,
+    expected_maximum: float,
+) -> None:
+    max_output_tokens = 10_000
+    max_provider_requests = 2
+    request = ResearchRequest(
+        prompt="Research",
+        model=model,
+        system_message="Test",
+        max_input_tokens=max_input_tokens,
+        max_output_tokens=max_output_tokens,
+        max_provider_requests=max_provider_requests,
+    )
+
+    estimate = bounded_research_cost_estimate(request=request, provider=provider)
+    maximum_settlement = (
+        UsageStats.calculate_cost_with_cached_input(
+            max_input_tokens,
+            max_output_tokens,
+            model,
+            cached_input_tokens=0,
+        )
+        * max_provider_requests
+    )
+
+    assert maximum_settlement == pytest.approx(expected_maximum)
+    assert estimate.max_cost >= maximum_settlement
+
+
+def test_grok_multi_agent_boundary_remains_blocked_without_parent_reservation() -> None:
+    request = ResearchRequest(
+        prompt="Research",
+        model="grok-4.20-multi-agent-0309",
+        system_message="Test",
+        max_input_tokens=200_000,
+        max_output_tokens=10_000,
+        max_provider_requests=2,
+    )
+
+    with pytest.raises(ResearchRequestBoundsError) as raised:
+        bounded_research_cost_estimate(request=request, provider="xai")
+
+    assert raised.value.code == "xai_multi_agent_research_budget_unbounded"
 
 
 def test_provider_model_mismatch_fails_before_cost_admission() -> None:

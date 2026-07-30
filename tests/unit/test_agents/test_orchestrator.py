@@ -7,6 +7,7 @@ from deepr.agents.contract import (
     AgentIdentity,
     AgentResult,
     AgentStatus,
+    GenericSubagentExecutionBlockedError,
     SubagentContract,
 )
 from deepr.agents.orchestrator import AgentOrchestrator
@@ -77,15 +78,8 @@ async def test_full_pipeline():
     synthesizer = SynthesizerAgent()
 
     orchestrator = AgentOrchestrator(planner, workers, synthesizer)
-    result = await orchestrator.run("complex question", budget=10.0)
-
-    assert result.status == AgentStatus.SUCCESS
-    assert "SYNTHESIS" in result.output
-    # Cost = planner(0.01) + 3 workers(0.15) + synthesizer(0.02)
-    assert result.cost == pytest.approx(0.18, abs=0.01)
-    assert len(result.artifact_ids) == 3  # One per worker
-    assert result.metadata["subtask_count"] == 3
-    assert result.metadata["worker_count"] == 3
+    with pytest.raises(GenericSubagentExecutionBlockedError, match="advisory AgentBudget"):
+        await orchestrator.run("complex question", budget=10.0)
 
 
 @pytest.mark.asyncio
@@ -96,11 +90,8 @@ async def test_planner_failure_returns_failed():
     synthesizer = SynthesizerAgent()
 
     orchestrator = AgentOrchestrator(planner, workers, synthesizer)
-    result = await orchestrator.run("test", budget=10.0)
-
-    assert result.status == AgentStatus.FAILED
-    assert "Planning failed" in result.output
-    assert result.cost == 0.0
+    with pytest.raises(GenericSubagentExecutionBlockedError):
+        await orchestrator.run("test", budget=10.0)
 
 
 @pytest.mark.asyncio
@@ -110,12 +101,8 @@ async def test_no_workers_uses_planner_output():
     synthesizer = SynthesizerAgent()
 
     orchestrator = AgentOrchestrator(planner, workers=[], synthesizer=synthesizer)
-    result = await orchestrator.run("test", budget=10.0)
-
-    assert result.status == AgentStatus.SUCCESS
-    assert "SYNTHESIS" in result.output
-    # Cost = planner(0.01) + synthesizer(0.02)
-    assert result.cost == pytest.approx(0.03, abs=0.01)
+    with pytest.raises(GenericSubagentExecutionBlockedError):
+        await orchestrator.run("test", budget=10.0)
 
 
 @pytest.mark.asyncio
@@ -126,9 +113,8 @@ async def test_trace_id_propagated():
     synthesizer = SynthesizerAgent()
 
     orchestrator = AgentOrchestrator(planner, workers, synthesizer)
-    result = await orchestrator.run("test", budget=10.0, trace_id="shared-trace")
-
-    assert result.trace_id == "shared-trace"
+    with pytest.raises(GenericSubagentExecutionBlockedError):
+        await orchestrator.run("test", budget=10.0, trace_id="shared-trace")
 
 
 @pytest.mark.asyncio
@@ -139,9 +125,5 @@ async def test_budget_split():
     synthesizer = SynthesizerAgent()
 
     orchestrator = AgentOrchestrator(planner, workers, synthesizer)
-    result = await orchestrator.run("test", budget=100.0)
-
-    # Planner gets 10% = $10, workers get 70% / 2 = $35 each, synthesizer gets 20% = $20
-    # Actual spending is much less, but it shouldn't exceed these limits
-    assert result.cost < 100.0
-    assert result.status == AgentStatus.SUCCESS
+    with pytest.raises(GenericSubagentExecutionBlockedError):
+        await orchestrator.run("test", budget=100.0)

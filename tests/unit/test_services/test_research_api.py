@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from deepr.queue.base import JobStatus
+from deepr.services.research_bounds import ResearchRequestBoundsError
 
 
 @pytest.mark.asyncio
@@ -33,56 +34,13 @@ class TestResearchAPI:
             api = ResearchAPI(config=config)
             assert api.config is config
 
-    async def test_submit_focus_mode_default_model(self, api, mock_queue):
-        """focus mode defaults to o4-mini."""
-        job_id = await api.submit_research("Test prompt", mode="focus")
-        enqueued_job = mock_queue.enqueue.call_args[0][0]
-        assert enqueued_job.model == "o4-mini-deep-research"
+    @pytest.mark.parametrize("mode", ["focus", "team", "project", "docs"])
+    async def test_submit_is_quarantined_before_queue_or_ledger_work(self, api, mock_queue, mode):
+        """Legacy submission cannot create a job without canonical reservation metadata."""
+        with pytest.raises(ResearchRequestBoundsError, match="disabled until its provider call reserves") as blocked:
+            await api.submit_research("Test prompt", mode=mode)
 
-    async def test_submit_team_mode_default_model(self, api, mock_queue):
-        """team mode defaults to o3."""
-        job_id = await api.submit_research("Test prompt", mode="team")
-        enqueued_job = mock_queue.enqueue.call_args[0][0]
-        assert enqueued_job.model == "o3-deep-research"
-
-    async def test_submit_project_mode_default_model(self, api, mock_queue):
-        """project mode shares the o3 default with team mode."""
-        await api.submit_research("Test prompt", mode="project")
-        enqueued_job = mock_queue.enqueue.call_args[0][0]
-        assert enqueued_job.model == "o3-deep-research"
-
-    async def test_submit_docs_mode_default_model(self, api, mock_queue):
-        """docs mode defaults to o4-mini."""
-        job_id = await api.submit_research("Test prompt", mode="docs")
-        enqueued_job = mock_queue.enqueue.call_args[0][0]
-        assert enqueued_job.model == "o4-mini-deep-research"
-
-    async def test_submit_custom_model_override(self, api, mock_queue):
-        """Explicit model overrides mode default."""
-        await api.submit_research("Test", model="custom-model")
-        enqueued_job = mock_queue.enqueue.call_args[0][0]
-        assert enqueued_job.model == "custom-model"
-
-    async def test_submit_returns_job_id(self, api, mock_queue):
-        """Returns a string job ID."""
-        job_id = await api.submit_research("Test")
-        assert isinstance(job_id, str)
-        assert job_id.startswith("research-")
-
-    async def test_submit_enqueues_job(self, api, mock_queue):
-        """queue.enqueue is called."""
-        await api.submit_research("Test prompt")
-        mock_queue.enqueue.assert_called_once()
-
-    async def test_submit_fails_closed_when_ledger_unavailable(self, api, mock_queue):
-        """Ledger write failure must block enqueue (no silent-money queue job)."""
-        with patch("deepr.experts.cost_safety.get_cost_safety_manager") as mock_get:
-            manager = MagicMock()
-            manager.check_operation.return_value = (True, "OK", False)
-            manager.record_cost.side_effect = RuntimeError("ledger down")
-            mock_get.return_value = manager
-            with pytest.raises(RuntimeError, match="cost ledger unavailable"):
-                await api.submit_research("Test prompt")
+        assert blocked.value.code == "metered_interface_accounting_unavailable"
         mock_queue.enqueue.assert_not_called()
 
     async def test_get_job_status_found(self, api, mock_queue):

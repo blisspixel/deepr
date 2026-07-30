@@ -713,19 +713,11 @@ class TestDurableJobTracking:
         learner._integrate_reports.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_poll_retryable_errors_trip_circuit_breaker(self, tmp_path, monkeypatch):
-        """Repeated retryable get_status errors trip the breaker and stop polling.
-
-        Bounds the loop even when the error is transient (or an unknown
-        exception with no `retryable` field): each failure is recorded, and
-        the circuit breaker eventually opens instead of looping forever.
-        """
+    async def test_poll_retryable_error_gets_one_bounded_status_pass(self, tmp_path):
+        """A retryable status error is recorded once without an automatic retry."""
         from unittest.mock import AsyncMock
 
         from deepr.experts.curriculum import LearningCurriculum
-
-        # Don't actually wait 30s between poll rounds.
-        monkeypatch.setattr("asyncio.sleep", AsyncMock())
 
         learner = self._learner(tmp_path)
         learner.research = MagicMock()
@@ -739,9 +731,7 @@ class TestDurableJobTracking:
             def __init__(self):
                 self._failures = 0
 
-            @property
-            def is_circuit_open(self):
-                return self._failures >= 2
+            is_circuit_open = False
 
             def record_failure(self, *args, **kwargs):
                 self._failures += 1
@@ -767,8 +757,22 @@ class TestDurableJobTracking:
             job_topics={"resp_1": "Topic 1"},
         )
 
-        # Terminates via the circuit breaker rather than hanging.
+        # Terminates after one bounded pass rather than polling indefinitely.
         await learner._poll_and_integrate_reports(expert, ["resp_1"], session, None, progress)
 
-        assert session.is_circuit_open is True
+        assert session._failures == 1
+        assert learner.research.provider.get_status.await_count == 1
         learner._integrate_reports.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_poll_rejects_unbounded_job_set_before_provider_call(self, tmp_path):
+        from unittest.mock import AsyncMock
+
+        learner = self._learner(tmp_path)
+        learner.research = MagicMock()
+        learner.research.provider.get_status = AsyncMock()
+
+        with pytest.raises(ValueError, match="limited to 10 jobs"):
+            await learner._poll_and_integrate_reports(MagicMock(), [f"job-{i}" for i in range(11)], MagicMock())
+
+        learner.research.provider.get_status.assert_not_awaited()

@@ -27,6 +27,8 @@ class SoftCostReservation:
 
         provider = str(kwargs.get("provider", self.reservation.provider))
         model = str(kwargs.get("model", self.reservation.model))
+        if provider != self.reservation.provider or model != self.reservation.model:
+            raise SoftCostPathDisabled("Legacy paid operation settlement identity does not match its reservation")
         attributed = ResearchCostReservation(
             job_id=self.reservation.job_id,
             provider=provider,
@@ -34,6 +36,8 @@ class SoftCostReservation:
             estimated_cost=self.reservation.estimated_cost,
             reservation_id=self.reservation.reservation_id,
             manager=self.reservation.manager,
+            dispatch_binding_id=self.reservation.dispatch_binding_id,
+            request_envelope_sha256=self.reservation.request_envelope_sha256,
         )
         settle_research_cost(
             attributed,
@@ -51,11 +55,15 @@ def admit_soft_cost_operation(
     operation_type: str,
     estimated_cost: float,
     require_confirmation: bool = False,
+    provider: str | None = None,
+    model: str | None = None,
 ) -> tuple[Any | None, float, str | None]:
     """Durably reserve and mark a legacy paid operation before dispatch."""
     estimate = float(estimated_cost)
     if require_confirmation:
         return None, estimate, "legacy paid helper cannot satisfy interactive confirmation"
+    if not provider or not model:
+        return None, estimate, "cost admission unavailable: exact provider and model are required"
     try:
         from deepr.experts.research_cost_gate import (
             mark_research_provider_work,
@@ -65,8 +73,8 @@ def admit_soft_cost_operation(
 
         reservation = reserve_configured_cost_ceiling(
             job_id=f"legacy-{operation_type}-{uuid.uuid4().hex}",
-            provider="pending",
-            model="pending",
+            provider=provider,
+            model=model,
             max_cost_per_job=estimate,
         )
         try:

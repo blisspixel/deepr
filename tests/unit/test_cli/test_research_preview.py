@@ -135,6 +135,7 @@ class TestPreviewExplicitModel:
         assert payload["executed"] is False
         assert payload["provider"] == "openai"
         assert payload["model"] == "o4-mini-deep-research"
+        assert payload["tools"] == {"web_search": True, "code_interpreter": False}
         ce = payload["cost_estimate"]
         assert {"min", "expected", "max"} <= set(ce.keys())
         assert 0.0 <= ce["min"] <= ce["expected"] <= ce["max"]
@@ -272,9 +273,10 @@ class TestPreviewAutoMode:
         assert payload["executed"] is False
         assert payload["model"] == "o3-deep-research"
         assert payload["provider"] == "openai"
+        assert payload["tools"] == {"web_search": True, "code_interpreter": False}
         assert payload["admission_max_cost"] >= payload["routing_cost_estimate"]
 
-    def test_auto_preview_blocks_unpriced_xai_tools(self, runner: CliRunner) -> None:
+    def test_auto_preview_disables_unpriced_xai_tools(self, runner: CliRunner) -> None:
         from deepr.routing.auto_mode import AutoModeDecision
 
         decision = AutoModeDecision(
@@ -289,8 +291,8 @@ class TestPreviewAutoMode:
 
         with patch("deepr.routing.AutoModeRouter") as mock_router_cls:
             mock_router_cls.return_value.route.return_value = decision
-            result = runner.invoke(cli, ["research", "--auto", "--preview", "What is Python?"])
+            result = runner.invoke(cli, ["research", "--auto", "--preview", "--json", "What is Python?"])
 
-        assert result.exit_code == 1
-        assert "research_tool_pricing_unbounded" in result.output
-        assert "no complete provider-enforced cost ceiling" in result.output
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["tools"] == {"web_search": False, "code_interpreter": False}

@@ -17,6 +17,7 @@ from deepr.cli.commands.semantic.expert_absorb_support import (
     build_absorb_backend,
 )
 from deepr.experts.grounding_escalation import GroundingEscalator
+from deepr.experts.semantic_model_gate import _mark_zero_dollar_client
 
 
 class _FakeAbsorber:
@@ -206,7 +207,8 @@ def test_plan_backend_wires_lazy_second_checker_escalator(monkeypatch):
 
     def fake_client(adapter, *, model=None, operation=None):
         built_clients.append(adapter.backend_id)
-        return object()
+        client = SimpleNamespace()
+        return _mark_zero_dollar_client(client, capacity_source=f"plan_quota:{adapter.backend_id}")
 
     monkeypatch.setattr(waterfall_mod, "choose_plan_quota_backend", fake_choose)
     monkeypatch.setattr(plan_quota_mod, "get_adapter", lambda bid: adapters.get(bid))

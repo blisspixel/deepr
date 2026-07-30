@@ -26,6 +26,8 @@ import os
 from datetime import UTC, datetime
 from typing import Any
 
+import httpx
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -44,6 +46,7 @@ from deepr.providers.base import (
     VectorStore,
     coerce_usage_int,
 )
+from deepr.providers.dispatch_authority import default_paid_endpoint, require_official_paid_endpoint
 from deepr.tools import ToolRegistry
 
 
@@ -94,6 +97,8 @@ class AnthropicProvider(DeepResearchProvider):
     # Models with no Extended Thinking support at all - omit the param.
     NO_THINKING_MODELS = ("claude-haiku-4-5",)
 
+    provider_key = "anthropic"
+
     def __init__(
         self,
         api_key: str | None = None,
@@ -135,7 +140,22 @@ class AnthropicProvider(DeepResearchProvider):
         # discarded both, leaving every Anthropic call to be billed by
         # the provider while the cost ledger recorded $0.
         self._jobs: dict[str, ResearchResponse] = {}
-        self.client = Anthropic(api_key=self.api_key, timeout=1200.0, max_retries=0)  # 20 min timeout
+        self._paid_endpoint = require_official_paid_endpoint(
+            self.provider_key,
+            default_paid_endpoint(self.provider_key),
+            source="AnthropicProvider",
+        )
+        self.client = Anthropic(
+            api_key=self.api_key,
+            base_url=self._paid_endpoint,
+            timeout=1200.0,
+            max_retries=0,
+            http_client=httpx.Client(
+                timeout=1200.0,
+                trust_env=False,
+                follow_redirects=False,
+            ),
+        )
 
         # Initialize tool executor
         self.tool_executor = ToolRegistry.create_executor(web_search=True, backend=web_search_backend)
@@ -145,14 +165,16 @@ class AnthropicProvider(DeepResearchProvider):
         *,
         input_tokens: int,
         output_tokens: int,
+        model: str | None = None,
         cache_creation_tokens: int = 0,
         cache_read_tokens: int = 0,
     ) -> float:
         """Calculate Anthropic cost across regular and prompt-cache buckets."""
         from deepr.providers.registry import get_token_pricing
 
-        token_rates = get_token_pricing(self.model, input_tokens=input_tokens)
-        cache_rates = self._cache_rates_for_model(token_rates["input"])
+        priced_model = model or self.model
+        token_rates = get_token_pricing(priced_model, input_tokens=input_tokens)
+        cache_rates = self._cache_rates_for_model(priced_model, token_rates["input"])
 
         input_cost = (max(input_tokens, 0) / 1_000_000) * token_rates["input"]
         output_cost = (max(output_tokens, 0) / 1_000_000) * token_rates["output"]
@@ -161,17 +183,22 @@ class AnthropicProvider(DeepResearchProvider):
 
         return input_cost + output_cost + cache_creation_cost + cache_read_cost
 
-    def _cache_rates_for_model(self, input_rate: float) -> dict[str, float]:
+    def _cache_rates_for_model(self, model_name: str, input_rate: float) -> dict[str, float]:
         """Return Anthropic prompt-cache rates for the configured model."""
         for model, rates in ANTHROPIC_CACHE_PRICING.items():
-            if self.model.startswith(model):
+            if model_name.startswith(model):
                 return rates
         return {
             "cache_write": round(input_rate * 1.25, 6),
             "cache_read": round(input_rate * 0.10, 6),
         }
 
-    def _build_thinking_param(self, max_output_tokens: int | None = None) -> dict[str, Any] | None:
+    def _build_thinking_param(
+        self,
+        max_output_tokens: int | None = None,
+        *,
+        model_name: str | None = None,
+    ) -> dict[str, Any] | None:
         """Return the thinking config appropriate for the configured model.
 
         - Adaptive-only models (Sonnet 5, Opus 4.6+, Sonnet 4.6, Fable 5): sending
@@ -179,16 +206,17 @@ class AnthropicProvider(DeepResearchProvider):
         - Haiku has no Extended Thinking: omit the param entirely.
         - Older models keep the legacy enabled+budget form.
         """
-        if any(self.model.startswith(m) for m in self.NO_THINKING_MODELS):
+        active_model = model_name or self.model
+        if any(active_model.startswith(m) for m in self.NO_THINKING_MODELS):
             return None
-        if any(self.model.startswith(m) for m in self.ADAPTIVE_THINKING_MODELS):
+        if any(active_model.startswith(m) for m in self.ADAPTIVE_THINKING_MODELS):
             return {"type": "adaptive"}
         budget = self.thinking_budget
         if max_output_tokens is not None:
             budget = min(budget, max(1024, max_output_tokens - 1024))
         return {"type": "enabled", "budget_tokens": budget}
 
-    async def submit_research(self, request: ResearchRequest) -> str:
+    async def _submit_research_impl(self, request: ResearchRequest) -> str:
         """
         Submit research using Claude Extended Thinking + agentic workflow.
 
@@ -201,6 +229,7 @@ class AnthropicProvider(DeepResearchProvider):
         Note: This is more manual than OpenAI's approach but gives more control.
         """
         try:
+            resolved_model = self.get_model_name(request.model)
             # Build system prompt for research mode
             system_prompt = self._build_research_system_prompt(request)
 
@@ -231,13 +260,16 @@ class AnthropicProvider(DeepResearchProvider):
             max_turns = request.max_provider_requests
             for _turn in range(max_turns):
                 request_kwargs: dict[str, Any] = {
-                    "model": self.model,
+                    "model": resolved_model,
                     "max_tokens": request.max_output_tokens,
                     "system": system_prompt,
                     "messages": messages,
                     "tools": tools,
                 }
-                thinking_param = self._build_thinking_param(request.max_output_tokens)
+                thinking_param = self._build_thinking_param(
+                    request.max_output_tokens,
+                    model_name=resolved_model,
+                )
                 if thinking_param is not None:
                     request_kwargs["thinking"] = thinking_param
                 from deepr.services.research_bounds import validate_provider_payload_bytes
@@ -342,6 +374,7 @@ class AnthropicProvider(DeepResearchProvider):
                 findings="\n\n".join(response_content),
                 tool_calls=tool_calls_made,
                 request=request,
+                model=resolved_model,
             )
 
             # Generate job ID (Anthropic doesn't return one)
@@ -360,6 +393,7 @@ class AnthropicProvider(DeepResearchProvider):
             )
             try:
                 usage_stats.cost = self._calculate_usage_cost(
+                    model=resolved_model,
                     input_tokens=total_input_tokens,
                     output_tokens=total_output_tokens,
                     cache_creation_tokens=total_cache_creation_tokens,
@@ -378,6 +412,7 @@ class AnthropicProvider(DeepResearchProvider):
                     }
                 ],
                 usage=usage_stats,
+                model=resolved_model,
                 created_at=datetime.now(UTC),
                 completed_at=datetime.now(UTC),
             )
@@ -424,7 +459,7 @@ class AnthropicProvider(DeepResearchProvider):
         """
         return False
 
-    async def upload_document(self, file_path: str, purpose: str = "assistants") -> str:
+    async def _upload_document_accounted(self, file_path: str, purpose: str = "assistants") -> str:
         """
         Upload document for context.
 
@@ -433,7 +468,7 @@ class AnthropicProvider(DeepResearchProvider):
         """
         raise NotImplementedError("Anthropic doesn't support file uploads. Embed documents directly in prompts.")
 
-    async def create_vector_store(self, name: str, file_ids: list[str]) -> VectorStore:
+    async def _create_vector_store_accounted(self, name: str, file_ids: list[str]) -> VectorStore:
         """
         Create vector store.
 
@@ -517,13 +552,18 @@ Always show your work. Transparency builds trust."""
         return "\n".join(parts)
 
     def _format_research_report(
-        self, thinking: str, findings: str, tool_calls: list[dict[str, Any]], request: ResearchRequest
+        self,
+        thinking: str,
+        findings: str,
+        tool_calls: list[dict[str, Any]],
+        request: ResearchRequest,
+        model: str | None = None,
     ) -> str:
         """Format research report with thinking trace."""
         parts = [
             "# Research Report",
             f"\n**Query:** {request.prompt}",
-            f"\n**Model:** {self.model}",
+            f"\n**Model:** {model or self.model}",
             f"\n**Date:** {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')}",
             "\n---\n",
         ]

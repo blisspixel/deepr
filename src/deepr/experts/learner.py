@@ -19,6 +19,9 @@ from deepr.utils.security import SSRFError, sanitize_name, validate_url
 
 logger = logging.getLogger(__name__)
 
+_MAX_RECONCILIATION_JOBS = 10
+_MAX_PROVIDER_STATUS_PASSES = 1
+
 
 @dataclass
 class LearningProgress:
@@ -151,8 +154,11 @@ class AutonomousLearner:
 
         # Create cost tracking session
         session_id = f"learn_{expert.name}_{uuid.uuid4().hex[:8]}"
+        effective_budget_limit = 1.0 if budget_limit is None else min(float(budget_limit), 5.0)
         session = self.cost_safety.create_session(
-            session_id=session_id, session_type="learning", budget_limit=budget_limit or 100.0
+            session_id=session_id,
+            session_type="learning",
+            budget_limit=effective_budget_limit,
         )
 
         # Initialize progress - restore from saved if resuming
@@ -194,15 +200,15 @@ class AutonomousLearner:
         self._log_progress(
             f"Starting autonomous learning for {expert.name}",
             f"Curriculum: {len(curriculum.topics)} topics in {len(phases)} phases",
-            f"Budget limit: ${budget_limit:.2f}" if budget_limit is not None else "Budget limit: unlimited",
-            format_cost_warning(cost_estimate["expected_cost"], budget_limit),
+            f"Budget limit: ${effective_budget_limit:.2f}",
+            format_cost_warning(cost_estimate["expected_cost"], effective_budget_limit),
             callback=progress_callback,
         )
 
         # Check if estimated cost exceeds budget
-        if budget_limit is not None and cost_estimate["expected_cost"] > budget_limit:
+        if cost_estimate["expected_cost"] > effective_budget_limit:
             self._log_progress(
-                f"Estimated cost ${cost_estimate['expected_cost']:.2f} exceeds budget ${budget_limit:.2f}",
+                f"Estimated cost ${cost_estimate['expected_cost']:.2f} exceeds budget ${effective_budget_limit:.2f}",
                 "Consider reducing topic count or using --dry-run to preview",
                 callback=progress_callback,
             )
@@ -721,64 +727,21 @@ class AutonomousLearner:
             return None
 
     async def _fetch_paper(self, source, callback: Callable | None = None) -> str | None:
-        """Fetch a research paper (PDF or HTML).
+        """Refuse unclassified direct paper retrieval.
 
         Args:
             source: SourceReference to fetch
             callback: Optional progress callback
 
         Returns:
-            Paper content as text, or None if failed
+            Always None while direct external retrieval lacks a finite envelope.
         """
-        import httpx
-
-        try:
-            # SSRF guard for paper source URL (curriculum URLs come from model output)
-            if source.url:
-                try:
-                    validate_url(source.url, allow_private=False)
-                except SSRFError as sec_e:
-                    self._log_progress(f"  [SECURITY] Blocked unsafe paper URL: {sec_e}", callback=callback)
-                    return None
-
-            # For now, just fetch HTML content
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.get(source.url)
-                response.raise_for_status()
-
-                # Check content type
-                content_type = response.headers.get("content-type", "")
-
-                if "pdf" in content_type.lower() or source.url.lower().endswith(".pdf"):
-                    # PDF text extraction is not enabled: no PDF parser dependency
-                    # is declared, so skip rather than ingest binary bytes as text.
-                    self._log_progress("  [SKIP] PDF extraction not supported", callback=callback)
-                    return None
-                else:
-                    # HTML content - extract text
-                    from bs4 import BeautifulSoup
-
-                    soup = BeautifulSoup(response.text, "html.parser")
-
-                    # Remove script and style elements
-                    for script in soup(["script", "style"]):
-                        script.decompose()
-
-                    # Get text
-                    text = soup.get_text()
-
-                    # Clean up whitespace
-                    lines = (line.strip() for line in text.splitlines())
-                    chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
-                    text = "\n".join(chunk for chunk in chunks if chunk)
-
-                    self._log_progress(f"  [OK] Fetched {len(text)} characters", callback=callback)
-
-                    return text
-
-        except Exception as e:
-            self._log_progress(f"  [ERROR] Fetch error: {e!s}", callback=callback)
-            return None
+        self._log_progress(
+            "  [BLOCKED] External paper fetch is disabled: marginal cost, redirect policy, "
+            "and response-size accounting are unverified",
+            callback=callback,
+        )
+        return None
 
     async def _submit_single_job(
         self, expert: ExpertProfile, topic: LearningTopic, callback: Callable | None = None
@@ -896,6 +859,8 @@ class AutonomousLearner:
 
         if not job_ids:
             return
+        if len(job_ids) > _MAX_RECONCILIATION_JOBS:
+            raise ValueError(f"provider reconciliation is limited to {_MAX_RECONCILIATION_JOBS} jobs per invocation")
 
         self._log_progress(
             "",
@@ -911,8 +876,12 @@ class AutonomousLearner:
         failed: set[str] = set()
         total_cost = 0.0
         start_time = datetime.now()
+        status_passes = 0
 
         while pending:
+            if status_passes >= _MAX_PROVIDER_STATUS_PASSES:
+                break
+            status_passes += 1
             # Check if circuit breaker is open
             if session.is_circuit_open:
                 self._log_progress(
@@ -999,8 +968,12 @@ class AutonomousLearner:
 
             if pending:
                 elapsed = (datetime.now() - start_time).total_seconds() / 60
-                self._log_progress(f"Elapsed: {elapsed:.1f} min, waiting 30s...", "", callback=callback)
-                await asyncio.sleep(30)
+                self._log_progress(
+                    f"Elapsed: {elapsed:.1f} min; bounded status pass complete",
+                    "Automatic provider polling stopped. Reconcile with `deepr status JOB_ID`.",
+                    callback=callback,
+                )
+                break
 
         # All jobs complete (or polling stopped early, e.g. circuit breaker)
         elapsed_total = (datetime.now() - start_time).total_seconds() / 60

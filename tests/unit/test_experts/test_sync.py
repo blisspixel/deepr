@@ -16,6 +16,7 @@ from deepr.experts import sync as sync_module
 from deepr.experts.beliefs import Belief, BeliefStore
 from deepr.experts.metacognition import MetaCognitionTracker
 from deepr.experts.report_absorber import ReportAbsorber
+from deepr.experts.semantic_model_gate import _mark_zero_dollar_client
 from deepr.experts.source_pack_compiler import build_semantic_claim_extraction
 from deepr.experts.sync import (
     _NO_CHANGES_MARKER,
@@ -79,6 +80,7 @@ class _FakeExtractionClient:
         self.chat = SimpleNamespace(
             completions=SimpleNamespace(create=self._make_create(content)),
         )
+        _mark_zero_dollar_client(self, capacity_source="local")
 
     def _make_create(self, content):
         async def _create(**kwargs):

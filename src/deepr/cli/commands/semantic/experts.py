@@ -159,7 +159,7 @@ def make_expert(
     if not files and not learn:
         click.echo("Error: No files specified. Use --files to add documents or --learn for autonomous learning.")
         click.echo("Example: deepr expert make 'My Expert' -f docs/*.md")
-        click.echo("Or: deepr expert make 'My Expert' --learn --budget 10")
+        click.echo("Or: deepr expert make 'My Expert' --learn --budget 5")
         return
 
     _require_metered_expert_cli(
@@ -314,7 +314,7 @@ def make_expert(
             if not budget:
                 click.echo("Error: Either --budget or topic counts (--docs/--quick/--deep) required")
                 click.echo("\nExamples:")
-                click.echo("  deepr expert make 'Expert' -f docs/*.md --learn --budget 10")
+                click.echo("  deepr expert make 'Expert' -f docs/*.md --learn --budget 5")
                 click.echo("  deepr expert make 'Expert' -f docs/*.md --learn --docs 2 --quick 3 --deep 1")
                 return
 
@@ -448,7 +448,7 @@ def plan_curriculum(
       deepr expert plan "FastAPI" -q
 
       # Budget-constrained plan
-      deepr expert plan "Azure AI" --budget 10
+      deepr expert plan "Azure AI" --budget 5
 
       # Skip source discovery (faster, cheaper)
       deepr expert plan "React hooks" --no-discovery
@@ -1702,7 +1702,7 @@ def resume_expert_learning(name: str, budget: float | None, yes: bool):
     # Determine budget
     if budget is None:
         # Use a reasonable default based on remaining work
-        budget = max(estimated_remaining_cost * 1.5, 5.0)  # 50% buffer, min $5
+        budget = min(max(estimated_remaining_cost * 1.5, 1.0), 5.0)
         console.print(f"\n[dim]Using default budget: ${budget:.2f}[/dim]")
 
     # Validate budget
@@ -2253,7 +2253,7 @@ def fill_gaps(
       deepr expert route-gaps "AWS Expert" --execute --scheduled
 
       # Explicit legacy metered OpenAI path
-      deepr expert fill-gaps "Python Expert" --top 5 --budget 10 --api
+      deepr expert fill-gaps "Python Expert" --top 5 --budget 5 --api
 
       # Skip confirmation only after explicitly acknowledging the metered estimate
       deepr expert fill-gaps "AI Expert" --api -y --confirm-metered-cost
@@ -2707,7 +2707,7 @@ def resolve_conflicts_cmd(name: str, budget: float, consensus: bool):
 
     EXAMPLES:
       deepr expert resolve-conflicts "AI Expert"
-      deepr expert resolve-conflicts "AI Expert" --consensus --budget 10
+      deepr expert resolve-conflicts "AI Expert" --consensus --budget 5
     """
     # This legacy surface used its numeric budget only to limit pair count;
     # detection, adjudication, and consensus provider calls had no durable
@@ -3263,17 +3263,16 @@ def chat_with_expert(name: str, budget: float | None, no_research: bool):
     help='Tool arguments as JSON string (e.g. \'{"data": {"revenue": 100}}\')',
 )
 def run_skill_cmd(name: str, skill_name: str, tool_name: str, tool_args: str):
-    """Run a specific skill tool on an expert directly.
+    """Validate a skill tool request without executing external code.
 
     EXAMPLES:
       deepr expert run-skill "Analyst" financial-data calculate_ratios --args '{"data": {"revenue": 100, "net_income": 20}}'
       deepr expert run-skill "Dev Lead" code-analysis complexity_report --args '{"code": "def foo(): pass"}'
     """
-    import asyncio
     import json
 
     from deepr.experts.profile_store import ExpertStore
-    from deepr.experts.skills import SkillExecutor, SkillManager
+    from deepr.experts.skills import SkillManager
 
     store = ExpertStore()
     profile = store.load(name)
@@ -3287,34 +3286,22 @@ def run_skill_cmd(name: str, skill_name: str, tool_name: str, tool_args: str):
         print_error(f"Skill not found: {skill_name}")
         return
 
-    installed = getattr(profile, "installed_skills", [])
-    if skill_name not in installed:
-        print_warning(f"Skill '{skill_name}' is not installed on {name}. Installing now...")
-        profile.installed_skills = [*installed, skill_name]
-        store.save(profile)
-
     try:
-        args = json.loads(tool_args)
+        json.loads(tool_args)
     except json.JSONDecodeError as e:
         print_error(f"Invalid JSON arguments: {e}")
         return
 
-    async def do_run():
-        # Explicit operator skill-tool invocation: allow metered tools under
-        # durable fixed-cost admission. Live expert chat keeps allow=False.
-        executor = SkillExecutor(skill_def, budget_remaining=10.0, allow_metered_tools=True)
-        try:
-            result = await executor.execute_tool(tool_name, args)
-            return result
-        finally:
-            await executor.cleanup()
+    tool = next((candidate for candidate in skill_def.tools if candidate.name == tool_name), None)
+    if tool is None:
+        print_error(f"Tool not found in {skill_name}: {tool_name}")
+        return
 
-    result = asyncio.run(do_run())
-    if "error" in result:
-        print_error(f"Tool error: {result['error']}")
-    else:
-        print_success(f"Result from {skill_name}/{tool_name}:")
-        console.print_json(json.dumps(result.get("result", result), indent=2, default=str))
+    raise click.ClickException(
+        "Skill tool execution is disabled. Python and MCP skill tools can make "
+        "external calls whose spend cannot be enforced from a manifest budget or "
+        "self-reported cost. Skill inventory and inspection remain available."
+    )
 
 
 # Maintenance commands (absorb, sync) live in a sibling module so this file

@@ -258,11 +258,7 @@ class ContextIndex:
         client: Any | None = None
 
         async def create_embedding(text: str) -> Any:
-            nonlocal client
-            if client is None:
-                from openai import AsyncOpenAI
-
-                client = AsyncOpenAI(max_retries=0)
+            assert client is not None
             return await client.embeddings.create(model="text-embedding-3-small", input=text)
 
         new_embeddings: list[Any] = []
@@ -305,8 +301,15 @@ class ContextIndex:
             # caller's aggregate ceiling.
             if include_semantic:
                 embed_text = f"{prompt}\n\n{summary}"[:8000]
+                from openai import AsyncOpenAI
+
+                from deepr.providers.dispatch_authority import default_paid_endpoint, require_official_paid_client
                 from deepr.services.metered_call import execute_reserved_async_call
                 from deepr.services.metered_envelope import bounded_embedding_envelope
+
+                if client is None:
+                    client = AsyncOpenAI(base_url=default_paid_endpoint("openai"), max_retries=0)
+                require_official_paid_client(client, "openai")
 
                 envelope = bounded_embedding_envelope(
                     model="text-embedding-3-small",
@@ -334,6 +337,7 @@ class ContextIndex:
                             source="services.context_index.index_reports",
                             max_cost_per_job=envelope.cost_usd,
                             call=create_report_embedding,
+                            request_envelope={"model": "text-embedding-3-small", "input": embed_text},
                         )
                         embedding = np.array(response.data[0].embedding)
                         embedding_idx = len(new_embeddings)
@@ -520,10 +524,14 @@ class ContextIndex:
         if envelope.cost_usd > max_total_cost_usd + 1e-12:
             raise ValueError("semantic query embedding exceeds the aggregate cost ceiling")
 
-        async def create_embedding() -> Any:
-            from openai import AsyncOpenAI
+        from openai import AsyncOpenAI
 
-            client = AsyncOpenAI(max_retries=0)
+        from deepr.providers.dispatch_authority import default_paid_endpoint, require_official_paid_client
+
+        client = AsyncOpenAI(base_url=default_paid_endpoint("openai"), max_retries=0)
+        require_official_paid_client(client, "openai")
+
+        async def create_embedding() -> Any:
             return await client.embeddings.create(model="text-embedding-3-small", input=bounded_query)
 
         try:
@@ -534,6 +542,7 @@ class ContextIndex:
                 source="services.context_index.semantic_search",
                 max_cost_per_job=envelope.cost_usd,
                 call=create_embedding,
+                request_envelope={"model": "text-embedding-3-small", "input": bounded_query},
             )
             query_embedding = np.array(response.data[0].embedding)
         except Exception as e:

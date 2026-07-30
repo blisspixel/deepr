@@ -168,8 +168,8 @@ def summary(period: str):
                 click.echo(f"   {model}: ${data['cost']:.2f} ({data['count']} jobs)")
 
         # Budget check
-        max_per_month = config.get("max_cost_per_month", 1000.0)
-        max_per_day = config.get("max_cost_per_day", 100.0)
+        max_per_month = config.get("max_monthly_cost", 5.0)
+        max_per_day = config.get("max_daily_cost", 2.0)
 
         if period == "month":
             pct = (total_cost / max_per_month) * 100

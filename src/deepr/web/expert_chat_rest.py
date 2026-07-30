@@ -11,6 +11,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from werkzeug.utils import secure_filename
+
 from deepr.config import experts_root
 from deepr.experts.chat_capacity import MeteredExpertChatDisabledError
 from deepr.web.expert_chat_contract import BrowserChatContractError, BrowserExpertChatRequest
@@ -40,14 +42,23 @@ def restore_session_messages(
     experts_dir: Path | None = None,
 ) -> None:
     """Restore user and assistant messages from a path-safe saved session."""
-    if _SESSION_ID_RE.fullmatch(session_id) is None:
+    safe_session_id = secure_filename(session_id)
+    if _SESSION_ID_RE.fullmatch(session_id) is None or safe_session_id != session_id:
         logger.warning("Invalid session_id rejected: %s", session_id)
         return
 
     from deepr.experts.profile import ExpertStore
+    from deepr.utils.security import SecurityError
 
     store = ExpertStore(str(experts_dir or experts_root()))
-    conversation_file = store.get_conversations_dir(expert_name) / f"{session_id}.json"
+    try:
+        expert_dir = store.find_existing_dir(expert_name)
+    except (OSError, SecurityError):
+        logger.warning("Rejected unsafe expert storage path for %r", expert_name)
+        return
+    if expert_dir is None:
+        return
+    conversation_file = expert_dir / "conversations" / f"{safe_session_id}.json"
     if not conversation_file.exists():
         return
 
@@ -184,7 +195,16 @@ def handle_browser_expert_chat_request(
     except BrowserChatContractError as exc:
         return jsonify_response(exc.to_dict()), exc.status_code
     except MeteredExpertChatDisabledError as exc:
-        return jsonify_response({"error": str(exc), "error_code": exc.code, **exc.to_dict()}), 409
+        return (
+            jsonify_response(
+                {
+                    "error": "Metered expert chat is not available for this operation",
+                    "error_code": exc.code,
+                    **exc.to_dict(),
+                }
+            ),
+            409,
+        )
     except ImportError:
         return jsonify_response({"error": "Expert system not available"}), 404
     except ValueError as exc:

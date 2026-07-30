@@ -58,18 +58,17 @@ def chat_token_cost(usage: Any, model_name: str) -> float:
             + cache_creation / 1_000_000 * cache_rates["cache_write"]
             + cache_read / 1_000_000 * cache_rates["cache_read"]
         )
+    prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
+    completion_tokens = getattr(usage, "completion_tokens", 0) or 0
     try:
         from deepr.providers.registry import get_token_pricing
 
-        prices = get_token_pricing(model_name)
+        prices = get_token_pricing(model_name, input_tokens=int(prompt_tokens))
         input_price = prices.get("input", _DEFAULT_CHAT_INPUT_PRICE_PER_1M)
         output_price = prices.get("output", _DEFAULT_CHAT_OUTPUT_PRICE_PER_1M)
     except Exception:
         input_price = _DEFAULT_CHAT_INPUT_PRICE_PER_1M
         output_price = _DEFAULT_CHAT_OUTPUT_PRICE_PER_1M
-    prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
-    completion_tokens = getattr(usage, "completion_tokens", 0) or 0
-
     cached_tokens = 0
     details = getattr(usage, "prompt_tokens_details", None)
     if details is not None:

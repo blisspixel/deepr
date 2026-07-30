@@ -30,6 +30,7 @@ class BenchmarkCostReservation:
     cost_ceiling: float
     operation: str
     sequence: int
+    dispatch_binding_id: str
     metadata: dict[str, object]
 
 
@@ -50,8 +51,8 @@ class BenchmarkSpendGuard:
         self.budget = float(budget)
         self.run_id = run_id or uuid.uuid4().hex
         self._ledger = ledger or CostLedger()
-        self._max_daily = float(config.get("max_daily_cost", 25.0))
-        self._max_monthly = float(config.get("max_monthly_cost", 200.0))
+        self._max_daily = float(config.get("max_daily_cost", 2.0))
+        self._max_monthly = float(config.get("max_monthly_cost", 5.0))
         self._lock = threading.Lock()
         self._scheduled_cost = 0.0
         self._sequence = 0
@@ -97,6 +98,7 @@ class BenchmarkSpendGuard:
             self._scheduled_cost = projected
 
         reservation_id = uuid.uuid4().hex[:16]
+        dispatch_binding_id = uuid.uuid4().hex + uuid.uuid4().hex
         job_id = f"benchmark-{self.run_id}-{sequence}"
         try:
             self._store.reserve(
@@ -105,6 +107,9 @@ class BenchmarkSpendGuard:
                 reserved_cost=cost_ceiling,
                 max_daily_cost=self._max_daily,
                 max_monthly_cost=self._max_monthly,
+                provider=provider,
+                model=model,
+                dispatch_binding_id=dispatch_binding_id,
             )
         except ResearchReservationLimitExceeded as exc:
             with self._lock:
@@ -123,6 +128,7 @@ class BenchmarkSpendGuard:
             cost_ceiling=cost_ceiling,
             operation=operation,
             sequence=sequence,
+            dispatch_binding_id=dispatch_binding_id,
             metadata=dict(metadata or {}),
         )
 
@@ -135,6 +141,9 @@ class BenchmarkSpendGuard:
             "status": status,
             "cost_basis": "conservative_call_ceiling",
             "actual_cost_reported": False,
+            "cost_reservation_id": reservation.reservation_id,
+            "cost_reservation_job_id": reservation.job_id,
+            "cost_reservation_dispatch_binding_id": reservation.dispatch_binding_id,
         }
         idempotency_key = f"job:{reservation.job_id}:completion"
 
@@ -151,14 +160,31 @@ class BenchmarkSpendGuard:
                 idempotency_key=idempotency_key,
             )
 
-        outcome = self._store.settle(reservation.reservation_id, reservation.cost_ceiling, record)
+        outcome = self._store.settle(
+            reservation.reservation_id,
+            reservation.cost_ceiling,
+            record,
+            job_id=reservation.job_id,
+            reserved_cost=reservation.cost_ceiling,
+            provider=reservation.provider,
+            model=reservation.model,
+            dispatch_binding_id=reservation.dispatch_binding_id,
+            request_envelope_sha256=None,
+        )
         if outcome == "missing":
             record()
 
     def mark_provider_work(self, reservation: BenchmarkCostReservation) -> None:
         """Re-check current authority and make the hold non-refundable."""
         try:
-            self._store.mark_provider_work_may_have_run(reservation.reservation_id)
+            self._store.mark_provider_work_may_have_run(
+                reservation.reservation_id,
+                provider=reservation.provider,
+                model=reservation.model,
+                job_id=reservation.job_id,
+                reserved_cost=reservation.cost_ceiling,
+                dispatch_binding_id=reservation.dispatch_binding_id,
+            )
         except ResearchReservationLimitExceeded as exc:
             raise BenchmarkBudgetExceeded(str(exc)) from exc
 

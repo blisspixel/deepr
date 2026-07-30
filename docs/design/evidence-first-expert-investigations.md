@@ -49,7 +49,7 @@ The target interaction is:
 2. Add any combination of inline context, links, files, and folders.
 3. Select two to five existing experts, with three as the first pilot.
 4. Select `local`, an explicit `plan:<id>`, or a metered API capacity policy.
-5. Set one total dollar ceiling, including `$0` or `$10`.
+5. Set one total dollar ceiling, including `$0` or `$5`.
 6. Preview the exact plan and worst-case non-dollar limits before execution.
 7. Run, pause, resume, inspect, or cancel the investigation.
 8. Receive a cited answer plus agreements, unresolved disagreements, minority
@@ -281,8 +281,8 @@ and never silently pads it with generic personas.
 ## One capacity envelope
 
 Every investigation has one parent envelope shared by all experts, phases,
-retries, retrieval, checking, synthesis, and optional learning. A `$10` limit
-means `$10` total, not `$10` per expert.
+retries, retrieval, checking, synthesis, and optional learning. A `$5` limit
+means `$5` total, not `$5` per expert.
 
 The parent fixes at least:
 
@@ -328,7 +328,7 @@ adjustments after cancellation or exhaustion.
   settlement for every provider call before fan-out begins.
 - Has no unpriced child call and no provider fallback outside the plan.
 - Refuses execution if the worst-case admitted estimate exceeds the parent
-  ceiling. A user-supplied `$10` cap is a hard stop, not a target.
+  ceiling. A user-supplied `$5` cap is a hard stop, not a target.
 
 `hybrid` is deferred until each single-class path passes. The intended `$0`
 quality path is then an explicit per-phase map, for example local research with
@@ -763,7 +763,7 @@ larger.
 
 - Admit metered execution only after parent reservation and settlement cover
   every child call and retry.
-- Keep a `$10` run below one total hard ceiling.
+- Keep a `$5` run below one total hard ceiling.
 - Consider `verified-auto` only after held-out longitudinal gain, memory poison,
   and negative-transfer gates pass. These are separate admission decisions.
 
@@ -865,7 +865,7 @@ The local pilot is usable only when all of the following hold:
   checker, synthesis, and learning call;
 - `--capacity local --budget-usd 0` cannot reach a metered provider;
 - an explicit plan run cannot reach a different plan or API backend;
-- a `$10` API run cannot reserve or settle more than `$10` across the roster;
+- a `$5` API run cannot reserve or settle more than `$5` across the roster;
 - restart, pause, cancellation, retry, and replay preserve idempotency and cost;
 - every final factual claim traces to supplied or retrieved source material, or
   is explicitly labeled inference or unsupported;

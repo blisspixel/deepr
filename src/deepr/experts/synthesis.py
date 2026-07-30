@@ -213,7 +213,10 @@ class KnowledgeSynthesizer:
     ) -> Any:
         """Run one synthesis call inside a provider-enforced cost envelope."""
         from deepr.experts.report_absorber_costs import bounded_metered_completion_kwargs
+        from deepr.providers.dispatch_authority import require_official_paid_client
         from deepr.services.metered_call import execute_reserved_async_call
+
+        require_official_paid_client(self.client, "openai")
 
         request: dict[str, Any] = {
             "model": _SYNTHESIS_MODEL,
@@ -236,6 +239,7 @@ class KnowledgeSynthesizer:
             source=source,
             max_cost_per_job=worst_case_cost,
             call=lambda: self.client.chat.completions.create(**kwargs),
+            request_envelope=kwargs,
         )
 
     async def synthesize_new_knowledge(

@@ -4,12 +4,26 @@ from datetime import UTC, datetime
 
 import pytest
 
+from deepr.services.research_bounds import ResearchRequestBoundsError
 from deepr.storage.base import StorageError
-from deepr.storage.blob import AzureBlobStorage
+from deepr.storage.blob import AzureBlobStorage, BlobServiceClient
 
 
 def _storage_without_client() -> AzureBlobStorage:
     return AzureBlobStorage.__new__(AzureBlobStorage)
+
+
+def test_blob_constructor_blocks_before_cloud_client_creation(monkeypatch):
+    monkeypatch.setattr(
+        BlobServiceClient,
+        "from_connection_string",
+        lambda *_args, **_kwargs: pytest.fail("cloud client must not be constructed"),
+    )
+
+    with pytest.raises(ResearchRequestBoundsError) as exc_info:
+        AzureBlobStorage(connection_string="DefaultEndpointsProtocol=https;AccountName=untrusted")
+
+    assert exc_info.value.code == "research_file_storage_unbounded"
 
 
 class _FakeBlob:
@@ -79,7 +93,7 @@ def test_blob_filename_rejects_path_components(filename: str):
 
 
 @pytest.mark.asyncio
-async def test_list_reports_skips_malformed_legacy_blob_names():
+async def test_blob_list_blocks_before_existing_container_use():
     storage = _storage_without_client()
     storage.container_client = _FakeContainer(
         [
@@ -91,6 +105,7 @@ async def test_list_reports_skips_malformed_legacy_blob_names():
         ]
     )
 
-    reports = await storage.list_reports()
+    with pytest.raises(ResearchRequestBoundsError) as exc_info:
+        await storage.list_reports()
 
-    assert [(report.job_id, report.filename) for report in reports] == [("job-1", "report.md")]
+    assert exc_info.value.code == "research_file_storage_unbounded"

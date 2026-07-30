@@ -2,30 +2,29 @@
 
 Target: v2.18. Roadmap: Phase 5 (promoted from backlog 2026-06-11 -
 "cloud-hosted autopilots cannot call a stdio server on a laptop").
-Status: design, with the first versioned handoff contract, HTTP serve path,
-scoped-key, budget, rate-limit, audit primitives, hosted reverse-proxy recipe,
-local remote-smoke command, audit review CLI, HTTP concurrency cap, remote-audit
-schema, Azure Container Apps template, AWS ECS Fargate template, and GCP Cloud
-Run template, and Cloudflare Worker edge ingress recipe shipped. A
-token-redacted registration manifest now packages endpoint metadata and optional
-smoke results before live platform registration.
+Status: local inbound foundation only. The versioned handoff contract, loopback
+HTTP serve path, scoped-key, budget, rate-limit, audit primitives, audit review
+CLI, HTTP concurrency cap, remote-audit schema, and loopback-published container
+are executable. Outbound smoke and remote validation are blocked before network
+access pending independent service-cost authority. Registration-manifest
+generation is network-free. The Azure Container Apps, AWS ECS Fargate, GCP
+Cloud Run, Cloudflare Worker, and reverse-proxy files are mechanically inert
+reference shapes, not supported or live-validated deployments.
 
 ## Problem
 
-Every June-2026 agent platform (Anthropic Managed Agents, Bedrock
-AgentCore, Antigravity Managed Agents, OpenAI Workspace Agents, Microsoft
-Autopilots) runs agents in *their* cloud. Deepr's MCP server is
-stdio-only: reachable from a local Claude Code/Cursor, unreachable from
-the platforms Deepr positions itself for. The architect panel seat called
-this the single highest-leverage item: "the door to the party Deepr says
-it's dressed for."
+At design inception, June-2026 agent platforms ran agents in their clouds while
+Deepr's MCP server was stdio-only. Deepr now has an executable inbound loopback
+HTTP listener and local container, but no supported hosted deployment or
+independently authorized outbound validator. The original reach gap therefore
+remains for cloud-hosted agents.
 
 ## Design
 
 ### Transport
 
 Streamable HTTP (the current MCP spec transport, SSE for streaming) on the
-existing 32-tool server - the tool surface, allowlist, and error model do
+existing MCP server - the tool surface, allowlist, and error model do
 not change. stdio remains the local default; HTTP is an additional listener
 (`deepr mcp serve --http --host 127.0.0.1 --port 8765`), one process, same
 dispatch.
@@ -54,13 +53,14 @@ key_id, mode, tool, args_hash, trace_id, outcome, error_code, expert_names,
 cost_usd}`. The schema is published under `docs/schemas/`.
 `deepr mcp keys` creates, lists, and revokes those key records locally.
 `deepr mcp audit list` and `deepr mcp audit summary` review the local audit log.
-`deepr mcp smoke-http` now verifies a local or proxied HTTP endpoint at `$0`.
+`deepr mcp smoke-http` returns a structured block before opening a connection.
+A remote endpoint, including one addressed through loopback, cannot
+independently prove that processing the request costs `$0`.
 `deepr mcp registration-manifest` emits a
 `deepr-mcp-registration-manifest-v1` packet with endpoint, auth-header,
-scoped-key, audit-schema, and optional smoke-result metadata without serializing
-bearer secrets.
-This is not the full hosted endpoint yet: live registration against a
-third-party agent host remains open.
+scoped-key, audit-schema, and blocked-smoke metadata without serializing bearer
+secrets or probing the endpoint. This is not a supported hosted endpoint: live
+registration and cloud operational validation remain unimplemented.
 
 - **Scoped API keys**, not one shared secret: each key carries
   `{key_id, mode, expert_allowlist, budget, rate_limit}`.
@@ -99,45 +99,40 @@ third-party agent host remains open.
   cost, trace_id, timestamp}` - this doubles as the expert mutation audit
   log the architect review asked for, scoped to remote calls first.
 - No credential, no public socket: the HTTP listener refuses public bind with
-  neither an active scoped key nor the legacy shared-token fallback. Production
-  deployment should use scoped keys.
+  neither an active scoped key nor the legacy shared-token fallback. Any
+  experimental non-loopback use should use scoped keys, but this guard does not
+  make hosted deployment a supported surface.
 
-### Deployment shapes (documented, not productized)
+### Deployment shapes
 
-1. Home-lab / VPS: `deepr mcp --http` behind Caddy with a key per agent
-   platform.
-2. The existing cloud templates gain MCP service variants. The Azure, AWS, and
-   GCP variants live under `deploy/mcp-http/azure-container-apps/`,
-   `deploy/mcp-http/aws-ecs-fargate/`, and
-   `deploy/mcp-http/gcp-cloud-run/`; they run the same hosted MCP container
-   with persistent `/data` and scoped-key/audit state kept durable. The
-   `deploy/mcp-http/cloudflare-worker/` recipe is an edge ingress in front of
-   an existing HTTPS origin, not an execution backend.
+1. Supported locally: `deepr mcp serve --http` on literal loopback, or the
+   loopback-published `deploy/mcp-http/` container with scoped keys and durable
+   local data.
+2. Reference-only: Caddy/nginx public exposure plus Azure, AWS, GCP, and
+   Cloudflare shapes. These files are mechanically inert, are not exercised
+   against cloud accounts, and provide no ledger-bound guarantee for compute,
+   storage, network, logging, gateway, or egress charges.
 3. Hosted-by-Deepr SaaS is explicitly out of scope (non-goal: no SLA).
 
 ## Order of operations
 
 1. Versioned handoff payloads for downstream consumers, callable locally through
    MCP and the dashboard API. Shipped as `deepr-expert-handoff-v1`.
-2. HTTP transport on the existing server (loopback by default, authenticated
-   public bind only). Shipped as `deepr mcp serve --http`.
+2. HTTP transport on the existing server. Loopback use is supported and ships
+   as `deepr mcp serve --http`; a credential-gated reachable bind exists as
+   substrate but is not a hosted-support claim.
 3. Key store + middleware (mode scoping reuses the allowlist; budget uses
    audited remote cost attribution plus deterministic estimates). Key store,
    mode/expert middleware, fail-closed metered-tool estimate coverage, and the
    transport budget guard are shipped.
 4. Audit log + rate limits + concurrency caps + size caps. Audit log, per-key
    rate limits, global HTTP POST concurrency caps, and size caps are shipped.
-5. Deployment guide; loopback restriction lifts only when a credential exists.
-   Shipped as [deploy/mcp-http.md](../../deploy/mcp-http.md) plus
-   `deepr mcp smoke-http` for repeatable local/proxied endpoint validation.
-   The Azure Container Apps, AWS ECS Fargate, GCP Cloud Run, and Cloudflare
-   Worker edge-ingress recipes are also shipped as local deployment artifacts;
-   live cloud registration remains separate.
-6. Platform smoke tests: register the endpoint with one real host
-   (Anthropic Managed Agents connector first) and run the
-   subscribe -> sync -> what_changed loop remotely.
-   Local registration manifests are shipped, but live host registration remains
-   the unproven external test.
+5. Local deployment guide and loopback container. Shipped. Public reverse-proxy
+   and cloud files remain unsupported reference material.
+6. Independent outbound cost authority, then platform smoke tests with one real
+   host. Neither is shipped. `smoke-http`, URL-based `validate-consult`, and
+   both managed and URL-based `validate-conversation` must remain blocked until
+   that authority exists. Local registration manifests are descriptive only.
 
 ## Open questions
 
@@ -149,8 +144,10 @@ third-party agent host remains open.
 
 ## Exit criteria
 
-A cloud-hosted agent (no filesystem access to the machine) completes
-expert consult + sync round-trips against a TLS endpoint using a scoped
-key; a READ_ONLY key provably cannot mutate; every remote call appears in
-the audit log with cost attribution; revocation takes effect without
-restart.
+Future hosted support exits design only when a cloud-hosted agent with no
+filesystem access completes consult and sync round-trips against a TLS endpoint
+using a scoped key, a READ_ONLY key provably cannot mutate, every remote call
+appears in both required audit and cost authority records, revocation takes
+effect without restart, and the deployment's external service costs are bounded
+independently of provider self-report. None of these hosted exit criteria is
+currently claimed.

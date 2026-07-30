@@ -68,14 +68,23 @@ class FakeCostState:
 class FakeSamplingClient:
     """Fake client that does NOT support sampling (returns None)."""
 
+    def __init__(self, result: dict[str, Any] | None = None) -> None:
+        self.calls = 0
+        self.result = result
+
     async def create_message(self, prompt: str, max_tokens: int) -> dict[str, Any] | None:
-        return None
+        self.calls += 1
+        return self.result
 
 
 class FakeFallbackProvider:
     """Fake fallback provider."""
 
+    def __init__(self) -> None:
+        self.calls = 0
+
     async def complete(self, prompt: str, max_tokens: int) -> str:
+        self.calls += 1
         return f"fallback:{prompt[:20]}"
 
 
@@ -221,6 +230,18 @@ class TestSamplingFallback:
         with pytest.raises(SamplingFallbackDisabledError, match="durable reservation"):
             await handler.sample(request)
 
+        assert fallback.calls == 0
+
+    @pytest.mark.asyncio
+    async def test_supported_host_is_blocked_before_sampling_dispatch(self) -> None:
+        client = FakeSamplingClient({"content": "answer", "model": "remote-metered-model"})
+        handler = SamplingHandler(client=client, trace_log=FakeTraceLog())
+
+        with pytest.raises(SamplingFallbackDisabledError, match="exact capacity"):
+            await handler.sample(SamplingRequest(prompt="Consult the host"))
+
+        assert client.calls == 0
+
     @pytest.mark.asyncio
     async def test_fallback_when_client_returns_none(self) -> None:
         """An unsupported host never triggers an unaccounted provider call."""
@@ -232,6 +253,9 @@ class TestSamplingFallback:
         request = SamplingRequest(prompt="Synthesize findings")
         with pytest.raises(SamplingFallbackDisabledError, match="durable reservation"):
             await handler.sample(request)
+
+        assert client.calls == 0
+        assert fallback.calls == 0
 
     @pytest.mark.asyncio
     async def test_trace_is_not_falsely_recorded_when_fallback_is_blocked(self) -> None:

@@ -79,9 +79,10 @@ def test_loop_status_renders_capacity_outlook():
 
     assert result.exit_code == 0
     assert "Next-run capacity" in result.output
-    # sync has local capacity admitted; reflect falls to metered.
+    # sync has local capacity; reflect waits rather than falling through to paid capacity.
     assert "qwen-local" in result.output
-    assert "metered budget" in result.output
+    assert "no automatic cheap capacity admitted" in result.output
+    assert "metered budget" not in result.output
 
 
 def test_loop_status_escapes_markup_in_model_names():

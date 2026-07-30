@@ -83,7 +83,7 @@ def generate_expert_portrait_response(
             )
             from deepr.web.metered_expert_gate import metered_expert_mutation_block
 
-            safe_alternative = "set DEEPR_LOCAL_IMAGE_URL and request provider=local"
+            safe_alternative = "no attested zero-dollar portrait backend is currently available"
             try:
                 require_metered_expert_mutation("api_expert_portrait", safe_alternative=safe_alternative)
             except MeteredExpertMutationDisabledError:

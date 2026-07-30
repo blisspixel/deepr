@@ -10,7 +10,7 @@ No static personas. Each question gets a custom dream team.
 import json
 import logging
 import os
-from typing import Any
+from typing import Any, cast
 
 from openai import OpenAI
 
@@ -41,7 +41,13 @@ class TeamArchitect:
         if not self.api_key:
             raise ValueError("OPENAI_API_KEY not found")
 
-        self.client = OpenAI(api_key=self.api_key, max_retries=0)
+        from deepr.providers.dispatch_authority import default_paid_endpoint
+
+        self.client = OpenAI(
+            api_key=self.api_key,
+            base_url=default_paid_endpoint("openai"),
+            max_retries=0,
+        )
         self.model = model
 
     def design_team(
@@ -98,18 +104,31 @@ class TeamArchitect:
 
         system_prompt = "You are a research team architect. Design optimal teams with diverse perspectives."
         envelope = bounded_chat_envelope(
+            provider="openai",
             model=self.model,
             prompt_parts=(system_prompt, prompt),
             budget_usd=0.50,
             maximum_output_tokens=3_000,
         )
 
+        from deepr.providers.dispatch_authority import require_official_paid_client
+
+        require_official_paid_client(self.client, "openai")
         response = execute_reserved_sync_call(
             operation_prefix="team-design",
             provider="openai",
             model=self.model,
             source="services.team_architect.design_team",
             max_cost_per_job=envelope.cost_usd,
+            request_envelope={
+                "model": self.model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt},
+                ],
+                "response_format": {"type": "json_object"},
+                "max_completion_tokens": envelope.output_tokens,
+            },
             call=lambda: self.client.chat.completions.create(
                 model=self.model,
                 messages=[
@@ -124,8 +143,8 @@ class TeamArchitect:
             ),
         )
 
-        result = json.loads(response.choices[0].message.content or "{}")
-        return result.get("team", [])
+        result = cast(dict[str, Any], json.loads(response.choices[0].message.content or "{}"))
+        return cast(list[dict[str, Any]], result.get("team", []))
 
     def _research_company_people(self, company: str) -> dict[str, Any] | None:
         """
@@ -179,18 +198,31 @@ Only include people you find with actual research. If unable to find information
 
             system_prompt = "You are a research analyst. Find factual information about company leadership."
             envelope = bounded_chat_envelope(
+                provider="openai",
                 model="gpt-5",
                 prompt_parts=(system_prompt, prompt),
                 budget_usd=0.50,
                 maximum_output_tokens=3_000,
             )
 
+            from deepr.providers.dispatch_authority import require_official_paid_client
+
+            require_official_paid_client(self.client, "openai")
             response = execute_reserved_sync_call(
                 operation_prefix="company-leadership",
                 provider="openai",
                 model="gpt-5",
                 source="services.team_architect.research_company_people",
                 max_cost_per_job=envelope.cost_usd,
+                request_envelope={
+                    "model": "gpt-5",
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "response_format": {"type": "json_object"},
+                    "max_completion_tokens": envelope.output_tokens,
+                },
                 call=lambda: self.client.chat.completions.create(
                     model="gpt-5",
                     messages=[
@@ -205,7 +237,7 @@ Only include people you find with actual research. If unable to find information
                 ),
             )
 
-            return json.loads(response.choices[0].message.content or "{}")
+            return cast(dict[str, Any], json.loads(response.choices[0].message.content or "{}"))
         except Exception as e:
             logger.warning("Could not research company people: %s", e)
             return None
@@ -340,7 +372,13 @@ class TeamSynthesizer:
         if not self.api_key:
             raise ValueError("OPENAI_API_KEY not found")
 
-        self.client = OpenAI(api_key=self.api_key, max_retries=0)
+        from deepr.providers.dispatch_authority import default_paid_endpoint
+
+        self.client = OpenAI(
+            api_key=self.api_key,
+            base_url=default_paid_endpoint("openai"),
+            max_retries=0,
+        )
         self.model = model
 
     def synthesize_with_conflict_analysis(self, question: str, team_results: list[dict[str, Any]]) -> str:
@@ -364,18 +402,30 @@ class TeamSynthesizer:
             "Make conflicts explicit. Attribute findings to team members."
         )
         envelope = bounded_chat_envelope(
+            provider="openai",
             model=self.model,
             prompt_parts=(system_prompt, prompt),
             budget_usd=0.50,
             maximum_output_tokens=5_000,
         )
 
+        from deepr.providers.dispatch_authority import require_official_paid_client
+
+        require_official_paid_client(self.client, "openai")
         response = execute_reserved_sync_call(
             operation_prefix="team-synthesis",
             provider="openai",
             model=self.model,
             source="services.team_architect.synthesize_with_conflict_analysis",
             max_cost_per_job=envelope.cost_usd,
+            request_envelope={
+                "model": self.model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt},
+                ],
+                "max_completion_tokens": envelope.output_tokens,
+            },
             call=lambda: self.client.chat.completions.create(
                 model=self.model,
                 messages=[

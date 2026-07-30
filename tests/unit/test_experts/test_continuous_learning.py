@@ -175,7 +175,10 @@ class TestTriggerBackgroundSynthesis:
                 initial_trace_count = len(session.reasoning_trace)
 
                 with patch("deepr.experts.chat.ExpertStore") as mock_store:
-                    with pytest.raises(MeteredExpertChatDisabledError, match="durable reserve"):
+                    with pytest.raises(
+                        MeteredExpertChatDisabledError,
+                        match="provider-enforceable maximum charge",
+                    ):
                         await session._trigger_background_synthesis()
 
                     mock_store.assert_not_called()

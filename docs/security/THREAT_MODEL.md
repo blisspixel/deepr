@@ -1,6 +1,6 @@
 # Deepr Threat Model
 
-Status: current with Deepr v2.39.0. Last reviewed: 2026-07-28.
+Status: current with Deepr v2.40.0. Last reviewed: 2026-07-29.
 
 This document is the repository-scoped threat model for Deepr. It is intended
 for security reviews, design reviews, and future bug discovery. It should stay
@@ -107,6 +107,11 @@ The main boundaries are:
   plan-quota capacity may be `$0` inside Deepr but still consume hardware,
   subscription quota, or external credits. API and metered-at-margin paths are
   premium and must remain explicit.
+- **Local label to remote model execution.** An Ollama-compatible URL, model
+  tag, or SDK object is not proof of owned local inference. Local-only graph
+  work requires literal loopback, stable config-level cloud disablement, exact
+  materialized GGUF provenance, credential-free transport, and no proxy,
+  redirect, retry, tool, retrieval, plan, or API fallback.
 - **Generated artifacts to downstream agent action.** Handoff, OKF, report,
   A2A, and MCP artifacts are derived views. They may inform another agent but
   are not the canonical expert store and must carry schema, trace, cost, and
@@ -287,6 +292,11 @@ Relevant attacker stories:
   native shell tools outside Deepr's intended answer-only capability.
 - A provider returns missing usage data and Deepr settles a metered call as
   `$0`.
+- A direct adapter or internal implementation call bypasses the durable paid
+  reservation, substitutes another provider object, mutates the request, or
+  reuses a prior dispatch grant.
+- A caller injects an arbitrary model client and labels it local, plan quota,
+  or zero dollars without proving the capacity source.
 - A cache pre-warm or image-generation path causes silent recurring cost.
 - A metered-at-margin CLI is auto-routed as if it were free quota.
 - A subscription CLI has paid extra usage enabled, so a request that appears
@@ -297,6 +307,9 @@ Relevant attacker stories:
   disabled overage without authenticated provider evidence.
 - A forged, oversized, or secret-bearing provider identifier enters cost
   metadata and frustrates invoice joins or leaks sensitive state.
+- A legacy ledger, reservation database, checkout cap, or canonical source
+  registry is truncated or restored to an older state so past exposure
+  disappears.
 
 Existing controls:
 
@@ -306,6 +319,12 @@ Existing controls:
 - `src/deepr/observability/cost_ledger.py` writes new append-only cost events
   under one stable per-user cost root and strictly includes legacy source-
   checkout cost state during migration.
+- The canonical cost root has a durable random identity, monotonic registry
+  prefix, ledger and reservation high-water evidence, strict duplicate-key
+  parsing, and monotonic checkout `.env` caps. Missing, replaced, truncated, or
+  widened registered state blocks paid authority. Whole-root rollback still
+  requires explicit frozen-state reauthorization because there is no
+  independent rollback oracle.
 - Strict budget and cost views include canonical settled spend plus durable
   active holds and report zero authorizable headroom when money state cannot be
   read. Central metered wrappers preserve bounded provider HTTP request and
@@ -323,14 +342,22 @@ Existing controls:
 - `src/deepr/backends/plan_quota/client.py` records `$0` Deepr cost events and
   quota observations for plan CLI calls and probes.
 - Registry pricing and provider-specific usage settlement account for cached
-  token buckets and conservative fallback rates where the registry lookup
-  cannot safely price a metered path.
+  token buckets, canonical queued-model rates, and provable paid-tool calls.
+  Missing or inconsistent response model, token, tool, or settlement evidence
+  consumes the full reservation or freezes paid dispatch.
+- Paid research persists an internal random binding plus provider, model, job,
+  ceiling, and frozen request digest. Only the durable dispatch transition can
+  mint the opaque one-use task-local grant accepted by the non-overridable
+  provider base. Public queue metadata strips the binding.
+- Local and plan-quota model factories mint private process-local zero-dollar
+  proof only after admission. Arbitrary client types, capacity labels, and
+  numeric zero estimates are not dispatch authority.
 - Offline provider-billing reconciliation validates bounded normalized input,
   separates capacity classes, joins exact receipt identities, stores immutable
   applied evidence, and freezes on non-clean or failed apply. Paid account
   evidence is non-authoritative unless a provider-specific authenticated source
   verifier and current account, scope, and credential resolver both succeed.
-  Neither production adapter is installed in v2.39, so metered dispatch remains
+  Neither production adapter is installed in v2.40, so metered dispatch remains
   blocked.
 - Image generation auto-selects only local `$0` image endpoints by default.
   Premium image APIs require explicit provider choice or the single premium

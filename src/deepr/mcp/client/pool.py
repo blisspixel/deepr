@@ -1,13 +1,12 @@
-"""MCP client pool - manages multiple server connections with health monitoring.
+"""Release-blocked outbound MCP profile inventory and health state.
 
-Provides parallel dispatch across MCP servers, circuit breaker per server,
-automatic fallback, budget/trace/progress integration, and aggregated health.
+Connection and tool dispatch remain disabled until Deepr can prove immutable
+executable provenance and enforce durable cost reservation and settlement.
 """
 
 from __future__ import annotations
 
 import logging
-from datetime import UTC
 from typing import Any
 
 from deepr.mcp.client.base import MCPClient, MCPClientError, MCPToolResult
@@ -22,27 +21,20 @@ from deepr.mcp.state.async_dispatcher import AsyncTaskDispatcher
 
 logger = logging.getLogger(__name__)
 
+_OUTBOUND_MCP_CONNECTION_BLOCK = (
+    "Outbound MCP connection is disabled until Deepr can bind immutable executable provenance, "
+    "prove zero-dollar behavior, and durably account for every metered tool."
+)
+
 
 class MCPClientPool:
-    """Manages a pool of MCP client connections.
+    """Manage profiles while failing closed at every outbound boundary.
 
     Features:
     - Named client registration from profiles (skips disabled)
-    - Parallel tool dispatch across multiple servers
-    - Per-server circuit breakers with half-open probe
-    - Budget check, trace stitching, and progress relay
-    - Aggregated health reporting
-
-    Usage::
-
-        pool = MCPClientPool()
-        pool.register(profile)
-        await pool.connect_all()
-
-        result = await pool.call_tool("server-name", "tool-name", {"key": "val"})
-        results = await pool.broadcast_tool("search", {"query": "test"})
-
-        await pool.close_all()
+    - Single-attempt client construction for future audited use
+    - Fail-closed connection, direct call, and broadcast entry points
+    - Aggregated non-connected health reporting
     """
 
     def __init__(
@@ -76,7 +68,9 @@ class MCPClientPool:
             args=profile.args,
             env=profile.env,
             timeout=profile.timeout,
-            max_retries=profile.max_retries,
+            # A logical pool call can never replay an ambiguous tool request.
+            # Profiles cannot relax this boundary.
+            max_retries=1,
             retry_delay=profile.retry_delay,
         )
         self._circuits[profile.name] = CircuitBreaker(
@@ -108,23 +102,15 @@ class MCPClientPool:
     # ------------------------------------------------------------------
 
     async def connect(self, name: str) -> None:
-        """Connect a specific server by name."""
+        """Refuse connection until the outbound release gate is implemented."""
         client = self._clients.get(name)
         if not client:
             raise MCPClientError(f"Unknown server: {name}", server_name=name)
-        await client.connect()
+        raise MCPClientError(_OUTBOUND_MCP_CONNECTION_BLOCK, server_name=name)
 
     async def connect_all(self) -> dict[str, str | None]:
-        """Connect all registered (enabled) servers. Returns {name: error_or_none}."""
-        results: dict[str, str | None] = {}
-        for name, client in self._clients.items():
-            try:
-                await client.connect()
-                results[name] = None
-            except MCPClientError as e:
-                results[name] = str(e)
-                logger.warning("Failed to connect MCP server '%s': %s", name, e)
-        return results
+        """Return the release-block reason for every registered server."""
+        return {name: _OUTBOUND_MCP_CONNECTION_BLOCK for name in self._clients}
 
     async def close(self, name: str) -> None:
         """Close a specific server connection."""
@@ -151,15 +137,7 @@ class MCPClientPool:
         estimated_cost: float = 0.0,
         session_remaining: float = 0.0,
     ) -> MCPToolResult | StructuredError:
-        """Call a tool on a specific server with budget, trace, and circuit breaker.
-
-        Integration order:
-        1. Budget check (if propagator configured)
-        2. Circuit breaker check
-        3. Trace span creation (if stitcher configured)
-        4. Dispatch call
-        5. Record cost + complete span
-        """
+        """Refuse outbound MCP until executable provenance and accounting exist."""
         client = self._clients.get(server_name)
         if not client:
             return MCPToolResult(
@@ -169,112 +147,18 @@ class MCPClientPool:
                 trace_id=trace_id,
             )
 
-        profile = self._profiles.get(server_name)
-
-        # Outbound MCP is a separate billing authority. A caller estimate,
-        # approval, or remote self-reported cost cannot prove a provider-side
-        # maximum. Until a tool has an enforceable reservation contract, only
-        # tools explicitly curated as free may cross this dispatch boundary.
-        if profile is None or not isinstance(profile.free_tools, list) or tool_name not in profile.free_tools:
-            return StructuredError(
-                code=MCPErrorCode.COST_ACCOUNTING_UNAVAILABLE,
-                message=(
-                    f"Outbound MCP tool '{server_name}/{tool_name}' is not proven free; "
-                    "execution is disabled until deterministic maximum-cost reservation and settlement are available."
-                ),
-                retryable=False,
-                fallback_suggestion="Use a tool declared in profile.free_tools or run the provider through a Deepr-owned budget gate.",
-            )
-
-        # 1. Budget check
-        if self._budget_propagator and profile and estimated_cost > 0:
-            decision = self._budget_propagator.check_budget(profile, estimated_cost, session_remaining)
-            if not decision.allowed:
-                return StructuredError(
-                    code=MCPErrorCode.BUDGET_EXCEEDED,
-                    message=decision.reason,
-                    retryable=False,
-                    budget_shortfall=decision.shortfall,
-                )
-
-        # 2. Circuit breaker check
-        circuit = self._circuits.get(server_name)
-        if circuit and not circuit.is_available():
-            return MCPToolResult(
-                error=f"Circuit breaker open for '{server_name}' - server temporarily unavailable",
-                server_name=server_name,
-                tool_name=tool_name,
-                trace_id=trace_id,
-            )
-
-        # 3. Trace span creation
-        span = None
-        call_args = arguments or {}
-        if self._trace_stitcher and trace_id:
-            span = self._trace_stitcher.create_span(trace_id, server_name, tool_name)
-            call_args = self._trace_stitcher.inject_trace(call_args, span.trace_id, span.span_id)
-
-        # 4. Dispatch
-        result = await client.call_tool(tool_name, call_args, timeout, trace_id)
-
-        # 5. Post-dispatch: circuit breaker update
-        if circuit:
-            if result.ok:
-                circuit.record_success()
-            else:
-                circuit.record_failure()
-
-        # 6. Record cost + complete span. The server-reported cost is
-        # untrusted - a malicious remote MCP server can return ``0`` to
-        # bypass spend tracking, or a negative value to credit budget
-        # back. Clamp to a sane range bounded by the profile's
-        # ``cost_per_call`` (10x ceiling so high-cost tool variants
-        # still record correctly).
-        def _safe_cost(raw_cost: Any) -> float:
-            try:
-                v = float(raw_cost)
-            except (TypeError, ValueError):
-                return 0.0
-            if v < 0:
-                return 0.0
-            ceiling = getattr(profile, "cost_per_call", 1.0) * 10.0 if profile and profile.cost_per_call > 0 else 100.0
-            return min(v, ceiling)
-
-        if self._budget_propagator and profile:
-            actual_cost = _safe_cost(result.raw.get("cost", 0.0)) if result.ok else 0.0
-            if actual_cost > 0:
-                self._budget_propagator.record_cost(server_name, tool_name, actual_cost, trace_id)
-
-        if span and self._trace_stitcher:
-            cost = _safe_cost(result.raw.get("cost", 0.0)) if result.ok else 0.0
-            self._trace_stitcher.complete_span(span, result, cost)
-
-        # Emit a terminal progress event so subscribers learn the call
-        # completed. Round 2/3 audits flagged that ``_progress_notifier``
-        # was stored but never triggered - every subscriber saw zero
-        # events. Server-pushed mid-flight progress frames still need
-        # wiring from ``MCPClient._send_request`` (deferred - would
-        # require threading a callback through the client).
-        if self._progress_notifier is not None:
-            try:
-                from datetime import datetime
-
-                from deepr.mcp.client.progress_notifier import ProgressEvent
-
-                self._progress_notifier.emit(
-                    ProgressEvent(
-                        server_name=server_name,
-                        tool_name=tool_name,
-                        progress_pct=100.0 if result.ok else None,
-                        phase="completed" if result.ok else "error",
-                        elapsed_seconds=(result.latency_ms or 0) / 1000.0,
-                        timestamp=datetime.now(UTC),
-                    )
-                )
-            except Exception:
-                logger.debug("progress_notifier.emit failed", exc_info=True)
-
-        return result
+        return StructuredError(
+            code=MCPErrorCode.COST_ACCOUNTING_UNAVAILABLE,
+            message=(
+                f"Outbound MCP tool '{server_name}/{tool_name}' lacks immutable executable and zero-dollar proof; "
+                "execution is disabled until deterministic maximum-cost reservation and settlement are available."
+            ),
+            retryable=False,
+            fallback_suggestion=(
+                "Use Deepr-owned local or safety-eligible plan-quota capacity, or run metered work through a "
+                "durable Deepr budget gate; profile.free_tools alone cannot authorize dispatch."
+            ),
+        )
 
     async def broadcast_tool(
         self,
@@ -283,10 +167,10 @@ class MCPClientPool:
         server_names: list[str] | None = None,
         trace_id: str = "",
     ) -> list[MCPToolResult]:
-        """Call the same tool on multiple servers concurrently.
+        """Return one release-blocked result per requested server.
 
-        Preserves order of requested servers. Failed servers produce
-        error results in their slot without blocking others.
+        Preserves order so callers get a deterministic explanation for every
+        target without starting a subprocess or reaching a remote endpoint.
         """
         targets = server_names or [name for name, client in self._clients.items() if client.connected]
         if not targets:

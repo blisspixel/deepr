@@ -15,6 +15,7 @@ from types import SimpleNamespace
 import pytest
 
 from deepr.experts.local_research import gather_fresh_context, gather_sources, research_web_local
+from deepr.experts.semantic_model_gate import _mark_zero_dollar_client
 
 
 class FakeToolResult:
@@ -75,7 +76,7 @@ class DelayedFakeBrowser(FakeBrowser):
 class FakeChatClient:
     """Mimics the AsyncOpenAI chat surface used by the synthesizer."""
 
-    def __init__(self, content):
+    def __init__(self, content, *, zero_dollar_proof=True, capacity_source="local"):
         self._content = content
         self.captured = {}
         self.calls = 0
@@ -88,6 +89,8 @@ class FakeChatClient:
             return SimpleNamespace(choices=[SimpleNamespace(message=msg)])
 
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=_create))
+        if zero_dollar_proof:
+            _mark_zero_dollar_client(self, capacity_source=capacity_source)
 
 
 async def test_gather_sources_fetches_full_page_over_snippet():
@@ -196,6 +199,45 @@ async def test_research_web_local_builds_cited_report():
     assert out["fresh_context"]["generation_readiness"]["ready"] is True
     assert out["source_pack"]["source_count"] == 2
     assert all(source["content_hash"] for source in out["source_pack"]["sources"])
+
+
+async def test_research_web_local_rejects_unsealed_client_before_dispatch():
+    url = "https://example.com/release"
+    client = FakeChatClient("must not run", zero_dollar_proof=False)
+
+    out = await research_web_local(
+        f"Review {url}",
+        model="local-model",
+        client=client,
+        search=FakeSearch([], success=False),
+        browser=FakeBrowser({url: "official release content " * 20}),
+        max_pages=1,
+    )
+
+    assert client.calls == 0
+    assert out["answer"] == ""
+    assert "zero-dollar capacity proof" in out["error"]
+
+
+async def test_research_web_local_accepts_minted_plan_quota_client():
+    url = "https://example.com/release"
+    client = FakeChatClient(
+        "A release changed [S1].",
+        capacity_source="plan_quota:claude-code",
+    )
+
+    out = await research_web_local(
+        f"Review {url}",
+        model="sonnet",
+        client=client,
+        search=FakeSearch([], success=False),
+        browser=FakeBrowser({url: "official release content " * 20}),
+        max_pages=1,
+    )
+
+    assert client.calls == 1
+    assert out["cost"] == 0.0
+    assert out["sources"][0]["url"] == url
 
 
 async def test_research_web_local_errors_without_results():

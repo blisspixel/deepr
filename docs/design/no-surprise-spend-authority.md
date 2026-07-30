@@ -1,7 +1,8 @@
 # No-surprise spend authority and bounded workflow graphs
 
-Status: accepted; phases 1 and 2 implemented, phases 4 and 5 partially
-implemented, 2026-07-27
+Status: accepted; phases 1, 2, and the paid provider boundary implemented;
+graph parent reservations and provider-authenticated account controls remain
+gated, 2026-07-29
 
 ## Decision
 
@@ -14,6 +15,10 @@ malformed, unreadable, or contradictory policy fails closed.
 Local owned capacity and safety-eligible plan quota remain separate capacity
 classes. They may report `$0` at the margin, but they never authorize a paid API
 fallback. A metered API is selected only by an explicit paid-capacity request.
+Code may label a model client `$0` only through a private process-local proof
+minted by Deepr after the corresponding local or plan-quota admission succeeds.
+Caller labels, a numeric zero estimate, an arbitrary injected client, and a
+compatible SDK type are not zero-dollar authority.
 
 For a workflow graph, the parent must reserve the sum of the runnable branches'
 worst-case envelopes before those branches become queue-eligible. Each child
@@ -78,8 +83,14 @@ Before a paid side effect:
 3. Strictly read canonical settled spend.
 4. Count every active durable hold.
 5. Atomically prove `settled + active + new <= cap` for every window.
-6. Persist the reservation.
-7. Persist a dispatch-intent marker immediately before provider work.
+6. Persist the reservation with a random internal dispatch binding, canonical
+   provider, model, job, and worst-case ceiling.
+7. Freeze the request, atomically bind its canonical SHA-256 digest to that
+   reservation, and persist the dispatch-intent transition immediately before
+   provider work.
+8. Mint one opaque, one-use, task-local grant only after that durable
+   transition succeeds. The grant is bound to the exact provider object,
+   provider, model, reservation, job, and frozen request digest.
 
 After dispatch:
 
@@ -90,6 +101,21 @@ After dispatch:
    paid dispatch until acknowledged.
 5. Preserve raw provider output or a recoverable staging record before marking
    the application workflow complete.
+
+The exported provider base owns the public submission boundary and adapters
+cannot override it. Calling a public adapter, its internal implementation, a
+different provider object, or a changed request without the exact one-use grant
+fails before an SDK request. Queue metadata never exposes the dispatch binding.
+Hosted upload and vector-store creation stay blocked until their complete
+lifecycle cost can use the same authority.
+
+Completed research is priced from the canonical queued model, not a provider
+fallback label. Provable web-search calls and code-interpreter sessions are
+added to token cost. Missing or inconsistent model, usage, or tool evidence
+settles the full reserved ceiling. A missing, refunded, or non-settled durable
+outcome freezes paid dispatch and fails before terminal publication. Immediate
+OpenAI-compatible completions conservatively consume the full reservation
+because that seam does not preserve the admitted tool envelope.
 
 No human confirmation, `--yes`, unrestricted MCP mode, dashboard mutation,
 retry, or model-generated instruction can bypass these invariants.
@@ -120,6 +146,22 @@ depending on package location or current directory. A registered artifact that
 is missing, malformed, or unreadable makes accounting incomplete and blocks
 paid work. Health output distinguishes the primary write path from every
 accounting read path and its contribution.
+
+The canonical root also owns a durable random cost-state identity and a
+monotonic registry-prefix anchor. Each registered ledger records its byte
+high-water mark and prefix digest. Each reservation database records its row
+high-water mark, count, and row digest. Truncation, replacement, missing
+required provenance, duplicate JSON keys, a removed `.env` cap, or a widened
+historical `.env` cap invalidates authority. Editable installs and installed
+wheels therefore retain the same strict money history when they can reach the
+registered artifacts.
+
+This is not an independent rollback oracle. Restoring the entire canonical
+cost root, including its identity and anchors, from one older snapshot can make
+that snapshot internally consistent. After any whole-root restore, paid
+authority must remain frozen and be explicitly reauthorized against current
+provider billing evidence. A future independent monotonic anchor is required
+to detect that class of rollback automatically.
 
 For later invoice reconciliation, supported central metered calls preserve a
 local client correlation ID, a provider HTTP request ID when exposed, and a
@@ -184,8 +226,9 @@ though its provider-invoice cost is `$0`. See
 6. Import provider-authoritative billing evidence and freeze paid work on
    unexplained positive drift. The bounded offline importer and freeze are
    shipped. Keep paid authority blocked until provider-specific authenticated
-   source and credential-identity adapters can prove hard-limit or overage-off
-   posture.
+source and credential-identity adapters can prove hard-limit or overage-off
+   posture. The external hard no-overage ceiling must be no higher than the
+   operator ceiling, and cached evidence is not sufficient for dispatch.
 7. Consolidate registered legacy roots into one lock-protected canonical state
    and bind any future paid authorization to a stable cost-state manifest.
    Root, policy, digest, or migration-status drift must invalidate authority.
@@ -209,7 +252,23 @@ vendor-side pricing change, or taxes outside Deepr's usage ledger.
 Implementation note, 2026-07-28: validated legacy accounting roots persist in
 an append-only home registry shared by editable and installed processes.
 Missing registered state is unknown and fail-closed. Canonical consolidation
-and a cost-state identity remain required before paid authority can be enabled.
+and an independent rollback anchor remain required before paid authority can be
+enabled after a whole-root restore.
+
+Implementation note, 2026-07-29: the canonical root now has a durable identity,
+registry-prefix anchor, ledger and reservation high-water identities, strict
+duplicate-key rejection, and monotonic checkout `.env` caps. Paid research
+reservations persist an internal provider, model, request, job, ceiling, and
+random binding before a one-use provider grant can exist. The provider base
+owns a non-overridable public boundary, direct legacy consensus fan-out is
+disabled, and unproven `$0` injected clients fail before dispatch. Research
+completion uses canonical model pricing, adds provable paid-tool charges, and
+uses the reservation ceiling whenever evidence is ambiguous. Paid APIs remain
+frozen because provider-authenticated account and credential controls are not
+installed. A future unfreeze also requires a live control observation for each
+one-use dispatch, bound to the owned client and exact account scope. Generic
+clients, provider callbacks, retained server context, and unbounded billed tool
+sessions remain disabled.
 
 Each phase is independently fail-closed. A later phase may improve
 availability, reporting, or efficiency, but it must not weaken an earlier
@@ -248,6 +307,28 @@ money invariant.
   attributes. Prompt and response content remain sensitive and are not required
   for cost accounting:
   <https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/>
+- OpenTelemetry moved the GenAI conventions to their own repository by
+  2026-07-29. Deepr should pin the vocabulary it emits and migrate deliberately,
+  not silently follow renamed attributes. The canonical ledger remains the
+  spend authority; telemetry is a derived diagnostic view:
+  <https://github.com/open-telemetry/semantic-conventions-genai>
+- AWS Budgets documentation, checked 2026-07-29, says billing data used for
+  budgets updates at least daily and alerts follow that refresh cadence. Cloud
+  alerts are therefore backstops, not dispatch authorization. Any hosted Deepr
+  deployment must enforce its local reservation ceiling before work and use a
+  provider-side budget action or permission removal only as a second barrier:
+  <https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-best-practices.html>
+  <https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-action-configure.html>
+- GitHub Actions documentation, checked 2026-07-29, says public repositories
+  can use standard GitHub-hosted runners without charge, private repositories
+  consume included minutes and then bill, and a workflow job otherwise has a
+  360-minute default timeout. Deepr therefore pins a timeout on every CI job.
+  A literal `$0` CI posture also requires keeping the repository public or
+  disabling paid Actions and payment authority at the account boundary. GitHub
+  budget alerts alone are not treated as a hard real-time stop:
+  <https://docs.github.com/en/billing/concepts/product-billing/github-actions>
+  <https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idtimeout-minutes>
+  <https://docs.github.com/en/billing/concepts/budgets-and-alerts>
 - xAI pricing and tool-usage documentation, updated July 3 and May 27, 2026 and
   accessed 2026-07-25, state that server-side search is billed per successful
   invocation and that one `max_turns` turn may invoke multiple tools in
@@ -257,8 +338,8 @@ money invariant.
 
 ## Acceptance criteria
 
-- With an operator monthly budget of `$10`, canonical settled spend plus every
-  active hold can never exceed `$10` through any supported paid entry point.
+- With an operator monthly budget of `$5`, canonical settled spend plus every
+  active hold can never exceed `$5` through any supported paid entry point.
 - At or beyond a cap, every new paid reservation fails before client
   construction. The failure remains true under concurrent processes.
 - `budget set 0` and `budget freeze` block all paid dispatch. `budget unfreeze`
@@ -270,5 +351,17 @@ money invariant.
 - Paid fan-out remains disabled until one atomic parent reservation covers all
   runnable branches and completion status accounts for every expected child.
 - Local and plan execution never fall through to paid API after a failure.
+- An injected client that merely claims local, plan, or zero-dollar execution
+  cannot cross a model boundary without an exact Deepr-minted capacity proof.
+- Direct provider methods, adapter implementation methods, mismatched provider
+  objects, altered requests, reused grants, and client-visible binding metadata
+  cannot cross the paid provider boundary.
+- A provider hard no-overage ceiling above the operator ceiling, a cached-only
+  control observation, an injected client, a custom endpoint, a provider
+  webhook, retained server context, or an unbounded billed tool session cannot
+  authorize dispatch.
+- Ambiguous response model, token, tool, or durable settlement evidence consumes
+  the reservation ceiling or freezes paid work. It never settles optimistic
+  zero.
 - Focused concurrency and bypass regression tests pass, followed by the full
   unit, branch coverage, lint, format, type, ratchet, and build gates.

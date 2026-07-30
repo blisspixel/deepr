@@ -60,8 +60,8 @@ class TestUnifiedConfig:
 
     def test_budget_limits(self):
         config = UnifiedConfig()
-        assert config.budget_limits["daily_limit"] == 10.0
-        assert config.budget_limits["monthly_limit"] == 100.0
+        assert config.budget_limits["daily_limit"] == 2.0
+        assert config.budget_limits["monthly_limit"] == 5.0
 
 
 class TestUnifiedConfigGet:
@@ -73,7 +73,7 @@ class TestUnifiedConfigGet:
 
     def test_get_nested_field(self):
         config = UnifiedConfig()
-        assert config.get("budget_limits.daily_limit") == 10.0
+        assert config.get("budget_limits.daily_limit") == 2.0
 
     def test_get_missing_returns_default(self):
         config = UnifiedConfig()
@@ -314,7 +314,7 @@ class TestUnifiedConfigShow:
         config = UnifiedConfig()
         result = config.show()
         assert "Budget Limits:" in result
-        assert "$10.00" in result
+        assert "$2.00" in result
 
 
 class TestUnifiedConfigSetNested:

@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import json
-import subprocess
-from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
@@ -12,15 +10,12 @@ from click.testing import CliRunner
 from deepr.cli.main import cli
 from deepr.evals.local_compare import (
     CliJudgeCommand,
-    LocalComparisonReport,
     LocalEvalPrompt,
-    LocalJudgeVerdict,
-    LocalModelComparison,
-    LocalPromptResult,
     default_prompts,
     parse_judge_verdict,
     run_local_comparison,
 )
+from deepr.experts.semantic_model_gate import _mark_zero_dollar_client
 
 
 class _FakeMessage:
@@ -63,8 +58,10 @@ class _FakeChat:
 
 
 class _FakeClient:
-    def __init__(self):
+    def __init__(self, *, zero_dollar_proof=True):
         self.chat = _FakeChat()
+        if zero_dollar_proof:
+            _mark_zero_dollar_client(self, capacity_source="local")
 
 
 def test_parse_judge_verdict_accepts_json_with_extra_text():
@@ -104,48 +101,43 @@ async def test_run_local_comparison_scores_models_with_local_judge():
     assert report.to_dict()["comparisons"][0]["cost"] == 0.0
 
 
-async def test_run_local_comparison_scores_models_with_cli_judge(monkeypatch):
-    calls = []
+async def test_run_local_comparison_rejects_unsealed_client_before_dispatch():
+    client = _FakeClient(zero_dollar_proof=False)
 
-    def fake_run(args, **kwargs):
-        calls.append((args, kwargs))
-        prompt_file = Path(args[-1])
-        prompt_text = prompt_file.read_text(encoding="utf-8")
-        assert "Return only JSON" in prompt_text
-        assert "ANSWER:" in prompt_text
-        return subprocess.CompletedProcess(args, 0, '{"score": 0.77, "reason": "cli ok"}', "")
+    with pytest.raises(ValueError, match="zero-dollar capacity proof"):
+        await run_local_comparison(
+            ["good-local"],
+            judge_model="judge",
+            prompts=[default_prompts()[0]],
+            client=client,
+        )
 
-    monkeypatch.setattr("deepr.evals.local_compare.subprocess.run", fake_run)
-
-    report = await run_local_comparison(
-        ["good-local"],
-        judge_command=CliJudgeCommand("judge {prompt_file}", display_name="cli:grok", timeout_seconds=5),
-        prompts=[default_prompts()[0]],
-        client=_FakeClient(),
-    )
-
-    assert report.judge_model == "cli:grok"
-    assert report.cost == 0.0
-    assert report.comparisons[0].average_score == 0.77
-    assert calls
+    assert client.chat.completions.calls == []
 
 
-async def test_run_local_comparison_reports_cli_judge_errors(monkeypatch):
-    def fake_run(args, **kwargs):
-        return subprocess.CompletedProcess(args, 2, "", "quota exhausted")
+async def test_run_local_comparison_blocks_cli_judge_before_local_dispatch():
+    client = _FakeClient()
 
-    monkeypatch.setattr("deepr.evals.local_compare.subprocess.run", fake_run)
+    with pytest.raises(ValueError, match="billing source"):
+        await run_local_comparison(
+            ["good-local"],
+            judge_command=CliJudgeCommand("judge {prompt_file}", display_name="cli:grok", timeout_seconds=5),
+            prompts=[default_prompts()[0]],
+            client=client,
+        )
 
-    report = await run_local_comparison(
-        ["good-local"],
-        judge_command=CliJudgeCommand("judge {prompt_file}", display_name="cli:grok", timeout_seconds=5),
-        prompts=[default_prompts()[0]],
-        client=_FakeClient(),
-    )
+    assert client.chat.completions.calls == []
 
-    result = report.comparisons[0].prompt_results[0]
-    assert result.verdict.score == 0.0
-    assert "CLI judge failed" in result.verdict.reason
+
+async def test_direct_cli_judge_helper_is_quarantined():
+    from deepr.evals.local_compare import _judge_answer_with_cli
+
+    with pytest.raises(RuntimeError, match="total cost"):
+        await _judge_answer_with_cli(
+            CliJudgeCommand("judge {prompt_file}"),
+            prompt=default_prompts()[0],
+            answer="answer",
+        )
 
 
 async def test_run_local_comparison_reports_candidate_errors():
@@ -196,38 +188,20 @@ def test_eval_local_cli_requires_cli_judge_confirmation():
     result = CliRunner().invoke(cli, ["eval", "local", "--judge-cli", "grok"])
 
     assert result.exit_code != 0
-    assert "--allow-cli-judge" in result.output
+    assert "billing source" in result.output
 
 
-def test_eval_local_cli_grok_judge_json(monkeypatch):
+def test_eval_local_cli_grok_judge_remains_blocked_with_legacy_allow_flag(monkeypatch):
     from deepr.backends import capacity
     from deepr.evals import local_compare
 
     monkeypatch.setattr(capacity, "available_local_models", lambda: ["good-local"])
 
-    async def fake_run_local_comparison(models, *, judge_model, judge_command, prompts, prompt_set):
-        assert models == ["good-local"]
-        assert judge_model == ""
-        assert judge_command.display_name == "cli:grok"
-        return LocalComparisonReport(
-            prompt_set=prompt_set,
-            judge_model=judge_command.display_name,
-            prompts=tuple(prompts),
-            comparisons=(
-                LocalModelComparison(
-                    model="good-local",
-                    prompt_results=(
-                        LocalPromptResult(
-                            prompt_id=prompts[0].prompt_id,
-                            task_class=prompts[0].task_class,
-                            answer="answer",
-                            latency_ms=1,
-                            verdict=LocalJudgeVerdict(score=0.8, reason="cli ok", raw="{}"),
-                        ),
-                    ),
-                ),
-            ),
-        )
+    called = False
+
+    async def fake_run_local_comparison(*_args, **_kwargs):
+        nonlocal called
+        called = True
 
     monkeypatch.setattr(local_compare, "run_local_comparison", fake_run_local_comparison)
 
@@ -236,7 +210,6 @@ def test_eval_local_cli_grok_judge_json(monkeypatch):
         ["eval", "local", "--model", "good-local", "--judge-cli", "grok", "--allow-cli-judge", "--json"],
     )
 
-    assert result.exit_code == 0
-    data = json.loads(result.output)
-    assert data["judge_model"] == "cli:grok"
-    assert data["winner"] == "good-local"
+    assert result.exit_code != 0
+    assert "total cost" in result.output
+    assert called is False

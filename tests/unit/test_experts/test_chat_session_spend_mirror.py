@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from deepr.experts.chat_capacity import MeteredExpertChatDisabledError
 from deepr.experts.chat_metered import mirror_chat_session_spend
 from deepr.experts.chat_research_ops import reconcile_deep_research_job
 from deepr.experts.cost_safety import CostSession, get_cost_safety_manager, reset_cost_safety_manager
@@ -36,7 +37,7 @@ def test_mirror_chat_session_spend_does_not_append_ledger():
 
 
 @pytest.mark.asyncio
-async def test_deep_research_final_usage_is_idempotent_and_charges_delta_only(monkeypatch):
+async def test_deep_research_reconciliation_is_blocked_before_retrieval(monkeypatch):
     from deepr.experts import chat_capacity
 
     monkeypatch.setattr(chat_capacity, "METERED_EXPERT_CHAT_EXECUTION_ENABLED", True)
@@ -62,16 +63,11 @@ async def test_deep_research_final_usage_is_idempotent_and_charges_delta_only(mo
         ),
     )
 
-    first = await reconcile_deep_research_job(session, "resp_1")
-    second = await reconcile_deep_research_job(session, "resp_1")
+    with pytest.raises(MeteredExpertChatDisabledError) as blocked:
+        await reconcile_deep_research_job(session, "resp_1")
 
-    assert first["status"] == "reconciled"
-    assert first["ledger_written"] is True
-    assert second["status"] == "not_pending"
+    assert blocked.value.operation == "expert_chat_deep_research_reconciliation"
+    session.client.responses.retrieve.assert_not_awaited()
     events = [e for e in CostLedger().get_events() if e.operation == "deep_research_final_usage"]
-    assert len(events) == 1
-    assert events[0].idempotency_key == "job:resp_1:final_usage"
-    # Ledger dollar total must be overrun-only (submission already settled the estimate).
-    assert events[0].cost_usd == pytest.approx(first["delta_cost"])
-    assert events[0].cost_usd == pytest.approx(max(0.0, first["actual_cost"] - first["estimated_cost"]))
-    assert session.cost_session.total_cost == pytest.approx(first["delta_cost"])
+    assert events == []
+    assert session.cost_session.total_cost == 0

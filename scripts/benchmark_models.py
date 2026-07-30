@@ -2511,6 +2511,10 @@ def run_validation(registry: dict, spend_guard: BenchmarkSpendGuard, tier: str =
 
     Chat + News: cheap validation. Research: skipped by default (costs $0.50+).
     """
+    require_metered_expert_mutation(
+        "api_provider_benchmark_validation",
+        safe_alternative="use --dry-run or inspect configured key presence offline",
+    )
     key_status = check_api_keys()
     validation_succeeded = True
 
@@ -2922,6 +2926,10 @@ unlock them.
 
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
+
+    if args.dry_run and args.validate:
+        print("  BLOCKED: --dry-run and --validate cannot be combined; validation can dispatch paid provider work")
+        sys.exit(2)
 
     # Regenerate rankings from stored data and exit ($0, no API calls)
     if args.regenerate_rankings:

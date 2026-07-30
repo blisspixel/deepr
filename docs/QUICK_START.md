@@ -1,19 +1,20 @@
 ﻿# Quick Start Guide
 
-Complete local setup in about 5 minutes. An optional live provider research job
-can take 15 to 30 minutes and may incur metered cost.
+Complete local setup in about 5 minutes. Optional bounded provider previews are
+write-free and make no paid request.
 
 ---
 
 ## Prerequisites
 
 - Python 3.12 or higher
-- At least one capacity source: local Ollama, a supported non-metered plan CLI,
-  or an API key for a provider/model/tool envelope Deepr can bound completely
-- Provider-dependent time for a live research run
+- At least one executable capacity source: local Ollama or a supported
+  non-metered plan CLI
+- An API key only when intentionally running supported live credential checks
 
-Local and explicit plan expert workflows do not require an API key. Direct API
-research fails closed when pricing, tools, output, or context cannot be bounded.
+Local and explicit plan expert workflows do not require an API key. Production
+API research is blocked in v2.40 even when pricing, tools, output, and context
+can be bounded. The paid surface is preview-only.
 
 ---
 
@@ -36,20 +37,21 @@ pip install -e ".[docs]"                # Document processing for experts
 pip install -e ".[full]"                # All features
 ```
 
-### 2. Optionally Configure an API Key
+### 2. Optionally Configure API Credentials
 
 ```bash
 cp .env.example .env
 ```
 
-For direct API research, edit `.env` and add the key you intend to use:
+For an intentional provider readiness check, edit `.env` and add only the key
+you intend to inspect. This does not enable production metered dispatch:
 
 ```bash
 # Configure only providers you intend to use:
-OPENAI_API_KEY=sk-...      # Deep research + GPT models - https://platform.openai.com/api-keys
-GEMINI_API_KEY=...          # Cost-effective research - https://aistudio.google.com/app/apikey
-XAI_API_KEY=...             # Cheapest, web search - https://console.x.ai/
-ANTHROPIC_API_KEY=...       # Complex reasoning - https://console.anthropic.com/settings/keys
+OPENAI_API_KEY=sk-...       # OpenAI readiness checks - https://platform.openai.com/api-keys
+GEMINI_API_KEY=...          # Gemini readiness checks - https://aistudio.google.com/app/apikey
+XAI_API_KEY=...             # xAI readiness checks - https://console.x.ai/
+ANTHROPIC_API_KEY=...       # Anthropic configuration - https://console.anthropic.com/settings/keys
 ```
 
 ### 3. Verify Local Setup
@@ -85,8 +87,9 @@ Those paths are covered under Domain Experts below.
 deepr budget set 5
 ```
 
-Start with a $5 ceiling and increase it only after reviewing a preview. A
-budget ceiling can block excess spend; it never authorizes a paid call.
+Keep the binding monthly ceiling at $5 or less and use a smaller per-job
+ceiling for each previewed request. A budget ceiling can block excess spend;
+it never authorizes a paid call.
 
 ### Preview One Bounded Job
 
@@ -99,7 +102,7 @@ This will:
 2. Validate whether the provider, model, tools, and payload have a finite envelope.
 3. Make no provider request and write no paid result.
 
-Production metered dispatch is blocked in v2.39 until a provider-specific
+Production metered dispatch is blocked in v2.40 until a provider-specific
 authenticated account-control verifier and current account, scope, and
 credential resolver are installed. A budget or local evidence file cannot
 remove that block. Local and safety-eligible plan workflows remain available.
@@ -114,7 +117,7 @@ remove that block. Local and safety-eligible plan workflows remain available.
 deepr research --auto --batch queries.txt --preview
 ```
 
-Metered batch and multi-phase execution are gated in v2.39 until every nested
+Metered batch and multi-phase execution are gated in v2.40 until every nested
 call belongs to one durable parent reservation.
 
 ### Create a Domain Expert
@@ -144,7 +147,7 @@ synthesis call. With several `--expert` options, Deepr selects one stored-state
 packet per expert, but the experts do not exchange turns and the consult does
 not write beliefs or graph state. Use `--output FILE` to save the complete
 artifact explicitly. See [Three Expert Council And Learning Workflow](THREE_EXPERT_COUNCIL.md)
-for a three-domain example and strict `$10` cap.
+for a three-domain example and strict `$5` monthly cap.
 
 ### Prepare A Longitudinal Value Review
 
@@ -172,7 +175,7 @@ deepr expert sync "Web Dev Expert" --local --fresh-context -y
 ```
 
 Standalone metered expert chat and unsafe metered expert lifecycle commands are
-gated in v2.39. Local, explicit plan-quota, scheduled, dry-run, history-only,
+gated in v2.40. Local, explicit plan-quota, scheduled, dry-run, history-only,
 and graded-file paths remain available where the command supports them.
 
 Use `deepr expert next NAME` to inspect safe follow-up actions. No local or plan
@@ -215,7 +218,7 @@ deepr doctor --skip-connectivity
 | Local expert setup and maintenance | `$0` provider cost | Works with local capacity |
 | Explicit plan expert maintenance and consult | `$0` Deepr ledger cost; consumes external plan quota | Works for supported non-metered adapters |
 | Local expert consult | `$0` provider cost | Works |
-| Any metered API dispatch | No dispatch | Gated in v2.39 pending authenticated account controls |
+| Any metered API dispatch | No dispatch | Gated in v2.40 pending authenticated account controls |
 
 `deepr budget set <amount>` controls monthly approval behavior and binds
 `deepr run`, `deepr research`, and MCP research. For an authoritative hard
@@ -231,13 +234,14 @@ dashboard surface over-budget and orphaned spend loudly.
 
 ### "No API key found"
 
-API research requires a configured provider key. Local and explicit plan expert
-workflows do not; run `deepr capacity` to see the appropriate next inspection.
+Some live API readiness checks require a configured provider key. Production
+API research remains blocked. Local and explicit plan expert workflows do not
+require a key; run `deepr capacity` to see the appropriate next inspection.
 
 ### "Budget exceeded"
 
-Inspect the exact preview first. Choose a cheaper bounded model or intentionally
-raise the configured budget only if the maximum is acceptable.
+Inspect the exact preview first. Choose a cheaper bounded model or lower the
+per-job request. Keep the binding monthly ceiling at `$5` or less.
 
 ### "Job failed"
 

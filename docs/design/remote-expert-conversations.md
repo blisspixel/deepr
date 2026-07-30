@@ -63,14 +63,21 @@ expert conversation remains proposal-only.
 
 ### Protocol direction
 
-The official [MCP 2026-07-28 release candidate](https://blog.modelcontextprotocol.io/posts/2026-07-28-release-candidate/)
-makes the protocol core stateless, removes the protocol session and
-`Mcp-Session-Id`, and recommends explicit application handles passed as normal
-tool arguments. The final specification is scheduled for 2026-07-28, so Deepr
-must treat the release candidate as a migration target until it is final. The
-architecture should not depend on either the old or new transport session.
+The final [MCP 2026-07-28 specification](https://modelcontextprotocol.io/specification/2026-07-28)
+makes the protocol core stateless and puts long-running work behind explicit
+application state and the Tasks extension. Deepr conversation ids already
+follow that application-handle boundary. The architecture does not depend on
+transport sessions or sticky routing.
 
-The official [MCP authorization specification](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization)
+The final [Tasks extension](https://modelcontextprotocol.io/seps/2663-tasks-extension)
+is opt-in, currently augments `tools/call`, and leaves ordinary synchronous
+tool results fully compliant. A future background-service promotion should use
+it only after durable task storage, cancellation, TTL, cryptographically random
+handles, and authorization binding exist. The shipped conversation tools stay
+synchronous and use their own durable conversation handles. They do not claim
+Tasks support and do not depend on deprecated MCP sampling.
+
+The official [MCP authorization specification](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization)
 uses an OAuth resource-server model, protected-resource metadata, audience
 binding, per-request authorization, and least-privilege scopes. The official
 [MCP security guidance](https://modelcontextprotocol.io/docs/tutorials/security/security_best_practices)
@@ -135,13 +142,18 @@ What works now:
   context-selection, and collaboration lineage.
 - `deepr-consult-v1` preserves roster, evidence metadata, agreements, dissent,
   cost, capacity, and host action boundaries.
+- Four protocol-neutral durable MCP conversation tools start, continue,
+  inspect, and close local Ollama conversations with ownership, replay,
+  retention, frozen snapshots, and no metered fallback.
 - The A2A package has an Agent Card generator, an in-memory task manager, an
   HTTP server class, consult-task mapping, and offline or remote host
   validation.
 
 What does not work yet:
 
-- MCP query and consult have no durable conversation handle.
+- The one-shot MCP query and consult tools intentionally remain stateless.
+  Continuation uses the separate durable conversation tools rather than an
+  optional hidden session on those contracts.
 - The legacy MCP API chat path creates an in-memory session keyed from one
   question and removes it after the call. It is not continuation.
 - Saved `ExpertChatSession` JSON is a user-facing chat export, not a
@@ -620,6 +632,10 @@ expose a network tool.
 Exit: restart, replay, concurrency, isolation, and cleanup pass without a model.
 
 ### Stage 2: local MCP conversation
+
+Status: complete on 2026-07-15 for the shipped local Ollama and scoped-key
+surface. Separate-LAN-host semantic evaluation remains ongoing evidence, not a
+prerequisite hidden inside the tool contract.
 
 - Implement start, continue, get, and close tools on the shared core.
 - Add local Ollama execution with no metered fallback.

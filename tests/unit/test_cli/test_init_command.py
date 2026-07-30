@@ -78,9 +78,9 @@ class TestInitYes:
             result = runner.invoke(init, ["--yes"])
             assert result.exit_code == 0
             env = _read_env_file(__import__("pathlib").Path(".env"))
-            assert env["DEEPR_MAX_COST_PER_JOB"] == "5.0"
-            assert env["DEEPR_MAX_COST_PER_DAY"] == "25.0"
-            assert env["DEEPR_MAX_COST_PER_MONTH"] == "200.0"
+            assert env["DEEPR_MAX_COST_PER_JOB"] == "1.0"
+            assert env["DEEPR_MAX_COST_PER_DAY"] == "2.0"
+            assert env["DEEPR_MAX_COST_PER_MONTH"] == "5.0"
 
     def test_detects_key_already_in_environment(self, monkeypatch):
         monkeypatch.setenv("GEMINI_API_KEY", "real-gemini-key-123")

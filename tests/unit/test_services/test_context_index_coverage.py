@@ -24,6 +24,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from deepr.services.context_index import ContextIndex, PaidSemanticOperationError, SearchResult
 
 
+@pytest.fixture(autouse=True)
+def _trust_injected_unit_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Bypass client attestation only for downstream context-index tests."""
+    monkeypatch.setattr(
+        "deepr.providers.dispatch_authority.require_official_paid_client",
+        lambda _client, _provider: "test-attested",
+    )
+
+
 @pytest.fixture
 def tmp_index(tmp_path):
     data_dir = tmp_path / "data"

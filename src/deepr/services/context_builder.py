@@ -16,6 +16,7 @@ import asyncio
 import os
 from datetime import UTC
 from functools import partial
+from typing import Any
 
 from openai import OpenAI
 
@@ -48,7 +49,13 @@ class ContextBuilder:
         # absent so the env-var fallback applies instead of a bogus key.
         if api_key in ("***", ""):
             api_key = None
-        self.client = OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"), max_retries=0)
+        from deepr.providers.dispatch_authority import default_paid_endpoint
+
+        self.client = OpenAI(
+            api_key=api_key or os.getenv("OPENAI_API_KEY"),
+            base_url=default_paid_endpoint("openai"),
+            max_retries=0,
+        )
         self.token_budget = token_budget or MAX_CONTEXT_TOKENS
         self.enable_pruning = enable_pruning
 
@@ -100,12 +107,16 @@ Summary (bullet list, ~{target_words} words):"""
         from deepr.services.metered_envelope import bounded_chat_envelope
 
         envelope = bounded_chat_envelope(
+            provider="openai",
             model="gpt-5-mini",
             prompt_parts=(prompt,),
             budget_usd=0.25,
             maximum_output_tokens=max_tokens + 100,
         )
 
+        from deepr.providers.dispatch_authority import require_official_paid_client
+
+        require_official_paid_client(self.client, "openai")
         response = await asyncio.to_thread(
             execute_reserved_sync_call,
             operation_prefix="context-summary",
@@ -113,6 +124,12 @@ Summary (bullet list, ~{target_words} words):"""
             model="gpt-5-mini",
             source="services.context_builder.summarize_research",
             max_cost_per_job=envelope.cost_usd,
+            request_envelope={
+                "model": "gpt-5-mini",
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.3,
+                "max_completion_tokens": envelope.output_tokens,
+            },
             call=partial(
                 self.client.chat.completions.create,
                 model="gpt-5-mini",
@@ -126,8 +143,8 @@ Summary (bullet list, ~{target_words} words):"""
 
     async def build_phase_context(
         self,
-        task: dict,
-        completed_tasks: dict[int, dict],
+        task: dict[str, Any],
+        completed_tasks: dict[int, dict[str, Any]],
         token_budget: int | None = None,
         current_query: str | None = None,
     ) -> str:
@@ -218,7 +235,7 @@ Summary (bullet list, ~{target_words} words):"""
 
         return "\n".join(context_parts)
 
-    def get_context_utilization(self) -> dict:
+    def get_context_utilization(self) -> dict[str, Any]:
         """Get context utilization metrics for --explain output.
 
         Returns:
@@ -245,7 +262,7 @@ Summary (bullet list, ~{target_words} words):"""
 
     async def build_synthesis_context(
         self,
-        all_tasks: dict[int, dict],
+        all_tasks: dict[int, dict[str, Any]],
     ) -> str:
         """
         Build comprehensive context for final synthesis report.

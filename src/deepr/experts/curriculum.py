@@ -463,6 +463,7 @@ class CurriculumGenerator:
                 # The client below is OpenAI-specific, so only select an OpenAI
                 # capability with an exact pricing contract.
                 from deepr.experts.report_absorber_costs import bounded_metered_completion_kwargs
+                from deepr.providers.dispatch_authority import default_paid_endpoint, require_official_paid_client
                 from deepr.providers.registry import get_models_by_specialization
                 from deepr.services.metered_call import execute_reserved_async_call
 
@@ -496,30 +497,32 @@ class CurriculumGenerator:
                     },
                 )
 
+                client = AsyncOpenAI(
+                    api_key=api_key,
+                    base_url=default_paid_endpoint("openai"),
+                    timeout=httpx.Timeout(timeout, connect=10.0),
+                    max_retries=0,
+                )
+
                 async def _dispatch(
-                    _api_key: str = api_key,
+                    _client: Any = client,
                     _request_kwargs: dict[str, Any] = request_kwargs,
                 ) -> Any:
-                    # Construct the provider client only after the durable
-                    # reservation exists and its dispatch intent is recorded.
-                    client = AsyncOpenAI(
-                        api_key=_api_key,
-                        timeout=httpx.Timeout(timeout, connect=10.0),
-                        max_retries=0,
-                    )
-                    try:
-                        return await client.chat.completions.create(**_request_kwargs)
-                    finally:
-                        await client.close()
+                    return await _client.chat.completions.create(**_request_kwargs)
 
-                response_obj = await execute_reserved_async_call(
-                    operation_prefix="curriculum-plan",
-                    provider="openai",
-                    model=model_name,
-                    source="experts.curriculum.generate_curriculum",
-                    max_cost_per_job=worst_case_cost,
-                    call=_dispatch,
-                )
+                try:
+                    require_official_paid_client(client, "openai")
+                    response_obj = await execute_reserved_async_call(
+                        operation_prefix="curriculum-plan",
+                        provider="openai",
+                        model=model_name,
+                        source="experts.curriculum.generate_curriculum",
+                        max_cost_per_job=worst_case_cost,
+                        call=_dispatch,
+                        request_envelope=request_kwargs,
+                    )
+                finally:
+                    await client.close()
 
                 response = response_obj.choices[0].message.content or ""
                 if progress:
@@ -1150,7 +1153,7 @@ IMPORTANT GUIDELINES:
 - Priority 3-5 for focus topics (supplementary)
 - Dependencies create logical learning flow
 
-EXAMPLE - NVIDIA Omniverse Expert (5 topics with $10 budget):
+EXAMPLE - NVIDIA Omniverse Expert (5 topics with $5 budget):
 
 **DOCUMENTATION** (Topics 1-2, 40%) - FOCUS
 #1: "NVIDIA Omniverse official documentation 2026" (FOCUS, documentation, priority 2, $0.25)
@@ -1170,7 +1173,7 @@ EXAMPLE - NVIDIA Omniverse Expert (5 topics with $10 budget):
 #5: "Omniverse vs Unity vs Unreal for digital twins" (FOCUS, best-practices, priority 3, $0.25)
     "Compare Omniverse, Unity, Unreal for industrial digital twins: features, performance, cost, use cases. Real-world examples."
 
-Total: 2 CAMPAIGN ($4.00) + 3 FOCUS ($0.75) = $4.75 within $10 budget
+Total: 2 CAMPAIGN ($4.00) + 3 FOCUS ($0.75) = $4.75 within $5 budget
 Content mix: 40% documentation, 40% research, 20% quick = BALANCED OK
     "Compare Azure AI Foundry and AI Studio in 2026: features, use cases, migration path, when to use which, pricing differences."
 

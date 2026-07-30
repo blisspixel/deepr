@@ -24,8 +24,8 @@ PROJECT_ID = os.environ.get("PROJECT_ID")
 PUBSUB_TOPIC = os.environ.get("PUBSUB_TOPIC")
 RESULTS_BUCKET = os.environ.get("RESULTS_BUCKET")
 FIRESTORE_DB = os.environ.get("FIRESTORE_DB", "(default)")
-DAILY_BUDGET = float(os.environ.get("DAILY_BUDGET", 50))
-MONTHLY_BUDGET = float(os.environ.get("MONTHLY_BUDGET", 500))
+DAILY_BUDGET = float(os.environ.get("DAILY_BUDGET", 2))
+MONTHLY_BUDGET = float(os.environ.get("MONTHLY_BUDGET", 5))
 
 # This deployment shard does not yet share Deepr's durable estimate,
 # reservation, dispatch-mark, and canonical settlement transaction.

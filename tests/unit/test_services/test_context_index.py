@@ -9,6 +9,15 @@ import pytest
 from deepr.services.context_index import ContextIndex, SearchResult
 
 
+@pytest.fixture(autouse=True)
+def _trust_injected_unit_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Bypass the production client-attestation freeze in downstream unit tests."""
+    monkeypatch.setattr(
+        "deepr.providers.dispatch_authority.require_official_paid_client",
+        lambda _client, _provider: "test-attested",
+    )
+
+
 @pytest.fixture
 def temp_index_dir(tmp_path):
     """Create a temporary directory for index storage."""

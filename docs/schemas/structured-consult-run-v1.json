@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/structured-consult-run-v1.json",
+  "title": "Deepr Structured Consult Run v1",
+  "description": "Eval-only run record with exact terminal accounting and a hard zero-dollar provider ceiling.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "kind", "graph_id", "run_id", "brief_hash", "status", "stop_reason", "completion_policy",
+    "started_at", "completed_at", "capacity", "limits", "node_counts", "usage", "nodes", "positions",
+    "synthesis", "brief", "contract", "run_hash"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-structured-consult-run-v1"},
+    "kind": {"const": "deepr.eval.structured_consult_run"},
+    "graph_id": {"type": "string", "pattern": "^graph_[a-f0-9]{24}$"},
+    "run_id": {"type": "string", "pattern": "^run_[a-f0-9]{32}$"},
+    "brief_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "status": {"enum": ["completed", "incomplete"]},
+    "stop_reason": {"type": "string", "minLength": 1},
+    "completion_policy": {"const": "require_all"},
+    "started_at": {"type": "string", "format": "date-time"},
+    "completed_at": {"type": "string", "format": "date-time"},
+    "capacity": {"type": "object", "required": ["capacity_kind", "provider", "model", "cost_usd"], "additionalProperties": true},
+    "limits": {"type": "object", "required": ["max_cost_usd", "max_model_calls", "completion_policy"], "additionalProperties": true},
+    "node_counts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["expected", "terminal", "missing", "cancelled", "completed", "failed", "skipped", "timed_out"],
+      "properties": {
+        "expected": {"type": "integer", "minimum": 2, "maximum": 11},
+        "terminal": {"type": "integer", "minimum": 0, "maximum": 11},
+        "missing": {"type": "integer", "minimum": 0, "maximum": 11},
+        "cancelled": {"type": "integer", "minimum": 0, "maximum": 11},
+        "completed": {"type": "integer", "minimum": 0, "maximum": 11},
+        "failed": {"type": "integer", "minimum": 0, "maximum": 11},
+        "skipped": {"type": "integer", "minimum": 0, "maximum": 11},
+        "timed_out": {"type": "integer", "minimum": 0, "maximum": 11}
+      }
+    },
+    "usage": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "model_calls", "node_attempts", "transport_attempts", "usage_ambiguous_nodes", "input_tokens_reserved", "output_tokens_reserved", "reported_input_tokens",
+        "reported_output_tokens", "context_bytes", "artifact_bytes", "elapsed_ms", "peak_concurrency", "cost_usd"
+      ],
+      "properties": {
+        "model_calls": {"type": "integer", "minimum": 0, "maximum": 11},
+        "node_attempts": {"type": "integer", "minimum": 0, "maximum": 11},
+        "transport_attempts": {"type": "integer", "minimum": 0, "maximum": 11},
+        "usage_ambiguous_nodes": {"type": "integer", "minimum": 0, "maximum": 11},
+        "input_tokens_reserved": {"type": "integer", "minimum": 0},
+        "output_tokens_reserved": {"type": "integer", "minimum": 0},
+        "reported_input_tokens": {"type": "integer", "minimum": 0},
+        "reported_output_tokens": {"type": "integer", "minimum": 0},
+        "context_bytes": {"type": "integer", "minimum": 0},
+        "artifact_bytes": {"type": "integer", "minimum": 0},
+        "elapsed_ms": {"type": "integer", "minimum": 0},
+        "peak_concurrency": {"type": "integer", "minimum": 0, "maximum": 4},
+        "cost_usd": {"const": 0.0}
+      }
+    },
+    "nodes": {
+      "type": "array", "minItems": 2, "maxItems": 11,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": [
+          "node_id", "node_kind", "depends_on", "status", "attempts", "started_at", "completed_at",
+          "stop_reason", "error_code", "error_message", "output_artifact_id", "output_artifact_hash",
+          "usage", "cost_usd"
+        ],
+        "properties": {
+          "node_id": {"type": "string"}, "node_kind": {"enum": ["position", "synthesis"]},
+          "depends_on": {"type": "array", "items": {"type": "string"}},
+          "status": {"enum": ["pending", "running", "completed", "failed", "timed_out", "cancelled", "skipped"]},
+          "attempts": {"type": "integer", "minimum": 0, "maximum": 1},
+          "started_at": {"type": ["string", "null"]}, "completed_at": {"type": ["string", "null"]},
+          "stop_reason": {"type": "string"}, "error_code": {"type": "string"}, "error_message": {"type": "string"},
+          "output_artifact_id": {"type": ["string", "null"]}, "output_artifact_hash": {"type": ["string", "null"]},
+          "usage": {"type": "object", "additionalProperties": true}, "cost_usd": {"const": 0.0}
+        }
+      }
+    },
+    "positions": {
+      "type": "array", "maxItems": 10,
+      "items": {"type": "object", "required": ["schema_version", "kind", "artifact_id", "artifact_hash"], "additionalProperties": true}
+    },
+    "synthesis": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "object", "required": ["schema_version", "kind", "artifact_id", "artifact_hash"], "additionalProperties": true}
+      ]
+    },
+    "brief": {"type": "object", "required": ["schema_version", "kind", "brief_hash"], "additionalProperties": true},
+    "contract": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "eval_only", "runtime_promoted", "read_only", "writes_state", "observability_writes",
+        "cost_ledger_required", "semantic_quality_reviewed",
+        "external_anchor_verified", "metered_cost_ceiling_usd", "live_metered_fallback", "plan_quota_fallback"
+      ],
+      "properties": {
+        "eval_only": {"const": true}, "runtime_promoted": {"const": false}, "read_only": {"const": true},
+        "writes_state": {"const": false}, "semantic_quality_reviewed": {"const": false},
+        "observability_writes": {"const": true}, "cost_ledger_required": {"const": true},
+        "external_anchor_verified": {"const": false}, "metered_cost_ceiling_usd": {"const": 0.0},
+        "live_metered_fallback": {"const": false}, "plan_quota_fallback": {"const": false}
+      }
+    },
+    "run_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+  }
+}

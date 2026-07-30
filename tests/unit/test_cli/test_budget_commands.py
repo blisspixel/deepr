@@ -17,6 +17,7 @@ from click.testing import CliRunner
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
+from deepr.cli.commands.budget import _next_month_start
 from deepr.cli.main import cli
 from deepr.experts.research_reservation_store import ReconciledResearchExposure
 from deepr.observability import provider_account_controls as account_controls_module
@@ -58,7 +59,7 @@ def _recovery_evidence(*, freeze_id: str = "freeze-cli-test") -> tuple[str, str]
         control_mode="hard_monthly_limit",
         currency="USD",
         overage_enabled=False,
-        hard_monthly_limit_usd="10.00",
+        hard_monthly_limit_usd="5.00",
     )
     evidence_id, _path = store.store(evidence)
     return evidence_id, observed_at.isoformat()
@@ -112,6 +113,10 @@ class TestBudgetSetCommand:
         """Test that 'budget set' accepts an amount argument."""
         result = runner.invoke(cli, ["budget", "set", "10.00"])
         assert result.exit_code == 0
+
+    def test_next_reset_is_the_next_calendar_month(self):
+        assert _next_month_start(datetime(2026, 7, 29, 12, tzinfo=UTC)) == datetime(2026, 8, 1, tzinfo=UTC)
+        assert _next_month_start(datetime(2026, 12, 31, 23, tzinfo=UTC)) == datetime(2027, 1, 1, tzinfo=UTC)
 
     def test_budget_set_validates_numeric_amount(self, runner):
         """Test that 'budget set' validates numeric amounts."""

@@ -17,6 +17,11 @@ except ImportError:
     AnthropicError = Exception
 
 
+@pytest.fixture(autouse=True)
+def _allow_mocked_storage_adapter(monkeypatch):
+    monkeypatch.setattr("deepr.services.research_bounds.require_research_storage_accounting", lambda: None)
+
+
 class TestAnthropicProviderPricing:
     """Tests for Anthropic pricing constants."""
 
@@ -436,13 +441,13 @@ class TestAnthropicProviderNotImplemented:
     async def test_upload_document_not_implemented(self, provider):
         """Should raise NotImplementedError."""
         with pytest.raises(NotImplementedError):
-            await provider.upload_document("test.txt")
+            await provider._upload_document_accounted("test.txt")
 
     @pytest.mark.asyncio
     async def test_create_vector_store_not_implemented(self, provider):
         """Should raise NotImplementedError."""
         with pytest.raises(NotImplementedError):
-            await provider.create_vector_store("test", [])
+            await provider._create_vector_store_accounted("test", [])
 
     @pytest.mark.asyncio
     async def test_wait_for_vector_store_not_implemented(self, provider):

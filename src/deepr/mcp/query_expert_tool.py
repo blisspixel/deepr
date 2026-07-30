@@ -57,7 +57,10 @@ QUERY_EXPERT_INPUT_SCHEMA: dict[str, Any] = {
         "model": {"type": "string", "description": "Optional API model when backend='api'."},
         "plan": {
             "type": "string",
-            "description": "Plan-quota backend id when backend='plan' (for example codex).",
+            "description": (
+                "Plan-quota backend id when backend='plan'. Claude is the current executable "
+                "adapter; other adapters remain visible but blocked."
+            ),
         },
         "plan_model": {"type": "string", "description": "Optional model hint for the plan-quota CLI."},
     },

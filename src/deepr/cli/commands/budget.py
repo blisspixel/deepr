@@ -27,6 +27,15 @@ def get_budget_file() -> Path:
     return budget_file_path()
 
 
+def _next_month_start(now: datetime | None = None) -> datetime:
+    """Return the first UTC instant of the next calendar month."""
+    current = now or datetime.now(UTC)
+    current_month = current.astimezone(UTC).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    if current_month.month == 12:
+        return current_month.replace(year=current_month.year + 1, month=1)
+    return current_month.replace(month=current_month.month + 1)
+
+
 def _load_budget_config_unlocked() -> dict[str, Any]:
     budget_file = get_budget_file()
     if not budget_file.exists():
@@ -199,7 +208,7 @@ def set(amount: float):
     Set monthly research budget.
 
     Examples:
-        deepr budget set 50      # $50/month budget
+        deepr budget set 5       # Repository-wide $5/month ceiling
         deepr budget set 0       # Freeze paid API dispatch
     """
     print_header("Budget Configuration")
@@ -244,7 +253,7 @@ def set(amount: float):
             click.echo(f"Settled spending: ${settled:.2f}")
             click.echo(f"Active durable holds: ${active_cost:.2f}")
             click.echo(f"Current exposure: ${settled + active_cost:.2f}")
-        click.echo(f"Resets: {datetime.now(UTC).strftime('%B')} 1 UTC")
+        click.echo(f"Resets: {_next_month_start().strftime('%B %d, %Y')} UTC")
 
 
 @budget.command()
@@ -310,13 +319,7 @@ def status():
 
     click.echo(f"\nCurrent month: {current_month}")
 
-    # Next reset
-    next_month = datetime.now(UTC).replace(day=1)
-    if next_month.month == 12:
-        next_month = next_month.replace(year=next_month.year + 1, month=1)
-    else:
-        next_month = next_month.replace(month=next_month.month + 1)
-    click.echo(f"Resets: {next_month.strftime('%B %d, %Y')}")
+    click.echo(f"Resets: {_next_month_start().strftime('%B %d, %Y')} UTC")
 
 
 @budget.command()
@@ -367,6 +370,7 @@ def unfreeze(evidence_ids: tuple[str, ...]) -> None:
                 raise click.ClickException(
                     "Active durable paid holds must be settled or refunded before unfreezing paid dispatch."
                 )
+            from deepr.observability.cost_ledger import current_cost_state_id
             from deepr.observability.provider_account_controls import (
                 ProviderAccountControlError,
                 verify_paid_api_authorization,
@@ -414,6 +418,7 @@ def unfreeze(evidence_ids: tuple[str, ...]) -> None:
             "valid_until": authorization.valid_until.isoformat(),
             "recovered_freeze_id": current.freeze_id,
             "recovered_frozen_at": current.frozen_at.isoformat(),
+            "cost_state_id": current_cost_state_id(),
         }
         config["paid_api_frozen"] = False
         config["freeze_reason"] = ""

@@ -11,6 +11,16 @@ from deepr.cli.commands.mcp import mcp
 from deepr.mcp.smoke import MCPHttpSmokeReport, MCPHttpSmokeStep
 
 
+def test_mcp_serve_help_is_local_first_without_provider_keys() -> None:
+    result = CliRunner().invoke(mcp, ["serve", "--help"])
+    help_text = " ".join(result.output.split())
+
+    assert result.exit_code == 0, result.output
+    assert "No provider API key is required" in help_text
+    assert "Paid API capacity remains fail-closed" in help_text
+    assert "OPENAI_API_KEY" not in help_text
+
+
 def test_mcp_serve_defaults_to_stdio_server():
     with patch("deepr.mcp.server.main") as main:
         result = CliRunner().invoke(mcp, ["serve"])
@@ -129,6 +139,19 @@ def test_mcp_smoke_http_exits_nonzero_on_failure():
     assert "Result: failed" in result.output
 
 
+def test_mcp_smoke_http_is_blocked_before_network() -> None:
+    with patch("aiohttp.ClientSession", side_effect=AssertionError("network must not open")):
+        result = CliRunner().invoke(
+            mcp,
+            ["smoke-http", "https://mcp.example.com/mcp", "--json"],
+        )
+
+    assert result.exit_code == 1, result.output
+    payload = json.loads(result.output)
+    assert payload["contract"]["network_opened"] is False
+    assert payload["contract"]["remote_tool_call_attempted"] is False
+
+
 def test_mcp_validate_consult_offline_outputs_json():
     result = CliRunner().invoke(mcp, ["validate-consult", "--expert", "AI Agent Harnesses", "--json"])
 
@@ -187,6 +210,19 @@ def test_mcp_validate_consult_requires_explicit_plan():
     assert "--plan is required" in result.output
 
 
+def test_mcp_validate_consult_remote_is_blocked_before_network() -> None:
+    with patch("aiohttp.ClientSession", side_effect=AssertionError("network must not open")):
+        result = CliRunner().invoke(
+            mcp,
+            ["validate-consult", "https://mcp.example.com/mcp", "--json"],
+        )
+
+    assert result.exit_code == 1, result.output
+    payload = json.loads(result.output)
+    assert payload["error"]["error_code"] == "MCP_HTTP_CONSULT_VALIDATION_BLOCKED"
+    assert payload["contract"]["remote_tool_call_attempted"] is False
+
+
 def test_mcp_validate_conversation_managed_outputs_json():
     from deepr.mcp.conversation_validation import (
         MCPConversationValidationCheck,
@@ -234,15 +270,18 @@ def test_mcp_validate_conversation_managed_outputs_json():
     run_async.assert_called_once_with("conversation-coro")
 
 
-def test_mcp_validate_conversation_remote_requires_authentication():
-    result = CliRunner().invoke(
-        mcp,
-        ["validate-conversation", "http://127.0.0.1:8765/mcp"],
-        env={"MCP_AUTH_TOKEN": "", "DEEPR_MCP_AUTH_TOKEN": ""},
-    )
+def test_mcp_validate_conversation_remote_is_blocked_before_network():
+    with patch("aiohttp.ClientSession", side_effect=AssertionError("network must not open")):
+        result = CliRunner().invoke(
+            mcp,
+            ["validate-conversation", "https://mcp.example.com/mcp", "--json"],
+        )
 
-    assert result.exit_code != 0
-    assert "requires --auth-token" in result.output
+    assert result.exit_code == 1, result.output
+    payload = json.loads(result.output)
+    assert payload["error"]["error_code"] == "MCP_HTTP_CONVERSATION_VALIDATION_BLOCKED"
+    assert payload["remote_tool_call_attempted"] is False
+    assert payload["capacity_source"] == "unverified"
 
 
 def test_mcp_validate_conversation_remote_uses_http_runner():
@@ -284,7 +323,7 @@ def test_mcp_validate_conversation_remote_uses_http_runner():
 
     assert result.exit_code == 0, result.output
     assert "MCP conversation validation: http://192.0.2.10:8765/mcp" in result.output
-    assert "Capacity: local owned, $0, no fallback" in result.output
+    assert "Capacity: unverified; no tool call submitted" in result.output
 
 
 def test_mcp_validate_consult_fleet_outputs_json(monkeypatch):
@@ -390,6 +429,7 @@ def test_mcp_registration_manifest_outputs_token_redacted_json():
                 "planner",
                 "--auth-token",
                 "test-token-value",
+                "--smoke",
             ],
         )
 
@@ -428,6 +468,24 @@ def test_mcp_registration_manifest_writes_output_file(tmp_path):
     assert '"url": "https://mcp.example.com/mcp"' in output_path.read_text(encoding="utf-8")
 
 
+def test_mcp_registration_manifest_skips_remote_smoke_by_default() -> None:
+    with (
+        patch("deepr.cli.commands.mcp.run_async_command") as run_async,
+        patch("aiohttp.ClientSession", side_effect=AssertionError("network must not open")),
+    ):
+        result = CliRunner().invoke(
+            mcp,
+            ["registration-manifest", "https://mcp.example.com/mcp"],
+        )
+
+    assert result.exit_code == 0, result.output
+    run_async.assert_not_called()
+    payload = json.loads(result.output)
+    assert payload["registration"]["remote_smoke_status"] == "blocked_pending_cost_authority"
+    assert payload["registration"]["smoke_command"] is None
+    assert payload["registration"]["free_smoke_tool"] is None
+
+
 def test_mcp_registration_manifest_exits_nonzero_on_failed_smoke():
     report = MCPHttpSmokeReport(
         url="https://mcp.example.com/mcp",
@@ -441,7 +499,7 @@ def test_mcp_registration_manifest_exits_nonzero_on_failed_smoke():
         patch("deepr.mcp.smoke.run_http_smoke", new=fake_run_http_smoke),
         patch("deepr.cli.commands.mcp.run_async_command", return_value=report),
     ):
-        result = CliRunner().invoke(mcp, ["registration-manifest", "https://mcp.example.com/mcp"])
+        result = CliRunner().invoke(mcp, ["registration-manifest", "https://mcp.example.com/mcp", "--smoke"])
 
     assert result.exit_code == 1
     assert '"ok": false' in result.output

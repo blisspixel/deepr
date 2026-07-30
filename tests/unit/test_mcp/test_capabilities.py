@@ -43,8 +43,12 @@ def test_payload_is_versioned_and_shaped():
     assert {"free", "low", "medium", "high"} == set(caps["cost_tiers"])
     assert caps["error_contract"]["fields"] == ["error_code", "category", "retryable", "message"]
     assert "local" == caps["zero_cost_synthesis"]["owned"]
+    assert caps["zero_cost_synthesis"]["prepaid_plans"] == ["claude"]
     assert "deepr_consult_experts" in caps["zero_cost_synthesis"]["how"]
+    assert "plan='claude'" in caps["zero_cost_synthesis"]["how"]
+    assert "codex" not in caps["zero_cost_synthesis"]["how"]
     assert "no-metered read-only one-expert turn" in caps["zero_cost_synthesis"]["single_expert"]
+    assert all("production dispatch is frozen" in caps["cost_tiers"][tier] for tier in ("medium", "high"))
 
 
 def test_roster_is_case_insensitively_sorted():

@@ -19,6 +19,7 @@ from deepr.experts.maker_checker import (
     make_grounding_checker,
     parse_verdict,
 )
+from deepr.experts.semantic_model_gate import _mark_zero_dollar_client
 
 
 class _FakeClient:
@@ -36,6 +37,7 @@ class _FakeClient:
             return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=self._reply))])
 
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=_create))
+        _mark_zero_dollar_client(self, capacity_source="local")
 
 
 class TestChooseCheckerVendor:
@@ -97,6 +99,22 @@ class TestPrompt:
 
 
 class TestCheckClaim:
+    async def test_unproven_client_is_rejected_before_dispatch(self):
+        client = _FakeClient(reply="SUPPORTED")
+        delattr(client, "_deepr_zero_dollar_capacity")
+
+        with pytest.raises(ValueError, match="zero-dollar capacity proof"):
+            await check_claim(
+                "X",
+                "X is stated.",
+                client=client,
+                checker_vendor="anthropic",
+                assurance=CheckAssurance.CROSS_VENDOR,
+                model="claude",
+            )
+
+        assert client.calls == []
+
     async def test_supported_claim_passes(self):
         client = _FakeClient(reply="SUPPORTED\nDirectly stated.")
         verdict = await check_claim(

@@ -110,8 +110,7 @@ def expert_portrait(name, all_experts, missing_only, force, style, provider, yes
     effective = provider or detect_provider()
     if not effective:
         print_error(
-            "No image generator available. Set DEEPR_LOCAL_IMAGE_URL (local FLUX/ComfyUI, $0) "
-            "or pass --provider openai/google/xai for explicit paid image generation. "
+            "No image generator available. Pass --provider openai/google/xai for explicit paid image generation. "
             "Set DEEPR_ALLOW_METERED_IMAGE_AUTO=1 only if metered image auto-selection is intentional."
         )
         sys.exit(2)
@@ -134,7 +133,7 @@ def expert_portrait(name, all_experts, missing_only, force, style, provider, yes
         try:
             require_metered_expert_mutation(
                 "api_expert_portrait",
-                safe_alternative="set DEEPR_LOCAL_IMAGE_URL and rerun with --provider local",
+                safe_alternative="no attested zero-dollar portrait backend is currently available",
             )
         except MeteredExpertMutationDisabledError as exc:
             raise click.ClickException(str(exc)) from exc

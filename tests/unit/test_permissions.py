@@ -9,7 +9,8 @@ from deepr.security.permissions import (
 class TestPermissionPolicy:
     def test_defaults(self):
         p = PermissionPolicy()
-        assert p.allow_write is True
+        assert p.allow_write is False
+        assert p.allow_external_requests is False
         assert p.allow_code_execution is False
         assert p.budget_per_session == 0.0
 
@@ -23,7 +24,8 @@ class TestPermissionPolicy:
     def test_open_preset(self):
         p = PermissionPolicy.open()
         assert p.allow_write is True
-        assert p.tool_allowlist == []
+        assert p.tool_allowlist == ["*"]
+        assert p.allowed_providers == ["*"]
 
     def test_roundtrip(self):
         original = PermissionPolicy(
@@ -54,7 +56,7 @@ class TestPermissionEnforcerTools:
         assert "not in allowlist" in enforcer.check_tool("deep_research").reason
 
     def test_denylist_blocks(self):
-        policy = PermissionPolicy(tool_denylist=["deep_research"])
+        policy = PermissionPolicy(tool_allowlist=["*"], tool_denylist=["deep_research"])
         enforcer = PermissionEnforcer(policy)
 
         assert not enforcer.check_tool("deep_research").allowed
@@ -71,7 +73,7 @@ class TestPermissionEnforcerTools:
         assert enforcer.check_tool("search_knowledge_base").allowed
 
     def test_code_execution_blocked(self):
-        policy = PermissionPolicy(allow_code_execution=False)
+        policy = PermissionPolicy(tool_allowlist=["*"], allow_code_execution=False)
         enforcer = PermissionEnforcer(policy)
 
         assert not enforcer.check_tool("code_interpreter").allowed
@@ -79,19 +81,34 @@ class TestPermissionEnforcerTools:
 
 
 class TestPermissionEnforcerBudget:
-    def test_unlimited_budget(self):
+    def test_zero_budget_permits_only_zero_dollar_work(self):
         enforcer = PermissionEnforcer(PermissionPolicy())
-        assert enforcer.check_budget(100.0).allowed
+        assert enforcer.check_budget(0.0).allowed
+        assert not enforcer.check_budget(0.01).allowed
+        assert enforcer.session_remaining == 0.0
+
+    def test_negative_estimate_is_refused(self):
+        enforcer = PermissionEnforcer(PermissionPolicy(budget_per_session=1.0, budget_per_operation=1.0))
+        assert not enforcer.check_budget(-0.01).allowed
+
+    def test_negative_recorded_spend_is_refused(self):
+        enforcer = PermissionEnforcer(PermissionPolicy(budget_per_session=1.0))
+        try:
+            enforcer.record_spend(-0.01)
+        except ValueError as exc:
+            assert "negative" in str(exc)
+        else:
+            raise AssertionError("negative spend must be refused")
 
     def test_per_operation_limit(self):
-        policy = PermissionPolicy(budget_per_operation=1.0)
+        policy = PermissionPolicy(budget_per_operation=1.0, budget_per_session=1.0)
         enforcer = PermissionEnforcer(policy)
 
         assert enforcer.check_budget(0.50).allowed
         assert not enforcer.check_budget(2.0).allowed
 
     def test_session_budget(self):
-        policy = PermissionPolicy(budget_per_session=5.0)
+        policy = PermissionPolicy(budget_per_session=5.0, budget_per_operation=5.0)
         enforcer = PermissionEnforcer(policy)
 
         assert enforcer.check_budget(3.0).allowed
@@ -104,10 +121,10 @@ class TestPermissionEnforcerBudget:
 
 
 class TestPermissionEnforcerProvider:
-    def test_no_restrictions(self):
+    def test_default_policy_denies_all_providers(self):
         enforcer = PermissionEnforcer(PermissionPolicy())
-        assert enforcer.check_provider("openai").allowed
-        assert enforcer.check_provider("xai", "grok-4.20").allowed
+        assert not enforcer.check_provider("openai").allowed
+        assert not enforcer.check_provider("xai", "grok-4.20").allowed
 
     def test_allowed_providers(self):
         policy = PermissionPolicy(allowed_providers=["openai", "gemini"])
@@ -117,7 +134,7 @@ class TestPermissionEnforcerProvider:
         assert not enforcer.check_provider("xai").allowed
 
     def test_blocked_models(self):
-        policy = PermissionPolicy(blocked_models=["gpt-4o", "gpt-4o-mini"])
+        policy = PermissionPolicy(allowed_providers=["openai"], blocked_models=["gpt-4o", "gpt-4o-mini"])
         enforcer = PermissionEnforcer(policy)
 
         assert enforcer.check_provider("openai", "gpt-5.4").allowed
@@ -125,9 +142,14 @@ class TestPermissionEnforcerProvider:
 
 
 class TestPermissionEnforcerWriteExternal:
-    def test_write_allowed_by_default(self):
+    def test_write_blocked_by_default(self):
         enforcer = PermissionEnforcer(PermissionPolicy())
+        assert not enforcer.check_write().allowed
+
+    def test_open_preset_allows_write_and_external(self):
+        enforcer = PermissionEnforcer(PermissionPolicy.open())
         assert enforcer.check_write().allowed
+        assert enforcer.check_external().allowed
 
     def test_write_blocked(self):
         policy = PermissionPolicy(allow_write=False)

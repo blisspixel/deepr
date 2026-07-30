@@ -14,6 +14,13 @@ from openai import APIError as OpenAIAPIError
 
 from deepr.providers.azure_provider import AzureProvider
 from deepr.providers.base import ProviderError, ResearchRequest, ToolConfig
+from deepr.providers.dispatch_authority import PaidDispatchAuthorityError
+from tests.unit.test_providers._provider_authority import submit_adapter
+
+
+@pytest.fixture(autouse=True)
+def _allow_mocked_storage_adapter(monkeypatch):
+    monkeypatch.setattr("deepr.services.research_bounds.require_research_storage_accounting", lambda: None)
 
 
 def _make_api_error(message: str = "boom") -> OpenAIAPIError:
@@ -65,24 +72,24 @@ class TestInit:
                 AzureProvider(api_key="k")
 
     def test_endpoint_from_env(self):
-        with patch.dict(os.environ, {"AZURE_OPENAI_ENDPOINT": "https://e.azure.com/"}):
+        with patch.dict(os.environ, {"AZURE_OPENAI_ENDPOINT": "https://e.openai.azure.com/"}):
             p = AzureProvider(api_key="k")
-            assert p.endpoint == "https://e.azure.com/"
+            assert p.endpoint == "https://e.openai.azure.com"
 
     def test_api_key_required_when_not_managed_identity(self):
         with patch.dict(os.environ, {}, clear=True):
             with pytest.raises(ValueError, match="API key is required"):
-                AzureProvider(endpoint="https://e.azure.com/")
+                AzureProvider(endpoint="https://e.openai.azure.com/")
 
     def test_api_key_from_env(self):
         with patch.dict(os.environ, {"AZURE_OPENAI_KEY": "env-key"}):
-            p = AzureProvider(endpoint="https://e.azure.com/")
+            p = AzureProvider(endpoint="https://e.openai.azure.com/")
             assert p.api_key == "env-key"
 
     def test_managed_identity_path(self):
         with patch("deepr.providers.azure_provider.DefaultAzureCredential") as cred:
             cred.return_value = MagicMock()
-            p = AzureProvider(endpoint="https://e.azure.com/", use_managed_identity=True)
+            p = AzureProvider(endpoint="https://e.openai.azure.com/", use_managed_identity=True)
             assert p.use_managed_identity is True
             assert p._credential is not None
 
@@ -96,7 +103,7 @@ class TestInit:
     def test_custom_deployment_mappings_override(self):
         p = AzureProvider(
             api_key="k",
-            endpoint="https://e.azure.com/",
+            endpoint="https://e.openai.azure.com/",
             deployment_mappings={"my-key": "my-azure-deploy"},
         )
         assert p.get_model_name("my-key") == "my-azure-deploy"
@@ -113,13 +120,13 @@ class TestSubmitResearch:
             create.return_value = mock_resp
             req = ResearchRequest(
                 prompt="p",
-                model="o3",
+                model="o3-deep-research",
                 system_message="sys",
                 tools=[],
                 metadata={},
                 idempotency_key="deepr-research-job-1",
             )
-            jid = await provider.submit_research(req)
+            jid = await submit_adapter(provider, req)
             assert jid == "resp_xyz"
             kwargs = create.call_args.kwargs
             # Deployment-name remapping
@@ -135,12 +142,12 @@ class TestSubmitResearch:
             create.return_value = mock_resp
             req = ResearchRequest(
                 prompt="p",
-                model="o4-mini",
+                model="o4-mini-deep-research",
                 system_message="sys",
                 tools=[ToolConfig(type="file_search", vector_store_ids=["vs_1", "vs_2"])],
                 metadata={},
             )
-            await provider.submit_research(req)
+            await submit_adapter(provider, req)
             kwargs = create.call_args.kwargs
             tools = kwargs["tools"]
             assert tools[0]["type"] == "file_search"
@@ -153,34 +160,32 @@ class TestSubmitResearch:
             create.return_value = mock_resp
             req = ResearchRequest(
                 prompt="p",
-                model="o3",
+                model="o3-deep-research",
                 system_message="sys",
                 tools=[ToolConfig(type="code_interpreter", container={"type": "auto"})],
                 metadata={},
             )
-            await provider.submit_research(req)
-            kwargs = create.call_args.kwargs
-            assert kwargs["tools"][0]["container"] == {"type": "auto"}
+            with pytest.raises(PaidDispatchAuthorityError, match="code_interpreter"):
+                await submit_adapter(provider, req)
+            create.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_submit_with_webhook_and_temperature(self, provider):
+    async def test_submit_rejects_webhook_before_provider_call(self, provider):
         mock_resp = MagicMock(id="resp_wh")
         with patch.object(provider.client.responses, "create", new_callable=AsyncMock) as create:
             create.return_value = mock_resp
             req = ResearchRequest(
                 prompt="p",
-                model="o3",
+                model="o3-deep-research",
                 system_message="sys",
                 tools=[],
                 metadata={},
                 webhook_url="https://hook.example/notify",
                 temperature=0.42,
             )
-            await provider.submit_research(req)
-            kwargs = create.call_args.kwargs
-            assert kwargs["extra_headers"]["OpenAI-Hook-URL"] == "https://hook.example/notify"
-            assert kwargs["extra_headers"]["Idempotency-Key"].startswith("deepr-provider-")
-            assert kwargs["temperature"] == 0.42
+            with pytest.raises(PaidDispatchAuthorityError, match="provider webhooks are disabled"):
+                await submit_adapter(provider, req)
+            create.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_submit_retries_rate_limit(self, provider, monkeypatch):
@@ -199,8 +204,8 @@ class TestSubmitResearch:
             return val
 
         with patch.object(provider.client.responses, "create", side_effect=_side):
-            req = ResearchRequest(prompt="p", model="o3", system_message="s", tools=[], metadata=None)
-            jid = await provider.submit_research(req)
+            req = ResearchRequest(prompt="p", model="o3-deep-research", system_message="s", tools=[], metadata=None)
+            jid = await submit_adapter(provider, req)
             assert jid == "resp_after_retry"
             keys = {
                 call.kwargs["extra_headers"]["Idempotency-Key"]
@@ -219,9 +224,9 @@ class TestSubmitResearch:
             raise _make_rate_limit_error()
 
         with patch.object(provider.client.responses, "create", side_effect=_always_throttle):
-            req = ResearchRequest(prompt="p", model="o3", system_message="s", tools=[], metadata=None)
+            req = ResearchRequest(prompt="p", model="o3-deep-research", system_message="s", tools=[], metadata=None)
             with pytest.raises(ProviderError, match="Azure failed after 3 retries"):
-                await provider.submit_research(req)
+                await submit_adapter(provider, req)
 
     @pytest.mark.asyncio
     async def test_submit_never_retries_ambiguous_timeout_or_connection(self, provider):
@@ -237,9 +242,9 @@ class TestSubmitResearch:
                 raise _make()
 
             with patch.object(provider.client.responses, "create", side_effect=_side):
-                req = ResearchRequest(prompt="p", model="o3", system_message="s", tools=[], metadata=None)
+                req = ResearchRequest(prompt="p", model="o3-deep-research", system_message="s", tools=[], metadata=None)
                 with pytest.raises(ProviderError, match="ambiguous"):
-                    await provider.submit_research(req)
+                    await submit_adapter(provider, req)
                 assert calls["n"] == 1
 
     @pytest.mark.asyncio
@@ -248,9 +253,9 @@ class TestSubmitResearch:
             raise _make_api_error("invalid request")
 
         with patch.object(provider.client.responses, "create", side_effect=_err):
-            req = ResearchRequest(prompt="p", model="o3", system_message="s", tools=[], metadata=None)
+            req = ResearchRequest(prompt="p", model="o3-deep-research", system_message="s", tools=[], metadata=None)
             with pytest.raises(ProviderError, match="Failed to submit research"):
-                await provider.submit_research(req)
+                await submit_adapter(provider, req)
 
 
 class TestGetStatus:
@@ -386,14 +391,14 @@ class TestUploadDocument:
         f.write_text("hi")
         with patch.object(provider.client.files, "create", new_callable=AsyncMock) as c:
             c.return_value = MagicMock(id="file_abc")
-            fid = await provider.upload_document(str(f))
+            fid = await provider._upload_document_accounted(str(f))
             assert fid == "file_abc"
 
     @pytest.mark.asyncio
     async def test_upload_os_error_wrapped(self, provider):
         # file_path doesn't exist - open() will raise FileNotFoundError (subclass of OSError)
         with pytest.raises(ProviderError, match="Failed to upload"):
-            await provider.upload_document("/this/path/does/not/exist.txt")
+            await provider._upload_document_accounted("/this/path/does/not/exist.txt")
 
     @pytest.mark.asyncio
     async def test_upload_api_error_wrapped(self, provider, tmp_path):
@@ -405,7 +410,7 @@ class TestUploadDocument:
 
         with patch.object(provider.client.files, "create", side_effect=_err):
             with pytest.raises(ProviderError, match="Failed to upload"):
-                await provider.upload_document(str(f))
+                await provider._upload_document_accounted(str(f))
 
 
 class TestVectorStore:
@@ -417,7 +422,7 @@ class TestVectorStore:
             patch.object(provider.client.vector_stores.files, "create", new_callable=AsyncMock) as f,
         ):
             c.return_value = vs
-            out = await provider.create_vector_store("name", ["f1", "f2"])
+            out = await provider._create_vector_store_accounted("name", ["f1", "f2"])
             assert out.id == "vs_1"
             assert out.file_ids == ["f1", "f2"]
             assert f.call_count == 2
@@ -429,7 +434,7 @@ class TestVectorStore:
 
         with patch.object(provider.client.vector_stores, "create", side_effect=_err):
             with pytest.raises(ProviderError, match="Failed to create vector store"):
-                await provider.create_vector_store("n", [])
+                await provider._create_vector_store_accounted("n", [])
 
     @pytest.mark.asyncio
     async def test_wait_for_vector_store_completes(self, provider, monkeypatch):

@@ -1,47 +1,30 @@
-# Hosted MCP HTTP Endpoint
+# Local MCP HTTP Endpoint
 
-This recipe exposes Deepr's MCP server to remote agent hosts through
-Streamable HTTP while keeping Deepr itself bound to loopback. TLS, public
-DNS, and edge hardening belong at the reverse proxy. The Python process should
-not be the public TLS terminator.
+Deepr can expose its inbound MCP server over Streamable HTTP from a local
+machine or local Docker container. This is the supported background-service
+shape in v2.40. Hosted cloud infrastructure is not supported.
 
-## Shape
+## Request path
 
-```
-remote agent host
-  -> HTTPS reverse proxy
+```text
+external MCP client
+  -> operator-managed HTTPS boundary, when needed
   -> http://127.0.0.1:8765/mcp
   -> deepr mcp serve --http
+  -> scoped-key policy
+  -> expert and local-capacity tools
 ```
 
-Use scoped MCP keys for production. Shared tokens remain available for local
-testing and simple private networks, but scoped keys give each agent its own
-mode, expert allowlist, budget ceiling, rate limit, revocation state, and audit
-trail.
+Deepr does not call a remote MCP server. Outbound MCP clients, live smoke
+commands, and remote validation are blocked before network access. An external
+client may call Deepr's inbound server.
 
-## Prepare The Host
+## Start locally
 
-Install Deepr on the machine that owns the experts and reports:
-
-```bash
-python -m venv .venv
-. .venv/bin/activate
-pip install -e ".[dev,full]"
-deepr doctor
-```
-
-Keep provider API keys out of the proxy configuration. Put them in the Deepr
-process environment only when you intentionally allow paid research tools.
-Read-only and status smoke tests do not require provider keys.
-Scoped-key budgets are enforced before tool dispatch from audited spend and
-deterministic estimates. Metered tools without an estimate are denied before
-they can run.
-HTTP POST concurrency is capped at 32 by default. Override it with
-`DEEPR_MCP_HTTP_MAX_CONCURRENCY` or `deepr mcp serve --http --max-concurrency`.
-
-Create a scoped key store and mint one key per remote agent:
+Install the full local package, then create a scoped read-only key:
 
 ```bash
+uv pip install -e ".[dev,full]"
 mkdir -p data/security
 deepr mcp keys create \
   --mode read_only \
@@ -50,10 +33,7 @@ deepr mcp keys create \
   --keys-path data/security/mcp_keys.json
 ```
 
-The secret is printed once. Store it in the remote host secret manager. Do not
-commit it and do not put it in reverse-proxy access logs.
-
-Start Deepr on loopback:
+Start the server on literal loopback:
 
 ```bash
 deepr mcp serve \
@@ -65,15 +45,21 @@ deepr mcp serve \
   --keys-path data/security/mcp_keys.json
 ```
 
-## Container Variant
+Generate registration metadata without opening a network connection:
 
-For a repeatable local service, use the compose recipe in
-[mcp-http/](mcp-http/). It builds a dedicated HTTP MCP image, mounts one Deepr
-data directory at `/data`, publishes only `127.0.0.1:8765`, and starts with the
-same scoped-key store path used above.
+```bash
+deepr mcp registration-manifest http://127.0.0.1:8765/mcp \
+  --agent-name planner \
+  --output mcp-registration.json
+```
 
-Bootstrap it before the first `up` so the non-loopback container bind has an
-active scoped key:
+Store the key secret in the consuming agent's secret store. Validate the real
+connection from that external MCP client.
+
+## Run in local Docker
+
+The recipe in [mcp-http/](mcp-http/) mounts one Deepr data root at `/data`,
+publishes only `127.0.0.1:8765`, and uses the same scoped-key store.
 
 ```bash
 cd deploy/mcp-http
@@ -87,170 +73,41 @@ docker compose run --rm deepr-mcp-http \
   --budget 0 \
   --keys-path /data/security/mcp_keys.json
 docker compose up -d
-deepr mcp smoke-http http://127.0.0.1:8765/mcp --auth-token "$DEEPR_MCP_KEY"
 ```
 
-## Azure Container Apps Variant
+The image does not bundle Ollama. Local-model consultation works only when
+Deepr can prove a cloud-disabled Ollama endpoint on its own literal loopback
+interface. A remote model endpoint is never relabeled as local.
 
-The first cloud-provider template lives in
-[mcp-http/azure-container-apps/](mcp-http/azure-container-apps/). It deploys the
-same hosted MCP container to Azure Container Apps, mounts an Azure Files share
-at `/data`, keeps `security/mcp_keys.json` and
-`security/mcp_remote_audit.jsonl` durable, and exposes HTTPS-only ingress with
-optional CIDR restrictions.
-The `maxConcurrentRequests` Bicep parameter feeds both the in-process HTTP cap
-and the Container Apps HTTP scale rule.
+## Cost and security rules
 
-This is a template, not a deployment run. Creating Azure resources can incur
-cloud cost. The repo validates the template shape locally and does not run `az`
-or register with a hosted agent platform during CI.
-
-Use scoped keys for production. The template includes an optional
-`initialSharedAuthToken` only as a first-boot escape hatch; it should be removed
-after the scoped-key file is uploaded to the mounted share.
-
-## AWS ECS Fargate Variant
-
-The second cloud-provider template lives in
-[mcp-http/aws-ecs-fargate/](mcp-http/aws-ecs-fargate/). It deploys the same
-hosted MCP container to ECS Fargate behind an HTTPS Application Load Balancer,
-mounts EFS at `/data`, keeps `security/mcp_keys.json` and
-`security/mcp_remote_audit.jsonl` durable, and wires `MaxConcurrentRequests`
-into both the container environment and `deepr mcp serve --max-concurrency`.
-
-This is a template, not a deployment run. Creating AWS resources can incur
-cloud cost. The repo validates the template shape locally and does not run
-`aws` or register with a hosted agent platform during CI.
-
-Use scoped keys for production. The template includes an optional
-`InitialSharedAuthToken` only as a first-boot escape hatch; it should be removed
-after the scoped-key file is present on EFS.
-
-## GCP Cloud Run Variant
-
-The third cloud-provider template lives in
-[mcp-http/gcp-cloud-run/](mcp-http/gcp-cloud-run/). It deploys the same hosted
-MCP container to Cloud Run, mounts a Cloud Storage bucket at `/data` through
-Cloud Storage FUSE, keeps `security/mcp_keys.json` and
-`security/mcp_remote_audit.jsonl` durable, and wires `max_concurrent_requests`
-into both Cloud Run request concurrency and `deepr mcp serve --max-concurrency`.
-
-Cloud Storage FUSE is object-backed, so this template defaults to one Cloud Run
-instance and one in-process MCP POST at a time while keys and audit logs live on
-that mount. Move scoped-key and audit state to a writer-safe store before
-raising those limits.
-
-This is a template, not a deployment run. Creating GCP resources can incur
-cloud cost. The repo validates the template shape locally and does not run
-`gcloud`, `terraform apply`, or hosted-agent registration during CI.
-
-## Cloudflare Worker Edge Ingress
-
-The edge ingress recipe lives in
-[mcp-http/cloudflare-worker/](mcp-http/cloudflare-worker/). It fronts an
-existing HTTPS MCP origin with a Worker, proxies only `/mcp` paths, caps request
-bodies at 1 MiB, forwards scoped-key auth headers, and sets forwarded headers
-for origin-side audit context.
-
-This recipe does not move trust to the edge. The Deepr origin still enforces
-scoped keys, budgets, rate limits, audit logging, tool dispatch, and provider
-credentials. Keep provider API keys out of Cloudflare Worker variables.
-
-The checked-in validation is local-only:
-
-```bash
-cd deploy/mcp-http/cloudflare-worker
-node --check worker.mjs
-```
-
-Deploying the Worker or attaching a route can incur Cloudflare cost. After a
-real deployment, validate the public edge endpoint with the same `$0` smoke:
-
-```bash
-deepr mcp smoke-http https://mcp.example.com/mcp --auth-token "$DEEPR_MCP_KEY"
-```
-
-## Caddy Reverse Proxy
-
-Caddy handles certificates automatically for a public DNS name:
-
-```caddyfile
-mcp.example.com {
-    reverse_proxy 127.0.0.1:8765
-}
-```
-
-Then validate from any machine that can reach the public endpoint:
-
-```bash
-deepr mcp smoke-http https://mcp.example.com/mcp --auth-token "$DEEPR_MCP_KEY"
-deepr mcp registration-manifest https://mcp.example.com/mcp \
-  --auth-token "$DEEPR_MCP_KEY" \
-  --agent-name planner \
-  --output mcp-registration.json
-```
-
-The smoke command performs only `$0` structural checks:
-
-- `GET /health`
-- JSON-RPC `initialize`
-- JSON-RPC `tools/list`
-- JSON-RPC `tools/call` for `deepr_tool_search`
-
-It exits nonzero if authentication, routing, or dispatch is broken.
-The registration manifest wraps the same endpoint metadata and smoke result in
-the published `deepr-mcp-registration-manifest-v1` schema without writing the
-bearer token into the file.
-
-## Nginx Reverse Proxy
-
-```nginx
-server {
-    listen 443 ssl http2;
-    server_name mcp.example.com;
-
-    ssl_certificate /etc/letsencrypt/live/mcp.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/mcp.example.com/privkey.pem;
-
-    client_max_body_size 1m;
-
-    location / {
-        proxy_pass http://127.0.0.1:8765;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-Proto https;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header Authorization $http_authorization;
-        proxy_buffering off;
-    }
-}
-```
-
-Validate with the same smoke command:
-
-```bash
-deepr mcp smoke-http https://mcp.example.com/mcp --auth-token "$DEEPR_MCP_KEY"
-```
-
-## Operational Rules
-
-- Keep Deepr bound to `127.0.0.1` unless you have a separate network boundary.
-- Use HTTPS for any non-loopback caller. Bearer tokens over plaintext HTTP are
-  visible on the network.
-- Use `read_only` keys for discovery, status, and handoff consumers.
-- Use `standard` or higher modes only for agents that are allowed to mutate
-  expert state or submit paid work, and pair them with a budget ceiling.
-- Set per-key rate limits for every remote agent.
-- Revoke a key immediately when an agent host is retired:
+- Start every remote consumer with a read-only key and `--budget 0`.
+- Provider keys are optional and should remain unset for local-only operation.
+- Paid tools require a finite scoped-key ceiling, canonical operator authority,
+  durable reservation, one-use dispatch grant, and append-only settlement.
+- Paid dispatch refuses process proxy variables because proxy charges are not
+  tracked by Deepr.
+- Keep the service on loopback. Use an operator-managed HTTPS boundary for any
+  non-loopback client.
+- Set a rate limit and expert allowlist per key.
+- Review and revoke keys rather than sharing one permanent bearer token.
+- Inspect `data/security/mcp_remote_audit.jsonl` before widening permissions.
 
 ```bash
 deepr mcp keys revoke <key-id> --keys-path data/security/mcp_keys.json
-```
-
-Remote calls made through scoped keys write append-only audit records. Inspect
-the audit log before widening the key mode or budget:
-
-```bash
 deepr mcp audit list --audit-path data/security/mcp_remote_audit.jsonl --limit 50
 deepr mcp audit summary --audit-path data/security/mcp_remote_audit.jsonl
 ```
+
+## Cloud status
+
+The AWS, Azure, GCP, and Cloudflare files under `deploy/mcp-http/` are
+mechanically inert markers. Their deployable historical designs remain in
+version control only. Cloud compute, storage, logging, networking, and egress
+can create charges outside Deepr's ledger, and provider budget alerts are not
+hard stops.
+
+Do not create hosted resources when relying on the `$5` guarantee. A future
+hosted release requires an enforceable account-level total cost ceiling,
+zero-idle-cost defaults, bounded scaling and retention, and independently
+verified teardown.

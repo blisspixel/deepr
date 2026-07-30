@@ -7,6 +7,15 @@ import pytest
 from tests.unit.test_services.conftest import make_chat_response
 
 
+@pytest.fixture(autouse=True)
+def _trust_injected_unit_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Bypass the production client-attestation freeze in downstream unit tests."""
+    monkeypatch.setattr(
+        "deepr.providers.dispatch_authority.require_official_paid_client",
+        lambda _client, _provider: "test-attested",
+    )
+
+
 class TestDocReviewer:
     """Test DocReviewer document evaluation."""
 
@@ -37,7 +46,11 @@ class TestDocReviewer:
 
             r = DocReviewer(api_key="direct-key")
             assert r.api_key == "direct-key"
-            client.assert_called_once_with(api_key="direct-key", max_retries=0)
+            client.assert_called_once_with(
+                api_key="direct-key",
+                base_url="https://api.openai.com/v1",
+                max_retries=0,
+            )
 
     def test_init_no_key_raises(self, monkeypatch):
         """No API key raises ValueError."""

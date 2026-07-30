@@ -20,6 +20,8 @@ def test_admit_soft_cost_operation_places_durable_marked_hold():
         session_id="unit",
         operation_type="unit_op",
         estimated_cost=0.01,
+        provider="openai",
+        model="gpt-5-mini",
     )
     assert manager is not None
     assert estimate == pytest.approx(0.01)
@@ -42,6 +44,8 @@ def test_admit_soft_cost_operation_fails_closed_when_reservation_raises(monkeypa
         session_id="unit",
         operation_type="unit_op",
         estimated_cost=0.05,
+        provider="openai",
+        model="gpt-5-mini",
     )
     assert manager is None
     assert estimate == pytest.approx(0.05)

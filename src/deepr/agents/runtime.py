@@ -1,7 +1,11 @@
-"""Subagent runtime for bounded parallel fan-out orchestration.
+"""Blocked legacy callback runtime for bounded parallel fan-out orchestration.
 
-Implements the planner -> workers -> synthesizer pattern with:
-- Per-subagent budget caps
+The scheduler retains its deterministic implementation for compatibility, but
+public execution is blocked because an arbitrary callback plus ``AgentBudget``
+cannot prove zero-dollar capacity or reserve paid capacity durably.
+
+The retained implementation includes:
+- Per-subagent bookkeeping caps
 - Trace ID propagation
 - Circuit breaker integration
 - Cost ledger recording
@@ -23,6 +27,7 @@ from deepr.agents.contract import (
     AgentRole,
     AgentStatus,
     SubagentContract,
+    require_generic_subagent_execution,
 )
 
 _logger = logging.getLogger(__name__)
@@ -33,9 +38,32 @@ class FanOutConfig:
     """Configuration for bounded parallel fan-out."""
 
     max_concurrent: int = 16
-    operation_budget: float = 10.0
+    operation_budget: float = 5.0
     failure_rate_threshold: float = 0.5
     synthesis_reserve_fraction: float = 0.2
+
+    def __post_init__(self) -> None:
+        import math
+
+        if (
+            isinstance(self.max_concurrent, bool)
+            or not isinstance(self.max_concurrent, int)
+            or self.max_concurrent <= 0
+        ):
+            raise ValueError("max_concurrent must be a positive integer")
+        for name, value in (
+            ("operation_budget", self.operation_budget),
+            ("failure_rate_threshold", self.failure_rate_threshold),
+            ("synthesis_reserve_fraction", self.synthesis_reserve_fraction),
+        ):
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+                raise ValueError(f"{name} must be finite")
+        if self.operation_budget < 0:
+            raise ValueError("operation_budget must be non-negative")
+        if not 0 <= self.failure_rate_threshold <= 1:
+            raise ValueError("failure_rate_threshold must be between 0 and 1")
+        if not 0 <= self.synthesis_reserve_fraction <= 1:
+            raise ValueError("synthesis_reserve_fraction must be between 0 and 1")
 
 
 @dataclass
@@ -52,10 +80,8 @@ class FanOutResult:
 class SubagentRuntime:
     """Orchestrates planner -> workers -> synthesizer pattern.
 
-    Dispatches queries to parallel workers using asyncio.Semaphore for
-    max_concurrent enforcement, enforces per-subagent budget caps,
-    propagates trace_id from planner_identity to all children, and
-    records costs in the cost ledger.
+    Execution remains blocked until each node is bound to proven local or plan
+    capacity, or to a durable child reservation under one atomic parent hold.
     """
 
     def __init__(
@@ -95,6 +121,8 @@ class SubagentRuntime:
                 total_cost=0.0,
                 trace_id=planner_identity.trace_id,
             )
+
+        require_generic_subagent_execution()
 
         # Calculate per-agent budget cap: (budget * (1 - synthesis_reserve)) / agent_count
         worker_budget_pool = budget * (1.0 - self.config.synthesis_reserve_fraction)
@@ -191,6 +219,8 @@ class SubagentRuntime:
         Returns:
             AgentResult from the synthesizer.
         """
+        require_generic_subagent_execution()
+
         # Create synthesizer identity inheriting trace_id
         synth_identity = planner_identity.child(
             role=AgentRole.SYNTHESIZER,

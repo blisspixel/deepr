@@ -293,7 +293,7 @@ class WebhookConfig(BaseModel):
     host: str = Field(default="127.0.0.1", description="Webhook server host (use 127.0.0.1 for local-only)")
 
     # Ngrok Configuration (for local development)
-    use_ngrok: bool = Field(default=True, description="Use ngrok tunnel for local development")
+    use_ngrok: bool = Field(default=False, description="Use ngrok tunnel for local development")
     ngrok_path: str = Field(default="ngrok", description="Path to ngrok executable")
 
     # Cloud Configuration
@@ -467,7 +467,7 @@ class AppConfig(BaseModel):
         webhook = WebhookConfig(
             enabled=os.getenv("DEEPR_WEBHOOK_ENABLED", "true").lower() == "true",
             port=int(os.getenv("DEEPR_WEBHOOK_PORT", "5000") or "5000"),
-            use_ngrok=environment == "local",
+            use_ngrok=os.getenv("DEEPR_USE_NGROK", "false").lower() == "true",
             ngrok_path=os.getenv("NGROK_PATH", "ngrok"),
             public_url=os.getenv("DEEPR_WEBHOOK_URL"),
         )

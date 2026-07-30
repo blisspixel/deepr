@@ -2,7 +2,7 @@
 
 Target: v2.16 foundation, with plan-quota adapters carried forward. Status:
 local capacity, scheduled guidance, and loop-facing capacity gates are shipped
-in v2.17.0; vendor surfaces were re-verified through 2026-07-16 and must be re-verified
+in v2.17.0; vendor surfaces were re-verified through 2026-07-29 and must be re-verified
 at adapter implementation because this market moves monthly.
 
 Current implementation: `CostModel`/`BackendKind` types and read-only
@@ -12,20 +12,22 @@ execution; and eval-gated local admission with owned-capacity selection for
 selected expert maintenance. `deepr capacity admit` / `admissions` / `revoke`
 and local sync/absorb may select an admitted model, but unavailable local
 capacity stops or waits instead of falling through to a metered API. Explicit
-API expert lifecycle overrides are gated in v2.36. Free local retrieval context for sync
-(`--fresh-context` and bounded multi-query `--deep-context`, with optional
-SearXNG); the normalized `ResearchBackend` profile; plus the append-only
-`quota_ledger.jsonl` substrate and `deepr capacity`
-quota-state visibility; and the pure backend eligibility gate over
-`ResearchBackend` plus `QuotaState`; and the pure backend selector that orders
-eligible capacity by the waterfall and enforces optional measured quality
-floors; `deepr eval local`, a local-Ollama comparison with either a local LLM
-judge or an explicitly approved CLI judge for producing review evidence before
-admission; `deepr capacity admit --from-eval latest`, which turns saved
-zero-cost local eval artifacts into admission records; runtime admitted-score
-quality-floor selection for expert maintenance; and `deepr capacity next` for
-ranked local setup, admission, eval refresh, wait guidance, and concrete
-scheduled-maintenance previews. Explicit plan-quota CLI execution now works for
+API expert lifecycle overrides are gated in v2.36. Free local retrieval context
+for sync (`--fresh-context` and bounded multi-query `--deep-context`) uses
+explicit URLs or bounded direct DuckDuckGo. SearXNG configuration is visible but
+dispatch-blocked because upstream marginal cost cannot be proven. Also shipped
+are the normalized `ResearchBackend` profile, the append-only
+`quota_ledger.jsonl` substrate, `deepr capacity` quota-state visibility, the pure
+backend eligibility gate over `ResearchBackend` plus `QuotaState`, and the pure
+backend selector that orders eligible capacity by the waterfall and enforces
+optional measured quality floors. `deepr eval local` compares local Ollama
+models with a local LLM judge. CLI judge options remain parseable but are
+quarantined before process creation, even with `--allow-cli-judge`.
+`deepr capacity admit --from-eval latest` turns saved zero-cost local eval
+artifacts into admission records. Runtime selection consumes admitted scores for
+expert maintenance, and `deepr capacity next` provides ranked local setup,
+admission, eval refresh, wait guidance, and concrete scheduled-maintenance
+previews. Explicit plan-quota CLI execution now works for
 maintenance and bootstrap through `expert sync --plan <id>`,
 `expert absorb --plan <id>`, topic `expert learn --plan <id>`, the explicit
 `expert learn-web --plan <id>` alias, `route-gaps --execute --plan <id>`, and
@@ -77,7 +79,8 @@ resort*, and "I think this is free" must never silently become a bill.
 ### Backend abstraction
 
 A `ResearchBackend` sits one level above providers: `api_metered`
-(today's path), `plan_quota` (drive a vendor CLI in headless mode under
+(preview and accounting model today, future executable path), `plan_quota`
+(drive a vendor CLI in headless mode under
 its subscription auth), `local` (Ollama/opencode). Each backend declares a
 `CostModel`: `metered | credit_pool | rolling_window | calendar_window |
 owned_hardware`. The router consults backends in waterfall order:
@@ -116,7 +119,7 @@ genuine `$0 owned_hardware` source and stays the priority rung.
 There are three distinct states, and docs must keep them separate:
 
 1. **Works now:** `local-ollama` for local expert setup and maintenance, plus
-   metered provider APIs behind budget gates.
+   write-free provider request previews and offline billing reconciliation.
 2. **Works now by explicit opt-in:** plan CLIs with shipped adapters can execute
    expert maintenance through `--plan` after deterministic auth-mode and
    no-surprise-bills checks.
@@ -210,14 +213,14 @@ admission expires (configurable, default 90 days) and re-eval is prompted.
 No eval, no admission - "it's free" never overrides "it's good enough".
 
 `deepr eval local` is the first cheap eval path for this: candidate Ollama
-models answer a small prompt set, and a judge scores each answer against a
-rubric. The default judge is another local Ollama model. An operator may also
-use a CLI judge with `--judge-cli grok` or `--judge-command`, but only with
-`--allow-cli-judge`; Deepr cannot prove whether a vendor CLI is backed by
-subscription quota, prepaid credits, or metered credentials. The judge decides
-semantic quality; Deepr validates JSON shape, score range, latency, Deepr
-metered cost, prompt failures, and artifact output. The score is evidence for a
-human admission decision and later for measured quality floors.
+models answer a small prompt set, and a local Ollama judge scores each answer
+against a rubric. CLI judge options remain for command-line compatibility, but
+`--judge-cli` and `--judge-command` always exit before process creation even
+with `--allow-cli-judge`. Deepr cannot prove a vendor CLI's billing source,
+overage posture, or total cost. The local judge decides semantic quality; Deepr
+validates JSON shape, score range, latency, Deepr metered cost, prompt failures,
+and artifact output. The score is evidence for a human admission decision and
+later for measured quality floors.
 
 `deepr capacity admit --from-eval` closes the manual evidence handoff. It loads
 a saved local comparison artifact, chooses the named model or the artifact
@@ -249,8 +252,9 @@ lifecycle fallback.
 3. Waterfall decisions are logged with the same trace IDs as research
    jobs: "why did this run on X" is always answerable.
 4. Plan overage never executes through `plan_quota`. Intent cannot convert an
-   unaccounted plan call into a paid call; paid work uses a separately estimated,
-   reserved, and settled API path.
+   unaccounted plan call into a paid call. The separately estimated, reserved,
+   and settled API path is currently preview-only and production dispatch is
+   blocked.
 
 ## Order of operations
 
@@ -262,16 +266,17 @@ scheduler work remains.
    seams + `--local`. (done)
 3. Eval-gated **local admission** + automatic owned-capacity-first selection
    for `expert sync`/`absorb` (`deepr capacity admit`). (done - the local rung)
-4. `ResearchBackend` abstraction: wrap today's provider path as `api_metered`,
+4. `ResearchBackend` abstraction: model the provider path as `api_metered`,
    and model the `engine` x `capacity` matrix (one BYO-base-url engine driver,
-   many capacity endpoints) rather than one adapter per vendor. (done)
+   many capacity endpoints) rather than one adapter per vendor. The model and
+   preview are done; production dispatch remains quarantined.
 5. Quota ledger substrate + `deepr capacity` quota-state visibility. (done)
    Window/credit probes per capacity source remain.
 6. Backend eligibility gate over `ResearchBackend` and observed `QuotaState`.
    (done)
 7. Backend selector over eligibility plus measured quality floors. (done)
-8. Local comparison with a local LLM judge or explicit CLI judge for admission
-   evidence. (done)
+8. Local comparison with a local LLM judge for admission evidence. CLI judge
+   compatibility flags are quarantined before process creation. (done)
 9. Saved local eval artifacts feed admission with deterministic gates. (done)
 10. Feed admitted local scores into runtime quality-floor selection. (done)
 11. Capacity quality-of-life path: ranked next actions and latest-artifact

@@ -5,9 +5,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from deepr.providers.base import UsageStats
 from deepr.queue.base import JobStatus, ResearchJob
 from deepr.queue.local_queue import SQLiteQueue
 from deepr.services.provider_completion import (
+    authoritative_completion_usage,
     conservative_completion_cost,
     finalize_provider_completion,
     finalize_provider_failure,
@@ -30,6 +32,201 @@ def test_missing_immediate_usage_consumes_reserved_ceiling() -> None:
     assert reported is None
     assert accounted == pytest.approx(0.75)
     assert tokens == 0
+
+
+def test_completion_pricing_uses_canonical_queued_model() -> None:
+    job = ResearchJob(
+        id="canonical-model",
+        prompt="priced",
+        provider="openai",
+        model="o3-deep-research",
+        enable_web_search=False,
+        enable_code_interpreter=False,
+        metadata={"cost_reservation_model": "o3-deep-research"},
+    )
+    response = SimpleNamespace(
+        model="o3-deep-research-2025-06-26",
+        output=[{"type": "message", "content": []}],
+        usage=SimpleNamespace(
+            input_tokens=100,
+            cached_input_tokens=10,
+            output_tokens=20,
+            total_tokens=120,
+            cost=0.01,
+        ),
+    )
+
+    with patch.object(UsageStats, "calculate_cost_with_cached_input", return_value=0.25) as calculate:
+        cost, tokens = authoritative_completion_usage(job, response)
+
+    assert cost == pytest.approx(0.25)
+    assert tokens == 120
+    calculate.assert_called_once_with(
+        100,
+        20,
+        "o3-deep-research",
+        cached_input_tokens=10,
+    )
+
+
+def test_completion_adds_provable_web_search_charges() -> None:
+    job = ResearchJob(
+        id="tool-cost",
+        prompt="research",
+        provider="openai",
+        model="o4-mini-deep-research",
+        enable_web_search=True,
+        enable_code_interpreter=False,
+        metadata={
+            "cost_reservation_model": "o4-mini-deep-research",
+            "research_max_tool_calls": 4,
+        },
+    )
+    response = SimpleNamespace(
+        model="o4-mini-deep-research-2025-06-26",
+        output=[
+            {"type": "web_search_call", "content": []},
+            {"type": "web_search_call", "content": []},
+            {"type": "message", "content": []},
+        ],
+        usage=SimpleNamespace(
+            input_tokens=100,
+            cached_input_tokens=0,
+            output_tokens=20,
+            total_tokens=120,
+            cost=0.20,
+        ),
+    )
+
+    with patch.object(UsageStats, "calculate_cost_with_cached_input", return_value=0.20):
+        cost, tokens = authoritative_completion_usage(job, response)
+
+    assert cost == pytest.approx(0.20 + (2 * 0.025))
+    assert tokens == 120
+
+
+def test_code_interpreter_completion_consumes_reserved_ceiling() -> None:
+    job = ResearchJob(
+        id="unbounded-container-cost",
+        prompt="research",
+        provider="openai",
+        model="o4-mini-deep-research",
+        enable_web_search=False,
+        enable_code_interpreter=True,
+        metadata={
+            "cost_reservation_model": "o4-mini-deep-research",
+            "research_max_tool_calls": 1,
+        },
+    )
+    response = SimpleNamespace(
+        model="o4-mini-deep-research-2025-06-26",
+        output=[
+            {"type": "code_interpreter_call", "content": []},
+            {"type": "message", "content": []},
+        ],
+        usage=SimpleNamespace(
+            input_tokens=100,
+            cached_input_tokens=0,
+            output_tokens=20,
+            total_tokens=120,
+            cost=0.20,
+        ),
+    )
+
+    cost, tokens = authoritative_completion_usage(job, response)
+
+    assert cost is None
+    assert tokens == 120
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        SimpleNamespace(
+            model=None,
+            output=[{"type": "message", "content": []}],
+            usage=SimpleNamespace(
+                input_tokens=100,
+                cached_input_tokens=0,
+                output_tokens=20,
+                total_tokens=120,
+                cost=0.01,
+            ),
+        ),
+        SimpleNamespace(
+            model="o4-mini-deep-research",
+            output=[{"type": "message", "content": []}],
+            usage=SimpleNamespace(
+                input_tokens=100,
+                cached_input_tokens=0,
+                output_tokens=20,
+                total_tokens=120,
+                cost=0.01,
+            ),
+        ),
+        SimpleNamespace(
+            model="o3-deep-research",
+            output=None,
+            usage=SimpleNamespace(
+                input_tokens=100,
+                cached_input_tokens=0,
+                output_tokens=20,
+                total_tokens=120,
+                cost=0.01,
+            ),
+        ),
+        SimpleNamespace(
+            model="o3-deep-research",
+            output=[
+                {"type": "web_search_call", "content": []},
+                {"type": "web_search_call", "content": []},
+            ],
+            usage=SimpleNamespace(
+                input_tokens=100,
+                cached_input_tokens=0,
+                output_tokens=20,
+                total_tokens=120,
+                cost=0.01,
+            ),
+        ),
+    ],
+)
+def test_ambiguous_completion_model_or_tool_usage_consumes_reserved_ceiling(response) -> None:
+    job = ResearchJob(
+        id="ambiguous-completion",
+        prompt="research",
+        provider="openai",
+        model="o3-deep-research",
+        enable_web_search=True,
+        enable_code_interpreter=False,
+        metadata={
+            "cost_reservation_model": "o3-deep-research",
+            "research_max_tool_calls": 1,
+        },
+    )
+
+    cost, tokens = authoritative_completion_usage(job, response)
+
+    assert cost is None
+    assert tokens == 120
+
+
+def test_immediate_completion_with_missing_model_consumes_reserved_ceiling() -> None:
+    response = SimpleNamespace(
+        model=None,
+        usage=SimpleNamespace(cost=0.10, total_tokens=42),
+    )
+    reservation = SimpleNamespace(
+        provider="openai",
+        model="o3-deep-research",
+        estimated_cost=0.75,
+    )
+
+    reported, accounted, tokens = conservative_completion_cost(response, reservation)
+
+    assert reported is None
+    assert accounted == pytest.approx(0.75)
+    assert tokens == 42
 
 
 @pytest.mark.asyncio
@@ -193,7 +390,7 @@ async def test_completion_does_not_claim_terminal_state_when_cost_settlement_fai
     with (
         patch(
             "deepr.services.provider_completion.restore_research_cost_reservation",
-            return_value=MagicMock(),
+            return_value=MagicMock(estimated_cost=0.25),
         ),
         patch(
             "deepr.services.provider_completion.settle_research_cost",
@@ -238,7 +435,7 @@ async def test_completion_retry_does_not_repeat_confirmed_provider_cleanup(tmp_p
     with (
         patch(
             "deepr.services.provider_completion.restore_research_cost_reservation",
-            return_value=MagicMock(),
+            return_value=MagicMock(estimated_cost=0.25),
         ),
         patch("deepr.services.provider_completion.settle_research_cost"),
         patch(

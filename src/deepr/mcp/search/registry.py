@@ -314,11 +314,10 @@ def create_default_registry() -> ToolRegistry:
         ToolSchema(
             name="deepr_research",
             description=(
-                "Submit a deep research job for comprehensive analysis requiring web search "
-                "and synthesis. Returns job_id for async status tracking and resource URIs for "
-                "subscriptions. This is a paid API path and remains off unless this call includes "
-                "both explicit consent flags and a finite positive USD ceiling. Do NOT use for "
-                "simple factual lookups; use web search instead."
+                "Expose the bounded deep-research request contract for compatibility. Production "
+                "metered submission is blocked before provider dispatch, even with explicit "
+                "consent flags and a finite positive USD ceiling. Use CLI preview for a write-free "
+                "cost envelope. Do NOT use this tool for simple factual lookups; use web search instead."
             ),
             input_schema=PAID_RESEARCH_INPUT_SCHEMA,
             category="research",
@@ -466,8 +465,9 @@ def create_default_registry() -> ToolRegistry:
                 "and contradicting claims (with citations), and caveats for any relevant "
                 "knowledge gaps. Pure read-side: does not modify the expert. Useful as a "
                 "guardrail for downstream agents that need domain validation before acting. "
-                "This uses one paid reasoning-model call and remains off unless this call "
-                "includes both explicit consent flags and a finite positive USD ceiling."
+                "The paid reasoning-model path is production-frozen before provider dispatch. "
+                "Consent flags and a finite positive USD ceiling are contract inputs only and "
+                "cannot remove that block."
             ),
             input_schema=PAID_EXPERT_VALIDATE_INPUT_SCHEMA,
             category="experts",
@@ -863,12 +863,11 @@ def create_default_registry() -> ToolRegistry:
                 "(output-to-knowledge feedback loop). Extracts report-grounded claims, drops "
                 "weak ones and any that contradict the expert's existing beliefs, then "
                 "integrates the survivors as beliefs with the report id as provenance "
-                "(deduped against existing beliefs). MUTATES the expert and runs one small "
-                "extraction call plus only the contradiction or dedup verdicts dynamically "
-                "routed by the report. The budget argument is a hard run ceiling, not "
-                "permission to spend. Both metered-consent fields are required, including "
-                "for dry_run=true previews because extraction still calls a paid model. "
-                "Example: deepr_expert_absorb(expert_name='AI Strategy Expert', report_id='<id>', dry_run=true)"
+                "(deduped against existing beliefs). MUTATES the expert. The metered extraction "
+                "and semantic-verdict path is production-frozen before provider dispatch, "
+                "including dry_run=true. Budget and consent fields are retained contract inputs "
+                "and cannot remove that block. Use explicit local or safety-eligible plan CLI "
+                "absorption instead."
             ),
             input_schema={
                 "type": "object",
@@ -891,15 +890,17 @@ def create_default_registry() -> ToolRegistry:
                     "budget": {
                         "type": "number",
                         "exclusiveMinimum": 0,
-                        "description": ("Hard USD ceiling across extraction and dynamically routed semantic verdicts"),
+                        "description": (
+                            "Legacy hard ceiling for the production-frozen metered path; not dispatch authority"
+                        ),
                     },
                     "allow_metered_api": {
                         "type": "boolean",
-                        "description": "Must be true to permit paid API dispatch for this call",
+                        "description": "Legacy acknowledgement; production API dispatch remains blocked",
                     },
                     "confirm_metered_cost": {
                         "type": "boolean",
-                        "description": "Must be true to confirm the stated per-call USD ceiling",
+                        "description": "Legacy ceiling acknowledgement; not provider dispatch authority",
                     },
                 },
                 "required": [
@@ -920,10 +921,10 @@ def create_default_registry() -> ToolRegistry:
         ToolSchema(
             name="deepr_agentic_research",
             description=(
-                "Compatibility adapter for autonomous multi-step research. In v2.36 it "
+                "Compatibility adapter for autonomous multi-step research. In v2.40 it "
                 "always fails closed before provider work with "
                 "metered_expert_chat_accounting_unavailable. Decompose work into "
-                "separately previewed and approved bounded jobs instead."
+                "write-free bounded previews, or use explicit local and safe plan capacity."
             ),
             input_schema={
                 "type": "object",

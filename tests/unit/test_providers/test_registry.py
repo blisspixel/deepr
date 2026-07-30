@@ -268,6 +268,79 @@ class TestTokenPricingTiers:
         assert tiered["input"] == round(base["input"] * 2.0, 6)
         assert tiered["output"] == round(base["output"] * 1.5, 6)
 
+    @pytest.mark.parametrize(
+        "model",
+        ["gemini-2.5-pro", "gemini-3.1-pro-preview", "gemini-3-pro-preview"],
+    )
+    def test_gemini_long_context_tier_is_exclusive_at_200k(self, model):
+        from deepr.providers.registry import get_token_pricing
+
+        base = get_token_pricing(model)
+        assert get_token_pricing(model, input_tokens=200_000) == base
+        assert get_cost_estimate(model, input_tokens=200_000) == get_cost_estimate(model)
+        assert get_cached_input_pricing(model, input_tokens=200_000) == get_cached_input_pricing(model)
+        assert get_token_pricing(model, input_tokens=200_001) == {
+            "input": round(base["input"] * 2.0, 6),
+            "output": round(base["output"] * 1.5, 6),
+        }
+        assert get_cost_estimate(model, input_tokens=200_001) == pytest.approx(get_cost_estimate(model) * 2.0)
+        cached_rate = get_cached_input_pricing(model)
+        if cached_rate is not None:
+            assert get_cached_input_pricing(model, input_tokens=200_001) == pytest.approx(cached_rate * 2.0)
+
+    @pytest.mark.parametrize(
+        "model",
+        [
+            "grok-4.5",
+            "grok-4.3",
+            "grok-4.20-0309-reasoning",
+            "grok-4.20-0309-non-reasoning",
+            "grok-4.20-multi-agent-0309",
+            "grok-4-20-reasoning",
+            "grok-4-20-non-reasoning",
+            "grok-4-20-multi-agent",
+        ],
+    )
+    def test_current_grok_long_context_tiers_are_inclusive_at_200k(self, model):
+        from deepr.providers.base import UsageStats
+        from deepr.providers.registry import get_token_pricing
+
+        base = get_token_pricing(model)
+        cached_rate = get_cached_input_pricing(model)
+        assert cached_rate is not None
+        base_estimate = get_cost_estimate(model)
+
+        for input_tokens, multiplier in ((199_999, 1.0), (200_000, 2.0), (200_001, 2.0)):
+            assert get_token_pricing(model, input_tokens=input_tokens) == {
+                "input": round(base["input"] * multiplier, 6),
+                "output": round(base["output"] * multiplier, 6),
+            }
+            assert get_cached_input_pricing(model, input_tokens=input_tokens) == pytest.approx(cached_rate * multiplier)
+            assert get_cost_estimate(model, input_tokens=input_tokens) == pytest.approx(base_estimate * multiplier)
+
+            cached_tokens = input_tokens // 2
+            settlement = UsageStats.calculate_cost_with_cached_input(
+                input_tokens,
+                10_000,
+                model,
+                cached_input_tokens=cached_tokens,
+            )
+            expected = (
+                (input_tokens - cached_tokens) * base["input"] * multiplier
+                + cached_tokens * cached_rate * multiplier
+                + 10_000 * base["output"] * multiplier
+            ) / 1_000_000
+            assert settlement == pytest.approx(expected)
+
+    @pytest.mark.parametrize(
+        "model",
+        ["grok-4-20-reasoning", "grok-4-20-non-reasoning", "grok-4-20-multi-agent"],
+    )
+    def test_grok_4_20_registry_context_is_one_million(self, model):
+        capability = get_model_capability("xai", model)
+        assert capability is not None
+        assert capability.context_window == 1_000_000
+
     def test_cached_input_pricing_uses_model_registry(self):
         assert get_cached_input_pricing("gpt-5") == pytest.approx(0.125)
         assert get_cached_input_pricing("grok-4.20-0309-reasoning") == pytest.approx(0.20)

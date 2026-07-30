@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import json
+from typing import Any
 
+import aiohttp
 import pytest
 
 from deepr.mcp import consult_validation
@@ -18,7 +19,6 @@ from deepr.mcp.consult_validation import (
     run_offline_consult_validation,
     validate_consult_payload,
 )
-from deepr.mcp.transport.http import HttpMessage
 
 
 def test_offline_consult_validation_passes_contract_checks():
@@ -65,62 +65,73 @@ def test_consult_validation_rejects_failed_synthesis_status():
     assert "synthesis_status" in failed
 
 
-class _FakeHttpClient:
-    instances: list[_FakeHttpClient] = []
-
-    def __init__(self, base_url: str, timeout: float = 30.0, auth_token: str | None = None):
-        self.base_url = base_url
-        self.timeout = timeout
-        self.auth_token = auth_token
-        self.sent: list[HttpMessage] = []
-        self.disconnected = False
-        _FakeHttpClient.instances.append(self)
-
-    async def connect(self) -> None:
-        return None
-
-    async def disconnect(self) -> None:
-        self.disconnected = True
-
-    async def send(self, message: HttpMessage) -> HttpMessage:
-        self.sent.append(message)
-        if message.method == "initialize":
-            return HttpMessage(id=message.id, result={"serverInfo": {"name": "deepr-research"}})
-        if message.method == "tools/call":
-            payload = build_offline_consult_fixture(experts=("A",))
-            return HttpMessage(
-                id=message.id,
-                result={
-                    "content": [{"type": "text", "text": json.dumps(payload)}],
-                    "structuredContent": payload,
-                    "isError": False,
-                },
-            )
-        raise AssertionError(f"unexpected method {message.method}")
-
-
 @pytest.mark.asyncio
-async def test_http_consult_validation_calls_remote_consult_tool(monkeypatch):
-    _FakeHttpClient.instances = []
-    monkeypatch.setattr(consult_validation, "HttpClient", _FakeHttpClient)
+@pytest.mark.parametrize("url", ["http://127.0.0.1:8765/mcp/", "https://mcp.example.com/mcp"])
+async def test_http_consult_validation_blocks_before_client_construction(url, monkeypatch):
+    def fail_client(*args: Any, **kwargs: Any) -> None:
+        del args, kwargs
+        raise AssertionError("remote client must not be constructed")
+
+    monkeypatch.setattr(aiohttp, "ClientSession", fail_client)
 
     report = await run_http_consult_validation(
-        "http://127.0.0.1:8765/mcp/",
+        url,
         auth_token="secret-token",
         experts=("A",),
         timeout_seconds=2.0,
     )
+    contract = report.to_dict()["contract"]
 
-    assert report.ok is True
-    assert report.endpoint == "http://127.0.0.1:8765/mcp"
-    assert _FakeHttpClient.instances[0].auth_token == "secret-token"
-    assert _FakeHttpClient.instances[0].disconnected is True
-    assert [message.method for message in _FakeHttpClient.instances[0].sent] == ["initialize", "tools/call"]
-    call = _FakeHttpClient.instances[0].sent[1]
-    assert call.params["name"] == "deepr_consult_experts"
-    assert call.params["arguments"]["_approved"] is True
-    assert call.params["arguments"]["budget"] == 0
-    assert call.params["arguments"]["synthesis_backend"] == "local"
+    assert report.ok is False
+    assert report.error["error_code"] == "MCP_HTTP_CONSULT_VALIDATION_BLOCKED"
+    assert contract["remote_tool_call_attempted"] is False
+    assert contract["remote_tool_cost_status"] == "not_submitted"
+    assert contract["remote_tool_calls_metered_api"] is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("timeout", [float("nan"), float("inf"), 0.0, -1.0, 301.0])
+async def test_http_consult_validation_rejects_invalid_timeout_before_client(timeout, monkeypatch):
+    monkeypatch.setattr(
+        aiohttp,
+        "ClientSession",
+        lambda *args, **kwargs: pytest.fail("remote client must not be constructed"),
+    )
+
+    report = await run_http_consult_validation(
+        "https://mcp.example.com/mcp",
+        timeout_seconds=timeout,
+    )
+
+    assert report.ok is False
+    assert report.error["error_code"] == "INVALID_HTTP_PREFLIGHT"
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), -0.01, "0", None, True])
+@pytest.mark.parametrize("location", ["payload", "contract", "budget"])
+def test_consult_validation_rejects_invalid_cost_fields(location: str, value: Any) -> None:
+    payload = build_offline_consult_fixture(experts=("A",))
+    if location == "payload":
+        payload["cost_usd"] = value
+    elif location == "contract":
+        payload["contract"]["cost_usd"] = value
+    else:
+        payload["collaboration"]["budget_capacity_contract"]["actual_cost_usd"] = value
+
+    checks = validate_consult_payload(payload, expected_backend="local")
+
+    failed = {check.name for check in checks if check.status == "failed"}
+    assert "cost_ceiling" in failed
+
+
+@pytest.mark.parametrize("ceiling", [float("nan"), float("inf"), -0.01, "0", None, True])
+def test_consult_validation_rejects_invalid_cost_ceiling(ceiling: Any) -> None:
+    payload = build_offline_consult_fixture(experts=("A",))
+
+    checks = validate_consult_payload(payload, expected_backend="local", cost_ceiling_usd=ceiling)
+
+    failed = {check.name for check in checks if check.status == "failed"}
+    assert "cost_ceiling" in failed
 
 
 def test_validation_check_failure_marks_report_failed():
@@ -148,6 +159,20 @@ async def test_in_process_consult_validation_reports_timeout_detail(monkeypatch)
     assert report.ok is False
     assert report.error["message"] == "live plan consult plan=grok timed out after 1.5s"
     assert report.checks[0].detail == report.error["message"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("timeout", [float("nan"), float("inf"), 0.0, -1.0, 301.0])
+async def test_in_process_consult_validation_rejects_invalid_timeout_before_tool(timeout, monkeypatch):
+    async def fail_tool(**_kwargs):
+        raise AssertionError("consult tool must not run")
+
+    monkeypatch.setattr(consult_validation, "consult_experts_tool", fail_tool)
+
+    report = await run_in_process_consult_validation(timeout_seconds=timeout)
+
+    assert report.ok is False
+    assert report.error["error_code"] == "INVALID_TIMEOUT"
 
 
 @pytest.mark.asyncio

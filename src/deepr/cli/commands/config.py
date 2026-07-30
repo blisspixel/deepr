@@ -221,8 +221,8 @@ def show(unified: bool, legacy: bool):
 
             click.echo("\nBudget Limits:")
             click.echo(f"   Per Job: ${config.get('max_cost_per_job', 5.0):.2f}")
-            click.echo(f"   Per Day: ${config.get('max_daily_cost', 25.0):.2f}")
-            click.echo(f"   Per Month: ${config.get('max_monthly_cost', 200.0):.2f}")
+            click.echo(f"   Per Day: ${config.get('max_daily_cost', 2.0):.2f}")
+            click.echo(f"   Per Month: ${config.get('max_monthly_cost', 5.0):.2f}")
 
             console.print("\nDefaults:")
             console.print(f"   Model: {config.get('default_model', 'o4-mini-deep-research')}")

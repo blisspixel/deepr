@@ -34,6 +34,14 @@ from deepr.evals.recall_quality import (
     write_recall_eval_report,
 )
 from deepr.experts.beliefs import Belief, BeliefStore
+from deepr.experts.semantic_model_gate import _mark_zero_dollar_client
+
+
+def _sealed_plan_client(adapter):
+    return _mark_zero_dollar_client(
+        SimpleNamespace(),
+        capacity_source=f"plan_quota:{adapter.backend_id}",
+    )
 
 
 def _enable_plan_adapter_for_wiring_test(monkeypatch, backend_id: str) -> None:
@@ -1770,7 +1778,7 @@ class TestPlanQuotaSync:
 
         def fake_plan_client(adapter, **kwargs):
             clients.append(adapter.backend_id)
-            return object()
+            return _sealed_plan_client(adapter)
 
         monkeypatch.setattr("deepr.backends.plan_quota.PlanQuotaChatClient", fake_plan_client)
         monkeypatch.setattr(
@@ -2007,7 +2015,7 @@ class TestPlanQuotaSync:
 
         def fake_plan_client(adapter, **kwargs):
             clients.append(adapter.backend_id)
-            return object()
+            return _sealed_plan_client(adapter)
 
         monkeypatch.setattr("deepr.backends.plan_quota.PlanQuotaChatClient", fake_plan_client)
 
@@ -2091,7 +2099,7 @@ class TestPlanQuotaSync:
 
         def fake_plan_client(adapter, **kwargs):
             clients.append(adapter.backend_id)
-            return object()
+            return _sealed_plan_client(adapter)
 
         monkeypatch.setattr("deepr.backends.plan_quota.PlanQuotaChatClient", fake_plan_client)
 

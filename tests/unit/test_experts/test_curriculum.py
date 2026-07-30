@@ -18,6 +18,15 @@ from deepr.experts.curriculum import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _trust_injected_unit_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Bypass the production client-attestation freeze in downstream unit tests."""
+    monkeypatch.setattr(
+        "deepr.providers.dispatch_authority.require_official_paid_client",
+        lambda _client, _provider: "test-attested",
+    )
+
+
 @pytest.mark.asyncio
 async def test_curriculum_provider_attempt_is_durably_bounded_and_disables_sdk_retries():
     generator = CurriculumGenerator({"api_key": "sk-test-fake-key"})

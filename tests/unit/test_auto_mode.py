@@ -56,6 +56,13 @@ _MOCK_RANKINGS = {
 }
 
 
+def test_route_budget_is_finite_nonnegative_and_hard_capped() -> None:
+    assert auto_mode_module._bounded_route_budget(None) == 5.0
+    assert auto_mode_module._bounded_route_budget(100.0) == 5.0
+    with pytest.raises(ValueError, match="finite non-negative"):
+        auto_mode_module._bounded_route_budget(-0.01)
+
+
 def test_background_eval_is_disabled_without_explicit_opt_in(monkeypatch):
     """Constructing a router must not silently start paid evaluation."""
     monkeypatch.delenv("DEEPR_AUTO_EVAL", raising=False)

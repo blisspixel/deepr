@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import inspect
+import json
 import math
 import uuid
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
+from dataclasses import dataclass, field
 from types import SimpleNamespace
-from typing import NoReturn, TypeVar
+from typing import Any, NoReturn, TypeVar
 
 from deepr.core.costs import CostEstimator
 from deepr.experts.research_cost_gate import (
@@ -18,6 +21,11 @@ from deepr.experts.research_cost_gate import (
     settle_research_cost,
 )
 from deepr.experts.research_reservation_store import ResearchReservationStore
+from deepr.providers.dispatch_authority import canonical_provider_key, require_unproxied_paid_transport
+from deepr.providers.registry_pricing import (
+    get_resolved_model_contract_identity,
+    provider_matches_model_contract,
+)
 from deepr.services.provider_receipts import (
     ProviderReceiptIdentifiers as _ProviderReceiptIdentifiers,
 )
@@ -36,6 +44,112 @@ class MeteredCallAccountingError(RuntimeError):
     """Raised when durable admission or settlement state cannot be updated."""
 
 
+class ProviderModelIdentityError(ValueError):
+    """Provider response identity cannot be reconciled to the reserved model."""
+
+
+_METERED_DISPATCH_SEAL = object()
+
+
+@dataclass
+class _MeteredDispatchAuthority:
+    provider: str
+    model: str
+    request_envelope: Mapping[str, Any] = field(repr=False)
+    request_sha256: str
+    call_identity: int
+    seal: object = field(repr=False)
+    marked: bool = False
+    consumed: bool = False
+
+
+def _canonical_request_envelope(
+    *,
+    provider: str,
+    model: str,
+    request_envelope: Mapping[str, Any] | None,
+) -> str:
+    if not isinstance(request_envelope, Mapping) or not request_envelope:
+        raise MeteredCallAccountingError("Metered call requires a non-empty exact request envelope")
+    try:
+        return json.dumps(
+            {
+                "provider": canonical_provider_key(provider),
+                "model": model,
+                "request": dict(request_envelope),
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+    except (TypeError, ValueError) as exc:
+        raise MeteredCallAccountingError("Metered call request envelope must be deterministic JSON") from exc
+
+
+def _bind_dispatch_authority(
+    *,
+    provider: str,
+    model: str,
+    request_envelope: Mapping[str, Any] | None,
+    call: object,
+) -> _MeteredDispatchAuthority:
+    if not callable(call):
+        raise MeteredCallAccountingError("Metered call dispatch closure is not callable")
+    if not isinstance(request_envelope, Mapping):
+        raise MeteredCallAccountingError("Metered call requires a non-empty exact request envelope")
+    canonical = _canonical_request_envelope(
+        provider=provider,
+        model=model,
+        request_envelope=request_envelope,
+    )
+    return _MeteredDispatchAuthority(
+        provider=canonical_provider_key(provider),
+        model=model,
+        request_envelope=request_envelope,
+        request_sha256=hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+        call_identity=id(call),
+        seal=_METERED_DISPATCH_SEAL,
+    )
+
+
+def _validate_dispatch_authority(
+    authority: _MeteredDispatchAuthority,
+    *,
+    reservation: ResearchCostReservation,
+    call: object,
+) -> None:
+    if authority.seal is not _METERED_DISPATCH_SEAL:
+        raise MeteredCallAccountingError("Metered dispatch authority was not minted by the wrapper")
+    if authority.marked or authority.consumed:
+        raise MeteredCallAccountingError("Metered dispatch authority has already been used")
+    if authority.call_identity != id(call):
+        raise MeteredCallAccountingError("Metered dispatch closure changed after reservation")
+    if authority.provider != canonical_provider_key(reservation.provider) or authority.model != reservation.model:
+        raise MeteredCallAccountingError("Metered dispatch provider or model does not match its reservation")
+    canonical = _canonical_request_envelope(
+        provider=reservation.provider,
+        model=reservation.model,
+        request_envelope=authority.request_envelope,
+    )
+    current_sha256 = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    if current_sha256 != authority.request_sha256:
+        raise MeteredCallAccountingError("Metered dispatch request changed after reservation")
+
+
+def _consume_dispatch_authority(authority: _MeteredDispatchAuthority, call: object) -> None:
+    if not authority.marked or authority.consumed or authority.call_identity != id(call):
+        raise MeteredCallAccountingError("Metered dispatch lacks exact marked closure authority")
+    canonical = _canonical_request_envelope(
+        provider=authority.provider,
+        model=authority.model,
+        request_envelope=authority.request_envelope,
+    )
+    if hashlib.sha256(canonical.encode("utf-8")).hexdigest() != authority.request_sha256:
+        raise MeteredCallAccountingError("Metered dispatch request changed after its durable mark")
+    authority.consumed = True
+
+
 def _required_call_ceiling(value: float | None) -> float:
     """Reject opaque paid calls that rely on a process-wide default hold."""
     if value is None:
@@ -46,6 +160,20 @@ def _required_call_ceiling(value: float | None) -> float:
     if not math.isfinite(ceiling) or ceiling <= 0:
         raise ValueError("max_cost_per_job must be a positive finite number")
     return ceiling
+
+
+def _require_token_model_contract(provider: str, model: str) -> tuple[str, str]:
+    """Bind a token-priced call to one known provider-owned model contract."""
+    identity = get_resolved_model_contract_identity(model)
+    if identity is None:
+        raise MeteredCallAccountingError(f"Metered call model {model!r} has no trusted pricing identity")
+    model_provider, canonical_model = identity
+    if not provider_matches_model_contract(provider, model_provider):
+        raise MeteredCallAccountingError(
+            f"Metered provider {provider!r} cannot execute model {model!r}; "
+            f"the pricing contract belongs to {model_provider!r}"
+        )
+    return model_provider, canonical_model
 
 
 def _optional_declared_attribute(value: object, name: str) -> object | None:
@@ -80,7 +208,18 @@ def _usage_tokens(usage: object, primary: str, fallback: str) -> int:
     return value
 
 
-def _response_cost(response: object, model: str) -> tuple[float | None, int]:
+def _response_cost(response: object, provider: str, model: str) -> tuple[float | None, int]:
+    requested_identity = _require_token_model_contract(provider, model)
+    observed_model = _optional_declared_attribute(response, "model")
+    if not isinstance(observed_model, str) or not observed_model.strip():
+        # Usage without an observed model cannot safely be priced. Returning
+        # no actual cost consumes the full reservation conservatively.
+        return None, 0
+    observed_identity = get_resolved_model_contract_identity(observed_model)
+    if observed_identity != requested_identity:
+        raise ProviderModelIdentityError(
+            f"Provider returned model {observed_model!r}, which does not match reserved model {model!r}"
+        )
     usage = _optional_declared_attribute(response, "usage")
     if usage is None:
         return None, 0
@@ -94,8 +233,24 @@ def _response_cost(response: object, model: str) -> tuple[float | None, int]:
     return actual_cost, output_tokens
 
 
-def _mark_provider_dispatch(reservation: ResearchCostReservation) -> None:
-    ResearchReservationStore().mark_provider_work_may_have_run(reservation.reservation_id)
+def _mark_provider_dispatch(
+    reservation: ResearchCostReservation,
+    authority: _MeteredDispatchAuthority,
+    call: object,
+) -> None:
+    require_unproxied_paid_transport()
+    _validate_dispatch_authority(authority, reservation=reservation, call=call)
+    ResearchReservationStore().mark_provider_work_may_have_run(
+        reservation.reservation_id,
+        provider=canonical_provider_key(reservation.provider),
+        model=reservation.model,
+        job_id=reservation.job_id,
+        reserved_cost=reservation.estimated_cost,
+        dispatch_binding_id=reservation.dispatch_binding_id,
+        request_envelope_sha256=authority.request_sha256,
+    )
+    object.__setattr__(reservation, "request_envelope_sha256", authority.request_sha256)
+    authority.marked = True
 
 
 def _refund_before_dispatch(reservation: ResearchCostReservation) -> None:
@@ -192,10 +347,18 @@ def execute_reserved_sync_call(
     model: str,
     source: str,
     call: Callable[[], T],
+    request_envelope: Mapping[str, Any] | None = None,
     max_cost_per_job: float | None = None,
     on_settled: Callable[[float], None] | None = None,
 ) -> T:
     """Run one metered call under a cross-process ceiling and settle its usage."""
+    _require_token_model_contract(provider, model)
+    authority = _bind_dispatch_authority(
+        provider=provider,
+        model=model,
+        request_envelope=request_envelope,
+        call=call,
+    )
     ceiling = _required_call_ceiling(max_cost_per_job)
     job_id = f"{operation_prefix}-{uuid.uuid4().hex}"
     try:
@@ -211,7 +374,7 @@ def execute_reserved_sync_call(
         raise MeteredCallAccountingError("Metered call cost reservation failed") from exc
 
     try:
-        _mark_provider_dispatch(reservation)
+        _mark_provider_dispatch(reservation, authority, call)
     except BaseException as mark_error:
         try:
             _refund_before_dispatch(reservation)
@@ -220,6 +383,7 @@ def execute_reserved_sync_call(
         raise _accounting_error("Metered call dispatch mark failed", mark_error)
 
     try:
+        _consume_dispatch_authority(authority, call)
         response = call()
     except BaseException as operation_error:
         _settle_sync_failure(
@@ -233,12 +397,16 @@ def execute_reserved_sync_call(
 
     identifiers = _provider_receipt_identifiers(response)
     try:
-        actual_cost, output_tokens = _response_cost(response, model)
-    except BaseException:
+        actual_cost, output_tokens = _response_cost(response, provider, model)
+    except BaseException as usage_error:
         _settle_sync_failure(
             reservation,
             source=source,
-            reason="malformed_or_unpriceable_usage",
+            reason=(
+                "provider_model_identity_mismatch"
+                if isinstance(usage_error, ProviderModelIdentityError)
+                else "malformed_or_unpriceable_usage"
+            ),
             on_settled=on_settled,
             identifiers=identifiers,
         )
@@ -331,9 +499,13 @@ async def _reserve_async(
         raise
 
 
-async def _mark_dispatch_async(reservation: ResearchCostReservation) -> None:
+async def _mark_dispatch_async(
+    reservation: ResearchCostReservation,
+    authority: _MeteredDispatchAuthority,
+    call: object,
+) -> None:
     task = asyncio.create_task(
-        asyncio.to_thread(_mark_provider_dispatch, reservation),
+        asyncio.to_thread(_mark_provider_dispatch, reservation, authority, call),
         name=f"metered-call-dispatch-mark-{reservation.job_id}",
     )
     try:
@@ -452,10 +624,18 @@ async def execute_reserved_async_call(
     model: str,
     source: str,
     call: Callable[[], Awaitable[T]],
+    request_envelope: Mapping[str, Any] | None = None,
     max_cost_per_job: float | None = None,
     on_settled: Callable[[float], None] | None = None,
 ) -> T:
     """Run one async metered call under a durable ceiling and settle usage."""
+    _require_token_model_contract(provider, model)
+    authority = _bind_dispatch_authority(
+        provider=provider,
+        model=model,
+        request_envelope=request_envelope,
+        call=call,
+    )
     ceiling = _required_call_ceiling(max_cost_per_job)
     job_id = f"{operation_prefix}-{uuid.uuid4().hex}"
     try:
@@ -473,7 +653,7 @@ async def execute_reserved_async_call(
         raise MeteredCallAccountingError("Metered call cost reservation failed") from exc
 
     try:
-        await _mark_dispatch_async(reservation)
+        await _mark_dispatch_async(reservation, authority, call)
     except asyncio.CancelledError:
         raise
     except BaseException as mark_error:
@@ -486,6 +666,7 @@ async def execute_reserved_async_call(
         raise _accounting_error("Metered call dispatch mark failed", mark_error)
 
     try:
+        _consume_dispatch_authority(authority, call)
         response = await call()
     except BaseException as operation_error:
         await _settle_after_async_error(
@@ -500,12 +681,16 @@ async def execute_reserved_async_call(
 
     identifiers = _provider_receipt_identifiers(response)
     try:
-        actual_cost, output_tokens = _response_cost(response, model)
+        actual_cost, output_tokens = _response_cost(response, provider, model)
     except BaseException as usage_error:
         await _settle_after_async_error(
             reservation,
             source=source,
-            reason="malformed_or_unpriceable_usage",
+            reason=(
+                "provider_model_identity_mismatch"
+                if isinstance(usage_error, ProviderModelIdentityError)
+                else "malformed_or_unpriceable_usage"
+            ),
             on_settled=on_settled,
             operation_error=usage_error,
             identifiers=identifiers,
@@ -528,6 +713,8 @@ async def _reserve_and_mark_async(
     provider: str,
     model: str,
     max_cost_per_job: float | None,
+    authority: _MeteredDispatchAuthority,
+    call: object,
 ) -> ResearchCostReservation:
     try:
         reservation = await _reserve_async(
@@ -543,7 +730,7 @@ async def _reserve_and_mark_async(
     except Exception as exc:
         raise MeteredCallAccountingError("Metered call cost reservation failed") from exc
     try:
-        await _mark_dispatch_async(reservation)
+        await _mark_dispatch_async(reservation, authority, call)
     except asyncio.CancelledError:
         raise
     except BaseException as mark_error:
@@ -560,9 +747,11 @@ async def _reserve_and_mark_async(
 async def _settle_stream_usage_async(
     reservation: ResearchCostReservation,
     *,
+    provider: str,
     model: str,
     source: str,
     final_usage: object | None,
+    observed_model: object | None,
     on_settled: Callable[[float], None] | None,
     identifiers: _ProviderReceiptIdentifiers,
 ) -> None:
@@ -581,13 +770,21 @@ async def _settle_stream_usage_async(
         )
         return
     try:
-        actual_cost, output_tokens = _response_cost(SimpleNamespace(usage=final_usage), model)
-    except BaseException:
+        actual_cost, output_tokens = _response_cost(
+            SimpleNamespace(usage=final_usage, model=observed_model),
+            provider,
+            model,
+        )
+    except BaseException as usage_error:
         await asyncio.to_thread(
             _settle_conservative,
             reservation,
             source=source,
-            reason="malformed_or_unpriceable_usage",
+            reason=(
+                "provider_model_identity_mismatch"
+                if isinstance(usage_error, ProviderModelIdentityError)
+                else "malformed_or_unpriceable_usage"
+            ),
             on_settled=on_settled,
             identifiers=identifiers,
         )
@@ -619,6 +816,7 @@ async def execute_reserved_async_stream(
     model: str,
     source: str,
     events: Callable[[], AsyncIterator[tuple[T, object | None]]],
+    request_envelope: Mapping[str, Any] | None = None,
     max_cost_per_job: float | None = None,
     on_settled: Callable[[float], None] | None = None,
 ) -> AsyncIterator[T]:
@@ -628,19 +826,38 @@ async def execute_reserved_async_stream(
     for settlement. If the stream ends without usable usage, the held ceiling is
     consumed conservatively after dispatch was marked.
     """
+    _require_token_model_contract(provider, model)
+    authority = _bind_dispatch_authority(
+        provider=provider,
+        model=model,
+        request_envelope=request_envelope,
+        call=events,
+    )
     ceiling = _required_call_ceiling(max_cost_per_job)
     reservation = await _reserve_and_mark_async(
         job_id=f"{operation_prefix}-{uuid.uuid4().hex}",
         provider=provider,
         model=model,
         max_cost_per_job=ceiling,
+        authority=authority,
+        call=events,
     )
 
     final_usage: object | None = None
+    observed_model: object | None = None
     identifiers = _ProviderReceiptIdentifiers()
     try:
+        _consume_dispatch_authority(authority, events)
         async for item, usage in events():
             identifiers = _merge_receipt_identifiers(identifiers, _provider_receipt_identifiers(item))
+            item_model = _optional_declared_attribute(item, "model")
+            if item_model is not None:
+                if observed_model is not None:
+                    current_identity = get_resolved_model_contract_identity(str(observed_model))
+                    item_identity = get_resolved_model_contract_identity(str(item_model))
+                    if current_identity != item_identity:
+                        raise ProviderModelIdentityError("Provider stream changed model identity between chunks")
+                observed_model = item_model
             if usage is not None:
                 final_usage = usage
             yield item
@@ -658,9 +875,11 @@ async def execute_reserved_async_stream(
 
     await _settle_stream_usage_async(
         reservation,
+        provider=provider,
         model=model,
         source=source,
         final_usage=final_usage,
+        observed_model=observed_model,
         on_settled=on_settled,
         identifiers=identifiers,
     )
@@ -675,6 +894,7 @@ async def execute_reserved_fixed_cost_async_call(
     max_cost_per_job: float,
     call: Callable[[], Awaitable[T]],
     cost_from_result: Callable[[T], float],
+    request_envelope: Mapping[str, Any] | None = None,
     on_settled: Callable[[float], None] | None = None,
 ) -> T:
     """Run one non-token-priced work unit under durable reserve/mark/settle.
@@ -683,6 +903,12 @@ async def execute_reserved_fixed_cost_async_call(
     ``cost_from_result`` returns the amount to settle after success. Exceptions
     or usage above the authorized envelope consume the full hold conservatively.
     """
+    authority = _bind_dispatch_authority(
+        provider=provider,
+        model=model,
+        request_envelope=request_envelope,
+        call=call,
+    )
     if isinstance(max_cost_per_job, bool) or not isinstance(max_cost_per_job, (int, float)):
         raise ValueError("max_cost_per_job must be a positive finite number")
     ceiling = float(max_cost_per_job)
@@ -694,9 +920,12 @@ async def execute_reserved_fixed_cost_async_call(
         provider=provider,
         model=model,
         max_cost_per_job=ceiling,
+        authority=authority,
+        call=call,
     )
 
     try:
+        _consume_dispatch_authority(authority, call)
         result = await call()
     except BaseException as operation_error:
         await _settle_after_async_error(
@@ -710,17 +939,20 @@ async def execute_reserved_fixed_cost_async_call(
         )
 
     identifiers = _provider_receipt_identifiers(result)
-    try:
-        raw_cost = float(cost_from_result(result))
-    except BaseException as cost_error:
-        await _settle_after_async_error(
-            reservation,
-            source=source,
-            reason="malformed_or_unpriceable_usage",
-            on_settled=on_settled,
-            operation_error=cost_error,
-            identifiers=identifiers,
-        )
+    if isinstance(result, Mapping) and "error" in result:
+        raw_cost = reservation.estimated_cost
+    else:
+        try:
+            raw_cost = float(cost_from_result(result))
+        except BaseException as cost_error:
+            await _settle_after_async_error(
+                reservation,
+                source=source,
+                reason="malformed_or_unpriceable_usage",
+                on_settled=on_settled,
+                operation_error=cost_error,
+                identifiers=identifiers,
+            )
 
     if not math.isfinite(raw_cost) or raw_cost < 0:
         await _settle_after_async_error(
@@ -756,6 +988,7 @@ async def execute_reserved_fixed_cost_async_call(
 
 __all__ = [
     "MeteredCallAccountingError",
+    "ProviderModelIdentityError",
     "execute_reserved_async_call",
     "execute_reserved_async_stream",
     "execute_reserved_fixed_cost_async_call",

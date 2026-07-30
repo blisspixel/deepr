@@ -8,11 +8,7 @@ and reporting.
 
 from __future__ import annotations
 
-import asyncio
 import json
-import shlex
-import subprocess
-import tempfile
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -23,10 +19,16 @@ from typing import Any
 from deepr.backends.local import ollama_chat_client
 from deepr.config import runtime_data_path
 from deepr.evals.judge_json import extract_json_object
+from deepr.experts.semantic_model_gate import require_zero_dollar_client
 
 METHODOLOGY_VERSION = "1.0"
 PROMPT_SET_AGENTIC_LOOPS = "agentic-loops"
 GROK_JUDGE_COMMAND = "grok --prompt-file {prompt_file} --output-format plain --disable-web-search --max-turns 1"
+CLI_JUDGE_EXECUTION_ENABLED = False
+CLI_JUDGE_BLOCK_REASON = (
+    "CLI judge execution is blocked because Deepr cannot prove its billing source, "
+    "paid-overage posture, or total cost before dispatch"
+)
 
 
 @dataclass(frozen=True)
@@ -217,6 +219,8 @@ async def run_local_comparison(
     All model calls go to the local Ollama OpenAI-compatible endpoint unless a
     fake client is injected by tests. The returned cost is always 0.0.
     """
+    if judge_command is not None:
+        raise ValueError(CLI_JUDGE_BLOCK_REASON)
     if not models:
         raise ValueError("at least one local model is required")
     if judge_command is None and not judge_model:
@@ -227,6 +231,7 @@ async def run_local_comparison(
         raise ValueError("at least one prompt is required")
 
     chat = client if client is not None else ollama_chat_client(base_url)
+    require_zero_dollar_client(chat, capacity_source="local")
     judge_label = judge_command.display_name if judge_command else judge_model
     comparisons: list[LocalModelComparison] = []
     for model in models:
@@ -335,12 +340,8 @@ async def _judge_answer(chat: Any, *, judge_model: str, prompt: LocalEvalPrompt,
 async def _judge_answer_with_cli(
     judge_command: CliJudgeCommand, *, prompt: LocalEvalPrompt, answer: str
 ) -> LocalJudgeVerdict:
-    judge_prompt = _build_judge_prompt(prompt, answer)
-    try:
-        raw = await asyncio.to_thread(_run_cli_judge_command, judge_command, judge_prompt)
-    except Exception as exc:
-        return LocalJudgeVerdict(score=0.0, reason=f"CLI judge failed: {exc}", raw="")
-    return parse_judge_verdict(raw)
+    _ = judge_command, prompt, answer
+    raise RuntimeError(CLI_JUDGE_BLOCK_REASON)
 
 
 def _build_judge_prompt(prompt: LocalEvalPrompt, answer: str) -> str:
@@ -353,29 +354,8 @@ def _build_judge_prompt(prompt: LocalEvalPrompt, answer: str) -> str:
 
 
 def _run_cli_judge_command(judge_command: CliJudgeCommand, judge_prompt: str) -> str:
-    with tempfile.TemporaryDirectory(prefix="deepr-cli-judge-") as tmp:
-        prompt_file = Path(tmp) / "judge_prompt.txt"
-        prompt_file.write_text(judge_prompt, encoding="utf-8")
-        args = _render_cli_judge_args(judge_command.template, prompt_file)
-        completed = subprocess.run(  # noqa: S603 - explicit CLI judge opt-in; shell disabled, prompt file only.
-            args,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=judge_command.timeout_seconds,
-            check=False,
-            shell=False,
-        )
-    if completed.returncode != 0:
-        stderr = completed.stderr.strip()
-        raise RuntimeError(stderr or f"judge command exited with status {completed.returncode}")
-    return completed.stdout
-
-
-def _render_cli_judge_args(template: str, prompt_file: Path) -> list[str]:
-    parts = shlex.split(template)
-    return [part.replace("{prompt_file}", str(prompt_file)) for part in parts]
+    _ = judge_command, judge_prompt
+    raise RuntimeError(CLI_JUDGE_BLOCK_REASON)
 
 
 async def _complete(chat: Any, *, model: str, messages: list[dict[str, str]], max_tokens: int) -> str:
@@ -390,6 +370,8 @@ def parse_judge_verdict(raw: str) -> LocalJudgeVerdict:
         return LocalJudgeVerdict(score=0.0, reason="judge did not return JSON", raw=raw)
 
     score_value = payload.get("score")
+    if isinstance(score_value, bool) or not isinstance(score_value, (int, float, str)):
+        return LocalJudgeVerdict(score=0.0, reason="judge score was not numeric", raw=raw)
     try:
         score = float(score_value)
     except (TypeError, ValueError):

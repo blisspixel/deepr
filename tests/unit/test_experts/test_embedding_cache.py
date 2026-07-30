@@ -10,10 +10,17 @@ from deepr.experts.embedding_cache import EmbeddingCache
 
 
 @pytest.fixture
-def enable_metered_embeds(monkeypatch):
-    """Allow metered embed paths under dual confirmation for shape tests."""
-    monkeypatch.setattr(chat_capacity, "METERED_EXPERT_CHAT_EXECUTION_ENABLED", True)
-    monkeypatch.setenv("DEEPR_ALLOW_METERED_EXPERT_CHAT", "1")
+def allow_embedding_unit_dispatch(monkeypatch):
+    """Reach cache vector logic without enabling frozen metered embeddings."""
+
+    async def execute_test_call(*, call, **_kwargs):
+        return await call()
+
+    monkeypatch.setattr(chat_capacity, "require_expert_chat_dispatch", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        "deepr.experts.chat_metered.execute_metered_chat_provider_call",
+        execute_test_call,
+    )
 
 
 class TestEmbeddingCacheBasics:
@@ -169,7 +176,7 @@ class TestEmbeddingCacheSearch:
         assert results == []
 
     @pytest.mark.asyncio
-    async def test_search_returns_sorted_results(self, tmp_path, enable_metered_embeds):
+    async def test_search_returns_sorted_results(self, tmp_path, allow_embedding_unit_dispatch):
         """Test search returns results sorted by similarity."""
         cache = EmbeddingCache("test-expert", cache_dir=tmp_path)
 
@@ -225,7 +232,7 @@ class TestEmbeddingCacheAddDocuments:
         mock_client.embeddings.create.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_add_documents_embeds_new(self, tmp_path, enable_metered_embeds):
+    async def test_add_documents_embeds_new(self, tmp_path, allow_embedding_unit_dispatch):
         """Test add_documents embeds new documents."""
         cache = EmbeddingCache("test-expert", cache_dir=tmp_path)
 
@@ -263,7 +270,7 @@ class TestEmbeddingCacheAddDocuments:
 
     @pytest.mark.asyncio
     async def test_add_documents_fails_closed_when_cost_admission_unavailable(
-        self, tmp_path, monkeypatch, enable_metered_embeds
+        self, tmp_path, monkeypatch, allow_embedding_unit_dispatch
     ):
         """Cost bookkeeping failure must not clear the gate and still spend."""
 
