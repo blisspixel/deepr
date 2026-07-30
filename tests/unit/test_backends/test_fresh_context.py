@@ -11,6 +11,7 @@ from deepr.backends.fresh_context import (
     FreshContext,
     FreshContextConfig,
     FreshSource,
+    _default_free_search_backend,
     cached_sources_from_pack,
     deep_fresh_context_config,
     make_free_deep_context_builder,
@@ -20,7 +21,7 @@ from deepr.backends.fresh_context import (
     retrieve_fresh_context,
 )
 from deepr.tools.browser_backend import PageContent, PageValidators
-from deepr.tools.search_backend import SearchResult
+from deepr.tools.search_backend import BuiltinSearchBackend, SearchResult
 
 
 class _SearchBackend:
@@ -530,20 +531,39 @@ async def test_retrieve_fresh_context_records_response_validators_on_200():
     assert pack["sources"][0]["not_modified"] is False
 
 
-async def test_make_free_builder_uses_injected_backends():
+def test_make_free_builder_rejects_injected_backends_before_dispatch():
     search = _SearchBackend([SearchResult(title="T", url="https://x", snippet="S")])
     browser = _BrowserBackend({"https://x": PageContent(url="https://x", title="T", text="Body")})
-    builder = make_free_fresh_context_builder(
-        search_backend=search,
-        browser_backend=browser,
-        config=FreshContextConfig(max_search_results=1),
-    )
 
-    context = await builder("q")
+    with pytest.raises(ValueError, match="injected search capacity has no trusted zero-dollar proof"):
+        make_free_fresh_context_builder(
+            search_backend=search,
+            browser_backend=browser,
+            config=FreshContextConfig(max_search_results=1),
+        )
 
-    assert context.search_backend == "fake-search"
-    assert context.browser_backend == "fake-browser"
-    assert context.sources[0].content == "Body"
+    assert search.calls == []
+    assert browser.calls == []
+
+
+def test_make_free_builder_rejects_injected_browser_before_dispatch():
+    browser = _BrowserBackend({})
+
+    with pytest.raises(ValueError, match="injected browser capacity has no trusted zero-dollar proof"):
+        make_free_fresh_context_builder(browser_backend=browser)
+
+    assert browser.calls == []
+
+
+def test_default_free_backend_ignores_unproven_searxng(monkeypatch, caplog):
+    monkeypatch.setenv("DEEPR_SEARXNG_URL", "http://127.0.0.1:8080")
+
+    with caplog.at_level("WARNING"):
+        backend = _default_free_search_backend()
+
+    assert isinstance(backend, BuiltinSearchBackend)
+    assert backend.name == "builtin:duckduckgo"
+    assert "does not prove upstream engines are $0" in caplog.text
 
 
 async def test_retrieve_deep_fresh_context_runs_bounded_multi_query_search_and_dedupes():
@@ -641,18 +661,16 @@ async def test_deep_explicit_url_only_does_not_issue_a_search_query():
     assert context.search_queries == ()
 
 
-async def test_make_free_deep_builder_uses_injected_backends():
+def test_make_free_deep_builder_rejects_injected_backends():
     search = _SearchBackend([SearchResult(title="T", url="https://x", snippet="S")])
     browser = _BrowserBackend({"https://x": PageContent(url="https://x", title="T", text="Body")})
-    builder = make_free_deep_context_builder(
-        search_backend=search,
-        browser_backend=browser,
-        config=FreshContextConfig(max_search_results=1, max_fetches=1, max_search_queries=2),
-    )
 
-    context = await builder("q")
+    with pytest.raises(ValueError, match="injected search capacity has no trusted zero-dollar proof"):
+        make_free_deep_context_builder(
+            search_backend=search,
+            browser_backend=browser,
+            config=FreshContextConfig(max_search_results=1, max_fetches=1, max_search_queries=2),
+        )
 
-    assert context.mode == "deep"
-    assert context.search_backend == "fake-search"
-    assert len(search.calls) == 2
-    assert context.sources[0].content == "Body"
+    assert search.calls == []
+    assert browser.calls == []

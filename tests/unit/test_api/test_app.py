@@ -96,6 +96,8 @@ def client(mock_queue, mock_provider, mock_storage):
     estimate = MagicMock(min_cost=0.1, max_cost=0.3, expected_cost=0.2)
     reservation = MagicMock()
     reservation.reservation_id = "test-reservation"
+    reservation.dispatch_binding_id = "test-dispatch-binding"
+    reservation.request_envelope_sha256 = None
     reservation.manager = MagicMock()
     reservation.metadata.return_value = {}
 
@@ -898,6 +900,8 @@ class TestAPIResponseStructure:
         app_module = importlib.import_module("deepr.api.app")
         estimate = MagicMock(min_cost=0.1, max_cost=0.3, expected_cost=0.2)
         reservation = MagicMock(reservation_id="property-reservation")
+        reservation.dispatch_binding_id = "property-dispatch-binding"
+        reservation.request_envelope_sha256 = None
         reservation.manager = MagicMock()
         reservation.metadata.return_value = {}
 

@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.39.0 current main, 2026-07-28. This document defines what users and host
+Status: v2.40.0 current main, 2026-07-29. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops.
 
@@ -71,8 +71,23 @@ must not be described as usable capacity.
 - Web dashboard and dashboard APIs.
 - Expert councils, task planning contracts, and approval flows. Standalone
   metered expert chat is gated as described under Visible Or Planned Only.
-- Expert skills and first-party instruments.
+- `deepr eval consult --structured-local` is an eval-only owned-local graph. It
+  freezes selected expert packets, generates independent question-specific
+  positions, requires every branch, and performs one local synthesis under
+  fixed call, token, context, artifact, elapsed-time, concurrency, transport,
+  and `$0` accounting contracts. It is not an MCP tool or a replacement for
+  `deepr expert consult`.
+- Expert skill inventory, metadata, installation, and scaffolding. Python and
+  MCP tool execution is quarantined before module import, process creation, or
+  network dispatch; legacy `run-skill` validates and exits blocked.
 - MCP stdio server and MCP HTTP serve mode.
+- MCP durable local expert conversations through
+  `deepr_start_expert_conversation`, `deepr_continue_expert_conversation`,
+  `deepr_get_expert_conversation`, and `deepr_close_expert_conversation`.
+  Opaque application handles, scoped ownership, optimistic concurrency,
+  idempotency, frozen expert snapshots, retention, and no metered fallback are
+  enforced by the shared conversation core. A separate validation command
+  exercises the full remote sequence.
 - Scoped MCP keys, per-key budgets, per-key rate limits, HTTP concurrency caps,
   HTTP smoke checks, registration manifests, and remote-call audit review.
 - `deepr_expert_handoff`, `deepr_expert_loop_status`, and adjacent versioned
@@ -88,9 +103,9 @@ must not be described as usable capacity.
   uses `/.well-known/agent-card.json` with `/.well-known/agent.json` as a
   compatibility alias and advertises `deepr_consult_experts`; completed consult
   tasks attach the full `deepr-consult-v1` payload. The adapter defaults to
-  local no-metered synthesis and requires exact `allow_metered_api=true`, exact
-  `confirm_metered_cost=true`, and a positive budget before API synthesis. A
-  budget alone is not consent. No `deepr a2a serve` command is
+  local no-metered synthesis. API synthesis is production-frozen in v2.40.
+  Legacy consent flags and a positive budget remain necessary contract inputs
+  but cannot authorize provider dispatch. No `deepr a2a serve` command is
   shipped, task state is not restart-durable, and the custom model is not an
   A2A 1.0 conformance claim.
 - Scheduled expert maintenance JSON contracts for sync capacity gates, gap-fill
@@ -128,15 +143,13 @@ must not be described as usable capacity.
   or systemd recipes with atomic per-file replacement; existing files require `--force`; never
   auto-installs). Auto-selection uses cron on macOS with explicit no-catch-up and
   no-jitter limits because native launchd emission is not shipped. The off-box
-  heartbeat (`DEEPR_HEARTBEAT_URL`) is opt-in and best-effort. It supports the
-  public HTTPS Healthchecks-compatible terminal success and `/fail` contract,
-  validates local form during scheduled dry-run without sending, pins delivery
-  to a prevalidated public address with environment proxies disabled, preserves
-  endpoint queries, refuses redirects, leaves response content unread, and never
-  logs its configured target. Typed output distinguishes configuration, no-send,
-  blocked-target,
-  network, HTTP, and delivered states. Start pings, retries, durable delivery
-  history, and other vendor failure conventions are not shipped.
+  heartbeat (`DEEPR_HEARTBEAT_URL`) is configuration-visible and locally
+  validated during scheduled dry-run without sending. Real delivery is blocked
+  before DNS or HTTP because Deepr cannot prove the external service's marginal
+  cost or billing posture. Typed output reports
+  `blocked_unmetered_external_service` with failure kind
+  `unmetered_external_service`; `attempted` and `delivered` stay false. The URL
+  is never logged.
 - Pre-sync content-hash change-detection gate, the per-(expert, verb) overlap
   guard + startup jitter, budget degradation tiers + value-of-spend gate, and the
   reservation TTL sweep - deterministic spend/side-effect guards.
@@ -167,9 +180,10 @@ must not be described as usable capacity.
   remains canonical.
 - MCP `deepr_consult_experts` can synthesize through local Ollama or an
   explicit plan-quota CLI with live metered fallback disabled. API consult
-  synthesis accepts explicit `provider=openai|anthropic` and `model` values;
-  Anthropic supports `claude-sonnet-5` through the native Messages API and
-  records cache-write/read token buckets when the provider reports them. The
+  synthesis retains explicit `provider=openai|anthropic` and `model` inputs for
+  compatibility, but production API synthesis is blocked before provider client
+  construction or request dispatch. A positive budget and legacy consent flags
+  cannot lift this quarantine. The
   returned `deepr-consult-v1` artifact includes a `capacity` block describing
   the selected synthesis backend. Each council perspective's `context` also
   discloses its selected beliefs' grounding assurance: an inline
@@ -180,22 +194,21 @@ must not be described as usable capacity.
   no-metered single-expert consult; `deepr_query_expert` also supports explicit
   `backend=local|plan` as a read-only compiled-context chat turn with
   `readonly_chat_artifact`, `research_triggered=0`, and no live metered fallback.
-  In v2.39, `deepr_query_expert backend=api` and every other standalone
+  In v2.40, `deepr_query_expert backend=api` and every other standalone
   metered `ExpertChatSession` path fail closed before provider dispatch. Local
   and explicit plan read-only query turns are unchanged. API council synthesis
-  is a separate bounded surface. Its approval covers final synthesis only;
-  live metered perspective fallback remains gated when a selected expert has no
+  is a separate compatibility surface whose final synthesis is also blocked.
+  Live metered perspective fallback remains gated when a selected expert has no
   stored context.
   Passing several experts gives a bounded one-shot council with preserved
   dissent. Each expert contributes a deterministic stored-state selection, not
   a model-generated turn, and experts do not exchange messages. One synthesis
-  call produces the proposal. The generated contract exposes zero expert
-  generation calls, zero peer turns, at most one synthesis call, and no belief
-  or graph write authority. API mode reserves the complete transaction ceiling
-  while its only metered synthesis call has a 10 percent sub-ceiling.
-  Production API council synthesis is blocked by the authenticated
-  provider-account authority gate in v2.39; this contract does not itself
-  authorize dispatch. CLI
+  call produces the proposal on local or eligible plan capacity. The generated
+  contract exposes zero expert generation calls, zero peer turns, and no belief
+  or graph write authority. The dormant API contract retains a complete
+  transaction ceiling and a 10 percent synthesis sub-ceiling, but production API
+  council synthesis is blocked by the authenticated provider-account authority
+  gate in v2.40. This contract does not authorize dispatch. CLI
   `--output` explicitly saves the full artifact; no separate full artifact path
   is written by default.
   Experimental CLI `deepr expert investigate` is a distinct local-only
@@ -466,6 +479,14 @@ must not be described as usable capacity.
 
 ## Visible Or Planned Only
 
+- `deepr eval local` retains `--judge-cli`, `--judge-command`, and
+  `--allow-cli-judge` for compatibility, but every CLI judge request exits
+  before process creation. Deepr cannot prove the external CLI's billing source,
+  overage posture, or total cost. Use a local Ollama judge.
+- `DEEPR_SEARXNG_URL` is configuration-readable and visible in diagnostics, but
+  SearXNG search dispatch is blocked because Deepr cannot prove that every
+  configured upstream engine has zero marginal cost. Explicit URL retrieval and
+  the bounded direct DuckDuckGo path remain available.
 - Hosted file upload, file search, and vector-store creation or attachment fail
   before provider work with `research_file_storage_unbounded`. Existing provider
   vector stores can still be listed, inspected, and explicitly deleted. Re-enable
@@ -487,19 +508,20 @@ must not be described as usable capacity.
   Re-enable these only after their calls use durable reservation, bounded
   output, canonical settlement, and one parent ceiling where multiple calls are
   possible.
-- Standalone metered expert chat is disabled by
-  `METERED_EXPERT_CHAT_EXECUTION_ENABLED = False`. Browser, CLI, MCP API, and
+- Standalone metered expert chat is hard-disabled with no runtime or
+  environment override. Browser, CLI, MCP API, and
   direct API chat fail before provider work with
-  `metered_expert_chat_accounting_unavailable`. Re-enable only after one shared
-  per-call reserve, durable dispatch mark, and required settlement contract
-  covers every primary, tool-loop, streaming, research, compaction, follow-up,
-  synthesis, embedding, vector, and metered-skill call. The acceptance gate also
-  requires output ceilings, strict usage parsing with full-bound fallback, one
-  parent session budget, session serialization and cross-process holds,
-  cancellation settlement, canonical-ledger idempotency, zero hidden retries,
-  and concurrency and ledger-failure regressions. Local and explicit plan
-  read-only query is shipped and unaffected.
-- Unsafe metered expert lifecycle surfaces also fail closed in v2.39:
+  `metered_expert_chat_accounting_unavailable`. Re-enable only after one
+  provider-enforceable maximum charge covers serialized input, output,
+  reasoning, every tool loop, streaming, research, compaction, follow-up,
+  synthesis, cache, embedding, vector, storage, retry, redirect, fallback, and
+  metered-skill call under one parent reservation. The acceptance gate also
+  requires a Deepr-owned attested client, official endpoint, exact model,
+  authenticated account and billing scope, provider hard limit or overage-off
+  proof, conservative identity mismatch handling, cancellation settlement,
+  canonical-ledger idempotency, concurrency, and ledger-failure regressions.
+  Local and explicit plan read-only query is shipped and unaffected.
+- Unsafe metered expert lifecycle surfaces also fail closed in v2.40:
   nonlocal `expert make` and `--learn`, API curriculum `expert plan`,
   provider-backed `expert refresh` and `--synthesize`, `expert resume`, normal
   metered `expert reflect` and MCP `deepr_reflect`, API `fill-gaps` including
@@ -524,13 +546,9 @@ must not be described as usable capacity.
   complete.
 - Live hosted-agent registration smoke against a real third-party platform is
   still open.
-- Durable multi-turn expert conversations are not yet a public surface. MCP
-  query and consult remain one-shot. The internal protocol-neutral core now
-  provides explicit application handles, ownership, idempotency, bounded frozen
-  context, finite transcript retention, and no automatic expert-memory writes.
-  MCP start/continue/inspect/close still require the local Ollama adapter,
-  current-scope revalidation, authenticated loopback and LAN acceptance, and the
-  held-out comparison before they can ship. See
+- A long-running A2A conversation mapping is not shipped. MCP query and consult
+  remain intentionally one-shot; callers that need continuation use the
+  separate durable local MCP conversation tools. See
   [remote-expert-conversations.md](design/remote-expert-conversations.md).
 - A long-running A2A service is planned only after the current in-memory custom
   substrate is migrated or versioned against A2A 1.0, tasks and contexts survive
@@ -587,7 +605,7 @@ source text through the verified absorb path.
   blocked because local assertions cannot prove account-side controls. Use a
   dedicated provider project, the smallest available account hard limit or
   disabled paid overage, monitored provider alerts, and regular billing-export
-  reconciliation. Deepr v2.39.0 imports bounded normalized statements offline
+  reconciliation. Deepr v2.40.0 imports bounded normalized statements offline
   and freezes on non-clean applied evidence. It does not yet ship an
   authenticated provider verifier or current credential-identity resolver and
   cannot govern another application using the same credential.

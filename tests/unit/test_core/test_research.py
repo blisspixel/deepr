@@ -26,6 +26,32 @@ from deepr.core.research import (
 from deepr.experts.research_cost_gate import ResearchCostReservation, settle_research_cost
 from deepr.experts.research_reservation_store import ResearchReservationStore
 from deepr.observability.cost_ledger import CostLedger
+from deepr.providers.base import DeepResearchProvider
+
+
+@pytest.fixture(autouse=True)
+def _explicit_five_dollar_test_envelope(monkeypatch: pytest.MonkeyPatch):
+    """Exercise bounded research under the compiled total-spend ceiling."""
+    from deepr.experts.cost_safety import reset_cost_safety_manager
+
+    for name in (
+        "DEEPR_MAX_COST_PER_JOB",
+        "DEEPR_MAX_COST_PER_DAY",
+        "DEEPR_MAX_COST_PER_WEEK",
+        "DEEPR_MAX_COST_PER_MONTH",
+    ):
+        monkeypatch.setenv(name, "5")
+    monkeypatch.setattr(
+        "deepr.providers.dispatch_authority.require_official_provider_transport",
+        lambda _provider, _expected: None,
+    )
+    monkeypatch.setattr(
+        "deepr.providers.dispatch_authority.require_exact_provider_model",
+        lambda _provider, _expected: None,
+    )
+    reset_cost_safety_manager()
+    yield
+    reset_cost_safety_manager()
 
 
 class TestResearchOrchestratorInit:
@@ -236,6 +262,7 @@ class TestBudgetValidation:
             usage=UsageStats(
                 input_tokens=1000,
                 output_tokens=500,
+                total_tokens=1500,
                 cached_input_tokens=400,
                 cost=0.42,
             ),
@@ -248,12 +275,12 @@ class TestBudgetValidation:
         events = CostLedger().get_events()
         assert len(events) == 1
         assert events[0].cost_usd == pytest.approx(0.42)
-        assert events[0].tokens_output == 500
+        assert events[0].tokens_output == 1500
 
     @pytest.mark.asyncio
     async def test_cost_safety_blocks_daily_limit(self, orchestrator):
         """Test that canonical prior spend blocks the durable daily ceiling."""
-        CostLedger().record_event("prior", "openai", 24.5, idempotency_key="prior")
+        CostLedger().record_event("prior", "openai", 4.5, idempotency_key="prior")
 
         with pytest.raises(ValueError, match="Daily limit"):
             await orchestrator.submit_research(
@@ -535,7 +562,7 @@ class TestErrorHandling:
             )
 
         assert settled == 0.5
-        assert settle.call_args.kwargs["actual_cost"] == 0.5
+        assert settle.call_args.kwargs["actual_cost"] is None
 
     @pytest.mark.asyncio
     async def test_completion_retries_settlement_before_releasing_tracking(self, orchestrator):
@@ -763,8 +790,9 @@ class TestPropertyBasedValidation:
         Validates: Requirement 1.3 (Prompt metadata truncation)
         """
         # Create fresh orchestrator for each test
-        mock_provider = MagicMock()
+        mock_provider = MagicMock(spec=DeepResearchProvider)
         mock_provider.provider_name = "openai"
+        mock_provider.provider_key = "openai"
         mock_storage = MagicMock()
         mock_document_manager = MagicMock()
         mock_report_generator = MagicMock()

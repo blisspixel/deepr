@@ -39,8 +39,9 @@ def test_application_containers_use_one_frozen_dependency_authority(
     assert "USER deepr" in dockerfile
 
 
-def test_aws_lambda_runtime_matches_the_packaged_python_floor() -> None:
+def test_legacy_aws_lambda_template_is_reference_only() -> None:
     template = (REPO_ROOT / "deploy/aws/template.yaml").read_text(encoding="utf-8")
 
-    assert "Runtime: python3.12" in template
-    assert "Runtime: python3.11" not in template
+    assert "BLOCKED:" in template
+    assert "ReferenceOnly: true" in template
+    assert "AWS::" not in template

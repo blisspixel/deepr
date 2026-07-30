@@ -242,8 +242,12 @@ def test_paid_submit_keeps_job_queued_when_reservation_store_is_unavailable(clie
     response = client.post("/api/jobs", json=_paid_request(prompt="Research power-grid constraints."))
 
     assert response.status_code == 503
-    assert response.get_json()["status"] == "queued"
-    assert response.get_json()["retryable"] is True
+    payload = response.get_json()
+    assert payload["error"] == "Research dispatch is waiting for durable cost authority"
+    assert payload["error_code"] == "cost_authority_temporarily_unavailable"
+    assert payload["status"] == "queued"
+    assert payload["retryable"] is True
+    assert str(blocked) not in str(payload)
     coordinator.refund_job.assert_not_called()
 
 
@@ -575,6 +579,61 @@ def test_web_unreserved_terminal_settlement_uses_recorded_provider(monkeypatch):
 
     assert restore.call_args.kwargs["provider"] == "gemini"
     assert record.call_args.kwargs["provider"] == "gemini"
+
+
+def test_web_unreserved_unknown_cost_preserves_none_for_conservative_settlement(monkeypatch):
+    coordinator = WebResearchCostCoordinator(None, None)
+    record = MagicMock()
+    monkeypatch.setattr("deepr.web.research_cost_api.restore_research_cost_reservation", MagicMock(return_value=None))
+    monkeypatch.setattr("deepr.web.research_cost_api.record_unreserved_research_cost", record)
+    job = SimpleNamespace(
+        id="job-unknown-cost",
+        provider="openai",
+        provider_job_id="provider-job",
+        model="o3-deep-research",
+        metadata={},
+    )
+
+    coordinator.settle_job(job, actual_cost=None, tokens=123)
+
+    assert record.call_args.kwargs["actual_cost"] is None
+
+
+def test_web_completion_uses_canonical_usage_before_settlement(monkeypatch):
+    from deepr.queue.base import JobStatus, ResearchJob
+
+    job = ResearchJob(
+        id="job-canonical-cost",
+        prompt="canonical settlement",
+        provider="openai",
+        provider_job_id="provider-job",
+        status=JobStatus.PROCESSING,
+    )
+    response = SimpleNamespace(
+        output=[{"type": "message", "content": [{"type": "output_text", "text": "done"}]}],
+        usage=SimpleNamespace(cost=0.01, total_tokens=123),
+    )
+    canonical = MagicMock(return_value=(None, 123))
+    storage = MagicMock(save_report=AsyncMock())
+    coordinator = MagicMock()
+    queue = MagicMock(get_job=AsyncMock(return_value=job))
+    emitted = MagicMock()
+    monkeypatch.setattr(web_app, "authoritative_completion_usage", canonical)
+    monkeypatch.setattr(web_app, "storage", storage)
+    monkeypatch.setattr(web_app, "research_costs", coordinator)
+    monkeypatch.setattr(web_app, "queue", queue)
+    monkeypatch.setattr(web_app, "emit_job_completed", emitted)
+
+    loop = asyncio.new_event_loop()
+    try:
+        web_app._handle_completion(loop, job, response)
+    finally:
+        loop.close()
+
+    canonical.assert_called_once_with(job, response)
+    assert coordinator.finalize_completed_job.call_args.kwargs["actual_cost"] is None
+    assert coordinator.finalize_completed_job.call_args.kwargs["tokens"] == 123
+    emitted.assert_called_once()
 
 
 def test_web_terminal_cleanup_factory_uses_recorded_provider(monkeypatch):

@@ -8,6 +8,15 @@ import pytest
 from tests.unit.test_services.conftest import make_chat_response
 
 
+@pytest.fixture(autouse=True)
+def _trust_injected_unit_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Bypass the production client-attestation freeze in downstream unit tests."""
+    monkeypatch.setattr(
+        "deepr.providers.dispatch_authority.require_official_paid_client",
+        lambda _client, _provider: "test-attested",
+    )
+
+
 class TestPromptRefiner:
     """Test PromptRefiner prompt optimization."""
 
@@ -184,8 +193,9 @@ class TestPromptRefiner:
             events.append("reserve")
             return reservation
 
-        def mark(_reservation):
+        def mark(_reservation, authority, _call):
             events.append("mark")
+            authority.marked = True
 
         def construct(**kwargs):
             events.append("construct")
@@ -222,12 +232,18 @@ class TestPromptRefiner:
             estimated_cost=0.25,
         )
 
+        def mark(_reservation, authority, _call):
+            authority.marked = True
+
         with (
             patch(
                 "deepr.services.metered_call.reserve_configured_cost_ceiling",
                 return_value=reservation,
             ),
-            patch("deepr.services.metered_call._mark_provider_dispatch"),
+            patch(
+                "deepr.services.metered_call._mark_provider_dispatch",
+                side_effect=mark,
+            ),
             patch("deepr.services.metered_call.settle_research_cost") as settle,
             patch("deepr.services.prompt_refiner.OpenAI", return_value=client),
         ):

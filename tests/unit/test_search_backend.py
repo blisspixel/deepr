@@ -20,37 +20,6 @@ class _BadInitTool:
         raise RuntimeError("init boom")
 
 
-class _FakeResponse:
-    def __init__(self, data=None, *, error=None):
-        self._data = data or {}
-        self._error = error
-
-    def raise_for_status(self):
-        if self._error:
-            raise self._error
-
-    def json(self):
-        return self._data
-
-
-class _FakeAsyncClient:
-    calls = []
-    response = _FakeResponse()
-
-    def __init__(self, **kwargs):
-        self.kwargs = kwargs
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, exc_type, exc, tb):
-        return False
-
-    async def get(self, url, *, params):
-        self.calls.append((url, params))
-        return self.response
-
-
 @pytest.mark.asyncio
 async def test_builtin_search_logs_and_returns_empty_on_exception(caplog):
     backend = BuiltinSearchBackend()
@@ -76,43 +45,22 @@ async def test_builtin_health_check_logs_and_returns_false(caplog):
 
 
 @pytest.mark.asyncio
-async def test_searxng_search_maps_json_results(monkeypatch):
-    _FakeAsyncClient.calls = []
-    _FakeAsyncClient.response = _FakeResponse(
-        {
-            "results": [
-                {
-                    "title": "Result",
-                    "url": "https://example.com/result",
-                    "content": "Snippet",
-                    "score": "2.5",
-                    "engine": "duckduckgo",
-                },
-                {"title": "Missing URL", "content": "ignored"},
-            ]
-        }
-    )
-
-    import httpx
-
-    monkeypatch.setattr(httpx, "AsyncClient", _FakeAsyncClient)
-
+async def test_searxng_search_blocks_before_http_client_construction():
     backend = SearXNGSearchBackend("http://127.0.0.1:8080")
-    results = await backend.search("local deep research", num_results=5)
 
-    assert _FakeAsyncClient.calls == [("http://127.0.0.1:8080/search", {"q": "local deep research", "format": "json"})]
-    assert len(results) == 1
-    assert results[0].title == "Result"
-    assert results[0].url == "https://example.com/result"
-    assert results[0].snippet == "Snippet"
-    assert results[0].score == 2.5
-    assert results[0].source == "searxng:duckduckgo"
+    with patch("httpx.AsyncClient", side_effect=AssertionError("must not construct HTTP client")) as client:
+        with pytest.raises(RuntimeError, match="does not prove its upstream engines"):
+            await backend.search("local deep research", num_results=5)
+
+    client.assert_not_called()
 
 
 @pytest.mark.asyncio
 async def test_searxng_search_requires_base_url():
-    assert await SearXNGSearchBackend("").search("q") == []
-    assert await SearXNGSearchBackend("").health_check() is False
+    backend = SearXNGSearchBackend("")
+    with pytest.raises(RuntimeError, match="SearXNG dispatch is disabled"):
+        await backend.search("q")
+    assert await backend.health_check() is False
 
 
 def test_searxng_canonicalizes_owned_loopback_base_path():
@@ -139,3 +87,9 @@ def test_searxng_rejects_remote_endpoint_from_environment(monkeypatch):
 
     with pytest.raises(ValueError, match="remote endpoints need explicit cost attestation"):
         SearXNGSearchBackend()
+
+
+@pytest.mark.parametrize("timeout", [0.0, -1.0, float("nan"), float("inf"), True])
+def test_searxng_rejects_invalid_timeout(timeout):
+    with pytest.raises(ValueError, match="finite positive"):
+        SearXNGSearchBackend("http://127.0.0.1:8080", timeout=timeout)

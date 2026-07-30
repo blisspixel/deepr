@@ -137,7 +137,7 @@ class TestWebhookConfig:
         wc = WebhookConfig()
         assert wc.enabled is True
         assert wc.port == 5000
-        assert wc.use_ngrok is True
+        assert wc.use_ngrok is False
 
     def test_custom_values(self):
         """Custom values accepted."""
@@ -327,9 +327,9 @@ class TestLoadConfig:
         monkeypatch.setenv("DEEPR_MAX_COST_PER_DAY", "50.0")
         monkeypatch.setenv("DEEPR_MAX_COST_PER_MONTH", "500.0")
         result = load_config()
-        assert result["max_cost_per_job"] == 10.0
-        assert result["max_daily_cost"] == 50.0
-        assert result["max_monthly_cost"] == 200.0
+        assert result["max_cost_per_job"] == 5.0
+        assert result["max_daily_cost"] == 5.0
+        assert result["max_monthly_cost"] == 5.0
 
 
 class TestLoadConfigContract:
@@ -397,9 +397,9 @@ class TestLoadConfigContract:
         for var in ("DEEPR_MAX_COST_PER_JOB", "DEEPR_MAX_COST_PER_DAY", "DEEPR_MAX_COST_PER_MONTH"):
             monkeypatch.delenv(var, raising=False)
         result = load_config()
-        assert result["max_cost_per_job"] == 5.0
-        assert result["max_daily_cost"] == 10.0
-        assert result["max_monthly_cost"] == 200.0
+        assert result["max_cost_per_job"] == 1.0
+        assert result["max_daily_cost"] == 2.0
+        assert result["max_monthly_cost"] == 5.0
 
     def test_results_dir_honors_reports_path_env(self, monkeypatch):
         monkeypatch.setenv("DEEPR_REPORTS_PATH", "custom/reports/here")

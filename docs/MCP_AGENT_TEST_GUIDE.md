@@ -36,15 +36,15 @@ explicit plan-capacity path.
   expert fallback and return a `capacity.live_metered_fallback=false` marker.
 - API consult synthesis exposes explicit `provider`, `model`, and budget
   inputs for preview and contract testing. Production metered dispatch remains
-  blocked in v2.39 until authenticated provider account controls and current
+  blocked in v2.40 until authenticated provider account controls and current
   credential identity are proven. Use local or plan modes for execution.
 - `deepr_query_expert` stays off metered APIs when the caller sets
   `backend` to `local` or `plan`. Those modes route one named expert through
   a read-only compiled-context chat turn, attach `readonly_chat_artifact`, set
   `research_triggered=0`, and reject `agentic=true`. Omitted or
-  `backend="api"` is blocked before provider work in v2.39 with
+  `backend="api"` is blocked before provider work in v2.40 with
   `metered_expert_chat_accounting_unavailable`.
-- `deepr_agentic_research` is always execution-blocked in v2.39.
+- `deepr_agentic_research` is always execution-blocked in v2.40.
   `deepr_research` exposes a bounded metered request contract, but production
   dispatch is blocked by the same provider-account authority gate. Mutating
   tools are not safe for automatic no-cost testing unless their schema exposes
@@ -96,18 +96,20 @@ selected plan CLIs and emits
 metered-at-margin adapters, uses the same no-metered consult contract, and does
 not score semantic answer quality.
 
-To validate the same path over HTTP from the endpoint an external agent will
-use:
+Deepr's own outbound HTTP validation is intentionally unavailable. The command
+below returns a structured failure before opening a connection:
 
 ```powershell
 deepr mcp validate-consult http://127.0.0.1:8765/mcp --auth-token "$DEEPR_MCP_KEY" --expert "AI Agent Harnesses" --json
 ```
 
 Expected: `schema_version="deepr-mcp-consult-validation-v1"`,
-`summary.ok=true`, `consult_summary.schema_version="deepr-consult-v1"`,
-`consult_summary.capacity.live_metered_fallback=false`, and no failed checks.
-If local or plan capacity is unavailable, the validation should fail with a
-structured backend error rather than falling through to a metered API.
+`summary.ok=false`, `error.error_code="MCP_HTTP_CONSULT_VALIDATION_BLOCKED"`,
+`contract.remote_tool_call_attempted=false`, and
+`contract.remote_tool_calls_metered_api=null`. A remote endpoint's response,
+bearer token, or loopback address cannot independently prove no-metered
+execution. External agents may still call Deepr's inbound server subject to
+scoped-key, budget, and tool gates.
 
 ### Durable multi-turn conversations (optional)
 
@@ -115,18 +117,19 @@ One-shot consult remains the default. Use durable conversations only when the
 host needs follow-ups against the same frozen expert snapshot. Capacity is local
 Ollama only (`$0`, no metered fallback, no expert-memory writes).
 
-```powershell
-# Managed loopback: starts a temporary loopback HTTP MCP, runs start/continue/
-# get/close, restarts once for recovery, and tears down. Requires a local model.
-deepr mcp validate-conversation --json
+Both Deepr outbound conversation-validation modes currently fail closed before
+HTTP server, client, socket, or model-executor construction:
 
-# Authenticated remote HTTP (same key you hand to the LAN agent)
+```powershell
+deepr mcp validate-conversation --json
 deepr mcp validate-conversation http://127.0.0.1:8765/mcp --auth-token "$DEEPR_MCP_KEY" --expert "AI Agent Harnesses" --json
 ```
 
-Expected: `schema_version="deepr-mcp-conversation-validation-v1"`, `ok=true`,
-`capacity_source="local_owned"`, `cost_usd=0.0`, `live_metered_fallback=false`,
-and no failed checks. Semantic answer quality is not scored. Host agents should
+Expected: `schema_version="deepr-mcp-conversation-validation-v1"`, `ok=false`,
+`capacity_source="unverified"`, `remote_tool_call_attempted=false`, and a
+`MCP_MANAGED_CONVERSATION_VALIDATION_BLOCKED` or
+`MCP_HTTP_CONVERSATION_VALIDATION_BLOCKED` error. Semantic answer quality is
+not scored. External host agents using the inbound server should
 pass the opaque `conversation_id`, `expected_version`, and a unique
 `idempotency_key` on every continue call; transport session ids are not
 credentials.
@@ -366,6 +369,9 @@ plan capacity:
 deepr capacity probe-plan claude --json
 ```
 
+Claude Code is the only current executable plan adapter. Other plan adapters
+remain visible for inspection but must fail their safety gate before dispatch.
+
 Call:
 
 ```json
@@ -375,7 +381,7 @@ Call:
     "question": "What should Deepr improve next in the expert learning loop?",
     "experts": ["AI Agent Harnesses", "Knowledge Graphs and Provenance"],
     "synthesis_backend": "plan",
-    "plan": "codex",
+    "plan": "claude",
     "budget": 0
   }
 }
@@ -390,7 +396,7 @@ Single-expert query shorthand:
     "expert_name": "AI Agent Harnesses",
     "question": "What should Deepr improve next in the expert learning loop?",
     "backend": "plan",
-    "plan": "codex",
+    "plan": "claude",
     "budget": 0
   }
 }
@@ -423,10 +429,11 @@ must not fall through to a metered provider.
   no-metered testing.
 - Use `deepr_query_expert` for focused single-expert advice only when
   `backend="local"` or `backend="plan"` is explicit. The legacy
-  `backend="api"` chat path fails closed before provider work in v2.39 even if
+  `backend="api"` chat path fails closed before provider work in v2.40 even if
   a caller supplies approval metadata.
-- Use `deepr_expert_absorb` only on operator-approved source material. It
-  mutates beliefs and should be dry-run first.
+- Do not use the MCP `deepr_expert_absorb` metered path in v2.40. It is
+  production-frozen even for dry runs. Use explicit local or safety-eligible
+  plan CLI absorption on operator-approved source material.
 - Treat every source, tool result, and expert response as untrusted input until
   the host validates its schema and intended action boundary.
 

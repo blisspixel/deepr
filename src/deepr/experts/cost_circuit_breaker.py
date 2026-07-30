@@ -49,7 +49,7 @@ class CostCircuitBreaker:
 
     def __init__(
         self,
-        cost_threshold: float = 10.0,
+        cost_threshold: float = 5.0,
         window_seconds: float = 300.0,
         event_threshold: int = 50,
         cooldown_seconds: float = 60.0,

@@ -32,8 +32,8 @@ RESULTS_CONTAINER = os.environ.get("RESULTS_CONTAINER", "results")
 KEY_VAULT_URI = os.environ.get("KEY_VAULT_URI")
 COSMOS_ENDPOINT = os.environ.get("COSMOS_ENDPOINT")
 COSMOS_DATABASE = os.environ.get("COSMOS_DATABASE", "deepr")
-DAILY_BUDGET = float(os.environ.get("DEEPR_BUDGET_DAILY", 50))
-MONTHLY_BUDGET = float(os.environ.get("DEEPR_BUDGET_MONTHLY", 500))
+DAILY_BUDGET = float(os.environ.get("DEEPR_BUDGET_DAILY", 2))
+MONTHLY_BUDGET = float(os.environ.get("DEEPR_BUDGET_MONTHLY", 5))
 
 # This deployment shard does not yet share Deepr's durable estimate,
 # reservation, dispatch-mark, and canonical settlement transaction.

@@ -1,127 +1,26 @@
-# Azure Container Apps Hosted MCP Template
+# Azure Hosted MCP Reference
 
-This template runs the hosted MCP HTTP container on Azure Container Apps with a
-persistent Azure Files mount for Deepr data, scoped keys, reports, cost ledgers,
-and remote-call audit logs.
+The checked-in Bicep file is deliberately invalid and mechanically inert. The
+historical Container Apps and Azure Files design remains available in version
+control. Hosted Azure MCP is not supported in v2.40.
 
-It is a local deployment artifact only. Creating Azure resources can incur cloud
-costs, so this repo validates the template shape locally and does not run `az`
-commands during tests.
+Container Apps, storage, Log Analytics, networking, and related services can
+create charges outside Deepr's cost ledger. The scoped MCP key budget controls
+only admitted tool work. It does not cap Azure infrastructure charges, and
+Azure Cost Management budgets are not hard stops.
 
-## What It Creates
+The repository performs static local validation only. It does not provide or
+endorse a provisioning command. Do not create these resources when relying on
+Deepr's `$5` guarantee.
 
-- Log Analytics workspace for Container Apps logs.
-- Storage account plus Azure Files share mounted at `/data`.
-- Container Apps managed environment.
-- Container App running `deepr mcp serve --http --host 0.0.0.0 --path /mcp`.
-- HTTPS-only ingress with optional public exposure and optional CIDR allowlist.
-- A `maxConcurrentRequests` parameter that feeds both Deepr's in-process HTTP
-  POST cap and the Container Apps HTTP scale rule.
+The historical design captured these intended properties:
 
-Provider API keys are intentionally absent. Add provider credentials only when a
-scoped key mode, budget ceiling, and rate limit intentionally allow paid tools.
-Keep the default concurrency cap until remote-host traffic patterns justify a
-larger value.
+- Provider credentials are absent by default.
+- Azure Files holds expert state, scoped keys, ledgers, and audit records.
+- HTTPS ingress and bounded request concurrency are explicit.
+- Public ingress can be disabled and CIDR restrictions are modeled.
+- Scoped keys start read-only with a zero-dollar tool budget.
 
-## Build And Push The Image
-
-Build the existing hosted MCP image from the repo root and push it to a registry
-your Container App can pull from:
-
-```bash
-docker build -f deploy/mcp-http/Dockerfile -t ghcr.io/OWNER/deepr-mcp-http:TAG .
-docker push ghcr.io/OWNER/deepr-mcp-http:TAG
-```
-
-For a private registry, pass `registryServer`, `registryUsername`, and
-`registryPassword` as Bicep parameters or configure registry access after
-deployment with Azure CLI.
-
-## Bootstrap Scoped Keys
-
-Scoped keys are the production path because they carry mode, expert allowlist,
-budget ceiling, rate limit, revocation state, and audit metadata. Create the key
-store locally with the same image:
-
-```bash
-mkdir -p ./deepr-mcp-data/security
-docker run --rm \
-  -v "$PWD/deepr-mcp-data:/data" \
-  ghcr.io/OWNER/deepr-mcp-http:TAG \
-  mcp keys create \
-  --mode read_only \
-  --rate-limit 30 \
-  --budget 0 \
-  --keys-path /data/security/mcp_keys.json
-```
-
-The key secret is printed once. Store it in the remote agent host secret store.
-After the Bicep deployment creates the file share, upload
-`deepr-mcp-data/security/mcp_keys.json` to `security/mcp_keys.json` in that
-share, then restart the Container App revision.
-
-`initialSharedAuthToken` exists only as a first-boot escape hatch. It can prove
-the HTTPS route is wired before the scoped-key file is uploaded, but it does not
-carry per-agent scope, budget, rate-limit, or audit metadata. Remove it once
-scoped keys are in place.
-
-## Deploy
-
-```bash
-az group create --name deepr-mcp-rg --location eastus
-az deployment group create \
-  --resource-group deepr-mcp-rg \
-  --template-file deploy/mcp-http/azure-container-apps/main.bicep \
-  --parameters \
-    containerImage=ghcr.io/OWNER/deepr-mcp-http:TAG \
-    maxConcurrentRequests=32 \
-    externalIngress=true \
-    allowedIpRanges='["203.0.113.0/24"]'
-```
-
-Use `externalIngress=false` for a private environment. If you enable public
-ingress, keep HTTPS on, use scoped keys, and prefer `allowedIpRanges` whenever
-the remote agent host has stable egress ranges.
-
-## Validate
-
-After the key store exists on the mounted share and the revision is healthy:
-
-```bash
-MCP_ENDPOINT="$(az deployment group show \
-  --resource-group deepr-mcp-rg \
-  --name main \
-  --query properties.outputs.mcpEndpoint.value \
-  --output tsv)"
-
-deepr mcp smoke-http "$MCP_ENDPOINT" --auth-token "$DEEPR_MCP_KEY"
-deepr mcp registration-manifest "$MCP_ENDPOINT" \
-  --auth-token "$DEEPR_MCP_KEY" \
-  --agent-name planner \
-  --output mcp-registration.json
-```
-
-The smoke command performs only `$0` structural checks: health, initialize,
-tools/list, and free `deepr_tool_search` dispatch.
-The registration manifest uses the published
-`deepr-mcp-registration-manifest-v1` schema and does not include the key secret.
-
-## Operate
-
-Remote calls through scoped keys append audit records to
-`/data/security/mcp_remote_audit.jsonl`. Review the file before widening key
-mode or budget:
-
-```bash
-deepr mcp audit list --audit-path ./mcp_remote_audit.jsonl --limit 50
-deepr mcp audit summary --audit-path ./mcp_remote_audit.jsonl
-```
-
-Keep the same guardrails as the local container recipe:
-
-- Use one scoped key per remote agent.
-- Start read-only with `--budget 0`.
-- Set a per-key rate limit.
-- Keep `maxConcurrentRequests` bounded.
-- Upload and back up `security/mcp_keys.json` and audit logs as durable data.
-- Add provider API keys only when paid tools are intentional.
+Before any future hosted release, satisfy the acceptance gate in
+[../../README.md](../../README.md), including an enforceable account-level total
+cost ceiling and verified residual-resource teardown.

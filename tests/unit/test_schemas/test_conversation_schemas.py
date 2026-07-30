@@ -71,6 +71,22 @@ def test_published_mcp_conversation_validation_report_validates() -> None:
     _validator("mcp-conversation-validation-v1.json").validate(report.to_dict())
 
 
+def test_published_blocked_managed_validation_report_is_unverified() -> None:
+    report = MCPConversationValidationReport(
+        mode="managed_loopback",
+        endpoint=None,
+        local_model="fixture-local-model",
+        checks=(MCPConversationValidationCheck("cost_authority", "failed", "blocked before dispatch"),),
+        error={"error_code": "BLOCKED", "message": "blocked before dispatch"},
+    )
+
+    payload = report.to_dict()
+    _validator("mcp-conversation-validation-v1.json").validate(payload)
+    assert payload["capacity_source"] == "unverified"
+    assert payload["fallback_policy"] == "unverified"
+    assert payload["live_metered_fallback"] is None
+
+
 def test_conversation_schema_rejects_terminal_active_turn_and_local_spend() -> None:
     validator = _validator("expert-conversation-v1.json")
     fixture = conversation_contract_fixtures()["conversation"]

@@ -12,7 +12,6 @@ from deepr.experts.chat_backends import (
     AnthropicExpertChatBackend,
     ExpertChatRequest,
     ExpertChatResult,
-    ExpertChatStreamChunk,
     ExpertChatUnsupportedFeature,
     LocalOllamaExpertChatBackend,
     OpenAIExpertChatBackend,
@@ -21,9 +20,9 @@ from deepr.experts.chat_backends import (
 )
 from deepr.experts.chat_capacity import (
     METERED_EXPERT_CHAT_BLOCK_CODE,
-    METERED_EXPERT_CHAT_CONFIRM_CODE,
     MeteredExpertChatDisabledError,
 )
+from deepr.experts.semantic_model_gate import _mark_zero_dollar_client
 
 
 @pytest.fixture(autouse=True)
@@ -80,8 +79,8 @@ async def test_metered_backend_boundary_fails_before_client_dispatch(monkeypatch
 
 
 @pytest.mark.asyncio
-async def test_metered_backend_requires_explicit_env_even_when_flag_enabled(monkeypatch):
-    """Substrate-on without DEEPR_ALLOW_METERED_EXPERT_CHAT still refuses dispatch."""
+async def test_metered_backend_flag_and_environment_cannot_enable_dispatch(monkeypatch):
+    """Runtime toggles cannot waive the full-charge proof."""
     calls = 0
 
     class FakeCompletions:
@@ -91,7 +90,7 @@ async def test_metered_backend_requires_explicit_env_even_when_flag_enabled(monk
             raise AssertionError("metered client must not dispatch")
 
     monkeypatch.setattr(chat_capacity, "METERED_EXPERT_CHAT_EXECUTION_ENABLED", True)
-    monkeypatch.delenv("DEEPR_ALLOW_METERED_EXPERT_CHAT", raising=False)
+    monkeypatch.setenv("DEEPR_ALLOW_METERED_EXPERT_CHAT", "1")
     backend = OpenAIExpertChatBackend(
         SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions())),
         model="gpt-5.2",
@@ -100,10 +99,10 @@ async def test_metered_backend_requires_explicit_env_even_when_flag_enabled(monk
 
     with pytest.raises(MeteredExpertChatDisabledError) as blocked:
         await backend.complete(request)
-    assert blocked.value.code == METERED_EXPERT_CHAT_CONFIRM_CODE
+    assert blocked.value.code == METERED_EXPERT_CHAT_BLOCK_CODE
     with pytest.raises(MeteredExpertChatDisabledError) as streamed:
         _ = [chunk async for chunk in backend.stream(request)]
-    assert streamed.value.code == METERED_EXPERT_CHAT_CONFIRM_CODE
+    assert streamed.value.code == METERED_EXPERT_CHAT_BLOCK_CODE
     assert calls == 0
 
 
@@ -121,7 +120,11 @@ def test_openai_chat_client_disables_hidden_sdk_retries(monkeypatch):
     )
 
     assert (provider, model, built_client) == ("openai", "gpt-5.2", client)
-    constructor.assert_called_once_with(api_key="sk-test", max_retries=0)
+    constructor.assert_called_once_with(
+        api_key="sk-test",
+        base_url="https://api.openai.com/v1",
+        max_retries=0,
+    )
 
 
 def test_anthropic_chat_client_disables_hidden_sdk_retries(monkeypatch):
@@ -138,7 +141,11 @@ def test_anthropic_chat_client_disables_hidden_sdk_retries(monkeypatch):
     )
 
     assert (provider, model, built_client) == ("anthropic", "claude-sonnet-5", client)
-    constructor.assert_called_once_with(api_key="sk-ant-test", max_retries=0)
+    constructor.assert_called_once_with(
+        api_key="sk-ant-test",
+        base_url="https://api.anthropic.com",
+        max_retries=0,
+    )
 
 
 @pytest.mark.asyncio
@@ -191,223 +198,144 @@ async def test_complete_expert_chat_turn_preserves_tool_choice_when_tools_suppor
 
 @pytest.mark.asyncio
 async def test_openai_chat_backend_passes_request_shape_and_normalizes_result():
-    captured: dict[str, object] = {}
+    calls = 0
 
     class FakeCompletions:
-        async def create(self, **kwargs):
-            captured.update(kwargs)
-            message = SimpleNamespace(content="answer", tool_calls=[])
-            choice = SimpleNamespace(message=message, finish_reason="stop")
-            return SimpleNamespace(
-                id="chatcmpl_123",
-                choices=[choice],
-                usage=SimpleNamespace(prompt_tokens=7, completion_tokens=3),
-            )
+        async def create(self, **_kwargs):
+            nonlocal calls
+            calls += 1
+            raise AssertionError("paid provider must remain blocked")
 
     client = SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions()))
     backend = OpenAIExpertChatBackend(client, model="gpt-5.2")
-
-    result = await backend.complete(
-        ExpertChatRequest(
-            model="gpt-5.2",
-            messages=[{"role": "user", "content": "q"}],
-            tools=[{"type": "function", "function": {"name": "search"}}],
-            tool_choice="auto",
-            reasoning_effort="medium",
-            extra={"temperature": 0.7, "max_tokens": 200, "max_cost_per_job": 0.5},
-        )
+    request = ExpertChatRequest(
+        model="gpt-5.2",
+        messages=[{"role": "user", "content": "q"}],
+        tools=[{"type": "function", "function": {"name": "search"}}],
+        tool_choice="auto",
+        reasoning_effort="medium",
+        extra={"temperature": 0.7, "max_tokens": 200, "max_cost_per_job": 0.5},
     )
 
-    assert captured["model"] == "gpt-5.2"
-    assert captured["messages"] == [{"role": "user", "content": "q"}]
-    assert captured["tool_choice"] == "auto"
-    assert captured["reasoning_effort"] == "medium"
-    assert captured["temperature"] == 0.7
-    assert captured["max_tokens"] == 200
-    assert "max_cost_per_job" not in captured
-    assert result.text == "answer"
-    assert result.usage.prompt_tokens == 7
-    assert result.provider_request_id == "chatcmpl_123"
-    assert result.stop_reason == "stop"
+    from deepr.experts.chat_metered import split_accounting_extra
+
+    provider_extra, ceiling = split_accounting_extra(request.extra)
+    params = backend._build_params(request, extra=provider_extra)
+    assert params["model"] == "gpt-5.2"
+    assert params["tool_choice"] == "auto"
+    assert params["max_tokens"] == 200
+    assert "max_cost_per_job" not in params
+    assert ceiling == 0.5
+    with pytest.raises(MeteredExpertChatDisabledError):
+        await backend.complete(request)
+    assert calls == 0
 
 
 @pytest.mark.asyncio
 async def test_openai_chat_backend_streams_deltas_and_usage():
-    captured: dict[str, object] = {}
-
-    class FakeStream:
-        def __init__(self):
-            self._chunks = [
-                SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content="hel"))], usage=None),
-                SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content="lo"))], usage=None),
-                SimpleNamespace(choices=[], usage=SimpleNamespace(prompt_tokens=8, completion_tokens=2)),
-            ]
-
-        def __aiter__(self):
-            return self
-
-        async def __anext__(self):
-            if not self._chunks:
-                raise StopAsyncIteration
-            return self._chunks.pop(0)
+    calls = 0
 
     class FakeCompletions:
-        async def create(self, **kwargs):
-            captured.update(kwargs)
-            return FakeStream()
+        async def create(self, **_kwargs):
+            nonlocal calls
+            calls += 1
+            raise AssertionError("paid stream must remain blocked")
 
     client = SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions()))
     backend = OpenAIExpertChatBackend(client, model="gpt-5.2")
 
-    chunks = [
-        chunk
-        async for chunk in backend.stream(
-            ExpertChatRequest(
-                model="gpt-5.2",
-                messages=[{"role": "user", "content": "q"}],
-                reasoning_effort="low",
-                extra={"max_tokens": 123, "max_cost_per_job": 1.0},
+    with pytest.raises(MeteredExpertChatDisabledError):
+        _ = [
+            chunk
+            async for chunk in backend.stream(
+                ExpertChatRequest(
+                    model="gpt-5.2",
+                    messages=[{"role": "user", "content": "q"}],
+                    reasoning_effort="low",
+                    extra={"max_tokens": 123, "max_cost_per_job": 1.0},
+                )
             )
-        )
-    ]
-
-    assert captured == {
-        "model": "gpt-5.2",
-        "messages": [{"role": "user", "content": "q"}],
-        "reasoning_effort": "low",
-        "max_tokens": 123,
-        "stream": True,
-        "stream_options": {"include_usage": True},
-    }
-    assert [chunk.text_delta for chunk in chunks] == ["hel", "lo", ""]
-    assert isinstance(chunks[0], ExpertChatStreamChunk)
-    assert chunks[-1].usage.prompt_tokens == 8
+        ]
+    assert calls == 0
 
 
 @pytest.mark.asyncio
 async def test_anthropic_chat_backend_uses_native_messages_shape_and_usage():
-    captured: dict[str, object] = {}
+    calls = 0
 
     class FakeMessages:
-        async def create(self, **kwargs):
-            captured.update(kwargs)
-            return SimpleNamespace(
-                _request_id="req_123",
-                content=[SimpleNamespace(type="text", text="anthropic answer")],
-                usage=SimpleNamespace(
-                    input_tokens=11,
-                    output_tokens=7,
-                    cache_creation_input_tokens=3,
-                    cache_read_input_tokens=2,
-                ),
-                stop_reason="end_turn",
-            )
+        async def create(self, **_kwargs):
+            nonlocal calls
+            calls += 1
+            raise AssertionError("paid provider must remain blocked")
 
     client = SimpleNamespace(messages=FakeMessages())
     backend = AnthropicExpertChatBackend(client, model="claude-sonnet-4-6")
 
-    result = await backend.complete(
-        ExpertChatRequest(
-            model="claude-sonnet-4-6",
-            messages=[
-                {"role": "system", "content": "You are careful."},
-                {"role": "user", "content": "q"},
-            ],
-            tool_choice="auto",
-            reasoning_effort="high",
-            extra={
-                "temperature": 0.2,
-                "max_tokens": 123,
-                "max_cost_per_job": 1.0,
-                "response_format": {"type": "json_object"},
-            },
-        )
+    request = ExpertChatRequest(
+        model="claude-sonnet-4-6",
+        messages=[
+            {"role": "system", "content": "You are careful."},
+            {"role": "user", "content": "q"},
+        ],
+        tool_choice="auto",
+        reasoning_effort="high",
+        extra={
+            "temperature": 0.2,
+            "max_tokens": 123,
+            "max_cost_per_job": 1.0,
+            "response_format": {"type": "json_object"},
+        },
     )
 
     assert backend.provider == "anthropic"
     assert backend.metered is True
     assert backend.supports_tools is False
     assert backend.supports_streaming is True
-    assert captured == {
+    from deepr.experts.chat_metered import split_accounting_extra
+
+    provider_extra, ceiling = split_accounting_extra(request.extra)
+    params = backend._build_params(request, model="claude-sonnet-4-6", extra=provider_extra)
+    assert params == {
         "model": "claude-sonnet-4-6",
         "max_tokens": 123,
         "messages": [{"role": "user", "content": "q"}],
         "system": "You are careful.",
     }
-    assert result.text == "anthropic answer"
-    assert result.usage.input_tokens == 11
-    assert result.provider_request_id == "req_123"
-    assert result.stop_reason == "end_turn"
+    assert ceiling == 1.0
+    with pytest.raises(MeteredExpertChatDisabledError):
+        await backend.complete(request)
+    assert calls == 0
 
 
 @pytest.mark.asyncio
 async def test_anthropic_chat_backend_streams_text_and_final_usage():
-    captured: dict[str, object] = {}
-
-    class AsyncTextStream:
-        def __init__(self, chunks):
-            self._chunks = list(chunks)
-
-        def __aiter__(self):
-            return self
-
-        async def __anext__(self):
-            if not self._chunks:
-                raise StopAsyncIteration
-            return self._chunks.pop(0)
-
-    class FakeStream:
-        def __init__(self):
-            self.text_stream = AsyncTextStream(["hel", "lo"])
-
-        async def get_final_message(self):
-            return SimpleNamespace(
-                usage=SimpleNamespace(
-                    input_tokens=9,
-                    output_tokens=2,
-                    cache_creation_input_tokens=1,
-                    cache_read_input_tokens=3,
-                )
-            )
-
-    class FakeStreamManager:
-        async def __aenter__(self):
-            return FakeStream()
-
-        async def __aexit__(self, exc_type, exc, tb):
-            return None
+    calls = 0
 
     class FakeMessages:
-        def stream(self, **kwargs):
-            captured.update(kwargs)
-            return FakeStreamManager()
+        def stream(self, **_kwargs):
+            nonlocal calls
+            calls += 1
+            raise AssertionError("paid stream must remain blocked")
 
     client = SimpleNamespace(messages=FakeMessages())
     backend = AnthropicExpertChatBackend(client, model="claude-sonnet-4-6")
 
-    chunks = [
-        chunk
-        async for chunk in backend.stream(
-            ExpertChatRequest(
-                model="claude-sonnet-4-6",
-                messages=[
-                    {"role": "system", "content": "You are careful."},
-                    {"role": "user", "content": "q"},
-                ],
-                extra={"temperature": 0.2, "max_tokens": 123, "max_cost_per_job": 1.0},
+    with pytest.raises(MeteredExpertChatDisabledError):
+        _ = [
+            chunk
+            async for chunk in backend.stream(
+                ExpertChatRequest(
+                    model="claude-sonnet-4-6",
+                    messages=[
+                        {"role": "system", "content": "You are careful."},
+                        {"role": "user", "content": "q"},
+                    ],
+                    extra={"temperature": 0.2, "max_tokens": 123, "max_cost_per_job": 1.0},
+                )
             )
-        )
-    ]
-
-    assert captured == {
-        "model": "claude-sonnet-4-6",
-        "max_tokens": 123,
-        "messages": [{"role": "user", "content": "q"}],
-        "system": "You are careful.",
-    }
-    assert [chunk.text_delta for chunk in chunks] == ["hel", "lo", ""]
-    assert chunks[-1].usage.input_tokens == 9
-    assert chunks[-1].usage.output_tokens == 2
+        ]
+    assert calls == 0
 
 
 @pytest.mark.asyncio
@@ -446,8 +374,11 @@ async def test_anthropic_chat_backend_stream_rejects_tools():
 
 @pytest.mark.asyncio
 async def test_anthropic_chat_backend_surfaces_empty_refusal():
+    from deepr.experts.chat_backends import _anthropic_refusal_text
+
     class FakeMessages:
         async def create(self, **kwargs):
+            del kwargs
             return SimpleNamespace(
                 content=[],
                 usage=None,
@@ -455,18 +386,10 @@ async def test_anthropic_chat_backend_surfaces_empty_refusal():
                 stop_details=SimpleNamespace(category="safety"),
             )
 
-    backend = AnthropicExpertChatBackend(SimpleNamespace(messages=FakeMessages()), model="claude-sonnet-4-6")
-
-    result = await backend.complete(
-        ExpertChatRequest(
-            model="claude-sonnet-4-6",
-            messages=[{"role": "user", "content": "q"}],
-            extra={"max_tokens": 123, "max_cost_per_job": 1.0},
-        )
+    response = await FakeMessages().create()
+    assert _anthropic_refusal_text(response) == (
+        "Anthropic safety classifiers declined the request (category: safety)."
     )
-
-    assert result.text == "Anthropic safety classifiers declined the request (category: safety)."
-    assert result.stop_reason == "refusal"
 
 
 @pytest.mark.asyncio
@@ -480,7 +403,10 @@ async def test_local_ollama_chat_backend_omits_unsupported_features_and_sets_kee
             choice = SimpleNamespace(message=message, finish_reason="stop")
             return SimpleNamespace(id="local_1", choices=[choice], usage=None)
 
-    client = SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions()))
+    client = _mark_zero_dollar_client(
+        SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions())),
+        capacity_source="local",
+    )
     backend = LocalOllamaExpertChatBackend(client, model="qwen3:latest", keep_alive="5m")
 
     result = await backend.complete(
@@ -509,7 +435,10 @@ async def test_local_ollama_chat_backend_omits_unsupported_features_and_sets_kee
 
 @pytest.mark.asyncio
 async def test_local_ollama_chat_backend_rejects_tools():
-    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace()))
+    client = _mark_zero_dollar_client(
+        SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace())),
+        capacity_source="local",
+    )
     backend = LocalOllamaExpertChatBackend(client, model="qwen3:latest")
 
     with pytest.raises(ExpertChatUnsupportedFeature, match="does not support tools"):
@@ -533,7 +462,10 @@ async def test_plan_quota_chat_backend_wraps_cli_client_without_metered_features
             choice = SimpleNamespace(message=message, finish_reason="stop")
             return SimpleNamespace(choices=[choice], usage=None)
 
-    client = SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions()))
+    client = _mark_zero_dollar_client(
+        SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions())),
+        capacity_source="plan_quota:codex",
+    )
     backend = PlanQuotaExpertChatBackend(client, backend_id="codex", model="fast")
 
     result = await backend.complete(
@@ -558,11 +490,31 @@ async def test_plan_quota_chat_backend_wraps_cli_client_without_metered_features
     assert result.text == "plan answer"
 
 
+@pytest.mark.parametrize("backend_kind", ["local", "plan_quota"])
+def test_owned_capacity_chat_backend_rejects_unproven_client_before_dispatch(backend_kind):
+    calls = 0
+
+    class FakeCompletions:
+        async def create(self, **_kwargs):
+            nonlocal calls
+            calls += 1
+            raise AssertionError("unproven zero-dollar client must not dispatch")
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions()))
+
+    with pytest.raises(ValueError, match="zero-dollar capacity proof"):
+        if backend_kind == "local":
+            LocalOllamaExpertChatBackend(client, model="qwen3:latest")
+        else:
+            PlanQuotaExpertChatBackend(client, backend_id="codex", model="fast")
+
+    assert calls == 0
+
+
 @pytest.mark.asyncio
 async def test_openai_complete_uses_durable_metered_admission(monkeypatch):
-    """Metered completion must reserve, mark dispatch, and settle before return."""
+    """Legacy durable admission cannot waive the unbounded-charge gate."""
     from deepr.experts.research_reservation_store import ResearchReservationStore
-    from deepr.observability.cost_ledger import CostLedger
 
     calls = 0
     seen_marked = False
@@ -591,21 +543,18 @@ async def test_openai_complete_uses_durable_metered_admission(monkeypatch):
         SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions())),
         model="gpt-5.2",
     )
-    result = await backend.complete(
-        ExpertChatRequest(
-            model="gpt-5.2",
-            messages=[{"role": "user", "content": "q"}],
-            extra={"max_cost_per_job": 1.0},
+    with pytest.raises(MeteredExpertChatDisabledError):
+        await backend.complete(
+            ExpertChatRequest(
+                model="gpt-5.2",
+                messages=[{"role": "user", "content": "q"}],
+                extra={"max_cost_per_job": 1.0},
+            )
         )
-    )
 
-    assert result.text == "ok"
-    assert calls == 1
-    assert seen_marked is True
+    assert calls == 0
+    assert seen_marked is False
     assert ResearchReservationStore().active_cost() == 0
-    events = CostLedger().get_events()
-    assert len(events) >= 1
-    assert events[-1].cost_usd >= 0
 
 
 def test_split_accounting_extra_rejects_non_positive_ceiling():
@@ -620,13 +569,11 @@ def test_split_accounting_extra_rejects_non_positive_ceiling():
 def test_apply_output_token_ceiling_bounds_when_missing_max_tokens():
     from deepr.experts.chat_metered import apply_output_token_ceiling
 
-    bounded = apply_output_token_ceiling({}, model="gpt-5.2", max_cost_per_job=0.02)
-    assert "max_tokens" in bounded
-    assert 1 <= bounded["max_tokens"] <= 4096
-
-    preserved = apply_output_token_ceiling(
-        {"max_tokens": 123},
-        model="gpt-5.2",
-        max_cost_per_job=0.02,
-    )
-    assert preserved["max_tokens"] == 123
+    with pytest.raises(MeteredExpertChatDisabledError):
+        apply_output_token_ceiling({}, model="gpt-5.2", max_cost_per_job=0.02)
+    with pytest.raises(MeteredExpertChatDisabledError):
+        apply_output_token_ceiling(
+            {"max_tokens": 123},
+            model="gpt-5.2",
+            max_cost_per_job=0.02,
+        )

@@ -308,30 +308,14 @@ class TestDoctorSeverity:
         counts = _summarize([ok, optional, advisory, real])
         assert counts == {"total": 4, "passed": 1, "errors": 1, "warnings": 1, "info": 1}
 
-    async def test_provider_exception_content_is_not_exposed(self, monkeypatch):
+    async def test_provider_connectivity_is_offline_and_cost_blocked(self, monkeypatch):
         from deepr.cli.commands.doctor import check_provider_connectivity
 
-        secret = "provider-response-secret-should-not-render"
-
-        class FailingModels:
-            async def list(self):
-                raise RuntimeError(secret)
-
-        class FailingClient:
-            models = FailingModels()
-
-        class FailingGeminiModels:
-            def list(self):
-                raise RuntimeError(secret)
-
-        class FailingGeminiClient:
-            models = FailingGeminiModels()
-
         fake_openai = types.ModuleType("openai")
-        fake_openai.AsyncOpenAI = lambda **_: FailingClient()
-        fake_openai.AsyncAzureOpenAI = lambda **_: FailingClient()
+        fake_openai.AsyncOpenAI = lambda **_: pytest.fail("doctor constructed an OpenAI client")
+        fake_openai.AsyncAzureOpenAI = lambda **_: pytest.fail("doctor constructed an Azure client")
         fake_genai = types.ModuleType("google.genai")
-        fake_genai.Client = lambda **_: FailingGeminiClient()
+        fake_genai.Client = lambda **_: pytest.fail("doctor constructed a Gemini client")
         fake_google = types.ModuleType("google")
         fake_google.genai = fake_genai
         monkeypatch.setitem(sys.modules, "openai", fake_openai)
@@ -345,10 +329,10 @@ class TestDoctorSeverity:
         checks = await check_provider_connectivity({})
         rendered = " ".join(check.message + " " + " ".join(check.details) for check in checks)
 
-        assert rendered.count("Connection check failed") == 3
+        assert len(checks) == 4
         assert "Anthropic API Connectivity" in " ".join(check.name for check in checks)
-        assert "not checked" in rendered.lower()
-        assert secret not in rendered
+        assert rendered.count("live metadata request blocked") == 4
+        assert "marginal cost" in rendered
 
 
 class TestDiagnosticsCommand:

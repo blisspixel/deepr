@@ -93,12 +93,12 @@ def test_cost_summary_reports_settled_holds_exposure_and_effective_caps() -> Non
     assert summary["exposure"]["monthly"] == pytest.approx(2.0)
     assert summary["monthly_exposure"] == pytest.approx(2.0)
     assert summary["effective_caps"] == {
-        "per_job": 5.0,
-        "daily": 10.0,
-        "weekly": 200.0,
-        "monthly": 200.0,
+        "per_job": 1.0,
+        "daily": 2.0,
+        "weekly": 5.0,
+        "monthly": 5.0,
     }
-    assert summary["remaining"]["monthly"] == pytest.approx(198.0)
+    assert summary["remaining"]["monthly"] == pytest.approx(3.0)
     assert summary["paid_api_frozen"] is False
     assert summary["over_budget"] is False
 

@@ -1,7 +1,7 @@
 # Local structured consult graph
 
-Status: accepted for an eval-only prototype, not shipped runtime behavior,
-2026-07-28
+Status: eval-only prototype shipped on 2026-07-29. It is not production consult
+or MCP runtime behavior.
 
 ## Decision
 
@@ -69,13 +69,25 @@ node proves all of the following:
 
 1. Capacity kind is `owned_hardware`.
 2. Provider is exactly `local`.
-3. The Ollama endpoint passes the existing literal-loopback, DNS-free owned
-   endpoint validator before client construction and again before dispatch.
-4. Live metered fallback is false.
-5. Plan-quota fallback is false.
-6. Tools, browsing, embeddings, remote retrieval, and provider APIs are absent.
-7. The SDK retry count is zero.
-8. The result and trace report `$0` Deepr metered cost and the local model used.
+3. The Ollama endpoint passes the literal-loopback, DNS-free owned endpoint
+   validator before transport construction.
+4. Native `GET /api/status` reports `cloud.disabled=true` with source exactly
+   `config`. Operators must start Ollama with cloud disabled, such as
+   `OLLAMA_NO_CLOUD=1`, and restart the server before this mode is eligible.
+5. The selected model is an exact `/api/tags` inventory entry with a positive
+   local byte size, a lowercase SHA-256 digest, and format exactly `gguf`.
+   Unknown, cloud, alias-only, digestless, zero-size, and remote-tagged models
+   fail before `/api/chat`.
+6. The graph uses a narrow Ollama-native HTTP transport. It sends no provider
+   credentials, ignores proxy and OpenAI environment state, follows no
+   redirects, and performs no automatic retries.
+7. Live metered fallback is false.
+8. Plan-quota fallback is false.
+9. Tools, browsing, embeddings, remote retrieval, and provider APIs are absent.
+10. Every node writes one fsynced, content-free `$0` cost-ledger dispatch
+    marker before inference. Ledger failure blocks the model call.
+11. The result reports `$0` Deepr metered cost and freezes the local model
+    digest, size, format, cloud-disable proof, and transport posture.
 
 Unknown, LAN, DNS-named, proxy-routed, credential-bearing, or remote
 OpenAI-compatible endpoints do not qualify as local. Installed API keys do not
@@ -195,8 +207,11 @@ failed one.
 ## Rollout
 
 1. Publish versioned brief, position, graph-run, and synthesis schemas plus
-   zero-call structural fixtures.
-2. Add an explicit local-only live eval mode with no writes and no fallback.
+   zero-call structural fixtures. Complete on 2026-07-29.
+2. Add an explicit local-only live eval mode with no expert or project-state
+   writes and no fallback. Content-free `$0` cost-ledger dispatch markers are
+   mandatory observability writes.
+   Complete on 2026-07-29 as `deepr eval consult --structured-local QUESTION`.
 3. Collect matched-resource held-out evidence and local capacity measurements.
 4. If the predeclared gate passes, consider an opt-in shadow mode beside the
    current consult command.
@@ -205,6 +220,49 @@ failed one.
 
 Plan-quota, paid API, unattended, state-writing, recursive discovery, general
 debate, and generic swarm modes are outside this rollout.
+
+## Shipped eval surface
+
+The opt-in command runs the fixed graph against frozen stored expert packets:
+
+```bash
+deepr eval consult --structured-local "Which control should we test first?" \
+  --expert "Reliability Expert" \
+  --expert "Security Expert" \
+  --model qwen2.5:14b \
+  --concurrency 1 \
+  --max-elapsed-seconds 3600 \
+  --save
+```
+
+Omit `--expert` to use the existing disclosed read-only router. Configure the
+Ollama server with `OLLAMA_NO_CLOUD=1` and restart it first. The command requires
+the native status endpoint to prove cloud is disabled by stable config, then
+binds an exact materialized local GGUF inventory entry by name, digest, and
+positive byte size. It uses a credential-free native transport with environment
+proxies, redirects, and retries disabled. Provider-invoice cost is fixed at
+`$0`; plan and metered fallback, tools, and retrieval are absent. It writes no
+expert or project state. Every execution receives a unique run ID. Every node
+must first append a content-free, fsynced `$0` cost-ledger dispatch marker bound
+to that run ID, so repeating an identical question remains separately visible.
+A content-free terminal marker reconciles node and transport-attempt counts,
+including cancellation. At most ten positions and four simultaneous
+local generations are allowed, and default concurrency remains one. Model
+residency is fixed and disclosed at five minutes rather than inherited from an
+environment override.
+
+The result is `deepr-structured-consult-run-v1`. It embeds the immutable brief,
+successful position artifacts, optional synthesis, exact terminal node counts,
+its unique run ID, reserved token and context ceilings, model provenance, elapsed time including
+preflight, transport attempts, ambiguous usage, peak concurrency, and typed
+stops. A failed, timed-out, cancelled, empty, malformed,
+or missing position causes synthesis to be skipped. Raw malformed model output
+and private reasoning are not copied into the run artifact.
+
+This surface is deliberately absent from MCP and `deepr expert consult`. A
+hosted MCP container does not become local capacity merely because its caller
+is local. Promotion requires the four-arm held-out comparison, semantic review,
+recovery evidence, and a separate additive runtime decision.
 
 ## Rejected alternatives
 
@@ -250,19 +308,34 @@ completion artifact required here.
 - OpenTelemetry GenAI semantic conventions 1.43, checked 2026-07-25: model,
   provider, operation, token-limit, and token-usage fields support bounded node
   observability without storing sensitive prompt content.
+- Ollama structured-output documentation, checked 2026-07-29: native
+  `/api/chat` accepts a JSON Schema in `format` and recommends validating the
+  returned object. The graph sends the exact contract schema and still validates
+  every response locally because schema-shaped output is not semantic proof:
+  <https://docs.ollama.com/capabilities/structured-outputs>
+- MCP 2026-07-28, checked 2026-07-29: long-running tool work may use the
+  optional Tasks extension, but an ordinary synchronous `tools/call` remains
+  compliant. The eval-only graph is not promoted into MCP Tasks until its
+  quality gate and durable task authorization contract both pass:
+  <https://modelcontextprotocol.io/specification/2026-07-28>
 
 ## Acceptance criteria
 
 - No graph node can construct or call a plan-quota or metered provider.
-- A non-loopback or unproven endpoint rejects the full run before inference.
-- Every attempted local node has one `$0` trace record and bounded token fields.
+- A non-loopback endpoint, cloud-enabled server, unstable cloud-disable source,
+  or unmaterialized model rejects the full run before inference.
+- Every attempted local node has one durable, content-free `$0` ledger marker
+  and bounded token fields. A separate terminal marker reconciles attempts even
+  after cancellation. Repeated identical runs never share marker identity.
+  Ledger failure prevents dispatch or successful terminal completion.
 - The run never exceeds declared node, call, token, byte, concurrency, time,
   retry, or repair ceilings.
 - Cycles, duplicate IDs, missing dependencies, and unknown node kinds fail
   before dispatch.
 - Expected and terminal node counts reconcile exactly.
 - Required node failure prevents synthesis and produces an incomplete artifact.
-- The graph writes no belief, graph, profile, expert, or source state.
+- The graph writes no belief, graph, profile, expert, or source state. Its only
+  mandatory write is the append-only cost-ledger marker.
 - The four-arm held-out report holds aggregate resources constant and separates
   structural completion from reviewed semantic quality.
 - No public runtime surface is promoted unless the predeclared quality and

@@ -176,10 +176,10 @@ class TestWebhookConfigUnit:
         config = WebhookConfig()
         assert config.host == "127.0.0.1"
 
-    def test_ngrok_enabled_by_default(self):
-        """Test ngrok is enabled by default."""
+    def test_ngrok_disabled_by_default(self):
+        """External tunnel services require an explicit future cost boundary."""
         config = WebhookConfig()
-        assert config.use_ngrok is True
+        assert config.use_ngrok is False
 
 
 class TestResearchConfigUnit:
@@ -557,8 +557,8 @@ class TestLoadConfigProperties:
         with patch.dict(os.environ, env_vars, clear=False):
             config = load_config()
 
-            effective_daily = min(max_daily_cost, 200.0)
-            effective_per_job = min(max_cost_per_job, effective_daily)
+            effective_daily = min(max_daily_cost, 5.0)
+            effective_per_job = min(max_cost_per_job, effective_daily, 5.0)
             assert abs(config["max_cost_per_job"] - effective_per_job) < 0.001
             assert abs(config["max_daily_cost"] - effective_daily) < 0.001
 

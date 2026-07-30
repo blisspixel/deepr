@@ -2,13 +2,18 @@
 
 from types import SimpleNamespace
 
-from deepr.mcp.query_expert_tool import _build_readonly_query_backend
+from deepr.experts.semantic_model_gate import _mark_zero_dollar_client
+from deepr.mcp.query_expert_tool import QUERY_EXPERT_INPUT_SCHEMA, _build_readonly_query_backend
 
 
 def test_build_readonly_query_backend_uses_local_ollama_client(monkeypatch):
     from deepr.backends import local as local_backend
 
-    client = object()
+    plan_description = QUERY_EXPERT_INPUT_SCHEMA["properties"]["plan"]["description"]
+    assert "Claude is the current executable adapter" in plan_description
+    assert "Codex" not in plan_description
+
+    client = _mark_zero_dollar_client(SimpleNamespace(), capacity_source="local")
     monkeypatch.setattr(local_backend, "default_local_model", lambda: "mistral")
     monkeypatch.setattr(local_backend, "ollama_chat_client", lambda: client)
     monkeypatch.setattr(local_backend, "_KEEP_ALIVE", "45m")
@@ -24,7 +29,7 @@ def test_build_readonly_query_backend_uses_local_ollama_client(monkeypatch):
 def test_build_readonly_query_backend_uses_explicit_local_model(monkeypatch):
     from deepr.backends import local as local_backend
 
-    client = object()
+    client = _mark_zero_dollar_client(SimpleNamespace(), capacity_source="local")
     monkeypatch.setattr(local_backend, "default_local_model", lambda: "should-not-be-used")
     monkeypatch.setattr(local_backend, "ollama_chat_client", lambda: client)
 
@@ -46,6 +51,7 @@ def test_build_readonly_query_backend_uses_plan_quota_chat_client(monkeypatch):
             captured["adapter"] = adapter_arg
             captured["model"] = model
             captured["operation"] = operation
+            _mark_zero_dollar_client(self, capacity_source=f"plan_quota:{adapter_arg.backend_id}")
 
     monkeypatch.setattr(
         waterfall,

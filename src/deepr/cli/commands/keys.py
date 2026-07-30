@@ -19,36 +19,18 @@ from __future__ import annotations
 import difflib
 import json
 import os
-import urllib.error
-import urllib.request
 from pathlib import Path
 
 import click
 
 from deepr.cli.colors import console, print_header
 
-# provider -> (env var, free validation endpoint, auth style)
+# Provider key inventory. Live validation is deliberately quarantined.
 PROVIDERS: dict[str, dict[str, str]] = {
-    "openai": {
-        "env": "OPENAI_API_KEY",
-        "url": "https://api.openai.com/v1/models",
-        "auth": "bearer",
-    },
-    "xai": {
-        "env": "XAI_API_KEY",
-        "url": "https://api.x.ai/v1/models",
-        "auth": "bearer",
-    },
-    "anthropic": {
-        "env": "ANTHROPIC_API_KEY",
-        "url": "https://api.anthropic.com/v1/models",
-        "auth": "anthropic",
-    },
-    "gemini": {
-        "env": "GEMINI_API_KEY",
-        "url": "https://generativelanguage.googleapis.com/v1beta/models",
-        "auth": "goog",
-    },
+    "openai": {"env": "OPENAI_API_KEY"},
+    "xai": {"env": "XAI_API_KEY"},
+    "anthropic": {"env": "ANTHROPIC_API_KEY"},
+    "gemini": {"env": "GEMINI_API_KEY"},
 }
 
 _KNOWN_ENV_NAMES = [meta["env"] for meta in PROVIDERS.values()]
@@ -109,32 +91,11 @@ def _key_state(provider: str) -> dict[str, object]:
 
 
 def _validate(provider: str, key: str) -> dict[str, object]:
-    """Ping the provider's free models endpoint with the key. $0, no tokens."""
-    meta = PROVIDERS[provider]
-    if meta["auth"] == "anthropic":
-        headers = {"x-api-key": key, "anthropic-version": "2023-06-01"}
-        url = meta["url"]
-    elif meta["auth"] == "goog":
-        headers = {"x-goog-api-key": key}
-        url = meta["url"]
-    else:
-        headers = {"Authorization": f"Bearer {key}"}
-        url = meta["url"]
-    # URLs come only from the hardcoded PROVIDERS table above; refuse anything
-    # else so the audited urlopen below can never reach file: or custom schemes.
-    if not url.startswith("https://"):
-        raise ValueError(f"provider validation URL must be https: {url}")
-    request = urllib.request.Request(url, headers=headers)  # noqa: S310 - https enforced above, static table
-    try:
-        with urllib.request.urlopen(request, timeout=15) as response:  # noqa: S310 - https enforced above
-            payload = json.load(response)
-            models = payload.get("data") or payload.get("models") or []
-            return {"status": "valid", "models_visible": len(models)}
-    except urllib.error.HTTPError as exc:
-        status = "invalid" if exc.code in (401, 403) else f"http_{exc.code}"
-        return {"status": status, "http_code": exc.code}
-    except Exception as exc:
-        return {"status": "unreachable", "detail": str(exc)[:80]}
+    """Block external key validation before any request or credential use."""
+    if provider not in PROVIDERS:
+        raise ValueError(f"unknown provider: {provider}")
+    del key
+    return {"status": "blocked", "reason": "external_metadata_cost_unverified"}
 
 
 @click.group()
@@ -182,7 +143,7 @@ def list_keys(json_output: bool):
 @click.option("--provider", "only", type=click.Choice(sorted(PROVIDERS)), default=None, help="Check one provider")
 @click.option("--json", "json_output", is_flag=True, help="Machine-readable output")
 def check_keys(only: str | None, json_output: bool):
-    """Live-validate present keys against each provider's free models endpoint. $0."""
+    """Report that live provider-key validation is cost-quarantined."""
     results = []
     for provider in [only] if only else sorted(PROVIDERS):
         state = _key_state(provider)
@@ -205,6 +166,8 @@ def check_keys(only: str | None, json_output: bool):
             extra = f"set {result['env_var']} in .env"
         elif status == "invalid":
             extra = "rejected by provider (expired, revoked, or endpoint-restricted)"
+        elif status == "blocked":
+            extra = "external validation blocked because endpoint and proxy cost cannot be proven"
         console.print(f"  {status:<12}{result['provider']:<10} {extra}", markup=False)
         if result.get("shadowed"):
             console.print("        warning: exported variable shadows .env; the exported one was checked")

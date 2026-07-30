@@ -12,6 +12,7 @@ Workflow:
 
 import os
 from functools import partial
+from typing import Any, cast
 
 from openai import OpenAI
 
@@ -40,15 +41,21 @@ class ResearchReviewer:
             raise ValueError(f"Invalid model: {model}. Must be one of {valid_models}")
 
         self.model = model
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), max_retries=0)
+        from deepr.providers.dispatch_authority import default_paid_endpoint
+
+        self.client = OpenAI(
+            api_key=os.getenv("OPENAI_API_KEY"),
+            base_url=default_paid_endpoint("openai"),
+            max_retries=0,
+        )
 
     def review_and_plan_next(
         self,
         scenario: str,
-        completed_results: list[dict],
+        completed_results: list[dict[str, Any]],
         current_phase: int,
         max_tasks: int = 5,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """
         Review completed research and plan next phase.
 
@@ -111,18 +118,30 @@ Return ONLY valid JSON, no other text."""
         from deepr.services.metered_envelope import bounded_chat_envelope
 
         envelope = bounded_chat_envelope(
+            provider="openai",
             model=self.model,
             prompt_parts=(system_prompt, user_prompt),
             budget_usd=0.50,
             maximum_output_tokens=3_000,
         )
 
+        from deepr.providers.dispatch_authority import require_official_paid_client
+
+        require_official_paid_client(self.client, "openai")
         response = execute_reserved_sync_call(
             operation_prefix="research-review",
             provider="openai",
             model=self.model,
             source="services.research_reviewer.review_and_plan_next",
             max_cost_per_job=envelope.cost_usd,
+            request_envelope={
+                "model": self.model,
+                "input": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                "max_output_tokens": envelope.output_tokens,
+            },
             call=partial(
                 self.client.responses.create,
                 model=self.model,
@@ -137,7 +156,7 @@ Return ONLY valid JSON, no other text."""
         response_text = self._extract_response_text(response)
 
         try:
-            result = json.loads(response_text)
+            result = cast(dict[str, Any], json.loads(response_text))
             result["phase"] = current_phase + 1
             return result
         except json.JSONDecodeError:
@@ -155,7 +174,7 @@ Return ONLY valid JSON, no other text."""
                 ],
             }
 
-    def _summarize_completed_research(self, completed_results: list[dict]) -> str:
+    def _summarize_completed_research(self, completed_results: list[dict[str, Any]]) -> str:
         """Create readable summary of completed research."""
         lines = []
         for i, result in enumerate(completed_results, 1):
@@ -177,26 +196,26 @@ Return ONLY valid JSON, no other text."""
 
         return "\n".join(lines)
 
-    def _extract_response_text(self, response) -> str:
+    def _extract_response_text(self, response: Any) -> str:
         """Extract text from GPT-5 response object."""
         # Try different response formats
         if hasattr(response, "output_text"):
-            return response.output_text
+            return str(response.output_text)
 
         if hasattr(response, "output") and response.output:
             for item in response.output:
                 if hasattr(item, "type") and item.type == "message":
                     for content in item.content:
                         if hasattr(content, "type") and content.type == "output_text":
-                            return content.text
+                            return str(content.text)
 
         # Fallback
         return str(response)
 
-    def should_continue(self, review_result: dict) -> bool:
+    def should_continue(self, review_result: dict[str, Any]) -> bool:
         """Check if more research is needed."""
         return review_result.get("status") == "continue"
 
-    def is_ready_for_synthesis(self, review_result: dict) -> bool:
+    def is_ready_for_synthesis(self, review_result: dict[str, Any]) -> bool:
         """Check if ready for final synthesis."""
         return review_result.get("status") == "ready_for_synthesis"

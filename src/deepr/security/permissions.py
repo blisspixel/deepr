@@ -8,7 +8,7 @@ Usage::
 
     policy = PermissionPolicy(
         tool_allowlist=["search_knowledge_base", "standard_research"],
-        budget_per_session=10.0,
+        budget_per_session=5.0,
         allow_write=False,
     )
     enforcer = PermissionEnforcer(policy)
@@ -31,8 +31,7 @@ logger = logging.getLogger(__name__)
 class PermissionPolicy:
     """Defines what operations are permitted.
 
-    A policy with empty allowlist permits everything (open mode).
-    A policy with explicit allowlist only permits listed tools.
+    Empty allowlists deny access. The explicit ``open`` preset uses a wildcard.
     """
 
     # Tool access
@@ -40,16 +39,16 @@ class PermissionPolicy:
     tool_denylist: list[str] = field(default_factory=list)
 
     # Budget
-    budget_per_session: float = 0.0  # 0 = unlimited
-    budget_per_operation: float = 0.0  # 0 = unlimited
+    budget_per_session: float = 0.0  # 0 permits only zero-dollar work
+    budget_per_operation: float = 0.0  # 0 permits only zero-dollar work
 
     # Write controls
-    allow_write: bool = True  # File writes, expert modifications
-    allow_external_requests: bool = True  # Outbound HTTP, MCP calls
+    allow_write: bool = False  # File writes, expert modifications
+    allow_external_requests: bool = False  # Outbound HTTP, MCP calls
     allow_code_execution: bool = False  # Python code_interpreter tools
 
     # Provider restrictions
-    allowed_providers: list[str] = field(default_factory=list)  # Empty = all
+    allowed_providers: list[str] = field(default_factory=list)  # Empty = none
     blocked_models: list[str] = field(default_factory=list)
 
     # Metadata
@@ -79,8 +78,8 @@ class PermissionPolicy:
             tool_denylist=data.get("tool_denylist", []),
             budget_per_session=float(data.get("budget_per_session", 0.0)),
             budget_per_operation=float(data.get("budget_per_operation", 0.0)),
-            allow_write=bool(data.get("allow_write", True)),
-            allow_external_requests=bool(data.get("allow_external_requests", True)),
+            allow_write=bool(data.get("allow_write", False)),
+            allow_external_requests=bool(data.get("allow_external_requests", False)),
             allow_code_execution=bool(data.get("allow_code_execution", False)),
             allowed_providers=data.get("allowed_providers", []),
             blocked_models=data.get("blocked_models", []),
@@ -103,7 +102,14 @@ class PermissionPolicy:
     @classmethod
     def open(cls) -> PermissionPolicy:
         """Create an open policy - everything allowed."""
-        return cls(name="open", description="All operations permitted")
+        return cls(
+            name="open",
+            description="All non-code operations permitted; paid work still needs a positive budget",
+            tool_allowlist=["*"],
+            allowed_providers=["*"],
+            allow_write=True,
+            allow_external_requests=True,
+        )
 
 
 @dataclass
@@ -145,8 +151,8 @@ class PermissionEnforcer:
                 policy_name=p.name,
             )
 
-        # Allowlist (if set) must contain the tool
-        if p.tool_allowlist and tool_name not in p.tool_allowlist:
+        # An explicit wildcard or exact entry is required.
+        if "*" not in p.tool_allowlist and tool_name not in p.tool_allowlist:
             return PermissionCheckResult(
                 allowed=False,
                 reason=f"Tool '{tool_name}' not in allowlist: {p.tool_allowlist}",
@@ -167,21 +173,27 @@ class PermissionEnforcer:
         """Check if an operation fits within budget constraints."""
         p = self.policy
 
-        if p.budget_per_operation > 0 and estimated_cost > p.budget_per_operation:
+        if estimated_cost < 0:
+            return PermissionCheckResult(
+                allowed=False,
+                reason="Estimated cost cannot be negative",
+                policy_name=p.name,
+            )
+
+        if estimated_cost > p.budget_per_operation:
             return PermissionCheckResult(
                 allowed=False,
                 reason=f"Cost ${estimated_cost:.2f} exceeds per-operation limit ${p.budget_per_operation:.2f}",
                 policy_name=p.name,
             )
 
-        if p.budget_per_session > 0:
-            remaining = p.budget_per_session - self._session_spent
-            if estimated_cost > remaining:
-                return PermissionCheckResult(
-                    allowed=False,
-                    reason=f"Cost ${estimated_cost:.2f} exceeds session remaining ${remaining:.2f}",
-                    policy_name=p.name,
-                )
+        remaining = max(0.0, p.budget_per_session - self._session_spent)
+        if estimated_cost > remaining:
+            return PermissionCheckResult(
+                allowed=False,
+                reason=f"Cost ${estimated_cost:.2f} exceeds session remaining ${remaining:.2f}",
+                policy_name=p.name,
+            )
 
         return PermissionCheckResult(allowed=True, policy_name=p.name)
 
@@ -189,7 +201,7 @@ class PermissionEnforcer:
         """Check if a provider/model is permitted."""
         p = self.policy
 
-        if p.allowed_providers and provider not in p.allowed_providers:
+        if "*" not in p.allowed_providers and provider not in p.allowed_providers:
             return PermissionCheckResult(
                 allowed=False,
                 reason=f"Provider '{provider}' not in allowed list: {p.allowed_providers}",
@@ -227,6 +239,8 @@ class PermissionEnforcer:
 
     def record_spend(self, cost: float) -> None:
         """Record actual spending against session budget."""
+        if cost < 0:
+            raise ValueError("Recorded spend cannot be negative")
         self._session_spent += cost
 
     @property
@@ -235,6 +249,4 @@ class PermissionEnforcer:
 
     @property
     def session_remaining(self) -> float:
-        if self.policy.budget_per_session <= 0:
-            return float("inf")
         return max(0.0, self.policy.budget_per_session - self._session_spent)

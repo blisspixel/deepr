@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/structured-consult-position-v1.json",
+  "title": "Deepr Structured Consult Position v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "kind", "graph_id", "node_id", "expert_name", "domain", "snapshot_id",
+    "snapshot_hash", "model", "status", "attempt", "started_at", "completed_at", "usage", "cost_usd",
+    "answer", "abstained", "evidence_claims", "assumptions", "unknowns", "uncertainty", "alternative",
+    "disconfirming_test", "decision_implications", "contract", "artifact_id", "artifact_hash"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-structured-consult-position-v1"},
+    "kind": {"const": "deepr.eval.structured_consult_position"},
+    "graph_id": {"type": "string", "pattern": "^graph_[a-f0-9]{24}$"},
+    "node_id": {"type": "string", "pattern": "^position_[0-9]{3}$"},
+    "expert_name": {"type": "string", "minLength": 1},
+    "domain": {"type": "string"},
+    "snapshot_id": {"type": "string", "pattern": "^snapshot_[a-f0-9]{24}$"},
+    "snapshot_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "model": {"type": "string", "minLength": 1},
+    "status": {"const": "completed"},
+    "attempt": {"const": 1},
+    "started_at": {"type": "string", "format": "date-time"},
+    "completed_at": {"type": "string", "format": "date-time"},
+    "usage": {"$ref": "#/$defs/usage"},
+    "cost_usd": {"const": 0.0},
+    "answer": {"type": "string", "maxLength": 16384},
+    "abstained": {"type": "boolean"},
+    "evidence_claims": {
+      "type": "array", "maxItems": 12,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["claim", "source_refs"],
+        "properties": {
+          "claim": {"type": "string", "minLength": 1, "maxLength": 16384},
+          "source_refs": {"type": "array", "maxItems": 8, "items": {"type": "string", "minLength": 1}}
+        }
+      }
+    },
+    "assumptions": {"$ref": "#/$defs/stringList"},
+    "unknowns": {"$ref": "#/$defs/stringList"},
+    "uncertainty": {"type": "string", "minLength": 1, "maxLength": 16384},
+    "alternative": {"type": "string", "minLength": 1, "maxLength": 16384},
+    "disconfirming_test": {"type": "string", "minLength": 1, "maxLength": 16384},
+    "decision_implications": {"$ref": "#/$defs/stringList"},
+    "contract": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "read_only", "semantic_quality_reviewed", "private_reasoning_stored", "writes_state",
+        "observability_writes", "cost_ledger_required"
+      ],
+      "properties": {
+        "read_only": {"const": true}, "semantic_quality_reviewed": {"const": false},
+        "private_reasoning_stored": {"const": false}, "writes_state": {"const": false},
+        "observability_writes": {"const": true}, "cost_ledger_required": {"const": true}
+      }
+    },
+    "artifact_id": {"type": "string", "pattern": "^artifact_[a-f0-9]{24}$"},
+    "artifact_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+  },
+  "$defs": {
+    "stringList": {"type": "array", "maxItems": 12, "items": {"type": "string", "minLength": 1, "maxLength": 16384}},
+    "usage": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "context_bytes", "input_tokens_reserved", "output_tokens_reserved", "reported_input_tokens",
+        "reported_output_tokens", "request_id", "stop_reason", "dispatched", "transport_attempts",
+        "usage_ambiguous", "cost_usd"
+      ],
+      "properties": {
+        "context_bytes": {"type": "integer", "minimum": 0},
+        "input_tokens_reserved": {"type": "integer", "minimum": 0},
+        "output_tokens_reserved": {"type": "integer", "minimum": 0},
+        "reported_input_tokens": {"type": ["integer", "null"], "minimum": 0},
+        "reported_output_tokens": {"type": ["integer", "null"], "minimum": 0},
+        "request_id": {"type": "string"}, "stop_reason": {"type": "string"},
+        "dispatched": {"const": true}, "transport_attempts": {"const": 1},
+        "usage_ambiguous": {"type": "boolean"}, "cost_usd": {"const": 0.0}
+      }
+    }
+  }
+}

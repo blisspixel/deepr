@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 
 from .registry import MODEL_CAPABILITIES, ModelCapability
 
@@ -17,9 +18,27 @@ _MODEL_ALIASES: dict[str, str] = {
     "gemini-flash-lite": "gemini-3.5-flash-lite",
 }
 
-_TIERED_PRICING: dict[str, tuple[int, float, float]] = {
-    "gemini-3.1-pro-preview": (200_000, 2.0, 1.5),
-    "gemini-3-pro-preview": (200_000, 2.0, 1.5),
+
+@dataclass(frozen=True)
+class _TokenPricingTier:
+    threshold: int
+    input_multiplier: float
+    output_multiplier: float
+    inclusive: bool
+
+
+_TIERED_PRICING: dict[str, _TokenPricingTier] = {
+    # Google keeps the base tier through 200K prompt tokens and applies the
+    # long-context tier only above 200K.
+    "gemini-2.5-pro": _TokenPricingTier(200_000, 2.0, 1.5, inclusive=False),
+    "gemini-3.1-pro-preview": _TokenPricingTier(200_000, 2.0, 1.5, inclusive=False),
+    "gemini-3-pro-preview": _TokenPricingTier(200_000, 2.0, 1.5, inclusive=False),
+    # xAI applies these Grok long-context rates at 200K prompt tokens and above.
+    "grok-4-5": _TokenPricingTier(200_000, 2.0, 2.0, inclusive=True),
+    "grok-4-3": _TokenPricingTier(200_000, 2.0, 2.0, inclusive=True),
+    "grok-4-20-reasoning": _TokenPricingTier(200_000, 2.0, 2.0, inclusive=True),
+    "grok-4-20-non-reasoning": _TokenPricingTier(200_000, 2.0, 2.0, inclusive=True),
+    "grok-4-20-multi-agent": _TokenPricingTier(200_000, 2.0, 2.0, inclusive=True),
 }
 
 # Specialized input-only models stay outside the chat/research capability
@@ -28,6 +47,47 @@ _TIERED_PRICING: dict[str, tuple[int, float, float]] = {
 _SPECIALIZED_TOKEN_PRICING: dict[str, dict[str, float]] = {
     "text-embedding-3-small": {"input": 0.02, "output": 0.0},
 }
+_SPECIALIZED_MODEL_PROVIDERS: dict[str, str] = {
+    "text-embedding-3-small": "openai",
+}
+
+
+def _canonical_provider_name(provider: str) -> str:
+    """Normalize only recognized provider identities used by model contracts."""
+    normalized = provider.strip().casefold().replace("_", "-")
+    collapsed = normalized.replace("-", "").replace(" ", "")
+    aliases = {
+        "anthropic": "anthropic",
+        "azure": "azure",
+        "azureopenai": "azure",
+        "azurefoundry": "azure-foundry",
+        "claude": "anthropic",
+        "gemini": "gemini",
+        "google": "gemini",
+        "googleai": "gemini",
+        "googlegenai": "gemini",
+        "grok": "xai",
+        "openai": "openai",
+        "xai": "xai",
+    }
+    return aliases.get(collapsed, normalized)
+
+
+def provider_matches_model_contract(provider: str, model_provider: str) -> bool:
+    """Return whether a provider may use a registry model contract.
+
+    Azure OpenAI deployments reuse OpenAI token and context contracts. Other
+    providers must match the registry owner exactly after finite alias
+    normalization. In particular, Azure Foundry is not treated as Azure
+    OpenAI because its deployment pricing is a separate account boundary.
+    """
+    provider_key = _canonical_provider_name(provider)
+    model_provider_key = _canonical_provider_name(model_provider)
+    if not provider_key or not model_provider_key:
+        return False
+    if provider_key == model_provider_key:
+        return True
+    return provider_key == "azure" and model_provider_key == "openai"
 
 
 def _normalize_model_name(name: str) -> str:
@@ -73,19 +133,25 @@ def _model_matches(cap_model: str, needle: str) -> bool:
     return False
 
 
+def _token_tier_applies(input_tokens: int, tier: _TokenPricingTier) -> bool:
+    """Evaluate one provider's documented long-context boundary."""
+    return input_tokens >= tier.threshold if tier.inclusive else input_tokens > tier.threshold
+
+
 def _with_token_tier(model: str, prices: dict[str, float], input_tokens: int | None) -> dict[str, float]:
     """Apply prompt-size token tiers to a rate dictionary."""
     if input_tokens is None:
         return prices
     needle = _resolved_model_needle(model)
-    for tiered_model, (threshold, input_mult, output_mult) in _TIERED_PRICING.items():
-        if _normalize_model_name(tiered_model) in needle and input_tokens > threshold:
+    for tiered_model, tier in _TIERED_PRICING.items():
+        if _model_matches(_normalize_model_name(tiered_model), needle) and _token_tier_applies(input_tokens, tier):
             tiered = dict(prices)
-            tiered["input"] = round(tiered["input"] * input_mult, 6)
+            if "input" in tiered:
+                tiered["input"] = round(tiered["input"] * tier.input_multiplier, 6)
             if "output" in tiered:
-                tiered["output"] = round(tiered["output"] * output_mult, 6)
+                tiered["output"] = round(tiered["output"] * tier.output_multiplier, 6)
             if "cached_input" in tiered:
-                tiered["cached_input"] = round(tiered["cached_input"] * input_mult, 6)
+                tiered["cached_input"] = round(tiered["cached_input"] * tier.input_multiplier, 6)
             return tiered
     return prices
 
@@ -139,9 +205,9 @@ def get_cost_estimate(model: str, input_tokens: int | None = None) -> float:
     base = cap.cost_per_query if cap is not None else 0.20
 
     if input_tokens is not None:
-        for tiered_model, (threshold, input_mult, _output_mult) in _TIERED_PRICING.items():
-            if _normalize_model_name(tiered_model) in needle and input_tokens > threshold:
-                return base * input_mult
+        for tiered_model, tier in _TIERED_PRICING.items():
+            if _model_matches(_normalize_model_name(tiered_model), needle) and _token_tier_applies(input_tokens, tier):
+                return base * tier.input_multiplier
 
     return base
 
@@ -149,3 +215,20 @@ def get_cost_estimate(model: str, input_tokens: int | None = None) -> float:
 def get_resolved_model_capability(model: str) -> ModelCapability | None:
     """Return the exact registry pricing/context contract for a model alias."""
     return _find_model_capability(model, require_token_pricing=True)
+
+
+def get_resolved_model_contract_identity(model: str) -> tuple[str, str] | None:
+    """Return the canonical provider and model identity for priced usage.
+
+    Chat and research models resolve through their registry capability.
+    Specialized input-only contracts are included even though generic model
+    routing intentionally excludes them.
+    """
+    normalized = _resolved_model_needle(model)
+    for model_name, provider in _SPECIALIZED_MODEL_PROVIDERS.items():
+        if _normalize_model_name(model_name) == normalized:
+            return provider, model_name
+    capability = _find_model_capability(model, require_token_pricing=True)
+    if capability is None:
+        return None
+    return capability.provider, capability.model

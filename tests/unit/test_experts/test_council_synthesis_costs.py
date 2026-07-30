@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import threading
-import time
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -13,7 +12,6 @@ from anthropic.types import Usage
 
 from deepr.experts.beliefs import Belief, BeliefStore
 from deepr.experts.consult import AnthropicConsultSynthesisClient
-from deepr.experts.consult_lifecycle_errors import ConsultLifecycleError
 from deepr.experts.cost_safety import get_cost_safety_manager, reset_cost_safety_manager
 from deepr.experts.council import ExpertCouncil, ExpertPerspective
 from deepr.experts.council_synthesis_costs import (
@@ -22,6 +20,7 @@ from deepr.experts.council_synthesis_costs import (
     openai_completion_usage,
     record_synthesis_cost,
 )
+from deepr.experts.research_reservation_store import ResearchReservationStore
 from deepr.observability.cost_ledger import CostLedger
 
 
@@ -167,7 +166,7 @@ async def test_metered_synthesis_rejects_unaffordable_slice_before_dispatch(budg
     assert calls == 0
     assert result["cost"] == 0.0
     assert result["dispatch_status"] == "not_dispatched"
-    assert result["synthesis_error_type"] == "CouncilSynthesisCostError"
+    assert result["synthesis_error_type"] == "MeteredCouncilSynthesisDisabledError"
 
 
 @pytest.mark.asyncio
@@ -189,7 +188,7 @@ async def test_metered_synthesis_rejects_unknown_model_before_dispatch():
 
     assert calls == 0
     assert result["cost"] == 0.0
-    assert result["synthesis_error_type"] == "CouncilSynthesisCostError"
+    assert result["synthesis_error_type"] == "MeteredCouncilSynthesisDisabledError"
 
 
 @pytest.mark.asyncio
@@ -223,9 +222,13 @@ async def test_council_rejects_budget_above_absolute_ceiling_before_work_or_disp
 
 
 @pytest.mark.asyncio
-async def test_post_dispatch_failure_settles_reservation_and_canonical_ledger():
+async def test_metered_provider_failure_fixture_is_quarantined_before_dispatch():
+    calls = 0
+
     class Completions:
         async def create(self, **_kwargs):
+            nonlocal calls
+            calls += 1
             raise RuntimeError("ambiguous provider failure")
 
     client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
@@ -234,24 +237,37 @@ async def test_post_dispatch_failure_settles_reservation_and_canonical_ledger():
         synthesis_model="gpt-5-mini",
         synthesis_provider="openai",
     )
-    result = await council.consult(
-        "How should ambiguous synthesis settle?",
-        experts=_stored_expert("Failed Synthesis Cost Expert"),
-        budget=1.0,
+    result = await asyncio.wait_for(
+        council.consult(
+            "How should ambiguous synthesis settle?",
+            experts=_stored_expert("Failed Synthesis Cost Expert"),
+            budget=1.0,
+        ),
+        timeout=1.0,
     )
 
     events = CostLedger().get_events(source="expert_council.synthesis")
     assert result["synthesis_status"] == "failed"
-    assert result["total_cost"] > 0
-    assert len(events) == 1
-    assert events[0].cost_usd > 0
-    assert events[0].metadata["estimated"] is True
-    assert events[0].metadata["cost_estimate_reason"] == "post_dispatch_failure"
-    assert events[0].metadata["dispatch_status"] == "outcome_unknown"
+    assert result["synthesis_error_type"] == "MeteredCouncilSynthesisDisabledError"
+    assert result["total_cost"] == 0.0
+    assert calls == 0
+    assert events == []
+    assert ResearchReservationStore().active_cost() == 0.0
+
+
+def _openai_4o_mini_bound():
+    return metered_synthesis_cost_bound(
+        provider="openai",
+        model="gpt-4o-mini",
+        system_prompt="system",
+        user_prompt="question",
+        output_token_ceiling=800,
+        budget=1.0,
+    )
 
 
 @pytest.mark.asyncio
-async def test_post_dispatch_cancellation_settles_once_and_propagates():
+async def test_quarantined_metered_synthesis_has_bounded_completion_without_provider_wait():
     started = asyncio.Event()
 
     class Completions:
@@ -265,35 +281,27 @@ async def test_post_dispatch_cancellation_settles_once_and_propagates():
         synthesis_model="gpt-5-mini",
         synthesis_provider="openai",
     )
-    task = asyncio.create_task(
+    result = await asyncio.wait_for(
         council.consult(
             "How should cancelled synthesis settle?",
             experts=_stored_expert("Cancelled Synthesis Cost Expert"),
             budget=1.0,
-        )
+        ),
+        timeout=1.0,
     )
-    await started.wait()
 
-    task.cancel()
-    with pytest.raises(asyncio.CancelledError) as exc_info:
-        await task
-
-    settlement = exc_info.value.__dict__["council_synthesis_settlement"]
     events = CostLedger().get_events(source="expert_council.synthesis")
-    assert task.cancelled()
-    assert settlement["settled"] is True
-    assert settlement["cost_estimate_reason"] == "cancelled_after_dispatch"
-    assert len(events) == 1
-    assert events[0].cost_usd == settlement["cost"]
-    assert events[0].idempotency_key == settlement["idempotency_key"]
-    assert events[0].metadata["estimated"] is True
-    assert events[0].metadata["cost_estimate_reason"] == "cancelled_after_dispatch"
-    assert events[0].metadata["dispatch_status"] == "outcome_unknown"
+    assert started.is_set() is False
+    assert result["synthesis_error_type"] == "MeteredCouncilSynthesisDisabledError"
+    assert result["total_cost"] == 0.0
+    assert events == []
+    assert ResearchReservationStore().active_cost() == 0.0
 
 
 @pytest.mark.asyncio
-async def test_paid_response_settles_before_fallible_lifecycle_done_callback():
+async def test_quarantined_metered_synthesis_reports_failure_lifecycle_without_dispatch():
     provider_calls = 0
+    progress_events: list[tuple[str, str]] = []
 
     class Completions:
         async def create(self, **_kwargs):
@@ -302,8 +310,7 @@ async def test_paid_response_settles_before_fallible_lifecycle_done_callback():
             return _paid_openai_response()
 
     async def progress(name: str, status: str) -> None:
-        if name == "__synthesis__" and status == "done":
-            raise ConsultLifecycleError("lifecycle done failed")
+        progress_events.append((name, status))
 
     manager = get_cost_safety_manager()
     council = ExpertCouncil(
@@ -312,28 +319,28 @@ async def test_paid_response_settles_before_fallible_lifecycle_done_callback():
         synthesis_provider="openai",
     )
 
-    with pytest.raises(ConsultLifecycleError, match="lifecycle done failed") as exc_info:
-        await council.consult(
+    result = await asyncio.wait_for(
+        council.consult(
             "Which operation must happen first?",
             experts=_stored_expert("Lifecycle Ordering Cost Expert"),
             budget=1.0,
             progress_callback=progress,
-        )
+        ),
+        timeout=1.0,
+    )
 
     events = CostLedger().get_events(source="expert_council.synthesis")
-    settlement = exc_info.value.__dict__["council_synthesis_settlement"]
-    assert provider_calls == 1
-    assert len(events) == 1
-    assert events[0].cost_usd > 0
-    assert manager.daily_cost == pytest.approx(events[0].cost_usd)
-    assert manager.get_session_cost(events[0].session_id) == pytest.approx(events[0].cost_usd)
+    assert provider_calls == 0
+    assert result["synthesis_error_type"] == "MeteredCouncilSynthesisDisabledError"
+    assert ("__synthesis__", "querying") in progress_events
+    assert ("__synthesis__", "failed") in progress_events
+    assert events == []
+    assert manager.daily_cost == 0.0
     assert manager._reserved_daily == 0.0
-    assert settlement["settled"] is True
-    assert settlement["idempotency_key"] == events[0].idempotency_key
 
 
 @pytest.mark.asyncio
-async def test_cancellation_during_durable_settlement_waits_for_writer_and_propagates(monkeypatch):
+async def test_quarantined_metered_synthesis_never_enters_durable_settlement(monkeypatch):
     class Completions:
         async def create(self, **_kwargs):
             return _paid_openai_response()
@@ -354,76 +361,60 @@ async def test_cancellation_during_durable_settlement_waits_for_writer_and_propa
         synthesis_model="gpt-4o-mini",
         synthesis_provider="openai",
     )
-    task = asyncio.create_task(
+    result = await asyncio.wait_for(
         council.consult(
             "How should cancellation preserve accounting?",
             experts=_stored_expert("Settlement Cancellation Cost Expert"),
             budget=1.0,
-        )
+        ),
+        timeout=1.0,
     )
-    assert await asyncio.to_thread(settlement_entered.wait, 5)
-
-    task.cancel()
-    await asyncio.sleep(0.02)
-    assert task.done() is False
-    release_settlement.set()
-    with pytest.raises(asyncio.CancelledError) as exc_info:
-        await task
 
     events = CostLedger().get_events(source="expert_council.synthesis")
-    settlement = exc_info.value.__dict__["council_synthesis_settlement"]
-    assert task.cancelled()
-    assert settlement["settled"] is True
-    assert len(events) == 1
-    assert events[0].idempotency_key == settlement["idempotency_key"]
-    assert manager.daily_cost == pytest.approx(events[0].cost_usd)
+    assert result["synthesis_error_type"] == "MeteredCouncilSynthesisDisabledError"
+    assert settlement_entered.is_set() is False
+    assert release_settlement.is_set() is False
+    assert events == []
+    assert manager.daily_cost == 0.0
     assert manager._reserved_daily == 0.0
 
 
 @pytest.mark.asyncio
-async def test_durable_settlement_does_not_block_event_loop(monkeypatch):
+async def test_quarantined_metered_synthesis_returns_without_blocking_event_loop(monkeypatch):
     class Completions:
         async def create(self, **_kwargs):
             return _paid_openai_response()
 
     manager = get_cost_safety_manager()
-    real_record_event = manager._ledger.record_event
-    settlement_entered = threading.Event()
-    settlement_finished = threading.Event()
-
-    def slow_record_event(*args, **kwargs):
-        settlement_entered.set()
-        try:
-            time.sleep(0.15)
-            return real_record_event(*args, **kwargs)
-        finally:
-            settlement_finished.set()
-
-    monkeypatch.setattr(manager._ledger, "record_event", slow_record_event)
+    record_event = MagicMock(side_effect=AssertionError("quarantined synthesis must not write spend"))
+    monkeypatch.setattr(manager._ledger, "record_event", record_event)
     ticks = 0
 
     async def ticker() -> None:
         nonlocal ticks
-        assert await asyncio.to_thread(settlement_entered.wait, 5)
-        while not settlement_finished.is_set():
+        for _ in range(5):
             ticks += 1
-            await asyncio.sleep(0.005)
+            await asyncio.sleep(0)
 
     ticker_task = asyncio.create_task(ticker())
-    result = await ExpertCouncil(
-        synthesis_client=SimpleNamespace(chat=SimpleNamespace(completions=Completions())),
-        synthesis_model="gpt-4o-mini",
-        synthesis_provider="openai",
-    ).consult(
-        "Can durable accounting stay responsive?",
-        experts=_stored_expert("Responsive Settlement Cost Expert"),
-        budget=1.0,
+    result = await asyncio.wait_for(
+        ExpertCouncil(
+            synthesis_client=SimpleNamespace(chat=SimpleNamespace(completions=Completions())),
+            synthesis_model="gpt-4o-mini",
+            synthesis_provider="openai",
+        ).consult(
+            "Can durable accounting stay responsive?",
+            experts=_stored_expert("Responsive Settlement Cost Expert"),
+            budget=1.0,
+        ),
+        timeout=1.0,
     )
     await ticker_task
 
-    assert result["synthesis_status"] == "completed"
-    assert len(CostLedger().get_events(source="expert_council.synthesis")) == 1
-    assert ticks >= 5
+    assert result["synthesis_error_type"] == "MeteredCouncilSynthesisDisabledError"
+    assert CostLedger().get_events(source="expert_council.synthesis") == []
+    record_event.assert_not_called()
+    assert ticks == 5
 
 
 @pytest.mark.asyncio
@@ -490,7 +481,7 @@ async def test_cancellation_after_dispatch_mark_commit_waits_and_refunds_before_
 
 
 @pytest.mark.asyncio
-async def test_cancellation_attaches_path_safe_ledger_failure_without_marking_settled(monkeypatch, tmp_path):
+async def test_quarantined_metered_synthesis_never_reaches_failing_ledger(monkeypatch):
     started = asyncio.Event()
 
     class Completions:
@@ -499,69 +490,43 @@ async def test_cancellation_attaches_path_safe_ledger_failure_without_marking_se
             await asyncio.Future()
 
     manager = get_cost_safety_manager()
-    sensitive_path = tmp_path / "private" / "cost_ledger.jsonl"
-    ledger_error = OSError(28, "No space left on device", str(sensitive_path))
+    ledger_error = OSError(28, "No space left on device")
     monkeypatch.setattr(manager._ledger, "record_event", MagicMock(side_effect=ledger_error))
     council = ExpertCouncil(
         synthesis_client=SimpleNamespace(chat=SimpleNamespace(completions=Completions())),
         synthesis_model="gpt-4o-mini",
         synthesis_provider="openai",
     )
-    task = asyncio.create_task(
+    result = await asyncio.wait_for(
         council.consult(
             "How should failed canonical settlement surface?",
             experts=_stored_expert("Ledger Failure Cancellation Expert"),
             budget=1.0,
-        )
+        ),
+        timeout=1.0,
     )
-    await started.wait()
 
-    task.cancel()
-    with pytest.raises(asyncio.CancelledError) as exc_info:
-        await task
-
-    settlement = exc_info.value.__dict__["council_synthesis_settlement"]
-    settlement_error = exc_info.value.__dict__["council_synthesis_settlement_error"]
-    recovery = exc_info.value.__dict__["council_synthesis_recovery"]
-    assert task.cancelled()
-    assert settlement.get("settled") is not True
-    assert settlement["idempotency_key"].endswith(":synthesis")
-    assert not {"text", "agreements", "disagreements"}.intersection(settlement)
-    assert recovery == {
-        "action": "retry_settlement_only",
-        "do_not_retry_provider": True,
-        "idempotency_key": settlement["idempotency_key"],
-        "reservation_id": recovery["reservation_id"],
-    }
-    assert recovery["reservation_id"]
-    assert isinstance(settlement_error, RuntimeError)
-    assert str(settlement_error) == "Cost ledger write failed in required settlement."
-    assert str(sensitive_path) not in str(settlement_error)
-    assert settlement_error.__cause__ is ledger_error
-    assert settlement_error.ledger_error is ledger_error
-    assert settlement_error.metadata == {
-        "error_type": "OSError",
-        "errno": 28,
-        "mode": "required_settlement",
-    }
-    notes = getattr(exc_info.value, "__notes__", [])
-    assert "Council synthesis cancellation settlement failed: Cost ledger write failed in required settlement." in notes
-    assert all(str(sensitive_path) not in note for note in notes)
+    assert started.is_set() is False
+    assert result["synthesis_error_type"] == "MeteredCouncilSynthesisDisabledError"
+    manager._ledger.record_event.assert_not_called()
     assert manager.daily_cost == 0.0
     assert manager._session_costs == {}
-    assert manager._reserved_daily == 1.0
-    assert manager._get_reservation_store().active_cost() == 1.0
+    assert manager._reserved_daily == 0.0
+    assert manager._get_reservation_store().active_cost() == 0.0
 
 
 @pytest.mark.asyncio
-async def test_ordinary_post_dispatch_settlement_failure_is_path_safe(monkeypatch, tmp_path):
+async def test_quarantined_metered_synthesis_does_not_touch_ordinary_failure_ledger(monkeypatch):
+    calls = 0
+
     class Completions:
         async def create(self, **_kwargs):
+            nonlocal calls
+            calls += 1
             raise RuntimeError("ambiguous provider failure")
 
     manager = get_cost_safety_manager()
-    sensitive_path = tmp_path / "private" / "cost_ledger.jsonl"
-    ledger_error = OSError(28, "No space left on device", str(sensitive_path))
+    ledger_error = OSError(28, "No space left on device")
     monkeypatch.setattr(manager._ledger, "record_event", MagicMock(side_effect=ledger_error))
     council = ExpertCouncil(
         synthesis_client=SimpleNamespace(chat=SimpleNamespace(completions=Completions())),
@@ -569,35 +534,22 @@ async def test_ordinary_post_dispatch_settlement_failure_is_path_safe(monkeypatc
         synthesis_provider="openai",
     )
 
-    with pytest.raises(RuntimeError) as exc_info:
-        await council.consult(
+    result = await asyncio.wait_for(
+        council.consult(
             "How should ordinary settlement storage failure surface?",
             experts=_stored_expert("Ledger Failure Result Expert"),
             budget=1.0,
-        )
+        ),
+        timeout=1.0,
+    )
 
-    public_error = exc_info.value
-    settlement = public_error.__dict__["council_synthesis_settlement"]
-    recovery = public_error.__dict__["council_synthesis_recovery"]
-    assert str(public_error) == "Cost ledger write failed in required settlement."
-    assert str(sensitive_path) not in str(public_error)
-    assert public_error.__cause__ is ledger_error
-    assert public_error.ledger_error is ledger_error
-    assert public_error.metadata == {
-        "error_type": "OSError",
-        "errno": 28,
-        "mode": "required_settlement",
-    }
-    assert settlement["settled"] is False
-    assert not {"text", "agreements", "disagreements"}.intersection(settlement)
-    assert recovery["action"] == "retry_settlement_only"
-    assert recovery["do_not_retry_provider"] is True
-    assert recovery["idempotency_key"] == settlement["idempotency_key"]
-    assert recovery["reservation_id"]
+    assert calls == 0
+    assert result["synthesis_error_type"] == "MeteredCouncilSynthesisDisabledError"
+    manager._ledger.record_event.assert_not_called()
     assert manager.daily_cost == 0.0
     assert manager._session_costs == {}
-    assert manager._reserved_daily == 1.0
-    assert manager._get_reservation_store().active_cost() == 1.0
+    assert manager._reserved_daily == 0.0
+    assert manager._get_reservation_store().active_cost() == 0.0
 
 
 def test_repeated_synthesis_settlement_does_not_double_process_totals():
@@ -649,30 +601,15 @@ def test_repeated_synthesis_settlement_does_not_double_process_totals():
     assert manager._reserved_daily == 0.0
 
 
-@pytest.mark.asyncio
-async def test_openai_cached_prompt_usage_uses_exact_registry_rate():
-    class Completions:
-        async def create(self, **_kwargs):
-            return SimpleNamespace(
-                id="chatcmpl_cached",
-                choices=[
-                    SimpleNamespace(
-                        message=SimpleNamespace(content="### SYNTHESIS:\nAnswer"),
-                        finish_reason="stop",
-                    )
-                ],
-                usage=SimpleNamespace(
-                    prompt_tokens=1_000,
-                    completion_tokens=250,
-                    prompt_tokens_details=SimpleNamespace(cached_tokens=400),
-                ),
-            )
-
-    result = await ExpertCouncil(
-        synthesis_client=SimpleNamespace(chat=SimpleNamespace(completions=Completions())),
-        synthesis_model="gpt-4o-mini",
-        synthesis_provider="openai",
-    )._synthesise("q", _perspectives(), budget=1.0)
+def test_openai_cached_prompt_usage_uses_exact_registry_rate():
+    result = openai_completion_usage(
+        SimpleNamespace(
+            prompt_tokens=1_000,
+            completion_tokens=250,
+            prompt_tokens_details=SimpleNamespace(cached_tokens=400),
+        ),
+        _openai_4o_mini_bound(),
+    )
 
     expected = (600 / 1_000_000) * 0.15 + (400 / 1_000_000) * 0.075 + (250 / 1_000_000) * 0.60
     assert result["cost"] == pytest.approx(expected)
@@ -682,25 +619,11 @@ async def test_openai_cached_prompt_usage_uses_exact_registry_rate():
     assert result["cost_estimate_reason"] == "provider_usage"
 
 
-@pytest.mark.asyncio
-async def test_openai_missing_cache_details_is_labeled_conservative():
-    class Completions:
-        async def create(self, **_kwargs):
-            return SimpleNamespace(
-                choices=[
-                    SimpleNamespace(
-                        message=SimpleNamespace(content="### SYNTHESIS:\nAnswer"),
-                        finish_reason="stop",
-                    )
-                ],
-                usage=SimpleNamespace(prompt_tokens=1_000, completion_tokens=250),
-            )
-
-    result = await ExpertCouncil(
-        synthesis_client=SimpleNamespace(chat=SimpleNamespace(completions=Completions())),
-        synthesis_model="gpt-4o-mini",
-        synthesis_provider="openai",
-    )._synthesise("q", _perspectives(), budget=1.0)
+def test_openai_missing_cache_details_is_labeled_conservative():
+    result = openai_completion_usage(
+        SimpleNamespace(prompt_tokens=1_000, completion_tokens=250),
+        _openai_4o_mini_bound(),
+    )
 
     expected_ceiling = (1_000 / 1_000_000) * 0.15 + (250 / 1_000_000) * 0.60
     assert result["cost"] == pytest.approx(expected_ceiling)
@@ -708,32 +631,16 @@ async def test_openai_missing_cache_details_is_labeled_conservative():
     assert result["cost_estimate_reason"] == "provider_usage_cache_details_unavailable"
 
 
-@pytest.mark.asyncio
-async def test_openai_malformed_cache_details_use_observed_full_rate_and_flag_bound():
-    class Completions:
-        async def create(self, **_kwargs):
-            return SimpleNamespace(
-                choices=[
-                    SimpleNamespace(
-                        message=SimpleNamespace(content="### SYNTHESIS:\nAnswer"),
-                        finish_reason="stop",
-                    )
-                ],
-                usage=SimpleNamespace(
-                    prompt_tokens=50_000,
-                    completion_tokens=900,
-                    prompt_tokens_details=SimpleNamespace(cached_tokens=50_001),
-                ),
-            )
+def test_openai_malformed_cache_details_use_observed_full_rate_and_flag_bound():
+    result = openai_completion_usage(
+        SimpleNamespace(
+            prompt_tokens=50_000,
+            completion_tokens=900,
+            prompt_tokens_details=SimpleNamespace(cached_tokens=50_001),
+        ),
+        _openai_4o_mini_bound(),
+    )
 
-    result = await ExpertCouncil(
-        synthesis_client=SimpleNamespace(chat=SimpleNamespace(completions=Completions())),
-        synthesis_model="gpt-4o-mini",
-        synthesis_provider="openai",
-    )._synthesise("q", _perspectives(), budget=1.0)
-
-    assert result["synthesis_status"] == "failed"
-    assert result["synthesis_error_type"] == "SynthesisCostBoundViolation"
     assert result["cost"] == pytest.approx((50_000 / 1_000_000) * 0.15 + (900 / 1_000_000) * 0.60)
     assert result["cost_estimated"] is True
     assert result["cost_estimate_reason"] == "provider_usage_cache_details_invalid"
@@ -741,63 +648,31 @@ async def test_openai_malformed_cache_details_use_observed_full_rate_and_flag_bo
     assert set(result["cost_bound_violation"].split(",")) == {"input_tokens", "output_tokens", "cost_usd"}
 
 
-@pytest.mark.asyncio
-async def test_provider_usage_above_bound_records_actual_and_flags_result():
-    class Completions:
-        async def create(self, **_kwargs):
-            return SimpleNamespace(
-                id="chatcmpl_over_bound",
-                choices=[
-                    SimpleNamespace(
-                        message=SimpleNamespace(content="### SYNTHESIS:\nAnswer"),
-                        finish_reason="stop",
-                    )
-                ],
-                usage=SimpleNamespace(prompt_tokens=50_000, completion_tokens=900),
-            )
-
-    client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
-    council = ExpertCouncil(
-        synthesis_client=client,
-        synthesis_model="gpt-5-mini",
-        synthesis_provider="openai",
-    )
-    result = await council.consult(
-        "How should bound violations surface?",
-        experts=_stored_expert("Synthesis Bound Violation Expert"),
-        budget=1.0,
+def test_provider_usage_above_bound_is_priced_and_flagged_without_dispatch():
+    result = openai_completion_usage(
+        SimpleNamespace(prompt_tokens=50_000, completion_tokens=900),
+        _openai_bound(),
     )
 
-    events = CostLedger().get_events(source="expert_council.synthesis")
     expected_actual = (50_000 / 1_000_000) * 0.25 + (900 / 1_000_000) * 2.0
-    assert result["synthesis_status"] == "failed"
-    assert result["synthesis_error_type"] == "SynthesisCostBoundViolation"
-    assert len(events) == 1
-    assert events[0].cost_usd == expected_actual
-    assert events[0].metadata["cost_bound_exceeded"] is True
-    assert set(events[0].metadata["cost_bound_violation"].split(",")) == {
+    assert result["cost"] == expected_actual
+    assert result["cost_bound_exceeded"] is True
+    assert set(result["cost_bound_violation"].split(",")) == {
         "input_tokens",
         "output_tokens",
         "cost_usd",
     }
+    assert CostLedger().get_events(source="expert_council.synthesis") == []
 
 
 @pytest.mark.asyncio
-async def test_default_openai_client_disables_sdk_retries(monkeypatch):
-    class Completions:
-        async def create(self, **_kwargs):
-            return SimpleNamespace(
-                choices=[SimpleNamespace(message=SimpleNamespace(content="### SYNTHESIS:\nAnswer"))],
-                usage=SimpleNamespace(prompt_tokens=10, completion_tokens=5),
-            )
+async def test_default_openai_client_is_not_constructed_while_metered_synthesis_is_quarantined():
+    result = await asyncio.wait_for(
+        ExpertCouncil(synthesis_model="gpt-5-mini")._synthesise("q", _perspectives(), budget=1.0),
+        timeout=1.0,
+    )
 
-    fake_client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
-    constructor = MagicMock(return_value=fake_client)
-    monkeypatch.setattr("deepr.experts.council.AsyncOpenAI", constructor)
-
-    await ExpertCouncil(synthesis_model="gpt-5-mini")._synthesise("q", _perspectives(), budget=1.0)
-
-    assert constructor.call_args.kwargs["max_retries"] == 0
+    assert result["synthesis_error_type"] == "MeteredCouncilSynthesisDisabledError"
 
 
 def test_default_anthropic_client_disables_sdk_retries():
@@ -808,4 +683,8 @@ def test_default_anthropic_client_disables_sdk_retries():
 
         assert client.messages is messages
 
-    constructor.assert_called_once_with(max_retries=0, api_key="test-key")
+    constructor.assert_called_once_with(
+        api_key="test-key",
+        base_url="https://api.anthropic.com",
+        max_retries=0,
+    )

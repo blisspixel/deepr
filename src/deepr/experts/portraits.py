@@ -7,13 +7,13 @@ Auto-detects which provider is available from environment variables.
 from __future__ import annotations
 
 import asyncio
-import base64
 import logging
 import os
 import shutil
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import NoReturn
 
 logger = logging.getLogger(__name__)
 
@@ -37,21 +37,23 @@ DEFAULT_PORTRAIT_STYLE = (
 PORTRAIT_STYLE_ENV = "DEEPR_PORTRAIT_STYLE"
 
 # Approximate per-image cost for metered providers, used for budget
-# confirmation, reservation, and ledger entries. Local generation is $0.
+# confirmation, reservation, and ledger entries.
 PORTRAIT_COST_ESTIMATE_USD = 0.04
 XAI_PORTRAIT_COST_ESTIMATE_USD = 0.02
 
-# Local image generation (capability-adaptive, $0): point this at a local
-# diffusion server that speaks the OpenAI Images API (e.g. ComfyUI/SwarmUI/a
-# FLUX server with an OpenAI-compatible shim at /v1). Plain Ollama does NOT
-# generate images, so it is not an option here. When set, it is preferred over
-# metered providers (cheapest-first, like the research capacity waterfall).
+# A loopback OpenAI-compatible image endpoint is not sufficient proof of local
+# execution. A proxy can retain cloud credentials and forward arbitrary model
+# aliases while appearing to be local. This configuration remains visible for
+# migration, but it cannot authorize execution until a supported backend has a
+# stable identity and exact materialized-model attestation contract.
 LOCAL_IMAGE_URL_ENV = "DEEPR_LOCAL_IMAGE_URL"
-LOCAL_IMAGE_MODEL_ENV = "DEEPR_LOCAL_IMAGE_MODEL"
-DEFAULT_LOCAL_IMAGE_MODEL = "flux"
 METERED_IMAGE_AUTO_ENV = "DEEPR_ALLOW_METERED_IMAGE_AUTO"
-XAI_IMAGE_MODEL_ENV = "DEEPR_XAI_IMAGE_MODEL"
-DEFAULT_XAI_IMAGE_MODEL = "grok-imagine-image"
+
+
+def _require_attested_local_image_capacity() -> NoReturn:
+    raise RuntimeError(
+        "Local portrait execution is blocked because no supported image backend can prove exact local-only capacity"
+    )
 
 
 def default_portraits_dir() -> Path:
@@ -85,9 +87,9 @@ def _local_image_base_url(value: str | None = None) -> str:
 
 
 def portrait_cost(provider: str | None) -> float:
-    """Per-image cost for a provider: $0 for local, the metered estimate else."""
+    """Return the bounded metered estimate, rejecting unproven local labels."""
     if provider == "local":
-        return 0.0
+        _require_attested_local_image_capacity()
     if provider == "xai":
         return XAI_PORTRAIT_COST_ESTIMATE_USD
     return PORTRAIT_COST_ESTIMATE_USD
@@ -169,17 +171,17 @@ def _write_portrait_file(filepath: Path, image_bytes: bytes) -> Path | None:
 def detect_provider() -> str | None:
     """Return the best available image provider, cheapest-first, or None.
 
-    Local (a configured diffusion endpoint) wins over metered APIs so a user
-    with a GPU generates portraits at $0. Metered APIs are not auto-selected
-    from keys by default because image generation is a separate money side
-    effect. Pass ``provider="openai"``, ``provider="google"``, or
+    A configured loopback image endpoint is rejected until its server identity
+    and exact materialized model can be proven. Metered APIs are not
+    auto-selected from keys by default because image generation is a separate
+    money side effect. Pass ``provider="openai"``, ``provider="google"``, or
     ``provider="xai"`` for explicit paid generation, or set
     ``DEEPR_ALLOW_METERED_IMAGE_AUTO=1`` to opt into metered auto-selection.
     """
     local_image_url = os.getenv(LOCAL_IMAGE_URL_ENV, "")
     if local_image_url.strip():
         _local_image_base_url(local_image_url)
-        return "local"
+        _require_attested_local_image_capacity()
     metered_auto = _truthy_env(METERED_IMAGE_AUTO_ENV)
     if not metered_auto:
         return None
@@ -220,16 +222,19 @@ async def generate_portrait(
     provider = provider or detect_provider()
     if not provider:
         raise RuntimeError(
-            "No image generator available. Set DEEPR_LOCAL_IMAGE_URL (a local FLUX/ComfyUI "
-            "OpenAI-images endpoint, $0), pass provider='openai'/'google'/'xai' for explicit paid "
-            "image generation, or set DEEPR_ALLOW_METERED_IMAGE_AUTO=1."
+            "No image generator available. Pass provider='openai'/'google'/'xai' for explicit paid "
+            "image generation, or set DEEPR_ALLOW_METERED_IMAGE_AUTO=1. Loopback image endpoints "
+            "remain blocked until exact local-only capacity can be attested."
         )
-    if provider != "local":
+    if provider == "local":
+        _local_image_base_url()
+        _require_attested_local_image_capacity()
+    else:
         from deepr.experts.metered_mutation_gate import require_metered_expert_mutation
 
         require_metered_expert_mutation(
             "api_expert_portrait",
-            safe_alternative="set DEEPR_LOCAL_IMAGE_URL and use provider='local'",
+            safe_alternative="no attested zero-dollar portrait backend is currently available",
         )
 
     prompt = _build_prompt(name, domain, description, style=style)
@@ -279,12 +284,15 @@ async def generate_and_save_portrait(
 
     expert_name = str(getattr(profile, "name", "expert"))
     effective_provider = provider or detect_provider()
+    if effective_provider == "local":
+        _local_image_base_url()
+        _require_attested_local_image_capacity()
     if effective_provider and effective_provider != "local":
         from deepr.experts.metered_mutation_gate import require_metered_expert_mutation
 
         require_metered_expert_mutation(
             "api_expert_portrait",
-            safe_alternative="set DEEPR_LOCAL_IMAGE_URL and use provider='local'",
+            safe_alternative="no attested zero-dollar portrait backend is currently available",
         )
     reservation = reserve_portrait_cost(
         expert_name=expert_name,
@@ -295,8 +303,7 @@ async def generate_and_save_portrait(
     effective_provider = reservation.effective_provider
     if not effective_provider:
         raise RuntimeError(
-            "No image generator available. Set DEEPR_LOCAL_IMAGE_URL (a local FLUX/ComfyUI "
-            "OpenAI-images endpoint, $0), pass provider='openai'/'google'/'xai' for explicit paid "
+            "No image generator available. Pass provider='openai'/'google'/'xai' for explicit paid "
             "image generation, or set DEEPR_ALLOW_METERED_IMAGE_AUTO=1."
         )
 
@@ -341,113 +348,25 @@ async def generate_and_save_portrait(
 
 
 async def _generate_openai(prompt: str) -> bytes:
-    """Generate via OpenAI gpt-image-1 (Images API)."""
-    from openai import AsyncOpenAI
-
-    client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-    result = await client.images.generate(
-        model="gpt-image-1",
-        prompt=prompt,
-        n=1,
-        size="1024x1024",
-    )
-
-    b64 = result.data[0].b64_json
-    if b64:
-        return base64.b64decode(b64)
-    # Fallback: download from URL if b64 not available
-    url = result.data[0].url
-    if url:
-        import httpx
-
-        async with httpx.AsyncClient(timeout=60) as http:
-            resp = await http.get(url)
-            resp.raise_for_status()
-            return resp.content
-    raise RuntimeError("OpenAI returned neither base64 nor URL image data")
+    """Reject direct OpenAI image dispatch until durable lifecycle accounting ships."""
+    del prompt
+    raise RuntimeError("Metered portrait execution is blocked until every image call has durable accounting")
 
 
 async def _generate_google(prompt: str) -> bytes:
-    """Generate via Google Imagen API."""
-    import httpx
-
-    api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-    if not api_key:
-        raise RuntimeError("No Google API key found")
-
-    url = "https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict"
-
-    async with httpx.AsyncClient(timeout=120) as http:
-        resp = await http.post(
-            url,
-            headers={"x-goog-api-key": api_key},
-            json={
-                "instances": [{"prompt": prompt}],
-                "parameters": {
-                    "sampleCount": 1,
-                    "aspectRatio": "1:1",
-                },
-            },
-        )
-        try:
-            resp.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            status_code = exc.response.status_code if exc.response is not None else "unknown"
-            raise RuntimeError(f"Google Imagen request failed with HTTP {status_code}") from None
-        data = resp.json()
-
-    predictions = data.get("predictions", [])
-    if not predictions:
-        raise RuntimeError("Google Imagen returned no predictions")
-    b64 = predictions[0].get("bytesBase64Encoded", "")
-    if not b64:
-        raise RuntimeError("Google Imagen returned empty image data")
-    return base64.b64decode(b64)
+    """Reject direct Google image dispatch until durable lifecycle accounting ships."""
+    del prompt
+    raise RuntimeError("Metered portrait execution is blocked until every image call has durable accounting")
 
 
 async def _generate_xai(prompt: str) -> bytes:
-    """Generate via xAI Grok image generation."""
-    from openai import AsyncOpenAI
-
-    client = AsyncOpenAI(
-        api_key=os.getenv("XAI_API_KEY"),
-        base_url="https://api.x.ai/v1",
-    )
-
-    result = await client.images.generate(
-        model=os.getenv(XAI_IMAGE_MODEL_ENV, DEFAULT_XAI_IMAGE_MODEL),
-        prompt=prompt,
-        n=1,
-        response_format="b64_json",
-    )
-
-    b64 = result.data[0].b64_json
-    if not b64:
-        raise RuntimeError("xAI returned empty image data")
-    return base64.b64decode(b64)
+    """Reject direct xAI image dispatch until durable lifecycle accounting ships."""
+    del prompt
+    raise RuntimeError("Metered portrait execution is blocked until every image call has durable accounting")
 
 
 async def _generate_local(prompt: str) -> bytes:
-    """Generate via a local OpenAI-Images-compatible endpoint ($0, on your GPU).
-
-    Point ``DEEPR_LOCAL_IMAGE_URL`` at a local diffusion server exposing the
-    OpenAI Images API (ComfyUI/SwarmUI/a FLUX server with a ``/v1`` shim);
-    ``DEEPR_LOCAL_IMAGE_MODEL`` selects the model (default ``flux``). Nothing is
-    billed - it hits your own hardware. Plain Ollama cannot do this (it has no
-    image-generation models), so a diffusion server is required.
-    """
-    from openai import AsyncOpenAI
-
-    base_url = _local_image_base_url()
-    client = AsyncOpenAI(api_key="local", base_url=base_url)
-    result = await client.images.generate(
-        model=os.getenv(LOCAL_IMAGE_MODEL_ENV, DEFAULT_LOCAL_IMAGE_MODEL),
-        prompt=prompt,
-        n=1,
-        response_format="b64_json",
-    )
-    b64 = result.data[0].b64_json
-    if not b64:
-        raise RuntimeError("Local image endpoint returned empty image data")
-    return base64.b64decode(b64)
+    """Reject the legacy unverified loopback image transport before dispatch."""
+    del prompt
+    _local_image_base_url()
+    _require_attested_local_image_capacity()

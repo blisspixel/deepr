@@ -96,8 +96,8 @@ class UnifiedConfig:
     # Budget limits
     budget_limits: dict[str, float] = field(
         default_factory=lambda: {
-            "daily_limit": 10.0,
-            "monthly_limit": 100.0,
+            "daily_limit": 2.0,
+            "monthly_limit": 5.0,
             "alert_threshold_50": 0.5,
             "alert_threshold_80": 0.8,
             "alert_threshold_95": 0.95,

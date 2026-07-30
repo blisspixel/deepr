@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import os
+import sqlite3
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from pathlib import Path
 from threading import Barrier, Event
 from unittest.mock import MagicMock, patch
@@ -16,6 +18,8 @@ from deepr.experts.cost_safety import CostSafetyManager
 from deepr.experts.research_cost_gate import (
     PaidCostCeilingDivergence,
     ResearchCostBlocked,
+    ResearchCostReservation,
+    ResearchCostSettlementError,
     record_unreserved_research_cost,
     refund_research_cost,
     reserve_configured_cost_ceiling,
@@ -27,8 +31,10 @@ from deepr.experts.research_cost_gate import (
 from deepr.experts.research_reservation_store import (
     ResearchReservationLimitExceeded,
     ResearchReservationStore,
+    ResearchReservationStoreError,
 )
 from deepr.observability.cost_ledger import CostLedger
+from deepr.providers.base import ResearchRequest
 
 
 def _estimate(expected: float, *, maximum: float | None = None) -> CostEstimate:
@@ -46,7 +52,13 @@ def _current_paid_authorization() -> dict[str, object]:
     return document["paid_api_authorization"]
 
 
-def _reserve(manager: CostSafetyManager, job_id: str, expected: float):
+def _reserve(
+    manager: CostSafetyManager,
+    job_id: str,
+    expected: float,
+    *,
+    request: ResearchRequest | None = None,
+):
     return reserve_research_cost(
         job_id=job_id,
         provider="openai",
@@ -56,6 +68,7 @@ def _reserve(manager: CostSafetyManager, job_id: str, expected: float):
         max_daily_cost=1.0,
         max_monthly_cost=5.0,
         manager=manager,
+        request=request,
     )
 
 
@@ -86,6 +99,60 @@ def test_settlement_releases_reservation_and_records_actual_cost() -> None:
     assert events[0].cost_usd == pytest.approx(0.6)
     assert events[0].idempotency_key == "job:job-1:completion"
     assert ResearchReservationStore().state(reservation.reservation_id) == "settled"
+
+
+def test_settlement_of_refunded_reservation_records_truth_freezes_and_fails() -> None:
+    from deepr.core.cost_caps import read_operator_budget
+
+    manager = CostSafetyManager()
+    reservation = _reserve(manager, "job-refunded-before-settlement", 0.8)
+    refund_research_cost(reservation)
+
+    with pytest.raises(ResearchCostSettlementError, match="refunded"):
+        settle_research_cost(
+            reservation,
+            actual_cost=0.6,
+            source="test.refunded_settlement",
+        )
+
+    events = CostLedger().get_events()
+    assert len(events) == 1
+    assert events[0].cost_usd == pytest.approx(0.6)
+    assert events[0].metadata["durable_settlement_outcome"] == "refunded"
+    assert events[0].metadata["accounting_integrity_failure"] is True
+    operator = read_operator_budget()
+    assert operator.frozen is True
+    assert operator.freeze_kind == "legacy"
+
+
+def test_settlement_of_missing_reservation_records_truth_freezes_and_fails() -> None:
+    from deepr.core.cost_caps import read_operator_budget
+
+    reservation = ResearchCostReservation(
+        job_id="job-missing-at-settlement",
+        provider="openai",
+        model="test-model",
+        estimated_cost=0.8,
+        reservation_id="missing-reservation",
+        manager=CostSafetyManager(),
+        dispatch_binding_id="a" * 64,
+    )
+
+    with pytest.raises(ResearchCostSettlementError, match="missing"):
+        settle_research_cost(
+            reservation,
+            actual_cost=0.6,
+            source="test.missing_settlement",
+        )
+
+    events = CostLedger().get_events()
+    assert len(events) == 1
+    assert events[0].cost_usd == pytest.approx(0.6)
+    assert events[0].metadata["durable_settlement_outcome"] == "missing"
+    assert events[0].metadata["accounting_integrity_failure"] is True
+    operator = read_operator_budget()
+    assert operator.frozen is True
+    assert operator.freeze_kind == "legacy"
 
 
 def test_active_cost_reconciles_existing_canonical_completion_without_duplicate_spend() -> None:
@@ -131,6 +198,8 @@ def test_conservative_settlement_is_not_labeled_as_reported_actual_cost() -> Non
         "settlement_basis": "conservative_unaccounted_ceiling",
         "known_cost_usd": 0.25,
         "unaccounted_ceiling_usd": 0.55,
+        "cost_reservation_id": reservation.reservation_id,
+        "cost_reservation_job_id": reservation.job_id,
         "estimated_cost_usd": 0.8,
         "actual_cost_reported": False,
     }
@@ -267,6 +336,26 @@ def test_unreserved_reported_cost_records_truth_then_freezes_paid_api() -> None:
     assert "legacy-reported-usage" in operator.freeze_reason
 
 
+def test_unreserved_low_reported_cost_uses_configured_ceiling_floor(monkeypatch) -> None:
+    monkeypatch.setenv("DEEPR_MAX_COST_PER_JOB", "0.75")
+
+    settled = record_unreserved_research_cost(
+        job_id="legacy-low-reported-usage",
+        provider="openai",
+        model="o3-deep-research",
+        actual_cost=0.01,
+        tokens=1_200,
+        manager=CostSafetyManager(),
+        source="test.legacy.low-reported",
+    )
+
+    assert settled == pytest.approx(0.75)
+    event = CostLedger().get_events()[0]
+    assert event.cost_usd == pytest.approx(0.75)
+    assert event.metadata["actual_cost_reported"] is True
+    assert event.metadata["settlement_basis"] == "configured_ceiling_floor"
+
+
 def test_unreserved_ledger_failure_still_leaves_paid_api_frozen() -> None:
     from deepr.core.cost_caps import read_operator_budget
 
@@ -327,20 +416,72 @@ def test_durable_store_rejects_invalid_reservation_money(field_name, value, tmp_
 @pytest.mark.parametrize("value", [True, -0.01, float("nan"), float("inf"), "1.0"])
 def test_durable_store_rejects_invalid_settlement_before_callback(value, tmp_path) -> None:
     store = ResearchReservationStore(tmp_path / "reservations.db")
+    binding_id = "a" * 64
     store.reserve(
         reservation_id="reservation",
         job_id="job",
         reserved_cost=0.5,
         max_daily_cost=1.0,
         max_monthly_cost=5.0,
+        provider="openai",
+        model="model",
+        dispatch_binding_id=binding_id,
     )
     record = MagicMock()
 
     with pytest.raises(ValueError, match="actual_cost"):
-        store.settle("reservation", value, record)
+        store.settle(
+            "reservation",
+            value,
+            record,
+            job_id="job",
+            reserved_cost=0.5,
+            provider="openai",
+            model="model",
+            dispatch_binding_id=binding_id,
+            request_envelope_sha256=None,
+        )
 
     record.assert_not_called()
     assert store.state("reservation") == "active"
+
+
+@pytest.mark.parametrize(
+    ("forged_field", "forged_value"),
+    [
+        ("job_id", "other-job"),
+        ("provider", "anthropic"),
+        ("model", "other-model"),
+        ("estimated_cost", 0.01),
+        ("estimated_cost", float("nan")),
+        ("dispatch_binding_id", "f" * 64),
+        ("request_envelope_sha256", "e" * 64),
+    ],
+)
+def test_forged_settlement_handle_cannot_close_or_reconcile_real_hold(
+    forged_field: str,
+    forged_value: object,
+) -> None:
+    from deepr.core.cost_caps import read_operator_budget
+
+    manager = CostSafetyManager()
+    request = ResearchRequest(prompt="bounded request", model="test-model", system_message="system")
+    reservation = _reserve(manager, "settlement-owned-job", 0.8, request=request)
+    forged = replace(reservation, **{forged_field: forged_value})
+
+    with pytest.raises(ResearchCostSettlementError, match="identity_mismatch"):
+        settle_research_cost(forged, actual_cost=0.1, source="test.forged_settlement")
+
+    store = ResearchReservationStore()
+    assert store.state(reservation.reservation_id) == "active"
+    assert store.active_cost() == pytest.approx(0.8)
+    assert manager._reserved_daily == pytest.approx(0.8)
+    events = CostLedger().get_events()
+    assert len(events) == 1
+    assert events[0].operation == "research_settlement_integrity"
+    assert "cost_reservation_id" not in events[0].metadata
+    assert events[0].metadata["attempted_cost_reservation_id"] == reservation.reservation_id
+    assert read_operator_budget().frozen is True
 
 
 def test_parallel_reservations_cannot_overcommit_daily_limit() -> None:
@@ -382,7 +523,7 @@ def test_independent_managers_cannot_overcommit_durable_daily_limit() -> None:
     assert ResearchReservationStore().active_cost() == pytest.approx(0.75)
 
 
-def test_operator_monthly_ceiling_binds_concurrent_direct_store_callers() -> None:
+def test_operator_ceiling_below_provider_hard_limit_blocks_direct_store_callers() -> None:
     authorization = _current_paid_authorization()
     Path(os.environ["DEEPR_BUDGET_FILE"]).write_text(
         json.dumps(
@@ -418,8 +559,8 @@ def test_operator_monthly_ceiling_binds_concurrent_direct_store_callers() -> Non
     with ThreadPoolExecutor(max_workers=2) as executor:
         results = list(executor.map(attempt, range(2)))
 
-    assert sorted(results) == [False, True]
-    assert ResearchReservationStore().active_cost() == pytest.approx(0.75)
+    assert results == [False, False]
+    assert ResearchReservationStore().active_cost() == pytest.approx(0.0)
 
 
 def test_long_lived_manager_observes_operator_freeze_before_next_reservation() -> None:
@@ -474,7 +615,7 @@ def test_new_ledger_spend_blocks_old_hold_at_dispatch() -> None:
     Path(os.environ["DEEPR_BUDGET_FILE"]).write_text(
         json.dumps(
             {
-                "monthly_limit": 1.0,
+                "monthly_limit": 5.0,
                 "paid_api_frozen": False,
                 "paid_api_authorization": authorization,
             }
@@ -492,7 +633,7 @@ def test_new_ledger_spend_blocks_old_hold_at_dispatch() -> None:
     CostLedger().record_event(
         operation="unreserved_completion",
         provider="openai",
-        cost_usd=0.50,
+        cost_usd=4.50,
         source="test",
     )
 
@@ -676,6 +817,77 @@ def test_legacy_reservation_metadata_without_provider_bound_version_is_not_resto
     )
 
     assert restored is None
+
+
+@pytest.mark.parametrize("estimated_cost", [float("nan"), float("inf"), float("-inf")])
+def test_nonfinite_reservation_metadata_is_not_restored(estimated_cost: float) -> None:
+    restored = restore_research_cost_reservation(
+        job_id="corrupted-job",
+        metadata={
+            "cost_reservation_authority_version": "provider-request-bound-v2",
+            "cost_reservation_id": "corrupted-reservation",
+            "cost_reservation_estimated_usd": estimated_cost,
+            "cost_reservation_provider": "openai",
+            "cost_reservation_model": "test-model",
+            "cost_reservation_dispatch_binding_id": "a" * 64,
+            "cost_reservation_request_envelope_sha256": "b" * 64,
+        },
+        provider="openai",
+        model="test-model",
+    )
+
+    assert restored is None
+
+
+def test_legacy_reservation_schema_migrates_but_cannot_mint_bound_dispatch(tmp_path: Path) -> None:
+    database = tmp_path / "legacy-reservations.db"
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            """
+            CREATE TABLE research_cost_reservations (
+                reservation_id TEXT PRIMARY KEY,
+                job_id TEXT NOT NULL UNIQUE,
+                reserved_cost REAL NOT NULL,
+                state TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                closed_at TEXT,
+                actual_cost REAL
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO research_cost_reservations
+                (reservation_id, job_id, reserved_cost, state, created_at)
+            VALUES ('legacy-id', 'legacy-job', 0.20, 'active', '2026-07-29T00:00:00+00:00')
+            """
+        )
+
+    store = ResearchReservationStore(database)
+    with sqlite3.connect(database) as connection:
+        columns = {str(row[1]) for row in connection.execute("PRAGMA table_info(research_cost_reservations)")}
+    assert {
+        "provider_work_may_have_run",
+        "provider",
+        "model",
+        "dispatch_binding_id",
+        "request_envelope_sha256",
+    } <= columns
+
+    with pytest.raises(ResearchReservationStoreError, match="does not match"):
+        store.mark_provider_work_may_have_run(
+            "legacy-id",
+            provider="openai",
+            model="model",
+            job_id="legacy-job",
+            reserved_cost=0.20,
+            dispatch_binding_id="a" * 64,
+            request_envelope_sha256="b" * 64,
+        )
+
+    active = store.active_reservations()
+    assert len(active) == 1
+    assert active[0].provider_work_may_have_run is False
 
 
 def test_per_job_maximum_is_checked_before_reservation() -> None:

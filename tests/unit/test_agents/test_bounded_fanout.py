@@ -4,6 +4,8 @@ import asyncio
 
 import pytest
 
+from deepr.agents.contract import AgentBudget, AgentIdentity, AgentResult, GenericSubagentExecutionBlockedError
+from deepr.agents.runtime import FanOutConfig, SubagentRuntime
 from deepr.mcp.state.async_dispatcher import AsyncTaskDispatcher, DispatchStatus
 
 
@@ -107,3 +109,47 @@ async def test_dispatch_with_dependencies_respects_concurrency():
     c_start = next(i for i, (action, tid) in enumerate(execution_order) if action == "start" and tid == "c")
     assert c_start > a_end
     assert c_start > b_end
+
+
+@pytest.mark.asyncio
+async def test_generic_fan_out_blocks_before_arbitrary_worker_dispatch():
+    calls = 0
+
+    async def worker(_query: str, _budget: AgentBudget, _identity: AgentIdentity) -> AgentResult:
+        nonlocal calls
+        calls += 1
+        return AgentResult(cost=0.0)
+
+    runtime = SubagentRuntime(FanOutConfig(operation_budget=1.0))
+    with pytest.raises(GenericSubagentExecutionBlockedError, match="structured-local consult graph"):
+        await runtime.fan_out(["a", "b"], worker, AgentIdentity())
+
+    assert calls == 0
+
+
+@pytest.mark.asyncio
+async def test_generic_synthesis_blocks_before_agent_dispatch():
+    class Synthesizer:
+        async def execute(self, _query, _budget, _identity):
+            raise AssertionError("synthesizer must not run")
+
+    runtime = SubagentRuntime(FanOutConfig(operation_budget=1.0))
+    with pytest.raises(GenericSubagentExecutionBlockedError):
+        await runtime.synthesize([], Synthesizer(), AgentIdentity(), 0.2)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"max_concurrent": 0},
+        {"operation_budget": float("nan")},
+        {"operation_budget": float("inf")},
+        {"operation_budget": -1.0},
+        {"failure_rate_threshold": float("nan")},
+        {"failure_rate_threshold": 1.1},
+        {"synthesis_reserve_fraction": -0.1},
+    ],
+)
+def test_fan_out_config_rejects_invalid_or_unbounded_values(kwargs):
+    with pytest.raises(ValueError):
+        FanOutConfig(**kwargs)

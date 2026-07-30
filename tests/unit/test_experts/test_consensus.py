@@ -10,6 +10,16 @@ from deepr.experts.consensus import (
     ProviderResponse,
     _has_api_key,
 )
+from deepr.services.research_bounds import ResearchRequestBoundsError
+
+
+@pytest.fixture
+def allow_mocked_consensus_logic(monkeypatch):
+    monkeypatch.setattr(
+        "deepr.experts.consensus.require_metered_interface_accounting",
+        lambda _operation: None,
+    )
+
 
 # ---------------------------------------------------------------------------
 # _has_api_key
@@ -174,7 +184,7 @@ class TestResearchWithConsensus:
             assert "No providers available" in result.consensus_answer
 
     @pytest.mark.asyncio
-    async def test_single_provider_fallback(self):
+    async def test_single_provider_fallback(self, allow_mocked_consensus_logic):
         engine = ConsensusEngine()
         engine._select_providers = MagicMock(return_value=[("openai", "gpt-5.2")])
         engine._query_provider = AsyncMock(
@@ -193,7 +203,7 @@ class TestResearchWithConsensus:
         assert result.total_cost == 0.05
 
     @pytest.mark.asyncio
-    async def test_multi_provider_success(self):
+    async def test_multi_provider_success(self, allow_mocked_consensus_logic):
         engine = ConsensusEngine()
         engine._select_providers = MagicMock(return_value=[("openai", "gpt-5.2"), ("xai", "grok")])
         engine._query_provider = AsyncMock(
@@ -225,7 +235,7 @@ class TestResearchWithConsensus:
         assert len(result.provider_responses) == 2
 
     @pytest.mark.asyncio
-    async def test_all_providers_fail(self):
+    async def test_all_providers_fail(self, allow_mocked_consensus_logic):
         engine = ConsensusEngine()
         engine._select_providers = MagicMock(return_value=[("openai", "gpt-5.2"), ("xai", "grok")])
         engine._query_provider = AsyncMock(side_effect=Exception("API error"))
@@ -234,7 +244,7 @@ class TestResearchWithConsensus:
         assert "All providers failed" in result.consensus_answer
 
     @pytest.mark.asyncio
-    async def test_confidence_calibration(self):
+    async def test_confidence_calibration(self, allow_mocked_consensus_logic):
         engine = ConsensusEngine()
         engine._select_providers = MagicMock(return_value=[("openai", "m"), ("xai", "m")])
         engine._query_provider = AsyncMock(
@@ -250,7 +260,7 @@ class TestResearchWithConsensus:
         assert result.confidence == 1.0
 
     @pytest.mark.asyncio
-    async def test_low_agreement_confidence(self):
+    async def test_low_agreement_confidence(self, allow_mocked_consensus_logic):
         engine = ConsensusEngine()
         engine._select_providers = MagicMock(return_value=[("openai", "m"), ("xai", "m")])
         engine._query_provider = AsyncMock(
@@ -264,3 +274,32 @@ class TestResearchWithConsensus:
         result = await engine.research_with_consensus("test", 5.0, "expert")
         # confidence = min(1.0, 0.1 * 0.8 + 0.2) = 0.28
         assert result.confidence == pytest.approx(0.28)
+
+
+@pytest.mark.asyncio
+async def test_configured_consensus_fails_before_any_provider_query() -> None:
+    engine = ConsensusEngine()
+    engine._query_provider = AsyncMock()
+
+    with (
+        patch.dict("os.environ", {"OPENAI_API_KEY": "configured", "XAI_API_KEY": "configured"}, clear=True),
+        pytest.raises(ResearchRequestBoundsError) as raised,
+    ):
+        await engine.research_with_consensus("test", 5.0, "expert")
+
+    assert raised.value.code == "metered_interface_accounting_unavailable"
+    engine._query_provider.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "method_name",
+    ["_query_xai", "_query_openai", "_query_gemini", "_query_anthropic"],
+)
+async def test_direct_consensus_provider_helpers_fail_before_client_construction(method_name: str) -> None:
+    engine = ConsensusEngine()
+
+    with pytest.raises(ResearchRequestBoundsError) as raised:
+        await getattr(engine, method_name)("model", "query")
+
+    assert raised.value.code == "metered_interface_accounting_unavailable"

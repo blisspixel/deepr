@@ -75,6 +75,9 @@ def test_consult_schema_defaults_to_owned_capacity_and_conditions_api_fields():
     properties = CONSULT_EXPERTS_INPUT_SCHEMA["properties"]
 
     assert properties["synthesis_backend"]["default"] == "local"
+    assert "production metered dispatch is blocked" in properties["synthesis_backend"]["description"]
+    assert "current executable adapter" in properties["plan"]["description"]
+    assert "Codex" not in properties["plan"]["description"]
     assert "default" not in properties["budget"]
     assert properties["budget"]["minimum"] == 0
     assert CONSULT_EXPERTS_INPUT_SCHEMA["allOf"][0]["then"]["properties"]["budget"] == {"exclusiveMinimum": 0}

@@ -39,7 +39,9 @@ def _payload(**over):
             ],
         },
         "capacity_outlook": {"task_classes": {}, "any_cheap_capacity_admitted": False},
-        "backend_fallback_order": ["local ($0)", "plan-quota (prepaid)", "metered API"],
+        "backend_fallback_order": ["local ($0)", "plan-quota (prepaid)"],
+        "automatic_metered_fallback": False,
+        "metered_capacity_status": "preview_only",
     }
     base.update(over)
     return base
@@ -66,6 +68,8 @@ def test_route_explain_renders_routing(monkeypatch):
     assert "cloud, security" in result.output
     # operator-controlled name with markup chars is escaped, shown literally
     assert "weird[/]tag Expert" in result.output
+    assert "Automatic cheap-capacity order" in result.output
+    assert "Metered API: preview only; never an automatic fallback" in result.output
 
 
 def test_route_explain_json_emits_schema(monkeypatch):

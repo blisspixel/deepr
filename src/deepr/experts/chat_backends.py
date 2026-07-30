@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from typing import Any, Protocol
 
 from deepr.experts.chat_capacity import require_expert_chat_dispatch
+from deepr.experts.semantic_model_gate import require_zero_dollar_client
 
 
 @dataclass(frozen=True)
@@ -160,6 +161,7 @@ class OpenAIExpertChatBackend:
             source="expert_chat.completion",
             max_cost_per_job=max_cost_per_job,
             call=lambda: self.client.chat.completions.create(**params),
+            request_envelope=params,
         )
         choice = response.choices[0]
         return ExpertChatResult(
@@ -202,6 +204,7 @@ class OpenAIExpertChatBackend:
             source="expert_chat.stream",
             max_cost_per_job=max_cost_per_job,
             events=events,
+            request_envelope=params,
         ):
             yield item
 
@@ -234,9 +237,9 @@ class AnthropicExpertChatBackend:
         self.model: str | None = model
 
     async def complete(self, request: ExpertChatRequest) -> ExpertChatResult:
-        require_expert_chat_dispatch(self, "expert_chat_completion")
         if request.tools:
             raise ExpertChatUnsupportedFeature("anthropic expert-chat backend does not support tools yet")
+        require_expert_chat_dispatch(self, "expert_chat_completion")
 
         from deepr.experts.chat_metered import (
             apply_output_token_ceiling,
@@ -258,6 +261,7 @@ class AnthropicExpertChatBackend:
             source="expert_chat.completion",
             max_cost_per_job=max_cost_per_job,
             call=lambda: self.client.messages.create(**params),
+            request_envelope=params,
         )
         text = _anthropic_response_text(response)
         stop_reason = str(getattr(response, "stop_reason", "") or "")
@@ -272,9 +276,9 @@ class AnthropicExpertChatBackend:
         )
 
     async def stream(self, request: ExpertChatRequest) -> AsyncIterator[ExpertChatStreamChunk]:
-        require_expert_chat_dispatch(self, "expert_chat_stream")
         if request.tools:
             raise ExpertChatUnsupportedFeature("anthropic expert-chat backend does not support tools yet")
+        require_expert_chat_dispatch(self, "expert_chat_stream")
 
         from deepr.experts.chat_metered import (
             apply_output_token_ceiling,
@@ -306,6 +310,7 @@ class AnthropicExpertChatBackend:
             source="expert_chat.stream",
             max_cost_per_job=max_cost_per_job,
             events=events,
+            request_envelope=params,
         ):
             yield item
 
@@ -427,6 +432,7 @@ class LocalOllamaExpertChatBackend(_OpenAIShapeNoToolExpertChatBackend):
     """Local Ollama expert-chat backend for read-only compiled-context turns."""
 
     def __init__(self, client: Any, *, model: str, keep_alive: str = "30m") -> None:
+        require_zero_dollar_client(client, capacity_source="local")
         super().__init__(client, provider="local", model=model)
         self.keep_alive = keep_alive
 
@@ -442,5 +448,6 @@ class PlanQuotaExpertChatBackend(_OpenAIShapeNoToolExpertChatBackend):
     """Plan-quota expert-chat backend for explicit prepaid CLI turns."""
 
     def __init__(self, client: Any, *, backend_id: str, model: str | None = None) -> None:
+        require_zero_dollar_client(client, capacity_source=f"plan_quota:{backend_id}")
         super().__init__(client, provider=f"plan_quota:{backend_id}", model=model or backend_id)
         self.backend_id = backend_id

@@ -5,6 +5,7 @@ import logging
 import os
 from typing import Any
 
+import httpx
 import openai
 
 logger = logging.getLogger(__name__)
@@ -23,10 +24,13 @@ from .base import (
     get_usage_detail_int,
     get_usage_int,
 )
+from .dispatch_authority import default_paid_endpoint, require_official_paid_endpoint
 
 
 class OpenAIProvider(DeepResearchProvider):
     """OpenAI implementation of the Deep Research provider."""
+
+    provider_key = "openai"
 
     def __init__(
         self,
@@ -52,11 +56,21 @@ class OpenAIProvider(DeepResearchProvider):
         if not self.api_key:
             raise ValueError("OpenAI API key is required")
 
+        self._paid_endpoint = require_official_paid_endpoint(
+            self.provider_key,
+            base_url or default_paid_endpoint(self.provider_key),
+            source="OpenAIProvider.base_url",
+        )
         self.client = AsyncOpenAI(
             api_key=self.api_key,
-            base_url=base_url,
+            base_url=self._paid_endpoint,
             organization=organization,
             max_retries=0,
+            http_client=httpx.AsyncClient(
+                timeout=httpx.Timeout(600.0, connect=5.0),
+                trust_env=False,
+                follow_redirects=False,
+            ),
         )
 
         # Default model mappings (can be overridden)
@@ -71,7 +85,7 @@ class OpenAIProvider(DeepResearchProvider):
         """Map generic model key to OpenAI model name."""
         return str(self.model_mappings.get(model_key, model_key))
 
-    async def submit_research(self, request: ResearchRequest) -> str:
+    async def _submit_research_impl(self, request: ResearchRequest) -> str:
         """Submit research job to OpenAI with retry logic."""
         import asyncio
 
@@ -291,7 +305,7 @@ class OpenAIProvider(DeepResearchProvider):
         except openai.OpenAIError as e:
             raise ProviderError(message=f"Failed to cancel job: {e!s}", provider="openai", original_error=e) from e
 
-    async def upload_document(self, file_path: str, purpose: str = "assistants") -> str:
+    async def _upload_document_accounted(self, file_path: str, purpose: str = "assistants") -> str:
         """Upload document to OpenAI."""
         try:
             with open(file_path, "rb") as f:
@@ -316,7 +330,7 @@ class OpenAIProvider(DeepResearchProvider):
                 original_error=e,
             ) from e
 
-    async def create_vector_store(self, name: str, file_ids: list[str]) -> VectorStore:
+    async def _create_vector_store_accounted(self, name: str, file_ids: list[str]) -> VectorStore:
         """Create vector store in OpenAI."""
         try:
             # Create vector store

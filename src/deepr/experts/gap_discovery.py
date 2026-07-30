@@ -104,7 +104,9 @@ class GapDiscoverer:
         if self.client is None:
             from openai import AsyncOpenAI
 
-            self.client = AsyncOpenAI(max_retries=0)
+            from deepr.providers.dispatch_authority import default_paid_endpoint
+
+            self.client = AsyncOpenAI(base_url=default_paid_endpoint("openai"), max_retries=0)
         return self.client
 
     async def _complete_bounded(
@@ -116,6 +118,7 @@ class GapDiscoverer:
     ) -> Any:
         """Run one priced gap-analysis completion under a durable hold."""
         from deepr.experts.report_absorber_costs import bounded_metered_completion_kwargs
+        from deepr.providers.dispatch_authority import require_official_paid_client
         from deepr.services.metered_call import execute_reserved_async_call
 
         kwargs, worst_case_cost = bounded_metered_completion_kwargs(
@@ -130,8 +133,10 @@ class GapDiscoverer:
             },
         )
 
+        client = await self._get_client()
+        require_official_paid_client(client, "openai")
+
         async def dispatch() -> Any:
-            client = await self._get_client()
             return await client.chat.completions.create(**kwargs)
 
         return await execute_reserved_async_call(
@@ -141,6 +146,7 @@ class GapDiscoverer:
             source=source,
             max_cost_per_job=worst_case_cost,
             call=dispatch,
+            request_envelope=kwargs,
         )
 
     async def discover_gaps(
@@ -213,14 +219,17 @@ class GapDiscoverer:
             return None
 
         try:
+            from deepr.providers.dispatch_authority import require_official_paid_client
             from deepr.providers.registry import get_token_pricing
             from deepr.services.metered_call import execute_reserved_async_call
 
             input_rate = float(get_token_pricing(_EMBEDDING_MODEL)["input"])
             worst_case_cost = max(0.0002, (input_bytes / 1_000_000) * input_rate)
 
+            client = await self._get_client()
+            require_official_paid_client(client, "openai")
+
             async def dispatch() -> Any:
-                client = await self._get_client()
                 return await client.embeddings.create(model=_EMBEDDING_MODEL, input=bounded_statements)
 
             response = await execute_reserved_async_call(
@@ -230,6 +239,7 @@ class GapDiscoverer:
                 source="experts.gap_discovery._embed_statements",
                 max_cost_per_job=worst_case_cost,
                 call=dispatch,
+                request_envelope={"model": _EMBEDDING_MODEL, "input": bounded_statements},
             )
             embeddings = [item.embedding for item in response.data]
             return np.array(embeddings)

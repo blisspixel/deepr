@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "deepr-research"
-version = "2.39.0"
+version = "2.40.0"
 description = "Research automation platform that replicates human research team workflows using AI"
 readme = "README.md"
 license = "Apache-2.0"
@@ -89,7 +89,7 @@ docs = [
 # ``ddgs`` is the maintained successor to the deprecated ``duckduckgo-search``,
 # whose old endpoint now returns no results.
 search = [
-    "ddgs>=9.0.0,<10.0.0",
+    "ddgs==9.14.4",
 ]
 
 # JavaScript-capable scraping. Browser binaries remain an explicit post-install
@@ -280,6 +280,7 @@ addopts = [
     "-v",
     "--tb=short",
     "--strict-markers",
+    "--timeout=180",
     "--disable-socket",
     "--allow-unix-socket",
     "--allow-hosts=localhost,127.0.0.1,::1",

@@ -1,6 +1,6 @@
 # MCP and A2A Interop Checklist
 
-Status: current with Deepr v2.39.0. Last reviewed: 2026-07-28.
+Status: current with Deepr v2.40.0. Last reviewed: 2026-07-29.
 
 Use this checklist when connecting Deepr experts to another agent host through
 MCP or A2A. It is a compact integration review, not the command guide. For
@@ -8,14 +8,12 @@ copy-ready validation commands, use [MCP_AGENT_TEST_GUIDE.md](MCP_AGENT_TEST_GUI
 
 ## Current Sources
 
-- MCP specification 2025-11-25:
-  <https://modelcontextprotocol.io/specification/2025-11-25>
-- MCP authorization specification 2025-11-25:
-  <https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization>
+- MCP specification 2026-07-28:
+  <https://modelcontextprotocol.io/specification/2026-07-28>
+- MCP authorization specification 2026-07-28:
+  <https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization>
 - MCP security best practices:
   <https://modelcontextprotocol.io/docs/tutorials/security/security_best_practices>
-- MCP `2026-07-28` release candidate, including the stateless core:
-  <https://blog.modelcontextprotocol.io/posts/2026-07-28-release-candidate/>
 - A2A latest specification:
   <https://a2a-protocol.org/latest/specification/>
 - OWASP Agentic AI threats and mitigations:
@@ -26,6 +24,9 @@ copy-ready validation commands, use [MCP_AGENT_TEST_GUIDE.md](MCP_AGENT_TEST_GUI
 - Discover MCP tools, resources, and prompts dynamically. For Deepr, start with
   `deepr_tool_search` or `deepr_capabilities` instead of assuming a fixed full
   tool list.
+- Negotiate capabilities per request under the final MCP `2026-07-28` stateless
+  core. Do not infer task, sampling, roots, or logging support from a prior
+  transport session.
 - Filter visible tools by scope, mode, budget, and rate policy before giving a
   host broad access.
 - For an A2A 1.0 service, fetch the Agent Card at the standard discovery path
@@ -63,13 +64,13 @@ copy-ready validation commands, use [MCP_AGENT_TEST_GUIDE.md](MCP_AGENT_TEST_GUI
 - Read-only expert tools are `$0`.
 - Use `deepr_consult_experts` with `synthesis_backend="local"` or
   `synthesis_backend="plan"` for no-metered consults.
-- Use `deepr_query_expert` only with explicit local or plan capacity in v2.36.
+- Use `deepr_query_expert` only with explicit local or plan capacity in v2.40.
   Its API backend and every standalone metered `ExpertChatSession` dispatch
-  fail closed. API council synthesis is a separate bounded surface, and its
-  approval does not enable live metered perspective fallback.
+  fail closed. API council synthesis exposes bounded contract inputs only;
+  approval and a positive budget do not enable production provider dispatch.
 - Treat nonlocal profile and curriculum creation, provider-backed expert
   refresh or synthesis, API gap filling, API compiled-claim sync, and paid
-  corpus calibration as gated v2.36 surfaces. An MCP or A2A approval cannot
+  corpus calibration as gated v2.40 surfaces. An MCP or A2A approval cannot
   bypass their missing shared parent-run transaction. Local and explicit
   plan-quota expert paths remain available.
 - Bound cancellable consult setup, generation, and lifecycle checkpoints with
@@ -82,21 +83,29 @@ copy-ready validation commands, use [MCP_AGENT_TEST_GUIDE.md](MCP_AGENT_TEST_GUI
   possibly partial write is never retryable. Post-work failure is non-retryable
   until finalization-only resume exists. Errors include the trace id but not the
   storage path.
-- API synthesis or metered research requires explicit operator intent, a
-  positive budget, deterministic estimates, and cost-ledger settlement.
-- Do not claim metered expert-chat live validation for v2.36. Restoration is a
+- API synthesis and metered research are production-frozen in v2.40. Explicit
+  operator intent, a positive budget, deterministic estimates, and cost-ledger
+  settlement remain necessary but cannot authorize provider dispatch.
+- Do not claim metered expert-chat live validation for v2.40. Restoration is a
   P1 requiring durable reserve, dispatch-mark, and settlement for every call,
   hard output ceilings, parent-budget accounting for auxiliaries, and
   serialized turns per session.
 - Plan-quota CLIs are explicit capacity unless a trusted remaining-quota probe
   and admission evidence say otherwise. A CLI authenticated by a metered API key
   is not plan capacity.
+- Claude Code is the only current executable plan adapter. Other adapters stay
+  visible for inspection but fail before dispatch.
 
 ## Task Lifecycle
 
 - MCP long-running work should return a durable job or artifact reference, then
   expose status, progress, and final results through explicit tools or
   resources.
+- The final MCP Tasks feature is an optional extension for `tools/call`. Deepr
+  does not currently advertise or implement background Tasks. Its synchronous
+  tool calls and application-owned conversation handles remain the supported
+  surface until per-request capability negotiation and task authorization
+  binding are implemented and tested.
 - A2A work should follow a task lifecycle: submit, poll or stream status,
   complete or fail, then attach result artifacts.
 - Deepr's current A2A adapter attaches the full `deepr-consult-v1` payload to

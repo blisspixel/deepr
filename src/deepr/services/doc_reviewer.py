@@ -29,17 +29,20 @@ import json
 import logging
 import os
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 from deepr.utils.prompt_security import sanitize_untrusted_content
 from deepr.utils.security import InvalidInputError, PathTraversalError, validate_path
 
 logger = logging.getLogger(__name__)
 
-try:
+if TYPE_CHECKING:
     from openai import OpenAI
-except ImportError:
-    OpenAI = None
+else:
+    try:
+        from openai import OpenAI
+    except ImportError:
+        OpenAI = None
 
 
 class DocReviewer:
@@ -70,7 +73,13 @@ class DocReviewer:
         if not self.api_key:
             raise ValueError("OPENAI_API_KEY not found")
 
-        self.client = OpenAI(api_key=self.api_key, max_retries=0)
+        from deepr.providers.dispatch_authority import default_paid_endpoint
+
+        self.client = OpenAI(
+            api_key=self.api_key,
+            base_url=default_paid_endpoint("openai"),
+            max_retries=0,
+        )
         self.model = model
         self.docs_path = docs_path
 
@@ -182,18 +191,31 @@ class DocReviewer:
             "or new research where genuinely needed."
         )
         envelope = bounded_chat_envelope(
+            provider="openai",
             model=self.model,
             prompt_parts=(system_prompt, prompt),
             budget_usd=0.50,
             maximum_output_tokens=2_000,
         )
 
+        from deepr.providers.dispatch_authority import require_official_paid_client
+
+        require_official_paid_client(self.client, "openai")
         response = execute_reserved_sync_call(
             operation_prefix="doc-review",
             provider="openai",
             model=self.model,
             source="services.doc_reviewer.review_docs",
             max_cost_per_job=envelope.cost_usd,
+            request_envelope={
+                "model": self.model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt},
+                ],
+                "response_format": {"type": "json_object"},
+                "max_completion_tokens": envelope.output_tokens,
+            },
             call=lambda: self.client.chat.completions.create(
                 model=self.model,
                 messages=[
@@ -211,7 +233,7 @@ class DocReviewer:
         # Parse response
         try:
             content = response.choices[0].message.content if response.choices else "{}"
-            result = json.loads(content or "{}")
+            result = cast(dict[str, Any], json.loads(content or "{}"))
         except (json.JSONDecodeError, IndexError) as e:
             logger.warning("Failed to parse doc review response: %s", e)
             result = {"sufficient": [], "needs_update": [], "gaps": [scenario], "recommendations": []}

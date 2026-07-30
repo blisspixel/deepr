@@ -11,6 +11,16 @@ from deepr.experts.investigation.ollama_backend import (
 )
 
 
+def _local_model(name: str) -> dict[str, Any]:
+    return {
+        "name": name,
+        "model": name,
+        "size": 1_000_000,
+        "digest": "a" * 64,
+        "details": {"format": "gguf"},
+    }
+
+
 @pytest.mark.parametrize(
     ("value", "expected"),
     [
@@ -55,6 +65,12 @@ def test_native_backend_rejects_non_finite_or_non_positive_timeout(timeout: floa
 async def test_native_ollama_backend_enforces_json_context_and_disables_thinking() -> None:
     captured: dict[str, Any] = {}
 
+    async def get_json(url: str, timeout: float) -> dict[str, Any]:
+        captured.setdefault("preflight", []).append((url, timeout))
+        if url.endswith("/api/status"):
+            return {"cloud": {"disabled": True, "source": "config"}}
+        return {"models": [_local_model("review:30b")]}
+
     async def post_json(url: str, payload: dict[str, Any], timeout: float) -> dict[str, Any]:
         captured.update(url=url, payload=payload, timeout=timeout)
         return {
@@ -68,6 +84,7 @@ async def test_native_ollama_backend_enforces_json_context_and_disables_thinking
         model="expert:14b",
         base_url="http://127.0.0.1:11434/",
         timeout=30.0,
+        get_json=get_json,
         post_json=post_json,
     )
     result = await backend.complete(
@@ -96,6 +113,100 @@ async def test_native_ollama_backend_enforces_json_context_and_disables_thinking
         "num_predict": 1024,
         "temperature": 0.2,
     }
+    assert captured["preflight"] == [
+        ("http://127.0.0.1:11434/api/status", 5.0),
+        ("http://127.0.0.1:11434/api/tags", 5.0),
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "status",
+    [
+        {},
+        {"cloud": {"disabled": False, "source": "config"}},
+        {"cloud": {"disabled": True, "source": "environment"}},
+    ],
+)
+async def test_native_backend_requires_stable_cloud_disabled_proof(status: dict[str, Any]) -> None:
+    calls: list[str] = []
+
+    async def get_json(url: str, _timeout: float) -> dict[str, Any]:
+        calls.append(url)
+        return status
+
+    async def post_json(_url: str, _payload: dict[str, Any], _timeout: float) -> dict[str, Any]:
+        raise AssertionError("request must not be dispatched")
+
+    backend = NativeOllamaInvestigationBackend(model="fixture:14b", get_json=get_json, post_json=post_json)
+    with pytest.raises(ExpertChatUnsupportedFeature, match=r"cloud\.disabled=true"):
+        await backend.complete(
+            ExpertChatRequest(
+                model="fixture:14b",
+                messages=[{"role": "user", "content": "Question"}],
+                extra={"num_ctx": 8_192},
+            )
+        )
+
+    assert calls == ["http://127.0.0.1:11434/api/status"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "entry",
+    [
+        _local_model("fixture:cloud"),
+        {**_local_model("fixture:14b"), "remote": True},
+        {**_local_model("fixture:14b"), "size": 0},
+        {**_local_model("fixture:14b"), "digest": "not-a-digest"},
+    ],
+)
+async def test_native_backend_rejects_unmaterialized_or_remote_model(entry: dict[str, Any]) -> None:
+    chat_dispatched = False
+
+    async def get_json(url: str, _timeout: float) -> dict[str, Any]:
+        if url.endswith("/api/status"):
+            return {"cloud": {"disabled": True, "source": "config"}}
+        return {"models": [entry]}
+
+    async def post_json(_url: str, _payload: dict[str, Any], _timeout: float) -> dict[str, Any]:
+        nonlocal chat_dispatched
+        chat_dispatched = True
+        return {}
+
+    requested = str(entry["name"])
+    backend = NativeOllamaInvestigationBackend(model=requested, get_json=get_json, post_json=post_json)
+    with pytest.raises(ExpertChatUnsupportedFeature, match="zero-cost authority gate"):
+        await backend.complete(
+            ExpertChatRequest(
+                model=requested,
+                messages=[{"role": "user", "content": "Question"}],
+                extra={"num_ctx": 8_192},
+            )
+        )
+
+    assert chat_dispatched is False
+
+
+@pytest.mark.asyncio
+async def test_native_backend_rejects_request_model_missing_from_exact_inventory() -> None:
+    async def get_json(url: str, _timeout: float) -> dict[str, Any]:
+        if url.endswith("/api/status"):
+            return {"cloud": {"disabled": True, "source": "config"}}
+        return {"models": [_local_model("other:14b")]}
+
+    async def post_json(_url: str, _payload: dict[str, Any], _timeout: float) -> dict[str, Any]:
+        raise AssertionError("request must not be dispatched")
+
+    backend = NativeOllamaInvestigationBackend(model="fixture:14b", get_json=get_json, post_json=post_json)
+    with pytest.raises(ExpertChatUnsupportedFeature, match="not an exact entry"):
+        await backend.complete(
+            ExpertChatRequest(
+                model="fixture:14b",
+                messages=[{"role": "user", "content": "Question"}],
+                extra={"num_ctx": 8_192},
+            )
+        )
 
 
 @pytest.mark.asyncio

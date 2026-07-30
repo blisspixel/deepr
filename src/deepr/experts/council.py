@@ -15,8 +15,6 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
-from openai import AsyncOpenAI
-
 from deepr.experts.constants import MAX_COUNCIL_CONCURRENCY, SYNTHESIS_BUDGET_FRACTION, UTILITY_MODEL
 from deepr.experts.consult_lifecycle import ConsultLifecycleError
 from deepr.experts.council_synthesis_costs import (
@@ -29,10 +27,15 @@ from deepr.experts.council_synthesis_costs import (
     settle_synthesis_cost,
     synthesis_accounting_envelope,
 )
-from deepr.experts.council_synthesis_runtime import SynthesisProviderResponse, dispatch_synthesis
+from deepr.experts.council_synthesis_runtime import (
+    MeteredCouncilSynthesisDisabledError,
+    SynthesisProviderResponse,
+    dispatch_synthesis,
+)
 from deepr.experts.expert_routing import route_terms, score_experts_for_query, select_top_experts
 from deepr.experts.maker_checker import assurance_short_label, is_verified_assurance
 from deepr.experts.perspective_state import build_perspective_state_packet, render_original_ideas_for_council
+from deepr.experts.semantic_model_gate import require_zero_dollar_client
 
 logger = logging.getLogger(__name__)
 
@@ -211,6 +214,14 @@ class ExpertCouncil:
         self._synthesis_provider = synthesis_provider
         self._allow_live_fallback = allow_live_fallback
 
+    def _require_owned_synthesis_authority(self) -> None:
+        """Prove a claimed local or plan client before bypassing paid accounting."""
+        if _owned_synthesis_provider(self._synthesis_provider):
+            require_zero_dollar_client(
+                self._synthesis_client,
+                capacity_source=self._synthesis_provider,
+            )
+
     @staticmethod
     def _terms(text: str) -> set[str]:
         """Tokenize text for retrieval routing only (delegates to expert_routing)."""
@@ -386,6 +397,10 @@ class ExpertCouncil:
             self._attach_self_model_context(perspective.context, name)
         return perspective
 
+    def load_stored_perspective(self, query: str, name: str, domain: str) -> ExpertPerspective | None:
+        """Load one read-only stored packet for an external bounded workflow."""
+        return self._load_stored_perspective(query, name, domain)
+
     def _self_model_context(self, name: str) -> dict[str, Any]:
         """Return bounded self-model metadata for consult traces."""
         from deepr.experts.self_model import build_expert_self_model_context
@@ -524,7 +539,9 @@ class ExpertCouncil:
         cost_safety = await asyncio.to_thread(get_cost_safety_manager)
         council_session_id = f"council_{_uuid.uuid4().hex[:16]}"
         reservation_id = ""
-        if not _owned_synthesis_provider(self._synthesis_provider):
+        if _owned_synthesis_provider(self._synthesis_provider):
+            self._require_owned_synthesis_authority()
+        else:
             allowed, deny_reason, _confirm, reservation_id = await self._reserve_council_budget(
                 cost_safety,
                 council_session_id,
@@ -582,6 +599,8 @@ class ExpertCouncil:
                 reserve=True,
                 durable_reservation=True,
                 reservation_job_id=council_session_id,
+                durable_provider=self._synthesis_provider,
+                durable_model=self._synthesis_model,
             ),
             name=f"council-reserve-{council_session_id}",
         )
@@ -867,6 +886,13 @@ class ExpertCouncil:
         output_tokens = (
             _LOCAL_SYNTHESIS_OUTPUT_TOKENS if self._synthesis_provider == "local" else _SYNTHESIS_OUTPUT_TOKENS
         )
+        if not _owned_synthesis_provider(self._synthesis_provider):
+            error = MeteredCouncilSynthesisDisabledError(
+                "Metered council synthesis is disabled until account identity and a provider-enforceable "
+                "maximum charge are bound to the one-use dispatch grant. No provider request was sent."
+            )
+            return failed_synthesis(error, cost_bound=None, dispatched=False)
+        self._require_owned_synthesis_authority()
         cost_bound: SynthesisCostBound | None = None
         if not _owned_synthesis_provider(self._synthesis_provider):
             try:
@@ -895,7 +921,7 @@ class ExpertCouncil:
                 provider=self._synthesis_provider,
                 model=self._synthesis_model,
                 client=self._synthesis_client,
-                openai_client_factory=AsyncOpenAI,
+                openai_client_factory=None,
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
                 output_tokens=output_tokens,

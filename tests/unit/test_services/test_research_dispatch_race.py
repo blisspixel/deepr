@@ -1,7 +1,6 @@
 """Real SQLite concurrency contracts for dispatch and cancellation."""
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -9,11 +8,65 @@ from deepr.core.costs import CostEstimate
 from deepr.experts.cost_safety import CostSafetyManager
 from deepr.experts.research_cost_gate import refund_research_cost, reserve_research_cost
 from deepr.experts.research_reservation_store import ResearchReservationStore
-from deepr.providers.base import ResearchRequest
+from deepr.providers.base import DeepResearchProvider, ResearchRequest, ResearchResponse, VectorStore
+from deepr.providers.dispatch_authority import default_paid_endpoint
 from deepr.queue.base import JobStatus, ResearchJob
 from deepr.queue.local_queue import SQLiteQueue
 from deepr.services.research_cancellation import cancel_reserved_research
 from deepr.services.research_submission import dispatch_reserved_research
+
+
+class _RaceProvider(DeepResearchProvider):
+    provider_key = "openai"
+    _paid_endpoint = default_paid_endpoint("openai")
+
+    def __init__(self, entered: asyncio.Event, release: asyncio.Event) -> None:
+        self._entered = entered
+        self._release = release
+
+    async def _submit_research_impl(self, request: ResearchRequest) -> str:
+        del request
+        self._entered.set()
+        await self._release.wait()
+        return "provider-job"
+
+    async def get_status(self, job_id: str) -> ResearchResponse:
+        return ResearchResponse(id=job_id, status="in_progress")
+
+    async def cancel_job(self, job_id: str) -> bool:
+        del job_id
+        return True
+
+    async def _upload_document_accounted(self, file_path: str, purpose: str = "assistants") -> str:
+        del file_path, purpose
+        return "file-id"
+
+    async def delete_document(self, file_id: str) -> bool:
+        del file_id
+        return True
+
+    async def _create_vector_store_accounted(self, name: str, file_ids: list[str]) -> VectorStore:
+        return VectorStore(id="store-id", name=name, file_ids=file_ids)
+
+    async def wait_for_vector_store(
+        self,
+        vector_store_id: str,
+        timeout: int = 900,
+        poll_interval: float = 2.0,
+    ) -> bool:
+        del vector_store_id, timeout, poll_interval
+        return True
+
+    async def list_vector_stores(self, limit: int = 100) -> list[VectorStore]:
+        del limit
+        return []
+
+    async def delete_vector_store(self, vector_store_id: str) -> bool:
+        del vector_store_id
+        return True
+
+    def get_model_name(self, model_key: str) -> str:
+        return model_key
 
 
 @pytest.mark.asyncio
@@ -39,15 +92,7 @@ async def test_inflight_submit_cannot_be_cancelled_or_resurrected(tmp_path) -> N
     provider_entered = asyncio.Event()
     release_provider = asyncio.Event()
 
-    async def submit(_request):
-        provider_entered.set()
-        await release_provider.wait()
-        return "provider-job"
-
-    provider = MagicMock(
-        submit_research=AsyncMock(side_effect=submit),
-        cancel_job=AsyncMock(return_value=True),
-    )
+    provider = _RaceProvider(provider_entered, release_provider)
     dispatch = asyncio.create_task(
         dispatch_reserved_research(
             queue=queue,

@@ -503,8 +503,8 @@ class CostDashboard:
     def __init__(
         self,
         storage_path: Path | None = None,
-        daily_limit: float = 10.0,
-        monthly_limit: float = 100.0,
+        daily_limit: float = 2.0,
+        monthly_limit: float = 5.0,
         alert_thresholds: list[float] | None = None,
     ):
         """Initialize cost dashboard.
@@ -980,8 +980,8 @@ class BufferedCostDashboard(CostDashboard):
     def __init__(
         self,
         storage_path: Path | None = None,
-        daily_limit: float = 10.0,
-        monthly_limit: float = 100.0,
+        daily_limit: float = 2.0,
+        monthly_limit: float = 5.0,
         alert_thresholds: list[float] | None = None,
         buffer_size: int = COST_BUFFER_SIZE,
         flush_interval: int = COST_FLUSH_INTERVAL,

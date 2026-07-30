@@ -113,7 +113,13 @@ class ReflectionEngine:
             api_key = os.getenv("OPENAI_API_KEY")
             if not api_key:
                 raise ReflectionError("OPENAI_API_KEY is not set. Pass a client explicitly or set the env var.")
-            self._client = AsyncOpenAI(api_key=api_key, max_retries=0)
+            from deepr.providers.dispatch_authority import default_paid_endpoint
+
+            self._client = AsyncOpenAI(
+                api_key=api_key,
+                base_url=default_paid_endpoint("openai"),
+                max_retries=0,
+            )
         return self._client
 
     async def reflect(
@@ -198,6 +204,7 @@ class ReflectionEngine:
         )
 
         from deepr.experts.report_absorber_costs import bounded_metered_completion_kwargs
+        from deepr.providers.dispatch_authority import require_official_paid_client
         from deepr.services.metered_call import execute_reserved_async_call
 
         kwargs, worst_case_cost = bounded_metered_completion_kwargs(
@@ -212,8 +219,10 @@ class ReflectionEngine:
             },
         )
 
+        client = self._get_client()
+        require_official_paid_client(client, "openai")
+
         async def dispatch() -> Any:
-            client = self._get_client()
             return await client.chat.completions.create(**kwargs)
 
         response = await execute_reserved_async_call(
@@ -223,6 +232,7 @@ class ReflectionEngine:
             source="experts.reflection._evaluate",
             max_cost_per_job=worst_case_cost,
             call=dispatch,
+            request_envelope=kwargs,
         )
 
         raw = response.choices[0].message.content or ""

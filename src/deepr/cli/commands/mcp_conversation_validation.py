@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import sys
 
 import click
@@ -13,12 +12,18 @@ from deepr.cli.async_runner import run_async_command
 
 @click.command("validate-conversation")
 @click.argument("url", required=False)
-@click.option("--auth-token", help="Bearer token or scoped-key secret for a remote HTTP MCP endpoint.")
+@click.option("--auth-token", help="Reserved for future cost-attested remote conversation validation.")
 @click.option("--expert", help="Optional canonical expert name. Omit to use focused auto-routing.")
 @click.option("--local-model", help="Optional pinned Ollama model.")
 @click.option("--start-message", default=None, help="Override the first validation question.")
 @click.option("--continue-message", default=None, help="Override the follow-up validation question.")
-@click.option("--timeout", "timeout_seconds", default=180.0, show_default=True, type=click.FloatRange(min=1.0))
+@click.option(
+    "--timeout",
+    "timeout_seconds",
+    default=180.0,
+    show_default=True,
+    type=click.FloatRange(min=1.0, max=300.0),
+)
 @click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON.")
 def validate_conversation(
     url: str | None,
@@ -30,7 +35,7 @@ def validate_conversation(
     timeout_seconds: float,
     as_json: bool,
 ) -> None:
-    """Validate durable local expert conversation over authenticated MCP."""
+    """Report the fail-closed MCP conversation-validation posture."""
     from deepr.mcp.conversation_validation import (
         DEFAULT_CONTINUE_MESSAGE,
         DEFAULT_START_MESSAGE,
@@ -41,15 +46,10 @@ def validate_conversation(
     resolved_continue = continue_message or DEFAULT_CONTINUE_MESSAGE
     try:
         if url:
-            resolved_token = auth_token or os.getenv("MCP_AUTH_TOKEN") or os.getenv("DEEPR_MCP_AUTH_TOKEN")
-            if not resolved_token:
-                raise click.ClickException(
-                    "Remote validation requires --auth-token, MCP_AUTH_TOKEN, or DEEPR_MCP_AUTH_TOKEN."
-                )
             report = run_async_command(
                 run_http_conversation_validation(
                     url,
-                    auth_token=resolved_token,
+                    auth_token=auth_token,
                     expert=expert,
                     local_model=local_model,
                     start_message=resolved_start,
@@ -82,7 +82,10 @@ def validate_conversation(
     else:
         click.echo(f"MCP conversation validation: {report.endpoint}")
         click.echo(f"Mode: {report.mode}")
-        click.echo("Capacity: local owned, $0, no fallback")
+        if report.mode == "managed_loopback" and report.ok:
+            click.echo("Capacity: local owned, $0, no fallback")
+        else:
+            click.echo("Capacity: unverified; no tool call submitted")
         for check in report.checks:
             state = "ok" if check.status == "passed" else "fail"
             click.echo(f"[{state}] {check.name}: {check.detail}")

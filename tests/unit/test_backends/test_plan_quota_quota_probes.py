@@ -7,9 +7,12 @@ import os
 import struct
 from datetime import UTC, datetime
 
+import httpx
 import pytest
 
 from deepr.backends.plan_quota.quota_probes import (
+    CLAUDE_USAGE_ENDPOINT,
+    GROK_BILLING_ENDPOINT,
     QuotaProbeUnsupportedError,
     collect_claude_quota_snapshot,
     collect_codex_quota_snapshot,
@@ -209,6 +212,35 @@ class TestClaudeQuotaProbe:
         assert snapshot.windows[1].used_fraction == pytest.approx(0.80)
         assert snapshot.windows[1].reset_at == datetime(2026, 6, 30, tzinfo=UTC)
 
+    def test_default_transport_disables_proxies_and_redirects(self, tmp_path, monkeypatch):
+        _write_claude_credentials(tmp_path, plan="max_20x")
+        seen: dict[str, object] = {}
+
+        class FakeClient:
+            def __init__(self, **kwargs):
+                seen["client"] = kwargs
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return None
+
+            def get(self, url, *, headers):
+                seen["url"] = url
+                seen["auth"] = headers["Authorization"]
+                return _FakeResponse(200, _claude_usage_payload())
+
+        monkeypatch.setenv("HTTPS_PROXY", "http://paid-proxy.example")
+        monkeypatch.setattr(httpx, "Client", FakeClient)
+
+        snapshot = collect_claude_quota_snapshot(config_dir=tmp_path, now=T0)
+
+        assert snapshot.ok
+        assert seen["client"] == {"timeout": 10.0, "trust_env": False, "follow_redirects": False}
+        assert seen["url"] == CLAUDE_USAGE_ENDPOINT
+        assert seen["auth"] == "Bearer sk-ant-oat01-test"
+
     def test_unauthorized_response_reports_relogin(self, tmp_path):
         _write_claude_credentials(tmp_path, plan="pro")
 
@@ -321,6 +353,39 @@ class TestGrokQuotaProbe:
         assert snapshot.windows[0].window_kind == QuotaWindowKind.MONTHLY_CREDIT_POOL
         assert snapshot.windows[0].used_fraction == pytest.approx(0.425)
         assert snapshot.windows[0].reset_at == datetime.fromtimestamp(1781935855, tz=UTC)
+
+    def test_default_transport_disables_proxies_and_redirects(self, tmp_path, monkeypatch):
+        _write_grok_auth(tmp_path, token="xai-secret", email="dev@example.com")
+        seen: dict[str, object] = {}
+        response = _FakeResponse(200, payload=None, headers={"grpc-status": "0"})
+        response.content = _grok_billing_frame()
+
+        class FakeClient:
+            def __init__(self, **kwargs):
+                seen["client"] = kwargs
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return None
+
+            def post(self, url, *, headers, content):
+                seen["url"] = url
+                seen["auth"] = headers["Authorization"]
+                seen["content"] = content
+                return response
+
+        monkeypatch.setenv("HTTPS_PROXY", "http://paid-proxy.example")
+        monkeypatch.setattr(httpx, "Client", FakeClient)
+
+        snapshot = collect_grok_quota_snapshot(config_dir=tmp_path, now=T0)
+
+        assert snapshot.ok
+        assert seen["client"] == {"timeout": 12.0, "trust_env": False, "follow_redirects": False}
+        assert seen["url"] == GROK_BILLING_ENDPOINT
+        assert seen["auth"] == "Bearer xai-secret"
+        assert seen["content"] == b"\x00\x00\x00\x00\x00"
 
     def test_unparseable_billing_payload_returns_error_snapshot(self, tmp_path):
         _write_grok_auth(tmp_path)

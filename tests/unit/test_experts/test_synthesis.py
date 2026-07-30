@@ -275,6 +275,10 @@ class TestKnowledgeSynthesizer:
             "deepr.experts.synthesis.require_metered_expert_mutation",
             lambda *_args, **_kwargs: None,
         )
+        monkeypatch.setattr(
+            "deepr.providers.dispatch_authority.require_official_paid_client",
+            lambda _client, _provider: "test-attested",
+        )
         return KnowledgeSynthesizer(mock_client)
 
     def test_synthesizer_init(self, mock_client):

@@ -77,16 +77,16 @@ def test_cost_estimate_counts_atomic_active_holds(
     CostLedger().record_event(
         operation="research_completion",
         provider="openai",
-        cost_usd=9.5,
+        cost_usd=1.5,
         idempotency_key="web-estimate-daily-settled",
     )
     ResearchReservationStore().reserve(
         reservation_id="web-estimate-hold",
         job_id="web-estimate-job",
         reserved_cost=0.4,
-        max_daily_cost=10.0,
-        max_weekly_cost=200.0,
-        max_monthly_cost=200.0,
+        max_daily_cost=2.0,
+        max_weekly_cost=5.0,
+        max_monthly_cost=5.0,
     )
 
     response = web_app.app.test_client().post(
@@ -100,7 +100,7 @@ def test_cost_estimate_counts_atomic_active_holds(
     assert payload["allowed"] is False
     assert "daily limit" in payload["reason"]
     assert payload["active_holds"] == pytest.approx(0.4)
-    assert payload["exposure"]["daily"] == pytest.approx(9.9)
+    assert payload["exposure"]["daily"] == pytest.approx(1.9)
 
 
 def test_cost_estimate_fails_closed_when_atomic_exposure_is_unreadable(

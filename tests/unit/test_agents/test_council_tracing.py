@@ -34,7 +34,7 @@ async def test_council_creates_child_identities(council, parent_identity):
 
     with patch.object(council, "_synthesise", new_callable=AsyncMock) as mock_synth:
         mock_synth.return_value = {"text": "Synthesis", "agreements": [], "disagreements": [], "cost": 0.001}
-        result = await council.consult("test query", experts=experts, budget=5.0, agent_identity=parent_identity)
+        result = await council.consult("test query", experts=experts, budget=1.0, agent_identity=parent_identity)
 
     identities = [perspective["context"]["agent_identity"] for perspective in result["perspectives"]]
     assert len(identities) == 2
@@ -52,8 +52,9 @@ async def test_council_no_identity_without_parent(council):
 
     with patch.object(council, "_synthesise", new_callable=AsyncMock) as mock_synth:
         mock_synth.return_value = {"text": "Synthesis", "agreements": [], "disagreements": [], "cost": 0.001}
-        result = await council.consult("test query", experts=experts, budget=5.0)
+        result = await council.consult("test query", experts=experts, budget=1.0)
 
+    assert len(result["perspectives"]) == 1
     assert all("agent_identity" not in perspective["context"] for perspective in result["perspectives"])
 
 
@@ -68,7 +69,7 @@ async def test_council_child_identities_are_unique(council, parent_identity):
 
     with patch.object(council, "_synthesise", new_callable=AsyncMock) as mock_synth:
         mock_synth.return_value = {"text": "", "agreements": [], "disagreements": [], "cost": 0.0}
-        result = await council.consult("q", experts=experts, budget=5.0, agent_identity=parent_identity)
+        result = await council.consult("q", experts=experts, budget=1.0, agent_identity=parent_identity)
 
     agent_ids = [perspective["context"]["agent_identity"]["agent_id"] for perspective in result["perspectives"]]
     assert len(agent_ids) == len(experts)

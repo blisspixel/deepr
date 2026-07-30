@@ -34,9 +34,9 @@ _PROVIDERS: list[tuple[str, str, str]] = [
 _BUDGET_JOB = "DEEPR_MAX_COST_PER_JOB"
 _BUDGET_DAY = "DEEPR_MAX_COST_PER_DAY"
 _BUDGET_MONTH = "DEEPR_MAX_COST_PER_MONTH"
-_DEFAULT_JOB_BUDGET = 5.0
-_DEFAULT_DAY_BUDGET = 25.0
-_DEFAULT_MONTH_BUDGET = 200.0
+_DEFAULT_JOB_BUDGET = 1.0
+_DEFAULT_DAY_BUDGET = 2.0
+_DEFAULT_MONTH_BUDGET = 5.0
 
 # Data-location env vars (ADR 0004). Experts and reports receive explicit
 # children, while DEEPR_DATA_DIR also roots operational runtime artifacts.

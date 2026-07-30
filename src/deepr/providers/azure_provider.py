@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
+import httpx
 from azure.identity.aio import DefaultAzureCredential
 from openai import APIConnectionError, APITimeoutError, AsyncAzureOpenAI, RateLimitError
 from openai import APIError as OpenAIAPIError
@@ -21,12 +22,15 @@ from .base import (
     get_usage_detail_int,
     get_usage_int,
 )
+from .dispatch_authority import require_official_paid_endpoint, require_unproxied_paid_transport
 
 logger = logging.getLogger(__name__)
 
 
 class AzureProvider(DeepResearchProvider):
     """Azure OpenAI implementation of the Deep Research provider."""
+
+    provider_key = "azure"
 
     def __init__(
         self,
@@ -46,9 +50,15 @@ class AzureProvider(DeepResearchProvider):
             use_managed_identity: Use Azure Managed Identity instead of API key
             deployment_mappings: Map model keys to deployment names
         """
-        self.endpoint = endpoint or os.getenv("AZURE_OPENAI_ENDPOINT")
-        if not self.endpoint:
+        configured_endpoint = endpoint or os.getenv("AZURE_OPENAI_ENDPOINT")
+        if not configured_endpoint:
             raise ValueError("Azure OpenAI endpoint is required")
+        self.endpoint = require_official_paid_endpoint(
+            self.provider_key,
+            configured_endpoint,
+            source="AzureProvider.endpoint",
+        )
+        self._paid_endpoint = self.endpoint
 
         self.api_version = api_version
         self.use_managed_identity = use_managed_identity
@@ -57,10 +67,12 @@ class AzureProvider(DeepResearchProvider):
         if use_managed_identity:
             # Use Azure Managed Identity for authentication
             # Store credential as instance variable to prevent garbage collection
+            require_unproxied_paid_transport()
             self._credential = DefaultAzureCredential()
             # Note: token provider setup for async client
 
             async def get_token() -> str:
+                require_unproxied_paid_transport()
                 token = await self._credential.get_token("https://cognitiveservices.azure.com/.default")
                 return str(token.token)
 
@@ -69,6 +81,11 @@ class AzureProvider(DeepResearchProvider):
                 api_version=self.api_version,
                 azure_ad_token_provider=get_token,
                 max_retries=0,
+                http_client=httpx.AsyncClient(
+                    timeout=httpx.Timeout(600.0, connect=5.0),
+                    trust_env=False,
+                    follow_redirects=False,
+                ),
             )
         else:
             # Use API key authentication
@@ -83,6 +100,11 @@ class AzureProvider(DeepResearchProvider):
                 azure_endpoint=self.endpoint,
                 api_version=self.api_version,
                 max_retries=0,
+                http_client=httpx.AsyncClient(
+                    timeout=httpx.Timeout(600.0, connect=5.0),
+                    trust_env=False,
+                    follow_redirects=False,
+                ),
             )
 
         # Deployment name mappings (Azure uses deployment names instead of model names)
@@ -109,7 +131,7 @@ class AzureProvider(DeepResearchProvider):
             tools.append(tool_dict)
         return tools
 
-    async def submit_research(self, request: ResearchRequest) -> str:
+    async def _submit_research_impl(self, request: ResearchRequest) -> str:
         """Submit research job to Azure OpenAI."""
         # Map model to deployment name
         deployment = self.get_model_name(request.model)
@@ -296,7 +318,7 @@ class AzureProvider(DeepResearchProvider):
                 original_error=e,
             ) from e
 
-    async def upload_document(self, file_path: str, purpose: str = "assistants") -> str:
+    async def _upload_document_accounted(self, file_path: str, purpose: str = "assistants") -> str:
         """Upload document to Azure OpenAI."""
         try:
             with open(file_path, "rb") as f:
@@ -321,7 +343,7 @@ class AzureProvider(DeepResearchProvider):
                 original_error=e,
             ) from e
 
-    async def create_vector_store(self, name: str, file_ids: list[str]) -> VectorStore:
+    async def _create_vector_store_accounted(self, name: str, file_ids: list[str]) -> VectorStore:
         """Create vector store in Azure OpenAI."""
         try:
             # Create vector store

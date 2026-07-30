@@ -163,7 +163,7 @@ def validate_expert_name(name: str) -> str:
 
 
 def validate_budget(
-    budget: float, min_budget: float = 0.0, warn_threshold: float = 10.0, confirm_threshold: float = 25.0
+    budget: float, min_budget: float = 0.0, warn_threshold: float = 2.0, confirm_threshold: float = 5.0
 ) -> float:
     """
     Validate budget value with warnings for high amounts.
@@ -174,8 +174,8 @@ def validate_budget(
     Args:
         budget: Budget amount
         min_budget: Minimum allowed budget
-        warn_threshold: Show warning above this amount (default $10)
-        confirm_threshold: Require confirmation above this amount (default $25)
+        warn_threshold: Show warning above this amount (default $2)
+        confirm_threshold: Require confirmation above this amount (default $5)
 
     Returns:
         The validated budget

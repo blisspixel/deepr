@@ -20,6 +20,17 @@ import pytest
 
 from deepr.experts.beliefs import Belief, BeliefStore
 from deepr.experts.maker_checker import CheckAssurance, CheckVerdict
+
+
+@pytest.fixture(autouse=True)
+def _trust_injected_unit_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Bypass the production client-attestation freeze in downstream unit tests."""
+    monkeypatch.setattr(
+        "deepr.providers.dispatch_authority.require_official_paid_client",
+        lambda _client, _provider: "test-attested",
+    )
+
+
 from deepr.experts.report_absorber import (
     AbsorptionResult,
     ReportAbsorber,
@@ -28,6 +39,7 @@ from deepr.experts.report_absorber import (
     ReportAbsorberError,
 )
 from deepr.experts.research_reservation_store import ResearchReservationStore
+from deepr.experts.semantic_model_gate import _mark_zero_dollar_client
 from deepr.observability.cost_ledger import CostLedger
 
 
@@ -37,6 +49,7 @@ class _FakeClient:
     def __init__(self, content: str):
         self._content = content
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+        _mark_zero_dollar_client(self, capacity_source="local")
 
     async def _create(self, **kwargs):
         return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=self._content))])
@@ -64,6 +77,7 @@ class _SeqClient:
         self._calls = 0
         self.requests: list[dict] = []
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+        _mark_zero_dollar_client(self, capacity_source="local")
 
     async def _create(self, **kwargs):
         self.requests.append(kwargs)
@@ -88,6 +102,7 @@ class _UsageSeqClient:
         self._calls += 1
         return SimpleNamespace(
             choices=[SimpleNamespace(message=SimpleNamespace(content=content))],
+            model=kwargs["model"],
             usage=SimpleNamespace(prompt_tokens=100, completion_tokens=50),
         )
 
@@ -514,6 +529,20 @@ async def test_zero_cost_absorber_bypasses_metered_reservations(tmp_path, monkey
     assert result.added_count == 1
     metered.assert_not_awaited()
     assert CostLedger().get_events() == []
+
+
+@pytest.mark.asyncio
+async def test_zero_cost_absorber_rejects_unproven_client_before_dispatch(tmp_path):
+    content = _claims_json({"statement": "Untrusted capacity", "confidence": 0.9})
+    store = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
+    client = _CapturingClient(content)
+    delattr(client, "_deepr_zero_dollar_capacity")
+    absorber = ReportAbsorber(_expert(), client=client, belief_store=store, estimated_cost=0.0)
+
+    with pytest.raises(ReportAbsorberError, match="zero-dollar capacity proof"):
+        await absorber.absorb("rep-untrusted-zero", "report body")
+
+    assert client.calls == []
 
 
 @pytest.mark.asyncio

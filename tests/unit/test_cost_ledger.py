@@ -226,6 +226,19 @@ def test_accounting_append_fails_closed_on_torn_line_without_idempotency_key(tmp
     assert path.read_text(encoding="utf-8") == '{"partial":'
 
 
+def test_accounting_rejects_duplicate_json_keys(tmp_path: Path):
+    path = tmp_path / "cost_ledger.jsonl"
+    ledger = CostLedger(ledger_path=path)
+    path.write_text(
+        '{"timestamp":"2026-07-29T00:00:00+00:00","operation":"research",'
+        '"provider":"openai","cost_usd":5.0,"cost_usd":0.0}\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(CostLedgerReadError, match="malformed event"):
+        ledger.with_locked_accounting_events(list)
+
+
 def test_accounting_append_fails_closed_on_structurally_partial_object(tmp_path: Path):
     path = tmp_path / "cost_ledger.jsonl"
     path.write_text("{}\n", encoding="utf-8")

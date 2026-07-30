@@ -16,7 +16,7 @@ date as a fleet**, where:
 
 - **Most maintenance is $0** - local Ollama + free web search + the
   comprehensive-then-delta sync model already prove this (see expert-library.md).
-- **A monthly reserve (default ~$20) is a pool you mostly don't touch**, not a
+- **A monthly reserve (default `$5`) is a pool you mostly don't touch**, not a
   spend target. Routine upkeep never approaches it; metered money is spent only
   for *targeted* reasons.
 - **Scheduling belongs to the host** (Task Scheduler / cron / systemd), per the
@@ -98,7 +98,7 @@ throttling** (a contested belief is a standing reason to keep checking).
 
 ### 2.1 Three nested tiers (not one knob)
 
-1. **Hard monthly reserve** (default $20) - the fail-closed outer wall;
+1. **Hard monthly reserve** (default `$5`) - the fail-closed outer wall;
    `ABSOLUTE_MAX_MONTHLY` remains the never-exceed backstop above it.
 2. **Per-expert soft allowance** - a *target* share (`pool_remaining /
    max(active_experts, 1)`), not a hard cap, so an idle expert's unused share
@@ -107,10 +107,10 @@ throttling** (a contested belief is a standing reason to keep checking).
    single expert may consume the last ~20% of the pool. This prevents one expert
    starving the roster without static equal-splitting.
 3. **Per-run / per-op cap** - the runaway-loop guard (the circuit breaker +
-   `ABSOLUTE_MAX_PER_OPERATION`). Stays strict; this is the "$1000 overnight"
+   `ABSOLUTE_MAX_PER_OPERATION`). Stays strict; this is the runaway-spend
    backstop.
 
-The waterfall keeps day-to-day spend at $0, so the $20 is a genuine reserve.
+The waterfall keeps day-to-day spend at `$0`, so the `$5` is a genuine reserve.
 
 ### 2.2 Graceful degradation as the pool depletes (resumable, never fail)
 
@@ -138,7 +138,7 @@ holds a `_reserved_monthly` pool symmetric with `_reserved_daily`, included in
 the same lock (regression-tested in `test_cost_safety_reservations.py`).
 
 Remaining hardening (tracked, not yet built): a **reservation TTL/sweeper** -
-with a tight $20 pool a leaked reservation (caller forgets to settle/refund)
+with a tight `$5` pool a leaked reservation (caller forgets to settle/refund)
 permanently shrinks the pool until restart; reap reservations older than the max
 plausible run time.
 

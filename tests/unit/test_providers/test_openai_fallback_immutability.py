@@ -9,6 +9,7 @@ import pytest
 
 from deepr.providers.base import ProviderError, ResearchRequest
 from deepr.providers.openai_provider import OpenAIProvider
+from tests.unit.test_providers._provider_authority import submit_adapter
 
 
 @pytest.mark.asyncio
@@ -38,7 +39,7 @@ async def test_rate_limit_never_falls_back_outside_reserved_model():
 
     with patch.object(provider.client.responses, "create", new=AsyncMock(side_effect=fake_create)):
         with pytest.raises(ProviderError, match="Failed after 3 retries"):
-            await provider.submit_research(request)
+            await submit_adapter(provider, request)
 
     # The caller's request object is unchanged. This is the core
     # invariant - the silent quality downgrade in the previous code

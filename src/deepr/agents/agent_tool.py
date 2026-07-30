@@ -17,6 +17,7 @@ from deepr.agents.contract import (
     AgentRole,
     AgentStatus,
     SubagentContract,
+    require_generic_subagent_execution,
 )
 
 logger = logging.getLogger(__name__)
@@ -93,6 +94,7 @@ class AgentTool:
                 status=AgentStatus.FAILED,
                 metadata={"error": "missing_query"},
             )
+        require_generic_subagent_execution()
         child_identity = parent_identity.child(
             role=AgentRole.WORKER,
             name=f"tool-{self.name}",

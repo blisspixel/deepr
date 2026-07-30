@@ -192,9 +192,9 @@ class DatabaseSettings:
 class BudgetSettings:
     """Budget and cost limit settings."""
 
-    max_cost_per_job: float = 5.0
-    daily_limit: float = 10.0
-    monthly_limit: float = 200.0
+    max_cost_per_job: float = 1.0
+    daily_limit: float = 2.0
+    monthly_limit: float = 5.0
 
     # Alert thresholds (percentage of limit)
     alert_threshold_50: float = 0.50
@@ -302,9 +302,9 @@ class WebhookSettings:
     """Settings for webhook server."""
 
     enabled: bool = True
-    host: str = "0.0.0.0"  # Default for optional webhook tunnel listener (ngrok-backed external callbacks). Opt-in only; main web server defaults to localhost. User must firewall or disable when not needed.
+    host: str = "127.0.0.1"
     port: int = 5000
-    use_ngrok: bool = True
+    use_ngrok: bool = False
     ngrok_path: str = "ngrok"
     public_url: str | None = None
 

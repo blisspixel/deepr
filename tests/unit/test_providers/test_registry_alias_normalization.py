@@ -15,7 +15,11 @@ from deepr.providers.registry import (
     get_cost_estimate,
     get_token_pricing,
 )
-from deepr.providers.registry_pricing import get_resolved_model_capability
+from deepr.providers.registry_pricing import (
+    get_resolved_model_capability,
+    get_resolved_model_contract_identity,
+    provider_matches_model_contract,
+)
 
 
 class TestGrokAliasNormalization:
@@ -75,6 +79,19 @@ class TestAliasResolution:
         assert capability.model == model
         assert get_token_pricing(alias) == {"input": input_rate, "output": output_rate}
         assert get_cached_input_pricing(alias) == pytest.approx(cached_rate)
+
+    def test_contract_identity_resolves_chat_alias_to_registry_owner(self):
+        assert get_resolved_model_contract_identity("gemini-flash") == ("gemini", "gemini-3.6-flash")
+
+    def test_contract_identity_includes_specialized_input_only_model(self):
+        assert get_resolved_model_contract_identity("text-embedding-3-small") == (
+            "openai",
+            "text-embedding-3-small",
+        )
+
+    def test_provider_matcher_keeps_azure_foundry_separate(self):
+        assert provider_matches_model_contract("azure", "openai") is True
+        assert provider_matches_model_contract("azure-foundry", "openai") is False
 
 
 class TestPartialMatchOrdering:

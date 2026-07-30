@@ -29,6 +29,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
+from deepr.experts.semantic_model_gate import require_zero_dollar_client
+
 logger = logging.getLogger(__name__)
 
 
@@ -195,6 +197,7 @@ async def check_claim(
     """
     if client is None or assurance is CheckAssurance.UNVERIFIED:
         return CheckVerdict(None, CheckAssurance.UNVERIFIED, None)
+    require_zero_dollar_client(client)
     try:
         response = await client.chat.completions.create(
             model=model, messages=build_disconfirm_messages(claim, evidence)
@@ -215,6 +218,7 @@ def make_grounding_checker(
     model: str,
 ) -> GroundingChecker:
     """Adapt an OpenAI-shaped client into ReportAbsorber's checker seam."""
+    require_zero_dollar_client(client)
 
     async def _grounding_checker(claim: str, evidence: str) -> CheckVerdict:
         return await check_claim(

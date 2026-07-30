@@ -187,7 +187,7 @@ class TestLlmDetectContradictions:
         mock_response.choices[0].message.content = "[0]"
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
-        resolver = ConflictResolver(client=mock_client, estimated_cost=0.0)
+        resolver = ConflictResolver(completion_call=mock_client.chat.completions.create)
         a = _make_belief("Claim A")
         b = _make_belief("Claim B")
         pairs = [(a, b)]
@@ -203,7 +203,7 @@ class TestLlmDetectContradictions:
         mock_response.choices[0].message.content = "[]"
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
-        resolver = ConflictResolver(client=mock_client, estimated_cost=0.0)
+        resolver = ConflictResolver(completion_call=mock_client.chat.completions.create)
         result = await resolver._llm_detect_contradictions([])
         assert result == []
 
@@ -212,7 +212,7 @@ class TestLlmDetectContradictions:
         mock_client = AsyncMock()
         mock_client.chat.completions.create = AsyncMock(side_effect=Exception("API error"))
 
-        resolver = ConflictResolver(client=mock_client, estimated_cost=0.0)
+        resolver = ConflictResolver(completion_call=mock_client.chat.completions.create)
         a = _make_belief("A")
         b = _make_belief("B")
         result = await resolver._llm_detect_contradictions([(a, b)])
@@ -233,7 +233,7 @@ class TestResolve:
         result = await resolver.resolve(_make_belief("A"), _make_belief("B"))
 
         assert result.outcome == "needs_human_review"
-        assert "no accounted" in result.explanation
+        assert "no capacity-classified accounted" in result.explanation
         mock_client.chat.completions.create.assert_not_awaited()
 
     @pytest.mark.asyncio
@@ -249,7 +249,7 @@ class TestResolve:
         )
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
-        resolver = ConflictResolver(client=mock_client, estimated_cost=0.0)
+        resolver = ConflictResolver(completion_call=mock_client.chat.completions.create)
         a = _make_belief("Strong claim")
         b = _make_belief("Weak claim")
 
@@ -273,13 +273,13 @@ class TestResolve:
         )
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
-        resolver = ConflictResolver(client=mock_client, estimated_cost=0.0)
+        resolver = ConflictResolver(completion_call=mock_client.chat.completions.create)
         result = await resolver.resolve(_make_belief("A"), _make_belief("B"))
         assert result.outcome == "merged"
         assert result.merged_claim == "Combined truth"
 
     @pytest.mark.asyncio
-    async def test_resolve_with_consensus(self):
+    async def test_unaccounted_consensus_fails_closed_without_dispatch(self):
         mock_consensus = AsyncMock()
         mock_consensus.research_with_consensus = AsyncMock(
             return_value=MagicMock(
@@ -291,7 +291,9 @@ class TestResolve:
 
         resolver = ConflictResolver(consensus_engine=mock_consensus, estimated_cost=0.0)
         result = await resolver.resolve(_make_belief("A"), _make_belief("B"))
-        assert result.outcome == "a_wins"
+        assert result.outcome == "needs_human_review"
+        assert "parent transaction" in result.explanation
+        mock_consensus.research_with_consensus.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_resolve_api_failure(self):
@@ -301,6 +303,7 @@ class TestResolve:
         resolver = ConflictResolver(client=mock_client, estimated_cost=0.0)
         result = await resolver.resolve(_make_belief("A"), _make_belief("B"))
         assert result.outcome == "needs_human_review"
+        mock_client.chat.completions.create.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------

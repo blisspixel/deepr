@@ -615,8 +615,8 @@ class TestCostDashboard:
         dashboard = CostDashboard(storage_path=temp_storage)
 
         assert len(dashboard.entries) == 0
-        assert dashboard.daily_limit == 10.0
-        assert dashboard.monthly_limit == 100.0
+        assert dashboard.daily_limit == 2.0
+        assert dashboard.monthly_limit == 5.0
         assert dashboard.alert_thresholds == [0.5, 0.8, 0.95]
 
     def test_custom_limits(self, temp_storage):

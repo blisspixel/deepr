@@ -1,78 +1,53 @@
-# Metered Expert Chat Re-enable Review
+# Metered expert chat re-enable gate
 
-Status: design note, 2026-07-14.
+Status: blocked in v2.40. Last reviewed: 2026-07-29.
 
-Scope: deliberate flip of ``METERED_EXPERT_CHAT_EXECUTION_ENABLED`` from
-``False`` to ``True``, still behind ``DEEPR_ALLOW_METERED_EXPERT_CHAT=1``.
+Metered expert chat cannot be enabled by configuration, a feature flag, or
+`DEEPR_ALLOW_METERED_EXPERT_CHAT`. The runtime gate always refuses paid chat,
+streaming, Grok web and X research, paid fallback, background deep research,
+and deep-research retrieval before provider work. Local and proven zero-dollar
+plan capacity remain available.
 
-## Purpose
+The former design was insufficient. A fixed average estimate plus an output
+token cap did not price serialized chat history, reasoning, tools, cache writes,
+hosted storage, background work, or provider-side retries. Final usage could
+only reveal an overrun after billing. Post-bill detection is observability, not
+a hard ceiling.
 
-Live metered expert chat is intentionally fail-closed. Durable admission
-substrate for complete, stream, research, embed, and allowlisted skill-tool
-paths is largely present. Re-enable is a *review and evidence* problem, not a
-boolean flip. This note is the checklist that must clear before the flag moves.
+## Required proof before re-enable
 
-## Dual confirmation (non-negotiable)
+One reviewed transaction must prove all of the following before any provider
+call:
 
-1. Code flag: ``METERED_EXPERT_CHAT_EXECUTION_ENABLED``
-2. Operator env: ``DEEPR_ALLOW_METERED_EXPERT_CHAT`` in ``{1,true,yes,on}``
+1. One parent dollar ceiling covers the initial turn, every tool-loop turn,
+   streaming, compaction, embeddings, storage, fallbacks, and cleanup.
+2. The request binds conservative serialized input, output, reasoning, tool,
+   cache, retry, redirect, storage, and background-job maxima.
+3. The provider enforces a maximum charge or every billable unit has an exact
+   pre-dispatch maximum. An average or expected cost is rejected.
+4. Deepr owns construction of the SDK client with retries disabled, redirects
+   disabled, environment proxy and endpoint overrides rejected, and an
+   official priced endpoint pinned.
+5. An opaque one-use attestation binds the concrete client, provider, model,
+   endpoint, account, billing scope, credential identity, request digest, and
+   durable reservation.
+6. Paid overage is proven disabled or an authenticated provider hard limit is
+   no greater than Deepr's remaining monthly headroom.
+7. Provider-returned model and account evidence match the reservation. Missing
+   or mismatched identity consumes the full hold and freezes paid dispatch for
+   reconciliation.
+8. Cancellation, timeouts, malformed usage, partial streams, lost responses,
+   process crashes, and ledger failures conservatively consume the hold without
+   replay.
+9. Concurrency cannot reserve more than the remaining per-job, daily, weekly,
+   and monthly headroom. The absolute Deepr total ceiling remains `$5.00`.
+10. Tests prove that no runtime variable, injected client, custom transport,
+    proxy, base URL, fallback, or nested tool can bypass these controls.
 
-Missing either signal refuses dispatch before provider construction (or before
-embed/skill-tool side effects that share the same gate). Local Ollama and
-explicit plan-quota backends never require either signal.
+## Acceptance
 
-## Path inventory
-
-Each row must prove: estimate, reserve, dispatch mark, settle or conservative
-full-bound, canonical ledger write, no double session ledger, and unit
-regression coverage.
-
-| Path | Module | Durable helper | Gate | Status |
-| --- | --- | --- | --- | --- |
-| OpenAI complete | `chat_backends` | `execute_metered_chat_provider_call` | `require_expert_chat_dispatch` | substrate ready |
-| OpenAI stream | `chat_backends` | `execute_metered_chat_provider_stream` | same | substrate ready |
-| Anthropic complete/stream | `chat_backends` | same | same | substrate ready |
-| Quick lookup / follow-up / compact | chat turns | same complete helper + ceiling | same | substrate ready |
-| Grok standard research | `chat_research_ops` | complete helper | metered=True | substrate ready |
-| Deep research submit | `chat_research_ops` | complete helper | metered=True | substrate ready |
-| Deep research final usage | `chat_research_ops.reconcile_deep_research_job` | idempotent ledger observe + session delta | N/A (post-dispatch recon) | substrate ready |
-| Embed document / query | `embedding_cache` | complete helper | metered=True | substrate ready |
-| Skill tools (paid tier) | `skills.executor` | `execute_reserved_fixed_cost_async_call` | `allow_metered_tools` | substrate ready when allowlisted; chat keeps False |
-| Session spend UX | `chat_metered.mirror_chat_session_spend` | no second ledger write | N/A | substrate ready |
-
-## Re-enable criteria
-
-Before flipping ``METERED_EXPERT_CHAT_EXECUTION_ENABLED``:
-
-1. **Inventory complete.** No metered chat side path reaches a provider SDK
-   without the dual gate. Grep for ``embeddings.create``, ``chat.completions``,
-   ``messages.create``, ``responses.create``, and skill MCP spawn under
-   `experts/` and confirm each either is owned-capacity or gated.
-2. **Double-count audit.** Sample complete, stream, research, embed, and
-   skill-tool success paths: exactly one canonical ledger event per settled
-   job id; session totals move only via mirror helpers where applicable.
-3. **Failure matrix.** Cancellation, mark failure, missing usage, soft tool
-   error, hard raise, and ledger write failure all leave no open hold and no
-   silent money path (unit coverage required for each class).
-4. **Ceiling binding.** Multi-call tool loops pass
-   ``min(estimate, session_remaining)``; output token caps derive from the hold
-   when caller omits ``max_tokens``.
-5. **Operator story.** Docs and CLI/web errors mention both signals and the
-   safe alternatives (local / plan). No marketing language that claims live
-   metered chat works without the env.
-6. **Explicit review commit.** The flip is a one-line change with a dated
-   ROADMAP note and CHANGELOG entry that points at this checklist. Do not
-   bundle unrelated work into the flip commit.
-
-## Out of scope for this flag
-
-- Lifecycle surfaces under ``METERED_EXPERT_MUTATIONS_ENABLED`` (make, refresh,
-  reflect, fill-gaps, portraits, etc.) - separate P1.
-- Multi-call research parent envelopes (campaign, auto-batch, hosted files).
-- Legacy direct metered interfaces (`check`, `make docs`, agentic research).
-
-## Default decision
-
-Leave the flag **false** until every inventory row is green and a human
-maintainer signs the review in the flip commit message body (no AI
-attribution). The env confirmation alone is not enough to ship spend.
+Re-enable only through a reviewed source change after the complete contract
+passes unit, adversarial, cancellation, concurrency, packaging, and live
+provider-control validation. The live check must estimate its own maximum cost
+first and requires separate explicit authorization. Until then, the correct
+result is a typed pre-dispatch refusal and `$0.00` provider spend.

@@ -32,6 +32,7 @@ from urllib.parse import urlsplit
 
 from deepr.backends.context_building import context_not_ready_error
 from deepr.backends.fresh_context import FreshContext, FreshContextConfig, FreshSource, retrieval_host_key
+from deepr.experts.semantic_model_gate import require_zero_dollar_client
 
 DEFAULT_NUM_RESULTS = 8
 DEFAULT_MAX_PAGES = 5
@@ -358,6 +359,10 @@ async def research_web_local(
         },
     ]
     try:
+        # This synthesis seam supports both owned local inference and an
+        # explicitly admitted plan-quota client. The Deepr-minted proof, not a
+        # caller label, is the authority that either path is zero-dollar.
+        require_zero_dollar_client(client)
         response = await client.chat.completions.create(
             model=model, messages=messages, extra_body={"keep_alive": "30m"}
         )

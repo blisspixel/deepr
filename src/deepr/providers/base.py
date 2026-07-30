@@ -3,7 +3,12 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, cast
+
+from .dispatch_authority import (
+    consume_paid_dispatch,
+    require_consumed_paid_dispatch,
+)
 
 DEFAULT_RESEARCH_MAX_INPUT_TOKENS = 128_000
 DEFAULT_RESEARCH_MAX_OUTPUT_TOKENS = 16_000
@@ -170,10 +175,48 @@ class DeepResearchProvider(ABC):
     Implements the interface that all providers (OpenAI, Azure) must support.
     """
 
-    @abstractmethod
+    provider_key: str
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        """Prevent adapters from replacing the fail-closed public boundaries."""
+        super().__init_subclass__(**kwargs)
+        protected = {"submit_research", "_submit_research_authorized", "upload_document", "create_vector_store"}
+        overridden = protected.intersection(cls.__dict__)
+        if overridden:
+            names = ", ".join(sorted(overridden))
+            raise TypeError(f"Provider adapters cannot override protected cost boundaries: {names}")
+        implementation = cls.__dict__.get("_submit_research_impl")
+        if implementation is not None:
+
+            async def guarded_implementation(self: Any, request: ResearchRequest) -> str:
+                require_consumed_paid_dispatch(self, self.provider_key, request)
+                return str(await implementation(self, request))
+
+            type.__setattr__(cls, "_submit_research_impl", guarded_implementation)
+        upload_implementation = cls.__dict__.get("_upload_document_accounted")
+        if upload_implementation is not None:
+
+            async def blocked_upload(self: Any, file_path: str, purpose: str = "assistants") -> str:
+                from deepr.services.research_bounds import require_research_storage_accounting
+
+                require_research_storage_accounting()
+                return str(await upload_implementation(self, file_path, purpose))
+
+            type.__setattr__(cls, "_upload_document_accounted", blocked_upload)
+        store_implementation = cls.__dict__.get("_create_vector_store_accounted")
+        if store_implementation is not None:
+
+            async def blocked_store(self: Any, name: str, file_ids: list[str]) -> VectorStore:
+                from deepr.services.research_bounds import require_research_storage_accounting
+
+                require_research_storage_accounting()
+                return cast(VectorStore, await store_implementation(self, name, file_ids))
+
+            type.__setattr__(cls, "_create_vector_store_accounted", blocked_store)
+
     async def submit_research(self, request: ResearchRequest) -> str:
         """
-        Submit a research job for background processing.
+        Submit only under a task-local authority minted after durable marking.
 
         Args:
             request: Research request configuration
@@ -184,6 +227,17 @@ class DeepResearchProvider(ABC):
         Raises:
             ProviderError: If submission fails
         """
+        consume_paid_dispatch(self, self.provider_key, request)
+        return await self._submit_research_authorized(request)
+
+    async def _submit_research_authorized(self, request: ResearchRequest) -> str:
+        """Execute one provider submission after the public boundary authorizes it."""
+        require_consumed_paid_dispatch(self, self.provider_key, request)
+        return await self._submit_research_impl(request)
+
+    @abstractmethod
+    async def _submit_research_impl(self, request: ResearchRequest) -> str:
+        """Adapter implementation behind both guarded dispatch boundaries."""
         raise NotImplementedError
 
     @abstractmethod
@@ -218,7 +272,6 @@ class DeepResearchProvider(ABC):
         """
         raise NotImplementedError
 
-    @abstractmethod
     async def upload_document(self, file_path: str, purpose: str = "assistants") -> str:
         """
         Upload a document for use in research.
@@ -233,13 +286,20 @@ class DeepResearchProvider(ABC):
         Raises:
             ProviderError: If upload fails
         """
+        from deepr.services.research_bounds import require_research_storage_accounting
+
+        require_research_storage_accounting()
+        raise AssertionError("unreachable")
+
+    @abstractmethod
+    async def _upload_document_accounted(self, file_path: str, purpose: str = "assistants") -> str:
+        """Execute an upload once a future storage authority has approved it."""
         raise NotImplementedError
 
     async def delete_document(self, file_id: str) -> bool:
         """Delete a persistent provider file when the adapter supports it."""
         return False
 
-    @abstractmethod
     async def create_vector_store(self, name: str, file_ids: list[str]) -> VectorStore:
         """
         Create a vector store with the given files.
@@ -254,6 +314,14 @@ class DeepResearchProvider(ABC):
         Raises:
             ProviderError: If creation fails
         """
+        from deepr.services.research_bounds import require_research_storage_accounting
+
+        require_research_storage_accounting()
+        raise AssertionError("unreachable")
+
+    @abstractmethod
+    async def _create_vector_store_accounted(self, name: str, file_ids: list[str]) -> VectorStore:
+        """Create provider storage once a future storage authority approves it."""
         raise NotImplementedError
 
     @abstractmethod

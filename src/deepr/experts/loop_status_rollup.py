@@ -130,8 +130,8 @@ def build_loop_status_rollup(
         "verifier_failure_count": stop_reason_counts.get(LoopStopReason.VERIFIER_FAILED.value, 0),
         "admission_contracts": known_loop_admission_contracts(),
         # Forward-looking $0/prepaid outlook (additive within v1): whether the
-        # next run of each maintenance task class has cheap capacity admitted, or
-        # would fall to metered budget. Pure admission-ledger read, no probe.
+        # next run of each maintenance task class has cheap capacity admitted.
+        # Missing admission never enables metered fallback. Pure ledger read.
         "next_run_outlook": build_capacity_outlook(),
         # Pending sync work (additive within v1): topic subscriptions due now.
         "due_subscriptions": _due_subscription_summary(expert_name),

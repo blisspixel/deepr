@@ -16,6 +16,20 @@ import pytest
 from deepr.tools.web_search import WebSearchTool, _retry_async
 
 
+@pytest.fixture(autouse=True)
+def _clear_proxy_environment(monkeypatch):
+    for name in (
+        "DDGS_PROXY",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+
 def _install_fake_ddgs(monkeypatch, *, rows=None, error=None, fail_first=None, attempts=None):
     """Install a fake ``ddgs`` module.
 
@@ -27,7 +41,14 @@ def _install_fake_ddgs(monkeypatch, *, rows=None, error=None, fail_first=None, a
     fail_through = fail_first if fail_first is not None else 10**9
 
     class _FakeDDGS:
-        def text(self, query, max_results=10):
+        init_kwargs = []
+        text_kwargs = []
+
+        def __init__(self, **kwargs):
+            type(self).init_kwargs.append(kwargs)
+
+        def text(self, query, max_results=10, **kwargs):
+            type(self).text_kwargs.append(kwargs)
             if attempts is not None:
                 attempts.append(query)
             call_index = len(attempts) if attempts is not None else 1
@@ -53,6 +74,34 @@ class TestDuckDuckGoBackend:
             "snippet": "snippet text",
         }
         assert result.metadata["backend"] == "duckduckgo"
+        ddgs_class = sys.modules["ddgs"].DDGS
+        assert ddgs_class.init_kwargs == [{"proxy": None}]
+        assert ddgs_class.text_kwargs == [{"backend": "duckduckgo"}]
+
+    @pytest.mark.parametrize(
+        "proxy_var",
+        ["DDGS_PROXY", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"],
+    )
+    async def test_proxy_environment_blocks_before_client_construction(self, monkeypatch, proxy_var):
+        _install_fake_ddgs(monkeypatch, rows=[])
+        monkeypatch.setenv(proxy_var, "http://paid-proxy.example")
+
+        result = await WebSearchTool()._search_duckduckgo("q", 3)
+
+        assert result.success is False
+        assert proxy_var in result.error
+        assert sys.modules["ddgs"].DDGS.init_kwargs == []
+
+    async def test_shared_remote_cache_blocks_before_client_construction(self, monkeypatch):
+        _install_fake_ddgs(monkeypatch, rows=[])
+        ddgs_class = sys.modules["ddgs"].DDGS
+        ddgs_class._network_client = object()
+
+        result = await WebSearchTool()._search_duckduckgo("q", 3)
+
+        assert result.success is False
+        assert "shared DDGS remote cache is active" in result.error
+        assert ddgs_class.init_kwargs == []
 
     async def test_network_error_degrades_gracefully(self, monkeypatch):
         monkeypatch.setattr("deepr.tools.web_search._DDG_BACKOFF_BASE_S", 0.0)
@@ -81,12 +130,21 @@ class TestDuckDuckGoBackend:
         assert len(attempts) == 3  # failed twice, succeeded on the third
 
     async def test_missing_package_reports_install_hint(self, monkeypatch):
-        # Neither ddgs nor the legacy package importable.
+        # The reviewed ddgs package is not importable.
         monkeypatch.setitem(sys.modules, "ddgs", None)
-        monkeypatch.setitem(sys.modules, "duckduckgo_search", None)
         result = await WebSearchTool()._search_duckduckgo("q", 3)
         assert not result.success
         assert "pip install ddgs" in result.error
+
+    async def test_unreviewed_ddgs_version_fails_before_client_construction(self, monkeypatch):
+        _install_fake_ddgs(monkeypatch, rows=[])
+        monkeypatch.setattr("deepr.tools.web_search.package_version", lambda _name: "9.99.0")
+
+        result = await WebSearchTool()._search_duckduckgo("q", 3)
+
+        assert result.success is False
+        assert "requires reviewed ddgs 9.14.4" in result.error
+        assert sys.modules["ddgs"].DDGS.init_kwargs == []
 
 
 class TestRetryAsync:

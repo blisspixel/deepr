@@ -18,6 +18,7 @@ understand why it works the way it does.
 - **[FEATURES.md](FEATURES.md)** - Complete feature and command reference
 - **[CAPACITY.md](CAPACITY.md)** - Local, plan-quota, metered API, scheduler, and no-surprise-bills behavior
 - **[EXPERTS.md](EXPERTS.md)** - Domain expert system guide
+- **[design/local-structured-consult-graph.md](design/local-structured-consult-graph.md)** - Eval-only bounded local expert-position graph and promotion gates
 - **[MODELS.md](MODELS.md)** - Model selection and provider guide
 - **[../mcp/README.md](../mcp/README.md)** - MCP server setup and tools
 - **[MCP_A2A_INTEROP_CHECKLIST.md](MCP_A2A_INTEROP_CHECKLIST.md)** - Current MCP and A2A host interop review checklist

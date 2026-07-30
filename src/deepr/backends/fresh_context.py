@@ -11,6 +11,7 @@ import asyncio
 import hashlib
 import inspect
 import ipaddress
+import logging
 import os
 import re
 from collections.abc import Awaitable, Callable
@@ -21,7 +22,7 @@ from urllib.parse import urlsplit
 
 from deepr.backends.context_building import ContextGenerationReadiness
 from deepr.tools.browser_backend import BrowserBackend, BuiltinBrowserBackend, PageContent, PageValidators
-from deepr.tools.search_backend import BuiltinSearchBackend, SearchBackend, SearchResult, SearXNGSearchBackend
+from deepr.tools.search_backend import BuiltinSearchBackend, SearchBackend, SearchResult
 from deepr.utils.prompt_security import sanitize_untrusted_content
 
 _URL_RE = re.compile(r"https?://[^\s<>)\"']+")
@@ -32,6 +33,7 @@ _MAX_CONCURRENT_FETCHES = 4
 _UNSAFE_RETRIEVAL_HOST = "unsafe-target"
 _DNS_LABEL_RE = re.compile(r"^[a-z0-9-]+$")
 _SERIAL_SEARCH_BACKENDS = frozenset({"builtin:auto", "builtin:duckduckgo"})
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -355,10 +357,35 @@ def retrieval_host_key(url: str) -> str:
 
 
 def _default_free_search_backend() -> SearchBackend:
-    searxng_url = os.getenv("DEEPR_SEARXNG_URL")
-    if searxng_url:
-        return SearXNGSearchBackend(searxng_url)
+    if os.getenv("DEEPR_SEARXNG_URL"):
+        logger.warning(
+            "Ignoring DEEPR_SEARXNG_URL in free-only context: loopback transport does not prove upstream engines are $0"
+        )
     return BuiltinSearchBackend(web_backend="duckduckgo")
+
+
+def _proven_free_search_backend(search_backend: SearchBackend | None) -> SearchBackend:
+    """Admit only Deepr's exact credential-free DuckDuckGo adapter."""
+    if search_backend is None:
+        return _default_free_search_backend()
+    if type(search_backend) is not BuiltinSearchBackend or search_backend.name != "builtin:duckduckgo":
+        raise ValueError(
+            "Free context builders accept only Deepr's exact built-in DuckDuckGo backend; "
+            "injected search capacity has no trusted zero-dollar proof"
+        )
+    return search_backend
+
+
+def _proven_free_browser_backend(browser_backend: BrowserBackend | None) -> BrowserBackend:
+    """Admit only Deepr's exact credential-free pinned HTTP browser."""
+    if browser_backend is None:
+        return BuiltinBrowserBackend()
+    if type(browser_backend) is not BuiltinBrowserBackend:
+        raise ValueError(
+            "Free context builders accept only Deepr's exact built-in browser backend; "
+            "injected browser capacity has no trusted zero-dollar proof"
+        )
+    return browser_backend
 
 
 def _deep_search_queries(query: str, max_queries: int) -> tuple[str, ...]:
@@ -673,7 +700,7 @@ async def retrieve_deep_fresh_context(
     config: FreshContextConfig | None = None,
     prior_source_pack: dict[str, object] | None = None,
 ) -> FreshContext:
-    """Retrieve a deeper free-only source pack for local deep-context sync."""
+    """Retrieve a deeper source pack through the caller-selected backends."""
     cfg = config or deep_fresh_context_config()
     search_queries = _deep_search_queries(query, cfg.max_search_queries)
     return await retrieve_fresh_context(
@@ -699,8 +726,8 @@ def make_free_fresh_context_builder(
     installed. It does not use Brave, Tavily, or any API-key search backend.
     """
     cfg = config or FreshContextConfig()
-    free_search = search_backend or _default_free_search_backend()
-    browser = browser_backend or BuiltinBrowserBackend()
+    free_search = _proven_free_search_backend(search_backend)
+    browser = _proven_free_browser_backend(browser_backend)
 
     async def build(query: str, *, prior_source_pack: dict[str, object] | None = None) -> FreshContext:
         return await retrieve_fresh_context(
@@ -722,8 +749,8 @@ def make_free_deep_context_builder(
 ) -> Callable[[str], Awaitable[FreshContext]]:
     """Build a bounded multi-query free retrieval function for local models."""
     cfg = config or deep_fresh_context_config()
-    free_search = search_backend or _default_free_search_backend()
-    browser = browser_backend or BuiltinBrowserBackend()
+    free_search = _proven_free_search_backend(search_backend)
+    browser = _proven_free_browser_backend(browser_backend)
 
     async def build(query: str, *, prior_source_pack: dict[str, object] | None = None) -> FreshContext:
         return await retrieve_deep_fresh_context(

@@ -15,6 +15,7 @@ import os
 from datetime import UTC, datetime
 from typing import Any
 
+import httpx
 import openai
 
 from .base import (
@@ -26,6 +27,7 @@ from .base import (
     VectorStore,
     get_usage_detail_int,
 )
+from .dispatch_authority import default_paid_endpoint, require_official_paid_endpoint
 
 
 class GrokProvider(DeepResearchProvider):
@@ -34,10 +36,12 @@ class GrokProvider(DeepResearchProvider):
     Grok models are reasoning-first with autonomous tool calling.
     """
 
+    provider_key = "xai"
+
     def __init__(
         self,
         api_key: str | None = None,
-        base_url: str = "https://api.x.ai/v1",
+        base_url: str | None = None,
         timeout: int = 3600,
     ):
         """
@@ -54,14 +58,25 @@ class GrokProvider(DeepResearchProvider):
         if not api_key:
             raise ValueError("xAI API key is required (set XAI_API_KEY)")
 
+        self._paid_endpoint = require_official_paid_endpoint(
+            self.provider_key,
+            base_url or default_paid_endpoint(self.provider_key),
+            source="GrokProvider.base_url",
+        )
+
         # Initialize OpenAI client pointing to xAI endpoint
         from openai import AsyncOpenAI
 
         self.client = AsyncOpenAI(
             api_key=api_key,
-            base_url=base_url,
+            base_url=self._paid_endpoint,
             timeout=timeout,
             max_retries=0,
+            http_client=httpx.AsyncClient(
+                timeout=timeout,
+                trust_env=False,
+                follow_redirects=False,
+            ),
         )
 
         # Store timeout for xAI SDK client
@@ -173,7 +188,7 @@ class GrokProvider(DeepResearchProvider):
             return None
         return request.reasoning_effort or "medium"
 
-    async def submit_research(self, request: ResearchRequest) -> str:
+    async def _submit_research_impl(self, request: ResearchRequest) -> str:
         """
         Submit research to Grok using chat completions.
 
@@ -301,6 +316,7 @@ class GrokProvider(DeepResearchProvider):
             return ResearchResponse(
                 id=job_id,
                 status="in_progress",
+                model=job_data.get("model"),
                 output=None,
                 usage=None,
                 error=None,
@@ -332,6 +348,7 @@ class GrokProvider(DeepResearchProvider):
             return ResearchResponse(
                 id=job_id,
                 status="completed",
+                model=job_data.get("model"),
                 output=output,
                 usage=usage,
                 error=None,
@@ -341,6 +358,7 @@ class GrokProvider(DeepResearchProvider):
             return ResearchResponse(
                 id=job_id,
                 status="failed",
+                model=job_data.get("model"),
                 output=None,
                 usage=None,
                 error=job_data.get("error", "Unknown error"),
@@ -398,8 +416,17 @@ class GrokProvider(DeepResearchProvider):
         """
         import uuid
 
-        from deepr.agents.contract import AgentBudget, AgentIdentity, AgentResult, AgentRole, AgentStatus
+        from deepr.agents.contract import (
+            AgentBudget,
+            AgentIdentity,
+            AgentResult,
+            AgentRole,
+            AgentStatus,
+            require_generic_subagent_execution,
+        )
         from deepr.agents.runtime import FanOutConfig, SubagentRuntime
+
+        require_generic_subagent_execution()
 
         job_data = self.jobs[job_id]
         request = job_data["request"]
@@ -626,6 +653,9 @@ class GrokProvider(DeepResearchProvider):
         self, original_query: str, agent_outputs: list[str], model: str
     ) -> dict[str, Any]:
         """Synthesise outputs from multiple agents into a unified report."""
+        from deepr.agents.contract import require_generic_subagent_execution
+
+        require_generic_subagent_execution()
         if not agent_outputs:
             return {"content": "No agent outputs to synthesise.", "cost": 0.0, "tokens_input": 0, "tokens_output": 0}
 
@@ -691,15 +721,22 @@ class GrokProvider(DeepResearchProvider):
         cached_input_tokens: int = 0,
     ) -> float:
         """Calculate cost for Grok models including reasoning tokens."""
-        # Get pricing for model
-        prices = self.pricing.get(model, self.pricing["grok-4-1-fast-reasoning"])
-
         normalized_prompt_tokens = max(prompt_tokens, 0)
         normalized_cached_tokens = min(max(cached_input_tokens, 0), normalized_prompt_tokens)
         non_cached_prompt_tokens = normalized_prompt_tokens - normalized_cached_tokens
 
+        # Resolve actual-usage rates at settlement time. Constructor snapshots
+        # expose base prices for status output, but cannot price xAI's inclusive
+        # 200K long-context boundary.
+        from .registry import get_cached_input_pricing, get_token_pricing
+
+        prices = get_token_pricing(model, input_tokens=normalized_prompt_tokens)
+        cached_input_rate = get_cached_input_pricing(model, input_tokens=normalized_prompt_tokens)
+        if cached_input_rate is None:
+            cached_input_rate = prices["input"]
+
         input_cost = (non_cached_prompt_tokens / 1_000_000) * prices["input"]
-        cached_input_cost = (normalized_cached_tokens / 1_000_000) * prices["cached_input"]
+        cached_input_cost = (normalized_cached_tokens / 1_000_000) * cached_input_rate
 
         # Output cost (completion plus reasoning tokens).
         # Reasoning tokens are billed as output tokens.
@@ -708,7 +745,7 @@ class GrokProvider(DeepResearchProvider):
 
         return input_cost + cached_input_cost + output_cost
 
-    async def upload_document(self, file_path: str, purpose: str = "assistants") -> str:
+    async def _upload_document_accounted(self, file_path: str, purpose: str = "assistants") -> str:
         """
         Upload document to Grok collections.
 
@@ -717,7 +754,7 @@ class GrokProvider(DeepResearchProvider):
         """
         raise NotImplementedError("Grok document upload not yet implemented")
 
-    async def create_vector_store(self, name: str, file_ids: list[str]) -> VectorStore:
+    async def _create_vector_store_accounted(self, name: str, file_ids: list[str]) -> VectorStore:
         """
         Create Grok collection for document storage.
 
@@ -744,7 +781,7 @@ class GrokProvider(DeepResearchProvider):
 # 1. Grok 4.20 Flagship (grok-4.20-0309-reasoning/non-reasoning)
 #    - Lowest hallucination rate, strict prompt adherence
 #    - Full agentic tool calling, native vision
-#    - $1.25/$2.50 per MTok (input/output), 2M context, 607 RPM
+#    - $1.25/$2.50 per MTok (input/output), 1M context, 607 RPM
 #
 # 2. Grok 4.20 Multi-Agent (grok-4.20-multi-agent-0309)
 #    - 4 or 16 parallel agents for deep research

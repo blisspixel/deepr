@@ -25,6 +25,7 @@ from deepr.experts.cost_circuit_breaker import (
 from deepr.experts.cost_circuit_breaker import (
     CostLimitExceeded as CostLimitExceeded,
 )
+from deepr.experts.cost_safety_durable_identity import DurableReservationIdentity
 from deepr.experts.cost_safety_ledger import (
     CostLedgerCommitError,
     CostRecord,
@@ -51,6 +52,8 @@ from deepr.experts.research_reservation_store import (
 )
 from deepr.observability.cost_ledger import CostLedger, CostLedgerDurabilityError
 
+_ABSOLUTE_TOTAL_SPEND_USD = 5.0
+
 
 def _validated_money(value: object, *, field_name: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -73,6 +76,7 @@ class CostAlert:
     level: str  # "warning", "critical"
     message: str
     timestamp: float
+
     threshold_percent: float
     current_cost: float
     budget_limit: float
@@ -99,7 +103,7 @@ class CostSession:
         session = CostSession(
             session_id="chat_expert_abc123",
             session_type="chat",
-            budget_limit=10.0
+            budget_limit=1.0
         )
 
         # Check before operation
@@ -116,7 +120,7 @@ class CostSession:
         self,
         session_id: str,
         session_type: str,
-        budget_limit: float = 10.0,
+        budget_limit: float = 1.0,
         warning_threshold: float = 0.8,
         critical_threshold: float = 0.95,
     ):
@@ -131,7 +135,10 @@ class CostSession:
         """
         self.session_id = session_id
         self.session_type = session_type
-        self.budget_limit = budget_limit
+        self.budget_limit = min(
+            _validated_money(budget_limit, field_name="budget_limit"),
+            _ABSOLUTE_TOTAL_SPEND_USD,
+        )
         self.warning_threshold = warning_threshold
         self.critical_threshold = critical_threshold
 
@@ -315,7 +322,7 @@ def create_default_circuit_breaker() -> CostCircuitBreaker:
         CostCircuitBreaker configured for typical research usage
     """
     return CostCircuitBreaker(
-        cost_threshold=10.0,  # $10 per 5 minutes
+        cost_threshold=5.0,  # $5 per 5 minutes
         window_seconds=300.0,  # 5 minute window
         event_threshold=50,  # Max 50 API calls per window
         cooldown_seconds=60.0,  # 1 minute cooldown
@@ -340,10 +347,10 @@ class CostSafetyManager:
     # MCP/CLI surfaces that accept user-controlled budget values.
     # Kept as class attributes so callers (mcp/server.py, cli/commands/
     # budget.py) can reference them without instantiating a manager.
-    ABSOLUTE_MAX_PER_OPERATION: float = 10.0
-    ABSOLUTE_MAX_DAILY: float = 50.0
-    ABSOLUTE_MAX_WEEKLY: float = 250.0
-    ABSOLUTE_MAX_MONTHLY: float = 500.0
+    ABSOLUTE_MAX_PER_OPERATION: float = _ABSOLUTE_TOTAL_SPEND_USD
+    ABSOLUTE_MAX_DAILY: float = _ABSOLUTE_TOTAL_SPEND_USD
+    ABSOLUTE_MAX_WEEKLY: float = _ABSOLUTE_TOTAL_SPEND_USD
+    ABSOLUTE_MAX_MONTHLY: float = _ABSOLUTE_TOTAL_SPEND_USD
 
     # A reservation is presumed leaked (caller crashed between reserve and
     # settle) once it outlives this, and is swept so it stops shrinking the pool.
@@ -400,6 +407,7 @@ class CostSafetyManager:
         # successful idempotent replay may account these locally exactly once.
         self._pending_local_durability_keys: set[str] = set()
         self._durable_reservation_jobs: dict[str, str] = {}
+        self._durable_reservation_identities: dict[str, DurableReservationIdentity] = {}
         self._provider_work_may_have_run: set[str] = set()
         self._unresolved_durable_reservations: set[str] = set()
         self._reservation_store: ResearchReservationStore | None = None
@@ -426,7 +434,7 @@ class CostSafetyManager:
         """Get the underlying circuit breaker."""
         return self._circuit_breaker
 
-    def create_session(self, session_id: str, session_type: str, budget_limit: float = 10.0) -> CostSession:
+    def create_session(self, session_id: str, session_type: str, budget_limit: float = 1.0) -> CostSession:
         """Create a new cost tracking session.
 
         Args:
@@ -489,6 +497,8 @@ class CostSafetyManager:
         reserve: bool = True,
         durable_reservation: bool = False,
         reservation_job_id: str = "",
+        durable_provider: str = "",
+        durable_model: str = "",
     ) -> tuple[bool, str, bool, str]:
         """Atomic check + (optional) reservation of estimated_cost.
 
@@ -555,12 +565,16 @@ class CostSafetyManager:
                     estimated_cost=estimated_cost,
                     durable_reservation=durable_reservation,
                     reservation_job_id=reservation_job_id,
+                    operation_type=operation_type,
+                    durable_provider=durable_provider,
+                    durable_model=durable_model,
                 )
                 if not placed:
                     return False, placement_reason, False, ""
 
             # Confirmation needed?
-            if require_confirmation and estimated_cost > 1.0:
+            confirmation_threshold = min(1.0, self.max_per_operation)
+            if require_confirmation and estimated_cost > 0 and estimated_cost >= confirmation_threshold:
                 return True, f"High cost operation: ${estimated_cost:.2f}", True, reservation_id
 
             return True, "OK", False, reservation_id
@@ -571,16 +585,25 @@ class CostSafetyManager:
         estimated_cost: float,
         durable_reservation: bool,
         reservation_job_id: str,
+        operation_type: str,
+        durable_provider: str,
+        durable_model: str,
     ) -> tuple[bool, str, str]:
         import uuid as _uuid
 
         reservation_id = _uuid.uuid4().hex[:16]
         if durable_reservation:
+            identity = DurableReservationIdentity.mint(
+                job_id=reservation_job_id,
+                reserved_cost=estimated_cost,
+                provider=durable_provider,
+                model=durable_model,
+                operation_type=operation_type,
+            )
             try:
-                self._get_reservation_store().reserve(
+                identity.reserve(
+                    self._get_reservation_store(),
                     reservation_id=reservation_id,
-                    job_id=reservation_job_id,
-                    reserved_cost=estimated_cost,
                     max_daily_cost=self.max_daily,
                     max_weekly_cost=self.max_weekly,
                     max_monthly_cost=self.max_monthly,
@@ -590,6 +613,7 @@ class CostSafetyManager:
             except Exception as error:
                 raise DurableCostReservationError("durable cost reservation failed") from error
             self._durable_reservation_jobs[reservation_id] = reservation_job_id
+            self._durable_reservation_identities[reservation_id] = identity
         self._reservations[reservation_id] = estimated_cost
         self._reservation_started[reservation_id] = time.time()
         self._reserved_daily += estimated_cost
@@ -622,10 +646,16 @@ class CostSafetyManager:
             return
         with self._budget_lock:
             durable = reservation_id in self._durable_reservation_jobs
+            identity = self._durable_reservation_identities.get(reservation_id)
         if not durable:
             return
+        if identity is None:
+            raise DurableCostReservationError("durable reservation dispatch identity is unavailable")
         try:
-            self._get_reservation_store().mark_provider_work_may_have_run(reservation_id)
+            identity.mark_provider_work(
+                self._get_reservation_store(),
+                reservation_id=reservation_id,
+            )
         except Exception as error:
             raise DurableCostReservationError("durable reservation dispatch mark failed") from error
         with self._budget_lock:
@@ -667,6 +697,7 @@ class CostSafetyManager:
             self._reserved_weekly = max(0.0, self._reserved_weekly - held)
             self._reserved_monthly = max(0.0, self._reserved_monthly - held)
             self._durable_reservation_jobs.pop(reservation_id, None)
+            self._durable_reservation_identities.pop(reservation_id, None)
             self._provider_work_may_have_run.discard(reservation_id)
             self._unresolved_durable_reservations.discard(reservation_id)
 
@@ -731,11 +762,17 @@ class CostSafetyManager:
             callback_ran = True
             ledger_appended = append_cost_record(self._ledger, record)
 
+        with self._budget_lock:
+            identity = self._durable_reservation_identities.get(record.reservation_id)
+        if identity is None:
+            self.mark_reservation_unresolved(record.reservation_id)
+            raise DurableCostReservationError("durable cost reservation identity is unavailable")
         try:
-            outcome = self._get_reservation_store().settle(
-                record.reservation_id,
-                record.actual_cost,
-                append_only,
+            outcome = identity.settle(
+                self._get_reservation_store(),
+                reservation_id=record.reservation_id,
+                actual_cost=record.actual_cost,
+                record=append_only,
             )
         except CostLedgerCommitError as error:
             self._remember_durability_failure(record, error)
@@ -753,6 +790,7 @@ class CostSafetyManager:
         result = self._account_cost_record(record, ledger_appended)
         with self._budget_lock:
             self._durable_reservation_jobs.pop(record.reservation_id, None)
+            self._durable_reservation_identities.pop(record.reservation_id, None)
             self._provider_work_may_have_run.discard(record.reservation_id)
             self._unresolved_durable_reservations.discard(record.reservation_id)
         return result
@@ -938,11 +976,7 @@ _cost_safety_manager_lock = threading.Lock()
 
 
 def get_cost_safety_manager() -> CostSafetyManager:
-    """Get the global cost safety manager instance.
-
-    Returns:
-        CostSafetyManager singleton instance
-    """
+    """Get the global cost safety manager singleton."""
     global _cost_safety_manager
     if _cost_safety_manager is None:
         with _cost_safety_manager_lock:

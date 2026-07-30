@@ -66,10 +66,9 @@ class ConflictResolver:
 
     Attributes:
         consensus_engine: Optional ConsensusEngine for multi-provider adjudication
-        client: OpenAI async client (lazily initialized)
-        completion_call: Accounted metered completion seam. Without it, direct
-            model calls require the explicit owned/prepaid declaration
-            ``estimated_cost=0.0``; the default is fail-closed.
+        client: Legacy raw client retained only for compatibility and never
+            dispatched because its capacity and accounting cannot be proven.
+        completion_call: Capacity-classified, accounted completion seam.
     """
 
     def __init__(
@@ -82,16 +81,8 @@ class ConflictResolver:
         self.consensus_engine = consensus_engine
         self.client = client
         self._completion_call = completion_call
-        # None is fail-closed. Zero is an explicit local/prepaid declaration;
-        # metered callers must inject a reservation/settlement completion seam.
+        # Numeric cost is planning metadata only and never spend authority.
         self._estimated_cost = estimated_cost
-
-    async def _get_client(self) -> Any:
-        if self.client is None:
-            from openai import AsyncOpenAI
-
-            self.client = AsyncOpenAI()
-        return self.client
 
     _NEGATION_WORDS = {"not", "no", "never", "false", "incorrect", "wrong", "isn't", "doesn't", "don't"}
     _ROUTER_STOPWORDS = {
@@ -246,16 +237,12 @@ class ConflictResolver:
             ],
             "reasoning_effort": "low",
         }
-        if self._completion_call is None and self._estimated_cost != 0.0:
-            logger.warning("LLM contradiction detection blocked: no accounted or explicit $0 completion path")
+        if self._completion_call is None:
+            logger.warning("LLM contradiction detection blocked: no capacity-classified accounted completion path")
             return []
 
         try:
-            if self._completion_call is not None:
-                response = await self._completion_call(**completion_kwargs)
-            else:
-                client = await self._get_client()
-                response = await client.chat.completions.create(**completion_kwargs)
+            response = await self._completion_call(**completion_kwargs)
             text = (response.choices[0].message.content or "[]").strip()
             if text.startswith("```"):
                 text = text.split("\n", 1)[-1].rsplit("```", 1)[0]
@@ -293,23 +280,11 @@ class ConflictResolver:
             query += f"\nContext: {context}"
 
         if self.consensus_engine:
-            if self._estimated_cost != 0.0:
-                return ConflictResolutionResult(
-                    belief_a_id=belief_a.id,
-                    belief_b_id=belief_b.id,
-                    outcome="needs_human_review",
-                    explanation="Consensus resolution blocked: no explicit $0 capacity contract",
-                )
-            # Multi-provider adjudication
-            consensus = await self.consensus_engine.research_with_consensus(
-                query=query, budget=0.50, expert_name="conflict_resolver"
-            )
-            return self._parse_resolution(
-                belief_a,
-                belief_b,
-                consensus.consensus_answer,
-                consensus.confidence,
-                consensus.decision_record,
+            return ConflictResolutionResult(
+                belief_a_id=belief_a.id,
+                belief_b_id=belief_b.id,
+                outcome="needs_human_review",
+                explanation="Consensus resolution blocked: no capacity-classified parent transaction",
             )
 
         # Single-provider resolution. ReportAbsorber injects completion_call so
@@ -334,24 +309,13 @@ class ConflictResolver:
         }
         if self._completion_call is not None:
             response = await self._completion_call(**completion_kwargs)
-        elif self._estimated_cost != 0.0:
+        else:
             return ConflictResolutionResult(
                 belief_a_id=belief_a.id,
                 belief_b_id=belief_b.id,
                 outcome="needs_human_review",
-                explanation="Resolution blocked: no accounted or explicit $0 completion path",
+                explanation="Resolution blocked: no capacity-classified accounted completion path",
             )
-        else:
-            try:
-                client = await self._get_client()
-                response = await client.chat.completions.create(**completion_kwargs)
-            except Exception as e:
-                return ConflictResolutionResult(
-                    belief_a_id=belief_a.id,
-                    belief_b_id=belief_b.id,
-                    outcome="needs_human_review",
-                    explanation=f"Resolution failed: {e}",
-                )
 
         try:
             text = response.choices[0].message.content or "{}"

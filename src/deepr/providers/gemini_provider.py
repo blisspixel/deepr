@@ -20,6 +20,8 @@ from enum import Enum
 from types import SimpleNamespace
 from typing import Any, cast
 
+import httpx
+
 _GENAI_IMPORT_ERROR: Exception | None
 try:
     from google import genai
@@ -42,6 +44,7 @@ from .base import (
     VectorStore,
     coerce_usage_int,
 )
+from .dispatch_authority import default_paid_endpoint
 from .registry import MODEL_CAPABILITIES, ModelCapability, get_token_pricing
 
 # Suppress experimental API warning for Interactions API.
@@ -55,6 +58,7 @@ logger = logging.getLogger(__name__)
 
 # Gemini Deep Research Agent identifier
 DEEP_RESEARCH_AGENT = "deep-research-pro-preview-12-2025"
+_MAX_GROUNDING_REDIRECT_HOPS = 5
 
 
 class _FallbackThinkingConfig:
@@ -135,6 +139,7 @@ class GeminiProvider(DeepResearchProvider):
     - Regular Gemini models via generate_content (synchronous streaming)
     """
 
+    provider_key = "gemini"
     _THINKING_LEVEL_MODELS = frozenset({"gemini-3.6-flash", "gemini-3.5-flash-lite"})
 
     def __init__(
@@ -155,10 +160,21 @@ class GeminiProvider(DeepResearchProvider):
         if not self.api_key:
             raise ValueError("Gemini API key is required (set GEMINI_API_KEY)")
 
+        self._paid_endpoint = default_paid_endpoint(self.provider_key)
+
         # Initialize real client when SDK is available, otherwise keep a safe
         # unavailable-client shim so unit tests can patch client behavior.
         if genai is not None:
-            self.client = genai.Client(api_key=self.api_key)
+            self.client = genai.Client(
+                vertexai=False,
+                api_key=self.api_key,
+                http_options={
+                    "base_url": self._paid_endpoint,
+                    "retry_options": {"attempts": 1},
+                    "client_args": {"trust_env": False, "follow_redirects": False},
+                    "async_client_args": {"trust_env": False, "follow_redirects": False},
+                },
+            )
         else:
             self.client = _UnavailableGeminiClient()
 
@@ -288,7 +304,7 @@ class GeminiProvider(DeepResearchProvider):
     # Submit research - dispatches to deep research or regular mode
     # =========================================================================
 
-    async def submit_research(self, request: ResearchRequest) -> str:
+    async def _submit_research_impl(self, request: ResearchRequest) -> str:
         """
         Submit research job to Gemini.
 
@@ -792,37 +808,40 @@ class GeminiProvider(DeepResearchProvider):
             # deleted, network, auth expiry). Log and continue.
             logger.warning(f"Failed to cleanup file search store {store_name}: {e}")
 
-    # =========================================================================
-    # Citation URL resolution
-    # =========================================================================
-
     @staticmethod
     async def resolve_redirect_url(url: str, timeout: float = 10.0) -> str:
-        """
-        Resolve a Google grounding redirect URL to its final destination.
-
-        The Deep Research API returns URLs like:
-        https://vertexaisearch.cloud.google.com/grounding-api-redirect/...
-
-        This follows the redirect chain to get the actual source URL.
-        """
-        if "vertexaisearch.cloud.google.com/grounding-api-redirect" not in url:
+        """Resolve a Google grounding URL through a bounded, validated redirect chain."""
+        try:
+            parsed_url = httpx.URL(url)
+        except httpx.InvalidURL:
+            return url
+        if parsed_url.host != "vertexaisearch.cloud.google.com" or not parsed_url.path.startswith(
+            "/grounding-api-redirect/"
+        ):
             return url
 
         try:
-            import httpx
-
             from deepr.utils.security import is_safe_url
 
-            async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as client:
-                response = await client.head(url)
-                final_url = str(response.url)
-                # Validate the resolved URL is not an internal address
-                if not is_safe_url(final_url):
-                    logger.warning("SSRF: redirect resolved to blocked URL: %s", final_url)
-                    return url
-                return final_url
-        except (httpx.TimeoutException, httpx.NetworkError, httpx.HTTPError) as e:
+            current_url = url
+            async with httpx.AsyncClient(follow_redirects=False, timeout=timeout, trust_env=False) as client:
+                for redirect_count in range(_MAX_GROUNDING_REDIRECT_HOPS + 1):
+                    if not is_safe_url(current_url):
+                        logger.warning("SSRF: redirect resolved to blocked URL: %s", current_url)
+                        return url
+                    response = await client.head(current_url)
+                    if not response.is_redirect:
+                        return str(response.url)
+                    if redirect_count >= _MAX_GROUNDING_REDIRECT_HOPS:
+                        logger.warning("Grounding redirect exceeded %d hops", _MAX_GROUNDING_REDIRECT_HOPS)
+                        return url
+                    location = response.headers.get("location")
+                    if not location:
+                        logger.warning("Grounding redirect response omitted Location")
+                        return url
+                    current_url = str(httpx.URL(current_url).join(location))
+            return url
+        except (httpx.TimeoutException, httpx.NetworkError, httpx.HTTPError, httpx.InvalidURL) as e:
             logger.debug("Failed to resolve redirect for %s: %s", url, e)
             return url
 
@@ -876,7 +895,7 @@ class GeminiProvider(DeepResearchProvider):
 
         return False
 
-    async def upload_document(self, file_path: str, purpose: str = "assistants") -> str:
+    async def _upload_document_accounted(self, file_path: str, purpose: str = "assistants") -> str:
         """
         Upload document to Gemini File API.
 
@@ -917,7 +936,7 @@ class GeminiProvider(DeepResearchProvider):
         except GenaiAPIError as e:
             raise ProviderError(message=f"Failed to delete document: {e!s}", provider="gemini", original_error=e) from e
 
-    async def create_vector_store(self, name: str, file_ids: list[str]) -> VectorStore:
+    async def _create_vector_store_accounted(self, name: str, file_ids: list[str]) -> VectorStore:
         """
         Create vector store for file grouping.
 

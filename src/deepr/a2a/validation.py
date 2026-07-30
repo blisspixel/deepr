@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from ipaddress import IPv4Address, IPv6Address, ip_address
+from math import isfinite
 from typing import Any, Literal
-
-import aiohttp
+from urllib.parse import urlsplit
 
 from deepr.a2a.agent_card import AgentCardGenerator, ExpertInfo
 from deepr.a2a.constants import (
     A2A_AGENT_CARD_PATH,
-    A2A_DISCOVERY_PATHS,
     CONSULT_SKILL_NAME,
 )
 from deepr.a2a.consult_tasks import build_consult_artifact, build_consult_result
@@ -31,6 +30,11 @@ DEFAULT_A2A_VALIDATION_QUESTION = (
     "Validate the Deepr A2A expert consult contract for a host agent. Map the "
     "math, uncertainty, dissent, capacity posture, and next action boundary."
 )
+
+MAX_HTTP_VALIDATION_TIMEOUT_SECONDS = 300.0
+MAX_HTTP_VALIDATION_POLL_ATTEMPTS = 100
+MAX_HTTP_VALIDATION_POLL_INTERVAL_SECONDS = 10.0
+_OWNED_LOOPBACK_ADDRESSES = {IPv4Address("127.0.0.1"), IPv6Address("::1")}
 
 
 def _utc_now() -> datetime:
@@ -83,9 +87,15 @@ class A2AHostValidationReport:
             "generated_at": self.generated_at.isoformat(),
             "contract": {
                 "cost_usd": 0.0,
+                "cost_scope": "validation_client_only",
+                "remote_task_cost_ceiling_usd": self.cost_ceiling_usd,
+                "remote_task_cost_status": "not_submitted",
                 "writes_expert_state": False,
-                "submits_a2a_task": self.mode == "http",
+                "submits_a2a_task": False,
+                "task_submission_attempted": False,
                 "calls_metered_api": False,
+                "calls_metered_api_scope": "validation_client_only",
+                "remote_task_calls_metered_api": None,
                 "semantic_verdict": False,
                 "checks_form_and_side_effects_only": True,
             },
@@ -121,13 +131,11 @@ def _as_list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else []
 
 
-def _float_value(value: Any) -> float:
-    if isinstance(value, bool):
-        return 0.0
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return 0.0
+def _finite_number(value: Any) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    number = float(value)
+    return number if isfinite(number) else None
 
 
 def _safe_json_contains(payload: dict[str, Any], forbidden_values: tuple[str, ...]) -> bool:
@@ -190,7 +198,7 @@ def _summarize_task(task: dict[str, Any]) -> dict[str, Any]:
         "kind": task.get("kind"),
         "state": task.get("state"),
         "skill": task.get("skill"),
-        "cost": _float_value(task.get("cost")),
+        "cost": _finite_number(task.get("cost")),
         "trace_id": task.get("trace_id"),
         "artifact_count": len(_as_list(task.get("artifacts"))),
         "consult_schema_version": content.get("schema_version"),
@@ -222,6 +230,18 @@ def validate_a2a_host_payload(
     dissent = _as_dict(collaboration.get("dissent_handling"))
     capacity = _as_dict(result.get("capacity")) or _as_dict(content.get("capacity"))
     contract = _as_dict(task.get("contract"))
+    validated_ceiling = _finite_number(cost_ceiling_usd)
+    ceiling_ok = validated_ceiling is not None and validated_ceiling >= 0
+    ceiling_text = f"${validated_ceiling:.4f}" if ceiling_ok else "an invalid ceiling"
+
+    checks.append(
+        _check(
+            "cost_ceiling",
+            ceiling_ok,
+            f"cost ceiling is finite and non-negative: {ceiling_text}",
+            "cost ceiling must be a finite non-negative number",
+        )
+    )
 
     checks.append(
         _check(
@@ -297,18 +317,26 @@ def validate_a2a_host_payload(
             f"capacity does not report expected {expected_backend} backend",
         )
     )
-    task_cost = _float_value(task.get("cost"))
-    result_cost = _float_value(result.get("cost_usd"))
-    consult_cost = _float_value(content.get("cost_usd"))
+    task_cost = _finite_number(task.get("cost"))
+    result_cost = _finite_number(result.get("cost_usd"))
+    consult_cost = _finite_number(content.get("cost_usd"))
     checks.append(
         _check(
             "no_metered_cost",
-            task_cost <= cost_ceiling_usd
-            and result_cost <= cost_ceiling_usd
-            and consult_cost <= cost_ceiling_usd
+            ceiling_ok
+            and validated_ceiling is not None
+            and task_cost is not None
+            and task_cost >= 0
+            and task_cost <= validated_ceiling
+            and result_cost is not None
+            and result_cost >= 0
+            and result_cost <= validated_ceiling
+            and consult_cost is not None
+            and consult_cost >= 0
+            and consult_cost <= validated_ceiling
             and capacity.get("live_metered_fallback") is False,
-            f"task and artifact cost fields are within ceiling ${cost_ceiling_usd:.4f}",
-            f"cost fields exceed ceiling ${cost_ceiling_usd:.4f} or metered fallback is enabled",
+            f"task and artifact cost fields are within ceiling {ceiling_text}",
+            f"cost fields are invalid, exceed {ceiling_text}, or metered fallback is enabled",
         )
     )
     checks.append(
@@ -404,6 +432,7 @@ def _report(
     agent_card: dict[str, Any] | None = None,
     task: dict[str, Any] | None = None,
     error: dict[str, Any] | None = None,
+    cost_ceiling_usd: float = 0.0,
 ) -> A2AHostValidationReport:
     return A2AHostValidationReport(
         mode=mode,
@@ -413,6 +442,7 @@ def _report(
         endpoint=endpoint,
         discovery_path=discovery_path,
         plan=plan,
+        cost_ceiling_usd=cost_ceiling_usd,
         checks=checks,
         agent_card_summary=_summarize_agent_card(agent_card) if agent_card else {},
         task_summary=_summarize_task(task) if task else {},
@@ -451,101 +481,56 @@ def run_offline_a2a_host_validation(
     )
 
 
-def _auth_headers(auth_token: str | None) -> dict[str, str]:
-    headers = {"Accept": "application/json"}
-    if auth_token:
-        headers["Authorization"] = f"Bearer {auth_token}"
-    return headers
-
-
-def _endpoint_url(endpoint: str, path: str) -> str:
-    return f"{endpoint.rstrip('/')}{path}"
-
-
-async def _read_json_response(response: aiohttp.ClientResponse) -> dict[str, Any]:
+def _validated_loopback_endpoint(endpoint: Any) -> str:
+    if not isinstance(endpoint, str) or not endpoint or endpoint != endpoint.strip():
+        raise ValueError("endpoint must be a non-empty URL without surrounding whitespace")
     try:
-        payload = await response.json(content_type=None)
-    except (aiohttp.ContentTypeError, json.JSONDecodeError):
-        payload = {}
-    return payload if isinstance(payload, dict) else {}
+        parsed = urlsplit(endpoint)
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError("endpoint must be a valid loopback URL") from exc
+    if parsed.scheme.lower() not in {"http", "https"}:
+        raise ValueError("endpoint scheme must be http or https")
+    if not parsed.netloc or parsed.username is not None or parsed.password is not None:
+        raise ValueError("endpoint must not contain credentials and must include a host")
+    if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+        raise ValueError("endpoint must be an origin URL without a path, query, or fragment")
+    hostname = parsed.hostname
+    if hostname is None:
+        raise ValueError("endpoint must include a host")
+    try:
+        address = ip_address(hostname)
+    except ValueError as exc:
+        raise ValueError("endpoint host must be the literal loopback address 127.0.0.1 or ::1") from exc
+    if address not in _OWNED_LOOPBACK_ADDRESSES:
+        raise ValueError("endpoint host must be the literal loopback address 127.0.0.1 or ::1")
+    host = f"[{address.compressed}]" if isinstance(address, IPv6Address) else address.compressed
+    port_suffix = f":{port}" if port is not None else ""
+    return f"{parsed.scheme.lower()}://{host}{port_suffix}"
 
 
-async def _fetch_agent_card(
-    session: aiohttp.ClientSession,
-    endpoint: str,
-    auth_token: str | None,
-) -> tuple[dict[str, Any], str, int]:
-    last_status = 0
-    for path in A2A_DISCOVERY_PATHS:
-        async with session.get(_endpoint_url(endpoint, path), headers=_auth_headers(auth_token)) as response:
-            last_status = response.status
-            payload = await _read_json_response(response)
-            if response.status == 200 and payload:
-                return payload, path, response.status
-    return {}, "", last_status
-
-
-def _task_request(
-    *,
-    question: str,
-    experts: tuple[str, ...],
-    backend: ValidationBackend,
-    local_model: str | None,
-    plan: str | None,
-    plan_model: str | None,
-) -> dict[str, Any]:
-    metadata: dict[str, Any] = {"synthesis_backend": backend, "max_experts": max(len(experts), 1)}
-    if experts:
-        metadata["experts"] = list(experts)
-    if local_model:
-        metadata["local_model"] = local_model
-    if plan:
-        metadata["plan"] = plan
-    if plan_model:
-        metadata["plan_model"] = plan_model
-    return {
-        "skill": CONSULT_SKILL_NAME,
-        "input": question,
-        "budget": 0,
-        "metadata": metadata,
-    }
-
-
-async def _submit_task(
-    session: aiohttp.ClientSession,
-    endpoint: str,
-    auth_token: str | None,
-    body: dict[str, Any],
-) -> tuple[int, dict[str, Any]]:
-    headers = {**_auth_headers(auth_token), "Content-Type": "application/json"}
-    async with session.post(_endpoint_url(endpoint, "/tasks"), headers=headers, json=body) as response:
-        return response.status, await _read_json_response(response)
-
-
-async def _poll_task(
-    session: aiohttp.ClientSession,
-    endpoint: str,
-    auth_token: str | None,
-    task: dict[str, Any],
-    *,
-    poll_attempts: int,
-    poll_interval_seconds: float,
-) -> dict[str, Any]:
-    task_id = str(task.get("id") or "")
-    if not task_id:
-        return task
-    current = task
-    for _ in range(max(0, poll_attempts)):
-        if current.get("state") not in {TaskState.SUBMITTED.value, TaskState.WORKING.value}:
-            return current
-        await asyncio.sleep(max(0.0, poll_interval_seconds))
-        async with session.get(
-            _endpoint_url(endpoint, f"/tasks/{task_id}"), headers=_auth_headers(auth_token)
-        ) as response:
-            payload = await _read_json_response(response)
-            if response.status == 200 and payload:
-                current = payload
-    return current
+def _validated_http_bounds(
+    timeout_seconds: Any,
+    poll_attempts: Any,
+    poll_interval_seconds: Any,
+) -> tuple[float, int, float]:
+    timeout = _finite_number(timeout_seconds)
+    if timeout is None or timeout <= 0 or timeout > MAX_HTTP_VALIDATION_TIMEOUT_SECONDS:
+        raise ValueError(
+            f"timeout_seconds must be finite and greater than 0, up to {MAX_HTTP_VALIDATION_TIMEOUT_SECONDS:g}"
+        )
+    if isinstance(poll_attempts, bool) or not isinstance(poll_attempts, int):
+        raise ValueError("poll_attempts must be an integer")
+    if poll_attempts < 0 or poll_attempts > MAX_HTTP_VALIDATION_POLL_ATTEMPTS:
+        raise ValueError(f"poll_attempts must be between 0 and {MAX_HTTP_VALIDATION_POLL_ATTEMPTS}")
+    interval = _finite_number(poll_interval_seconds)
+    if interval is None or interval < 0 or interval > MAX_HTTP_VALIDATION_POLL_INTERVAL_SECONDS:
+        raise ValueError(
+            f"poll_interval_seconds must be finite and between 0 and {MAX_HTTP_VALIDATION_POLL_INTERVAL_SECONDS:g}"
+        )
+    if poll_attempts * interval > timeout:
+        raise ValueError("poll_attempts * poll_interval_seconds must not exceed timeout_seconds")
+    return timeout, poll_attempts, interval
 
 
 def _failed_report(
@@ -559,6 +544,9 @@ def _failed_report(
     check_name: str,
     detail: str,
     error_code: str,
+    discovery_path: str | None = None,
+    agent_card: dict[str, Any] | None = None,
+    cost_ceiling_usd: float = 0.0,
 ) -> A2AHostValidationReport:
     return _report(
         mode=mode,
@@ -566,7 +554,10 @@ def _failed_report(
         question=question,
         experts=experts,
         endpoint=endpoint,
+        discovery_path=discovery_path,
         plan=plan,
+        agent_card=agent_card,
+        cost_ceiling_usd=cost_ceiling_usd,
         checks=(A2AHostValidationCheck(check_name, "failed", detail),),
         error={"error_code": error_code, "message": detail},
     )
@@ -586,73 +577,29 @@ async def run_http_a2a_host_validation(
     poll_attempts: int = 5,
     poll_interval_seconds: float = 0.25,
 ) -> A2AHostValidationReport:
-    """Validate a Deepr A2A HTTP endpoint without metered API calls."""
+    """Fail closed before HTTP task submission until cost authority is attestable."""
 
-    if backend == "plan" and not plan:
+    try:
+        resolved_endpoint = _validated_loopback_endpoint(endpoint)
+        _validated_http_bounds(
+            timeout_seconds,
+            poll_attempts,
+            poll_interval_seconds,
+        )
+    except ValueError as exc:
         return _failed_report(
             mode="http",
             backend=backend,
             question=question,
             experts=experts,
-            endpoint=endpoint.rstrip("/"),
+            endpoint=None,
             plan=plan,
-            check_name="backend_configuration",
-            detail="plan is required when backend is plan",
-            error_code="INVALID_BACKEND",
+            check_name="http_preflight",
+            detail=str(exc),
+            error_code="INVALID_HTTP_PREFLIGHT",
         )
 
-    resolved_endpoint = endpoint.rstrip("/")
-    timeout = aiohttp.ClientTimeout(total=timeout_seconds)
-    try:
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            agent_card, discovery_path, status = await _fetch_agent_card(session, resolved_endpoint, auth_token)
-            if not agent_card:
-                detail = f"Agent Card discovery failed; last HTTP status {status}"
-                return _failed_report(
-                    mode="http",
-                    backend=backend,
-                    question=question,
-                    experts=experts,
-                    endpoint=resolved_endpoint,
-                    plan=plan,
-                    check_name="agent_card_http",
-                    detail=detail,
-                    error_code="A2A_AGENT_CARD_FAILED",
-                )
-
-            task_body = _task_request(
-                question=question,
-                experts=experts,
-                backend=backend,
-                local_model=local_model,
-                plan=plan,
-                plan_model=plan_model,
-            )
-            status, task = await _submit_task(session, resolved_endpoint, auth_token, task_body)
-            if status < 200 or status >= 300 or not task:
-                detail = f"POST /tasks failed with HTTP {status}"
-                return _report(
-                    mode="http",
-                    backend=backend,
-                    question=question,
-                    experts=experts,
-                    endpoint=resolved_endpoint,
-                    discovery_path=discovery_path,
-                    plan=plan,
-                    checks=(A2AHostValidationCheck("a2a_task_submit", "failed", detail),),
-                    agent_card=agent_card,
-                    error={"error_code": "A2A_TASK_SUBMIT_FAILED", "message": detail},
-                )
-
-            task = await _poll_task(
-                session,
-                resolved_endpoint,
-                auth_token,
-                task,
-                poll_attempts=poll_attempts,
-                poll_interval_seconds=poll_interval_seconds,
-            )
-    except (aiohttp.ClientError, TimeoutError, OSError, RuntimeError, ValueError) as exc:
+    if backend not in {"local", "plan"}:
         return _failed_report(
             mode="http",
             backend=backend,
@@ -660,27 +607,37 @@ async def run_http_a2a_host_validation(
             experts=experts,
             endpoint=resolved_endpoint,
             plan=plan,
-            check_name="a2a_host_validation",
-            detail=str(exc),
-            error_code="A2A_HOST_VALIDATION_FAILED",
+            check_name="backend_configuration",
+            detail="HTTP validation permits only local or plan capacity",
+            error_code="INVALID_BACKEND",
         )
-
-    checks = validate_a2a_host_payload(
-        agent_card,
-        task,
-        expected_backend=backend,
-        forbidden_values=(auth_token,) if auth_token else (),
+    if backend == "plan" and not plan:
+        return _failed_report(
+            mode="http",
+            backend=backend,
+            question=question,
+            experts=experts,
+            endpoint=resolved_endpoint,
+            plan=plan,
+            check_name="backend_configuration",
+            detail="plan is required when backend is plan",
+            error_code="INVALID_BACKEND",
+        )
+    del auth_token, local_model, plan_model
+    detail = (
+        "HTTP A2A task submission is blocked until Deepr can verify an independently enforced "
+        "cost authority before POST /tasks. A bearer token, Agent Card, requested backend, and "
+        "returned zero-cost fields are self-reported and do not prove that the endpoint avoided "
+        "metered side effects. Use offline validation instead."
     )
-    return _report(
+    return _failed_report(
         mode="http",
         backend=backend,
         question=question,
         experts=experts,
         endpoint=resolved_endpoint,
-        discovery_path=discovery_path,
         plan=plan,
-        checks=checks,
-        agent_card=agent_card,
-        task=task,
-        error=_as_dict(task.get("error")),
+        check_name="http_task_cost_authority",
+        detail=detail,
+        error_code="A2A_HTTP_TASK_VALIDATION_BLOCKED",
     )

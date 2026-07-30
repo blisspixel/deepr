@@ -378,7 +378,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         model="grok-4-20-reasoning",
         cost_per_query=0.10,
         latency_ms=3000,
-        context_window=2_000_000,
+        context_window=1_000_000,
         specializations=["reasoning", "analysis", "synthesis", "coding", "factual"],
         strengths=[
             "xAI flagship model (March 2026)",
@@ -386,7 +386,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
             "Strict prompt adherence",
             "Full agentic tool calling (web, X, code interpreter)",
             "Native vision support",
-            "2M token context window",
+            "1M token context window",
         ],
         weaknesses=[
             "More expensive than Grok 4.1 Fast ($1.25/$2.50 vs $0.20/$0.50)",
@@ -401,14 +401,14 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         model="grok-4-20-non-reasoning",
         cost_per_query=0.08,
         latency_ms=2000,
-        context_window=2_000_000,
+        context_window=1_000_000,
         specializations=["speed", "factual", "news", "general", "high_throughput"],
         strengths=[
             "Flagship Grok without reasoning overhead",
             "Low-latency for high-volume tasks",
             "Strict prompt adherence",
             "Native vision support",
-            "2M token context window",
+            "1M token context window",
         ],
         weaknesses=[
             "More expensive than 4.1 Fast tier ($1.25/$2.50 vs $0.20/$0.50)",
@@ -423,13 +423,13 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         model="grok-4-20-multi-agent",
         cost_per_query=0.50,
         latency_ms=60_000,
-        context_window=2_000_000,
+        context_window=1_000_000,
         specializations=["research", "analysis", "synthesis", "agentic"],
         strengths=[
             "4 or 16 parallel agents for deep research",
             "Autonomous web + X + code search",
             "Comprehensive multi-step analysis and synthesis",
-            "2M token context window",
+            "1M token context window",
         ],
         weaknesses=[
             "Expensive ($1.25/$2.50 per MTok, multiplied by agent count)",
@@ -450,8 +450,8 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         specializations=["reasoning", "agentic", "tool_calling", "instruction_following"],
         strengths=["Newest xAI flagship (launched July 8, 2026)", "Succeeds Grok 4.3 as top Grok model"],
         weaknesses=[
-            "Smaller context than Grok 4.20 (500K vs 2M) and Grok 4.3 (1M)",
-            "Provider doubles token rates above 200K prompt tokens; Deepr's bounded envelope stays under that per request",
+            "Smaller context than Grok 4.20 and Grok 4.3 (500K vs 1M)",
+            "Provider doubles input, cached-input, and output rates at or above 200K prompt tokens",
         ],
         input_cost_per_1m=2.00,
         output_cost_per_1m=6.00,
@@ -473,7 +473,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
             "Competitive pricing ($1.25/$2.50 per MTok)",
         ],
         weaknesses=[
-            "Smaller context than Grok 4.20 (1M vs 2M)",
+            "Same 1M context ceiling as Grok 4.20",
             "Newer model, less battle-tested in production",
         ],
         input_cost_per_1m=1.25,
@@ -828,13 +828,13 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         specializations=["reasoning", "large_context", "synthesis", "thinking"],
         strengths=[
             "Strong thinking/reasoning model",
-            "1M token context window",
             "Can't disable thinking (always reasons)",
             "Good for complex analysis",
         ],
-        weaknesses=["Slower due to mandatory thinking", "Higher cost from thinking tokens"],
+        weaknesses=["Slower due to mandatory thinking", "Long-context rates apply above 200K prompt tokens"],
         input_cost_per_1m=1.25,
         output_cost_per_1m=10.00,  # Includes thinking tokens
+        cached_input_cost_per_1m=0.125,
     ),
     # Anthropic Models
     # Note: Anthropic does NOT have a turnkey deep research API like OpenAI/Gemini.

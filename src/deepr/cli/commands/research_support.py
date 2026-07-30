@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import os
 from collections.abc import Mapping
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from deepr.core.costs import CostEstimate
+    from deepr.experts.research_cost_gate import ResearchCostReservation
 
 _PROVIDER_DEFAULT_MODELS = {
     "openai": "o3-deep-research",
@@ -87,10 +91,18 @@ def bounded_tool_disable_flags(provider: str, no_web: bool, no_code: bool) -> tu
     """Apply the currently admitted tool posture for a provider."""
     if provider.lower() not in _BOUNDED_TOOL_PROVIDERS:
         return True, True
-    return no_web, no_code
+    # Code Interpreter is billed by a provider-selected memory tier over a
+    # session window. Until callers can bind memory, session count, and
+    # duration before dispatch, its maximum marginal cost is not provable.
+    return no_web, True
 
 
-def enforce_monthly_budget_gate(estimate, reservation, *, yes: bool) -> bool:
+def enforce_monthly_budget_gate(
+    estimate: CostEstimate,
+    reservation: ResearchCostReservation,
+    *,
+    yes: bool,
+) -> bool:
     """Consult the monthly budget gate for an already-reserved submission.
 
     Returns True to proceed. On refusal the reservation is refunded and a

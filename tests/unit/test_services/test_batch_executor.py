@@ -4,6 +4,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from deepr.providers.base import DeepResearchProvider
+from deepr.providers.dispatch_authority import default_paid_endpoint
 from deepr.queue.base import JobStatus
 from deepr.services.batch_executor import BatchExecutor
 from deepr.services.research_bounds import ResearchRequestBoundsError
@@ -42,6 +44,10 @@ class TestBatchExecutor:
             "deepr.services.research_bounds.require_research_parent_budget_accounting",
             lambda _operation: None,
         )
+        monkeypatch.setenv("DEEPR_MAX_COST_PER_JOB", "5")
+        monkeypatch.setenv("DEEPR_MAX_COST_PER_DAY", "5")
+        monkeypatch.setenv("DEEPR_MAX_COST_PER_WEEK", "5")
+        monkeypatch.setenv("DEEPR_MAX_COST_PER_MONTH", "5")
 
     @pytest.fixture
     def mock_queue(self):
@@ -49,7 +55,12 @@ class TestBatchExecutor:
 
     @pytest.fixture
     def mock_provider(self):
-        return AsyncMock()
+        provider = AsyncMock(spec=DeepResearchProvider)
+        provider.provider_key = "openai"
+        provider.name = "openai"
+        provider._paid_endpoint = default_paid_endpoint("openai")
+        provider.get_model_name.side_effect = lambda model: model
+        return provider
 
     @pytest.fixture
     def mock_storage(self):
@@ -65,10 +76,17 @@ class TestBatchExecutor:
             queued_job = mock_queue.enqueue.await_args.args[0]
             return queued_job, kwargs["expected"]
 
-        with patch(
-            "deepr.services.research_submission.restore_active_queued_reservation",
-            new_callable=AsyncMock,
-            side_effect=restore_expected,
+        with (
+            patch(
+                "deepr.services.research_submission.restore_active_queued_reservation",
+                new_callable=AsyncMock,
+                side_effect=restore_expected,
+            ),
+            patch(
+                "deepr.services.research_cost_reconciliation.reconcile_research_cost_reservations",
+                new_callable=AsyncMock,
+                return_value=0,
+            ),
         ):
             yield BatchExecutor(
                 queue=mock_queue,
@@ -147,6 +165,9 @@ class TestBatchExecutor:
 
         mock_job = MagicMock()
         mock_job.status = JobStatus.COMPLETED
+        mock_job.provider = "openai"
+        mock_job.model = "o4-mini-deep-research"
+        mock_job.provider_job_id = "provider-job"
         mock_job.cost = 0.50
         mock_job.tokens_used = 500
         mock_queue.get_job.return_value = mock_job
@@ -171,6 +192,9 @@ class TestBatchExecutor:
 
         mock_job = MagicMock()
         mock_job.status = JobStatus.COMPLETED
+        mock_job.provider = "openai"
+        mock_job.model = "o4-mini-deep-research"
+        mock_job.provider_job_id = "pj"
         # Stay within the provider-enforced reservation ceiling. A reported
         # cost above that ceiling is a safety divergence and freezes paid work.
         mock_job.cost = 1.50

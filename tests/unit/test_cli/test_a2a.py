@@ -70,6 +70,26 @@ def test_a2a_validate_host_remote_uses_http_runner() -> None:
     assert "[ok] agent_card_envelope: ok" in result.output
 
 
+def test_a2a_validate_host_remote_is_blocked_before_network() -> None:
+    with patch("aiohttp.ClientSession", side_effect=AssertionError("network must not be opened")):
+        result = CliRunner().invoke(
+            a2a,
+            [
+                "validate-host",
+                "http://127.0.0.1:8080",
+                "--auth-token",
+                "secret",
+                "--json",
+            ],
+        )
+
+    assert result.exit_code == 1, result.output
+    payload = json.loads(result.output)
+    assert payload["error"]["error_code"] == "A2A_HTTP_TASK_VALIDATION_BLOCKED"
+    assert payload["contract"]["task_submission_attempted"] is False
+    assert payload["contract"]["remote_task_calls_metered_api"] is None
+
+
 def test_a2a_validate_host_requires_explicit_plan() -> None:
     result = CliRunner().invoke(a2a, ["validate-host", "--synthesis-backend", "plan"])
 

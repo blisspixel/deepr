@@ -2,25 +2,23 @@
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
+import socket
 from typing import Any
 
+import aiohttp
 import pytest
 
 from deepr.mcp import conversation_validation
 from deepr.mcp.conversation_validation import (
-    CONVERSATION_TOOL_NAMES,
     MCPConversationValidationCheck,
     MCPConversationValidationReport,
+    _validate_local_contract,
     assert_secret_redaction,
     run_http_conversation_validation,
 )
 from deepr.mcp.conversation_validation_managed import (
     run_managed_loopback_conversation_validation,
 )
-from deepr.mcp.transport.http import HttpMessage
-from tests.unit.conversation_fixtures import CompletingExecutor, expert_snapshot
 
 
 def _operation(
@@ -69,91 +67,70 @@ def _operation(
     }
 
 
-class _FakeConversationHttpClient:
-    instances: list[_FakeConversationHttpClient] = []
-
-    def __init__(self, base_url: str, timeout: float = 30.0, auth_token: str | None = None) -> None:
-        self.base_url = base_url
-        self.timeout = timeout
-        self.auth_token = auth_token
-        self.sent: list[HttpMessage] = []
-        self.disconnected = False
-        self.start_calls = 0
-        self.continue_calls = 0
-        _FakeConversationHttpClient.instances.append(self)
-
-    async def connect(self) -> None:
-        return None
-
-    async def disconnect(self) -> None:
-        self.disconnected = True
-
-    async def send(self, message: HttpMessage) -> HttpMessage:
-        self.sent.append(message)
-        if message.method == "initialize":
-            return HttpMessage(id=message.id, result={"serverInfo": {"name": "deepr"}})
-        if message.method == "tools/list":
-            return HttpMessage(
-                id=message.id,
-                result={"tools": [{"name": name} for name in CONVERSATION_TOOL_NAMES]},
-            )
-        assert message.method == "tools/call"
-        assert isinstance(message.params, dict)
-        name = message.params["name"]
-        if name == "deepr_start_expert_conversation":
-            self.start_calls += 1
-            payload = _operation("start", version=2, ordinal=1, replayed=self.start_calls == 2)
-        elif name == "deepr_get_expert_conversation":
-            payload = _operation("get", version=2, ordinal=1)
-        elif name == "deepr_continue_expert_conversation":
-            self.continue_calls += 1
-            payload = _operation("continue", version=4, ordinal=2, replayed=self.continue_calls == 2)
-        elif name == "deepr_close_expert_conversation":
-            payload = _operation("close", version=6, ordinal=2, closed=True, purged=True)
-        else:
-            raise AssertionError(f"unexpected tool {name}")
-        return HttpMessage(
-            id=message.id,
-            result={
-                "content": [{"type": "text", "text": json.dumps(payload)}],
-                "structuredContent": payload,
-                "isError": False,
-            },
-        )
-
-
 @pytest.mark.asyncio
-async def test_http_conversation_validation_runs_full_remote_sequence(monkeypatch: pytest.MonkeyPatch) -> None:
-    _FakeConversationHttpClient.instances = []
-    monkeypatch.setattr(conversation_validation, "HttpClient", _FakeConversationHttpClient)
+@pytest.mark.parametrize("url", ["http://127.0.0.1:8765/mcp/", "https://mcp.example.com/mcp"])
+async def test_http_conversation_validation_blocks_before_client_construction(
+    url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        aiohttp,
+        "ClientSession",
+        lambda *args, **kwargs: pytest.fail("remote client must not be constructed"),
+    )
 
     report = await run_http_conversation_validation(
-        "http://127.0.0.1:8765/mcp/",
+        url,
         auth_token="secret-token",
         expert="Reliability Engineering",
         local_model="fixture-local-model",
         timeout_seconds=2.0,
     )
 
-    assert report.ok is True
-    assert report.endpoint == "http://127.0.0.1:8765/mcp"
-    assert report.conversation_id == "conv_AAAAAAAAAAAAAAAAAAAAAA"
-    assert report.to_dict()["cost_usd"] == 0.0
-    client = _FakeConversationHttpClient.instances[0]
-    assert client.disconnected is True
-    assert [message.method for message in client.sent] == [
-        "initialize",
-        "tools/list",
-        "tools/call",
-        "tools/call",
-        "tools/call",
-        "tools/call",
-        "tools/call",
-        "tools/call",
-    ]
-    for message in client.sent[2:]:
-        assert message.params["arguments"]["_approved"] is True
-    assert "secret-token" not in json.dumps(report.to_dict())
+    payload = report.to_dict()
+    assert report.ok is False
+    assert report.error["error_code"] == "MCP_HTTP_CONVERSATION_VALIDATION_BLOCKED"
+    assert payload["capacity_source"] == "unverified"
+    assert payload["fallback_policy"] == "unverified"
+    assert payload["live_metered_fallback"] is None
+    assert payload["remote_tool_call_attempted"] is False
+    assert payload["remote_tool_calls_metered_api"] is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("timeout", [float("nan"), float("inf"), 0.0, -1.0, 301.0])
+async def test_http_conversation_validation_rejects_timeout_before_client(
+    timeout: float, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        aiohttp,
+        "ClientSession",
+        lambda *args, **kwargs: pytest.fail("remote client must not be constructed"),
+    )
+
+    report = await run_http_conversation_validation(
+        "https://mcp.example.com/mcp",
+        timeout_seconds=timeout,
+    )
+
+    assert report.ok is False
+    assert report.error["error_code"] == "INVALID_HTTP_PREFLIGHT"
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), -0.01, "0", None, True])
+@pytest.mark.parametrize("location", ["bounds", "usage"])
+def test_conversation_validation_rejects_invalid_zero_cost_fields(location: str, value: Any) -> None:
+    payload = _operation("start", version=2, ordinal=1)
+    conversation = payload["conversation"]
+    turn = payload["turn"]
+    if location == "bounds":
+        conversation["bounds"]["max_cost_usd"] = value
+    else:
+        conversation["usage"]["cost_usd"] = value
+
+    with pytest.raises(conversation_validation.ConversationValidationFailure) as exc_info:
+        _validate_local_contract(conversation, turn)
+
+    assert exc_info.value.code in {"NONZERO_COST_CEILING", "NONZERO_RECORDED_COST"}
 
 
 def test_secret_redaction_rejects_echo() -> None:
@@ -173,32 +150,57 @@ def test_failed_check_marks_conversation_report_failed() -> None:
 
 
 @pytest.mark.asyncio
-async def test_managed_loopback_validation_covers_restart_expiry_and_revocation(
-    tmp_path: Path,
+async def test_managed_loopback_validation_blocks_before_server_or_executor(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    del tmp_path
     monkeypatch.setattr(
-        "deepr.mcp.expert_conversation.compile_conversation_snapshots",
-        lambda *_args, **_kwargs: (expert_snapshot(),),
+        socket,
+        "socket",
+        lambda *_args, **_kwargs: pytest.fail("managed server socket must not be constructed"),
     )
-    executor = CompletingExecutor()
+    monkeypatch.setattr(
+        aiohttp,
+        "ClientSession",
+        lambda *_args, **_kwargs: pytest.fail("managed HTTP client must not be constructed"),
+    )
+
+    def fail_executor() -> Any:
+        pytest.fail("managed executor must not be constructed")
 
     report = await run_managed_loopback_conversation_validation(
         expert="reliability_engineering",
         local_model="fixture-local-model",
         timeout_seconds=10.0,
-        executor_factory=lambda: executor,
+        executor_factory=fail_executor,
     )
 
-    assert report.ok is True, report.to_dict()
-    passed = {check.name for check in report.checks if check.status == "passed"}
-    assert {
-        "restart_recovery",
-        "cross_key_isolation",
-        "retention_expiry",
-        "scoped_key_revocation",
-        "authentication_material_redacted",
-        "remote_audit_zero_cost",
-    }.issubset(passed)
-    assert len(executor.contexts) == 3
+    payload = report.to_dict()
+    assert report.ok is False
+    assert report.endpoint is None
+    assert report.error["error_code"] == "MCP_MANAGED_CONVERSATION_VALIDATION_BLOCKED"
+    assert payload["capacity_source"] == "unverified"
+    assert payload["fallback_policy"] == "unverified"
+    assert payload["live_metered_fallback"] is None
+    assert payload["remote_tool_call_attempted"] is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("timeout", [float("nan"), float("inf"), 0.0, -1.0, 301.0])
+async def test_managed_loopback_rejects_timeout_before_server_start(
+    timeout: float, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        socket,
+        "socket",
+        lambda *_args, **_kwargs: pytest.fail("managed server socket must not be constructed"),
+    )
+    monkeypatch.setattr(
+        aiohttp,
+        "ClientSession",
+        lambda *_args, **_kwargs: pytest.fail("managed HTTP client must not be constructed"),
+    )
+
+    report = await run_managed_loopback_conversation_validation(timeout_seconds=timeout)
+
+    assert report.ok is False
+    assert report.error["error_code"] == "INVALID_TIMEOUT"

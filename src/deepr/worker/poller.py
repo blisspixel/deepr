@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from ..config import load_config
@@ -30,6 +30,8 @@ from ..storage.base import StorageBackend
 
 logger = logging.getLogger(__name__)
 _MAX_CONCURRENT_POLLS = 8
+_MIN_POLL_INTERVAL_SECONDS = 30
+_MAX_PROVIDER_RECONCILIATION_AGE = timedelta(hours=24)
 
 
 def _response_content(response: ResearchResponse) -> str:
@@ -67,13 +69,16 @@ class JobPoller:
             poll_interval: Seconds between polls (default: 30)
             socketio: Optional Socket.IO instance for real-time events
         """
-        self.poll_interval = poll_interval
+        if type(poll_interval) is not int or poll_interval <= 0:
+            raise ValueError("poll_interval must be a positive integer")
+        self.poll_interval = max(poll_interval, _MIN_POLL_INTERVAL_SECONDS)
         self.socketio = socketio
         self.running = False
         self._in_flight_job_ids: set[str] = set()
         # CostController.record_cost is not idempotent; completion retries must
         # not re-add the same job's spend to in-process daily/monthly totals.
         self._cost_controller_recorded_job_ids: set[str] = set()
+        self._expired_reconciliation_attempted_job_ids: set[str] = set()
 
         # Load config
         config = load_config()
@@ -92,9 +97,9 @@ class JobPoller:
         )
 
         self.cost_controller = CostController(
-            max_cost_per_job=float(config.get("max_cost_per_job", 5.0)),
-            max_daily_cost=float(config.get("max_daily_cost", 25.0)),
-            max_monthly_cost=float(config.get("max_monthly_cost", 200.0)),
+            max_cost_per_job=float(config.get("max_cost_per_job", 1.0)),
+            max_daily_cost=float(config.get("max_daily_cost", 2.0)),
+            max_monthly_cost=float(config.get("max_monthly_cost", 5.0)),
         )
 
     async def start(self) -> None:
@@ -183,6 +188,17 @@ class JobPoller:
                 logger.warning(f"Job {job.id} has no provider_job_id, skipping")
                 return
 
+            reconciliation_age = self._provider_reconciliation_age(job)
+            if reconciliation_age is None:
+                await self._expire_provider_reconciliation(job, "missing a durable provider-submission timestamp")
+                return
+            if reconciliation_age > _MAX_PROVIDER_RECONCILIATION_AGE:
+                await self._expire_provider_reconciliation(
+                    job,
+                    f"exceeded the {_MAX_PROVIDER_RECONCILIATION_AGE.total_seconds() / 3600:.0f}-hour hard limit",
+                )
+                return
+
             # Get status from provider
             response = await self.provider.get_status(job.provider_job_id)
 
@@ -218,6 +234,75 @@ class JobPoller:
             )
             # Don't mark as failed yet, might be temporary network issue
 
+    @staticmethod
+    def _provider_reconciliation_age(job: ResearchJob) -> timedelta | None:
+        """Return durable provider-job age, or None for an unsafe snapshot."""
+        started_at = getattr(job, "started_at", None)
+        submitted_at = getattr(job, "submitted_at", None)
+        anchor = started_at if isinstance(started_at, datetime) else submitted_at
+        if not isinstance(anchor, datetime):
+            return None
+        if anchor.tzinfo is None:
+            anchor = anchor.replace(tzinfo=UTC)
+        return datetime.now(UTC) - anchor
+
+    async def _expire_provider_reconciliation(self, job: ResearchJob, reason: str) -> None:
+        """Make one cancellation attempt, then stop automatic external traffic."""
+        job_id = str(job.id)
+        first_attempt = job_id not in self._expired_reconciliation_attempted_job_ids
+        self._expired_reconciliation_attempted_job_ids.add(job_id)
+        cancellation_confirmed = False
+        if first_attempt and job.provider_job_id:
+            try:
+                cancellation_confirmed = bool(await self.provider.cancel_job(job.provider_job_id))
+            except Exception:
+                logger.warning("Provider cancellation failed for expired reconciliation job %s", job.id)
+
+        base_error = f"Provider reconciliation {reason}"
+        if cancellation_confirmed:
+            await self._handle_failure(
+                job,
+                f"{base_error}; provider cancellation confirmed",
+                status=JobStatus.CANCELLED,
+                terminal_on_cleanup_failure=True,
+            )
+            return
+
+        reservation_lookup_failed = False
+        try:
+            reservation = restore_research_cost_reservation(
+                job_id=job.id,
+                metadata=job.metadata,
+                provider=str(getattr(job, "provider", "") or ""),
+                model=str(job.model),
+            )
+        except Exception:
+            reservation = None
+            reservation_lookup_failed = True
+            logger.exception("Could not restore cost authority for expired reconciliation job %s", job.id)
+        accounting_state = "the unresolved reservation remains held and blocks paid dispatch"
+        if reservation_lookup_failed:
+            accounting_state = "cost accounting is unresolved, so paid dispatch remains frozen"
+        elif reservation is None and job.provider_job_id:
+            try:
+                record_unreserved_research_cost(
+                    job_id=job.id,
+                    provider=str(getattr(job, "provider", "") or ""),
+                    model=str(job.model),
+                    actual_cost=None,
+                    request_id=str(job.provider_job_id),
+                    source="worker.poller._expire_provider_reconciliation",
+                )
+                accounting_state = "the configured ceiling was recorded conservatively"
+            except Exception:
+                accounting_state = "cost accounting is unresolved, so paid dispatch remains frozen"
+        error = (
+            f"{base_error}; provider cancellation was not confirmed; {accounting_state}; "
+            "manual provider-account reconciliation is required"
+        )
+        if not await self.queue.update_status(job_id=job.id, status=JobStatus.FAILED, error=error):
+            logger.error("Failed to persist expired reconciliation state for job %s", job.id)
+
     async def _handle_queued_job(self, job: ResearchJob) -> None:
         """Cancel a provider job only after it has remained queued too long."""
         provider_job_id = job.provider_job_id
@@ -232,26 +317,9 @@ class JobPoller:
             logger.debug("Job %s queued for %.1f minutes", job.id, queue_time_minutes)
             return
 
-        logger.warning(
-            "Job %s stuck in queue for %.1f minutes. Cancelling and marking as failed.",
-            job.id,
-            queue_time_minutes,
-        )
-        try:
-            cancelled = bool(await self.provider.cancel_job(provider_job_id))
-        except Exception:
-            cancelled = False
-            logger.warning("Could not cancel job %s at provider", job.id)
-
-        if not cancelled:
-            logger.warning("Provider did not confirm cancellation for stuck job %s", job.id)
-            logger.warning("Retaining stuck job %s for later polling", job.id)
-            return
-
-        logger.info("Cancelled stuck job %s at provider", job.id)
-        await self._handle_failure(
+        await self._expire_provider_reconciliation(
             job,
-            f"Job stuck in provider queue for {queue_time_minutes:.1f} minutes - auto-cancelled",
+            f"remained queued for {queue_time_minutes:.1f} minutes",
         )
 
     def _record_completion_cost(
@@ -368,6 +436,7 @@ class JobPoller:
         error: str,
         *,
         status: JobStatus = JobStatus.FAILED,
+        terminal_on_cleanup_failure: bool = False,
     ) -> None:
         """Close a terminal provider outcome and persist its local status."""
         try:
@@ -402,17 +471,28 @@ class JobPoller:
                     raise RuntimeError(f"Canonical cost settlement missing for terminal job {job.id}")
             except Exception:
                 logger.exception("Failed to close provider cost for failed job %s", job.id)
-                return
+                if not terminal_on_cleanup_failure:
+                    return
+                error = f"{error}; cost accounting remains unresolved and paid dispatch is frozen"
 
             from ..cli.commands.run_submission import cleanup_persisted_uploads
 
-            if not await cleanup_persisted_uploads(self.provider, job):
+            try:
+                cleanup_closed = await cleanup_persisted_uploads(self.provider, job)
+            except Exception:
+                cleanup_closed = False
+                logger.exception("Provider upload cleanup failed for terminal job %s", job.id)
+            if not cleanup_closed:
                 logger.error("Provider upload cleanup incomplete for failed job %s", job.id)
-                return
+                if not terminal_on_cleanup_failure:
+                    return
+                error = f"{error}; provider resource cleanup is unconfirmed"
             has_cleanup_metadata = bool(job.metadata.get("provider_file_ids") or job.metadata.get("vector_store_id"))
-            if has_cleanup_metadata and not await self.queue.clear_cleanup_metadata(job.id):
+            if cleanup_closed and has_cleanup_metadata and not await self.queue.clear_cleanup_metadata(job.id):
                 logger.error("Provider cleanup state missing for failed job %s", job.id)
-                return
+                if not terminal_on_cleanup_failure:
+                    return
+                error = f"{error}; provider cleanup metadata remains for manual reconciliation"
 
             status_updated = await self.queue.update_status(job_id=job.id, status=status, error=error)
             if not status_updated:

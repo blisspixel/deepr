@@ -6,6 +6,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from deepr.providers.base import ResearchRequest
+from tests.unit.test_providers._provider_authority import submit_adapter
+
+
+@pytest.fixture(autouse=True)
+def _allow_mocked_storage_adapter(monkeypatch):
+    monkeypatch.setattr("deepr.services.research_bounds.require_research_storage_accounting", lambda: None)
 
 
 class TestAzureFoundryProvider:
@@ -109,7 +115,7 @@ class TestAzureFoundryProvider:
         from deepr.providers.azure_foundry_provider import AzureFoundryProvider
 
         p = AzureFoundryProvider(
-            project_endpoint="https://test.com",
+            project_endpoint="https://test.services.ai.azure.com/api/projects/test",
             model_mappings={"o3-deep-research": "my-custom-deployment"},
         )
         assert p.get_model_name("o3-deep-research") == "my-custom-deployment"
@@ -177,7 +183,7 @@ class TestAzureFoundryProvider:
             system_message="You are a research assistant.",
         )
 
-        job_id = await provider.submit_research(request)
+        job_id = await submit_adapter(provider, request)
 
         assert job_id == "thread-123:run-456"
         assert job_id in provider._jobs
@@ -253,7 +259,7 @@ class TestAzureFoundryProvider:
             system_message="You are a helpful assistant.",
         )
 
-        job_id = await provider.submit_research(request)
+        job_id = await submit_adapter(provider, request)
 
         assert job_id == "thread-reg-1:run-reg-1"
         assert provider._jobs[job_id]["kind"] == "regular"
@@ -281,7 +287,7 @@ class TestAzureFoundryProvider:
             system_message="",
         )
 
-        job_id = await provider.submit_research(request)
+        job_id = await submit_adapter(provider, request)
 
         assert provider._jobs[job_id]["kind"] == "regular"
         assert provider._jobs[job_id]["model"] == "gpt-4o-mini"
@@ -453,7 +459,7 @@ class TestAzureFoundryProvider:
         from deepr.providers.base import ProviderError
 
         with pytest.raises(ProviderError, match="does not support standalone file uploads"):
-            await provider.upload_document("/tmp/test.pdf")
+            await provider._upload_document_accounted("/tmp/test.pdf")
 
     @pytest.mark.asyncio
     async def test_create_vector_store_not_supported(self, provider):
@@ -461,7 +467,7 @@ class TestAzureFoundryProvider:
         from deepr.providers.base import ProviderError
 
         with pytest.raises(ProviderError, match="does not support vector stores"):
-            await provider.create_vector_store("test-store", ["file-1"])
+            await provider._create_vector_store_accounted("test-store", ["file-1"])
 
     @pytest.mark.asyncio
     async def test_list_vector_stores_empty(self, provider):
@@ -622,7 +628,7 @@ class TestAzureFoundryProviderRegistration:
         ):
             from deepr.providers.azure_foundry_provider import AzureFoundryProvider
 
-            provider = AzureFoundryProvider(project_endpoint="https://test.azure.com")
+            provider = AzureFoundryProvider(project_endpoint="https://test.services.ai.azure.com/api/projects/test")
             models = provider.list_available_models()
         assert len(models) >= 7
 

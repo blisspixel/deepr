@@ -10,15 +10,12 @@ from typing import Any
 from deepr.experts.report_absorber import ESTIMATED_EXTRACTION_COST
 from deepr.experts.semantic_model_gate import (
     coerce_nonnegative_float,
+    require_zero_dollar_client,
     requires_metered_opt_in,
     sha256_text,
     stable_json,
 )
-from deepr.experts.semantic_model_gate import (
-    cost_safety as resolve_cost_safety,
-)
 from deepr.experts.source_pack_compiler import (
-    SEMANTIC_CLAIM_EXTRACTION_PROMPT_VERSION,
     build_semantic_claim_extraction,
 )
 from deepr.utils.prompt_security import sanitize_untrusted_content
@@ -27,6 +24,7 @@ CLAIM_EXTRACTION_PROMPT_REF = "deepr://prompts/semantic-claim-extraction/v1"
 CLAIM_EXTRACTION_OPERATION = "semantic_claim_extraction"
 DEFAULT_MAX_SOURCE_WINDOWS = 20
 DEFAULT_MAX_CHARS_PER_WINDOW = 1600
+MAX_EXTRACTION_OUTPUT_TOKENS = 8_192
 
 
 class ClaimExtractionBlocked(RuntimeError):
@@ -59,9 +57,9 @@ class ClaimExtractionPrompt:
 class SemanticClaimExtractor:
     """Callable semantic-claim extractor for sync, CLI, MCP, or tests.
 
-    The extractor accepts any AsyncOpenAI-shaped chat client. Owned local and
-    plan-quota clients pass ``estimated_cost_usd=0``. Metered clients must set
-    ``allow_metered=True`` and pass through the cost-safety reservation path.
+    Zero-dollar execution requires a Deepr-minted local or safe plan-quota
+    client. Metered clients require explicit opt-in and the shared durable
+    reserve, dispatch-mark, and settlement path.
     """
 
     provider: str
@@ -81,7 +79,13 @@ class SemanticClaimExtractor:
             api_key = os.getenv("OPENAI_API_KEY")
             if not api_key:
                 raise ClaimExtractionBlocked("OPENAI_API_KEY is not set for metered claim extraction")
-            self.client = AsyncOpenAI(api_key=api_key)
+            from deepr.providers.dispatch_authority import default_paid_endpoint
+
+            self.client = AsyncOpenAI(
+                api_key=api_key,
+                base_url=default_paid_endpoint("openai"),
+                max_retries=0,
+            )
         return self.client
 
     async def extract(
@@ -313,68 +317,71 @@ async def extract_semantic_claims(
         raise ClaimExtractionBlocked(
             f"estimated claim extraction cost ${estimated_cost:.2f} exceeds budget ${budget:.2f}"
         )
+    if estimated_cost == 0:
+        try:
+            require_zero_dollar_client(client, capacity_source=capacity_source)
+        except ValueError as exc:
+            raise ClaimExtractionBlocked(str(exc)) from exc
 
     prompt = build_claim_extraction_prompt(source_notes, source_pack_payload)
-    manager = None
-    reservation_id = ""
-    if estimated_cost > 0:
-        manager = resolve_cost_safety(cost_safety)
-        allowed, reason, _needs_confirm, reservation_id = manager.check_and_reserve(
-            session_id=session_id,
-            operation_type=CLAIM_EXTRACTION_OPERATION,
-            estimated_cost=estimated_cost,
-        )
-        if not allowed:
-            raise ClaimExtractionBlocked(f"claim extraction blocked by cost safety: {reason}")
+    settled_cost = 0.0
+    output_token_limit = MAX_EXTRACTION_OUTPUT_TOKENS
+    reservation_ceiling = estimated_cost
 
-    # Once the provider call starts, failure may still have spent money.
-    # Settle the full reserved bound instead of refunding (silent-money class).
-    try:
-        response = await client.chat.completions.create(
+    if estimated_cost > 0:
+        from deepr.services.metered_envelope import MeteredEnvelopeError, bounded_chat_envelope
+
+        try:
+            envelope = bounded_chat_envelope(
+                provider=provider,
+                model=model,
+                prompt_parts=tuple(message["content"] for message in prompt.messages),
+                budget_usd=estimated_cost,
+                maximum_output_tokens=MAX_EXTRACTION_OUTPUT_TOKENS,
+                minimum_output_tokens=128,
+            )
+        except MeteredEnvelopeError as exc:
+            raise ClaimExtractionBlocked(str(exc)) from exc
+        output_token_limit = envelope.output_tokens
+        reservation_ceiling = envelope.cost_usd
+
+    async def invoke() -> Any:
+        return await client.chat.completions.create(
             model=model,
             messages=prompt.messages,
             response_format={"type": "json_object"},
+            max_completion_tokens=output_token_limit,
         )
-    except Exception:
-        if manager is not None and reservation_id:
-            manager.record_cost(
-                session_id=session_id,
-                operation_type=CLAIM_EXTRACTION_OPERATION,
-                actual_cost=estimated_cost,
-                provider=provider,
-                model=model,
-                source="semantic_claim_extraction",
-                idempotency_key=f"{prompt.prompt_hash}:conservative_settle",
-                reservation_id=reservation_id,
-                metadata={
-                    "capacity_source": capacity_source,
-                    "source_note_artifact": source_note_artifact,
-                    "conservative_settle": True,
-                },
-            )
-        raise
 
-    raw = response.choices[0].message.content or ""
-    if manager is not None:
-        usage = getattr(response, "usage", None)
-        manager.record_cost(
-            session_id=session_id,
-            operation_type=CLAIM_EXTRACTION_OPERATION,
-            actual_cost=estimated_cost,
+    if estimated_cost > 0:
+        from deepr.providers.dispatch_authority import require_official_paid_client
+        from deepr.services.metered_call import execute_reserved_async_call
+
+        require_official_paid_client(client, provider)
+
+        def capture_settlement(value: float) -> None:
+            nonlocal settled_cost
+            settled_cost = value
+
+        response = await execute_reserved_async_call(
+            operation_prefix=CLAIM_EXTRACTION_OPERATION,
             provider=provider,
             model=model,
-            tokens_input=int(getattr(usage, "prompt_tokens", getattr(usage, "input_tokens", 0)) or 0),
-            tokens_output=int(getattr(usage, "completion_tokens", getattr(usage, "output_tokens", 0)) or 0),
             source="semantic_claim_extraction",
-            idempotency_key=prompt.prompt_hash,
-            reservation_id=reservation_id,
-            metadata={
-                "capacity_source": capacity_source,
-                "source_note_artifact": source_note_artifact,
-                "source_window_count": prompt.source_window_count,
-                "prompt_version": SEMANTIC_CLAIM_EXTRACTION_PROMPT_VERSION,
+            call=invoke,
+            request_envelope={
+                "model": model,
+                "messages": prompt.messages,
+                "response_format": {"type": "json_object"},
+                "max_completion_tokens": output_token_limit,
             },
+            max_cost_per_job=reservation_ceiling,
+            on_settled=capture_settlement,
         )
+    else:
+        response = await invoke()
+
+    raw = response.choices[0].message.content or ""
 
     return build_semantic_claim_extraction(
         source_notes,
@@ -383,7 +390,7 @@ async def extract_semantic_claims(
         provider=provider,
         model=model,
         capacity_source=capacity_source,
-        cost_usd=estimated_cost,
+        cost_usd=settled_cost,
         prompt_ref=CLAIM_EXTRACTION_PROMPT_REF,
         prompt_hash=prompt.prompt_hash,
         generated_at=generated_at or datetime.now(UTC).isoformat(),

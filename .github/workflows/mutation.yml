@@ -13,9 +13,14 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: mutation-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   mutmut:
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     # Non-blocking baseline: surfaces surviving mutants without gating. Flips
     # to a tracked mutation-score threshold as the kernel suite is hardened.
     continue-on-error: true

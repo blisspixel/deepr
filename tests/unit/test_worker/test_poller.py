@@ -20,9 +20,9 @@ class TestJobPoller:
             "results_dir": "test/results",
             "provider": "openai",
             "api_key": "sk-test",
-            "max_cost_per_job": 5.0,
-            "max_daily_cost": 25.0,
-            "max_monthly_cost": 200.0,
+            "max_cost_per_job": 1.0,
+            "max_daily_cost": 2.0,
+            "max_monthly_cost": 5.0,
         }
 
     @pytest.fixture
@@ -45,7 +45,7 @@ class TestJobPoller:
 
     def test_init_sets_poll_interval(self, poller):
         """poll_interval stored correctly."""
-        assert poller.poll_interval == 5
+        assert poller.poll_interval == 30
 
     def test_init_running_false(self, poller):
         """Poller starts not running."""
@@ -71,6 +71,7 @@ class TestJobPoller:
         mock_job = MagicMock()
         mock_job.id = "job-1"
         mock_job.provider_job_id = "pj-1"
+        mock_job.submitted_at = datetime.now(UTC)
         poller.queue.list_jobs.return_value = [mock_job]
 
         mock_resp = MagicMock()
@@ -88,10 +89,12 @@ class TestJobPoller:
             job = MagicMock()
             job.id = f"new-{i}"
             job.provider_job_id = f"pj-new-{i}"
+            job.submitted_at = datetime.now(UTC)
             page1.append(job)
         older = MagicMock()
         older.id = "old-1"
         older.provider_job_id = "pj-old-1"
+        older.submitted_at = datetime.now(UTC)
 
         poller.queue.list_jobs = AsyncMock(side_effect=[page1, [older]])
         mock_resp = MagicMock()
@@ -120,6 +123,7 @@ class TestJobPoller:
         mock_job = MagicMock()
         mock_job.id = "done-job"
         mock_job.provider_job_id = "pj-done"
+        mock_job.submitted_at = datetime.now(UTC)
         mock_job.prompt = "Test"
         mock_job.model = "o3"
 
@@ -139,6 +143,7 @@ class TestJobPoller:
         mock_job = MagicMock()
         mock_job.id = "fail-job"
         mock_job.provider_job_id = "pj-fail"
+        mock_job.submitted_at = datetime.now(UTC)
 
         mock_resp = MagicMock()
         mock_resp.status = "failed"
@@ -156,6 +161,7 @@ class TestJobPoller:
         mock_job = MagicMock()
         mock_job.id = "prog-job"
         mock_job.provider_job_id = "pj-prog"
+        mock_job.submitted_at = datetime.now(UTC)
 
         mock_resp = MagicMock()
         mock_resp.status = "in_progress"
@@ -207,8 +213,15 @@ class TestJobPoller:
         mock_job.provider_job_id = "provider-job"
         mock_job.metadata = {"cost_reservation_id": "reservation"}
         response = MagicMock()
+        response.model = "o3"
         response.output = []
-        response.usage = MagicMock(cost=0.6, total_tokens=120)
+        response.usage = MagicMock(
+            cost=0.6,
+            input_tokens=100,
+            output_tokens=20,
+            total_tokens=120,
+            cached_input_tokens=0,
+        )
         reservation = MagicMock()
 
         with (
@@ -234,8 +247,11 @@ class TestJobPoller:
             provider="azure",
             provider_job_id="provider-job",
             metadata={"cost_reservation_model": "o3-deep-research"},
+            enable_web_search=False,
+            enable_code_interpreter=False,
         )
         response = MagicMock()
+        response.model = "o3-deep-research-2025-06-26"
         response.output = []
         response.usage = MagicMock(
             cost=1.1,

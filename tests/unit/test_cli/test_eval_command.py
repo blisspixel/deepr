@@ -124,7 +124,7 @@ def test_eval_consult_outputs_zero_cost_json_report():
     data = json.loads(result.output)
     assert data["suite_name"] == "consult-harness"
     assert data["cost_usd"] == 0.0
-    assert data["total_cases"] == 10
+    assert data["total_cases"] == 12
     assert data["failed_cases"] == 0
 
 
@@ -151,6 +151,112 @@ def test_eval_consult_outputs_text_summary():
     assert result.exit_code == 0
     assert "Consult harness eval" in result.output
     assert "Score: 100.0%" in result.output
+
+
+def _structured_cli_report(status: str = "completed") -> dict:
+    return {
+        "schema_version": "deepr-structured-consult-run-v1",
+        "kind": "deepr.eval.structured_consult_run",
+        "status": status,
+        "stop_reason": "completed" if status == "completed" else "require_all_not_met",
+        "node_counts": {"expected": 3, "completed": 3 if status == "completed" else 1},
+        "capacity": {
+            "model_provenance": {
+                "size_bytes": 1_073_741_824,
+                "digest": "a" * 64,
+            },
+            "preflight_http_requests": 2,
+            "sdk_retries": 0,
+            "model_keep_alive": "5m",
+        },
+        "usage": {
+            "model_calls": 3 if status == "completed" else 2,
+            "transport_attempts": 3 if status == "completed" else 2,
+            "usage_ambiguous_nodes": 0,
+            "elapsed_ms": 1500,
+        },
+    }
+
+
+def test_eval_consult_structured_local_outputs_zero_cost_summary(monkeypatch):
+    async def fake_run(**kwargs):
+        assert kwargs["question"] == "How should this be tested?"
+        assert kwargs["experts"] == ("Reliability", "Security")
+        assert kwargs["model"] == "qwen-local"
+        assert kwargs["concurrency"] == 2
+        return _structured_cli_report()
+
+    monkeypatch.setattr("deepr.evals.consult_graph.run_local_structured_consult_graph", fake_run)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        cli,
+        [
+            "eval",
+            "consult",
+            "--structured-local",
+            "How should this be tested?",
+            "--expert",
+            "Reliability",
+            "--expert",
+            "Security",
+            "--model",
+            "qwen-local",
+            "--concurrency",
+            "2",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Structured local consult graph" in result.output
+    assert "Deepr metered cost: $0.00" in result.output
+    assert "Ollama cloud disabled by config" in result.output
+    assert "env credentials/proxies off" in result.output
+    assert "cost-ledger dispatch markers required" in result.output
+    assert "Nodes: 3/3 completed" in result.output
+
+
+def test_eval_consult_structured_local_json_and_save(monkeypatch, tmp_path):
+    async def fake_run(**_kwargs):
+        return _structured_cli_report()
+
+    output = tmp_path / "run.json"
+    output.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr("deepr.evals.consult_graph.run_local_structured_consult_graph", fake_run)
+    monkeypatch.setattr("deepr.evals.consult_graph.write_structured_consult_run", lambda _run: output)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        cli,
+        ["eval", "consult", "--structured-local", "Question", "--model", "local", "--json", "--save"],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["status"] == "completed"
+    assert payload["saved_to"] == str(output)
+
+
+def test_eval_consult_structured_local_failure_is_nonzero(monkeypatch):
+    async def fake_run(**_kwargs):
+        return _structured_cli_report("incomplete")
+
+    monkeypatch.setattr("deepr.evals.consult_graph.run_local_structured_consult_graph", fake_run)
+    runner = CliRunner()
+
+    result = runner.invoke(cli, ["eval", "consult", "--structured-local", "Question", "--model", "local"])
+
+    assert result.exit_code != 0
+    assert "Structured local consult stopped" in result.output
+
+
+def test_eval_consult_structured_options_require_explicit_mode():
+    runner = CliRunner()
+
+    result = runner.invoke(cli, ["eval", "consult", "--model", "local"])
+
+    assert result.exit_code != 0
+    assert "require --structured-local" in result.output
 
 
 def test_eval_hallucination_risks_outputs_zero_cost_json_report(tmp_path):

@@ -82,56 +82,26 @@ python scripts/cleanup_local.py --all -f
 python scripts/cleanup_local.py -f
 ```
 
-## Azure Environment (Optional)
+## Azure Environment Reference Only
 
-### Setup
-```bash
-# Interactive setup
-python scripts/setup_azure.py
+`scripts/setup_azure.py` is a fail-closed reference entry point. It exits before
+authentication, file writes, Azure CLI calls, or resource creation because
+Azure Storage and Service Bus costs cannot be capped or settled by Deepr's
+application ledger. Review deployment templates and establish provider-side
+billing controls before provisioning outside Deepr. Do not use this script as
+an active setup command.
 
-# Custom configuration
-python scripts/setup_azure.py \
-  --resource-group my-deepr \
-  --location westus \
-  --storage-account mydeeprstorage \
-  --servicebus-namespace my-deepr-bus
-```
-
-Creates Azure Storage, Service Bus, and generates .env.azure configuration.
-
-**Prerequisites:**
-- Azure CLI installed
-- Logged in: `az login`
-- Active subscription
-
-### Teardown
-```bash
-# Delete individual resources (with prompts)
-python scripts/destroy_azure.py
-
-# Delete entire resource group
-python scripts/destroy_azure.py --delete-resource-group
-
-# Force delete without confirmation
-python scripts/destroy_azure.py --delete-resource-group -f
-```
+`scripts/destroy_azure.py` is also a fail-closed compatibility entry point.
+Cloud teardown must be reviewed and performed through the provider console so
+the exact subscription, resources, and billing state are visible to a human.
 
 ## Job Management
 
-### Cancel All Active Jobs
-```bash
-# PowerShell
-.\scripts\Utility_Cancell_Active_Jobs.ps1
-```
-
-Cancels all active research jobs in the queue.
-
-### Monitor Research Jobs
-```bash
-python scripts/monitor_research_jobs.py
-```
-
-Real-time monitoring of research job status and progress.
+The old `Utility_Cancell_Active_Jobs.ps1` and `monitor_research_jobs.py`
+entry points are fail-closed compatibility stubs. They targeted an obsolete
+manager and an unbounded polling loop. Use `deepr status JOB_ID` for a bounded
+read of one job. Cancel provider work through the provider console when manual
+reconciliation is required.
 
 ### Submit Documentation Research
 ```bash
@@ -149,8 +119,9 @@ settlement.
 python scripts/analyze_doc_gaps.py
 ```
 
-The legacy metered analysis path is gated in v2.36 before `.env` loading or
-provider construction. Use a `$0` local consult instead:
+The legacy metered analysis path is a fail-closed compatibility stub. It exits
+before `.env` loading, document reads, or provider construction. Use a `$0`
+local consult instead:
 
 ```bash
 deepr expert consult "Which documentation gaps matter most?" --local

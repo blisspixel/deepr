@@ -232,7 +232,7 @@ class ModelRouter:
         Args:
             query: The user's query
             context_size: Approximate size of context in tokens
-            budget_remaining: Remaining budget in dollars (None = unlimited)
+            budget_remaining: Optional routing hint. Dispatch authority remains binding when omitted.
             current_model: The default/current model being used
             provider_constraint: Optional provider constraint (e.g., "openai" for vector store compatibility)
             allow_research_model: Whether the expensive deep-research model may

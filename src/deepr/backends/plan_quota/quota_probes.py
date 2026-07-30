@@ -34,6 +34,24 @@ GROK_QUOTA_DISPLAY_NAME = "Grok Build"
 GROK_USAGE_TIMEOUT_SECONDS = 12.0
 
 
+def _direct_http_get(url: str, *, headers: dict[str, str], timeout: float) -> httpx.Response:
+    """GET quota metadata without ambient proxies or redirect forwarding."""
+    with httpx.Client(timeout=timeout, trust_env=False, follow_redirects=False) as client:
+        return client.get(url, headers=headers)
+
+
+def _direct_http_post(
+    url: str,
+    *,
+    headers: dict[str, str],
+    content: bytes,
+    timeout: float,
+) -> httpx.Response:
+    """POST quota metadata without ambient proxies or redirect forwarding."""
+    with httpx.Client(timeout=timeout, trust_env=False, follow_redirects=False) as client:
+        return client.post(url, headers=headers, content=content)
+
+
 class QuotaProbeUnsupportedError(ValueError):
     """Raised when a live quota probe has not been implemented for a backend."""
 
@@ -144,7 +162,7 @@ def collect_claude_quota_snapshot(
 
     token = str(oauth["access_token"])
     plan = _string_or_none(oauth.get("plan"))
-    getter = http_get or httpx.get
+    getter = http_get or _direct_http_get
     try:
         response = getter(
             CLAUDE_USAGE_ENDPOINT,
@@ -204,7 +222,7 @@ def collect_grok_quota_snapshot(
     token = str(auth["access_token"])
     account = str(auth["account"])
     plan = _string_or_none(auth.get("plan")) or "SuperGrok"
-    poster = http_post or httpx.post
+    poster = http_post or _direct_http_post
     try:
         response = poster(
             GROK_BILLING_ENDPOINT,

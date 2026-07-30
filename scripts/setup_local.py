@@ -1,201 +1,97 @@
 #!/usr/bin/env python3
-"""
-Local Environment Setup Script
+"""Prepare a tidy local-first Deepr checkout without external calls."""
 
-Sets up the local development environment for Deepr:
-- Creates necessary directories
-- Initializes SQLite queue database
-- Creates default configuration
-- Validates Python dependencies
-"""
+from __future__ import annotations
 
-import sqlite3
+import importlib.util
 import sys
 from pathlib import Path
 
-# Add parent directory to path to import deepr modules
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Allow execution from a source checkout without an editable install.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from deepr.cli.colors import console, print_error, print_header, print_success
 
+RUNTIME_DIRECTORIES = (
+    Path("data/queue"),
+    Path("data/reports"),
+    Path("data/uploads"),
+    Path("data/logs"),
+)
 
-def create_directories():
-    """Create required local directories."""
-    dirs = [
-        "queue",
-        "results",
-        "logs",
-        "uploads",
-    ]
+LOCAL_ENV_TEMPLATE = """# Deepr local-first configuration
+DEEPR_DATA_DIR=data
+DEEPR_REPORTS_PATH=data/reports
+DEEPR_QUEUE_DB_PATH=data/queue/research_queue.db
 
-    console.print("[bold]Creating local directories...[/bold]")
-    for dir_name in dirs:
-        path = Path(dir_name)
-        path.mkdir(exist_ok=True)
-        console.print(f"  [dim]{dir_name}/[/dim]")
+# The authoritative monthly ceiling must never exceed $5.
+DEEPR_MAX_COST_PER_JOB=1
+DEEPR_MAX_COST_PER_DAY=2
+DEEPR_MAX_COST_PER_MONTH=5
 
-
-def initialize_database():
-    """Initialize SQLite queue database."""
-    db_path = Path("queue/research_queue.db")
-
-    if db_path.exists():
-        response = input(f"Database already exists at {db_path}. Recreate? (y/N): ")
-        if response.lower() != "y":
-            print("  Skipping database initialization")
-            return
-
-    print("Initializing SQLite database...")
-
-    conn = sqlite3.connect(str(db_path))
-    cursor = conn.cursor()
-
-    # Create jobs table
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS jobs (
-            id TEXT PRIMARY KEY,
-            prompt TEXT NOT NULL,
-            status TEXT NOT NULL,
-            priority INTEGER DEFAULT 1,
-            model TEXT,
-            enable_web_search INTEGER DEFAULT 1,
-            file_ids TEXT,
-            config TEXT,
-            results TEXT,
-            estimated_cost REAL,
-            actual_cost REAL,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            claimed_by TEXT,
-            claimed_at TEXT
-        )
-    """)
-
-    # Create indices
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_status ON jobs(status)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_priority ON jobs(priority DESC)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_created ON jobs(created_at)")
-
-    conn.commit()
-    conn.close()
-
-    console.print(f"  [success]Database initialized at {db_path}[/success]")
-
-
-def create_config_template():
-    """Create .env template if it doesn't exist."""
-    env_path = Path(".env")
-    env_example_path = Path(".env.example")
-
-    template = """# Deepr Local Configuration
-
-# Provider Configuration
-DEEPR_PROVIDER=openai
-# DEEPR_PROVIDER=azure
-
-# OpenAI Configuration (if using openai provider)
-OPENAI_API_KEY=your_openai_api_key_here
-
-# Azure Configuration (if using azure provider)
-# AZURE_OPENAI_API_KEY=your_azure_key_here
-# AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
-# AZURE_OPENAI_API_VERSION=2024-05-01-preview
-
-# Storage Configuration
-DEEPR_STORAGE=local
-# DEEPR_STORAGE=blob
-
-# Queue Configuration
-DEEPR_QUEUE=local
-# DEEPR_QUEUE=azure
-
-# Cost Limits (USD)
-DEEPR_MAX_COST_PER_JOB=5.00
-DEEPR_MAX_COST_PER_DAY=25.00
-DEEPR_MAX_COST_PER_MONTH=200.00
-
-# Model Configuration
-DEEPR_DEFAULT_MODEL=o4-mini-deep-research
-DEEPR_ENABLE_WEB_SEARCH=true
-
-# Local Paths
-DEEPR_QUEUE_DB_PATH=queue/research_queue.db
-DEEPR_RESULTS_DIR=results
-DEEPR_UPLOADS_DIR=uploads
+# Paid provider keys are optional and do not authorize dispatch in v2.40.
+# OPENAI_API_KEY=
+# GEMINI_API_KEY=
+# XAI_API_KEY=
+# ANTHROPIC_API_KEY=
 """
 
-    if not env_example_path.exists():
-        print("Creating .env.example template...")
-        env_example_path.write_text(template)
-        console.print("  [success].env.example created[/success]")
 
-    if not env_path.exists():
-        print("Creating .env file...")
-        env_path.write_text(template)
-        console.print("  [success].env created[/success] [dim](EDIT THIS FILE with your API keys)[/dim]")
-    else:
-        print("  .env already exists (not overwriting)")
+def create_directories() -> None:
+    """Create runtime directories only under the ignored data root."""
+    console.print("[bold]Creating local runtime directories...[/bold]")
+    for path in RUNTIME_DIRECTORIES:
+        path.mkdir(parents=True, exist_ok=True)
+        console.print(f"  [dim]{path.as_posix()}/[/dim]")
 
 
-def check_dependencies():
-    """Check if required Python packages are installed."""
-    required = [
-        "openai",
-        "pydantic",
-        "python-dotenv",
-        "aiofiles",
-    ]
+def create_config_template() -> None:
+    """Create a minimal local .env without overwriting operator state."""
+    env_path = Path(".env")
+    if env_path.exists():
+        console.print("  [dim].env already exists; left unchanged[/dim]")
+        return
+    env_path.write_text(LOCAL_ENV_TEMPLATE, encoding="utf-8")
+    console.print("  [success].env created with local paths and a $5 ceiling[/success]")
 
-    missing = []
-    for package in required:
-        try:
-            __import__(package.replace("-", "_"))
-        except ImportError:
-            missing.append(package)
 
+def check_dependencies() -> bool:
+    """Check importable package names without importing provider clients."""
+    required = {
+        "aiofiles": "aiofiles",
+        "dotenv": "python-dotenv",
+        "pydantic": "pydantic",
+    }
+    missing = [package for module, package in required.items() if importlib.util.find_spec(module) is None]
     if missing:
         console.print("\n[warning]Missing required packages:[/warning]")
-        for pkg in missing:
-            console.print(f"  [error]{pkg}[/error]")
-        console.print("\n[dim]Install with: pip install -r requirements.txt[/dim]")
+        for package in missing:
+            console.print(f"  [error]{package}[/error]")
+        console.print('\n[dim]Install with: uv pip install -e ".[dev,full]"[/dim]')
         return False
-
-    print_success("All required packages installed")
+    print_success("Required local packages are installed")
     return True
 
 
-def main():
-    """Run local setup."""
+def main() -> int:
+    """Run a local, offline, idempotent setup."""
     print_header("Deepr Local Setup")
-
     try:
         create_directories()
-        print()
-
-        initialize_database()
-        print()
-
         create_config_template()
-        print()
-
-        deps_ok = check_dependencies()
-
-        print()
-        if deps_ok:
-            print_success("Local setup complete!")
-            console.print()
-            console.print("[bold]Next steps:[/bold]")
-            console.print("  [dim]1.[/dim] Edit .env with your API keys")
-            console.print("  [dim]2.[/dim] Run: python -m deepr.cli status")
-            console.print("  [dim]3.[/dim] Run: python -m deepr.cli research 'your prompt'")
-        else:
+        if not check_dependencies():
             print_error("Setup incomplete - install missing dependencies")
             return 1
-
-        return 0
-
-    except Exception as e:
-        print_error(f"Setup failed: {e}")
+    except Exception as exc:
+        print_error(f"Setup failed: {exc}")
         return 1
+
+    print_success("Local setup complete")
+    console.print("\n[bold]Next steps:[/bold]")
+    console.print("  [dim]1.[/dim] Start Ollama and pull a local model")
+    console.print("  [dim]2.[/dim] Run: deepr capacity")
+    console.print("  [dim]3.[/dim] Run: deepr doctor")
+    return 0
 
 
 if __name__ == "__main__":

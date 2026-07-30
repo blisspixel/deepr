@@ -261,7 +261,7 @@ def _check_parent_budget() -> InvestigationEvalOutcome:
         "cost",
         True,
         local_provider_cost_ceiling_usd=0.0,
-        example_api_total_ceiling_usd=10.0,
+        example_api_total_ceiling_usd=5.0,
         budget_is_per_expert=False,
         hidden_fallback=False,
     )

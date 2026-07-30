@@ -7,7 +7,9 @@ import openai
 import pytest
 
 from deepr.providers.base import ResearchRequest, ToolConfig
+from deepr.providers.dispatch_authority import PaidDispatchAuthorityError
 from deepr.providers.grok_provider import GrokProvider
+from tests.unit.test_providers._provider_authority import submit_adapter
 
 
 class TestGrokProvider:
@@ -113,11 +115,11 @@ class TestGrokProvider:
 
     def test_calculate_cost_grok_4_20(self, provider):
         """Test cost calculation for Grok 4.20 (flagship model)."""
-        # 1M input + 1M output = $1.25 + $2.50 = $3.75
+        # At 1M prompt tokens the inclusive long-context rates are $2.50/$5.00.
         cost = provider._calculate_cost(
             prompt_tokens=1_000_000, completion_tokens=1_000_000, model="grok-4.20-0309-reasoning"
         )
-        assert cost == 3.75
+        assert cost == 7.50
 
     def test_calculate_cost_with_cached_prompt_tokens(self, provider):
         """Cached prompt tokens should use xAI cached-input rates."""
@@ -127,7 +129,25 @@ class TestGrokProvider:
             model="grok-4.20-0309-reasoning",
             cached_input_tokens=500_000,
         )
-        assert cost == pytest.approx(3.225)
+        assert cost == pytest.approx(6.45)
+
+    @pytest.mark.parametrize(
+        "model",
+        [
+            "grok-4.5",
+            "grok-4.3",
+            "grok-4.20-0309-reasoning",
+            "grok-4.20-0309-non-reasoning",
+            "grok-4.20-multi-agent-0309",
+        ],
+    )
+    def test_current_grok_settlement_uses_inclusive_long_context_boundary(self, provider, model):
+        base_input = 2.0 if model == "grok-4.5" else 1.25
+        base_output = 6.0 if model == "grok-4.5" else 2.5
+
+        for prompt_tokens, multiplier in ((199_999, 1.0), (200_000, 2.0), (200_001, 2.0)):
+            expected = (prompt_tokens * base_input * multiplier + 10_000 * base_output * multiplier) / 1_000_000
+            assert provider._calculate_cost(prompt_tokens, 10_000, model) == pytest.approx(expected)
 
     def test_cost_scales_linearly(self, provider):
         """Test that cost scales linearly with token count."""
@@ -168,7 +188,7 @@ class TestGrokProvider:
                 tools=[],
             )
 
-            job_id = await provider.submit_research(request)
+            job_id = await submit_adapter(provider, request)
             assert job_id is not None
             assert job_id.startswith("grok-")
 
@@ -176,6 +196,40 @@ class TestGrokProvider:
             status = await provider.get_status(job_id)
             assert status.status == "completed"
             assert status.output is not None
+
+    @pytest.mark.asyncio
+    async def test_status_reports_long_context_cost_and_model(self, provider):
+        mock_choice = MagicMock()
+        mock_choice.message.content = "Test response content"
+
+        mock_usage = MagicMock()
+        mock_usage.prompt_tokens = 200_000
+        mock_usage.completion_tokens = 10_000
+        mock_usage.total_tokens = 210_000
+        mock_usage.prompt_tokens_details = None
+        mock_usage.completion_tokens_details = None
+
+        mock_response = MagicMock()
+        mock_response.model = "grok-4.20-0309-reasoning"
+        mock_response.choices = [mock_choice]
+        mock_response.usage = mock_usage
+
+        with patch.object(provider.client.chat.completions, "create", new_callable=AsyncMock) as mock_create:
+            mock_create.return_value = mock_response
+            request = ResearchRequest(
+                prompt="Research",
+                model="grok-4.20-0309-reasoning",
+                system_message="Test",
+                max_input_tokens=200_000,
+                max_output_tokens=10_000,
+                max_provider_requests=1,
+            )
+            job_id = await submit_adapter(provider, request)
+
+        status = await provider.get_status(job_id)
+        assert status.model == "grok-4.20-0309-reasoning"
+        assert status.usage is not None
+        assert status.usage.cost == pytest.approx(0.55)
 
 
 class TestGrokToolConfiguration:
@@ -202,8 +256,8 @@ class TestGrokToolConfiguration:
         assert tools[0].type == "code_interpreter"
 
     @pytest.mark.asyncio
-    async def test_tools_passed_to_api(self, provider):
-        """Test that tools are correctly passed to Grok API."""
+    async def test_code_interpreter_is_blocked_before_grok_api(self, provider):
+        """Unbounded Code Interpreter pricing must stop before provider IO."""
         mock_choice = MagicMock()
         mock_choice.message.content = "Test response"
 
@@ -230,13 +284,10 @@ class TestGrokToolConfiguration:
                 ],
             )
 
-            await provider.submit_research(request)
+            with pytest.raises(PaidDispatchAuthorityError, match="code_interpreter"):
+                await submit_adapter(provider, request)
 
-            # Verify API was called (tools currently disabled for Grok)
-            call_args = mock_create.call_args
-            # NOTE: Tools are currently disabled for Grok as the API format is still being finalized
-            # Web search happens automatically based on the query
-            assert "tools" not in call_args.kwargs or call_args.kwargs["tools"] is None
+            mock_create.assert_not_awaited()
 
 
 class TestGrokCapabilities:
@@ -253,7 +304,7 @@ class TestGrokCapabilities:
         Grok 4.20:
         - Flagship: $1.25 input / $2.50 output per 1M tokens
         - Lowest hallucination rate, strict prompt adherence
-        - 2M token context window
+        - 1M token context window
         - Multi-agent variant for deep research
 
         Grok 4.1 Fast (budget tier):
@@ -309,13 +360,13 @@ class TestGrokCapabilities:
         flagship_cost = provider._calculate_cost(1_000_000, 1_000_000, "grok-4.20-0309-reasoning")
 
         assert grok_cost == 0.70
-        assert flagship_cost == 3.75
+        assert flagship_cost == 7.50
         assert grok_cost < flagship_cost * 0.20
 
     def test_context_window_size(self, provider):
         """Document Grok 4 Fast context window.
 
-        Grok 4 Fast: 2,000,000 tokens (2M)
+        Grok 4.20: 1,000,000 tokens (1M)
         GPT-5: Varies by model, typically much smaller
 
         This large context is ideal for:
@@ -351,7 +402,7 @@ class TestGrokErrorHandling:
                 system_message="You are a helpful assistant.",
             )
 
-            job_id = await provider.submit_research(request)
+            job_id = await submit_adapter(provider, request)
             assert job_id in provider.jobs
             assert provider.jobs[job_id]["status"] == "failed"
             assert "API Error" in provider.jobs[job_id]["error"]
@@ -386,7 +437,7 @@ class TestGrokErrorHandling:
                 system_message="You are a helpful assistant.",
             )
 
-            job_id = await provider.submit_research(request)
+            job_id = await submit_adapter(provider, request)
 
             # Since Grok executes immediately, cancellation doesn't really work
             # but the method should still be callable
@@ -398,7 +449,7 @@ class TestGrokHyphenatedRegistryForms:
     """Regression: registry keys use hyphenated grok-4-20-* but the provider
     mappings/pricing were keyed only by the dotted API form. A routed
     "grok-4-20-reasoning" then went unmapped (wrong API id) and fell to the
-    grok-4-1-fast default price ($0.7 vs $3.75 per 1M/1M).
+    grok-4-1-fast default price ($0.7 vs $7.50 per 1M/1M at long-context rates).
     """
 
     @pytest.fixture
@@ -411,10 +462,10 @@ class TestGrokHyphenatedRegistryForms:
         assert provider.get_model_name("grok-4-20-multi-agent") == "grok-4.20-multi-agent-0309"
 
     def test_hyphenated_forms_priced_at_flagship_rate(self, provider):
-        # $1.25/$2.50 per MTok -> $3.75 for 1M in + 1M out.
+        # Long-context $2.50/$5.00 per MTok -> $7.50 for 1M in + 1M out.
         for model in ("grok-4-20-reasoning", "grok-4-20-non-reasoning", "grok-4-20-multi-agent"):
             cost = provider._calculate_cost(1_000_000, 1_000_000, model)
-            assert cost == 3.75, f"{model} mispriced: {cost}"
+            assert cost == 7.50, f"{model} mispriced: {cost}"
 
     def test_dotted_and_hyphenated_prices_match(self, provider):
         assert provider._calculate_cost(1_000_000, 1_000_000, "grok-4-20-reasoning") == provider._calculate_cost(

@@ -17,6 +17,7 @@ import pytest
 from deepr.mcp.client.base import MCPToolResult
 from deepr.mcp.client.budget_propagator import BudgetPropagator
 from deepr.mcp.client.circuit_breaker import CircuitState
+from deepr.mcp.client.config_loader import get_recon_profile
 from deepr.mcp.client.errors import MCPErrorCode, StructuredError
 from deepr.mcp.client.pool import MCPClientPool
 from deepr.mcp.client.profile import MCPClientProfile
@@ -29,6 +30,7 @@ def _make_profile(name: str, enabled: bool = True) -> MCPClientProfile:
         command="echo",
         args=["test"],
         enabled=enabled,
+        max_retries=1,
         free_tools=["lookup", "search", "t"],
     )
 
@@ -54,9 +56,10 @@ class TestDisabledProfileExclusion:
         # Mock the client connect to track calls
         pool._clients["server-a"].connect = AsyncMock()
 
-        await pool.connect_all()
+        result = await pool.connect_all()
 
-        pool._clients["server-a"].connect.assert_called_once()
+        pool._clients["server-a"].connect.assert_not_awaited()
+        assert "immutable executable provenance" in result["server-a"]
         # disabled server should not be in pool at all
         assert "disabled" not in pool._clients
 
@@ -65,7 +68,7 @@ class TestBudgetIntegration:
     """Test call_tool returns budget error when over budget."""
 
     @pytest.mark.asyncio
-    async def test_call_tool_budget_exceeded(self):
+    async def test_positive_estimate_is_refused_before_budget_or_dispatch(self):
         # Create a mock budget propagator
         mock_manager = MagicMock()
         mock_manager.get_remaining_budget.return_value = 1.0
@@ -79,12 +82,14 @@ class TestBudgetIntegration:
                 name="expensive-server",
                 command="echo",
                 budget_limit=2.0,
+                max_retries=1,
                 free_tools=["tool"],
             )
         )
         pool._clients["expensive-server"]._connected = True
+        call = AsyncMock(side_effect=AssertionError("a positive estimate must not dispatch"))
+        pool._clients["expensive-server"].call_tool = call
 
-        # Call with cost exceeding budget
         result = await pool.call_tool(
             "expensive-server",
             "tool",
@@ -94,12 +99,14 @@ class TestBudgetIntegration:
         )
 
         assert isinstance(result, StructuredError)
-        assert result.code == MCPErrorCode.BUDGET_EXCEEDED
+        assert result.code == MCPErrorCode.COST_ACCOUNTING_UNAVAILABLE
         assert result.retryable is False
-        assert result.budget_shortfall > 0
+        assert "lacks immutable executable and zero-dollar proof" in result.message
+        call.assert_not_awaited()
+        mock_ledger.record_event.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_call_tool_budget_allowed(self):
+    async def test_zero_estimate_cannot_bypass_release_block(self):
         mock_manager = MagicMock()
         mock_manager.get_remaining_budget.return_value = 10.0
         mock_ledger = MagicMock()
@@ -109,14 +116,14 @@ class TestBudgetIntegration:
         pool = MCPClientPool(budget_propagator=propagator)
         pool.register(_make_profile("server-a"))
         pool._clients["server-a"]._connected = True
-        pool._clients["server-a"].call_tool = AsyncMock(
-            return_value=MCPToolResult(content="ok", server_name="server-a", tool_name="t")
-        )
+        call = AsyncMock(side_effect=AssertionError("zero estimate must not dispatch"))
+        pool._clients["server-a"].call_tool = call
 
-        result = await pool.call_tool("server-a", "t", {}, estimated_cost=1.0, session_remaining=10.0)
+        result = await pool.call_tool("server-a", "t", {}, estimated_cost=0.0, session_remaining=10.0)
 
-        assert isinstance(result, MCPToolResult)
-        assert result.ok
+        assert isinstance(result, StructuredError)
+        assert result.code == MCPErrorCode.COST_ACCOUNTING_UNAVAILABLE
+        call.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_unclassified_tool_is_refused_before_dispatch_even_with_estimate(self):
@@ -138,13 +145,58 @@ class TestBudgetIntegration:
 
         assert isinstance(result, StructuredError)
         assert result.code == MCPErrorCode.COST_ACCOUNTING_UNAVAILABLE
-        assert "not proven free" in result.message
+        assert "lacks immutable executable and zero-dollar proof" in result.message
         call.assert_not_awaited()
         mock_ledger.record_event.assert_not_called()
 
+    @pytest.mark.asyncio
+    async def test_profile_fields_cannot_authorize_outbound_mcp(self):
+        pool = MCPClientPool()
+        profile = _make_profile("trusted-server")
+        pool.register(profile)
+        call = AsyncMock(side_effect=AssertionError("tampered profile must not dispatch"))
+        pool._clients[profile.name].call_tool = call
+
+        result = await pool.call_tool(profile.name, "lookup", {})
+
+        assert isinstance(result, StructuredError)
+        assert result.code == MCPErrorCode.COST_ACCOUNTING_UNAVAILABLE
+        call.assert_not_awaited()
+
+
+class TestBuiltInProfileReleaseBlock:
+    @pytest.mark.asyncio
+    async def test_deepr_curated_profile_fails_closed_without_executable_provenance(self):
+        pool = MCPClientPool()
+        profile = get_recon_profile()
+        pool.register(profile)
+        call = AsyncMock(side_effect=AssertionError("PATH-discovered profile must not dispatch"))
+        pool._clients[profile.name].call_tool = call
+
+        result = await pool.call_tool(profile.name, "lookup_tenant", {"domain": "example.com"})
+
+        assert isinstance(result, StructuredError)
+        assert result.code == MCPErrorCode.COST_ACCOUNTING_UNAVAILABLE
+        call.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_serialized_curated_profile_clone_loses_dispatch_authority(self):
+        original = get_recon_profile()
+        clone = MCPClientProfile.from_dict(original.to_dict())
+        pool = MCPClientPool()
+        pool.register(clone)
+        call = AsyncMock(side_effect=AssertionError("serialized authority must not dispatch"))
+        pool._clients[clone.name].call_tool = call
+
+        result = await pool.call_tool(clone.name, "lookup_tenant", {"domain": "example.com"})
+
+        assert isinstance(result, StructuredError)
+        assert result.code == MCPErrorCode.COST_ACCOUNTING_UNAVAILABLE
+        call.assert_not_awaited()
+
 
 class TestTraceInjection:
-    """Test call_tool injects trace_id into arguments."""
+    """Trace setup cannot cross the release block."""
 
     @pytest.mark.asyncio
     async def test_call_tool_injects_trace(self):
@@ -155,20 +207,14 @@ class TestTraceInjection:
         pool.register(_make_profile("server-a"))
         pool._clients["server-a"]._connected = True
 
-        captured_args = {}
+        call = AsyncMock(side_effect=AssertionError("trace metadata must not dispatch"))
+        pool._clients["server-a"].call_tool = call
 
-        async def capture_call(tool_name, arguments, timeout, trace_id):
-            captured_args.update(arguments)
-            return MCPToolResult(content="ok", server_name="server-a", tool_name=tool_name)
+        result = await pool.call_tool("server-a", "lookup", {"domain": "example.com"}, trace_id="trace-abc")
 
-        pool._clients["server-a"].call_tool = capture_call
-
-        await pool.call_tool("server-a", "lookup", {"domain": "example.com"}, trace_id="trace-abc")
-
-        assert "trace_id" in captured_args
-        assert "span_id" in captured_args
-        assert captured_args["trace_id"] == "trace-abc"
-        assert captured_args["domain"] == "example.com"
+        assert isinstance(result, StructuredError)
+        call.assert_not_awaited()
+        mock_emitter.emit.assert_not_called()
 
 
 class TestBroadcastPartialResults:
@@ -195,12 +241,10 @@ class TestBroadcastPartialResults:
         results = await pool.broadcast_tool("search", {"q": "test"}, server_names=["good-server", "bad-server"])
 
         assert len(results) == 2
-        # First result (good-server) should succeed
-        assert results[0].ok
-        assert results[0].content == "success"
-        # Second result (bad-server) should have error
-        assert not results[1].ok
-        assert results[1].server_name == "bad-server"
+        assert all(not result.ok for result in results)
+        assert all("immutable executable" in result.error for result in results)
+        pool._clients["good-server"].call_tool.assert_not_awaited()
+        pool._clients["bad-server"].call_tool.assert_not_awaited()
 
 
 class TestHealthCircuitState:

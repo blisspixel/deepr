@@ -59,9 +59,9 @@ def build_capabilities(store: Any, registry: ToolRegistry, *, version: str) -> d
         "tools": tools,
         "zero_cost_synthesis": {
             "owned": "local",
-            "prepaid_plans": ["codex", "claude"],
+            "prepaid_plans": ["claude"],
             "how": (
-                "pass synthesis_backend='local', or 'plan' with plan='codex'|'claude', to run "
+                "pass synthesis_backend='local', or 'plan' with plan='claude', to run "
                 "deepr_consult_experts at $0 inside Deepr and disable silent metered fallback"
             ),
             "single_expert": (
@@ -72,8 +72,8 @@ def build_capabilities(store: Any, registry: ToolRegistry, *, version: str) -> d
         "cost_tiers": {
             "free": "$0, read-only",
             "low": "owned/prepaid capable or separately bounded; inspect requested capacity",
-            "medium": "metered; confirm budget first",
-            "high": "metered or gated high-impact surface; inspect status before approval",
+            "medium": "metered contract surface; production dispatch is frozen",
+            "high": "metered or gated high-impact surface; production dispatch is frozen",
         },
         "error_contract": {
             "fields": ["error_code", "category", "retryable", "message"],

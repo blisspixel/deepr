@@ -78,23 +78,30 @@ CONSULT_EXPERTS_INPUT_SCHEMA: dict[str, Any] = {
         "budget": {
             "type": "number",
             "minimum": 0,
-            "description": "USD ceiling. Required and positive for API; zero is valid for local or plan.",
+            "description": (
+                "USD ceiling. Retained for API contract preview, but it never authorizes "
+                "production metered dispatch. Zero is valid for local or plan."
+            ),
         },
         "synthesis_backend": {
             "type": "string",
             "enum": ["api", "local", "plan"],
-            "description": "Defaults to local. API use requires explicit metered consent and a budget.",
+            "description": (
+                "Defaults to local. API exposes contract inputs only; production metered dispatch is blocked."
+            ),
             "default": "local",
         },
         "allow_metered_api": {
             "type": "boolean",
             "default": False,
-            "description": "Must be true for synthesis_backend='api'.",
+            "description": ("Legacy API contract input. It never authorizes production metered dispatch."),
         },
         "confirm_metered_cost": {
             "type": "boolean",
             "default": False,
-            "description": "Must be true for synthesis_backend='api'; budget alone is not consent.",
+            "description": (
+                "Legacy API contract input. Neither this flag nor a budget authorizes production dispatch."
+            ),
         },
         "provider": {
             "type": "string",
@@ -111,7 +118,10 @@ CONSULT_EXPERTS_INPUT_SCHEMA: dict[str, Any] = {
         },
         "plan": {
             "type": "string",
-            "description": "Plan-quota backend id when synthesis_backend='plan' (for example codex).",
+            "description": (
+                "Plan-quota backend id when synthesis_backend='plan'. Claude is the current "
+                "executable adapter; other adapters remain visible but blocked."
+            ),
         },
         "plan_model": {
             "type": "string",

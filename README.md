@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.39.0-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.39.0)
+[![Version](https://img.shields.io/badge/version-2.40.0-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.40.0)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -24,24 +24,19 @@ subscription quota, with no automatic fallback to a paid API.
 | Prepaid plan quota | Runs only when authentication, tool confinement, remaining quota, and disabled paid overage are proven. Claude Code is the current executable adapter. |
 | Metered API | No automatic fallback. Production dispatch is currently blocked pending a provider-authenticated account-control adapter. |
 
-A budget is a ceiling, never permission to spend. Metered work requires a
-finite request envelope, durable reservation, immediate pre-dispatch recheck,
-append-only settlement, and fresh account-control evidence bound to the exact
-provider account, scope, and credential. A local assertion cannot create that
-authority. Unknown or unreadable money state fails closed.
+A budget is a hard ceiling, not permission to spend. Metered work requires a
+durable reservation, a final pre-dispatch check, append-only settlement, and a
+live provider control bound to the exact account, credential, client, and
+request. Unknown state blocks. Paid dispatch is currently frozen.
 
 ```bash
-deepr budget set 10
-deepr budget status
-deepr budget freeze --reason "operator stop"
+deepr budget set 5
 deepr costs show
 deepr costs doctor
-deepr costs reconcile-billing provider-statement.json
 ```
 
-Billing reconciliation is offline and write-free by default. Paid fan-out stays
-disabled until one durable parent reservation covers every child, retry,
-verifier, tool, and synthesis call.
+See [Capacity and Cost](docs/CAPACITY.md) for billing reconciliation and the
+complete no-surprise-spend contract.
 
 ## Install
 
@@ -66,21 +61,12 @@ environment. PyPI publication is not enabled.
 deepr init
 deepr doctor --skip-connectivity
 deepr capacity
-deepr expert blueprint "My Domain Expert" --template --output expert-blueprint.json
-deepr expert blueprint "My Domain Expert" --from-file expert-blueprint.json --apply --attested-by operator
 deepr expert make "My Domain Expert" --local -d "The decisions this expert supports"
 deepr expert consult "What should we decide next?" --expert "My Domain Expert" --local
 ```
 
-Previewing a bounded API request makes no provider call:
-
-```bash
-deepr research "What changed in this field this month?" \
-  --provider openai --model o4-mini-deep-research --preview
-```
-
 See [Quick Start](docs/QUICK_START.md), [Supported Surface](docs/SUPPORTED_SURFACE.md),
-and [Capacity and Cost](docs/CAPACITY.md) for the exact shipped boundaries and
+and the [MCP Agent Guide](docs/MCP_AGENT_TEST_GUIDE.md) for workflows across the
 current 36 MCP tools.
 
 ## Documentation

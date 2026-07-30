@@ -16,6 +16,7 @@ from types import SimpleNamespace
 import pytest
 
 from deepr.experts.beliefs import Belief, BeliefStore
+from deepr.experts.semantic_model_gate import _mark_zero_dollar_client
 
 
 def _store(tmp_path) -> BeliefStore:
@@ -186,9 +187,13 @@ class TestAbsorbedBeliefsAreTertiary:
             return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=content))])
 
         client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=_create)))
+        _mark_zero_dollar_client(client, capacity_source="local")
         beliefs = _store(tmp_path)
         absorber = ReportAbsorber(
-            SimpleNamespace(name="Trust Floor Expert", domain="d"), client=client, belief_store=beliefs
+            SimpleNamespace(name="Trust Floor Expert", domain="d"),
+            client=client,
+            belief_store=beliefs,
+            estimated_cost=0.0,
         )
 
         result = await absorber.absorb("poisoned-report", "Company X is bankrupt, says one very confident blog.")

@@ -11,11 +11,13 @@ from __future__ import annotations
 import os
 import textwrap
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from deepr.mcp.client.config_loader import ConfigLoader, _resolve_env_vars
+from deepr.mcp.client.errors import MCPErrorCode, StructuredError
+from deepr.mcp.client.pool import MCPClientPool
 
 
 @pytest.fixture(autouse=True)
@@ -191,6 +193,65 @@ class TestConfigLoaderLoad:
         assert p.require_approval == ["delta"]
         assert p.progress is False
 
+    @pytest.mark.asyncio
+    async def test_user_free_tools_cannot_authorize_pool_dispatch(self, tmp_path: Path) -> None:
+        """A YAML label must not mint zero-dollar authority or reach a server."""
+        config = textwrap.dedent("""\
+            profiles:
+              - name: self-attested
+                command: remote-mcp
+                env:
+                  API_KEY: attacker-controlled
+                free_tools: [expensive_research]
+        """)
+        config_file = tmp_path / "integrations.yaml"
+        config_file.write_text(config)
+
+        profile = ConfigLoader().load(config_file)[0]
+        pool = MCPClientPool()
+        pool.register(profile)
+        outbound_call = AsyncMock(side_effect=AssertionError("untrusted profile must not dispatch"))
+        pool._clients[profile.name].call_tool = outbound_call
+
+        result = await pool.call_tool(profile.name, "expensive_research", {"query": "test"})
+
+        assert isinstance(result, StructuredError)
+        assert result.code == MCPErrorCode.COST_ACCOUNTING_UNAVAILABLE
+        assert "lacks immutable executable and zero-dollar proof" in result.message
+        assert "profile.free_tools alone cannot authorize dispatch" in result.fallback_suggestion
+        outbound_call.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_path_discovered_distillr_cannot_spawn_or_dispatch(self, tmp_path: Path) -> None:
+        """A substituted PATH executable never crosses the release boundary."""
+
+        def substituted_path(command: str) -> str | None:
+            if command == "distill-mcp":
+                return str(tmp_path / "attacker-controlled" / "distill-mcp.exe")
+            return None
+
+        with (
+            patch("deepr.mcp.client.config_loader.shutil.which", side_effect=substituted_path),
+            patch("asyncio.create_subprocess_exec", new_callable=AsyncMock) as spawn,
+        ):
+            profiles = ConfigLoader().load(tmp_path / "missing.yaml")
+            profile = next(item for item in profiles if item.name == "distillr")
+            pool = MCPClientPool()
+            pool.register(profile)
+            outbound_call = AsyncMock(side_effect=AssertionError("PATH substitution must not dispatch"))
+            pool._clients[profile.name].call_tool = outbound_call
+
+            connection_results = await pool.connect_all()
+            result = await pool.call_tool(profile.name, "list_topics", {})
+
+        assert "immutable executable provenance" in connection_results[profile.name]
+        assert isinstance(result, StructuredError)
+        assert result.code == MCPErrorCode.COST_ACCOUNTING_UNAVAILABLE
+        assert "immutable executable and zero-dollar proof" in result.message
+        assert pool._clients[profile.name].max_retries == 1
+        spawn.assert_not_awaited()
+        outbound_call.assert_not_awaited()
+
     def test_disabled_profile_parsed_correctly(self, tmp_path: Path) -> None:
         """Disabled profiles are parsed with enabled=False.
 
@@ -307,7 +368,7 @@ class TestDistillrFirstParty:
 
         distillr = [p for p in profiles if p.name == "distillr"]
         assert len(distillr) == 1
-        assert distillr[0].budget_limit == 9.0  # user wins over auto-discovery
+        assert distillr[0].budget_limit == 5.0  # user wins, then the hard ceiling binds
 
 
 class TestPrimrFirstParty:

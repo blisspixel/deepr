@@ -72,7 +72,13 @@ class TaskPlanner:
         )
         self.session = session
         self.agent_identity = agent_identity
-        self.client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"), max_retries=0)
+        from deepr.providers.dispatch_authority import default_paid_endpoint
+
+        self.client = AsyncOpenAI(
+            api_key=os.getenv("OPENAI_API_KEY"),
+            base_url=default_paid_endpoint("openai"),
+            max_retries=0,
+        )
 
     async def _complete_bounded(
         self,
@@ -84,6 +90,7 @@ class TaskPlanner:
     ) -> Any:
         """Run one planner utility call under a durable exact-price hold."""
         from deepr.experts.report_absorber_costs import bounded_metered_completion_kwargs
+        from deepr.providers.dispatch_authority import require_official_paid_client
         from deepr.services.metered_call import execute_reserved_async_call
 
         kwargs, worst_case_cost = bounded_metered_completion_kwargs(
@@ -97,6 +104,7 @@ class TaskPlanner:
                 "max_completion_tokens": output_tokens,
             },
         )
+        require_official_paid_client(self.client, "openai")
         return await execute_reserved_async_call(
             operation_prefix=f"task-planner-{operation}",
             provider="openai",
@@ -104,6 +112,7 @@ class TaskPlanner:
             source=source,
             max_cost_per_job=worst_case_cost,
             call=lambda: self.client.chat.completions.create(**kwargs),
+            request_envelope=kwargs,
         )
 
     async def decompose(self, query: str) -> dict:

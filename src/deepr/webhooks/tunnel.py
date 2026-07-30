@@ -1,106 +1,39 @@
-"""Ngrok tunnel management for local development."""
+"""Release-blocked external tunnel management."""
 
 import subprocess
-import time
 from types import TracebackType
-from typing import Any
-
-import requests
 
 
 class NgrokTunnel:
-    """Manages ngrok tunnel for webhook URLs."""
+    """Retain tunnel inventory while blocking unaccounted external service use."""
 
     def __init__(self, ngrok_path: str = "ngrok", port: int = 5000) -> None:
-        """
-        Initialize ngrok tunnel manager.
-
-        Args:
-            ngrok_path: Path to ngrok executable
-            port: Local port to tunnel
-        """
         self.ngrok_path = ngrok_path
         self.port = port
         self.process: subprocess.Popen[bytes] | None = None
         self.public_url: str | None = None
 
     def start(self) -> str:
-        """
-        Start ngrok tunnel.
-
-        Returns:
-            Public HTTPS URL
-
-        Raises:
-            RuntimeError: If tunnel startup fails
-        """
-        try:
-            # Kill any existing ngrok processes
-            self._kill_existing()
-            time.sleep(1)
-
-            # Start ngrok
-            self.process = subprocess.Popen(  # ngrok_path user-supplied or discovered; tunnel is opt-in for webhook public exposure during development/testing only.
-                [self.ngrok_path, "http", str(self.port)],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-
-            # Poll for public URL
-            for _ in range(60):
-                try:
-                    response = requests.get("http://127.0.0.1:4040/api/tunnels", timeout=2)
-                    tunnels: list[dict[str, Any]] = response.json().get("tunnels", [])
-
-                    for tunnel in tunnels:
-                        url = tunnel.get("public_url", "")
-                        if url.startswith("https://"):
-                            self.public_url = url
-                            return f"{self.public_url}/webhook"
-
-                    time.sleep(1)
-
-                except Exception:
-                    time.sleep(1)
-
-            raise RuntimeError("Failed to retrieve ngrok public URL")
-
-        except Exception as e:
-            self.stop()
-            raise RuntimeError(f"Ngrok startup failed: {e}") from e
+        """Refuse startup before process creation or an external service call."""
+        raise RuntimeError(
+            "Ngrok tunnel startup is disabled because Deepr cannot prove the account, plan, overage posture, "
+            "or a provider-enforced cost ceiling. Use a manually managed endpoint outside Deepr's $5 guarantee."
+        )
 
     def stop(self) -> None:
-        """Stop ngrok tunnel."""
-        if self.process:
-            try:
-                self.process.terminate()
-                self.process.wait(timeout=5)
-            except Exception:
-                pass  # best-effort ngrok process terminate during shutdown; may already be dead
-
-        self._kill_existing()
-
-    def _kill_existing(self) -> None:
-        """Kill any existing ngrok processes."""
-        import os
-
-        if os.name == "nt":  # Windows
-            subprocess.run(  # Standard Windows system utility...
-                ["taskkill", "/F", "/IM", "ngrok.exe"],
-                shell=False,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-        else:  # Unix
-            subprocess.run(  # Standard Unix utility...
-                ["pkill", "ngrok"],
-                shell=False,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
+        """Stop only the process owned by this instance, if one exists."""
+        if self.process is None:
+            return
+        try:
+            self.process.terminate()
+            self.process.wait(timeout=5)
+        except Exception:
+            pass
+        finally:
+            self.process = None
+            self.public_url = None
 
     def __enter__(self) -> "NgrokTunnel":
-        """Context manager entry."""
         self.start()
         return self
 
@@ -110,5 +43,4 @@ class NgrokTunnel:
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        """Context manager exit."""
         self.stop()

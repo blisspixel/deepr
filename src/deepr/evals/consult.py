@@ -21,7 +21,7 @@ from deepr.experts.consult_traces import build_consult_trace, build_consult_trac
 from deepr.experts.council import ExpertCouncil, parse_synthesis_sections
 from deepr.experts.profile import ExpertProfile
 
-CONSULT_EVAL_METHODOLOGY_VERSION = "1.2"
+CONSULT_EVAL_METHODOLOGY_VERSION = "1.3"
 
 
 @dataclass(frozen=True)
@@ -97,6 +97,8 @@ def run_consult_eval() -> ConsultEvalReport:
             _check_semantic_quality_eval_case_contract(),
             _check_hallucination_risk_review_case_contract(),
             _check_long_context_middle_loss_review_case_contract(),
+            _check_structured_consult_graph_contract(),
+            _check_structured_consult_false_edge_rejected(),
         )
     )
 
@@ -512,4 +514,90 @@ def _check_long_context_middle_loss_review_case_contract() -> ConsultEvalOutcome
             "risk_labels": sorted(risk_checks),
             "middle_context_slot_count": first["middle_context_slot_count"],
         },
+    )
+
+
+def _structured_consult_fixture() -> dict[str, Any]:
+    from deepr.evals.consult_graph_contract import build_structured_consult_brief, stable_json_hash
+
+    provenance: dict[str, Any] = {
+        "attestation_kind": "ollama-owned-local-v1",
+        "cloud_disabled": True,
+        "cloud_status_source": "config",
+        "model": "fixture-local-model",
+        "digest": "a" * 64,
+        "size_bytes": 1_000_000,
+        "format": "gguf",
+        "observed_at": "2026-07-29T12:00:00+00:00",
+    }
+    provenance["attestation_hash"] = stable_json_hash(provenance)
+
+    return build_structured_consult_brief(
+        question="Which reliability control should be tested first?",
+        perspectives=[
+            {
+                "expert_name": "Reliability",
+                "domain": "reliable systems",
+                "response": "Stored packet A",
+                "context": {"source": "belief_store", "belief_ids": ["belief-a"]},
+            },
+            {
+                "expert_name": "Security",
+                "domain": "secure systems",
+                "response": "Stored packet B",
+                "context": {"source": "belief_store", "belief_ids": ["belief-b"]},
+            },
+        ],
+        model="fixture-local-model",
+        model_provenance=provenance,
+        owned_endpoint="http://127.0.0.1:11434",
+    )
+
+
+def _check_structured_consult_graph_contract() -> ConsultEvalOutcome:
+    from deepr.evals.consult_graph_contract import validate_structured_consult_brief
+
+    brief = _structured_consult_fixture()
+    validate_structured_consult_brief(brief)
+    synthesis = next(node for node in brief["nodes"] if node["node_kind"] == "synthesis")
+    positions = [node for node in brief["nodes"] if node["node_kind"] == "position"]
+    passed = (
+        brief["capacity"]["capacity_kind"] == "owned_hardware"
+        and brief["capacity"]["provider"] == "local"
+        and brief["capacity"]["cost_usd"] == 0.0
+        and brief["capacity"]["live_metered_fallback"] is False
+        and brief["capacity"]["plan_quota_fallback"] is False
+        and brief["authority"]["writes_state"] is False
+        and all(node["depends_on"] == [] for node in positions)
+        and set(synthesis["depends_on"]) == {node["node_id"] for node in positions}
+        and brief["limits"]["completion_policy"] == "require_all"
+    )
+    return ConsultEvalOutcome(
+        case_id="structured_consult_graph_contract",
+        category="structured_graph",
+        passed=passed,
+        detail={
+            "position_nodes": len(positions),
+            "synthesis_dependencies": len(synthesis["depends_on"]),
+            "max_cost_usd": brief["limits"]["max_cost_usd"],
+        },
+    )
+
+
+def _check_structured_consult_false_edge_rejected() -> ConsultEvalOutcome:
+    from deepr.evals.consult_graph_contract import StructuredConsultContractError, validate_structured_consult_brief
+
+    brief = _structured_consult_fixture()
+    position = next(node for node in brief["nodes"] if node["node_kind"] == "position")
+    position["depends_on"] = ["position_002"]
+    rejected_code = ""
+    try:
+        validate_structured_consult_brief(brief)
+    except StructuredConsultContractError as exc:
+        rejected_code = exc.code
+    return ConsultEvalOutcome(
+        case_id="structured_consult_false_edge_rejected",
+        category="structured_graph",
+        passed=rejected_code == "FALSE_EDGE",
+        detail={"rejected_code": rejected_code},
     )

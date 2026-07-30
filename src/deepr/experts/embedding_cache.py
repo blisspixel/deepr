@@ -148,6 +148,7 @@ class EmbeddingCache:
                 source="experts.embedding_cache.add_documents",
                 max_cost_per_job=envelope.cost_usd,
                 call=lambda: client.embeddings.create(model=model, input=embed_content),
+                request_envelope={"model": model, "input": embed_content},
             )
             # Durable admission already wrote the canonical ledger. Do not call
             # cost_safety.record_cost again (that would double-count spend).
@@ -257,6 +258,7 @@ class EmbeddingCache:
                 source="experts.embedding_cache.search",
                 max_cost_per_job=envelope.cost_usd,
                 call=lambda: client.embeddings.create(model=model, input=query),
+                request_envelope={"model": model, "input": query},
             )
             # Durable admission is the sole ledger write for this embed.
             query_embedding = np.array(response.data[0].embedding)

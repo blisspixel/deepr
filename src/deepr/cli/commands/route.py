@@ -2,8 +2,8 @@
 
 A $0, read-only, no-model command: it shows which experts a consult would fan out
 to (by the deterministic keyword-overlap selection router) and the non-probing
-capacity outlook (whether the next maintenance run is $0/prepaid or metered) so an
-operator can see the route and its spend posture before spending anything.
+capacity outlook (whether the next maintenance run has $0 or prepaid capacity)
+so an operator can see the route and its spend posture before spending anything.
 """
 
 from __future__ import annotations
@@ -84,4 +84,5 @@ def explain(query: str, max_experts: int, top_n: int, json_output: bool) -> None
 
     console.print()
     print_capacity_outlook(payload.get("capacity_outlook") or {})
-    console.print(f"[dim]Backend fallback order: {' -> '.join(payload['backend_fallback_order'])}[/dim]")
+    console.print(f"[dim]Automatic cheap-capacity order: {' -> '.join(payload['backend_fallback_order'])}[/dim]")
+    console.print("[dim]Metered API: preview only; never an automatic fallback[/dim]")

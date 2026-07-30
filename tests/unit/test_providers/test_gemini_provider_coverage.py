@@ -18,6 +18,11 @@ from deepr.providers.base import ProviderError, ResearchRequest
 from deepr.providers.gemini_provider import DEEP_RESEARCH_AGENT, GeminiProvider
 
 
+@pytest.fixture(autouse=True)
+def _allow_mocked_storage_adapter(monkeypatch):
+    monkeypatch.setattr("deepr.services.research_bounds.require_research_storage_accounting", lambda: None)
+
+
 @pytest.fixture
 def provider():
     return GeminiProvider(api_key="test-key")
@@ -148,7 +153,7 @@ class TestUpload:
 
         provider.client = MagicMock()
         provider.client.files.upload = MagicMock(return_value=FakeFile())
-        fid = await provider.upload_document(str(p))
+        fid = await provider._upload_document_accounted(str(p))
         assert fid == "files/abc"
         assert provider.client.files.upload.call_args.kwargs["config"]["mime_type"] == "text/markdown"
 
@@ -162,7 +167,7 @@ class TestUpload:
 
         provider.client = MagicMock()
         provider.client.files.upload = MagicMock(return_value=FakeFile())
-        await provider.upload_document(str(p))
+        await provider._upload_document_accounted(str(p))
         assert provider.client.files.upload.call_args.kwargs["config"]["mime_type"] == "text/plain"
 
     @pytest.mark.asyncio
@@ -170,7 +175,7 @@ class TestUpload:
         from deepr.providers.base import ProviderError
 
         with pytest.raises(ProviderError, match="Failed to upload"):
-            await provider.upload_document("/does/not/exist.txt")
+            await provider._upload_document_accounted("/does/not/exist.txt")
 
 
 # ---------------------------------------------------------------------- #
@@ -181,14 +186,14 @@ class TestUpload:
 class TestVectorStore:
     @pytest.mark.asyncio
     async def test_create_vector_store_records(self, provider):
-        vs = await provider.create_vector_store("name", ["f1", "f2"])
+        vs = await provider._create_vector_store_accounted("name", ["f1", "f2"])
         assert vs.name == "name"
         assert vs.file_ids == ["f1", "f2"]
         assert vs.id in provider.vector_stores
 
     @pytest.mark.asyncio
     async def test_wait_for_vector_store_returns_true_when_files_present(self, provider):
-        vs = await provider.create_vector_store("name", ["f1"])
+        vs = await provider._create_vector_store_accounted("name", ["f1"])
         provider.client = MagicMock()
         provider.client.files.get = MagicMock(return_value=MagicMock())
         assert (await provider.wait_for_vector_store(vs.id)) is True
@@ -204,8 +209,8 @@ class TestVectorStore:
 
     @pytest.mark.asyncio
     async def test_list_vector_stores_returns_recorded(self, provider):
-        await provider.create_vector_store("n1", [])
-        await provider.create_vector_store("n2", [])
+        await provider._create_vector_store_accounted("n1", [])
+        await provider._create_vector_store_accounted("n2", [])
         out = await provider.list_vector_stores(limit=10)
         assert len(out) == 2
 
@@ -216,7 +221,7 @@ class TestVectorStore:
 
     @pytest.mark.asyncio
     async def test_delete_vector_store_removes(self, provider):
-        vs = await provider.create_vector_store("n", [])
+        vs = await provider._create_vector_store_accounted("n", [])
         ok = await provider.delete_vector_store(vs.id)
         assert ok is True
         assert vs.id not in provider.vector_stores

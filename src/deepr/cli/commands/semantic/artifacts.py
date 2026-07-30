@@ -593,7 +593,7 @@ def agentic():
 @click.argument("topic")
 @click.option("--goal", "-g", required=True, help="The goal to achieve (e.g., 'produce reference docs + checklist')")
 @click.option("--rounds", "-r", type=int, default=3, help="Maximum Plan-Execute-Review cycles (default: 3)")
-@click.option("--budget", "-b", type=float, default=10.0, help="Budget limit for entire workflow (default: $10)")
+@click.option("--budget", "-b", type=float, default=1.0, help="Budget limit for entire workflow (default: $1)")
 @click.option(
     "--provider",
     "-p",
@@ -760,7 +760,7 @@ async def _run_agentic_research(
     print_key_value("Output", str(output_path))
 
     if not yes and not resume:
-        console.print("\n[dim]Estimated cost: $3.00-$10.00 depending on complexity[/dim]")
+        console.print("\n[dim]Estimated cost: $1.00-$5.00 depending on complexity[/dim]")
         if not click.confirm("\nProceed with agentic research?"):
             console.print("Cancelled")
             return

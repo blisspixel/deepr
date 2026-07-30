@@ -1,6 +1,6 @@
 # Expert Chat Capacity Backends
 
-Status: design note, refreshed 2026-07-12.
+Status: design note, refreshed 2026-07-29.
 
 Scope: `deepr expert consult`, `deepr_consult_experts`, `deepr expert chat`,
 `deepr_query_expert`, and browser Socket.IO/REST expert chat.
@@ -18,20 +18,23 @@ but they must not fall through to metered APIs. Paid API paths may be stronger,
 but every request must estimate, reserve, settle, and append to the canonical
 cost ledger.
 
-## Current v2.36 Release Gate
+## Current v2.40 Release Gate
 
 Every standalone metered `ExpertChatSession` dispatch fails closed before the
-provider call in v2.36. This includes `deepr expert chat`, browser Socket.IO and
+provider call in v2.40. This includes `deepr expert chat`, browser Socket.IO and
 REST chat, and `deepr_query_expert backend=api`. Local and explicit plan
-`deepr_query_expert` read-only compiled-context turns remain available. API
-council synthesis is a separate bounded surface and is not disabled by this
-gate. No metered expert-chat live validation is claimed for v2.36.
+`deepr_query_expert` read-only compiled-context turns remain available. Paid
+council synthesis is also blocked before provider construction. No metered
+expert-chat or council live validation is claimed for v2.40.
 
-Restoration is P1 work. Every provider and auxiliary call must have a durable
-estimate, reserve, dispatch mark, and settlement; hard output ceilings; one
-parent session budget; and per-session turn serialization. The intended API and
-browser contracts below remain design targets and historical implementation
-context, not shipped metered capacity in this release.
+Restoration is P1 work. The old feature flag and
+`DEEPR_ALLOW_METERED_EXPERT_CHAT` no longer authorize dispatch. Every provider
+and auxiliary call must have one provider-enforceable maximum charge covering
+serialized input, output, reasoning, tools, caches, storage, background work,
+retries, redirects, and fallback under a parent session reservation. It must
+also bind a Deepr-owned client, official endpoint, credential and account
+identity, exact model, and billing scope. The intended API and browser
+contracts below remain design targets, not shipped metered capacity.
 
 ## Current Code Constraints
 
@@ -40,20 +43,20 @@ context, not shipped metered capacity in this release.
   metered fallback in those modes.
 - `PlanQuotaChatClient` and `ollama_chat_client` already satisfy the narrow
   `client.chat.completions.create(...)` seam used by council synthesis.
-- API-backed council synthesis is provider-pluggable for `openai` and
-  `anthropic`. The Anthropic path uses the native Messages API and keeps
-  prompt-cache controls disabled until explicit cache policy exists.
+- API-backed council synthesis retains compatibility request and accounting
+  code, but both OpenAI and Anthropic dispatch are hard-blocked. Local and
+  proven plan-quota synthesis use the OpenAI-compatible owned-capacity seam.
 - `ExpertChatSession` is more coupled than consult. Its constructor requires
   `OPENAI_API_KEY`, stores an `AsyncOpenAI` client, uses the Responses API path
   for retrieval, and routes under an OpenAI provider constraint for vector-store
   compatibility. The primary non-streaming answer-generation chat-completion
   turn, follow-up suggestions, and conversation compaction now go through
   `ExpertChatBackend` with `OpenAIExpertChatBackend`. Quick lookup and the
-  standard-research fallback now use the same backend seam while preserving
-  their operation-specific budget checks and ledger records. Final OpenAI token
-  streaming now uses the backend streaming contract. Deep-research job
-  submission still uses the OpenAI Responses API path because it is a
-  research-job contract, not one normalized chat turn. `LocalOllamaExpertChatBackend` and
+  standard-research fallback compatibility code used the same backend seam.
+  The 2026-07-29 audit proved that their estimate and output-only cap could not
+  bound total provider charges, so paid completion, streaming, fallback,
+  standard research, deep-research submission, and retrieval now fail before
+  client construction or dispatch. `LocalOllamaExpertChatBackend` and
   `PlanQuotaExpertChatBackend` now implement the same normalized backend
   contract for read-only compiled-context turns, declare no tools, no
   streaming, no prompt cache, and no Deepr dollar spend. MCP
@@ -66,7 +69,7 @@ context, not shipped metered capacity in this release.
   `supports_tools=false` and omits `tool_choice` on no-tool turns.
 - MCP `deepr_consult_experts` accepts `synthesis_backend=api|local|plan`.
   MCP `deepr_query_expert` accepts `backend=local|plan` as usable capacity in
-  v2.36; `backend=api` is accepted only to return the fail-closed release gate.
+  v2.40; `backend=api` is accepted only to return the fail-closed release gate.
   `local` and `plan` compile the expert handoff state into one read-only no-tool chat turn
   through the owned-capacity backend seam, with live metered fallback disabled,
   no research trigger, and a `readonly_chat_artifact` attached to the result.

@@ -73,11 +73,21 @@ class TestDetection:
 
 class TestOllamaProbe:
     def test_dead_port_returns_false_not_raise(self, monkeypatch):
-        def refuse(url, **_kwargs):
-            assert url == "http://127.0.0.1:1/api/tags"
-            raise httpx.ConnectError("refused")
+        class RefusingClient:
+            def __init__(self, **kwargs):
+                assert kwargs == {"timeout": 0.1, "trust_env": False, "follow_redirects": False}
 
-        monkeypatch.setattr(httpx, "get", refuse)
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return None
+
+            def get(self, url):
+                assert url == "http://127.0.0.1:1/api/tags"
+                raise httpx.ConnectError("refused")
+
+        monkeypatch.setattr(httpx, "Client", RefusingClient)
         ok, detail = ollama_status("http://localhost:1", timeout=0.1)
         assert ok is False
         assert "not reachable" in detail
@@ -89,7 +99,7 @@ class TestOllamaProbe:
             nonlocal requested
             requested = True
 
-        monkeypatch.setattr(httpx, "get", must_not_run)
+        monkeypatch.setattr(httpx, "Client", must_not_run)
         monkeypatch.setenv("OLLAMA_HOST", "https://ollama.example.com:11434")
 
         ok, detail = ollama_status()
@@ -103,7 +113,21 @@ class TestAvailableLocalModels:
     def test_unreachable_returns_empty_not_raise(self, monkeypatch):
         from deepr.backends.capacity import available_local_models
 
-        monkeypatch.setattr(httpx, "get", lambda *_args, **_kwargs: (_ for _ in ()).throw(httpx.ConnectError("no")))
+        class RefusingClient:
+            def __init__(self, **kwargs):
+                assert kwargs == {"timeout": 0.1, "trust_env": False, "follow_redirects": False}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return None
+
+            def get(self, url):
+                assert url == "http://127.0.0.1:1/api/tags"
+                raise httpx.ConnectError("no")
+
+        monkeypatch.setattr(httpx, "Client", RefusingClient)
         assert available_local_models("http://localhost:1", timeout=0.1) == []
 
     def test_remote_endpoint_returns_empty_without_request(self, monkeypatch):
@@ -115,7 +139,7 @@ class TestAvailableLocalModels:
             nonlocal requested
             requested = True
 
-        monkeypatch.setattr(httpx, "get", must_not_run)
+        monkeypatch.setattr(httpx, "Client", must_not_run)
 
         assert available_local_models("http://10.0.0.5:11434") == []
         assert requested is False

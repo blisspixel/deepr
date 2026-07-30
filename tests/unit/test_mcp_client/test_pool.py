@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from deepr.mcp.client.base import MCPToolResult
 from deepr.mcp.client.circuit_breaker import CircuitBreaker as _CircuitState
+from deepr.mcp.client.errors import MCPErrorCode, StructuredError
 from deepr.mcp.client.pool import MCPClientPool
 from deepr.mcp.client.profile import MCPClientProfile
 
@@ -50,6 +50,7 @@ class TestMCPClientPool:
             command="echo",
             args=["test"],
             timeout=5.0,
+            max_retries=1,
             free_tools=["search", "test", "tool"],
         )
 
@@ -74,7 +75,7 @@ class TestMCPClientPool:
         assert "Unknown server" in result.error
 
     @pytest.mark.asyncio
-    async def test_call_circuit_open(self):
+    async def test_release_block_precedes_circuit_state(self):
         pool = MCPClientPool()
         pool.register(self._make_profile("server-a"))
         # Force circuit open
@@ -84,25 +85,26 @@ class TestMCPClientPool:
         pool._circuits["server-a"]._opened_at = 9999999999.0  # Far future
 
         result = await pool.call_tool("server-a", "tool", {})
-        assert not result.ok
-        assert "Circuit breaker open" in result.error
+        assert isinstance(result, StructuredError)
+        assert result.code == MCPErrorCode.COST_ACCOUNTING_UNAVAILABLE
 
     @pytest.mark.asyncio
-    async def test_call_success_resets_circuit(self):
+    async def test_release_block_prevents_call_and_circuit_mutation(self):
         pool = MCPClientPool()
         pool.register(self._make_profile("server-a"))
 
         # Mock the client to return success
-        mock_result = MCPToolResult(content="ok", server_name="server-a", tool_name="test")
-        pool._clients["server-a"].call_tool = AsyncMock(return_value=mock_result)
+        call = AsyncMock(side_effect=AssertionError("release-blocked MCP must not dispatch"))
+        pool._clients["server-a"].call_tool = call
         pool._clients["server-a"]._connected = True
 
         # Set circuit to have some failures
         pool._circuits["server-a"].failure_count = 2
 
         result = await pool.call_tool("server-a", "test", {})
-        assert result.ok
-        assert pool._circuits["server-a"].failure_count == 0
+        assert isinstance(result, StructuredError)
+        assert pool._circuits["server-a"].failure_count == 2
+        call.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_broadcast_tool(self):
@@ -110,16 +112,16 @@ class TestMCPClientPool:
 
         for name in ["server-a", "server-b"]:
             pool.register(self._make_profile(name))
-            mock_result = MCPToolResult(content=f"result-{name}", server_name=name, tool_name="search")
-            pool._clients[name].call_tool = AsyncMock(return_value=mock_result)
+            pool._clients[name].call_tool = AsyncMock(side_effect=AssertionError("broadcast must not dispatch"))
             pool._clients[name]._connected = True
 
         results = await pool.broadcast_tool("search", {"query": "test"}, server_names=["server-a", "server-b"])
 
         assert len(results) == 2
-        contents = {r.content for r in results}
-        assert "result-server-a" in contents
-        assert "result-server-b" in contents
+        assert all(not result.ok for result in results)
+        assert all("immutable executable" in result.error for result in results)
+        for name in ("server-a", "server-b"):
+            pool._clients[name].call_tool.assert_not_awaited()
 
     def test_health_report(self):
         pool = MCPClientPool()

@@ -1,60 +1,12 @@
-"""Manually integrate completed research for existing experts."""
+"""Fail-closed compatibility entry point for obsolete research integration."""
 
-import asyncio
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from deepr.config import load_config
-from deepr.experts.learner import AutonomousLearner
-from deepr.experts.profile import ExpertStore
+EXTERNAL_METADATA_EXECUTION_ENABLED = False
 
 
-async def integrate_expert_research(expert_name: str):
-    """Integrate completed research for an existing expert."""
-    # Load expert
-    store = ExpertStore()
-    expert = store.load(expert_name)
-
-    if not expert:
-        print(f"ERROR: Expert '{expert_name}' not found")
-        return
-
-    if not expert.research_jobs:
-        print("Expert has no research jobs")
-        return
-
-    print(f"Expert: {expert_name}")
-    print(f"Research jobs: {len(expert.research_jobs)}")
-    print(f"Current documents: {expert.total_documents}")
-    print()
-
-    # Create learner
-    config = load_config()
-    learner = AutonomousLearner(config)
-
-    import time
-
-    session = learner.cost_safety.create_session(
-        session_id=f"manual_integrate_{expert_name}_{int(time.time())}", session_type="learning", budget_limit=10.0
-    )
-
-    # Run polling and integration
-    print("Starting integration...")
-    await learner._poll_and_integrate_reports(
-        expert=expert, job_ids=expert.research_jobs, session=session, callback=None
-    )
-
-    # Reload to show updated counts
-    expert = store.load(expert_name)
-    if expert is None:
-        print("Expert could not be reloaded after integration")
-        return
-    print()
-    print(f"DONE! Expert now has {expert.total_documents} documents")
+def main() -> int:
+    print("BLOCKED: obsolete integration bypasses canonical bounded reconciliation and durable settlement.")
+    return 2
 
 
 if __name__ == "__main__":
-    expert_name = sys.argv[1] if len(sys.argv) > 1 else "Agentic Digital Consciousness"
-    asyncio.run(integrate_expert_research(expert_name))
+    raise SystemExit(main())

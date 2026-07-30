@@ -278,7 +278,7 @@ def submit(
             status=JobStatus.QUEUED,
             priority=priority,
             submitted_at=datetime.now(UTC),
-            cost_limit=cost_limit if cost_limit is not None else config.get("max_cost_per_job", 10.0),
+            cost_limit=cost_limit if cost_limit is not None else config.get("max_cost_per_job", 1.0),
             enable_web_search=web_search,
             metadata=job_metadata,
         )

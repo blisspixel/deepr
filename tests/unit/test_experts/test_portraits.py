@@ -6,11 +6,9 @@ key and cost money, so they stay out of the unit suite).
 
 from __future__ import annotations
 
-import base64
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
-import httpx
 import pytest
 from click.testing import CliRunner
 
@@ -28,10 +26,12 @@ from deepr.experts.portraits import (
 
 
 class TestLocalImageProvider:
-    def test_detect_prefers_local_when_url_set(self, monkeypatch):
+    def test_detect_blocks_unattested_loopback_image_endpoint(self, monkeypatch):
         monkeypatch.setenv("DEEPR_LOCAL_IMAGE_URL", "http://localhost:8188")
-        monkeypatch.setenv("OPENAI_API_KEY", "sk-test")  # local still wins (cheapest-first)
-        assert detect_provider() == "local"
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+
+        with pytest.raises(RuntimeError, match="exact local-only capacity"):
+            detect_provider()
 
     def test_detect_rejects_remote_local_url_without_metered_fallback(self, monkeypatch):
         monkeypatch.setenv("DEEPR_LOCAL_IMAGE_URL", "https://images.example.com/v1")
@@ -71,31 +71,28 @@ class TestLocalImageProvider:
 
         assert detect_provider() == "xai"
 
-    def test_local_is_free_metered_is_not(self):
-        assert portrait_cost("local") == 0.0
+    def test_local_label_is_not_zero_cost_authority(self):
+        with pytest.raises(RuntimeError, match="exact local-only capacity"):
+            portrait_cost("local")
         assert portrait_cost("openai") == PORTRAIT_COST_ESTIMATE_USD
         assert portrait_cost("xai") == XAI_PORTRAIT_COST_ESTIMATE_USD
         assert portrait_cost(None) == PORTRAIT_COST_ESTIMATE_USD
 
     @pytest.mark.asyncio
-    async def test_generate_local_hits_configured_endpoint(self, monkeypatch):
+    async def test_generate_local_blocks_before_client_construction(self, monkeypatch):
         monkeypatch.setenv("DEEPR_LOCAL_IMAGE_URL", "http://localhost:8188")
-        captured: dict = {}
-        fake_result = MagicMock()
-        fake_result.data = [MagicMock(b64_json=base64.b64encode(b"IMGBYTES").decode())]
-        fake_client = MagicMock()
-        fake_client.images.generate = AsyncMock(return_value=fake_result)
+        monkeypatch.setenv("DEEPR_LOCAL_IMAGE_MODEL", "remote-forwarding-alias")
+        constructed = False
 
-        def fake_ctor(*_a, **kwargs):
-            captured.update(kwargs)
-            return fake_client
+        def fake_ctor(*_args, **_kwargs):
+            nonlocal constructed
+            constructed = True
 
         with patch("openai.AsyncOpenAI", fake_ctor):
-            out = await P._generate_local("a prompt")
+            with pytest.raises(RuntimeError, match="exact local-only capacity"):
+                await P._generate_local("a prompt")
 
-        assert out == b"IMGBYTES"
-        assert captured["base_url"] == "http://127.0.0.1:8188/v1"
-        assert captured["api_key"] == "local"  # nothing billed
+        assert constructed is False
 
     @pytest.mark.asyncio
     async def test_generate_local_rejects_remote_before_client_construction(self, monkeypatch):
@@ -132,6 +129,8 @@ class TestLocalImageProvider:
     @pytest.mark.asyncio
     async def test_generate_portrait_defaults_to_runtime_data_root(self, monkeypatch, tmp_path):
         monkeypatch.setenv("DEEPR_DATA_DIR", str(tmp_path / "portable-data"))
+        monkeypatch.setenv("DEEPR_LOCAL_IMAGE_URL", "http://localhost:8188")
+        monkeypatch.setattr(P, "_require_attested_local_image_capacity", lambda: None)
 
         async def fake_generate_local(_prompt):
             return b"NEWPORTRAIT"
@@ -149,6 +148,8 @@ class TestLocalImageProvider:
         output_dir.mkdir()
         current = output_dir / "backup-expert.png"
         current.write_bytes(b"OLDPORTRAIT")
+        monkeypatch.setenv("DEEPR_LOCAL_IMAGE_URL", "http://localhost:8188")
+        monkeypatch.setattr(P, "_require_attested_local_image_capacity", lambda: None)
 
         async def fake_generate_local(_prompt):
             return b"NEWPORTRAIT"
@@ -285,68 +286,25 @@ class TestPortraitCostGate:
 
 class TestGoogleImageProvider:
     @pytest.mark.asyncio
-    async def test_generate_google_uses_header_not_query_key(self, monkeypatch):
+    async def test_generate_google_blocks_before_http_client_construction(self, monkeypatch):
         monkeypatch.setenv("GEMINI_API_KEY", "gemini-secret")
-        captured: dict = {}
+        constructed = False
 
-        class FakeResponse:
-            def raise_for_status(self):
-                return None
+        def fake_client(*_args, **_kwargs):
+            nonlocal constructed
+            constructed = True
 
-            def json(self):
-                return {"predictions": [{"bytesBase64Encoded": base64.b64encode(b"IMG").decode()}]}
+        with patch("httpx.AsyncClient", fake_client):
+            with pytest.raises(RuntimeError, match="durable accounting"):
+                await P._generate_google("portrait prompt")
 
-        class FakeClient:
-            def __init__(self, *args, **kwargs):
-                pass
-
-            async def __aenter__(self):
-                return self
-
-            async def __aexit__(self, *args):
-                return None
-
-            async def post(self, url, **kwargs):
-                captured["url"] = url
-                captured.update(kwargs)
-                return FakeResponse()
-
-        monkeypatch.setattr(httpx, "AsyncClient", FakeClient)
-
-        assert await P._generate_google("portrait prompt") == b"IMG"
-        assert "key=" not in captured["url"]
-        assert captured["headers"] == {"x-goog-api-key": "gemini-secret"}
+        assert constructed is False
 
     @pytest.mark.asyncio
-    async def test_generate_google_sanitizes_http_error(self, monkeypatch):
-        monkeypatch.setenv("GEMINI_API_KEY", "gemini-secret")
-        request = httpx.Request("POST", "https://example.invalid/?key=gemini-secret")
-        response = httpx.Response(403, request=request)
-
-        class FakeResponse:
-            def raise_for_status(self):
-                raise httpx.HTTPStatusError("leaky url", request=request, response=response)
-
-        class FakeClient:
-            def __init__(self, *args, **kwargs):
-                pass
-
-            async def __aenter__(self):
-                return self
-
-            async def __aexit__(self, *args):
-                return None
-
-            async def post(self, *_args, **_kwargs):
-                return FakeResponse()
-
-        monkeypatch.setattr(httpx, "AsyncClient", FakeClient)
-
-        with pytest.raises(RuntimeError) as excinfo:
-            await P._generate_google("portrait prompt")
-
-        assert str(excinfo.value) == "Google Imagen request failed with HTTP 403"
-        assert "gemini-secret" not in str(excinfo.value)
+    @pytest.mark.parametrize("generator", [P._generate_openai, P._generate_google, P._generate_xai])
+    async def test_all_direct_metered_portrait_helpers_fail_closed(self, generator):
+        with pytest.raises(RuntimeError, match="every image call"):
+            await generator("portrait prompt")
 
 
 def test_portrait_command_registered_on_expert_group():
@@ -406,7 +364,7 @@ class TestPortraitCliCostConfirmation:
         assert result.exit_code == 2
         assert "--confirm-metered-cost" in result.output
 
-    def test_confirmed_paid_fails_closed_while_local_remains_available(self, monkeypatch):
+    def test_confirmed_paid_and_unattested_local_both_fail_closed(self, monkeypatch):
         from deepr.cli.commands.semantic import expert_portrait as portrait_command_module
         from deepr.cli.commands.semantic.expert_portrait import expert_portrait
 
@@ -423,7 +381,6 @@ class TestPortraitCliCostConfirmation:
             return 1
 
         monkeypatch.setattr(profile_module, "ExpertStore", lambda: store)
-        monkeypatch.setattr(P, "portrait_cost", lambda provider: 0.0 if provider == "local" else 0.04)
         monkeypatch.setattr(portrait_command_module, "_run_portrait_batch", fake_batch)
 
         paid = CliRunner().invoke(
@@ -434,8 +391,9 @@ class TestPortraitCliCostConfirmation:
 
         assert paid.exit_code == 1
         assert "temporarily disabled" in paid.output.lower()
-        assert local.exit_code == 0, local.output
-        assert calls == ["local"]
+        assert local.exit_code != 0
+        assert "exact local-only capacity" in str(local.exception)
+        assert calls == []
 
 
 class TestPortraitStyle:

@@ -10,7 +10,23 @@ import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
+from math import isfinite
 from typing import Any
+
+GENERIC_SUBAGENT_EXECUTION_ENABLED = False
+
+
+class GenericSubagentExecutionBlockedError(RuntimeError):
+    """Raised before an arbitrary subagent callback can perform provider work."""
+
+
+def require_generic_subagent_execution() -> None:
+    """Block the legacy callback substrate until exact capacity authority ships."""
+    if not GENERIC_SUBAGENT_EXECUTION_ENABLED:
+        raise GenericSubagentExecutionBlockedError(
+            "Generic subagent execution is blocked because advisory AgentBudget values cannot authorize provider work. "
+            "Use the attested structured-local consult graph."
+        )
 
 
 class AgentRole(str, Enum):
@@ -71,14 +87,32 @@ class AgentIdentity:
 
 @dataclass
 class AgentBudget:
-    """Per-agent budget isolation with guard checks.
+    """Validated budget value object without provider dispatch authority.
 
-    Tracks cost accumulation against a hard cap. The ``check`` method
-    should be called before any cost-incurring operation.
+    This object can bound deterministic bookkeeping, but possession of it does
+    not reserve money or authorize a provider call.
     """
 
-    max_cost: float = 10.0
+    max_cost: float = 5.0
     cost_accumulated: float = 0.0
+
+    def __post_init__(self) -> None:
+        if (
+            isinstance(self.max_cost, bool)
+            or not isinstance(self.max_cost, (int, float))
+            or not isfinite(self.max_cost)
+            or self.max_cost < 0
+        ):
+            raise ValueError("Agent budget max_cost must be finite and non-negative")
+        if (
+            isinstance(self.cost_accumulated, bool)
+            or not isinstance(self.cost_accumulated, (int, float))
+            or not isfinite(self.cost_accumulated)
+            or self.cost_accumulated < 0
+        ):
+            raise ValueError("Agent budget cost_accumulated must be finite and non-negative")
+        if self.cost_accumulated > self.max_cost:
+            raise ValueError("Agent budget cost_accumulated cannot exceed max_cost")
 
     @property
     def remaining(self) -> float:
@@ -93,8 +127,13 @@ class AgentBudget:
 
     def check(self, estimated_cost: float) -> tuple[bool, str]:
         """Return (allowed, reason) for a proposed spend."""
-        if estimated_cost < 0:
-            return False, "Estimated cost cannot be negative"
+        if (
+            isinstance(estimated_cost, bool)
+            or not isinstance(estimated_cost, (int, float))
+            or not isfinite(estimated_cost)
+            or estimated_cost < 0
+        ):
+            return False, "Estimated cost must be finite and non-negative"
         if estimated_cost > self.remaining:
             return (
                 False,
@@ -103,7 +142,10 @@ class AgentBudget:
         return True, "OK"
 
     def record(self, cost: float) -> None:
-        """Record an actual spend against this budget."""
+        """Record a finite non-negative amount without exceeding this value object."""
+        allowed, reason = self.check(cost)
+        if not allowed:
+            raise ValueError(reason)
         self.cost_accumulated += cost
 
     def to_dict(self) -> dict[str, Any]:
@@ -127,6 +169,15 @@ class AgentResult:
     status: AgentStatus = AgentStatus.SUCCESS
     metadata: dict[str, Any] = field(default_factory=dict)
 
+    def __post_init__(self) -> None:
+        if (
+            isinstance(self.cost, bool)
+            or not isinstance(self.cost, (int, float))
+            or not isfinite(self.cost)
+            or self.cost < 0
+        ):
+            raise ValueError("Agent result cost must be finite and non-negative")
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "agent_id": self.agent_id,
@@ -144,8 +195,10 @@ class SubagentContract(ABC):
 
     Callers invoke ``execute`` with a query, budget, and identity.
     The implementation must:
-    - Respect the budget (call ``budget.check()`` before spending)
-    - Record costs via ``budget.record()``
+    - Treat ``AgentBudget`` as advisory bookkeeping, never provider authority
+    - Use a separate Deepr-minted zero-dollar proof or durable paid reservation
+      before any provider work
+    - Record validated costs via ``budget.record()``
     - Return a well-formed ``AgentResult``
     - Propagate ``identity.trace_id`` in any downstream calls
     """

@@ -31,6 +31,7 @@ from deepr.backends.context_building import (
     context_generation_readiness,
     context_not_ready_error,
 )
+from deepr.experts.semantic_model_gate import require_zero_dollar_client
 
 # research_fn seam contract (deepr/experts/sync.py): (query, budget) -> result.
 ResearchFn = Callable[[str, float], Awaitable[dict[str, Any]]]
@@ -47,6 +48,47 @@ EmbedClaimsFn = Callable[[list[str]], Awaitable[list[tuple[float, ...]]]]
 # Ollama reads this from the request body even on its OpenAI-compatible /v1
 # endpoint; a server that ignores it simply falls back to the default.
 _KEEP_ALIVE = os.getenv("DEEPR_OLLAMA_KEEP_ALIVE", "30m")
+
+
+async def _guard_and_sanitize_ollama_request(request: Any) -> None:
+    """Prove server cloud is disabled and strip ambient provider headers."""
+    import httpx
+
+    netloc = request.url.netloc
+    rendered_netloc = netloc.decode("ascii") if isinstance(netloc, bytes) else str(netloc)
+    endpoint = validate_owned_local_ollama_url(f"{request.url.scheme}://{rendered_netloc}")
+    async with httpx.AsyncClient(
+        timeout=5.0,
+        trust_env=False,
+        follow_redirects=False,
+        headers={"Accept": "application/json", "User-Agent": "deepr-local-capacity-guard/1"},
+    ) as guard:
+        response = await guard.get(f"{endpoint}/api/status")
+    if response.status_code != 200:
+        raise ValueError(f"Owned local Ollama cloud-disable proof returned HTTP {response.status_code}")
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        raise ValueError("Owned local Ollama cloud-disable proof was not JSON") from exc
+    cloud = payload.get("cloud") if isinstance(payload, dict) else None
+    if not isinstance(cloud, dict) or cloud.get("disabled") is not True or cloud.get("source") != "config":
+        raise ValueError(
+            "Owned local Ollama requires cloud.disabled=true from config; set OLLAMA_NO_CLOUD=1 and restart Ollama"
+        )
+
+    content_length = request.headers.get("content-length")
+    request.headers.clear()
+    request.headers.update(
+        {
+            "Accept": "application/json",
+            "Authorization": "Bearer ollama",
+            "Content-Type": "application/json",
+            "Host": rendered_netloc,
+            "User-Agent": "deepr-local-ollama/1",
+        }
+    )
+    if content_length:
+        request.headers["Content-Length"] = content_length
 
 
 def _base_url(base_url: str | None) -> str:
@@ -67,11 +109,30 @@ def ollama_chat_client(base_url: str | None = None, *, timeout: float | None = N
     legitimate run, so default to a generous timeout (``DEEPR_LOCAL_TIMEOUT``
     seconds, default 3600). Raise ``DEEPR_LOCAL_TIMEOUT`` for very slow runs.
     """
+    import httpx
     from openai import AsyncOpenAI
 
     if timeout is None:
         timeout = float(os.getenv("DEEPR_LOCAL_TIMEOUT", "3600"))
-    return AsyncOpenAI(base_url=f"{_base_url(base_url)}/v1", api_key="ollama", timeout=timeout)
+    http_client = httpx.AsyncClient(
+        timeout=timeout,
+        trust_env=False,
+        follow_redirects=False,
+        event_hooks={"request": [_guard_and_sanitize_ollama_request]},
+    )
+    client = AsyncOpenAI(
+        base_url=f"{_base_url(base_url)}/v1",
+        api_key="ollama",
+        timeout=timeout,
+        max_retries=0,
+        http_client=http_client,
+        organization="",
+        project="",
+        default_headers={"Authorization": "Bearer ollama"},
+    )
+    from deepr.experts.semantic_model_gate import _mark_zero_dollar_client
+
+    return _mark_zero_dollar_client(client, capacity_source="local")
 
 
 def default_local_model(base_url: str | None = None) -> str | None:
@@ -99,7 +160,7 @@ async def default_local_model_async(base_url: str | None = None, *, timeout: flo
     try:
         import httpx
 
-        async with httpx.AsyncClient(timeout=timeout) as client:
+        async with httpx.AsyncClient(timeout=timeout, trust_env=False, follow_redirects=False) as client:
             response = await client.get(f"{url}/api/tags")
             response.raise_for_status()
         payload = response.json()
@@ -187,6 +248,7 @@ def make_local_embedder(
         raise ValueError("embedding model is required")
     owned_base_url = _base_url(base_url)
     embeddings_client = client if client is not None else ollama_chat_client(owned_base_url)
+    require_zero_dollar_client(embeddings_client, capacity_source="local")
 
     async def embed_claims(claims: list[str]) -> list[tuple[float, ...]]:
         if not claims:
@@ -222,6 +284,7 @@ def make_local_research_fn(
     """
     owned_base_url = _base_url(base_url)
     chat = client if client is not None else ollama_chat_client(owned_base_url)
+    require_zero_dollar_client(chat, capacity_source="local")
 
     async def research_fn(
         query: str,
@@ -285,6 +348,7 @@ async def probe_local(
     chat = client if client is not None else ollama_chat_client(owned_base_url)
     start = time.perf_counter()
     try:
+        require_zero_dollar_client(chat, capacity_source="local")
         response = await chat.chat.completions.create(
             model=chosen,
             messages=[{"role": "user", "content": "Reply with exactly: OK"}],

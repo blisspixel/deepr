@@ -96,6 +96,11 @@ The repository stays tidy by rule, not by cleanup:
   close incompatible updates in the same maintenance pass. Do not leave
   dependency branches or PRs sitting open.
 - **Nothing merges red.** A green CI run is the gate for every merge.
+- **Hosted CI has a separate billing boundary.** Workflow jobs have explicit
+  timeouts, but Deepr's `$5` application ledger cannot cap GitHub Actions.
+  Keep the repository public on standard hosted runners, or disable paid
+  Actions and remove payment authority at the GitHub account or organization.
+  A GitHub budget alert alone is not a hard real-time stop.
 
 ## Code style
 
@@ -130,8 +135,8 @@ network must live under `tests/integration/` and the live-test opt-in.
   expert system), `mcp/` (MCP server), `services/`, `storage/`, `queue/`, `tools/`.
 - `docs/` - guides; `docs/design/` (feature design docs); `docs/decisions/`
   (ADRs).
-- `deploy/` - cloud templates (AWS SAM, Azure Bicep, GCP Terraform) over a
-  shared `deepr_api_common` library.
+- `deploy/` - a supported local MCP container plus mechanically inert cloud
+  reference markers. No cloud provisioning surface ships in v2.40.
 - `tests/unit/` - unit tests; `tests/integration/` - require API keys.
 
 ## Cloud deployment guidelines

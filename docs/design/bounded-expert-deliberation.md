@@ -51,9 +51,10 @@ Evidence current on 2026-07-16 supports preserving that distinction:
   external temporal graph as updatable episodic memory on three temporal recall
   tasks. It motivates explicit temporal state and evaluation, not promoting
   conversation into graph truth or assuming broad generalization.
-- The official
-  [MCP 2026-07-28 release candidate](https://blog.modelcontextprotocol.io/posts/2026-07-28-release-candidate/)
-  moves durable work toward a stateless core plus extensions and Tasks. Final
+- The final
+  [MCP 2026-07-28 specification](https://modelcontextprotocol.io/specification/2026-07-28)
+  defines a stateless core and optional Tasks for `tools/call`. Deepr does not
+  claim background Tasks support. Final
   [SEP-2577](https://modelcontextprotocol.io/seps/2577-deprecate-roots-sampling-and-logging)
   deprecates core sampling. Deepr should therefore keep deliberation in a host
   workflow instead of depending on server-initiated sampling for recursion.
@@ -288,8 +289,8 @@ request-level upper bound, durable reservation, canonical settlement, and a
 session-wide ceiling.
 
 For a metered three-expert run, one caller ceiling must cover all seven possible
-dispatches. A `$10` request means one parent reservation and at most `$10` total,
-not seven independent `$10` allowances. The lower configured per-job, daily, or
+dispatches. A `$5` request means one parent reservation and at most `$5` total,
+not seven independent `$5` allowances. The lower configured per-job, daily, or
 monthly limit still wins. Plan-quota execution remains `$0` in Deepr's cost
 ledger, so it additionally needs a call-count and elapsed-time ceiling because
 Deepr cannot prove the vendor's remaining quota or billing mode.

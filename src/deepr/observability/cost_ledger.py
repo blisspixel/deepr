@@ -6,7 +6,6 @@ import logging
 import os
 import threading
 import time
-import tomllib
 from collections.abc import Callable, Iterator
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass, field
@@ -15,31 +14,51 @@ from math import isfinite
 from pathlib import Path
 from typing import Any, TypeVar
 
-from filelock import FileLock
-from filelock import Timeout as FileLockTimeout
+from deepr.observability.cost_authority import (
+    CostLedgerDurabilityError as CostLedgerDurabilityError,
+)
+from deepr.observability.cost_authority import (
+    CostLedgerLockTimeout as CostLedgerLockTimeout,
+)
+from deepr.observability.cost_authority import (
+    CostLedgerReadError as CostLedgerReadError,
+)
+from deepr.observability.cost_authority import (
+    current_cost_state_id as current_cost_state_id,
+)
+from deepr.observability.cost_authority import (
+    default_cost_data_dir as default_cost_data_dir,
+)
+from deepr.observability.cost_authority import (
+    observe_cost_artifact as observe_cost_artifact,
+)
+from deepr.observability.cost_authority import (
+    register_spend_cap_env_source as register_spend_cap_env_source,
+)
+from deepr.observability.cost_authority import (
+    registered_cost_artifact_paths as registered_cost_artifact_paths,
+)
+from deepr.observability.cost_authority import (
+    uses_canonical_home_cost_data_dir as uses_canonical_home_cost_data_dir,
+)
+from deepr.observability.cost_authority import (
+    well_known_cost_data_dirs as well_known_cost_data_dirs,
+)
+from deepr.observability.cost_authority import (
+    well_known_ledger_paths as well_known_ledger_paths,
+)
+from deepr.observability.cost_authority import (
+    well_known_spend_cap_env_paths as well_known_spend_cap_env_paths,
+)
+from deepr.observability.strict_json import loads_strict_json_object as _loads_strict_json
 
 logger = logging.getLogger(__name__)
 T = TypeVar("T")
 _REQUIRED_EVENT_FIELDS = frozenset({"timestamp", "operation", "provider", "cost_usd"})
-_ACCOUNTING_SOURCE_REGISTRY = "accounting_sources.jsonl"
-_ACCOUNTING_SOURCE_ARTIFACTS = frozenset({"cost_ledger.jsonl", "research_reservations.db"})
-_ACCOUNTING_SOURCE_SCHEMA_VERSION = 1
-
-
-class CostLedgerLockTimeout(TimeoutError):
-    """A bounded cost-ledger lock attempt expired."""
 
 
 class CostLedgerIdempotencyConflict(ValueError):
     """An idempotency key was reused for a materially different cost event."""
-
-
-class CostLedgerReadError(RuntimeError):
-    """The canonical ledger could not be read safely before an append."""
-
-
-class CostLedgerDurabilityError(RuntimeError):
-    """A required ledger flush could not be confirmed durable."""
 
 
 def _acquire_os_lock(acquire: Callable[[], None], timeout: float | None) -> None:
@@ -65,209 +84,6 @@ def _windows_region_lock(handle: Any, msvcrt: Any, mode: int) -> None:
 
 def _utc_now() -> datetime:
     return datetime.now(UTC)
-
-
-def default_cost_data_dir() -> Path:
-    """Resolve the cost-data directory.
-
-    Honors DEEPR_COST_DATA_DIR so deployments can relocate cost state and -
-    critically - so the test suite can isolate itself. Without the override,
-    every process uses ~/.deepr/costs regardless of its current directory.
-    Legacy source-checkout ledgers remain strict read-only siblings so their
-    spend is still counted, but they can no longer split new reservations or
-    writes across working directories.
-    """
-    base = os.environ.get("DEEPR_COST_DATA_DIR", "").strip()
-    if base:
-        configured = Path(base)
-        if not configured.is_absolute():
-            raise ValueError("DEEPR_COST_DATA_DIR must be an absolute path")
-        return configured
-    try:
-        target = Path.home() / ".deepr" / "costs"
-    except (OSError, RuntimeError) as exc:
-        raise ValueError("cost data home path is unavailable") from exc
-    if not target.is_absolute():
-        raise ValueError("cost data home path must be absolute")
-    return target
-
-
-def _source_checkout_cost_data_dir() -> Path | None:
-    """Return the stable legacy cost root for an editable source checkout."""
-    try:
-        root = Path(__file__).resolve().parents[3]
-    except (IndexError, OSError):
-        return None
-    if not _is_deepr_checkout(root):
-        return None
-    return root / "data" / "costs"
-
-
-def _is_deepr_checkout(root: Path) -> bool:
-    """Accept only a checkout whose package metadata identifies Deepr."""
-    pyproject = root / "pyproject.toml"
-    if not pyproject.is_file() or not (root / "src" / "deepr").is_dir():
-        return False
-    try:
-        with pyproject.open("rb") as handle:
-            project = tomllib.load(handle).get("project", {})
-    except (OSError, tomllib.TOMLDecodeError):
-        return False
-    return isinstance(project, dict) and project.get("name") == "deepr-research"
-
-
-def _cwd_checkout_cost_data_dir() -> Path | None:
-    """Find a validated checkout when installed code runs below its root."""
-    try:
-        current = Path.cwd().resolve()
-    except OSError:
-        return None
-    for root in (current, *current.parents):
-        if _is_deepr_checkout(root):
-            return root / "data" / "costs"
-    return None
-
-
-def _discover_checkout_cost_data_dirs() -> tuple[Path, ...]:
-    """Discover one checkout without making CWD the canonical write root."""
-    source_checkout = _source_checkout_cost_data_dir()
-    if source_checkout is not None:
-        return (source_checkout,)
-    cwd_checkout = _cwd_checkout_cost_data_dir()
-    return (cwd_checkout,) if cwd_checkout is not None else ()
-
-
-def _accounting_source_registry_path() -> Path:
-    return default_cost_data_dir() / _ACCOUNTING_SOURCE_REGISTRY
-
-
-def _normalized_registered_root(value: object) -> Path:
-    if not isinstance(value, str) or not value.strip():
-        raise CostLedgerReadError("accounting source registry contains an invalid root")
-    root = Path(value)
-    if not root.is_absolute():
-        raise CostLedgerReadError("accounting source registry contains a relative root")
-    try:
-        return root.resolve()
-    except OSError as exc:
-        raise CostLedgerReadError("accounting source registry root cannot be resolved") from exc
-
-
-def _parse_accounting_source_record(line: str) -> tuple[Path, str]:
-    document = _loads_strict_json(line)
-    if set(document) != {"schema_version", "registered_at", "root", "artifact"}:
-        raise CostLedgerReadError("accounting source registry contains a malformed record")
-    if document.get("schema_version") != _ACCOUNTING_SOURCE_SCHEMA_VERSION:
-        raise CostLedgerReadError("accounting source registry schema is unsupported")
-    artifact = document.get("artifact")
-    if artifact not in _ACCOUNTING_SOURCE_ARTIFACTS:
-        raise CostLedgerReadError("accounting source registry contains an unknown artifact")
-    registered_at = document.get("registered_at")
-    if not isinstance(registered_at, str):
-        raise CostLedgerReadError("accounting source registry contains an invalid timestamp")
-    _validated_timestamp(registered_at)
-    return _normalized_registered_root(document.get("root")), str(artifact)
-
-
-def _read_registered_cost_sources() -> dict[Path, set[str]]:
-    """Read the append-only home registry strictly."""
-    if os.environ.get("DEEPR_COST_DATA_DIR", "").strip():
-        return {}
-    registry = _accounting_source_registry_path()
-    if not registry.exists():
-        return {}
-    sources: dict[Path, set[str]] = {}
-    try:
-        with registry.open(encoding="utf-8") as handle:
-            for line in handle:
-                line = line.strip()
-                if not line:
-                    continue
-                root, artifact = _parse_accounting_source_record(line)
-                sources.setdefault(root, set()).add(artifact)
-    except CostLedgerReadError:
-        raise
-    except (OSError, UnicodeError, json.JSONDecodeError, TypeError, ValueError) as exc:
-        raise CostLedgerReadError("accounting source registry is unreadable") from exc
-    return sources
-
-
-def _register_cost_source(root: Path, artifact: str) -> None:
-    """Persist a discovered legacy artifact before relying on it."""
-    if os.environ.get("DEEPR_COST_DATA_DIR", "").strip():
-        return
-    if artifact not in _ACCOUNTING_SOURCE_ARTIFACTS:
-        raise ValueError("unsupported accounting source artifact")
-    try:
-        resolved_root = root.resolve()
-        canonical_root = default_cost_data_dir().resolve()
-    except OSError as exc:
-        raise CostLedgerReadError("accounting source root cannot be resolved") from exc
-    if resolved_root == canonical_root or not (resolved_root / artifact).is_file():
-        return
-    registry = _accounting_source_registry_path()
-    try:
-        registry.parent.mkdir(parents=True, exist_ok=True)
-        with FileLock(str(registry.with_name(f"{registry.name}.lock")), timeout=5.0, thread_local=False):
-            registered = _read_registered_cost_sources()
-            if artifact in registered.get(resolved_root, set()):
-                return
-            record = {
-                "schema_version": _ACCOUNTING_SOURCE_SCHEMA_VERSION,
-                "registered_at": _utc_now().isoformat(),
-                "root": str(resolved_root),
-                "artifact": artifact,
-            }
-            with registry.open("a", encoding="utf-8", newline="\n") as handle:
-                handle.write(json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n")
-                handle.flush()
-                os.fsync(handle.fileno())
-    except FileLockTimeout as exc:
-        raise CostLedgerLockTimeout("accounting source registry lock timed out") from exc
-    except CostLedgerReadError:
-        raise
-    except OSError as exc:
-        raise CostLedgerDurabilityError("accounting source registry could not be persisted") from exc
-
-
-def registered_cost_artifact_paths(artifact: str) -> tuple[Path, ...]:
-    """Return every persisted legacy artifact path required for accounting."""
-    if artifact not in _ACCOUNTING_SOURCE_ARTIFACTS:
-        raise ValueError("unsupported accounting source artifact")
-    return tuple(
-        root / artifact
-        for root, artifacts in sorted(_read_registered_cost_sources().items(), key=lambda item: str(item[0]).casefold())
-        if artifact in artifacts
-    )
-
-
-def well_known_cost_data_dirs() -> tuple[Path, ...]:
-    """Return stable canonical and legacy roots used for strict accounting."""
-    if os.environ.get("DEEPR_COST_DATA_DIR", "").strip():
-        return (default_cost_data_dir(),)
-    candidates = [default_cost_data_dir()]
-    discovered = _discover_checkout_cost_data_dirs()
-    for root in discovered:
-        for artifact in _ACCOUNTING_SOURCE_ARTIFACTS:
-            _register_cost_source(root, artifact)
-        candidates.append(root)
-    candidates.extend(_read_registered_cost_sources())
-    unique: list[Path] = []
-    seen: set[Path] = set()
-    for candidate in candidates:
-        try:
-            identity = candidate.resolve()
-        except OSError:
-            identity = candidate.absolute()
-        if identity not in seen:
-            seen.add(identity)
-            unique.append(candidate)
-    return tuple(unique)
-
-
-def well_known_ledger_paths() -> tuple[Path, ...]:
-    """Return stable ledger paths without creating files or directories."""
-    return tuple(root / "cost_ledger.jsonl" for root in well_known_cost_data_dirs())
 
 
 @dataclass
@@ -343,10 +159,11 @@ class CostLedger:
         *,
         lock_timeout_seconds: float | None = None,
     ):
-        using_default_path = ledger_path is None and not os.environ.get("DEEPR_COST_DATA_DIR", "").strip()
+        using_default_path = ledger_path is None and uses_canonical_home_cost_data_dir()
         self._using_default_path = using_default_path
         self.ledger_path = ledger_path or default_cost_data_dir() / "cost_ledger.jsonl"
         self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
+        self.cost_state_id = current_cost_state_id() if ledger_path is None else ""
         self._lock = threading.Lock()
         self._lock_timeout_seconds = _validated_lock_timeout(lock_timeout_seconds)
         self._idempotency_keys: set[str] = set()
@@ -443,6 +260,10 @@ class CostLedger:
                 raise
             except OSError as exc:
                 raise CostLedgerReadError("cost ledger location could not be inspected") from exc
+        if self._using_default_path:
+            for path in paths:
+                if path.is_file():
+                    observe_cost_artifact(path)
         return tuple(paths)
 
     @contextmanager
@@ -599,6 +420,8 @@ class CostLedger:
                         self._require_durable_file(path)
             return existing, False
         self._append_event(event, require_fsync=require_fsync)
+        if self._using_default_path:
+            observe_cost_artifact(self.ledger_path)
         self._index_idempotent_event(event)
         return event, True
 
@@ -864,6 +687,7 @@ class CostLedger:
                 error = error or f"{type(exc).__name__}: {exc}"
         return {
             "path": str(self.ledger_path),
+            "cost_state_id": self.cost_state_id,
             "primary_write_path": str(self.ledger_path),
             "accounting_read_paths": [str(path) for path in accounting_paths],
             "accounting_sources": source_contributions,
@@ -935,17 +759,6 @@ def _validated_timestamp(value: object) -> datetime:
     if timestamp.tzinfo is None or timestamp.utcoffset() is None:
         raise ValueError("timestamp must include a UTC offset")
     return timestamp
-
-
-def _reject_json_constant(value: str) -> None:
-    raise ValueError(f"non-standard JSON constant {value!r} is not allowed")
-
-
-def _loads_strict_json(line: str) -> dict[str, Any]:
-    data = json.loads(line, parse_constant=_reject_json_constant)
-    if not isinstance(data, dict):
-        raise TypeError("cost ledger event must be a JSON object")
-    return data
 
 
 def _same_idempotent_cost_event(existing: CostLedgerEvent, proposed: CostLedgerEvent) -> bool:

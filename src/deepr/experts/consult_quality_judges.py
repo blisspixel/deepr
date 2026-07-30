@@ -27,6 +27,7 @@ from deepr.experts.consult_quality import (
 )
 from deepr.experts.consult_traces import load_consult_traces
 from deepr.experts.metacognitive_monitor import build_consult_trace_candidates_for_expert
+from deepr.experts.semantic_model_gate import require_zero_dollar_client
 
 if TYPE_CHECKING:
     from deepr.experts.profile import ExpertProfile
@@ -173,6 +174,13 @@ def _api_judge_operation_prefix(trace: dict[str, Any]) -> str:
     return f"consult-quality-judge-{safe_trace_id}"
 
 
+def _require_zero_dollar_judge_client(client: Any, *, capacity_source: str) -> None:
+    try:
+        require_zero_dollar_client(client, capacity_source=capacity_source)
+    except ValueError as exc:
+        raise ConsultQualityReviewError(str(exc)) from exc
+
+
 async def _chat_consult_quality_judge_completion(
     chat: Any,
     *,
@@ -308,16 +316,18 @@ def estimate_consult_quality_api_judge_cost(judge_model: str) -> float:
 def _build_api_judge_client(provider: str) -> Any:
     from openai import AsyncOpenAI
 
+    from deepr.providers.dispatch_authority import default_paid_endpoint
+
     if provider == "openai":
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             raise ConsultQualityReviewError("OPENAI_API_KEY is not set.")
-        return AsyncOpenAI(api_key=api_key, max_retries=0)
+        return AsyncOpenAI(api_key=api_key, base_url=default_paid_endpoint("openai"), max_retries=0)
     if provider == "xai":
         api_key = os.getenv("XAI_API_KEY")
         if not api_key:
             raise ConsultQualityReviewError("XAI_API_KEY is not set.")
-        return AsyncOpenAI(api_key=api_key, base_url="https://api.x.ai/v1", max_retries=0)
+        return AsyncOpenAI(api_key=api_key, base_url=default_paid_endpoint("xai"), max_retries=0)
     raise ConsultQualityReviewError("API judge provider must be one of: openai, xai.")
 
 
@@ -388,12 +398,14 @@ async def _metered_api_judge_completion(
     on_settled: Callable[[float], None],
     on_reserved: Callable[[float], None],
 ) -> _JudgeCompletion:
+    from deepr.providers.dispatch_authority import require_official_paid_client
     from deepr.services.metered_call import execute_reserved_async_call
     from deepr.services.metered_envelope import MeteredEnvelopeError, bounded_chat_envelope
 
     messages = _consult_quality_judge_messages(case, trace, candidate)
     try:
         envelope = bounded_chat_envelope(
+            provider=request.provider,
             model=request.model,
             prompt_parts=tuple(message["content"] for message in messages),
             budget_usd=request.budget,
@@ -402,12 +414,10 @@ async def _metered_api_judge_completion(
     except MeteredEnvelopeError as exc:
         raise ConsultQualityReviewError(f"API consult-quality judge request cannot be safely bounded: {exc}") from exc
     on_reserved(envelope.cost_usd)
-    active_client = client
 
     async def dispatch() -> Any:
-        nonlocal active_client
-        if active_client is None:
-            active_client = _build_api_judge_client(request.provider)
+        active_client = client or _build_api_judge_client(request.provider)
+        require_official_paid_client(active_client, request.provider)
         return await active_client.chat.completions.create(
             model=request.model,
             messages=messages,
@@ -420,6 +430,11 @@ async def _metered_api_judge_completion(
         model=request.model,
         source="experts.consult_quality_judges",
         call=dispatch,
+        request_envelope={
+            "model": request.model,
+            "messages": messages,
+            "max_completion_tokens": envelope.output_tokens,
+        },
         max_cost_per_job=envelope.cost_usd,
         on_settled=on_settled,
     )
@@ -538,6 +553,7 @@ async def review_consult_quality_candidate_with_local_judge(
         from deepr.backends.local import ollama_chat_client
 
         client = ollama_chat_client(base_url)
+    _require_zero_dollar_judge_client(client, capacity_source="local")
     return await _review_consult_quality_candidate_with_chat_judge(
         profile,
         trace_id,
@@ -608,6 +624,7 @@ async def review_consult_quality_candidate_with_plan_judge(
             quota_ledger_path=quota_ledger_path,
             cost_ledger_path=cost_ledger_path,
         )
+    _require_zero_dollar_judge_client(client, capacity_source=f"plan_quota:{backend_id}")
     return await _review_consult_quality_candidate_with_chat_judge(
         profile,
         trace_id,

@@ -17,6 +17,13 @@ import pytest
 
 from deepr.providers import OpenAIProvider
 from deepr.providers.base import ProviderError, ResearchRequest, ToolConfig
+from deepr.providers.dispatch_authority import PaidDispatchAuthorityError
+from tests.unit.test_providers._provider_authority import submit_adapter
+
+
+@pytest.fixture(autouse=True)
+def _allow_mocked_storage_adapter(monkeypatch):
+    monkeypatch.setattr("deepr.services.research_bounds.require_research_storage_accounting", lambda: None)
 
 
 class TestOpenAIProvider:
@@ -97,14 +104,14 @@ class TestRequestConstruction:
 
             request = ResearchRequest(
                 prompt="Test prompt",
-                model="o3-deep-research",
+                model="o3-deep-research-2025-06-26",
                 system_message="Test system message",
                 tools=[ToolConfig(type="web_search_preview")],
                 metadata={"test": "value"},
                 idempotency_key="deepr-research-job-1",
             )
 
-            job_id = await provider.submit_research(request)
+            job_id = await submit_adapter(provider, request)
 
             assert job_id == "resp_test123"
             mock_create.assert_called_once()
@@ -133,7 +140,7 @@ class TestRequestConstruction:
                 tools=[ToolConfig(type="web_search_preview")],
             )
 
-            await provider.submit_research(request)
+            await submit_adapter(provider, request)
 
             call_kwargs = mock_create.call_args[1]
             tools = call_kwargs["tools"]
@@ -142,7 +149,7 @@ class TestRequestConstruction:
 
     @pytest.mark.asyncio
     async def test_submit_research_with_code_interpreter_tool(self, provider):
-        """Test payload includes code_interpreter tool with container."""
+        """Code interpreter never reaches the SDK without a session ceiling."""
         mock_response = MagicMock()
         mock_response.id = "resp_test123"
 
@@ -156,13 +163,9 @@ class TestRequestConstruction:
                 tools=[ToolConfig(type="code_interpreter")],
             )
 
-            await provider.submit_research(request)
-
-            call_kwargs = mock_create.call_args[1]
-            tools = call_kwargs["tools"]
-            assert len(tools) == 1
-            assert tools[0]["type"] == "code_interpreter"
-            assert tools[0]["container"] == {"type": "auto", "memory_limit": "1g"}
+            with pytest.raises(PaidDispatchAuthorityError, match="code_interpreter"):
+                await submit_adapter(provider, request)
+            mock_create.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_submit_research_with_file_search_tool(self, provider):
@@ -180,7 +183,7 @@ class TestRequestConstruction:
                 tools=[ToolConfig(type="file_search", vector_store_ids=["vs_123", "vs_456"])],
             )
 
-            await provider.submit_research(request)
+            await submit_adapter(provider, request)
 
             call_kwargs = mock_create.call_args[1]
             tools = call_kwargs["tools"]
@@ -199,13 +202,13 @@ class TestRequestConstruction:
 
             request = ResearchRequest(
                 prompt="Test prompt",
-                model="o3-deep-research",
+                model="o3-deep-research-2025-06-26",
                 system_message="Test system",
                 tools=[],
                 reasoning_effort="high",
             )
 
-            await provider.submit_research(request)
+            await submit_adapter(provider, request)
 
             call_kwargs = mock_create.call_args[1]
             assert "reasoning" in call_kwargs
@@ -228,7 +231,7 @@ class TestRequestConstruction:
                 tools=[],
             )
 
-            await provider.submit_research(request)
+            await submit_adapter(provider, request)
 
             call_kwargs = mock_create.call_args[1]
             input_messages = call_kwargs["input"]
@@ -245,7 +248,7 @@ class TestRequestConstruction:
 
     @pytest.mark.asyncio
     async def test_submit_research_with_previous_response_id(self, provider):
-        """Test payload includes previous_response_id for reasoning persistence."""
+        """Inherited provider context never bypasses the input-token hold."""
         mock_response = MagicMock()
         mock_response.id = "resp_test123"
 
@@ -260,10 +263,9 @@ class TestRequestConstruction:
                 previous_response_id="resp_previous123",
             )
 
-            await provider.submit_research(request)
-
-            call_kwargs = mock_create.call_args[1]
-            assert call_kwargs["previous_response_id"] == "resp_previous123"
+            with pytest.raises(PaidDispatchAuthorityError, match="previous_response_id"):
+                await submit_adapter(provider, request)
+            mock_create.assert_not_awaited()
 
 
 # =============================================================================
@@ -293,13 +295,13 @@ class TestResponseParsing:
 
             request = ResearchRequest(
                 prompt="Test prompt",
-                model="o3-deep-research",
+                model="o3-deep-research-2025-06-26",
                 system_message="Test system message",
                 tools=[ToolConfig(type="web_search_preview")],
                 metadata={"test": "value"},
             )
 
-            job_id = await provider.submit_research(request)
+            job_id = await submit_adapter(provider, request)
 
             assert job_id == "resp_test123"
             mock_create.assert_called_once()
@@ -515,7 +517,7 @@ class TestErrorHandling:
             )
 
             # Should succeed after retry
-            job_id = await provider.submit_research(request)
+            job_id = await submit_adapter(provider, request)
             assert job_id == "resp_test123"
             assert mock_create.call_count == 2
             keys = {call.kwargs["extra_headers"]["Idempotency-Key"] for call in mock_create.call_args_list}
@@ -541,7 +543,7 @@ class TestErrorHandling:
             )
 
             with pytest.raises(ProviderError, match="ambiguous"):
-                await provider.submit_research(request)
+                await submit_adapter(provider, request)
             assert mock_create.call_count == 1
 
     @pytest.mark.asyncio
@@ -561,7 +563,7 @@ class TestErrorHandling:
             )
 
             with pytest.raises(ProviderError, match="ambiguous"):
-                await provider.submit_research(request)
+                await submit_adapter(provider, request)
             assert mock_create.call_count == 1
 
     @pytest.mark.asyncio
@@ -582,7 +584,7 @@ class TestErrorHandling:
 
             # The provider raises ProviderError after exhausting retries
             with pytest.raises(ProviderError):
-                await provider.submit_research(request)
+                await submit_adapter(provider, request)
 
     @pytest.mark.asyncio
     async def test_submit_research_non_retryable_error(self, provider):
@@ -598,7 +600,7 @@ class TestErrorHandling:
             )
 
             with pytest.raises(ProviderError, match="Failed to submit research"):
-                await provider.submit_research(request)
+                await submit_adapter(provider, request)
 
             # Should not retry for non-retryable errors
             assert mock_create.call_count == 1
@@ -662,7 +664,7 @@ class TestDocumentOperations:
         with patch.object(provider.client.files, "create", new_callable=AsyncMock) as mock_create:
             mock_create.return_value = mock_file_obj
 
-            file_id = await provider.upload_document(str(test_file))
+            file_id = await provider._upload_document_accounted(str(test_file))
 
             assert file_id == "file_test123"
             mock_create.assert_called_once()
@@ -677,7 +679,7 @@ class TestDocumentOperations:
             mock_create.side_effect = openai.OpenAIError("Upload failed")
 
             with pytest.raises(ProviderError, match="Failed to upload document"):
-                await provider.upload_document(str(test_file))
+                await provider._upload_document_accounted(str(test_file))
 
     @pytest.mark.asyncio
     async def test_create_vector_store(self, provider):
@@ -693,7 +695,7 @@ class TestDocumentOperations:
                 mock_create.return_value = mock_vs
                 mock_file_create.return_value = None
 
-                vs = await provider.create_vector_store("test-store", ["file_1", "file_2"])
+                vs = await provider._create_vector_store_accounted("test-store", ["file_1", "file_2"])
 
                 assert vs.id == "vs_test123"
                 assert vs.name == "test-store"
@@ -711,7 +713,7 @@ class TestDocumentOperations:
             mock_create.side_effect = openai.OpenAIError("Creation failed")
 
             with pytest.raises(ProviderError, match="Failed to create vector store"):
-                await provider.create_vector_store("test-store", ["file_1"])
+                await provider._create_vector_store_accounted("test-store", ["file_1"])
 
     @pytest.mark.asyncio
     async def test_delete_vector_store(self, provider):
@@ -836,7 +838,7 @@ class TestOpenAIProviderIntegration:
             metadata={"test": "integration"},
         )
 
-        job_id = await provider.submit_research(request)
+        job_id = await submit_adapter(provider, request)
 
         assert job_id.startswith("resp_")
 

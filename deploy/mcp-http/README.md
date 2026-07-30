@@ -1,4 +1,4 @@
-# Hosted MCP HTTP Container
+# Local MCP HTTP Container
 
 This compose recipe runs the Deepr MCP server over Streamable HTTP for remote
 agent hosts while keeping the host-facing port bound to loopback. Put Caddy,
@@ -41,14 +41,15 @@ Then start the service:
 
 ```bash
 docker compose up -d
-deepr mcp smoke-http http://127.0.0.1:8765/mcp --auth-token "$DEEPR_MCP_KEY"
 deepr mcp registration-manifest http://127.0.0.1:8765/mcp \
-  --auth-token "$DEEPR_MCP_KEY" \
   --output mcp-registration.json
 ```
 
-The smoke command performs only `$0` structural checks: health, initialize,
-tools/list, and free `deepr_tool_search` dispatch.
+Registration is network-free. Deepr's outbound HTTP smoke and remote validation
+commands are blocked before network access because endpoint self-reports cannot
+prove `$0` execution. Authenticated external MCP clients may still call the
+inbound Deepr server subject to its scoped-key, budget, and tool gates.
+This bootstrap performs only `$0` structural checks inside Deepr.
 
 ## Data And Secrets
 
@@ -56,9 +57,9 @@ tools/list, and free `deepr_tool_search` dispatch.
 directory holds experts, reports, `security/mcp_keys.json`, and
 `security/mcp_remote_audit.jsonl`.
 
-Provider API keys are optional. Leave them unset for read-only remote
-consumers. If a key mode or tool budget allows paid work, keep provider keys in
-`.env` or the host secret manager, not in proxy configuration.
+Provider API keys are optional. Leave them unset for local-only and read-only
+remote consumers. If a key mode permits paid work, keep provider keys in `.env`
+or the host secret manager, never in proxy configuration.
 
 Review remote calls before widening key mode or budget:
 
@@ -80,32 +81,14 @@ mcp.example.com {
 }
 ```
 
-Validate the public endpoint after DNS and TLS are ready:
-
-```bash
-deepr mcp smoke-http https://mcp.example.com/mcp --auth-token "$DEEPR_MCP_KEY"
-```
+After DNS and TLS are ready, validate reachability with the external MCP client
+that will consume the inbound service. Do not use Deepr's outbound
+`smoke-http` command as a live probe; it intentionally fails closed before
+network access.
 
 See [../mcp-http.md](../mcp-http.md) for the full hosted endpoint recipe,
 including nginx, revocation, and operational rules.
 
-For Azure Container Apps, see
-[azure-container-apps/](azure-container-apps/). That template uses the same
-image and command, mounts Azure Files at `/data`, and keeps scoped-key plus audit
-state durable across revisions.
-
-For AWS ECS Fargate, see [aws-ecs-fargate/](aws-ecs-fargate/). That template
-uses the same image and command, mounts EFS at `/data`, exposes HTTPS through an
-Application Load Balancer, and keeps scoped-key plus audit state durable across
-task restarts.
-
-For GCP Cloud Run, see [gcp-cloud-run/](gcp-cloud-run/). That template uses the
-same image and command, mounts a Cloud Storage bucket at `/data`, and keeps
-scoped-key plus audit state durable with single-writer defaults for the
-object-backed mount.
-
-For Cloudflare Worker edge ingress, see
-[cloudflare-worker/](cloudflare-worker/). That recipe fronts an existing HTTPS
-MCP origin, proxies only `/mcp` paths, caps request bodies at 1 MiB, forwards
-scoped-key auth headers, and leaves budgets, rate limits, audit logs, and
-provider keys on the origin side.
+The AWS, Azure, GCP, and Cloudflare subdirectories are mechanically inert
+reference markers. Deployable historical designs remain in version control
+only. They are not supported when relying on Deepr's `$5` guarantee.

@@ -14,6 +14,35 @@ from deepr.config import runtime_data_path
 SCRIPT_PATH = Path(__file__).resolve().parents[4] / "scripts" / "benchmark_models.py"
 
 
+def _run_benchmark_script(
+    *,
+    tier: str,
+    max_estimated_cost: float,
+    new_models: bool = False,
+    dry_run: bool = False,
+    quick: bool = False,
+    no_judge: bool = False,
+    save: bool = True,
+) -> None:
+    cmd = [sys.executable, str(SCRIPT_PATH)]
+    if new_models:
+        cmd.append("--new-models")
+    cmd.extend(("--tier", tier, "--max-estimated-cost", str(max_estimated_cost)))
+    for enabled, flag in (
+        (dry_run, "--dry-run"),
+        (quick, "--quick"),
+        (no_judge, "--no-judge"),
+        (save, "--save"),
+    ):
+        if enabled:
+            cmd.append(flag)
+    click.echo(f"Running: {' '.join(cmd)}")
+    # Internal benchmark_models.py; CLI user-invoked, no untrusted command parts.
+    result = subprocess.run(cmd, check=False)
+    if result.returncode != 0:
+        raise click.ClickException(f"Benchmark exited with status {result.returncode}")
+
+
 @click.group(name="eval")
 def evaluate():
     """Run model evaluation workflows with cost safety defaults."""
@@ -36,30 +65,15 @@ def evaluate():
 @click.option("--save/--no-save", default=True, show_default=True, help="Save benchmark output artifacts.")
 def eval_new(tier: str, dry_run: bool, quick: bool, no_judge: bool, max_estimated_cost: float, save: bool):
     """Evaluate only newly added or missing model+tier combinations."""
-    cmd = [
-        sys.executable,
-        str(SCRIPT_PATH),
-        "--new-models",
-        "--tier",
-        tier,
-        "--max-estimated-cost",
-        str(max_estimated_cost),
-    ]
-
-    if dry_run:
-        cmd.append("--dry-run")
-    if quick:
-        cmd.append("--quick")
-    if no_judge:
-        cmd.append("--no-judge")
-    if save:
-        cmd.append("--save")
-
-    click.echo(f"Running: {' '.join(cmd)}")
-    # Internal benchmark_models.py; CLI user-invoked, no untrusted input in command construction.
-    result = subprocess.run(cmd, check=False)
-    if result.returncode != 0:
-        raise click.ClickException(f"Benchmark exited with status {result.returncode}")
+    _run_benchmark_script(
+        tier=tier,
+        max_estimated_cost=max_estimated_cost,
+        new_models=True,
+        dry_run=dry_run,
+        quick=quick,
+        no_judge=no_judge,
+        save=save,
+    )
 
 
 @evaluate.command("local")
@@ -324,31 +338,14 @@ def _build_cli_judge(
     judge_timeout: float,
     allow_cli_judge: bool,
 ):
-    from deepr.evals.local_compare import GROK_JUDGE_COMMAND, CliJudgeCommand
+    from deepr.evals.local_compare import CLI_JUDGE_BLOCK_REASON
 
     if judge_cli and judge_command:
         raise click.ClickException("Use --judge-cli or --judge-command, not both.")
     if not judge_cli and not judge_command:
         return None
-    if not allow_cli_judge:
-        raise click.ClickException(
-            "CLI judges can consume remote quota. Re-run with --allow-cli-judge after confirming the CLI is not a "
-            "metered API path."
-        )
-    try:
-        if judge_cli == "grok":
-            return CliJudgeCommand(
-                template=GROK_JUDGE_COMMAND,
-                display_name=judge_name or "cli:grok",
-                timeout_seconds=judge_timeout,
-            )
-        return CliJudgeCommand(
-            template=judge_command or "",
-            display_name=judge_name or "cli:custom",
-            timeout_seconds=judge_timeout,
-        )
-    except ValueError as exc:
-        raise click.ClickException(str(exc)) from exc
+    _ = judge_name, judge_timeout, allow_cli_judge
+    raise click.ClickException(CLI_JUDGE_BLOCK_REASON)
 
 
 def _emit_local_eval_json(report, path: Path | None) -> None:
@@ -522,41 +519,9 @@ def eval_red_team(json_output: bool, save: bool, fail_on_attack: bool):
         raise click.ClickException(f"{report.attack_successes} red-team attack(s) succeeded.")
 
 
-@evaluate.command("consult")
-@click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
-@click.option("--save", is_flag=True, help="Save JSON artifact under the configured benchmarks directory.")
-@click.option(
-    "--fail-on-regression/--no-fail-on-regression",
-    default=True,
-    show_default=True,
-    help="Exit non-zero if a built-in consult regression fails.",
-)
-def eval_consult(json_output: bool, save: bool, fail_on_regression: bool):
-    """Run the local consult harness regression suite (cost $0)."""
-    from deepr.evals.consult import run_consult_eval, write_consult_eval_report
+from deepr.cli.commands.eval_consult_graph import eval_consult
 
-    report = run_consult_eval()
-    path = write_consult_eval_report(report) if save else None
-
-    if json_output:
-        data = report.to_dict()
-        if path:
-            data["saved_to"] = str(path)
-        click.echo(json.dumps(data, indent=2))
-    else:
-        click.echo(f"Consult harness eval  (methodology v{report.methodology_version})")
-        click.echo(f"Deepr metered cost: ${report.cost_usd:.2f}")
-        click.echo(f"Score: {report.score:.1%} ({report.passed_cases}/{report.total_cases})")
-        click.echo("")
-        for outcome in report.outcomes:
-            status = "pass" if outcome.passed else "fail"
-            click.echo(f"  - {outcome.case_id:32s} {status:4s} [{outcome.category}]")
-        if path:
-            click.echo("")
-            click.echo(f"Saved {path}")
-
-    if fail_on_regression and report.failed_cases:
-        raise click.ClickException(f"{report.failed_cases} consult regression(s) failed.")
+evaluate.add_command(eval_consult)
 
 
 @evaluate.command("hallucination-risks")
@@ -705,7 +670,9 @@ def _calibration_grade_fn(grader_model: str):
 
     from openai import AsyncOpenAI
 
-    client = AsyncOpenAI()
+    from deepr.providers.dispatch_authority import default_paid_endpoint
+
+    client = AsyncOpenAI(base_url=default_paid_endpoint("openai"))
     system = (
         "You judge whether a CLAIM is directly supported by a REPORT. Grounded means the report "
         "states or directly entails the claim - not merely that the claim is plausible. "
@@ -926,26 +893,11 @@ def eval_all(
             "Full eval requires --approve-expensive. Use --dry-run first to inspect estimated cost."
         )
 
-    cmd = [
-        sys.executable,
-        str(SCRIPT_PATH),
-        "--tier",
-        "all",
-        "--max-estimated-cost",
-        str(max_estimated_cost),
-    ]
-
-    if dry_run:
-        cmd.append("--dry-run")
-    if quick:
-        cmd.append("--quick")
-    if no_judge:
-        cmd.append("--no-judge")
-    if save:
-        cmd.append("--save")
-
-    click.echo(f"Running: {' '.join(cmd)}")
-    # Internal benchmark_models.py; CLI user-invoked, no untrusted input in command construction.
-    result = subprocess.run(cmd, check=False)
-    if result.returncode != 0:
-        raise click.ClickException(f"Benchmark exited with status {result.returncode}")
+    _run_benchmark_script(
+        tier="all",
+        max_estimated_cost=max_estimated_cost,
+        dry_run=dry_run,
+        quick=quick,
+        no_judge=no_judge,
+        save=save,
+    )

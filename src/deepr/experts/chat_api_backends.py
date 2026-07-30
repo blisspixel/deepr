@@ -12,6 +12,7 @@ from deepr.experts.chat_backends import (
     ExpertChatBackend,
     OpenAIExpertChatBackend,
 )
+from deepr.providers.dispatch_authority import default_paid_endpoint
 
 DEFAULT_ANTHROPIC_EXPERT_CHAT_MODEL = "claude-sonnet-5"
 
@@ -42,7 +43,11 @@ def build_api_expert_chat_backend(
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             raise ValueError("OPENAI_API_KEY not set")
-        openai_client = AsyncOpenAI(api_key=api_key, max_retries=0)
+        openai_client = AsyncOpenAI(
+            api_key=api_key,
+            base_url=default_paid_endpoint("openai"),
+            max_retries=0,
+        )
         return chat_provider, chat_model, openai_client, OpenAIExpertChatBackend(openai_client)
 
     if chat_provider == "anthropic":
@@ -53,7 +58,11 @@ def build_api_expert_chat_backend(
         api_key = os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
             raise ValueError("ANTHROPIC_API_KEY not set")
-        anthropic_client = AsyncAnthropic(api_key=api_key, max_retries=0)
+        anthropic_client = AsyncAnthropic(
+            api_key=api_key,
+            base_url=default_paid_endpoint("anthropic"),
+            max_retries=0,
+        )
         return (
             chat_provider,
             chat_model,

@@ -26,6 +26,11 @@ from typing import Any
 import aiohttp
 from aiohttp import web
 
+from deepr.mcp.http_client_policy import (
+    MCPHttpDispatchBlockedError,
+    validated_mcp_http_timeout,
+    validated_remote_mcp_url,
+)
 from deepr.mcp.protocol_compat import HttpMessage as HttpMessage
 from deepr.mcp.protocol_compat import canonical_legacy_tool_call
 from deepr.mcp.request_context import (
@@ -832,9 +837,14 @@ class HttpClient:
     needs to connect to it over HTTP.
     """
 
-    def __init__(self, base_url: str, timeout: float = 30.0, auth_token: str | None = None):
-        self._base_url = base_url.rstrip("/")
-        self._timeout = aiohttp.ClientTimeout(total=timeout)
+    def __init__(
+        self,
+        base_url: str,
+        timeout: float = 30.0,
+        auth_token: str | None = None,
+    ):
+        self._base_url = validated_remote_mcp_url(base_url)
+        self._timeout = aiohttp.ClientTimeout(total=validated_mcp_http_timeout(timeout))
         self._auth_token = auth_token or os.getenv("MCP_AUTH_TOKEN") or os.getenv("DEEPR_MCP_AUTH_TOKEN") or None
         self._session: aiohttp.ClientSession | None = None
         self._stream_task: asyncio.Task[None] | None = None
@@ -844,8 +854,10 @@ class HttpClient:
         return {"Authorization": f"Bearer {self._auth_token}"} if self._auth_token else {}
 
     async def connect(self) -> None:
-        """Establish connection to the server."""
-        self._session = aiohttp.ClientSession(timeout=self._timeout)
+        """Refuse before creating a session or opening a socket."""
+        raise MCPHttpDispatchBlockedError(
+            "Outbound MCP HTTP clients are disabled because remote service cost cannot be proven before connection"
+        )
 
     async def disconnect(self) -> None:
         """Close the connection."""
@@ -860,112 +872,34 @@ class HttpClient:
             await self._session.close()
 
     async def send(self, message: HttpMessage) -> HttpMessage | None:
-        """
-        Send a message to the server and get response.
-
-        Args:
-            message: The message to send
-
-        Returns:
-            Response message, or None for notifications (no response expected)
-
-        Raises:
-            RuntimeError: If not connected (call connect() first)
-            aiohttp.ClientError: On network errors
-        """
-        if not self._session:
-            raise RuntimeError("Not connected. Call connect() first.")
-
-        if self._session.closed:
-            raise RuntimeError("Session is closed. Call connect() to reconnect.")
-
-        async with self._session.post(
-            self._base_url,
-            json=message.to_dict(),
-            headers={"Content-Type": "application/json", **self._auth_headers()},
-        ) as response:
-            if response.status == 204:
-                return None
-
-            data = await response.json()
-            return HttpMessage.from_dict(data)
+        """Refuse every request before session access or POST."""
+        del message
+        raise MCPHttpDispatchBlockedError(
+            "Outbound MCP HTTP requests are disabled because remote service cost cannot be proven before dispatch"
+        )
 
     def on_notification(self, handler: Callable[[dict[str, Any]], Awaitable[None]]) -> None:
         """Set handler for incoming notifications."""
         self._notification_handler = handler
 
     async def subscribe(self, subscriber_id: str | None = None) -> None:
-        """
-        Start listening for server notifications via SSE.
-
-        Notifications are delivered to the handler set via on_notification().
-
-        Args:
-            subscriber_id: Optional identifier for this subscriber.
-                          Used for targeted notifications.
-
-        Raises:
-            RuntimeError: If not connected (call connect() first)
-        """
-        if not self._session:
-            raise RuntimeError("Not connected. Call connect() first.")
-
-        if self._session.closed:
-            raise RuntimeError("Session is closed. Call connect() to reconnect.")
-
-        # Cancel any prior subscription task before replacing it.
-        # Without this the previous task continued reading from a now-
-        # orphaned URL forever, leaking sockets and consuming the SSE
-        # response buffer.
-        if self._stream_task is not None and not self._stream_task.done():
-            self._stream_task.cancel()
-            try:
-                await self._stream_task
-            except (asyncio.CancelledError, Exception):
-                pass  # stream task cancel during HTTP MCP reconnect is expected
-
-        url = f"{self._base_url}/stream"
-        if subscriber_id:
-            # urllib-quote the subscriber id so any ``&`` or ``=`` in
-            # caller-supplied ids can't corrupt the URL.
-            from urllib.parse import quote as _quote
-
-            url += f"?subscriber_id={_quote(str(subscriber_id), safe='')}"
-
-        # Warn about plaintext-bearer over HTTP - the auth token will be
-        # observable in transit. Allowed (silently) for loopback only.
-        if self._auth_token and self._base_url.startswith("http://"):
-            loopback = any(self._base_url.startswith(p) for p in ("http://127.", "http://localhost", "http://[::1]"))
-            if not loopback:
-                logger.warning(
-                    "MCP HTTP client subscribing with auth token over plaintext HTTP to %s - token will be in cleartext.",
-                    self._base_url,
-                )
-
-        self._stream_task = asyncio.create_task(self._stream_loop(url))
+        """Refuse SSE before task or socket creation."""
+        del subscriber_id
+        raise MCPHttpDispatchBlockedError(
+            "Outbound MCP HTTP subscriptions are disabled because remote service cost cannot be proven before dispatch"
+        )
 
     async def _stream_loop(self, url: str) -> None:
-        """Internal loop for processing SSE stream."""
-        try:
-            assert self._session is not None  # set in connect()
-            async with self._session.get(url, headers=self._auth_headers()) as response:
-                async for line in response.content:
-                    line_str = line.decode("utf-8").strip()
-
-                    if line_str.startswith("data: "):
-                        data = json.loads(line_str[6:])
-                        if self._notification_handler:
-                            await self._notification_handler(data)
-
-        except asyncio.CancelledError:
-            pass
-        except Exception as exc:
-            # Reconnect logic could go here
-            logger.warning("MCP HTTP stream loop terminated with error for %s: %s", url, exc)
+        """Refuse the internal SSE seam if called directly."""
+        del url
+        raise MCPHttpDispatchBlockedError(
+            "Outbound MCP HTTP streaming is disabled because remote service cost cannot be proven before dispatch"
+        )
 
 
 # Convenience alias
 HttpTransport = StreamingHttpTransport
+
 
 __all__ = [
     "HttpClient",

@@ -3,8 +3,8 @@
 Reads the durable admission ledger only - no live Ollama or plan-quota probe -
 so a read-only loop-status view can tell an operator whether cheap ($0 local or
 prepaid plan) capacity is *admitted* for each maintenance task class. A command
-without admitted cheap capacity may wait, require explicit metered approval, or
-refuse according to that command's own contract.
+without admitted cheap capacity must wait, use explicit safe capacity, or
+refuse. Production metered dispatch is preview-only and is never a fallback.
 
 "Admitted" is a durable eligibility fact, not a liveness guarantee: a local
 model must still be loaded (confirm with ``deepr capacity --probe``) and plan
@@ -80,8 +80,8 @@ def build_capacity_outlook(*, now: datetime | None = None, admissions_path: Path
             "`deepr capacity --probe`) and plan auto-routing also needs an observed quota "
             "window. An explicit --local or --plan selects that rung and never falls through "
             "to metered API capacity. No admission means only that automatic cheap capacity is "
-            "unavailable; the concrete command may wait, require explicit metered approval, or "
-            "refuse according to its own contract."
+            "unavailable; the concrete command must wait, use explicit safe capacity, or refuse. "
+            "Production metered dispatch is preview-only and is never a fallback."
         ),
     }
 

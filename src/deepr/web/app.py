@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request, send_from_directory
 from flask_cors import CORS
 from flask_socketio import SocketIO
+from werkzeug.utils import secure_filename
 
 from deepr.config import runtime_data_path
 from deepr.security.http_auth import (
@@ -27,6 +28,7 @@ from deepr.security.http_auth import (
     env_flag,
     presented_http_secret,
 )
+from deepr.services.provider_completion import authoritative_completion_usage
 
 # Shared sync-to-async bridge, retaining the historical local alias.
 from deepr.utils.async_runner import run_async_command as run_async
@@ -439,8 +441,7 @@ def _handle_completion(loop, job, response):
             )
         )
 
-    cost = response.usage.cost if response.usage else None
-    tokens = response.usage.total_tokens if response.usage else None
+    cost, tokens = authoritative_completion_usage(job, response)
 
     research_costs.cleanup_uploads(
         loop=loop,
@@ -567,14 +568,28 @@ def _validate_expert_name(name: str) -> str | None:
 
 
 def _decode_expert_name(name: str):
-    """Decode and validate a URL-encoded expert name. Returns (decoded, error_response)."""
+    """Decode an expert URL name into a storage-safe lookup token."""
     from urllib.parse import unquote
+
+    from deepr.experts.paths import expert_slug
+    from deepr.utils.security import InvalidInputError
 
     decoded = unquote(name)
     err = _validate_expert_name(decoded)
     if err:
         return None, (jsonify({"error": err}), 400)
-    return decoded, None
+
+    # Preserve the canonical on-disk naming scheme, then pass the result
+    # through Werkzeug's path sanitizer. The second step is intentionally
+    # explicit at the HTTP trust boundary so static analysis and reviewers can
+    # prove route data no longer controls a path expression.
+    try:
+        storage_slug = secure_filename(expert_slug(decoded))
+    except InvalidInputError:
+        return None, (jsonify({"error": "Invalid expert name"}), 400)
+    if not storage_slug:
+        return None, (jsonify({"error": "Invalid expert name"}), 400)
+    return storage_slug, None
 
 
 def _safe_int(value, default: int = 0) -> int:
@@ -1351,8 +1366,13 @@ def update_cost_limits():
                 data,
                 {"per_job": "per_job", "daily": "daily", "monthly": "monthly"},
             )
-        except ValueError as exc:
-            return jsonify({"error": str(exc)}), 400
+        except ValueError:
+            return jsonify(
+                {
+                    "error": "Cost limit update rejected by canonical budget policy",
+                    "error_code": "cost_limit_update_rejected",
+                }
+            ), 400
 
         limits = {
             "per_job": caps["per_job"],
@@ -1626,8 +1646,13 @@ def update_config():
                     data,
                     {"daily_limit": "daily", "monthly_limit": "monthly"},
                 )
-            except ValueError as exc:
-                return jsonify({"error": str(exc)}), 400
+            except ValueError:
+                return jsonify(
+                    {
+                        "error": "Cost limit update rejected by canonical budget policy",
+                        "error_code": "cost_limit_update_rejected",
+                    }
+                ), 400
 
         # Update allowed fields only after the whole request validates.
         allowed = ["default_model", "default_priority", "enable_web_search"]
@@ -2159,7 +2184,7 @@ def fill_expert_gaps(name):
         use_consensus = data.get("consensus", False)
         use_deep = data.get("deep", False)
         top = min(data.get("top", 3), 10)
-        budget = min(data.get("budget", 5.0), 50.0)
+        budget = min(data.get("budget", 1.0), 5.0)
         allow_metered_api = bool(data.get("allow_metered_api"))
         confirm_metered_cost = bool(data.get("confirm_metered_cost"))
 
@@ -2174,7 +2199,7 @@ def fill_expert_gaps(name):
                             "allow_metered_api": True,
                             "confirm_metered_cost": True,
                         },
-                        "safe_alternative": f'deepr expert route-gaps "{decoded_name}" --execute --scheduled',
+                        "safe_alternative": "deepr expert route-gaps EXPERT --execute --scheduled",
                     }
                 ),
                 402,
@@ -2182,7 +2207,7 @@ def fill_expert_gaps(name):
 
         return metered_expert_mutation_block(
             "api_fill_gaps",
-            safe_alternative=f'deepr expert route-gaps "{decoded_name}" --execute --scheduled',
+            safe_alternative="deepr expert route-gaps EXPERT --execute --scheduled",
         )
 
         store = ExpertStore(str(_experts_dir))
@@ -2397,7 +2422,7 @@ def discover_expert_gaps(name):
     """Fail closed before legacy paid embedding and gap-generation calls."""
     return metered_expert_mutation_block(
         "api_discover_gaps",
-        safe_alternative=f'deepr expert next "{name}"',
+        safe_alternative="deepr expert next EXPERT",
     )
 
     try:
@@ -2710,33 +2735,17 @@ def get_activity():
 
 @app.route("/api/config/test-connection", methods=["POST"])
 def test_connection():
-    """Test provider API connection."""
-    try:
-        data = request.json
-        if not data:
-            return jsonify({"error": "Request body required"}), 400
-        provider_name = data.get("provider", "openai")
-
-        if provider_name == "openai":
-            api_key = os.getenv("OPENAI_API_KEY")
-            if not api_key:
-                return jsonify({"success": False, "message": "OPENAI_API_KEY not set"}), 200
-            try:
-                # Quick connectivity test
-                import openai
-
-                client = openai.OpenAI(api_key=api_key)
-                client.models.list()
-                return jsonify({"success": True, "message": "Connection successful"})
-            except Exception as e:
-                logger.warning("Connection test failed: %s", e)
-                return jsonify({"success": False, "message": "Connection failed"})
-        else:
-            return jsonify({"success": False, "message": "Provider test not implemented"})
-
-    except Exception as e:
-        logger.error(f"Error testing connection: {e}")
-        return jsonify({"error": "Internal server error"}), 500
+    """Block external provider metadata calls before credential or client use."""
+    return (
+        jsonify(
+            {
+                "success": False,
+                "error_code": "external_metadata_cost_unverified",
+                "message": "Live provider connection tests are disabled because endpoint and proxy cost cannot be proven",
+            }
+        ),
+        503,
+    )
 
 
 # =============================================================================

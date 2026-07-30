@@ -1,4 +1,4 @@
-"""Explicit authorization contract for paid MCP tool calls."""
+"""Legacy contract inputs for production-frozen paid MCP tool calls."""
 
 from __future__ import annotations
 
@@ -9,15 +9,18 @@ _METERED_AUTHORIZATION_PROPERTIES: dict[str, Any] = {
     "budget": {
         "type": "number",
         "exclusiveMinimum": 0,
-        "description": "Required finite maximum cost in USD for this call.",
+        "description": (
+            "Required finite maximum cost in USD for contract validation. It does not authorize "
+            "production metered dispatch."
+        ),
     },
     "allow_metered_api": {
         "type": "boolean",
-        "description": "Must be true to permit paid API dispatch for this call.",
+        "description": "Legacy acknowledgement. Production paid API dispatch remains blocked.",
     },
     "confirm_metered_cost": {
         "type": "boolean",
-        "description": "Must be true to confirm the stated per-call USD ceiling.",
+        "description": ("Legacy acknowledgement of the stated ceiling. It does not authorize provider dispatch."),
     },
 }
 _METERED_AUTHORIZATION_REQUIRED = ["budget", "allow_metered_api", "confirm_metered_cost"]
@@ -37,7 +40,7 @@ PAID_RESEARCH_INPUT_SCHEMA: dict[str, Any] = {
         "provider": {
             "type": "string",
             "default": "openai",
-            "description": "Paid API provider: openai, azure, gemini, or grok.",
+            "description": "Provider selector for the production-frozen API path.",
         },
         **_METERED_AUTHORIZATION_PROPERTIES,
         "enable_web_search": {"type": "boolean", "default": True},
@@ -82,32 +85,40 @@ def require_metered_api_contract(
     allow_metered_api: object,
     confirm_metered_cost: object,
 ) -> float:
-    """Return an authorized per-call ceiling or fail before provider setup.
+    """Validate a requested ceiling or fail before provider setup.
 
     Consent and cost confirmation are deliberately separate. A scoped key,
     generic MCP approval token, configured API key, or positive global budget
     does not substitute for either acknowledgement on this individual call.
-    The returned ceiling is also checked against the same operator authority
-    consumed later by the durable reservation transaction.
+    The returned ceiling is necessary contract data, not provider dispatch
+    authority. Production metered dispatch remains blocked at the provider
+    boundary.
     """
     if allow_metered_api is not True or confirm_metered_cost is not True:
         raise MeteredMCPContractError(
             code="METERED_API_NOT_APPROVED",
             message=(
-                "Metered MCP execution requires allow_metered_api=true and "
-                "confirm_metered_cost=true; a budget is a ceiling, not permission to spend."
+                "Metered MCP contract validation requires allow_metered_api=true and "
+                "confirm_metered_cost=true; a budget is a ceiling, not permission to spend, "
+                "and these fields do not authorize production provider dispatch."
             ),
         )
     if isinstance(budget, bool) or not isinstance(budget, (int, float)):
         raise MeteredMCPContractError(
             code="INVALID_BUDGET",
-            message="Metered MCP execution requires an explicit finite positive budget.",
+            message=(
+                "Metered MCP contract validation requires an explicit finite positive budget; "
+                "production provider dispatch remains blocked."
+            ),
         )
     ceiling = float(budget)
     if not isfinite(ceiling) or ceiling <= 0:
         raise MeteredMCPContractError(
             code="INVALID_BUDGET",
-            message="Metered MCP execution requires an explicit finite positive budget.",
+            message=(
+                "Metered MCP contract validation requires an explicit finite positive budget; "
+                "production provider dispatch remains blocked."
+            ),
         )
 
     try:
@@ -118,7 +129,7 @@ def require_metered_api_contract(
     except Exception as exc:
         raise MeteredMCPContractError(
             code="BUDGET_UNAVAILABLE",
-            message="Global operator spend authority is unavailable; paid MCP execution is blocked.",
+            message="Global operator spend authority is unavailable; paid MCP contract validation is blocked.",
         ) from exc
 
     if not isfinite(per_call_cap) or per_call_cap <= 0:

@@ -58,7 +58,9 @@ class MapReduceIngester:
         if self.client is None:
             from openai import AsyncOpenAI
 
-            self.client = AsyncOpenAI(max_retries=0)
+            from deepr.providers.dispatch_authority import default_paid_endpoint
+
+            self.client = AsyncOpenAI(base_url=default_paid_endpoint("openai"), max_retries=0)
         return self.client
 
     async def _complete_bounded(
@@ -74,6 +76,7 @@ class MapReduceIngester:
     ) -> Any:
         """Execute one map/reduce completion inside its exact cost envelope."""
         from deepr.experts.report_absorber_costs import bounded_metered_completion_kwargs
+        from deepr.providers.dispatch_authority import require_official_paid_client
         from deepr.services.metered_call import execute_reserved_async_call
 
         request: dict[str, Any] = {
@@ -90,8 +93,10 @@ class MapReduceIngester:
             kwargs=request,
         )
 
+        client = await self._get_client()
+        require_official_paid_client(client, "openai")
+
         async def dispatch() -> Any:
-            client = await self._get_client()
             return await client.chat.completions.create(**kwargs)
 
         return await execute_reserved_async_call(
@@ -101,6 +106,7 @@ class MapReduceIngester:
             source=source,
             max_cost_per_job=worst_case_cost,
             call=dispatch,
+            request_envelope=kwargs,
         )
 
     async def ingest(

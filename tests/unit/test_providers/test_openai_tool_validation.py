@@ -10,6 +10,8 @@ import pytest
 
 from deepr.providers import OpenAIProvider
 from deepr.providers.base import ResearchRequest, ToolConfig
+from deepr.providers.dispatch_authority import PaidDispatchAuthorityError
+from tests.unit.test_providers._provider_authority import submit_adapter
 
 
 @pytest.mark.asyncio
@@ -41,7 +43,7 @@ class TestOpenAIToolConfiguration:
                 tools=[ToolConfig(type="web_search_preview")],
             )
 
-            await provider.submit_research(request)
+            await submit_adapter(provider, request)
 
             # Verify the API was called with correct tool format
             call_kwargs = mock_create.call_args.kwargs
@@ -53,11 +55,7 @@ class TestOpenAIToolConfiguration:
 
     @pytest.mark.asyncio
     async def test_code_interpreter_requires_container(self, provider):
-        """Test code_interpreter tool REQUIRES container parameter.
-
-        Per OpenAI Responses API docs (lines 44-46 in documentation openai deep research.txt):
-        code_interpreter requires {"type": "code_interpreter", "container": {"type": "auto"}}
-        """
+        """Code interpreter is blocked until its session charge is bounded."""
         mock_response = MagicMock()
         mock_response.id = "resp_test123"
 
@@ -71,16 +69,9 @@ class TestOpenAIToolConfiguration:
                 tools=[ToolConfig(type="code_interpreter")],
             )
 
-            await provider.submit_research(request)
-
-            # Verify the API was called with correct tool format
-            call_kwargs = mock_create.call_args.kwargs
-            tools = call_kwargs["tools"]
-
-            assert len(tools) == 1
-            assert tools[0]["type"] == "code_interpreter"
-            assert "container" in tools[0], "code_interpreter MUST have container parameter"
-            assert tools[0]["container"] == {"type": "auto", "memory_limit": "1g"}
+            with pytest.raises(PaidDispatchAuthorityError, match="code_interpreter"):
+                await submit_adapter(provider, request)
+            mock_create.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_file_search_with_vector_stores(self, provider):
@@ -102,7 +93,7 @@ class TestOpenAIToolConfiguration:
                 tools=[ToolConfig(type="file_search", vector_store_ids=["vs_123", "vs_456"])],
             )
 
-            await provider.submit_research(request)
+            await submit_adapter(provider, request)
 
             # Verify the API was called with correct tool format
             call_kwargs = mock_create.call_args.kwargs
@@ -132,32 +123,26 @@ class TestOpenAIToolConfiguration:
                 system_message="Test system message",
                 tools=[
                     ToolConfig(type="web_search_preview"),
-                    ToolConfig(type="code_interpreter"),
                     ToolConfig(type="file_search", vector_store_ids=["vs_123"]),
                 ],
             )
 
-            await provider.submit_research(request)
+            await submit_adapter(provider, request)
 
             # Verify the API was called with correct tool formats
             call_kwargs = mock_create.call_args.kwargs
             tools = call_kwargs["tools"]
 
-            assert len(tools) == 3
+            assert len(tools) == 2
 
             # web_search_preview: NO container
             assert tools[0]["type"] == "web_search_preview"
             assert "container" not in tools[0]
 
-            # code_interpreter: REQUIRES container
-            assert tools[1]["type"] == "code_interpreter"
-            assert "container" in tools[1]
-            assert tools[1]["container"] == {"type": "auto", "memory_limit": "1g"}
-
             # file_search: REQUIRES vector_store_ids
-            assert tools[2]["type"] == "file_search"
-            assert "vector_store_ids" in tools[2]
-            assert tools[2]["vector_store_ids"] == ["vs_123"]
+            assert tools[1]["type"] == "file_search"
+            assert "vector_store_ids" in tools[1]
+            assert tools[1]["vector_store_ids"] == ["vs_123"]
 
     @pytest.mark.asyncio
     async def test_deep_research_requires_at_least_one_tool(self, provider):
@@ -182,7 +167,7 @@ class TestOpenAIToolConfiguration:
                 tools=[],  # Empty tools list
             )
 
-            await provider.submit_research(request)
+            await submit_adapter(provider, request)
 
             # Current behavior: passes None when tools list is empty
             call_kwargs = mock_create.call_args.kwargs
@@ -207,7 +192,7 @@ class TestOpenAIToolConfiguration:
                 tools=[ToolConfig(type="file_search", vector_store_ids=None)],
             )
 
-            await provider.submit_research(request)
+            await submit_adapter(provider, request)
 
             # Current behavior: file_search without vector_store_ids
             call_kwargs = mock_create.call_args.kwargs
@@ -247,11 +232,10 @@ class TestToolParameterRegressions:
                 tools=[
                     ToolConfig(type="file_search", vector_store_ids=["vs_123"]),  # tools[0]
                     ToolConfig(type="web_search_preview"),  # tools[1]
-                    ToolConfig(type="code_interpreter"),  # tools[2]
                 ],
             )
 
-            await provider.submit_research(request)
+            await submit_adapter(provider, request)
 
             call_kwargs = mock_create.call_args.kwargs
             tools = call_kwargs["tools"]
@@ -259,7 +243,3 @@ class TestToolParameterRegressions:
             # The bug was adding container to web_search_preview
             web_search = next(t for t in tools if t["type"] == "web_search_preview")
             assert "container" not in web_search, "REGRESSION: web_search_preview should NOT have container parameter"
-
-            # But code_interpreter still needs it
-            code_interp = next(t for t in tools if t["type"] == "code_interpreter")
-            assert "container" in code_interp, "code_interpreter MUST have container parameter"

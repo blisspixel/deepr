@@ -29,6 +29,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
+from deepr.mcp.http_client_policy import MCPHttpDispatchBlockedError
 from deepr.mcp.transport.http import (
     HttpClient,
     HttpMessage,
@@ -461,27 +462,32 @@ class TestStreamingHttpBroadcast:
 
 
 class TestHttpClient:
-    @pytest.mark.asyncio
-    async def test_send_before_connect_raises(self):
-        client = HttpClient(base_url="http://127.0.0.1:8765/mcp")
-        with pytest.raises(RuntimeError, match="Not connected"):
-            await client.send(HttpMessage(id="1", method="x"))
+    @pytest.mark.parametrize("timeout", [float("nan"), float("inf"), 0.0, -1.0, 301.0])
+    def test_constructor_rejects_unbounded_timeout(self, timeout):
+        with pytest.raises(ValueError, match="timeout_seconds"):
+            HttpClient(base_url="https://mcp.example.com/mcp", timeout=timeout)
 
     @pytest.mark.asyncio
-    async def test_send_with_closed_session_raises(self):
+    async def test_send_before_connect_is_cost_blocked(self):
+        client = HttpClient(base_url="http://127.0.0.1:8765/mcp")
+        with pytest.raises(MCPHttpDispatchBlockedError, match="remote service cost"):
+            await client.send(HttpMessage(id="1", method="initialize"))
+
+    @pytest.mark.asyncio
+    async def test_send_with_closed_session_still_blocks_before_session_access(self):
         client = HttpClient(base_url="http://127.0.0.1:8765/mcp")
         client._session = MagicMock(closed=True)
-        with pytest.raises(RuntimeError, match="Session is closed"):
-            await client.send(HttpMessage(id="1", method="x"))
+        with pytest.raises(MCPHttpDispatchBlockedError, match="remote service cost"):
+            await client.send(HttpMessage(id="1", method="initialize"))
 
     @pytest.mark.asyncio
-    async def test_subscribe_before_connect_raises(self):
+    async def test_subscribe_before_connect_is_cost_blocked(self):
         client = HttpClient(base_url="http://127.0.0.1:8765/mcp")
-        with pytest.raises(RuntimeError, match="Not connected"):
+        with pytest.raises(MCPHttpDispatchBlockedError, match="remote service cost"):
             await client.subscribe()
 
     @pytest.mark.asyncio
-    async def test_subscribe_cancels_prior_task(self):
+    async def test_subscribe_blocks_without_touching_prior_task(self):
         client = HttpClient(base_url="http://127.0.0.1:8765/mcp")
         client._session = MagicMock(closed=False)
 
@@ -495,16 +501,13 @@ class TestHttpClient:
         old_task = asyncio.create_task(long_running())
         client._stream_task = old_task
 
-        # Patch the stream loop so we don't actually open a socket.
-        async def fake_loop(_url):
-            await asyncio.sleep(0)
-
-        with patch.object(client, "_stream_loop", side_effect=fake_loop):
+        with pytest.raises(MCPHttpDispatchBlockedError, match="remote service cost"):
             await client.subscribe(subscriber_id="me")
 
-        assert old_task.cancelled() or old_task.done()
-        # New task installed
-        assert client._stream_task is not None and client._stream_task is not old_task
+        assert client._stream_task is old_task
+        old_task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await old_task
 
     @pytest.mark.asyncio
     async def test_disconnect_cancels_and_closes(self):
@@ -533,79 +536,54 @@ class TestHttpClient:
             assert c2._auth_headers() == {}
 
     @pytest.mark.asyncio
-    async def test_subscribe_warns_on_plain_http_non_loopback(self, caplog):
-        import logging
-
-        caplog.set_level(logging.WARNING, logger="deepr.mcp.transport.http")
+    async def test_subscribe_blocks_plain_http_without_logging_secret(self, caplog):
         client = HttpClient(base_url="http://203.0.113.5:8000/mcp", auth_token="t")
         client._session = MagicMock(closed=False)
 
-        async def fake_loop(_url):
-            await asyncio.sleep(0)
-
-        with patch.object(client, "_stream_loop", side_effect=fake_loop):
+        with pytest.raises(MCPHttpDispatchBlockedError, match="remote service cost"):
             await client.subscribe()
-        assert any("cleartext" in r.message or "plaintext" in r.message for r in caplog.records)
+        assert "t" not in caplog.text
 
     @pytest.mark.asyncio
-    async def test_subscribe_quotes_subscriber_id(self):
-        captured: list[str] = []
-
-        async def fake_loop(url):
-            captured.append(url)
-
+    async def test_subscribe_blocks_before_using_subscriber_id(self):
         client = HttpClient(base_url="http://127.0.0.1:8000/mcp")
         client._session = MagicMock(closed=False)
-        with patch.object(client, "_stream_loop", side_effect=fake_loop):
+        with pytest.raises(MCPHttpDispatchBlockedError, match="remote service cost"):
             await client.subscribe(subscriber_id="weird&=&id")
-            await asyncio.sleep(0)
-        assert captured
-        assert "weird%26%3D%26id" in captured[0]
 
     @pytest.mark.asyncio
-    async def test_send_returns_parsed_response(self):
+    async def test_send_blocks_before_post(self):
         client = HttpClient(base_url="http://127.0.0.1:8000/mcp")
-        # Build a context-managed mock for session.post(...)
         session = MagicMock()
         session.closed = False
-        post_ctx = MagicMock()
-
-        async def __aenter__(_self):
-            response = MagicMock()
-            response.status = 200
-            response.json = AsyncMock(return_value={"jsonrpc": "2.0", "id": "1", "result": {"a": 1}})
-            return response
-
-        async def __aexit__(_self, *_a):
-            return False
-
-        post_ctx.__aenter__ = __aenter__
-        post_ctx.__aexit__ = __aexit__
-        session.post = MagicMock(return_value=post_ctx)
         client._session = session
 
-        resp = await client.send(HttpMessage(id="1", method="x"))
-        assert isinstance(resp, HttpMessage)
-        assert resp.result == {"a": 1}
+        with pytest.raises(MCPHttpDispatchBlockedError, match="remote service cost"):
+            await client.send(HttpMessage(id="1", method="initialize"))
+        session.post.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_send_returns_none_on_204(self):
+    async def test_connect_blocks_before_session_construction(self, monkeypatch):
         client = HttpClient(base_url="http://127.0.0.1:8000/mcp")
+        called = False
+
+        def fail_client_session(*_args, **_kwargs):
+            nonlocal called
+            called = True
+
+        monkeypatch.setattr("deepr.mcp.transport.http.aiohttp.ClientSession", fail_client_session)
+        with pytest.raises(MCPHttpDispatchBlockedError, match="remote service cost"):
+            await client.connect()
+        assert called is False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("method", ["health", "initialize", "tools/list", "tools/call", "resources/read"])
+    async def test_send_blocks_every_method_before_post(self, method):
+        client = HttpClient(base_url="http://127.0.0.1:8765/mcp", auth_token="loopback-secret")
         session = MagicMock(closed=False)
-        post_ctx = MagicMock()
-
-        async def __aenter__(_self):
-            response = MagicMock()
-            response.status = 204
-            return response
-
-        async def __aexit__(_self, *_a):
-            return False
-
-        post_ctx.__aenter__ = __aenter__
-        post_ctx.__aexit__ = __aexit__
-        session.post = MagicMock(return_value=post_ctx)
         client._session = session
 
-        resp = await client.send(HttpMessage(id="1", method="x"))
-        assert resp is None
+        with pytest.raises(MCPHttpDispatchBlockedError, match="remote service cost"):
+            await client.send(HttpMessage(id="1", method=method, params={}))
+
+        session.post.assert_not_called()

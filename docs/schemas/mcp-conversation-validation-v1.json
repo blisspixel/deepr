@@ -12,9 +12,13 @@
     "endpoint",
     "ok",
     "cost_usd",
+    "cost_scope",
     "capacity_source",
     "fallback_policy",
     "live_metered_fallback",
+    "remote_tool_call_attempted",
+    "remote_tool_cost_status",
+    "remote_tool_calls_metered_api",
     "conversation_id",
     "expert_names",
     "local_model",
@@ -26,12 +30,16 @@
     "schema_version": {"const": "deepr-mcp-conversation-validation-v1"},
     "kind": {"const": "deepr.mcp.conversation_validation"},
     "mode": {"enum": ["http", "managed_loopback"]},
-    "endpoint": {"type": "string", "minLength": 1, "maxLength": 2048},
+    "endpoint": {"type": ["string", "null"], "minLength": 1, "maxLength": 2048},
     "ok": {"type": "boolean"},
     "cost_usd": {"const": 0.0},
-    "capacity_source": {"const": "local_owned"},
-    "fallback_policy": {"const": "none"},
-    "live_metered_fallback": {"const": false},
+    "cost_scope": {"enum": ["validation_client_only", "managed_loopback_harness"]},
+    "capacity_source": {"enum": ["local_owned", "unverified"]},
+    "fallback_policy": {"enum": ["none", "unverified"]},
+    "live_metered_fallback": {"type": ["boolean", "null"]},
+    "remote_tool_call_attempted": {"const": false},
+    "remote_tool_cost_status": {"const": "not_submitted"},
+    "remote_tool_calls_metered_api": {"type": "null"},
     "conversation_id": {
       "oneOf": [
         {"type": "string", "pattern": "^conv_[A-Za-z0-9_-]{22,64}$"},
@@ -79,5 +87,42 @@
       ]
     },
     "generated_at": {"type": "string", "format": "date-time"}
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["mode"],
+        "properties": {"mode": {"const": "http"}}
+      },
+      "then": {
+        "properties": {"cost_scope": {"const": "validation_client_only"}}
+      },
+      "else": {
+        "properties": {"cost_scope": {"const": "managed_loopback_harness"}}
+      }
+    },
+    {
+      "if": {
+        "required": ["mode", "ok"],
+        "properties": {
+          "mode": {"const": "managed_loopback"},
+          "ok": {"const": true}
+        }
+      },
+      "then": {
+        "properties": {
+          "capacity_source": {"const": "local_owned"},
+          "fallback_policy": {"const": "none"},
+          "live_metered_fallback": {"const": false}
+        }
+      },
+      "else": {
+        "properties": {
+          "capacity_source": {"const": "unverified"},
+          "fallback_policy": {"const": "unverified"},
+          "live_metered_fallback": {"type": "null"}
+        }
+      }
+    }
+  ]
 }

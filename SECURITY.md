@@ -4,9 +4,9 @@
 
 | Version | Supported |
 |---------|-----------|
-| 2.37.x  | Yes       |
-| 2.36.x  | Yes       |
-| < 2.36  | No        |
+| 2.40.x  | Yes       |
+| 2.39.x  | Yes       |
+| < 2.39  | No        |
 
 ## Reporting a Vulnerability
 
@@ -32,7 +32,8 @@ Deepr includes:
   and fragments, connect only to a prevalidated public address with environment
   proxies disabled, refuse redirects, and never log the secret-bearing target
 - API key redaction in logs and error output
-- Budget enforcement to prevent runaway spend (per-operation + daily/monthly caps, approval tiers)
+- Durable budget enforcement with per-operation and daily/monthly caps, append-only cost records,
+  dispatch reservations, settlement checks, and a paid-dispatch freeze on ambiguous state
 - Dependency audit (`pip-audit`, blocking in CI) and SBOM generation
 - Pre-commit hooks (ruff lint, debug statement detection)
 - Comprehensive automated test suite with an enforced coverage gate (see [ROADMAP](ROADMAP.md) for current counts)

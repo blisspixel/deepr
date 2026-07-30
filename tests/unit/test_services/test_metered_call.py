@@ -3,7 +3,6 @@
 import asyncio
 import sqlite3
 import threading
-from functools import partial
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -13,7 +12,6 @@ from deepr.experts.research_reservation_store import ResearchReservationStore
 from deepr.observability.cost_ledger import CostLedger, default_cost_data_dir
 from deepr.services.metered_call import (
     MeteredCallAccountingError,
-    execute_reserved_fixed_cost_async_call,
 )
 from deepr.services.metered_call import (
     execute_reserved_async_call as _execute_reserved_async_call,
@@ -22,12 +20,122 @@ from deepr.services.metered_call import (
     execute_reserved_async_stream as _execute_reserved_async_stream,
 )
 from deepr.services.metered_call import (
+    execute_reserved_fixed_cost_async_call as _execute_reserved_fixed_cost_async_call,
+)
+from deepr.services.metered_call import (
     execute_reserved_sync_call as _execute_reserved_sync_call,
 )
 
-execute_reserved_sync_call = partial(_execute_reserved_sync_call, max_cost_per_job=5.0)
-execute_reserved_async_call = partial(_execute_reserved_async_call, max_cost_per_job=5.0)
-execute_reserved_async_stream = partial(_execute_reserved_async_stream, max_cost_per_job=5.0)
+
+def _test_request_envelope(kwargs: dict[str, object]) -> dict[str, object]:
+    return {"operation": kwargs.get("operation_prefix", "test"), "test_call": True}
+
+
+def execute_reserved_sync_call(**kwargs):
+    kwargs.setdefault("max_cost_per_job", 1.0)
+    kwargs.setdefault("request_envelope", _test_request_envelope(kwargs))
+    return _execute_reserved_sync_call(**kwargs)
+
+
+async def execute_reserved_async_call(**kwargs):
+    kwargs.setdefault("max_cost_per_job", 1.0)
+    kwargs.setdefault("request_envelope", _test_request_envelope(kwargs))
+    return await _execute_reserved_async_call(**kwargs)
+
+
+async def execute_reserved_async_stream(**kwargs):
+    kwargs.setdefault("max_cost_per_job", 1.0)
+    kwargs.setdefault("request_envelope", _test_request_envelope(kwargs))
+    async for item in _execute_reserved_async_stream(**kwargs):
+        yield item
+
+
+async def execute_reserved_fixed_cost_async_call(**kwargs):
+    kwargs.setdefault("request_envelope", _test_request_envelope(kwargs))
+    return await _execute_reserved_fixed_cost_async_call(**kwargs)
+
+
+def test_missing_request_envelope_is_rejected_before_reservation_or_dispatch() -> None:
+    call = Mock()
+
+    with (
+        patch("deepr.services.metered_call.reserve_configured_cost_ceiling") as reserve,
+        pytest.raises(MeteredCallAccountingError, match="exact request envelope"),
+    ):
+        _execute_reserved_sync_call(
+            operation_prefix="missing-envelope",
+            provider="openai",
+            model="gpt-5",
+            source="test.missing_envelope",
+            max_cost_per_job=1.0,
+            call=call,
+        )
+
+    reserve.assert_not_called()
+    call.assert_not_called()
+
+
+def test_request_mutation_after_reservation_refunds_before_dispatch() -> None:
+    from deepr.services import metered_call as metered_call_module
+
+    request_envelope = {"operation": "mutation", "messages": [{"content": "before"}]}
+    call = Mock()
+    reserve = metered_call_module.reserve_configured_cost_ceiling
+
+    def reserve_then_mutate(**kwargs):
+        reservation = reserve(**kwargs)
+        request_envelope["messages"][0]["content"] = "after"
+        return reservation
+
+    with (
+        patch.object(metered_call_module, "reserve_configured_cost_ceiling", side_effect=reserve_then_mutate),
+        pytest.raises(MeteredCallAccountingError, match="dispatch mark failed"),
+    ):
+        _execute_reserved_sync_call(
+            operation_prefix="mutated-envelope",
+            provider="openai",
+            model="gpt-5",
+            source="test.mutated_envelope",
+            max_cost_per_job=1.0,
+            call=call,
+            request_envelope=request_envelope,
+        )
+
+    call.assert_not_called()
+    assert ResearchReservationStore().active_cost() == 0
+
+
+def test_request_mutation_after_durable_mark_blocks_call_and_settles_ceiling() -> None:
+    from deepr.services import metered_call as metered_call_module
+
+    request_envelope = {"operation": "mutation", "messages": [{"content": "before"}]}
+    call = Mock()
+    mark = metered_call_module._mark_provider_dispatch
+
+    def mark_then_mutate(*args, **kwargs):
+        mark(*args, **kwargs)
+        request_envelope["messages"][0]["content"] = "after"
+
+    with (
+        patch.object(metered_call_module, "_mark_provider_dispatch", side_effect=mark_then_mutate),
+        pytest.raises(MeteredCallAccountingError, match="changed after its durable mark"),
+    ):
+        _execute_reserved_sync_call(
+            operation_prefix="post-mark-mutated-envelope",
+            provider="openai",
+            model="gpt-5",
+            source="test.post_mark_mutated_envelope",
+            max_cost_per_job=1.0,
+            call=call,
+            request_envelope=request_envelope,
+        )
+
+    call.assert_not_called()
+    assert ResearchReservationStore().active_cost() == 0
+    events = CostLedger().get_events()
+    assert len(events) == 1
+    assert events[0].cost_usd == pytest.approx(1.0)
+    assert events[0].metadata["metered_call_settlement_reason"] == "provider_call_failed"
 
 
 def test_opaque_default_ceiling_is_rejected_before_provider_work() -> None:
@@ -40,21 +148,95 @@ def test_opaque_default_ceiling_is_rejected_before_provider_work() -> None:
             model="gpt-5",
             source="test.opaque",
             call=call,
+            request_envelope={"operation": "opaque"},
         )
 
     call.assert_not_called()
     assert ResearchReservationStore().active_cost() == 0
 
 
+@pytest.mark.parametrize(
+    ("provider", "model", "message"),
+    [
+        ("anthropic", "gpt-5", "cannot execute model"),
+        ("openai", "unknown-paid-model", "no trusted pricing identity"),
+    ],
+)
+def test_token_model_contract_is_validated_before_reservation(
+    provider: str,
+    model: str,
+    message: str,
+) -> None:
+    call = Mock()
+
+    with (
+        patch("deepr.services.metered_call.reserve_configured_cost_ceiling") as reserve,
+        pytest.raises(MeteredCallAccountingError, match=message),
+    ):
+        execute_reserved_sync_call(
+            operation_prefix="identity",
+            provider=provider,
+            model=model,
+            source="test.identity",
+            call=call,
+        )
+
+    reserve.assert_not_called()
+    call.assert_not_called()
+
+
+def test_missing_response_model_identity_consumes_full_hold() -> None:
+    response = SimpleNamespace(usage=SimpleNamespace(input_tokens=100, output_tokens=20))
+
+    result = execute_reserved_sync_call(
+        operation_prefix="missing-model",
+        provider="openai",
+        model="gpt-5",
+        source="test.missing_model",
+        call=lambda: response,
+    )
+
+    assert result is response
+    event = CostLedger().get_events()[0]
+    assert event.cost_usd == pytest.approx(1.0)
+    assert event.metadata["actual_cost_reported"] is False
+
+
+def test_mismatched_response_model_consumes_hold_and_surfaces_error() -> None:
+    response = SimpleNamespace(
+        model="claude-sonnet-4-6",
+        usage=SimpleNamespace(input_tokens=100, output_tokens=20),
+    )
+
+    with pytest.raises(ValueError, match="does not match reserved model"):
+        execute_reserved_sync_call(
+            operation_prefix="wrong-model",
+            provider="openai",
+            model="gpt-5",
+            source="test.wrong_model",
+            call=lambda: response,
+        )
+
+    event = CostLedger().get_events()[0]
+    assert event.cost_usd == pytest.approx(1.0)
+    assert event.metadata["metered_call_settlement_reason"] == "provider_model_identity_mismatch"
+
+
 def test_sync_call_settles_reported_token_cost_and_releases_ceiling() -> None:
-    response = SimpleNamespace(usage=SimpleNamespace(input_tokens=1000, output_tokens=500))
+    response = SimpleNamespace(model="gpt-5", usage=SimpleNamespace(input_tokens=1000, output_tokens=500))
     settled: list[float] = []
 
     def call() -> object:
         database = default_cost_data_dir() / "research_reservations.db"
         with sqlite3.connect(database) as connection:
-            marked = connection.execute("SELECT provider_work_may_have_run FROM research_cost_reservations").fetchone()
-        assert marked == (1,)
+            marked = connection.execute(
+                "SELECT provider_work_may_have_run, provider, model, request_envelope_sha256, "
+                "dispatch_binding_id FROM research_cost_reservations"
+            ).fetchone()
+        assert marked is not None
+        assert marked[:3] == (1, "openai", "gpt-5")
+        assert isinstance(marked[3], str) and len(marked[3]) == 64
+        assert isinstance(marked[4], str) and len(marked[4]) == 64
         return response
 
     result = execute_reserved_sync_call(
@@ -160,7 +342,7 @@ def test_sync_call_does_not_replay_ambiguous_failure() -> None:
     assert ResearchReservationStore().active_cost() == 0
     events = CostLedger().get_events()
     assert len(events) == 1
-    assert events[0].cost_usd == pytest.approx(5.0)
+    assert events[0].cost_usd == pytest.approx(1.0)
 
 
 def test_sync_call_conservatively_settles_every_post_mark_failure() -> None:
@@ -179,13 +361,16 @@ def test_sync_call_conservatively_settles_every_post_mark_failure() -> None:
     assert ResearchReservationStore().active_cost() == 0
     events = CostLedger().get_events()
     assert len(events) == 1
-    assert events[0].cost_usd == pytest.approx(5.0)
+    assert events[0].cost_usd == pytest.approx(1.0)
     assert events[0].metadata["metered_call_settlement_reason"] == "provider_call_failed"
-    assert settled == [pytest.approx(5.0)]
+    assert settled == [pytest.approx(1.0)]
 
 
 def test_sync_call_conservatively_settles_malformed_usage_and_propagates() -> None:
-    response = SimpleNamespace(usage=SimpleNamespace(prompt_tokens="unknown", completion_tokens=10))
+    response = SimpleNamespace(
+        model="gpt-5",
+        usage=SimpleNamespace(prompt_tokens="unknown", completion_tokens=10),
+    )
 
     with pytest.raises(ValueError, match="non-negative integer"):
         execute_reserved_sync_call(
@@ -199,7 +384,7 @@ def test_sync_call_conservatively_settles_malformed_usage_and_propagates() -> No
     assert ResearchReservationStore().active_cost() == 0
     events = CostLedger().get_events()
     assert len(events) == 1
-    assert events[0].cost_usd == pytest.approx(5.0)
+    assert events[0].cost_usd == pytest.approx(1.0)
     assert events[0].metadata["metered_call_settlement_reason"] == "malformed_or_unpriceable_usage"
 
 
@@ -218,7 +403,7 @@ def test_sync_call_treats_undeclared_usage_as_unreported() -> None:
     assert ResearchReservationStore().active_cost() == 0
     events = CostLedger().get_events()
     assert len(events) == 1
-    assert events[0].cost_usd == pytest.approx(5.0)
+    assert events[0].cost_usd == pytest.approx(1.0)
     assert events[0].metadata["actual_cost_reported"] is False
 
 
@@ -235,11 +420,11 @@ def test_sync_call_treats_declared_empty_usage_as_unreported() -> None:
 
     assert result is response
     assert ResearchReservationStore().active_cost() == 0
-    assert CostLedger().get_events()[0].cost_usd == pytest.approx(5.0)
+    assert CostLedger().get_events()[0].cost_usd == pytest.approx(1.0)
 
 
 def test_sync_call_conservatively_settles_nonfinite_calculated_cost() -> None:
-    response = SimpleNamespace(usage=SimpleNamespace(prompt_tokens=10, completion_tokens=2))
+    response = SimpleNamespace(model="gpt-5", usage=SimpleNamespace(prompt_tokens=10, completion_tokens=2))
 
     with (
         patch("deepr.services.metered_call.CostEstimator.calculate_actual_cost", return_value=float("nan")),
@@ -254,7 +439,7 @@ def test_sync_call_conservatively_settles_nonfinite_calculated_cost() -> None:
         )
 
     assert ResearchReservationStore().active_cost() == 0
-    assert CostLedger().get_events()[0].cost_usd == pytest.approx(5.0)
+    assert CostLedger().get_events()[0].cost_usd == pytest.approx(1.0)
 
 
 def test_sync_reservation_value_error_propagates() -> None:
@@ -320,7 +505,7 @@ def test_sync_settlement_failure_is_typed_and_keeps_hold() -> None:
             call=lambda: response,
         )
 
-    assert ResearchReservationStore().active_cost() == pytest.approx(5.0)
+    assert ResearchReservationStore().active_cost() == pytest.approx(1.0)
     assert CostLedger().get_events() == []
 
 
@@ -353,7 +538,7 @@ async def test_async_call_preserves_header_request_and_object_ids() -> None:
 
     await execute_reserved_async_call(
         operation_prefix="async-receipt",
-        provider="anthropic",
+        provider="openai",
         model="gpt-5",
         source="test.async_receipt",
         call=AsyncMock(return_value=response),
@@ -419,7 +604,7 @@ async def test_async_cancellation_after_dispatch_settles_full_ceiling_before_ret
     assert ResearchReservationStore().active_cost() == 0
     events = CostLedger().get_events()
     assert len(events) == 1
-    assert events[0].cost_usd == pytest.approx(5.0)
+    assert events[0].cost_usd == pytest.approx(1.0)
     assert events[0].metadata["metered_call_settlement_reason"] == "provider_call_cancelled"
 
 
@@ -466,10 +651,10 @@ async def test_async_cancellation_owns_dispatch_mark_then_refunds_before_call() 
 
     real_mark = metered_call._mark_provider_dispatch
 
-    def delayed_mark(reservation: object) -> None:
+    def delayed_mark(reservation: object, authority: object, dispatch_call: object) -> None:
         entered.set()
         assert release.wait(timeout=2)
-        real_mark(reservation)  # type: ignore[arg-type]
+        real_mark(reservation, authority, dispatch_call)  # type: ignore[arg-type]
 
     with patch("deepr.services.metered_call._mark_provider_dispatch", side_effect=delayed_mark):
         task = asyncio.create_task(
@@ -529,7 +714,7 @@ async def test_async_cancellation_finishes_normal_settlement_before_returning() 
 
 @pytest.mark.asyncio
 async def test_async_malformed_usage_settles_full_ceiling_and_propagates() -> None:
-    response = SimpleNamespace(usage=SimpleNamespace(prompt_tokens=-1, completion_tokens=2))
+    response = SimpleNamespace(model="gpt-5", usage=SimpleNamespace(prompt_tokens=-1, completion_tokens=2))
 
     with pytest.raises(ValueError, match="non-negative integer"):
         await execute_reserved_async_call(
@@ -543,7 +728,7 @@ async def test_async_malformed_usage_settles_full_ceiling_and_propagates() -> No
     assert ResearchReservationStore().active_cost() == 0
     events = CostLedger().get_events()
     assert len(events) == 1
-    assert events[0].cost_usd == pytest.approx(5.0)
+    assert events[0].cost_usd == pytest.approx(1.0)
     assert events[0].metadata["metered_call_settlement_reason"] == "malformed_or_unpriceable_usage"
 
 
@@ -574,7 +759,7 @@ async def test_async_cancellation_surfaces_conservative_settlement_failure() -> 
     accounting_error = cancelled.value.__dict__["metered_call_accounting_error"]
     assert isinstance(accounting_error, MeteredCallAccountingError)
     assert cancelled.value.__dict__["metered_call_accounting_stage"] == "conservative settlement"
-    assert ResearchReservationStore().active_cost() == pytest.approx(5.0)
+    assert ResearchReservationStore().active_cost() == pytest.approx(1.0)
     assert CostLedger().get_events() == []
 
 
@@ -596,7 +781,7 @@ async def test_async_settlement_failure_is_fail_closed_and_keeps_hold() -> None:
         )
 
     call.assert_awaited_once_with()
-    assert ResearchReservationStore().active_cost() == pytest.approx(5.0)
+    assert ResearchReservationStore().active_cost() == pytest.approx(1.0)
     assert CostLedger().get_events() == []
 
 
@@ -709,7 +894,7 @@ async def test_fixed_cost_call_preserves_mapping_receipt_identifiers() -> None:
 
 
 @pytest.mark.asyncio
-async def test_fixed_cost_call_settles_zero_on_soft_failure() -> None:
+async def test_fixed_cost_call_settles_ceiling_on_ambiguous_soft_failure() -> None:
     settled: list[float] = []
 
     result = await execute_reserved_fixed_cost_async_call(
@@ -727,8 +912,8 @@ async def test_fixed_cost_call_settles_zero_on_soft_failure() -> None:
     assert ResearchReservationStore().active_cost() == 0
     events = CostLedger().get_events()
     assert len(events) == 1
-    assert events[0].cost_usd == pytest.approx(0.0)
-    assert settled == [pytest.approx(0.0)]
+    assert events[0].cost_usd == pytest.approx(0.20)
+    assert settled == [pytest.approx(0.20)]
 
 
 @pytest.mark.asyncio

@@ -1,23 +1,19 @@
-"""Sampling request logic for MCP provider.
+"""Fail-closed sampling request contracts for MCP provider.
 
-Issues sampling/createMessage requests to connected MCP clients
-with trace logging. Metered provider fallback is disabled.
+Host sampling and provider fallback are both blocked until the exact capacity
+behind a host request has enforceable zero-dollar or durable paid authority.
 
 Feature: mcp-client-agent-interop
 """
 
 from __future__ import annotations
 
-import logging
-import time
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-logger = logging.getLogger(__name__)
-
 
 class SamplingFallbackDisabledError(RuntimeError):
-    """A host sampling request cannot silently fall through to paid capacity."""
+    """A sampling request cannot use host or fallback capacity without authority."""
 
 
 @dataclass
@@ -84,11 +80,11 @@ class TraceLogProtocol(Protocol):
 
 
 class SamplingHandler:
-    """Handle host sampling requests with trace logging.
+    """Retain the sampling API while refusing unproven host capacity.
 
-    Issues sampling/createMessage requests to the connected MCP client.
-    A configured provider fallback is retained only for API compatibility and
-    is never dispatched because it has no durable cost transaction.
+    Both the connected host and a configured fallback may use metered capacity.
+    Neither is dispatched because this compatibility surface has no trusted
+    zero-dollar proof or durable cost transaction.
 
     Usage::
 
@@ -112,69 +108,11 @@ class SamplingHandler:
         self._trace_entries: list[SamplingTraceEntry] = []
 
     async def sample(self, request: SamplingRequest) -> SamplingResponse:
-        """Issue a sampling request without metered fallback.
-
-        Tries the MCP client first. If not supported or unavailable, a
-        configured provider fallback fails closed before dispatch.
-        """
-        start = time.monotonic()
-        used_fallback = False
-        content = ""
-        model = request.model
-
-        # Try MCP client sampling
-        if self._client is not None:
-            try:
-                result = await self._client.create_message(
-                    request.prompt,
-                    request.max_tokens,
-                )
-                if result is not None:
-                    content = result.get("content", "")
-                    model = result.get("model", model)
-                else:
-                    used_fallback = True
-            except Exception:
-                logger.debug("MCP sampling failed, using fallback")
-                used_fallback = True
-        else:
-            used_fallback = True
-
-        # Fallback to Deepr's provider
-        if used_fallback and self._fallback is not None:
-            raise SamplingFallbackDisabledError(
-                "MCP provider sampling fallback is disabled until it has durable reservation and settlement"
-            )
-
-        latency_ms = (time.monotonic() - start) * 1000
-
-        # Record trace entry
-        entry = SamplingTraceEntry(
-            prompt_length=len(request.prompt),
-            response_length=len(content),
-            latency_ms=round(latency_ms, 1),
-            model=model,
-            used_fallback=used_fallback,
-            timestamp=time.time(),
-        )
-        self._trace_entries.append(entry)
-
-        if self._trace_log is not None:
-            self._trace_log.record(
-                "sampling",
-                {
-                    "prompt_length": entry.prompt_length,
-                    "response_length": entry.response_length,
-                    "latency_ms": entry.latency_ms,
-                    "model": entry.model,
-                    "used_fallback": entry.used_fallback,
-                },
-            )
-
-        return SamplingResponse(
-            content=content,
-            model=model,
-            used_fallback=used_fallback,
+        """Refuse before invoking the MCP host or configured fallback."""
+        del request
+        raise SamplingFallbackDisabledError(
+            "MCP host sampling and provider fallback are disabled until exact capacity has a trusted zero-dollar proof "
+            "or durable reservation and settlement"
         )
 
     @property

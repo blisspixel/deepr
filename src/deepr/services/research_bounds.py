@@ -7,8 +7,8 @@ import math
 from dataclasses import asdict
 
 from deepr.core.costs import CostEstimate
-from deepr.providers.base import ResearchRequest
-from deepr.providers.registry_pricing import get_resolved_model_capability
+from deepr.providers.base import ResearchRequest, UsageStats
+from deepr.providers.registry_pricing import get_resolved_model_capability, provider_matches_model_contract
 
 _MAX_INPUT_TOKENS = 1_050_000
 _MAX_OUTPUT_TOKENS = 128_000
@@ -21,7 +21,6 @@ _PROVIDER_WIRE_OVERHEAD_BYTES = 4096
 # https://developers.openai.com/api/docs/pricing
 _OPENAI_WEB_SEARCH_CALL_USD = 0.025
 _OPENAI_FILE_SEARCH_CALL_USD = 0.0025
-_OPENAI_CODE_INTERPRETER_1G_SESSION_USD = 0.03
 
 _BOUND_METADATA_FIELDS = {
     "research_max_input_tokens": "max_input_tokens",
@@ -44,8 +43,9 @@ class ResearchRequestBoundsError(ValueError):
 def require_research_storage_accounting() -> None:
     """Block provider file or vector storage until its full lifecycle is priced."""
     raise ResearchRequestBoundsError(
-        "Provider file and vector storage are disabled until upload, indexing, retention, retrieval, and cleanup costs "
-        "share the research reservation. Use local source packs or local expert learning instead.",
+        "Provider and cloud storage are disabled until upload, operations, indexing, retention, retrieval, egress, and "
+        "cleanup costs share an enforceable account ceiling and the research reservation. Use local source packs or "
+        "local expert learning instead.",
         code="research_file_storage_unbounded",
     )
 
@@ -92,14 +92,6 @@ def _provider_key(provider: str) -> str:
     if "grok" in normalized or "xai" in normalized:
         return "xai"
     return normalized
-
-
-def _provider_matches_model(provider: str, model_provider: str) -> bool:
-    """Return whether a registry model can execute through the provider."""
-    if provider == model_provider:
-        return True
-    # Azure OpenAI deployments intentionally reuse OpenAI model contracts.
-    return provider in {"azure", "azure-foundry"} and model_provider == "openai"
 
 
 def _canonical_request_bytes(request: ResearchRequest) -> bytes:
@@ -197,6 +189,12 @@ def _tool_cost_bound(request: ResearchRequest, provider: str, context_window: in
             "File-search storage duration and size are not yet covered by the research reservation",
             code="research_file_storage_unbounded",
         )
+    if "code_interpreter" in tool_types:
+        raise ResearchRequestBoundsError(
+            "Code Interpreter is disabled until container memory tier, 20-minute session count, and session reuse "
+            "are bound by the research reservation",
+            code="research_code_interpreter_cost_unbounded",
+        )
     if request.max_input_tokens < context_window:
         raise ResearchRequestBoundsError(
             "Built-in tool result tokens can use the model context window; max_input_tokens must cover it",
@@ -208,9 +206,37 @@ def _tool_cost_bound(request: ResearchRequest, provider: str, context_window: in
         per_request += request.max_tool_calls * _OPENAI_WEB_SEARCH_CALL_USD
     if "file_search" in tool_types:
         per_request += request.max_tool_calls * _OPENAI_FILE_SEARCH_CALL_USD
-    if "code_interpreter" in tool_types:
-        per_request += _OPENAI_CODE_INTERPRETER_1G_SESSION_USD
     return per_request * request.max_provider_requests
+
+
+def research_tool_usage_cost(
+    *,
+    provider: str,
+    web_search_calls: int,
+    code_interpreter_sessions: int,
+) -> float:
+    """Price observed OpenAI-compatible built-in tool usage exactly."""
+    for name, value in (
+        ("web_search_calls", web_search_calls),
+        ("code_interpreter_sessions", code_interpreter_sessions),
+    ):
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0 or value > _MAX_TOOL_CALLS:
+            raise ResearchRequestBoundsError(
+                f"{name} must be an integer between zero and {_MAX_TOOL_CALLS}",
+                code="research_tool_usage_invalid",
+            )
+    if code_interpreter_sessions:
+        raise ResearchRequestBoundsError(
+            "Observed Code Interpreter usage lacks a proven memory tier and bounded 20-minute session count",
+            code="research_code_interpreter_cost_unbounded",
+        )
+    provider_key = _provider_key(provider)
+    if provider_key not in {"openai", "azure"} and (web_search_calls or code_interpreter_sessions):
+        raise ResearchRequestBoundsError(
+            f"{provider_key or 'unknown'} reported paid tool usage without a supported pricing contract",
+            code="research_tool_pricing_unbounded",
+        )
+    return web_search_calls * _OPENAI_WEB_SEARCH_CALL_USD
 
 
 def bounded_research_cost_estimate(
@@ -249,7 +275,7 @@ def bounded_research_cost_estimate(
             f"No exact pricing and context contract exists for research model {request.model!r}",
             code="research_model_pricing_unavailable",
         )
-    if not _provider_matches_model(provider_key, capability.provider):
+    if not provider_matches_model_contract(provider_key, capability.provider):
         raise ResearchRequestBoundsError(
             f"Research provider {provider_key!r} cannot execute model {request.model!r}; "
             f"the registry assigns it to {capability.provider!r}",
@@ -277,9 +303,15 @@ def bounded_research_cost_estimate(
     # Later queue handoff, retries, document references, or provider-added tool
     # context must never exceed a hold sized only from today's string length.
     input_tokens = request.max_input_tokens
-    token_cost_per_request = (
-        input_tokens * capability.input_cost_per_1m + request.max_output_tokens * capability.output_cost_per_1m
-    ) / 1_000_000
+    # Use the canonical settlement calculator at the declared maxima. This is
+    # the no-cache worst case and keeps prompt-size pricing tiers identical at
+    # reservation and settlement.
+    token_cost_per_request = UsageStats.calculate_cost_with_cached_input(
+        input_tokens,
+        request.max_output_tokens,
+        request.model,
+        cached_input_tokens=0,
+    )
     maximum = token_cost_per_request * request.max_provider_requests + tool_cost
     if not math.isfinite(maximum) or maximum < 0:
         raise ResearchRequestBoundsError(
@@ -329,6 +361,7 @@ __all__ = [
     "require_metered_interface_accounting",
     "require_research_parent_budget_accounting",
     "require_research_storage_accounting",
+    "research_tool_usage_cost",
     "validate_persisted_request_bounds",
     "validate_provider_payload_bytes",
     "validate_research_request_bounds",

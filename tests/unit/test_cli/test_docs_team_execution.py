@@ -11,9 +11,24 @@ from deepr.cli.commands.docs import _analyze_and_queue
 from deepr.cli.commands.team import run_dream_team, team
 from deepr.experts.research_reservation_store import ResearchReservationStore
 from deepr.observability.cost_ledger import CostLedger
-from deepr.providers.base import ResearchResponse, UsageStats
+from deepr.providers.base import DeepResearchProvider, ResearchResponse, UsageStats
+from deepr.providers.dispatch_authority import default_paid_endpoint
 from deepr.queue.base import JobStatus
 from deepr.queue.local_queue import SQLiteQueue
+
+
+def _set_five_dollar_test_caps(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Admit downstream accounting tests under the global hard ceiling."""
+    monkeypatch.setenv("DEEPR_MAX_COST_PER_JOB", "5")
+    monkeypatch.setenv("DEEPR_MAX_COST_PER_DAY", "5")
+    monkeypatch.setenv("DEEPR_MAX_COST_PER_WEEK", "5")
+    monkeypatch.setenv("DEEPR_MAX_COST_PER_MONTH", "5")
+
+
+def _bind_mock_provider_pricing_identity(provider: MagicMock) -> None:
+    """Give a fake provider the exact endpoint and model identity production requires."""
+    provider._paid_endpoint = default_paid_endpoint("openai")
+    provider.get_model_name.side_effect = lambda model: model
 
 
 @pytest.mark.asyncio
@@ -147,18 +162,20 @@ def test_team_analyze_constructs_batch_executor_and_executes_campaign(tmp_path, 
 async def test_dream_team_final_immediate_task_settles_durable_hold(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr("deepr.experts.metered_mutation_gate.METERED_EXPERT_MUTATIONS_ENABLED", True)
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    _set_five_dollar_test_caps(monkeypatch)
     queue = SQLiteQueue(str(tmp_path / "team.db"))
-    provider = MagicMock(
-        submit_research=AsyncMock(return_value="provider-job"),
-        get_status=AsyncMock(
-            return_value=ResearchResponse(
-                id="provider-job",
-                status="completed",
-                model="o4-mini-deep-research",
-                output=[{"type": "message", "content": [{"type": "text", "text": "Findings"}]}],
-                usage=UsageStats(input_tokens=100, output_tokens=50, total_tokens=150, cost=0.12),
-            )
-        ),
+    provider = MagicMock(spec=DeepResearchProvider)
+    provider.provider_key = "openai"
+    _bind_mock_provider_pricing_identity(provider)
+    provider.submit_research = AsyncMock(return_value="provider-job")
+    provider.get_status = AsyncMock(
+        return_value=ResearchResponse(
+            id="provider-job",
+            status="completed",
+            model="o4-mini-deep-research",
+            output=[{"type": "message", "content": [{"type": "text", "text": "Findings"}]}],
+            usage=UsageStats(input_tokens=100, output_tokens=50, total_tokens=150, cost=0.12),
+        )
     )
     storage = MagicMock(save_report=AsyncMock(return_value=SimpleNamespace(url="report.md")))
     architect = MagicMock()
@@ -179,8 +196,8 @@ async def test_dream_team_final_immediate_task_settles_durable_hold(tmp_path, mo
                 "results_dir": str(tmp_path / "reports"),
                 "api_key": "test-key",
                 "max_cost_per_job": 5.0,
-                "max_daily_cost": 25.0,
-                "max_monthly_cost": 200.0,
+                "max_daily_cost": 5.0,
+                "max_monthly_cost": 5.0,
             },
         ),
         patch("deepr.services.team_architect.TeamArchitect", return_value=architect),
@@ -196,7 +213,9 @@ async def test_dream_team_final_immediate_task_settles_durable_hold(tmp_path, mo
     assert ResearchReservationStore().active_cost() == 0
     events = CostLedger().get_events()
     assert len(events) == 1
-    assert events[0].cost_usd == pytest.approx(0.12)
+    assert events[0].cost_usd == pytest.approx(results[0]["cost"])
+    assert events[0].cost_usd > 0.12
+    assert events[0].metadata["actual_cost_reported"] is False
 
 
 @pytest.mark.asyncio
@@ -206,19 +225,21 @@ async def test_dream_team_timeout_preserves_cost_and_tracking_contract(
 ) -> None:
     monkeypatch.setattr("deepr.experts.metered_mutation_gate.METERED_EXPERT_MUTATIONS_ENABLED", True)
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    _set_five_dollar_test_caps(monkeypatch)
     queue_path = tmp_path / f"timeout-team-{provider_cancels}.db"
     queue = SQLiteQueue(str(queue_path))
-    provider = MagicMock(
-        submit_research=AsyncMock(return_value="provider-pending"),
-        get_status=AsyncMock(
-            return_value=ResearchResponse(
-                id="provider-pending",
-                status="in_progress",
-                model="o4-mini-deep-research",
-            )
-        ),
-        cancel_job=AsyncMock(return_value=provider_cancels),
+    provider = MagicMock(spec=DeepResearchProvider)
+    provider.provider_key = "openai"
+    _bind_mock_provider_pricing_identity(provider)
+    provider.submit_research = AsyncMock(return_value="provider-pending")
+    provider.get_status = AsyncMock(
+        return_value=ResearchResponse(
+            id="provider-pending",
+            status="in_progress",
+            model="o4-mini-deep-research",
+        )
     )
+    provider.cancel_job = AsyncMock(return_value=provider_cancels)
     architect = MagicMock()
     architect.design_team.return_value = [
         {
@@ -237,8 +258,8 @@ async def test_dream_team_timeout_preserves_cost_and_tracking_contract(
                 "results_dir": str(tmp_path / "reports"),
                 "api_key": "test-key",
                 "max_cost_per_job": 5.0,
-                "max_daily_cost": 25.0,
-                "max_monthly_cost": 200.0,
+                "max_daily_cost": 5.0,
+                "max_monthly_cost": 5.0,
             },
         ),
         patch("deepr.services.team_architect.TeamArchitect", return_value=architect),

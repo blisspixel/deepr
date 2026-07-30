@@ -18,7 +18,8 @@ def test_installers_resolve_a_repository_release_wheel(relative_path: str) -> No
     assert "-m pipx --version" in text
     assert "pypi.org" not in text.lower()
     assert "cd deepr/deepr" not in text
-    assert "Configure capacity: local Ollama, a supported plan CLI, or an API provider" in text
+    assert "Configure owned-local Ollama or a safety-eligible plan CLI" in text
+    assert "budget set 5" in text
     assert "Add at least one API key" not in text
 
 

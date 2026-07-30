@@ -255,7 +255,11 @@ def run():
     help="Research provider (openai, azure, gemini, grok)",
 )
 @click.option("--no-web", is_flag=True, help="Disable web search")
-@click.option("--no-code", is_flag=True, help="Disable code interpreter")
+@click.option(
+    "--no-code/--code",
+    default=True,
+    help="Keep Code Interpreter disabled; --code is rejected until session cost is bounded",
+)
 @click.option(
     "--upload",
     "-u",
@@ -449,7 +453,7 @@ async def _run_single(
     requested_tool_flags = (no_web, no_code)
     no_web, no_code = bounded_tool_disable_flags(provider, no_web, no_code)
     if requested_tool_flags != (no_web, no_code) and output_context.mode == OutputMode.VERBOSE:
-        print_warning(f"Using the current tool-free bounded path for {provider}")
+        print_warning(f"Using the current bounded tool posture for {provider}")
 
     # Drop the web-search tool up front for models known to reject it
     # (the submit loop also retries once without it on rejection).
@@ -1256,7 +1260,7 @@ def docs(
             model=model,
             provider=provider,
             no_web=False,  # Enable web search for docs research
-            no_code=False,  # Enable code interpreter for examples
+            no_code=True,
             upload=upload,
             limit=limit,
             yes=yes,
@@ -1274,7 +1278,7 @@ def docs(
 @click.option("--model", "-m", default="o3-deep-research")
 @click.option("--provider", "-p", default="openai", type=click.Choice(["openai", "azure", "gemini", "grok"]))
 @click.option("--no-web", is_flag=True)
-@click.option("--no-code", is_flag=True)
+@click.option("--no-code/--code", default=True)
 @click.option("--upload", "-u", multiple=True)
 @click.option("--limit", "-l", type=float)
 @click.option("--yes", "-y", is_flag=True)

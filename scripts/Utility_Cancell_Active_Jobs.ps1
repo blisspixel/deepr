@@ -1,8 +1,5 @@
 
-# PowerShell script to cancel all active jobs using manager.py and notify if none found
-$output = python manager.py --cancel-all
-Write-Output $output
-if ($output -match "0 active") {
-	Write-Host "No active jobs found to cancel." -ForegroundColor Yellow
-}
-Start-Sleep -Seconds 20
+# Fail-closed compatibility stub. The removed manager.py target cannot provide
+# durable provider reconciliation or cost settlement.
+Write-Error "BLOCKED: obsolete bulk cancellation cannot prove provider settlement. Use the provider console for manual reconciliation."
+exit 2

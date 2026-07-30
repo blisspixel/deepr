@@ -1,0 +1,235 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/structured-consult-brief-v1.json",
+  "title": "Deepr Structured Consult Brief v1",
+  "description": "Immutable eval-only graph brief for bounded local expert positions followed by require-all synthesis.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "graph_id",
+    "question",
+    "question_hash",
+    "prompt_version",
+    "protocol_version",
+    "capacity",
+    "authority",
+    "limits",
+    "snapshots",
+    "nodes",
+    "expected",
+    "brief_hash"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-structured-consult-brief-v1"},
+    "kind": {"const": "deepr.eval.structured_consult_brief"},
+    "graph_id": {"type": "string", "pattern": "^graph_[a-f0-9]{24}$"},
+    "question": {"type": "string", "minLength": 1, "maxLength": 16384},
+    "question_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "prompt_version": {"const": "structured-consult-local-v1"},
+    "protocol_version": {"const": "structured-consult-graph-v1"},
+    "capacity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capacity_kind",
+        "provider",
+        "model",
+        "model_provenance",
+        "endpoint",
+        "endpoint_class",
+        "transport",
+        "credential_headers",
+        "trust_env",
+        "follow_redirects",
+        "model_keep_alive",
+        "preflight_http_requests",
+        "live_metered_fallback",
+        "plan_quota_fallback",
+        "sdk_retries",
+        "cost_usd"
+      ],
+      "properties": {
+        "capacity_kind": {"const": "owned_hardware"},
+        "provider": {"const": "local"},
+        "model": {"type": "string", "minLength": 1, "maxLength": 512},
+        "model_provenance": {"$ref": "#/$defs/modelProvenance"},
+        "endpoint": {"type": "string", "minLength": 1, "maxLength": 2048},
+        "endpoint_class": {"const": "literal_loopback"},
+        "transport": {"const": "ollama_native_http"},
+        "credential_headers": {"const": false},
+        "trust_env": {"const": false},
+        "follow_redirects": {"const": false},
+        "model_keep_alive": {"const": "5m"},
+        "preflight_http_requests": {"const": 2},
+        "live_metered_fallback": {"const": false},
+        "plan_quota_fallback": {"const": false},
+        "sdk_retries": {"const": 0},
+        "cost_usd": {"const": 0.0}
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "read_only",
+        "writes_state",
+        "observability_writes",
+        "cost_ledger_required",
+        "tools",
+        "browsing",
+        "embeddings",
+        "remote_retrieval",
+        "remote_provider_calls",
+        "semantic_verdict"
+      ],
+      "properties": {
+        "read_only": {"const": true},
+        "writes_state": {"const": false},
+        "observability_writes": {"const": true},
+        "cost_ledger_required": {"const": true},
+        "tools": {"const": false},
+        "browsing": {"const": false},
+        "embeddings": {"const": false},
+        "remote_retrieval": {"const": false},
+        "remote_provider_calls": {"const": false},
+        "semantic_verdict": {"const": false}
+      }
+    },
+    "limits": {"$ref": "#/$defs/limits"},
+    "snapshots": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10,
+      "items": {"$ref": "#/$defs/snapshot"}
+    },
+    "nodes": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 11,
+      "items": {"$ref": "#/$defs/node"}
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["position_nodes", "synthesis_nodes", "total_nodes", "maximum_model_calls"],
+      "properties": {
+        "position_nodes": {"type": "integer", "minimum": 1, "maximum": 10},
+        "synthesis_nodes": {"const": 1},
+        "total_nodes": {"type": "integer", "minimum": 2, "maximum": 11},
+        "maximum_model_calls": {"type": "integer", "minimum": 2, "maximum": 11}
+      }
+    },
+    "brief_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+  },
+  "$defs": {
+    "modelProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attestation_kind", "cloud_disabled", "cloud_status_source", "model", "digest",
+        "size_bytes", "format", "observed_at", "attestation_hash"
+      ],
+      "properties": {
+        "attestation_kind": {"const": "ollama-owned-local-v1"},
+        "cloud_disabled": {"const": true},
+        "cloud_status_source": {"const": "config"},
+        "model": {"type": "string", "minLength": 1, "maxLength": 512},
+        "digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "size_bytes": {"type": "integer", "minimum": 1},
+        "format": {"const": "gguf"},
+        "observed_at": {"type": "string", "format": "date-time"},
+        "attestation_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_position_nodes",
+        "max_total_nodes",
+        "max_depth",
+        "max_concurrency",
+        "max_model_calls",
+        "max_input_tokens",
+        "max_context_bytes",
+        "max_output_tokens",
+        "position_output_tokens",
+        "synthesis_output_tokens",
+        "max_artifact_bytes",
+        "per_node_elapsed_seconds",
+        "max_elapsed_seconds",
+        "max_attempts_per_node",
+        "max_retries",
+        "max_repairs",
+        "max_cost_usd",
+        "completion_policy"
+      ],
+      "properties": {
+        "max_position_nodes": {"type": "integer", "minimum": 1, "maximum": 10},
+        "max_total_nodes": {"type": "integer", "minimum": 2, "maximum": 11},
+        "max_depth": {"const": 2},
+        "max_concurrency": {"type": "integer", "minimum": 1, "maximum": 4},
+        "max_model_calls": {"type": "integer", "minimum": 2, "maximum": 11},
+        "max_input_tokens": {"type": "integer", "minimum": 1, "maximum": 10000000},
+        "max_context_bytes": {"type": "integer", "minimum": 1024, "maximum": 10000000},
+        "max_output_tokens": {"type": "integer", "minimum": 1, "maximum": 100000},
+        "position_output_tokens": {"type": "integer", "minimum": 64, "maximum": 8192},
+        "synthesis_output_tokens": {"type": "integer", "minimum": 64, "maximum": 8192},
+        "max_artifact_bytes": {"type": "integer", "minimum": 1024, "maximum": 10000000},
+        "per_node_elapsed_seconds": {"type": "number", "exclusiveMinimum": 0, "maximum": 86400},
+        "max_elapsed_seconds": {"type": "number", "exclusiveMinimum": 0, "maximum": 86400},
+        "max_attempts_per_node": {"const": 1},
+        "max_retries": {"const": 0},
+        "max_repairs": {"const": 0},
+        "max_cost_usd": {"const": 0.0},
+        "completion_policy": {"const": "require_all"}
+      }
+    },
+    "snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["snapshot_id", "snapshot_hash", "expert_name", "domain", "content", "context"],
+      "properties": {
+        "snapshot_id": {"type": "string", "pattern": "^snapshot_[a-f0-9]{24}$"},
+        "snapshot_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "expert_name": {"type": "string", "minLength": 1, "maxLength": 512},
+        "domain": {"type": "string"},
+        "content": {"type": "string", "minLength": 1},
+        "context": {"type": "object", "additionalProperties": true}
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node_id",
+        "node_kind",
+        "depends_on",
+        "input_artifact_ids",
+        "expert_name",
+        "snapshot_hash",
+        "mutable_resources",
+        "max_attempts",
+        "max_output_tokens",
+        "max_elapsed_seconds"
+      ],
+      "properties": {
+        "node_id": {"type": "string", "pattern": "^(position_[0-9]{3}|synthesis_001)$"},
+        "node_kind": {"enum": ["position", "synthesis"]},
+        "depends_on": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "input_artifact_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "expert_name": {"type": ["string", "null"]},
+        "snapshot_hash": {"type": ["string", "null"]},
+        "mutable_resources": {
+          "type": "array", "minItems": 2, "maxItems": 2,
+          "prefixItems": [{"const": "cost_ledger"}, {"const": "ollama_model_residency"}], "items": false
+        },
+        "max_attempts": {"const": 1},
+        "max_output_tokens": {"type": "integer", "minimum": 64, "maximum": 8192},
+        "max_elapsed_seconds": {"type": "number", "exclusiveMinimum": 0, "maximum": 86400}
+      }
+    }
+  }
+}

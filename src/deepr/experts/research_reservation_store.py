@@ -2,20 +2,26 @@
 
 from __future__ import annotations
 
-import os
 import sqlite3
 from collections.abc import Callable
 from contextlib import closing
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from hmac import compare_digest
 from math import isfinite
 from pathlib import Path
 
 from deepr.observability.cost_ledger import (
     CostLedger,
+    CostLedgerDurabilityError,
     CostLedgerEvent,
+    CostLedgerLockTimeout,
+    CostLedgerReadError,
+    current_cost_state_id,
     default_cost_data_dir,
+    observe_cost_artifact,
     registered_cost_artifact_paths,
+    uses_canonical_home_cost_data_dir,
     well_known_cost_data_dirs,
 )
 
@@ -61,13 +67,54 @@ def _validated_money(value: object, *, field_name: str) -> float:
     return numeric
 
 
+def _validated_identity_text(value: object, *, field_name: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{field_name} must be a non-empty string")
+    return value
+
+
+def _validated_hex_token(value: object, *, field_name: str) -> str:
+    token = _validated_identity_text(value, field_name=field_name)
+    if len(token) != 64 or any(character not in "0123456789abcdef" for character in token):
+        raise ValueError(f"{field_name} must be a lowercase SHA-256 value")
+    return token
+
+
+def _validated_optional_dispatch_binding(
+    *,
+    provider: str | None,
+    model: str | None,
+    dispatch_binding_id: str | None,
+    request_envelope_sha256: str | None,
+) -> tuple[str | None, str | None, str | None, str | None]:
+    binding_values = (provider, model, dispatch_binding_id)
+    if any(value is not None for value in binding_values) and any(value is None for value in binding_values):
+        raise ValueError("provider, model, and dispatch_binding_id must be supplied together")
+    if provider is not None:
+        provider = _validated_identity_text(provider, field_name="provider")
+        model = _validated_identity_text(model, field_name="model")
+        dispatch_binding_id = _validated_hex_token(dispatch_binding_id, field_name="dispatch_binding_id")
+    if request_envelope_sha256 is not None:
+        if dispatch_binding_id is None:
+            raise ValueError("request_envelope_sha256 requires a dispatch binding")
+        request_envelope_sha256 = _validated_hex_token(
+            request_envelope_sha256,
+            field_name="request_envelope_sha256",
+        )
+    return provider, model, dispatch_binding_id, request_envelope_sha256
+
+
 class ResearchReservationStore:
     """Serialize research reservations across API, web, and worker processes."""
 
     def __init__(self, path: Path | None = None, *, lock_timeout_seconds: float = 5.0) -> None:
-        using_default_path = path is None and not os.environ.get("DEEPR_COST_DATA_DIR", "").strip()
+        using_default_path = path is None and uses_canonical_home_cost_data_dir()
         self._using_default_path = using_default_path
         self.path = path or default_cost_data_dir() / "research_reservations.db"
+        try:
+            self.cost_state_id = current_cost_state_id() if path is None else ""
+        except (CostLedgerDurabilityError, CostLedgerLockTimeout, CostLedgerReadError) as error:
+            raise ResearchReservationStoreError(f"cost authority provenance is unavailable: {error}") from error
         if (
             isinstance(lock_timeout_seconds, bool)
             or not isinstance(lock_timeout_seconds, (int, float))
@@ -94,7 +141,11 @@ class ResearchReservationStore:
         if not self._using_default_path:
             return ()
         siblings: list[Path] = []
-        for root in well_known_cost_data_dirs():
+        try:
+            roots = well_known_cost_data_dirs()
+        except (CostLedgerDurabilityError, CostLedgerLockTimeout, CostLedgerReadError) as error:
+            raise ResearchReservationStoreError(f"cost authority provenance is unavailable: {error}") from error
+        for root in roots:
             candidate = root / "research_reservations.db"
             try:
                 if candidate.resolve() != self.path.resolve():
@@ -106,11 +157,14 @@ class ResearchReservationStore:
     def _reservation_paths(self) -> tuple[Path, ...]:
         """Rediscover stable reservation databases for every authority read."""
         paths = [self.path]
-        required = (
-            {path.resolve() for path in registered_cost_artifact_paths("research_reservations.db")}
-            if self._using_default_path
-            else set()
-        )
+        try:
+            required = (
+                {path.resolve() for path in registered_cost_artifact_paths("research_reservations.db")}
+                if self._using_default_path
+                else set()
+            )
+        except (CostLedgerDurabilityError, CostLedgerLockTimeout, CostLedgerReadError) as error:
+            raise ResearchReservationStoreError(f"cost authority provenance is unavailable: {error}") from error
         for candidate in self._sibling_reservation_paths():
             try:
                 if candidate.exists():
@@ -121,6 +175,12 @@ class ResearchReservationStore:
                 raise
             except OSError as error:
                 raise ResearchReservationStoreError("legacy reservation state cannot be located") from error
+        if self._using_default_path:
+            try:
+                for candidate in paths:
+                    observe_cost_artifact(candidate)
+            except (CostLedgerDurabilityError, CostLedgerLockTimeout, CostLedgerReadError) as error:
+                raise ResearchReservationStoreError(f"reservation identity cannot be verified: {error}") from error
         return tuple(paths)
 
     def _validated_identity_state(
@@ -241,18 +301,32 @@ class ResearchReservationStore:
                     created_at TEXT NOT NULL,
                     closed_at TEXT,
                     actual_cost REAL,
-                    provider_work_may_have_run INTEGER NOT NULL DEFAULT 0
+                    provider_work_may_have_run INTEGER NOT NULL DEFAULT 0,
+                    provider TEXT,
+                    model TEXT,
+                    dispatch_binding_id TEXT,
+                    request_envelope_sha256 TEXT
                 )
                 """
             )
-            columns = {
-                str(row[1]) for row in connection.execute("PRAGMA table_info(research_cost_reservations)").fetchall()
-            }
-            if "provider_work_may_have_run" not in columns:
-                connection.execute(
-                    "ALTER TABLE research_cost_reservations "
-                    "ADD COLUMN provider_work_may_have_run INTEGER NOT NULL DEFAULT 0"
-                )
+            self._ensure_dispatch_binding_schema(connection)
+
+    @staticmethod
+    def _ensure_dispatch_binding_schema(connection: sqlite3.Connection) -> None:
+        """Add dispatch identity columns without invalidating legacy holds."""
+        columns = {
+            str(row[1]) for row in connection.execute("PRAGMA table_info(research_cost_reservations)").fetchall()
+        }
+        migrations = {
+            "provider_work_may_have_run": "INTEGER NOT NULL DEFAULT 0",
+            "provider": "TEXT",
+            "model": "TEXT",
+            "dispatch_binding_id": "TEXT",
+            "request_envelope_sha256": "TEXT",
+        }
+        for column, declaration in migrations.items():
+            if column not in columns:
+                connection.execute(f"ALTER TABLE research_cost_reservations ADD COLUMN {column} {declaration}")
 
     def reserve(
         self,
@@ -263,10 +337,20 @@ class ResearchReservationStore:
         max_daily_cost: float,
         max_monthly_cost: float,
         max_weekly_cost: float | None = None,
+        provider: str | None = None,
+        model: str | None = None,
+        dispatch_binding_id: str | None = None,
+        request_envelope_sha256: str | None = None,
     ) -> None:
         """Atomically hold cost after checking fresh ledger and active holds."""
         from deepr.core.cost_caps import resolve_spend_caps, spend_policy_lock
 
+        provider, model, dispatch_binding_id, request_envelope_sha256 = _validated_optional_dispatch_binding(
+            provider=provider,
+            model=model,
+            dispatch_binding_id=dispatch_binding_id,
+            request_envelope_sha256=request_envelope_sha256,
+        )
         reserved_cost = _validated_money(reserved_cost, field_name="reserved_cost")
         max_daily_cost = _validated_money(max_daily_cost, field_name="max_daily_cost")
         max_monthly_cost = _validated_money(max_monthly_cost, field_name="max_monthly_cost")
@@ -333,10 +417,20 @@ class ResearchReservationStore:
                     connection.execute(
                         """
                         INSERT INTO research_cost_reservations
-                            (reservation_id, job_id, reserved_cost, state, created_at)
-                        VALUES (?, ?, ?, 'active', ?)
+                            (reservation_id, job_id, reserved_cost, state, created_at,
+                             provider, model, dispatch_binding_id, request_envelope_sha256)
+                        VALUES (?, ?, ?, 'active', ?, ?, ?, ?, ?)
                         """,
-                        (reservation_id, job_id, reserved_cost, now.isoformat()),
+                        (
+                            reservation_id,
+                            job_id,
+                            reserved_cost,
+                            now.isoformat(),
+                            provider,
+                            model,
+                            dispatch_binding_id,
+                            request_envelope_sha256,
+                        ),
                     )
                     connection.commit()
 
@@ -344,6 +438,11 @@ class ResearchReservationStore:
                     commit_hold,
                     lock_timeout_seconds=self._lock_timeout_seconds,
                 )
+        if self._using_default_path:
+            try:
+                observe_cost_artifact(self.path)
+            except (CostLedgerDurabilityError, CostLedgerLockTimeout, CostLedgerReadError) as error:
+                raise ResearchReservationStoreError("reservation identity could not be persisted") from error
 
     @staticmethod
     def _reconcile_rows(connection: sqlite3.Connection, events: list[CostLedgerEvent]) -> int:
@@ -386,10 +485,49 @@ class ResearchReservationStore:
             (now.isoformat(), cutoff),
         )
 
-    def mark_provider_work_may_have_run(self, reservation_id: str) -> None:
-        """Revalidate aggregate authority and make a hold non-expiring."""
+    def mark_provider_work_may_have_run(
+        self,
+        reservation_id: str,
+        *,
+        provider: str | None = None,
+        model: str | None = None,
+        job_id: str | None = None,
+        reserved_cost: float | None = None,
+        dispatch_binding_id: str | None = None,
+        request_envelope_sha256: str | None = None,
+    ) -> None:
+        """Revalidate authority and atomically bind an exact paid request."""
         from deepr.core.cost_caps import resolve_spend_caps, spend_policy_lock
 
+        required_identity_values = (
+            provider,
+            model,
+            job_id,
+            reserved_cost,
+            dispatch_binding_id,
+        )
+        bound_dispatch = (
+            any(value is not None for value in required_identity_values) or request_envelope_sha256 is not None
+        )
+        if bound_dispatch and any(value is None for value in required_identity_values):
+            raise ValueError("all durable dispatch identity fields are required")
+        if bound_dispatch:
+            expected_provider = _validated_identity_text(provider, field_name="provider")
+            expected_model = _validated_identity_text(model, field_name="model")
+            expected_job_id = _validated_identity_text(job_id, field_name="job_id")
+            expected_reserved_cost = _validated_money(reserved_cost, field_name="reserved_cost")
+            expected_binding_id = _validated_hex_token(
+                dispatch_binding_id,
+                field_name="dispatch_binding_id",
+            )
+            expected_request_sha256 = (
+                None
+                if request_envelope_sha256 is None
+                else _validated_hex_token(
+                    request_envelope_sha256,
+                    field_name="request_envelope_sha256",
+                )
+            )
         with spend_policy_lock():
             authority = resolve_spend_caps()
             now = datetime.now(UTC)
@@ -397,19 +535,43 @@ class ResearchReservationStore:
             paths, reservation_locations, _job_locations = self._validated_identity_state()
             reservation_path = reservation_locations.get(reservation_id, self.path)
             with closing(self._connect_path(reservation_path)) as connection, connection:
+                self._ensure_dispatch_binding_schema(connection)
+                connection.commit()
                 connection.execute("BEGIN IMMEDIATE")
 
                 def commit_mark(events: list[CostLedgerEvent]) -> None:
                     self._reconcile_rows(connection, events)
                     self._expire_stale_council_predispatch_rows(connection, now)
                     row = connection.execute(
-                        "SELECT reserved_cost FROM research_cost_reservations "
+                        "SELECT job_id, reserved_cost, provider, model, dispatch_binding_id, "
+                        "request_envelope_sha256, provider_work_may_have_run "
+                        "FROM research_cost_reservations "
                         "WHERE reservation_id = ? AND state = 'active'",
                         (reservation_id,),
                     ).fetchone()
                     if row is None:
                         raise RuntimeError("durable reservation is not active")
-                    reserved_cost = float(row[0])
+                    row_reserved_cost = float(row[1])
+                    if bound_dispatch:
+                        identity_matches = (
+                            str(row[0]) == expected_job_id
+                            and row_reserved_cost == expected_reserved_cost
+                            and str(row[2]) == expected_provider
+                            and str(row[3]) == expected_model
+                            and isinstance(row[4], str)
+                            and compare_digest(row[4], expected_binding_id)
+                            and (
+                                row[5] is None
+                                if expected_request_sha256 is None
+                                else row[5] is None
+                                or (isinstance(row[5], str) and compare_digest(row[5], expected_request_sha256))
+                            )
+                            and not bool(row[6])
+                        )
+                        if not identity_matches:
+                            raise ResearchReservationStoreError(
+                                "durable reservation does not match the paid dispatch identity"
+                            )
                     target_active = float(
                         connection.execute(
                             "SELECT COALESCE(SUM(reserved_cost), 0) "
@@ -432,7 +594,7 @@ class ResearchReservationStore:
                     weekly = sum(event.cost_usd for event in events if event.timestamp >= week_start)
                     monthly = sum(event.cost_usd for event in events if event.timestamp >= month_start)
                     changed = (
-                        reserved_cost > authority["per_job"]
+                        row_reserved_cost > authority["per_job"]
                         or daily + active > authority["daily"]
                         or weekly + active > authority["weekly"]
                         or monthly + active > authority["monthly"]
@@ -441,14 +603,43 @@ class ResearchReservationStore:
                         raise ResearchReservationLimitExceeded(
                             "Paid API aggregate authority changed before provider dispatch"
                         )
-                    connection.execute(
-                        """
-                        UPDATE research_cost_reservations
-                        SET provider_work_may_have_run = 1
-                        WHERE reservation_id = ? AND state = 'active'
-                        """,
-                        (reservation_id,),
-                    )
+                    if bound_dispatch:
+                        cursor = connection.execute(
+                            """
+                            UPDATE research_cost_reservations
+                            SET provider_work_may_have_run = 1,
+                                request_envelope_sha256 = COALESCE(request_envelope_sha256, ?)
+                            WHERE reservation_id = ? AND state = 'active'
+                              AND provider_work_may_have_run = 0
+                            """,
+                            (expected_request_sha256, reservation_id),
+                        )
+                        verified = connection.execute(
+                            "SELECT request_envelope_sha256, provider_work_may_have_run "
+                            "FROM research_cost_reservations WHERE reservation_id = ?",
+                            (reservation_id,),
+                        ).fetchone()
+                        if (
+                            cursor.rowcount != 1
+                            or verified is None
+                            or (
+                                verified[0] is not None
+                                if expected_request_sha256 is None
+                                else not isinstance(verified[0], str)
+                                or not compare_digest(verified[0], expected_request_sha256)
+                            )
+                            or not bool(verified[1])
+                        ):
+                            raise ResearchReservationStoreError("durable paid dispatch binding could not be committed")
+                    else:
+                        connection.execute(
+                            """
+                            UPDATE research_cost_reservations
+                            SET provider_work_may_have_run = 1
+                            WHERE reservation_id = ? AND state = 'active'
+                            """,
+                            (reservation_id,),
+                        )
                     connection.commit()
 
                 ledger.with_locked_accounting_events(
@@ -473,32 +664,100 @@ class ResearchReservationStore:
             )
             return cursor.rowcount > 0
 
-    def settle(self, reservation_id: str, actual_cost: float, record: Callable[[], None]) -> str:
-        """Write the ledger event and close its hold under one process lock."""
+    def settle(
+        self,
+        reservation_id: str,
+        actual_cost: float,
+        record: Callable[[], None],
+        *,
+        job_id: str,
+        reserved_cost: float,
+        provider: str,
+        model: str,
+        dispatch_binding_id: str,
+        request_envelope_sha256: str | None,
+    ) -> str:
+        """Write spend and close only the exact persisted reservation identity."""
         actual_cost = _validated_money(actual_cost, field_name="actual_cost")
+        try:
+            expected_reservation_id = _validated_identity_text(reservation_id, field_name="reservation_id")
+            expected_job_id = _validated_identity_text(job_id, field_name="job_id")
+            expected_reserved_cost = _validated_money(reserved_cost, field_name="reserved_cost")
+            expected_provider = _validated_identity_text(provider, field_name="provider")
+            expected_model = _validated_identity_text(model, field_name="model")
+            expected_binding_id = _validated_hex_token(
+                dispatch_binding_id,
+                field_name="dispatch_binding_id",
+            )
+            expected_request_sha256 = (
+                None
+                if request_envelope_sha256 is None
+                else _validated_hex_token(
+                    request_envelope_sha256,
+                    field_name="request_envelope_sha256",
+                )
+            )
+        except ValueError:
+            return "identity_mismatch"
         reservation_path = self._reservation_path(reservation_id)
         with closing(self._connect_path(reservation_path)) as connection, connection:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
-                "SELECT state FROM research_cost_reservations WHERE reservation_id = ?",
+                "SELECT state, job_id, reserved_cost, provider, model, dispatch_binding_id, "
+                "request_envelope_sha256 FROM research_cost_reservations WHERE reservation_id = ?",
                 (reservation_id,),
             ).fetchone()
             if row is None:
                 return "missing"
+            try:
+                row_reserved_cost = _validated_money(row[2], field_name="persisted reserved_cost")
+            except ValueError:
+                return "identity_mismatch"
+            request_matches = (
+                row[6] is None
+                if expected_request_sha256 is None
+                else isinstance(row[6], str) and compare_digest(row[6], expected_request_sha256)
+            )
+            identity_matches = (
+                str(reservation_id) == expected_reservation_id
+                and str(row[1]) == expected_job_id
+                and row_reserved_cost == expected_reserved_cost
+                and str(row[3]) == expected_provider
+                and str(row[4]) == expected_model
+                and isinstance(row[5], str)
+                and compare_digest(row[5], expected_binding_id)
+                and request_matches
+            )
+            if not identity_matches:
+                return "identity_mismatch"
             if row[0] == "settled":
                 record()
                 return "settled"
             if row[0] != "active":
                 return str(row[0])
             record()
-            connection.execute(
+            cursor = connection.execute(
                 """
                 UPDATE research_cost_reservations
                 SET state = 'settled', closed_at = ?, actual_cost = ?
-                WHERE reservation_id = ?
+                WHERE reservation_id = ? AND job_id = ? AND reserved_cost = ?
+                  AND provider = ? AND model = ? AND dispatch_binding_id = ?
+                  AND request_envelope_sha256 IS ? AND state = 'active'
                 """,
-                (datetime.now(UTC).isoformat(), actual_cost, reservation_id),
+                (
+                    datetime.now(UTC).isoformat(),
+                    actual_cost,
+                    expected_reservation_id,
+                    expected_job_id,
+                    expected_reserved_cost,
+                    expected_provider,
+                    expected_model,
+                    expected_binding_id,
+                    expected_request_sha256,
+                ),
             )
+            if cursor.rowcount != 1:
+                raise ResearchReservationStoreError("durable reservation identity changed during settlement")
             return "settled"
 
     def active_cost(self) -> float:

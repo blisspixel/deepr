@@ -963,7 +963,7 @@ def get_cost_summary():
             monthly: 45.50
             total: 45.50
             daily_limit: 2.0
-            monthly_limit: 10.0
+            monthly_limit: 5.0
             total_jobs: 100
             completed_jobs: 90
             avg_cost_per_job: 0.51

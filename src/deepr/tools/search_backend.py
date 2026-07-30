@@ -8,22 +8,12 @@ concrete transport-backed adapter before using MCP-hosted search.
 """
 
 import logging
+import math
 import os
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
 logger = logging.getLogger(__name__)
-
-
-def _score(value: object) -> float:
-    if value is None or value == "":
-        return 0.0
-    try:
-        if isinstance(value, str | bytes | int | float):
-            return float(value)
-        return float(str(value))
-    except (TypeError, ValueError):
-        return 0.0
 
 
 @dataclass
@@ -119,9 +109,13 @@ class BuiltinSearchBackend:
 
 
 class SearXNGSearchBackend:
-    """Free search backend for an owned loopback SearXNG instance."""
+    """Read-only inventory for an unproven loopback SearXNG instance."""
 
     def __init__(self, base_url: str | None = None, *, timeout: float = 10.0) -> None:
+        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
+            raise ValueError("SearXNG timeout must be a finite positive number")
+        if not math.isfinite(float(timeout)) or float(timeout) <= 0:
+            raise ValueError("SearXNG timeout must be a finite positive number")
         configured_url = base_url or os.getenv("DEEPR_SEARXNG_URL") or ""
         if configured_url.strip():
             from deepr.backends.capacity import validate_owned_local_http_url
@@ -133,53 +127,23 @@ class SearXNGSearchBackend:
             )
         else:
             self._base_url = ""
-        self._timeout = timeout
+        self._timeout = float(timeout)
 
     @property
     def name(self) -> str:
         return "searxng"
 
     async def search(self, query: str, num_results: int = 10) -> list[SearchResult]:
-        """Search SearXNG JSON results without any provider API key."""
-        if not self._base_url:
-            return []
-
-        try:
-            import httpx
-
-            async with httpx.AsyncClient(follow_redirects=True, timeout=self._timeout) as client:
-                response = await client.get(
-                    f"{self._base_url}/search",
-                    params={"q": query, "format": "json"},
-                )
-                response.raise_for_status()
-                data = response.json()
-        except Exception as exc:
-            logger.warning("SearXNG search backend failed for query %r: %s", query, exc)
-            return []
-
-        results: list[SearchResult] = []
-        for item in data.get("results", [])[:num_results]:
-            url = item.get("url") or ""
-            if not url:
-                continue
-            engine = item.get("engine") or item.get("source") or "searxng"
-            results.append(
-                SearchResult(
-                    title=item.get("title") or url,
-                    url=url,
-                    snippet=item.get("content") or item.get("snippet") or "",
-                    score=_score(item.get("score")),
-                    source=f"searxng:{engine}",
-                )
-            )
-        return results
+        """Refuse dispatch until upstream engine cost provenance is verifiable."""
+        del query, num_results
+        raise RuntimeError(
+            "SearXNG dispatch is disabled because a loopback endpoint does not prove its upstream engines are $0. "
+            "Use the built-in DuckDuckGo backend or an accounted non-local search path."
+        )
 
     async def health_check(self) -> bool:
-        """Check that the configured SearXNG endpoint returns JSON search results."""
-        if not self._base_url:
-            return False
-        return bool(await self.search("deepr", num_results=1))
+        """Report unavailable while upstream engine cost proof is missing."""
+        return False
 
 
 class MCPSearchBackend:
@@ -201,7 +165,7 @@ class MCPSearchBackend:
         """Reject direct MCP search until a transport-backed adapter is supplied."""
         raise NotImplementedError(
             f"MCP search backend '{self._server_name}' has no configured client transport. "
-            "Use BuiltinSearchBackend, SearXNGSearchBackend, or provide a concrete adapter."
+            "Use BuiltinSearchBackend or provide an accounted concrete adapter."
         )
 
     async def health_check(self) -> bool:

@@ -76,17 +76,22 @@ class BudgetPropagator:
 
         Allow the call if and only if:
         - estimated_cost <= session_remaining
-        - estimated_cost <= per_call_limit (when budget_limit > 0)
+        - estimated_cost <= per_call_limit
 
         When denied, shortfall = estimated_cost - min(remaining, limit).
         """
         per_call_limit = profile.budget_limit
 
-        # Determine the effective cap
-        if per_call_limit > 0:
-            effective_cap = min(session_remaining, per_call_limit)
-        else:
-            effective_cap = session_remaining
+        if estimated_cost < 0 or session_remaining < 0 or per_call_limit < 0:
+            return BudgetDecision(
+                allowed=False,
+                reason="Budget values cannot be negative",
+                remaining_budget=max(0.0, session_remaining),
+                estimated_cost=estimated_cost,
+                shortfall=max(0.0, estimated_cost),
+            )
+
+        effective_cap = min(session_remaining, per_call_limit)
 
         if estimated_cost <= effective_cap:
             return BudgetDecision(
@@ -98,7 +103,7 @@ class BudgetPropagator:
             )
 
         shortfall = estimated_cost - effective_cap
-        if per_call_limit > 0 and per_call_limit < session_remaining:
+        if per_call_limit < session_remaining:
             reason = f"Estimated cost {estimated_cost:.2f} exceeds per-call limit {per_call_limit:.2f}"
         else:
             reason = f"Estimated cost {estimated_cost:.2f} exceeds remaining budget {session_remaining:.2f}"
@@ -144,9 +149,9 @@ class BudgetPropagator:
         """Calculate budget parameter to pass to an external tool.
 
         Returns min(max_budget_per_call, remaining_budget).
-        When budget_limit is 0 (unlimited per-call), returns session_remaining.
+        A zero budget limit returns zero. Zero never means unlimited.
         """
         per_call_limit = profile.budget_limit
-        if per_call_limit > 0:
-            return min(per_call_limit, session_remaining)
-        return session_remaining
+        if per_call_limit < 0 or session_remaining < 0:
+            return 0.0
+        return min(per_call_limit, session_remaining)

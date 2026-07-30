@@ -7,6 +7,112 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.40.0] - 2026-07-29
+
+### Added
+
+- Added `deepr eval consult --structured-local`, an eval-only owned-local expert
+  graph with immutable expert snapshots, independently generated positions, an
+  exact require-all fan-in, and one local synthesis. The versioned brief,
+  position, synthesis, and run artifacts disclose fixed call, token, context,
+  artifact, elapsed-time, concurrency, and transport-attempt ceilings.
+- Added native Ollama safety proof for the graph: literal-loopback transport,
+  stable config-level cloud disablement, exact materialized GGUF digest and
+  size, no inherited credentials or proxies, no redirects, no retries, and one
+  fsynced content-free `$0` dispatch marker per attempted node.
+- Added a durable canonical cost-state identity with an append-only source
+  registry prefix anchor, ledger and reservation high-water identities, strict
+  duplicate-key rejection, and monotonic checkout `.env` caps that remain
+  visible to editable installs and installed wheels.
+- Added finite hosted-CI timeouts, superseded-run cancellation, and seven-day
+  SBOM retention. GitHub account billing remains an external control and must
+  stay public or have paid Actions disabled and an account-level budget.
+
+### Changed
+
+- Bound every supported paid research dispatch to a persisted internal random
+  binding, canonical provider, model, job, request digest, and worst-case
+  ceiling. The provider base now owns a non-overridable public boundary and
+  accepts only one opaque task-local grant minted after the durable dispatch
+  transition. The binding is removed from public queue metadata.
+- Required private Deepr-minted zero-dollar capacity proof at local and
+  plan-quota model seams. Arbitrary injected clients, caller-supplied capacity
+  labels, and numeric zero estimates cannot authorize model work.
+- Priced research completion from the canonical queued model and added provable
+  web-search and code-interpreter charges. Ambiguous model, token, tool, or
+  settlement evidence consumes the reservation ceiling. Missing, refunded, or
+  non-settled durable outcomes freeze paid work before terminal publication.
+- Disabled the unaccounted legacy consensus fan-out and blocked hosted upload
+  and vector-store creation until complete parent and lifecycle accounting is
+  available. Paid API dispatch remains frozen pending provider-authenticated
+  account, billing-scope, credential, hard-limit, and overage controls.
+- Set canonical defaults to `$1.00` per job, `$2.00` per UTC day, and `$5.00`
+  per UTC month, with one non-configurable `$5.00` aggregate ceiling across
+  every spend window. Zero means zero, not unlimited. Non-finite, negative,
+  unknown, stale, or unreadable money state authorizes `$0`.
+- Hard-blocked paid expert completion, streaming, Grok tool research, paid
+  fallback, background deep research, deep-research retrieval, and paid council
+  synthesis. The former runtime and environment override was removed because
+  an average estimate or output-only cap cannot bound input, tools, caches,
+  storage, background work, retries, or total provider charges. Local and
+  proven zero-dollar plan capacity remain available.
+- Quarantined the legacy `services.research_api` queue writer, generic agent
+  fan-out, external helper scripts, provider-backed cloud deployment templates,
+  and other paths that could not mint the same durable reservation and exact
+  settlement authority as the canonical request flow.
+- Required paid transports to reject inherited proxies and redirects, disable
+  SDK retries, reject ambient custom endpoints and headers, validate
+  provider/model ownership, and bind known pricing before reservation. Generic
+  or injected paid SDK clients are frozen. Provider adapters must own the exact
+  official endpoint, client, account scope, and canonical outbound model;
+  missing or mismatched identity consumes the hold and raises for
+  reconciliation.
+- Blocked provider webhooks, retained `previous_response_id` context, and Code
+  Interpreter before paid dispatch. Their callback infrastructure, hidden
+  retained context, memory tier, 20-minute session count, and reuse behavior do
+  not yet fit a provable total-cost envelope. Code Interpreter is now off by
+  default in the core orchestrator, and explicit attempts fail closed.
+- Refreshed OpenAI to 2.50.0, Google GenAI to 2.15.0, Axios to 1.19.0, and
+  PostCSS to 8.5.25, plus compatible transitive Filelock 3.32.2 and LibCST
+  1.9.0. TypeScript remains at 6.0.3 because TypeScript ESLint 8.65.0 supports
+  versions below 6.1.0. All other direct Python and frontend dependencies are
+  current within their declared compatibility contracts.
+
+### Fixed
+
+- Canonicalized URL expert names to the exact storage slug before any web
+  route reaches the filesystem, and resolved saved chat sessions only through
+  containment-checked expert directories. Traversal and symlink escapes now
+  fail closed, and CodeQL path-injection findings are covered by regressions.
+- Prevented direct exported-provider calls, adapter implementation calls,
+  provider-object substitution, request mutation, and grant reuse from
+  bypassing durable paid accounting.
+- Prevented local eval, research, report absorption, claim extraction,
+  verification, maker-checker, consult judge, and expert chat paths from
+  treating an unproven injected client as `$0` capacity.
+- Bound semantic claim extraction and verification to the exact serialized
+  prompt, trusted provider/model pricing, and an enforced completion-token
+  ceiling. The reserved worst case now covers both input and output.
+- Corrected long-context pricing and canonical settlement for Grok 4.3, every
+  Grok 4.20 0309 variant, and Grok 4.5 at the inclusive 200,000-token boundary.
+  Corrected the Grok 4.20 context window to one million tokens. Gemini 3.x Pro
+  retains its documented strict above-200,000 boundary, and Gemini 2.5 Pro now
+  applies its doubled input, cached-input, and output rates above 200,000.
+  Boundary tests cover 199,999, 200,000, and 200,001 tokens.
+- Routed web, worker, core, and MCP research completion through canonical
+  response-model, token-tier, cache, and paid-tool verification. Missing or
+  inconsistent evidence consumes the reservation ceiling. Legacy unreserved
+  completion records at least the configured ceiling and freezes paid work.
+- Rejected provider-side hard monthly limits above the operator ceiling. Cached
+  evidence alone still cannot authorize paid work: a future unfreeze requires
+  a live per-dispatch observation bound to the one-use client and account
+  identity.
+- Bounded legacy provider polling and learner integration to one finite pass,
+  retired duplicate polling paths, and removed unbounded status and download
+  utility behavior.
+- Corrected `deepr budget set` to display the next UTC calendar-month reset
+  instead of the first day of the current month.
+
 ## [2.39.0] - 2026-07-28
 
 ### Added

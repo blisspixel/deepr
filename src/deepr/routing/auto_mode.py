@@ -20,6 +20,7 @@ This enables processing 20+ queries for $1-2 instead of $20-40.
 import hashlib
 import json
 import logging
+import math
 import os
 import subprocess
 import sys
@@ -35,6 +36,20 @@ from deepr.config import runtime_data_path
 from deepr.experts.router import ModelRouter
 from deepr.observability.provider_router import AutonomousProviderRouter
 from deepr.providers.registry import MODEL_CAPABILITIES, ModelCapability
+
+_MAX_ROUTE_BUDGET_USD = 5.0
+
+
+def _bounded_route_budget(value: float | None) -> float:
+    """Normalize a routing hint without creating spend authority."""
+    if value is None:
+        return _MAX_ROUTE_BUDGET_USD
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError("routing budget must be a finite non-negative number")
+    numeric = float(value)
+    if not math.isfinite(numeric) or numeric < 0:
+        raise ValueError("routing budget must be a finite non-negative number")
+    return min(numeric, _MAX_ROUTE_BUDGET_USD)
 
 
 @dataclass
@@ -591,7 +606,7 @@ class AutoModeRouter:
 
         Args:
             query: The research query
-            budget: Maximum budget for this query (None = unlimited)
+            budget: Routing ceiling. None uses the hard $5 preview ceiling.
             prefer_cost: If True, prefer cheaper options when uncertain
             prefer_speed: If True, prefer faster options when uncertain
 
@@ -599,6 +614,8 @@ class AutoModeRouter:
             AutoModeDecision with provider, model, and metadata
         """
         from deepr.routing.deprecation import migrate_model
+
+        budget = _bounded_route_budget(budget)
 
         # Analyze query complexity and task type
         complexity = self._model_router._classify_complexity(query)
@@ -622,6 +639,8 @@ class AutoModeRouter:
         # Check provider health from autonomous router
         if not self._provider_router.is_circuit_available(provider, model):
             provider, model, cost_estimate, reasoning = self._get_fallback(complexity, task_type, budget)
+        if cost_estimate > budget:
+            raise RuntimeError(f"No configured provider model fits the ${budget:.2f} routing ceiling")
 
         # Check for deprecated model and auto-migrate
         metadata: dict[str, Any] = {}
@@ -659,22 +678,20 @@ class AutoModeRouter:
 
         Args:
             queries: List of research queries
-            budget_total: Maximum total budget for all queries (None = unlimited)
+            budget_total: Total routing ceiling. None uses the hard $5 ceiling.
             prefer_cost: If True, prefer cheaper options
 
         Returns:
             BatchRoutingResult with decisions and summary
         """
         decisions: list[AutoModeDecision] = []
-        remaining_budget = budget_total
+        remaining_budget = _bounded_route_budget(budget_total)
 
         # First pass: route all queries optimally
         for query in queries:
-            per_query_budget = None
-            if remaining_budget is not None:
-                # Distribute remaining budget proportionally
-                queries_left = len(queries) - len(decisions)
-                per_query_budget = remaining_budget / queries_left if queries_left > 0 else 0
+            # Distribute remaining budget proportionally.
+            queries_left = len(queries) - len(decisions)
+            per_query_budget = remaining_budget / queries_left if queries_left > 0 else 0
 
             decision = self.route(
                 query=query,
@@ -683,10 +700,8 @@ class AutoModeRouter:
             )
             decisions.append(decision)
 
-            if remaining_budget is not None:
-                remaining_budget -= decision.cost_estimate
-                # Ensure we don't go negative
-                remaining_budget = max(0, remaining_budget)
+            remaining_budget -= decision.cost_estimate
+            remaining_budget = max(0, remaining_budget)
 
         # Build summary
         summary = self._build_summary(decisions)
@@ -733,7 +748,7 @@ class AutoModeRouter:
 
         Args:
             task_type: Benchmark task type key
-            budget: Maximum cost (None = unlimited)
+            budget: Maximum routing cost. None is capped at $5 by public callers.
             prefer_cost: If True, sort by cost-per-quality instead of raw quality
 
         Returns:
@@ -908,7 +923,7 @@ class AutoModeRouter:
         # missed this sibling path - handing back ``openai/gpt-4.1-mini``
         # when no OpenAI key is configured produced a fail-at-provider-
         # creation downstream and a confusing error.
-        return self._cheapest_available(budget=None)
+        return self._cheapest_available(budget=budget)
 
     def _build_summary(self, decisions: list[AutoModeDecision]) -> dict[str, _SummaryStats]:
         """Build summary statistics from routing decisions.

@@ -25,6 +25,16 @@ async def _restore_expected_reservation(_queue, _job_id, reservation, _upload_re
     return reservation
 
 
+def _set_test_spend_caps(monkeypatch: pytest.MonkeyPatch, limit: float) -> None:
+    for name in (
+        "DEEPR_MAX_COST_PER_JOB",
+        "DEEPR_MAX_COST_PER_DAY",
+        "DEEPR_MAX_COST_PER_WEEK",
+        "DEEPR_MAX_COST_PER_MONTH",
+    ):
+        monkeypatch.setenv(name, str(limit))
+
+
 from deepr.cli.commands.run import (
     TraceFlags,
     _save_and_show_full_trace,
@@ -130,10 +140,12 @@ class TestRunSingleAsync:
     """Test the _run_single async function."""
 
     @pytest.mark.asyncio
-    async def test_run_single_estimates_cost(self):
+    async def test_run_single_estimates_cost(self, monkeypatch):
         """Test that _run_single estimates cost before proceeding."""
         from deepr.cli.commands.run import _run_single
         from deepr.cli.output import OutputContext, OutputMode
+
+        _set_test_spend_caps(monkeypatch, 2.0)
 
         output_context = OutputContext(mode=OutputMode.QUIET)
 
@@ -182,13 +194,14 @@ class TestRunSingleAsync:
 
         queue = SQLiteQueue(str(tmp_path / "queue.db"))
         monkeypatch.setattr(run_submission, "SQLiteQueue", lambda: queue)
+        _set_test_spend_caps(monkeypatch, 5.0)
 
         job_id, job, reservation = await run_submission.create_and_enqueue_job(
             "Research safely",
             "o4-mini-deep-research",
             "openai",
             False,
-            False,
+            True,
             [],
             None,
             5.0,
@@ -208,18 +221,19 @@ class TestRunSingleAsync:
         refund_research_cost(reservation)
 
     @pytest.mark.asyncio
-    async def test_run_submission_uses_configured_queue_path(self, tmp_path):
+    async def test_run_submission_uses_configured_queue_path(self, tmp_path, monkeypatch):
         from deepr.cli.commands import run_submission
         from deepr.experts.research_cost_gate import refund_research_cost
         from deepr.queue.local_queue import SQLiteQueue
 
         queue_path = tmp_path / "runtime" / "configured.db"
+        _set_test_spend_caps(monkeypatch, 5.0)
         job_id, _, reservation = await run_submission.create_and_enqueue_job(
             "Research safely",
             "o4-mini-deep-research",
             "openai",
             False,
-            False,
+            True,
             [],
             None,
             5.0,

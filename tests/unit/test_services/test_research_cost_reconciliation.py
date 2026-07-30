@@ -44,6 +44,35 @@ async def test_completed_queue_job_closes_orphaned_durable_hold() -> None:
 
 
 @pytest.mark.asyncio
+async def test_completed_job_without_durable_identity_keeps_conservative_hold() -> None:
+    reservation = reserve_research_cost(
+        job_id="completed-unbound",
+        provider="openai",
+        model="test-model",
+        estimate=CostEstimate(0.1, 0.3, 0.2, "test-model", "test"),
+        max_cost_per_job=1.0,
+        max_daily_cost=2.0,
+        max_monthly_cost=5.0,
+        manager=CostSafetyManager(),
+    )
+    job = ResearchJob(
+        id=reservation.job_id,
+        prompt="test",
+        model="test-model",
+        status=JobStatus.COMPLETED,
+        cost=0.2,
+        metadata={},
+    )
+    queue = MagicMock(get_job=AsyncMock(return_value=job))
+
+    count = await reconcile_research_cost_reservations(queue, default_provider="openai")
+
+    assert count == 0
+    assert ResearchReservationStore().active_cost() == pytest.approx(0.3)
+    assert CostLedger().get_events() == []
+
+
+@pytest.mark.asyncio
 async def test_stale_queued_job_is_cancelled_and_refunded() -> None:
     reservation = reserve_research_cost(
         job_id="queued-orphan",

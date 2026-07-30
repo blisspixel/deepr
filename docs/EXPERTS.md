@@ -7,7 +7,7 @@
 Deepr's expert system creates domain experts from documents that can answer
 questions, recognize knowledge gaps, and propose the next bounded research or
 maintenance step. Explicit local and non-metered plan workflows can execute
-documented updates; metered autonomous expert work is gated in v2.36.
+documented updates; metered autonomous expert work is gated in v2.40.
 Expert learning is not passive document accumulation. New material is processed
 into canonical beliefs, concepts, hypotheses, stance, original ideas,
 provenance refs, temporal graph edges, contradiction signals, gap backlogs, freshness watchlists, and
@@ -55,6 +55,15 @@ freshness checks, contradiction surfacing, perspective deltas, and watchlists to
 find where the expert needs to update its understanding.
 
 ## Quick Start
+
+Before using any local generation command, start Ollama with cloud features
+disabled by stable server config, for example `OLLAMA_NO_CLOUD=1`, and restart
+the server. Deepr checks native `/api/status` immediately before shared local
+requests and refuses unless it reports `cloud.disabled=true` with source
+`config`. Local OpenAI-compatible requests use a fixed credential allowlist,
+ignore environment proxies, follow no redirects, and retry zero times. This
+prevents a signed-in Ollama cloud model or ambient provider credential from
+silently turning a local-labeled command into remote spend.
 
 ```bash
 # Generate and edit an explicitly unreviewed purpose draft.
@@ -153,7 +162,7 @@ records them in the profile. Local creation does not run the API-backed
 `--learn` curriculum; use subscriptions plus `expert sync --local` for $0
 maintenance.
 
-The v2.36 safety gate also blocks provider-backed `expert refresh` and
+The v2.40 safety gate also blocks provider-backed `expert refresh` and
 `--synthesize`, API `fill-gaps` including consensus and deep modes, and API
 `expert sync --compile-claims`. Paid `deepr eval calibrate --corpus` is gated;
 `deepr eval calibrate --from` remains a `$0` read of existing graded pairs.
@@ -228,9 +237,10 @@ recorded local, plan, or paid capacity.
 Use `--fresh-context` when a local sync needs current web grounding. Use
 `--deep-context` when the topic needs broader source coverage before the local
 model synthesizes. Both modes stay free inside Deepr: explicit URLs are fetched,
-`DEEPR_SEARXNG_URL` can point at a self-hosted SearXNG instance, and DuckDuckGo
-is used only when the optional package is installed. API-key search backends are
-not used.
+and DuckDuckGo is used only when the optional package is installed. A
+`DEEPR_SEARXNG_URL` value is configuration-readable and visible in diagnostics,
+but SearXNG dispatch is blocked because Deepr cannot prove that every configured
+upstream engine has zero marginal cost. API-key search backends are not used.
 
 Search receives the subscription topic plus a bounded focus, while the local or
 plan model retains the full synthesis prompt. Search-discovered fresh packs need
@@ -241,7 +251,7 @@ without calling the model or advancing the subscription cadence.
 
 ### Gated Metered Autonomous Learning
 
-Nonlocal `expert make` and `--learn` fail closed in v2.36 while hosted storage,
+Nonlocal `expert make` and `--learn` fail closed in v2.40 while hosted storage,
 curriculum calls, nested research, and absorption move to one durable parent-run
 budget transaction. Use local profile creation plus local or explicit plan
 maintenance:
@@ -258,7 +268,7 @@ capacity is available. Neither path falls through to a metered API.
 ### Learning Curriculum
 
 The gated `--learn` design uses a synthesis model to generate a curriculum. The
-example below illustrates the intended preview, not a v2.36 dispatchable path:
+example below illustrates the intended preview, not a v2.40 dispatchable path:
 
 ```
 Learning Curriculum (10 topics):
@@ -268,14 +278,14 @@ Learning Curriculum (10 topics):
 ...
 
 Total: $2.45
-Budget limit: $10.00  WITHIN BUDGET
+Budget limit: $5.00  WITHIN BUDGET
 
 Proceed? [y/N]
 ```
 
 ## Expert Query and Chat
 
-Standalone metered expert chat is gated in v2.36. `deepr expert chat`, browser
+Standalone metered expert chat remains gated in v2.40. `deepr expert chat`, browser
 Socket.IO/REST chat, and `deepr_query_expert backend=api` fail closed before a
 provider dispatch. This release does not claim live metered chat validation.
 Restoration requires durable reserve, dispatch-mark, and settlement for every
@@ -290,13 +300,32 @@ deepr expert consult "Which assumptions need evidence?" --expert "Azure Architec
 
 MCP hosts can also call `deepr_query_expert` with explicit `backend=local` or
 `backend=plan`. These modes compile stored expert context into one read-only,
-no-tool turn and never fall through to a metered API. API council synthesis is
-a separate bounded surface and remains available with explicit approval.
+no-tool turn and never fall through to a metered API. API council synthesis
+exposes bounded contract inputs only; production metered dispatch is blocked in
+v2.40 even with explicit approval and a positive budget.
+
+For an agent-host workflow, call `deepr_list_experts`, then choose one of these
+explicit local paths:
+
+- `deepr_query_expert` with `backend=local` for one read-only turn.
+- `deepr_consult_experts` with `synthesis_backend=local` for a one-shot bounded
+  council over stored expert packets.
+- `deepr_start_expert_conversation`, then
+  `deepr_continue_expert_conversation`, for durable local-only continuation.
+  Inspect with `deepr_get_expert_conversation` and close or purge with
+  `deepr_close_expert_conversation`.
+
+The MCP server process must reach its owned loopback Ollama runtime. The durable
+conversation tools use opaque application handles, scoped ownership,
+idempotency keys, optimistic versions, frozen expert snapshots, retention, and
+no metered fallback. See [MCP Agent Test Guide](MCP_AGENT_TEST_GUIDE.md) for the
+copy-ready host sequence and [MCP Integration Guide](../mcp/README.md) for stdio,
+inbound loopback HTTP, scoped-key, and fail-closed outbound-validation posture.
 
 ### Gated Interactive Design
 
 The interactive design can trigger research when it recognizes knowledge gaps,
-but its metered provider dispatch is disabled in v2.36:
+but its metered provider dispatch is disabled in v2.40:
 
 ```
 You: How should we handle OneLake security for multi-tenant SaaS?
@@ -313,15 +342,17 @@ Expert: "Based on my research, there are three approaches:
 ..."
 ```
 
-### Research Tiers
+### Intended Metered Research Tiers
 
-Experts choose appropriate research depth:
+These tiers describe the gated interactive design. They do not dispatch through
+a provider API in v2.40. Use local or safety-eligible plan capacity for current
+execution and write-free preview for paid request envelopes.
 
 | Tier | Cost posture | Use Case |
 |------|--------------|----------|
-| `quick_lookup` | Cheapest allowed lookup path; not assumed free | Simple factual questions |
-| `standard_research` | Estimated and bounded before dispatch | Moderate complexity |
-| `deep_research` | Highest-cost tier; budget and confirmation gates apply | Complex topics |
+| `quick_lookup` | Preview-only when metered | Simple factual questions |
+| `standard_research` | Preview-only when metered | Moderate complexity |
+| `deep_research` | Preview-only when metered | Complex topics |
 
 Exact price and latency depend on the current provider, model, search tools,
 and response bounds. The provider registry and preflight estimate are
@@ -331,7 +362,7 @@ time ranges.
 ### Gated Slash Commands and Chat Modes
 
 The interactive design includes 27 slash commands (use `/` in web, `\` in
-CLI). These commands do not authorize a metered provider dispatch in v2.36.
+CLI). These commands do not authorize a metered provider dispatch in v2.40.
 Chat modes describe the intended expert behavior:
 
 - **`/ask`** - Quick answers from knowledge base only
@@ -357,7 +388,10 @@ Expensive operations require approval before proceeding. The system uses three t
 | Notify | Shows cost, proceeds unless budget critically low | Deep research under $1 |
 | Confirm | Blocks until user approves or denies | Deep research over $1, council over $3 |
 
-In the web UI, confirmation appears as an inline card in the chat. In CLI, it's a simple y/n prompt.
+These compatibility policy tiers are not spend authority. The v2.40 production
+metered-dispatch quarantine wins even after approval. In the web UI,
+confirmation appears as an inline card in the chat. In CLI, it is a simple y/n
+prompt.
 
 ### Context Compaction
 
@@ -372,7 +406,7 @@ The system suggests compaction automatically after 30+ messages or when estimate
 
 ## Preview a Curriculum
 
-API curriculum `expert plan` is gated in v2.36. It cannot yet bind curriculum
+API curriculum `expert plan` is gated in v2.40. It cannot yet bind curriculum
 generation and every resulting call to one durable run ceiling. Use the `$0`
 structural navigator instead:
 
@@ -420,12 +454,12 @@ result to every belief.
 deepr expert route-gaps "Azure Architect" --execute --scheduled --top 3
 ```
 
-API `fill-gaps`, including consensus and deep modes, fails closed in v2.36.
+API `fill-gaps`, including consensus and deep modes, fails closed in v2.40.
 Use `route-gaps --execute` with local or explicit plan-quota capacity.
 
 ### Resume Paused Learning
 Saved progress remains intact, but direct API `deepr expert resume` fails closed
-in v2.36 pending the shared durable transaction. Continue maintenance through
+in v2.40 pending the shared durable transaction. Continue maintenance through
 local or explicit plan-quota sync while the resume path is migrated.
 
 ### Absorb a Report into Knowledge
@@ -454,7 +488,7 @@ deepr expert absorb "Azure Architect" <job_id> --min-confidence 0.7 --budget 0.1
 Self-evaluate a report against its question before relying on or absorbing it:
 scores grounding, completeness, calibration, and directness, then returns a
 verdict (accept / revise / re-research) with issues and follow-up queries. A
-natural pre-step to `absorb`. Normal metered reflection fails closed in v2.36;
+natural pre-step to `absorb`. Normal metered reflection fails closed in v2.40;
 the scheduled capacity waterfall can run on admitted local or trusted explicit
 plan capacity, or return a wait payload without spending.
 ```bash
@@ -521,7 +555,7 @@ side effect of a sweep.
 ```bash
 deepr expert route-gaps "Azure Architect"
 deepr expert route-gaps "Azure Architect" --execute --dry-run    # preview, $0
-deepr expert route-gaps "Azure Architect" --execute --budget 1 -y
+deepr expert route-gaps "Azure Architect" --execute --plan claude --budget 0 -y
 ```
 
 ### Stay Current: Subscriptions and Sync
@@ -543,7 +577,7 @@ When `expert reflect` finds a report weak, it emits follow-up queries. With
 `--execute-followups` they actually run (same budget discipline) and absorb -
 reflection stops being advisory exactly when the report needs reinforcement.
 ```bash
-deepr expert reflect "Azure Architect" <job_id> --execute-followups --scheduled --budget 1 -y
+deepr expert reflect "Azure Architect" <job_id> --execute-followups --scheduled --budget 0 -y
 ```
 
 ## Temporal Perspective Queries
@@ -704,19 +738,16 @@ deepr expert review-consult-quality "Azure Architect" consult_abc123 \
 ```
 
 `deepr expert judge-consult-quality` runs the same review path with an explicit
-calibrated-model judge. Use `--local-judge-model MODEL` for local Ollama at `$0`
-or `--plan BACKEND` with optional `--plan-model MODEL` for an explicit
-plan-quota CLI. The `--api-provider` implementation is gated in v2.36 pending
-the shared durable transaction. Plan judges consume subscription quota, record
-`$0` Deepr cost metadata, and never fall back to metered provider APIs. Deepr
+calibrated-model judge. Only `--local-judge-model MODEL` is executable, through
+local Ollama at `$0`. Plan-quota CLI, arbitrary CLI, and `--api-provider` judge
+requests fail before process or provider construction because Deepr cannot
+independently prove their billing source, overage posture, or total cost. Deepr
 stores only validated review fields and calibrated judge metadata, not the raw
 judge response or raw trace answer.
 
-For Claude plan judging, `--plan-model` currently accepts only `sonnet`. Every
-call first records live provider metadata proving paid extra usage is disabled,
-then runs in safe mode with empty tool and MCP surfaces, no persistence, and no
-API credential.
-Failure to prove any part of that posture stops before model dispatch.
+The legacy `--plan` and `--plan-model` judge options remain parseable for
+compatibility but do not run provider metadata probes or start a model process.
+Generic Claude plan capacity elsewhere in Deepr does not grant judge authority.
 
 ### Propose Self-Model Updates (review record)
 Preview or write a verifier-gated self-model update review record for a
@@ -807,7 +838,7 @@ deepr skill remove "Financial Analyst" financial-data
 # Show skill details
 deepr skill info code-analysis
 
-# Run a skill tool directly
+# Validate a legacy skill invocation. This exits blocked before tool loading.
 deepr expert run-skill "Dev Lead" code-analysis complexity_report --args '{"code": "def foo(): pass"}'
 ```
 
@@ -839,10 +870,15 @@ a `## Gotchas` section seeded from real failures.
 
 ### How Skills Work
 
-- **Progressive disclosure**: Skill summaries are always visible in the expert's system prompt. Full prompt and tools load only when a skill activates.
-- **Auto-activation**: Skills activate when user queries match keyword or regex triggers.
-- **Three-tier storage**: Built-in skills ship with Deepr, user skills live in `~/.src/deepr/skills/`, expert-local skills in `data/experts/{name}/skills/`. Later tiers override earlier ones.
-- **MCP bridging**: Skills can connect experts to external MCP servers for tools no generic expert would have.
+- **Inventory disclosure**: Skill summaries, metadata, triggers, and tool names can
+  be inspected without executing tool code.
+- **Execution quarantine**: Python and MCP skill tools are blocked before module
+  import, process creation, or network dispatch. The legacy `run-skill` command
+  validates its request and exits nonzero with `SKILL_TOOL_EXECUTION_DISABLED`.
+- **Three-tier storage**: Built-in skills ship with Deepr, user skills live in
+  `~/.src/deepr/skills/`, and expert-local skills live in
+  `data/experts/{name}/skills/`. Later tiers override earlier ones for inventory
+  and authoring. They do not grant execution authority.
 
 ### Skill Definition Format
 
@@ -930,20 +966,24 @@ Multiple layers prevent runaway costs:
 
 ### Per-Session Limits
 
-The v2.36 fail-closed gate overrides metered chat session settings. Local and
+The v2.40 fail-closed gate overrides metered chat session settings. Local and
 explicit plan read-only query turns remain available. A future restored session
 must reserve its full approved ceiling before every call, mark dispatch
 durably, settle every outcome, bound output, charge auxiliaries to the same
 parent budget, and serialize turns.
 
-### Hard Limits (Cannot Override)
-- Per operation: $10 max
-- Per day: $50 max
-- Per month: $500 max
+### Binding Limits
+
+The effective per-job, daily, weekly, and monthly ceilings are the minimum of
+all trusted operator authorities and fail closed to zero when authority or
+accounting state is missing. Active examples in this guide never exceed a `$5`
+monthly ceiling. Inspect the actual limits with `deepr costs limits` and
+`deepr costs doctor`. A positive ceiling never authorizes the
+production-frozen metered path.
 
 ### Pause/Resume
 When learning hits limits, progress is saved. Direct API resume fails closed in
-v2.36 while its durable transaction is migrated; saved progress is not deleted.
+v2.40 while its durable transaction is migrated; saved progress is not deleted.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md#security) for full budget protection details.
 
@@ -1010,7 +1050,7 @@ estimated_cost = domain velocity lookup (fast=$0.25, medium=$1.00, slow=$2.00)
 
 Higher-ratio gaps are filled first, making `expert route-gaps --execute --top N`
 a rational allocation rather than arbitrary ordering. The legacy metered API
-`expert fill-gaps` command fails closed in v2.36; local and explicit plan routes
+`expert fill-gaps` command fails closed in v2.40; local and explicit plan routes
 remain available.
 
 ### Decision Records
@@ -1045,7 +1085,7 @@ The manifest includes computed properties: `claim_count`, `open_gap_count`, `avg
 ### Continuous Learning
 
 Local and explicit plan maintenance can re-synthesize new knowledge.
-Provider-backed `expert refresh` and `--synthesize` are gated in v2.36 pending
+Provider-backed `expert refresh` and `--synthesize` are gated in v2.40 pending
 the shared durable parent-run budget transaction.
 
 ### Expert Council
@@ -1066,12 +1106,12 @@ deepr expert consult "Which assumption is weakest?" --expert "Tech Architect" --
 ```
 
 Current expert perspectives are stored-state reads and make zero model calls.
-API mode can make at most one metered call for final synthesis. The complete
-requested transaction ceiling is reserved upfront, and synthesis has a fixed
-10 percent sub-ceiling. Therefore `--budget 10` cannot spend more than `$10`
-and the synthesis call cannot spend more than `$1`. Local and eligible explicit
-plan synthesis record `$0` in Deepr. Plan CLIs can still consume external quota,
-credits, or vendor-side metered credentials that Deepr cannot distinguish.
+Local and eligible explicit plan synthesis record `$0` in Deepr. API mode keeps
+bounded provider, model, consent, and budget inputs for compatibility, but
+production metered synthesis is blocked before provider construction in v2.40.
+A positive budget cannot override that quarantine. Plan CLIs can still consume
+external quota, credits, or vendor-side metered credentials that Deepr cannot
+distinguish, so only safety-eligible adapters pass the no-overage gate.
 
 Auto-selection includes up to 10 experts, default 3, with a relevance floor;
 explicit rosters use the same cap. Exact, case, and slug aliases for one
@@ -1091,10 +1131,59 @@ deepr expert consult "How do we keep expert knowledge current and cheap?" --plan
 deepr expert consult "Cost vs quality tradeoff?" --local --max-experts 8 --max-elapsed-seconds 600
 ```
 
-`--plan <id>` (codex, claude, ...) and `--local` run synthesis on explicit plan or local
-capacity and disable live metered fallback, so a consult never silently bills an
-API key. Over MCP this is `synthesis_backend: "plan" | "local"`. When Deepr asks
-its own experts, this is a one-shot self-consult, not a recursive loop.
+`--plan claude` and `--local` run synthesis on explicit plan or local capacity
+and disable live metered fallback, so a consult never silently bills an API key.
+Claude Code is the current executable plan adapter. Other plan adapters remain
+visible but blocked until their safety gates pass. Over MCP this is
+`synthesis_backend: "plan" | "local"`. When Deepr asks its own experts, this is
+a one-shot self-consult, not a recursive loop.
+
+#### Eval-only structured local consultation
+
+To test question-specific independent expert positions before one synthesis,
+use the opt-in evaluation graph:
+
+```bash
+deepr eval consult --structured-local "Which control should we test first?" \
+  --expert "Reliability Expert" \
+  --expert "Security Expert" \
+  --model qwen2.5:14b \
+  --concurrency 1 \
+  --save
+```
+
+Start the Ollama server with cloud disabled, for example by setting
+`OLLAMA_NO_CLOUD=1` in the server process environment and restarting it. This
+command then requires `/api/status` to report `cloud.disabled=true` from stable
+`config`, and binds the exact selected model to a materialized local GGUF entry
+with a positive byte size and SHA-256 digest. Cloud, unknown, remote-tagged,
+digestless, and zero-size entries fail before generation.
+
+The command uses a credential-free native Ollama transport on a validated
+literal-loopback endpoint. It ignores OpenAI credentials and environment
+proxies, follows no redirects, retries no request, fixes metered cost at `$0`,
+disables plan and API fallback, and allows no tools or remote retrieval. It
+writes no expert state. Each execution receives a unique run ID. Before each
+model attempt it must append a content-free, fsynced `$0` cost-ledger marker
+bound to that run; repeating the same question therefore creates distinct
+accounting evidence. A content-free terminal marker reconciles node and
+transport-attempt counts through failure, timeout, and cancellation. A ledger
+failure blocks inference or terminal completion. Model
+residency is fixed at five minutes. Synthesis runs only when every position
+completes with a valid artifact. The saved
+`deepr-structured-consult-run-v1` record reconciles every expected node and
+reports reserved tokens, context bytes, artifact bytes, model provenance,
+transport attempts, ambiguous usage, whole-run elapsed time, and peak local
+concurrency. Local electricity, heat, VRAM, and wall time remain real resources
+even though provider-invoice cost is zero.
+
+This is not yet an MCP tool or a replacement for `deepr expert consult`. A
+remote MCP caller can use the existing local one-shot or durable conversation
+tools only when the Deepr server itself can reach its owned loopback Ollama
+process. A cloud container without that process is not local capacity. See
+[Local Structured Consult Graph](design/local-structured-consult-graph.md) for
+the promotion gates.
+
 Every CLI and MCP consult writes a local `deepr-consult-trace-v1` record for the
 improvement loop: question, requested experts, selected context metadata, capacity
 posture, checks run, output artifact, and first-class synthesis failure events.
@@ -1129,17 +1218,23 @@ If the expert has active original ideas, consult context also includes
 `deepr-expert-perspective-state-v1` and the council response labels those ideas
 as planning inputs, not verified external facts. This lets a host agent ask for
 creative expert synthesis while preserving the fact vs perspective boundary.
-Validate an external-agent consult path before using it for real questions:
+Validate the consult contract without remote dispatch:
 
 ```bash
 deepr mcp validate-consult --json
 deepr mcp validate-consult --live --synthesis-backend local --expert "AI Strategy Expert" --json
-deepr mcp validate-consult http://127.0.0.1:8765/mcp --auth-token "$DEEPR_MCP_KEY" --expert "AI Strategy Expert" --json
 ```
 
 The validation report is `deepr-mcp-consult-validation-v1`. It checks schemas,
 trace linkage, no-metered capacity posture, cost fields, dissent handling, host
 action boundaries, and secret redaction. It does not score answer meaning.
+URL-based validation returns `MCP_HTTP_CONSULT_VALIDATION_BLOCKED` before
+opening a connection. Both managed-loopback and URL-based
+`validate-conversation` also fail before network, server, socket, or model
+executor construction. These outbound validators cannot treat an endpoint's
+own cost metadata or a loopback address as independent proof. The inbound local
+HTTP server and loopback container remain available to authenticated MCP clients
+under scoped-key, budget, and tool gates.
 Review those traces with:
 
 ```bash
@@ -1157,7 +1252,7 @@ add source-seeking subscriptions explicitly. Never absorb council prose as
 factual evidence. See
 [Three Expert Council And Learning Workflow](THREE_EXPERT_COUNCIL.md) for a
 copyable Temporal Knowledge Graphs, Digital Consciousness, and Model Context
-Protocol setup with a strict `$10` cap.
+Protocol setup with a strict `$5` monthly cap.
 
 Before adding live expert-to-expert rounds, run:
 
@@ -1227,7 +1322,7 @@ complete input, context, control, and staged-apply workflow.
 
 - Early-stage software - more testing needed
 - Vector search quality depends on document quality
-- Standalone metered agentic chat is gated in v2.36; local and plan read-only
+- Standalone metered agentic chat is gated in v2.40; local and plan read-only
   turns cannot launch research.
 - Deliberation and consult traces are derived proposal artifacts, not authority
   to spend, call tools, or write beliefs.

@@ -59,10 +59,12 @@ before calling the local model. `--deep-context` uses the same free-only
 contract but widens retrieval into a bounded multi-query pass for topics where a
 single search is too thin.
 
-- Search is free-only: a configured self-hosted SearXNG endpoint
-  (`DEEPR_SEARXNG_URL`) is preferred; otherwise DuckDuckGo is used through the
-  optional maintained `ddgs` package. Deepr does not use Brave, Tavily, or any
-  API-key search provider in these modes.
+- Search is free-only: explicit URLs are fetched directly and DuckDuckGo is used
+  through the optional maintained `ddgs` package. `DEEPR_SEARXNG_URL` is
+  configuration-readable and visible in diagnostics, but SearXNG dispatch is
+  blocked because Deepr cannot prove that every configured upstream engine has
+  zero marginal cost. Deepr does not use Brave, Tavily, or any API-key search
+  provider in these modes.
 - Explicit URLs in the freshness query are fetched directly through Deepr's
   built-in browser backend.
 - Page fetches retain deterministic input order and exact attempt caps while
@@ -70,7 +72,8 @@ single search is too thin.
   same normalized host remain serial, and malformed or non-HTTP targets share
   one conservative serial bucket. Built-in DuckDuckGo and automatic search
   routes keep multi-query searches serial to avoid amplifying free-endpoint
-  rate limits; explicit SearXNG or injected backends may use four bounded slots.
+  rate limits. Explicit trusted test backends may use four bounded slots;
+  SearXNG dispatch remains blocked.
 - Direct HTTP and Wayback snapshot bodies stream under a configurable
   decompressed-byte ceiling, 8 MiB by default through
   `SCRAPE_MAX_RESPONSE_BYTES`. Chunked or compressed bodies stop at the ceiling
@@ -168,9 +171,9 @@ adapter with a deeper source-gathering mode for scheduled expert maintenance.
 ## Boundaries
 
 - Free-only means no Deepr provider calls and no API-key search backends.
-- SearXNG still sends queries to whichever engines the user's SearXNG instance
-  enables. A local SearXNG container improves control and avoids Deepr API
-  spend, but it is not the same as an offline local index.
+- SearXNG dispatch is blocked even for a local container. A local endpoint does
+  not prove that its enabled upstream engines have no marginal cost, so
+  configuration visibility cannot authorize a request.
 - Network access is still network access. Fetching public pages is not offline
   and can fail, rate-limit, or return sparse snippets.
 - Search results are context, not authority. Absorb still goes through the same

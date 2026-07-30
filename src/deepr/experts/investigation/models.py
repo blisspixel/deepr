@@ -238,7 +238,7 @@ class InvestigationBounds:
         )
         _exact_int(self.max_disk_bytes, field_name="max_disk_bytes", minimum=1024, maximum=4_294_967_296)
         _exact_int(self.max_concurrency, field_name="max_concurrency", minimum=1, maximum=MAX_EXPERTS)
-        _finite_float(self.budget_usd, field_name="budget_usd", minimum=0.0, maximum=10_000.0)
+        _finite_float(self.budget_usd, field_name="budget_usd", minimum=0.0, maximum=5.0)
         return self
 
     def to_dict(self) -> dict[str, int | float]:

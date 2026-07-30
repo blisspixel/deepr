@@ -297,7 +297,7 @@ def learn_web(
     EXAMPLES:
       deepr expert learn-web "TKG Expert" "latest temporal knowledge graph research 2026"
       deepr expert learn-web "MCP Expert" "Model Context Protocol updates" --model qwen3.6:27b
-      deepr expert learn-web "CI Expert" "GitHub Actions reliability 2026" --plan codex
+      deepr expert learn-web "CI Expert" "GitHub Actions reliability 2026" --plan claude
     """
     run_learn_web_pipeline(
         name=name,

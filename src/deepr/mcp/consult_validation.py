@@ -16,7 +16,11 @@ from typing import Any, Literal
 from deepr.experts import consult as consult_core
 from deepr.experts.consult_traces import build_consult_trace
 from deepr.mcp.consult_tool import consult_experts_tool
-from deepr.mcp.transport.http import HttpClient, HttpMessage
+from deepr.mcp.http_client_policy import (
+    finite_nonnegative_number,
+    validated_mcp_http_timeout,
+    validated_remote_mcp_url,
+)
 
 MCP_CONSULT_VALIDATION_SCHEMA_VERSION = "deepr-mcp-consult-validation-v1"
 MCP_CONSULT_VALIDATION_KIND = "deepr.mcp.consult_validation"
@@ -75,14 +79,20 @@ class MCPConsultValidationReport:
 
     def to_dict(self) -> dict[str, Any]:
         failed = [check.name for check in self.checks if check.status == "failed"]
+        remote_mode = self.mode == "http"
         payload: dict[str, Any] = {
             "schema_version": MCP_CONSULT_VALIDATION_SCHEMA_VERSION,
             "kind": MCP_CONSULT_VALIDATION_KIND,
             "generated_at": self.generated_at.isoformat(),
             "contract": {
                 "cost_usd": 0.0,
+                "cost_scope": "validation_client_only" if remote_mode else "validation_run",
                 "writes_state": False,
                 "calls_metered_api": False,
+                "calls_metered_api_scope": "validation_client_only" if remote_mode else "validation_run",
+                "remote_tool_call_attempted": False,
+                "remote_tool_cost_status": "not_submitted",
+                "remote_tool_calls_metered_api": None,
                 "semantic_verdict": False,
                 "checks_form_and_side_effects_only": True,
             },
@@ -149,15 +159,6 @@ def _as_list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else []
 
 
-def _float_value(value: Any) -> float:
-    if isinstance(value, bool):
-        return 0.0
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return 0.0
-
-
 def _safe_json_contains(payload: dict[str, Any], forbidden_values: tuple[str, ...]) -> bool:
     if not forbidden_values:
         return False
@@ -181,7 +182,7 @@ def _summarize_consult(payload: dict[str, Any]) -> dict[str, Any]:
         "disagreement_count": len(_as_list(payload.get("disagreements"))),
         "synthesis_status": payload.get("synthesis_status"),
         "synthesis_error_type": payload.get("synthesis_error_type"),
-        "cost_usd": _float_value(payload.get("cost_usd")),
+        "cost_usd": finite_nonnegative_number(payload.get("cost_usd")),
         "capacity": capacity,
         "metered_fallback_allowed": budget_capacity.get("metered_fallback_allowed"),
     }
@@ -280,15 +281,23 @@ def validate_consult_payload(
             "live metered fallback is not disabled everywhere",
         )
     )
-    cost = _float_value(payload.get("cost_usd"))
-    contract_cost = _float_value(_as_dict(payload.get("contract")).get("cost_usd"))
-    budget_cost = _float_value(budget_capacity.get("actual_cost_usd"))
+    ceiling = finite_nonnegative_number(cost_ceiling_usd)
+    cost = finite_nonnegative_number(payload.get("cost_usd"))
+    contract_cost = finite_nonnegative_number(_as_dict(payload.get("contract")).get("cost_usd"))
+    budget_cost = finite_nonnegative_number(budget_capacity.get("actual_cost_usd"))
+    ceiling_text = f"${ceiling:.4f}" if ceiling is not None else "an invalid ceiling"
     checks.append(
         _check(
             "cost_ceiling",
-            cost <= cost_ceiling_usd and contract_cost <= cost_ceiling_usd and budget_cost <= cost_ceiling_usd,
-            f"cost fields are within ceiling ${cost_ceiling_usd:.4f}",
-            f"one or more cost fields exceed ceiling ${cost_ceiling_usd:.4f}",
+            ceiling is not None
+            and cost is not None
+            and cost <= ceiling
+            and contract_cost is not None
+            and contract_cost <= ceiling
+            and budget_cost is not None
+            and budget_cost <= ceiling,
+            f"finite non-negative cost fields are within ceiling {ceiling_text}",
+            f"one or more cost fields are invalid or exceed {ceiling_text}",
         )
     )
     perspectives = _as_list(payload.get("perspectives"))
@@ -355,8 +364,8 @@ def validate_consult_payload(
 
 def _offline_capacity(backend: ValidationBackend, *, plan: str | None, model: str | None) -> dict[str, Any]:
     if backend == "plan":
-        provider = f"plan_quota:{plan or 'codex'}"
-        resolved_model = model or plan or "codex"
+        provider = f"plan_quota:{plan or 'claude'}"
+        resolved_model = model or plan or "claude"
     else:
         provider = "local"
         resolved_model = model or "offline-contract-fixture"
@@ -493,6 +502,20 @@ async def run_in_process_consult_validation(
 ) -> MCPConsultValidationReport:
     """Run a live no-metered consult through the same handler MCP uses."""
 
+    try:
+        bounded_timeout = validated_mcp_http_timeout(timeout_seconds)
+    except ValueError as exc:
+        detail = str(exc)
+        return _report(
+            mode="in_process",
+            backend=backend,
+            question=question,
+            experts=experts,
+            checks=(MCPConsultValidationCheck("timeout_configuration", "failed", detail),),
+            plan=plan,
+            error={"error_code": "INVALID_TIMEOUT", "message": detail},
+        )
+
     if backend == "plan" and not plan:
         config_error: dict[str, Any] = {
             "error_code": "INVALID_BACKEND",
@@ -521,11 +544,11 @@ async def run_in_process_consult_validation(
                 plan=plan,
                 plan_model=plan_model,
             ),
-            timeout=timeout_seconds,
+            timeout=bounded_timeout,
         )
     except TimeoutError:
         target = f" plan={plan}" if plan else ""
-        detail = f"live {backend} consult{target} timed out after {timeout_seconds:.1f}s"
+        detail = f"live {backend} consult{target} timed out after {bounded_timeout:.1f}s"
         call_error = {"error_code": "CONSULT_VALIDATION_FAILED", "message": detail}
         call_checks = (MCPConsultValidationCheck("live_consult_call", "failed", detail),)
         return _report(
@@ -645,54 +668,6 @@ async def run_in_process_plan_consult_fleet_validation(
     }
 
 
-def _tool_arguments(
-    *,
-    question: str,
-    experts: tuple[str, ...],
-    backend: ValidationBackend,
-    local_model: str | None,
-    plan: str | None,
-    plan_model: str | None,
-) -> dict[str, Any]:
-    args: dict[str, Any] = {
-        "_approved": True,
-        "question": question,
-        "max_experts": max(len(experts), 1),
-        "synthesis_backend": backend,
-        "budget": 0,
-    }
-    if experts:
-        args["experts"] = list(experts)
-    if local_model:
-        args["local_model"] = local_model
-    if plan:
-        args["plan"] = plan
-    if plan_model:
-        args["plan_model"] = plan_model
-    return args
-
-
-def _parse_tool_result(result: Any) -> dict[str, Any]:
-    if not isinstance(result, dict):
-        return {"error_code": "INVALID_MCP_RESULT", "message": "tools/call result was not an object"}
-    structured = result.get("structuredContent")
-    if isinstance(structured, dict):
-        return structured
-    content = result.get("content")
-    if not isinstance(content, list) or not content:
-        return {"error_code": "INVALID_MCP_RESULT", "message": "tools/call returned no content"}
-    first = content[0]
-    if not isinstance(first, dict) or not isinstance(first.get("text"), str):
-        return {"error_code": "INVALID_MCP_RESULT", "message": "tools/call content did not include text JSON"}
-    try:
-        payload = json.loads(first["text"])
-    except json.JSONDecodeError as exc:
-        return {"error_code": "INVALID_MCP_RESULT", "message": f"tools/call text was not JSON: {exc}"}
-    if not isinstance(payload, dict):
-        return {"error_code": "INVALID_MCP_RESULT", "message": "tools/call JSON payload was not an object"}
-    return payload
-
-
 async def run_http_consult_validation(
     url: str,
     *,
@@ -705,7 +680,23 @@ async def run_http_consult_validation(
     plan_model: str | None = None,
     timeout_seconds: float = 60.0,
 ) -> MCPConsultValidationReport:
-    """Call a remote HTTP MCP endpoint and validate its consult artifact."""
+    """Fail closed before remote MCP work until cost authority is attestable."""
+
+    try:
+        endpoint = validated_remote_mcp_url(url)
+        validated_mcp_http_timeout(timeout_seconds)
+    except ValueError as exc:
+        detail = str(exc)
+        return _report(
+            mode="http",
+            backend=backend,
+            question=question,
+            experts=experts,
+            checks=(MCPConsultValidationCheck("http_preflight", "failed", detail),),
+            endpoint=None,
+            plan=plan,
+            error={"error_code": "INVALID_HTTP_PREFLIGHT", "message": detail},
+        )
 
     if backend == "plan" and not plan:
         config_error: dict[str, Any] = {
@@ -719,112 +710,18 @@ async def run_http_consult_validation(
             question=question,
             experts=experts,
             checks=config_checks,
-            endpoint=url.rstrip("/"),
+            endpoint=endpoint,
             plan=plan,
             error=config_error,
         )
 
-    endpoint = url.rstrip("/")
-    client = HttpClient(endpoint, timeout=timeout_seconds, auth_token=auth_token)
-    check_results: list[MCPConsultValidationCheck] = []
-    payload: dict[str, Any] | None = None
-    error: dict[str, Any] | None = None
-    try:
-        await client.connect()
-        init = await client.send(HttpMessage(id="consult-validation-init", method="initialize", params={}))
-        if init is None:
-            detail = "initialize returned no response"
-            check_results.append(MCPConsultValidationCheck("mcp_initialize", "failed", detail))
-            error = {"error_code": "MCP_INITIALIZE_FAILED", "message": detail}
-            return _report(
-                mode="http",
-                backend=backend,
-                question=question,
-                experts=experts,
-                endpoint=endpoint,
-                plan=plan,
-                checks=tuple(check_results),
-                error=error,
-            )
-        if init.error:
-            detail = str(init.error.get("message", "initialize failed"))
-            check_results.append(MCPConsultValidationCheck("mcp_initialize", "failed", detail))
-            error = {"error_code": "MCP_INITIALIZE_FAILED", "message": detail}
-            return _report(
-                mode="http",
-                backend=backend,
-                question=question,
-                experts=experts,
-                endpoint=endpoint,
-                plan=plan,
-                checks=tuple(check_results),
-                error=error,
-            )
-        check_results.append(MCPConsultValidationCheck("mcp_initialize", "passed", "endpoint accepted initialize"))
-        response = await client.send(
-            HttpMessage(
-                id="consult-validation-call",
-                method="tools/call",
-                params={
-                    "name": "deepr_consult_experts",
-                    "arguments": _tool_arguments(
-                        question=question,
-                        experts=experts,
-                        backend=backend,
-                        local_model=local_model,
-                        plan=plan,
-                        plan_model=plan_model,
-                    ),
-                },
-            )
-        )
-        if response is None:
-            detail = "tools/call returned no response"
-            check_results.append(MCPConsultValidationCheck("mcp_tools_call", "failed", detail))
-            error = {"error_code": "MCP_TOOLS_CALL_FAILED", "message": detail}
-            return _report(
-                mode="http",
-                backend=backend,
-                question=question,
-                experts=experts,
-                endpoint=endpoint,
-                plan=plan,
-                checks=tuple(check_results),
-                error=error,
-            )
-        if response.error:
-            detail = str(response.error.get("message", "tools/call failed"))
-            check_results.append(MCPConsultValidationCheck("mcp_tools_call", "failed", detail))
-            error = {"error_code": "MCP_TOOLS_CALL_FAILED", "message": detail}
-            return _report(
-                mode="http",
-                backend=backend,
-                question=question,
-                experts=experts,
-                endpoint=endpoint,
-                plan=plan,
-                checks=tuple(check_results),
-                error=error,
-            )
-        payload = _parse_tool_result(response.result)
-        check_results.append(
-            MCPConsultValidationCheck("mcp_tools_call", "passed", "deepr_consult_experts returned a JSON object")
-        )
-        check_results.extend(
-            validate_consult_payload(
-                payload,
-                expected_backend=backend,
-                forbidden_values=(auth_token,) if auth_token else (),
-            )
-        )
-        if "error_code" in payload:
-            error = payload
-    except (TimeoutError, OSError, RuntimeError, ValueError) as exc:
-        error = {"error_code": "MCP_CONSULT_VALIDATION_FAILED", "message": str(exc)}
-        check_results.append(MCPConsultValidationCheck("mcp_consult_validation", "failed", str(exc)))
-    finally:
-        await client.disconnect()
-
+    del auth_token, local_model, plan_model
+    detail = (
+        "Remote MCP consult validation is blocked until Deepr can verify an independently "
+        "enforced cost authority before tools/call. A bearer token, requested local or plan "
+        "backend, zero budget, and returned cost fields are self-reported and do not prove "
+        "that the endpoint avoided metered side effects. Use offline or in-process validation."
+    )
     return _report(
         mode="http",
         backend=backend,
@@ -832,7 +729,6 @@ async def run_http_consult_validation(
         experts=experts,
         endpoint=endpoint,
         plan=plan,
-        checks=tuple(check_results),
-        payload=payload,
-        error=error,
+        checks=(MCPConsultValidationCheck("http_tool_cost_authority", "failed", detail),),
+        error={"error_code": "MCP_HTTP_CONSULT_VALIDATION_BLOCKED", "message": detail},
     )

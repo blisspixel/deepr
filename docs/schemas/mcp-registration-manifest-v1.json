@@ -71,15 +71,17 @@
     "registration": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["smoke_command", "free_smoke_tool"],
+      "required": [
+        "offline_validation_command",
+        "remote_smoke_status",
+        "smoke_command",
+        "free_smoke_tool"
+      ],
       "properties": {
-        "smoke_command": {
-          "type": "string",
-          "minLength": 1
-        },
-        "free_smoke_tool": {
-          "const": "deepr_tool_search"
-        }
+        "offline_validation_command": {"const": "deepr mcp validate-consult --json"},
+        "remote_smoke_status": {"const": "blocked_pending_cost_authority"},
+        "smoke_command": {"type": "null"},
+        "free_smoke_tool": {"type": "null"}
       }
     },
     "operational_contract": {
@@ -89,7 +91,8 @@
         "scoped_keys_required",
         "remote_audit_schema",
         "paid_tools_require_provider_keys",
-        "provider_keys_included"
+        "provider_keys_included",
+        "remote_tool_calls_blocked_without_cost_authority"
       ],
       "properties": {
         "scoped_keys_required": {
@@ -103,13 +106,16 @@
         },
         "provider_keys_included": {
           "const": false
+        },
+        "remote_tool_calls_blocked_without_cost_authority": {
+          "const": true
         }
       }
     },
     "smoke": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["url", "ok", "steps"],
+      "required": ["url", "ok", "contract", "steps"],
       "properties": {
         "url": {
           "type": "string",
@@ -117,6 +123,22 @@
         },
         "ok": {
           "type": "boolean"
+        },
+        "contract": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "network_opened",
+            "remote_tool_call_attempted",
+            "remote_tool_cost_status",
+            "remote_tool_calls_metered_api"
+          ],
+          "properties": {
+            "network_opened": {"const": false},
+            "remote_tool_call_attempted": {"const": false},
+            "remote_tool_cost_status": {"const": "not_submitted"},
+            "remote_tool_calls_metered_api": {"type": "null"}
+          }
         },
         "steps": {
           "type": "array",

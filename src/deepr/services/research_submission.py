@@ -4,17 +4,20 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from copy import deepcopy
 from dataclasses import replace
 from typing import Any, NoReturn, TypeVar
 
 from deepr.experts.research_cost_gate import (
     ResearchCostReservation,
+    bind_research_request_digest,
     mark_research_provider_work,
     refund_research_cost,
     settle_research_cost,
 )
 from deepr.experts.research_reservation_store import ResearchReservationStore
-from deepr.providers.base import ResearchRequest
+from deepr.providers.base import DeepResearchProvider, ResearchRequest
+from deepr.providers.dispatch_authority import authorized_paid_dispatch, canonical_provider_key
 from deepr.queue.base import JobStatus, ResearchJob
 from deepr.services.research_bounds import (
     ResearchRequestBoundsError,
@@ -70,15 +73,15 @@ def _attach_accounting_failure(
 async def _cost_call(
     function: Any,
     reservation: ResearchCostReservation,
-    *,
+    *arguments: Any,
     stage: str,
-) -> None:
+) -> Any:
     task = asyncio.create_task(
-        asyncio.to_thread(function, reservation),
+        asyncio.to_thread(function, reservation, *arguments),
         name=f"research-{stage}-{reservation.job_id}",
     )
     try:
-        await asyncio.shield(task)
+        return await asyncio.shield(task)
     except asyncio.CancelledError as cancellation:
         try:
             await _finish_task(task, cancellation)
@@ -229,9 +232,32 @@ def _validate_reservation_envelope(
         )
 
 
-async def _mark_provider_dispatch(reservation: ResearchCostReservation) -> None:
+def _validate_provider_identity(provider: Any, reservation: ResearchCostReservation) -> None:
+    if not isinstance(provider, DeepResearchProvider):
+        raise ResearchRequestBoundsError(
+            "Research provider must inherit the sealed Deepr paid-dispatch boundary",
+            code="research_provider_adapter_untrusted",
+        )
+    expected = canonical_provider_key(reservation.provider)
+    observed = canonical_provider_key(provider.provider_key)
+    if observed != expected:
+        raise ResearchRequestBoundsError(
+            f"Research reservation provider {expected!r} does not match adapter {observed!r}",
+            code="research_reservation_provider_mismatch",
+        )
+
+
+async def _mark_provider_dispatch(
+    reservation: ResearchCostReservation,
+    request: ResearchRequest,
+) -> object:
     try:
-        await _cost_call(mark_research_provider_work, reservation, stage="provider dispatch mark")
+        return await _cost_call(
+            mark_research_provider_work,
+            reservation,
+            request,
+            stage="provider dispatch mark",
+        )
     except asyncio.CancelledError as cancellation:
         cleaned = await _cost_call_during_cancellation(
             refund_research_cost,
@@ -279,12 +305,16 @@ async def _cancel_queued_predispatch(
     cancellation.__dict__["research_dispatch_predispatch_reservation_cleaned"] = cleaned
 
 
-def _reservation_identity(reservation: ResearchCostReservation) -> tuple[str, str, str, float]:
+def _reservation_identity(
+    reservation: ResearchCostReservation,
+) -> tuple[str, str, str, float, str, str | None]:
     return (
         reservation.reservation_id,
         reservation.job_id,
         reservation.model,
         reservation.estimated_cost,
+        reservation.dispatch_binding_id,
+        reservation.request_envelope_sha256,
     )
 
 
@@ -382,20 +412,29 @@ async def submit_reserved_provider_research(
 ) -> str:
     """Cross one provider boundary under a durable mark and full ceiling."""
     try:
-        _validate_reservation_envelope(request, reservation)
+        frozen_request = deepcopy(request)
+        _validate_provider_identity(provider, reservation)
+        _validate_reservation_envelope(frozen_request, reservation)
     except BaseException:
         await _refund_predispatch(reservation)
         raise
-    await _mark_provider_dispatch(reservation)
+    dispatch_grant = await _mark_provider_dispatch(reservation, frozen_request)
     try:
-        provider_job_id = str(await provider.submit_research(request))
+        dispatch_scope = authorized_paid_dispatch(
+            grant=dispatch_grant,
+            provider_instance=provider,
+            provider_key=provider.provider_key,
+            request=frozen_request,
+        )
+        with dispatch_scope:
+            provider_job_id = str(await provider.submit_research(frozen_request))
         if not provider_job_id:
             raise RuntimeError("provider returned an empty research job ID")
         return provider_job_id
     except BaseException as error:
         await _settle_after_provider_error(
             reservation,
-            request_id=request.idempotency_key,
+            request_id=frozen_request.idempotency_key,
             source=f"{source}.provider_failure",
             reason=("provider_call_cancelled" if isinstance(error, asyncio.CancelledError) else "provider_call_failed"),
             operation_error=error,
@@ -475,6 +514,8 @@ async def _prepare_queued_dispatch(
     stable_request = _stable_request(request, job.id)
     try:
         _validate_reservation_envelope(stable_request, reservation)
+        request_sha256 = bind_research_request_digest(reservation, stable_request)
+        job.metadata["cost_reservation_request_envelope_sha256"] = request_sha256
         job.metadata.update(request_bound_metadata(stable_request))
     except BaseException:
         await _refund_predispatch(reservation)

@@ -50,7 +50,7 @@ def test_fill_gaps_requires_metered_confirmation_before_store_or_provider(client
             "allow_metered_api": True,
             "confirm_metered_cost": True,
         },
-        "safe_alternative": 'deepr expert route-gaps "Budget Expert" --execute --scheduled',
+        "safe_alternative": "deepr expert route-gaps EXPERT --execute --scheduled",
     }
 
 
@@ -93,3 +93,12 @@ def test_other_metered_expert_web_mutations_fail_closed(client, path, method):
     payload = response.get_json()
     assert payload["error_code"] == "metered_expert_mutation_accounting_unavailable"
     assert payload["provider_work_started"] is False
+
+
+def test_discover_gaps_public_block_does_not_reflect_route_input(client):
+    response = client.post("/api/experts/%3Cscript%3Ealert(1)%3Cscript%3E/discover-gaps")
+
+    assert response.status_code == 503
+    payload = response.get_json()
+    assert payload["safe_alternative"] == "deepr expert next EXPERT"
+    assert "script" not in str(payload).lower()

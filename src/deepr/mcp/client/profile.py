@@ -9,6 +9,7 @@ Profiles can be defined in config or constructed programmatically.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from math import isfinite
 from typing import Any
 
 
@@ -27,7 +28,7 @@ class MCPClientProfile:
             args=["-m", "my_tool_server"],
             env={"API_KEY": "${MY_TOOL_API_KEY}"},
             timeout=60.0,
-            max_retries=3,
+            max_retries=1,
             budget_limit=5.0,
         )
     """
@@ -47,14 +48,16 @@ class MCPClientProfile:
 
     # Connection settings
     timeout: float = 30.0  # Per-call timeout in seconds
-    max_retries: int = 3
+    max_retries: int = 1
     retry_delay: float = 1.0  # Base delay for exponential backoff
     connect_timeout: float = 10.0  # Timeout for initial connection
 
     # Budget / cost
-    budget_limit: float = 0.0  # Max spend through this server (0 = unlimited)
+    budget_limit: float = 0.0  # Max spend through this server; 0 permits only $0 calls
     cost_per_call: float = 0.0  # Estimated cost per tool call
-    free_tools: list[str] = field(default_factory=list)  # Curated tools proven $0 at the margin
+    # Descriptive zero-dollar candidates only. The release pool does not
+    # dispatch outbound MCP until executable provenance and accounting exist.
+    free_tools: list[str] = field(default_factory=list)
 
     # Health
     circuit_breaker_threshold: int = 5  # Failures before circuit opens
@@ -70,6 +73,14 @@ class MCPClientProfile:
     # Metadata
     tags: list[str] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if isinstance(self.budget_limit, bool) or not isinstance(self.budget_limit, (int, float)):
+            raise ValueError("budget_limit must be a finite non-negative number")
+        budget_limit = float(self.budget_limit)
+        if not isfinite(budget_limit) or budget_limit < 0:
+            raise ValueError("budget_limit must be a finite non-negative number")
+        self.budget_limit = min(budget_limit, 5.0)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -108,7 +119,7 @@ class MCPClientProfile:
             transport=data.get("transport", "stdio"),
             enabled=data.get("enabled", True),
             timeout=float(data.get("timeout", 30.0)),
-            max_retries=int(data.get("max_retries", 3)),
+            max_retries=int(data.get("max_retries", 1)),
             retry_delay=float(data.get("retry_delay", 1.0)),
             connect_timeout=float(data.get("connect_timeout", 10.0)),
             budget_limit=float(data.get("budget_limit", 0.0)),

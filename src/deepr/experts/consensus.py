@@ -19,6 +19,8 @@ import time
 from dataclasses import dataclass
 
 from deepr.core.contracts import ConsensusResult, DecisionRecord, DecisionType
+from deepr.providers.dispatch_authority import default_paid_endpoint, require_official_paid_client
+from deepr.services.research_bounds import require_metered_interface_accounting
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +107,9 @@ class ConsensusEngine:
             ConsensusResult with calibrated confidence
         """
         providers = self._select_providers(budget)
+
+        if providers:
+            require_metered_interface_accounting("multi-provider consensus research")
 
         if len(providers) < 2:
             # Fall back to single provider
@@ -212,6 +217,7 @@ class ConsensusEngine:
         Returns:
             ProviderResponse with answer and metadata
         """
+        require_metered_interface_accounting("multi-provider consensus research")
         start = time.monotonic()
         answer = ""
         citations: list[str] = []
@@ -244,6 +250,7 @@ class ConsensusEngine:
 
     async def _query_xai(self, model: str, query: str) -> tuple[str, list[str], float]:
         """Query xAI (Grok) with web search."""
+        require_metered_interface_accounting("xAI consensus query")
         import xai_sdk
 
         client = xai_sdk.Client()
@@ -270,9 +277,11 @@ class ConsensusEngine:
 
     async def _query_openai(self, model: str, query: str) -> tuple[str, list[str], float]:
         """Query OpenAI with web search preview."""
+        require_metered_interface_accounting("OpenAI consensus query")
         from openai import AsyncOpenAI
 
-        client = AsyncOpenAI()
+        client = AsyncOpenAI(base_url=default_paid_endpoint("openai"))
+        require_official_paid_client(client, "openai")
         response = await client.chat.completions.create(
             model=model,
             messages=[
@@ -297,9 +306,20 @@ class ConsensusEngine:
 
     async def _query_gemini(self, model: str, query: str) -> tuple[str, list[str], float]:
         """Query Google Gemini with search grounding."""
+        require_metered_interface_accounting("Gemini consensus query")
         from google import genai
 
-        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+        client = genai.Client(
+            vertexai=False,
+            api_key=os.environ.get("GEMINI_API_KEY"),
+            http_options={
+                "base_url": default_paid_endpoint("gemini"),
+                "retry_options": {"attempts": 1},
+                "client_args": {"trust_env": False, "follow_redirects": False},
+                "async_client_args": {"trust_env": False, "follow_redirects": False},
+            },
+        )
+        require_official_paid_client(client, "gemini")
         response = await asyncio.to_thread(
             lambda: client.models.generate_content(
                 model=model,
@@ -333,15 +353,20 @@ class ConsensusEngine:
                     * multiplier,
                     6,
                 )
-            except Exception:
-                pass  # pricing lookup failure falls back to flat $0.05 placeholder (non-fatal)
+            except Exception as exc:
+                logger.debug(
+                    "Gemini token-pricing lookup failed; using the conservative $0.05 fallback: %s",
+                    exc,
+                )
         return answer, citations, cost
 
     async def _query_anthropic(self, model: str, query: str) -> tuple[str, list[str], float]:
         """Query Anthropic Claude with web search."""
+        require_metered_interface_accounting("Anthropic consensus query")
         import anthropic
 
-        client = anthropic.AsyncAnthropic()
+        client = anthropic.AsyncAnthropic(base_url=default_paid_endpoint("anthropic"))
+        require_official_paid_client(client, "anthropic")
         response = await client.messages.create(
             model=model,
             max_tokens=4096,
@@ -377,6 +402,8 @@ class ConsensusEngine:
         if len(responses) < 2:
             return 0.5
 
+        require_metered_interface_accounting("consensus agreement judge")
+
         # Build comparison prompt
         answers_text = ""
         for i, resp in enumerate(responses, 1):
@@ -392,7 +419,8 @@ class ConsensusEngine:
         try:
             from openai import AsyncOpenAI
 
-            client = AsyncOpenAI()
+            client = AsyncOpenAI(base_url=default_paid_endpoint("openai"))
+            require_official_paid_client(client, "openai")
             response = await client.chat.completions.create(
                 model="gpt-5.2",
                 messages=[

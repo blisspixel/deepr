@@ -10,6 +10,7 @@ Automatically refines user research queries to follow best practices:
 
 import os
 from datetime import datetime
+from typing import Any, cast
 
 from openai import OpenAI
 
@@ -42,10 +43,16 @@ class PromptRefiner:
     def _get_client(self) -> OpenAI:
         """Construct the provider client only inside the reserved call."""
         if self._client is None:
-            self._client = OpenAI(api_key=self._api_key, max_retries=0)
+            from deepr.providers.dispatch_authority import default_paid_endpoint
+
+            self._client = OpenAI(
+                api_key=self._api_key,
+                base_url=default_paid_endpoint("openai"),
+                max_retries=0,
+            )
         return self._client
 
-    def refine(self, prompt: str, has_files: bool = False) -> dict:
+    def refine(self, prompt: str, has_files: bool = False) -> dict[str, Any]:
         """
         Refine a research prompt to follow best practices.
 
@@ -105,21 +112,20 @@ Key considerations:
         from deepr.services.metered_envelope import bounded_chat_envelope
 
         envelope = bounded_chat_envelope(
+            provider="openai",
             model=self.model,
             prompt_parts=(system_prompt, user_prompt),
             budget_usd=_MAX_REFINEMENT_COST_USD,
             maximum_output_tokens=_MAX_COMPLETION_TOKENS,
             minimum_output_tokens=128,
         )
+        from deepr.providers.dispatch_authority import require_official_paid_client
         from deepr.services.metered_call import execute_reserved_sync_call
 
-        response = execute_reserved_sync_call(
-            operation_prefix="prompt-refinement",
-            provider="openai",
-            model=self.model,
-            source="services.prompt_refiner",
-            max_cost_per_job=envelope.cost_usd,
-            call=lambda: self._get_client().chat.completions.create(
+        def dispatch() -> Any:
+            client = self._get_client()
+            require_official_paid_client(client, "openai")
+            return client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -128,12 +134,29 @@ Key considerations:
                 response_format={"type": "json_object"},
                 max_completion_tokens=envelope.output_tokens,
                 # GPT-5 models only support temperature=1 (default).
-            ),
+            )
+
+        response = execute_reserved_sync_call(
+            operation_prefix="prompt-refinement",
+            provider="openai",
+            model=self.model,
+            source="services.prompt_refiner",
+            max_cost_per_job=envelope.cost_usd,
+            request_envelope={
+                "model": self.model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                "response_format": {"type": "json_object"},
+                "max_completion_tokens": envelope.output_tokens,
+            },
+            call=dispatch,
         )
 
         import json
 
-        result = json.loads(response.choices[0].message.content or "{}")
+        result = cast(dict[str, Any], json.loads(response.choices[0].message.content or "{}"))
         result["original_prompt"] = prompt
 
         return result

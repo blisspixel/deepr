@@ -48,7 +48,7 @@ for the bounded browser and transport contract.
 
 **Overview** - Landing page with active jobs, recent activity feed, spending summary, and system health status.
 
-**Research Studio** - Submit one bounded OpenAI background research request with an o3/o4-mini model picker, priority, and web search toggle. Compatibility choices for check, learn, team, and docs remain visible but fail closed before provider work in v2.36 because their legacy or multi-call transactions are incomplete. The form checks OpenAI readiness and pauses submission when provider configuration or cost estimation is unavailable. Prompt and scalar configuration drafts are validated and restored from session-scoped browser storage, with visible saved, restored, invalid, and unavailable states plus explicit clearing. A saved draft is preserved until the user explicitly accepts a different URL-prefilled prompt. Uploaded file names and contents are never persisted. The Context Files selector retains local validation, but provider file submission is gated in v2.36 before provider work until storage lifecycle costs share the research reservation. Ctrl+Enter / Cmd+Enter submits only after the same readiness and budget checks as the button. Request-specific cost estimation appears as you type. Use CLI workflows for Gemini, xAI, local, and plan-quota capacity. Supports pre-filled prompts via URL query parameter.
+**Research Studio** - Configure one bounded OpenAI background research request with an o3/o4-mini model picker, priority, and web search toggle, and inspect its write-free estimate. Production metered submission is blocked in v2.40 pending authenticated provider account controls and current credential identity. Compatibility choices for check, learn, team, and docs remain visible but fail closed before provider work because their legacy or multi-call transactions are incomplete. The form checks OpenAI readiness and pauses submission when provider configuration or cost estimation is unavailable. Prompt and scalar configuration drafts are validated and restored from session-scoped browser storage, with visible saved, restored, invalid, and unavailable states plus explicit clearing. A saved draft is preserved until the user explicitly accepts a different URL-prefilled prompt. Uploaded file names and contents are never persisted. The Context Files selector retains local validation, but provider file submission is gated before provider work until storage lifecycle costs share the research reservation. Ctrl+Enter / Cmd+Enter follows the same readiness and budget checks as the button but cannot bypass the production freeze. Request-specific cost estimation appears as you type. Use CLI workflows for local and safety-eligible plan-quota capacity. Supports pre-filled prompts via URL query parameter.
 
 **Research Live** - Real-time progress tracking for running jobs via Socket.IO. The browser starts with reliable HTTP polling and upgrades to WebSocket when supported. A background server poller checks the provider API every 15 seconds. Completed jobs show enriched summary with cost, tokens, model, completion date, and content preview.
 
@@ -98,8 +98,8 @@ Deepr uses intent-based commands that express what you want to accomplish:
 # Preview one exact bounded request
 deepr research "Your research question" --provider openai --model o4-mini-deep-research --preview
 
-# Specify provider and model
-deepr research "Question" --provider openai --model o3-deep-research
+# Specify provider and model without dispatching
+deepr research "Question" --provider openai --model o3-deep-research --preview
 
 # Company site capture without provider handoff
 deepr research company "Company Name" "https://company.com" --scrape-only
@@ -181,9 +181,10 @@ deepr search clear
 
 ### Use Prior Research as Context
 
-When submitting new research, Deepr automatically detects related prior research
-through the local keyword index. Pre-confirmation discovery never creates a
-metered embedding request:
+The legacy submission flow can detect related prior research through the local
+keyword index before it reaches the production metered-dispatch block.
+Pre-confirmation discovery never creates a metered embedding request, and none
+of these compatibility examples makes a provider request:
 
 ```bash
 # Automatic detection (shown before confirmation)
@@ -196,7 +197,7 @@ deepr research submit "k8s" --no-context-discovery
 # Explicitly include prior research as context
 deepr research submit "update k8s findings" --context abc123
 
-# Use with -y to skip confirmation
+# Skip confirmation after local discovery. Provider dispatch still exits blocked.
 deepr research submit "follow-up research" --context abc123 -y
 ```
 
@@ -206,7 +207,8 @@ deepr research submit "follow-up research" --context abc123 -y
 
 ### Single Research Jobs
 
-Submit individual deep research queries using the `run` command group:
+The legacy `run` command group remains visible for compatibility, but its
+metered modes exit before provider construction in v2.40:
 
 ```bash
 # Focus mode (quick research)
@@ -437,7 +439,7 @@ deepr expert consult "What should we verify next?" --expert "Azure Architect" --
 deepr expert consult "Which assumption is weakest?" --expert "Azure Architect" --plan claude
 ```
 
-Standalone metered expert chat is gated in v2.36. Local and safety-eligible
+Standalone metered expert chat is hard-gated in v2.40. Local and safety-eligible
 explicit plan MCP query and bounded consult surfaces remain available. Claude
 Code is the current executable plan example; see `deepr capacity` for typed
 adapter decisions.
@@ -536,10 +538,12 @@ synthesis over those packets. Council members do not generate independent
 turns or see one another's output. The CLI form emits a versioned
 `deepr-consult-v1` artifact with `--json`, or saves the full artifact only when
 `--output` is explicit.
-Explicitly approved API council synthesis uses its separate bounded cost
-contract. The requested ceiling is reserved upfront; only final synthesis is
-metered and it receives a 10 percent sub-ceiling. `--local` and `--plan <id>` use owned or explicit plan-quota synthesis
-and disable live metered expert fallback when stored belief context is missing.
+API council synthesis retains its separate bounded cost contract for
+compatibility, including the transaction ceiling and 10 percent synthesis
+sub-ceiling, but production dispatch is blocked before provider construction in
+v2.40. Consent and a positive budget do not lift that quarantine. `--local` and
+`--plan <id>` use owned or explicit plan-quota synthesis and disable live
+metered expert fallback when stored belief context is missing.
 The MCP result also exposes `structuredContent` for JSON-object clients while
 retaining text JSON for older clients.
 Each run appends a local `deepr-consult-trace-v1` record with input, selected
@@ -608,23 +612,20 @@ deepr expert review-consult-quality "Azure Architect" consult_abc123 \
   --target eval \
   --apply
 deepr expert judge-consult-quality "Azure Architect" consult_abc123 --local-judge-model qwen2.5 --json
-deepr expert judge-consult-quality "Azure Architect" consult_abc123 --plan claude --json
 ```
-The judge command stores only validated review fields plus judge metadata. Local
-judges cost `$0`; plan judges consume subscription quota and record `$0` Deepr
-cost metadata without metered fallback. The premium `--api-provider` judge
-implementation is gated in v2.36 pending the shared durable transaction.
-`deepr mcp validate-consult` validates the no-metered external-agent consult
-path before another machine asks real questions. With no URL it runs a `$0`
-offline fixture. With `--live` it exercises local or explicit plan capacity on
-the host. With a URL it calls the HTTP MCP endpoint and validates
-`deepr_consult_experts`, `deepr-consult-v1`, collaboration metadata, trace
-linkage, cost ceiling, no-metered fallback posture, dissent preservation, host
-action boundaries, and secret redaction.
+The judge command stores only validated review fields plus judge metadata. A
+local Ollama judge costs `$0`. Plan-quota, arbitrary CLI, and premium API judge
+requests are all blocked before process or provider construction because Deepr
+cannot independently prove their billing source, overage posture, or total
+cost.
+`deepr mcp validate-consult` validates the no-metered consult contract without
+remote dispatch. With no URL it runs a `$0` offline fixture. With `--live` it
+exercises local or explicit safety-eligible plan capacity in process. With a URL
+it returns `MCP_HTTP_CONSULT_VALIDATION_BLOCKED` before opening a connection,
+because an endpoint's own metadata cannot prove no-metered execution.
 ```bash
 deepr mcp validate-consult --json
 deepr mcp validate-consult --live --synthesis-backend local --expert "AI Agent Harnesses" --json
-deepr mcp validate-consult http://127.0.0.1:8765/mcp --auth-token "$DEEPR_MCP_KEY" --json
 ```
 When an expert profile exists, consult perspective context includes a bounded
 read-only `self_model` block with current goals, calibration, blockers, risks,
@@ -661,12 +662,17 @@ review-case shape. It does not judge answer meaning through keyword matching.
 /plan "Design a zero-trust architecture for healthcare"
 ```
 
-Generates a step-by-step plan, runs independent steps in parallel, shows live progress per step.
+The task-planning contract decomposes work into independent steps and exposes
+live progress. A metered interactive session remains blocked by the v2.40 chat
+quarantine; the command does not override capacity policy.
 
 **Approval Flows** protect against expensive operations:
 - Free operations (KB search, standard research) auto-approve
 - Moderate operations show a notification with cost
 - Expensive operations (deep research above threshold, council above $3) block until the user approves or denies
+
+These are compatibility policy tiers, not spend authority. The v2.40 production
+metered-dispatch quarantine wins even after approval.
 
 ### Update Expert Knowledge
 
@@ -715,10 +721,10 @@ deepr expert health-check "Azure Architect" --json
 # Route open gaps to the best instrument (recon/distillr/primr/research), $0
 deepr expert route-gaps "Azure Architect" --top 10
 
-# ...and EXECUTE the highest-value research-route fills, budget-bounded
-# (specialist instruments are deferred with their command, never auto-run)
+# Preview or execute through an explicit safety-eligible plan with no paid fallback.
+# Specialist instruments are deferred with their command and never auto-run.
 deepr expert route-gaps "Azure Architect" --execute --dry-run     # preview, $0
-deepr expert route-gaps "Azure Architect" --execute --budget 1 -y
+deepr expert route-gaps "Azure Architect" --execute --plan claude --budget 0 -y
 
 # Stay current: subscribe to topics, sync pulls only what changed (delta
 # prompts, verified absorb; idempotent per cadence window - cron-able)
@@ -732,7 +738,7 @@ deepr expert loop-status "Azure Architect"
 deepr expert loop-status "Azure Architect" --json
 
 # Run follow-ups only when scheduled owned or prepaid capacity is ready.
-deepr expert reflect "Azure Architect" <job_id> --execute-followups --scheduled --budget 1 -y
+deepr expert reflect "Azure Architect" <job_id> --execute-followups --scheduled --budget 0 -y
 ```
 
 ### Fleet Maintenance (whole roster)
@@ -784,38 +790,25 @@ deepr fleet install-schedule --command "deepr expert sync-all --scheduled -y"
 deepr fleet install-schedule --platform systemd --output ./schedule
 ```
 
-For off-box liveness, set `DEEPR_HEARTBEAT_URL` to the full secret ping URL of a
-public HTTPS service that implements the Healthchecks-compatible terminal
-success and `/fail` path contract. Put it in the scheduled account's per-user
-Deepr `.env`, not in the recipe or command. Then use this sequence:
+For off-box liveness, `DEEPR_HEARTBEAT_URL` remains configuration-visible so an
+operator can validate the intended Healthchecks-compatible terminal success and
+`/fail` shape. Put the secret value in the scheduled account's per-user Deepr
+`.env`, not in a recipe or command. Only local validation is enabled:
 
 ```bash
 # Local form validation only: no request, research, spend, or expert-state write.
 deepr expert sync-all --scheduled --dry-run --json
 
-# After the host recipe is registered, inspect the first real terminal delivery.
+# A real scheduled pass reports delivery blocked without sending.
 deepr expert sync-all --scheduled -y --json
 ```
 
-Local validation is not a remote test. A real pass reports `delivered` only
-after a 2xx response. Machine evidence preserves the existing configured,
-attempted, delivered, and reported-status fields and adds local validity, a
-stable disposition, safe failure kind, attempt count and timestamp, duration,
-and bounded HTTP status. Human logs state missing, locally valid, delivered,
-blocked, and failed conditions without printing the URL. Redirects are refused,
-DNS is resolved to public addresses and the connection is pinned to one
-authorized address with environment proxies disabled, and response content is
-not consumed. Delivery is one terminal best-effort GET,
-never a start signal or silent retry, and never changes maintenance status.
-
-Set the remote period to the installed recipe cadence. Set its grace above the
-host's possible wake delay, the recipe jitter, and the longest expected run;
-otherwise a healthy long pass can look late before its terminal ping. This
-off-box absence signal catches a machine that never wakes, which a same-host
-monitor cannot. The exact endpoint semantics follow the
-[Healthchecks Pinging API](https://healthchecks.io/docs/http_api/); services that
-encode failures differently require a separate adapter and are not claimed as
-active-failure compatible.
+Configuration visibility is not delivery authority. A real pass makes no DNS or
+HTTP request and reports `blocked_unmetered_external_service` with failure kind
+`unmetered_external_service`, because Deepr cannot prove the endpoint's marginal
+cost or billing posture. `attempted` and `delivered` remain false. Remote
+delivery stays disabled until it has a finite cost envelope and canonical
+accounting rather than relying on a service's marketing tier.
 
 ### Temporal Perspective Queries
 
@@ -920,13 +913,17 @@ deepr skill info code-analysis
 # Scaffold a new custom skill
 deepr skill create my-custom-skill
 
-# Run a skill tool directly
+# Validate a legacy invocation. It exits blocked before loading the tool.
 deepr expert run-skill "Dev Lead" code-analysis complexity_report --args '{"code": "def foo(): pass"}'
 ```
 
 **Built-in skills:** `web-search-enhanced` (data extraction), `code-analysis` (dependencies + complexity), `financial-data` (ratio calculations), `data-visualization` (tables + charts), `recon` (infrastructure/email security), `distillr` (source ingestion), and `primr` (company strategy).
 
-Skills auto-activate when user queries match keyword or regex triggers. Full skill documentation loads only when activated (progressive disclosure).
+Skill inventory, metadata, installation, and scaffolding remain available.
+Python and MCP skill execution is quarantined before module import, process
+creation, or network dispatch, regardless of declared cost or legacy allow
+flags. `run-skill` validates the request and exits nonzero with
+`SKILL_TOOL_EXECUTION_DISABLED`.
 
 ### Export/Import Experts
 
@@ -1012,7 +1009,7 @@ deepr eval local --max-models 2 --max-prompts 2 --save
 # Local-only context comparison at $0: no context vs fresh vs deep
 deepr eval local-context --model qwen2.5:14b --judge-model qwen2.5:14b --save
 
-# Optional CLI judge: candidates stay local, judge runs through the approved CLI
+# Legacy CLI judge options are retained, but both commands exit blocked.
 deepr eval local --model qwen2.5:14b --judge-cli grok --allow-cli-judge
 deepr eval local --model qwen2.5:14b \
   --judge-command "grok --prompt-file {prompt_file} --output-format plain --disable-web-search --max-turns 1" \
@@ -1071,7 +1068,11 @@ deepr capacity admit qwen2.5:14b --from-eval data/benchmarks/local_compare_20260
 
 Automatic local routing now uses the admitted score as runtime quality evidence. A scoreless manual admission is still visible in `deepr capacity admissions`, but it does not take over `expert sync` or `expert absorb` automatically because it cannot clear the measured quality floor. Use `--local` when you want an explicit one-off override.
 
-CLI judges are supported for plan or subscription tools when the operator explicitly approves them with `--allow-cli-judge`. The Grok preset expands to a headless prompt-file command; custom commands must include `{prompt_file}` and run with `shell=False`. Deepr still records metered cost `$0`, but the external CLI may consume its own quota or credits, so this path is never auto-selected.
+CLI judges are quarantined because Deepr cannot prove the external process's
+billing source, overage posture, or total cost. `--judge-cli`,
+`--judge-command`, and the legacy `--allow-cli-judge` flag remain parseable for
+compatibility, but every CLI judge request exits before process creation. Use a
+local Ollama judge.
 
 ### Evidence Evals
 
@@ -1135,15 +1136,15 @@ Capacity source status:
 | Source | Status | Notes |
 |---|---|---|
 | Local Ollama | Execution works for local expert setup, local sync, deep/fresh local context, local absorb, local eval, local context eval, and scored admission | `$0` marginal cost, quality-gated before automatic routing |
-| OpenAI, Gemini, Grok, Anthropic, Azure APIs | Write-free request preview and offline billing reconciliation work for supported finite envelopes | Production metered dispatch is blocked in v2.39 until authenticated account controls and current credential identity are proven; every supported spend source must use the canonical ledger |
+| OpenAI, Gemini, Grok, Anthropic, Azure APIs | Write-free request preview and offline billing reconciliation work for supported finite envelopes | Production metered dispatch is blocked in v2.40 until authenticated account controls and current credential identity are proven; every supported spend source must use the canonical ledger |
 | Codex, Claude Code, OpenCode, Antigravity, Grok Build, Kiro, and other plan CLIs | Claude Code execution works behind auth-mode, tool-confinement, live no-overage, and no-surprise-bills gates; the other adapters remain visible/read-only | Automatic plan routing also requires a trusted remaining-quota observation; metered-at-margin Copilot remains execution-blocked |
-| CLI judge for local eval | Explicit opt-in only | `--allow-cli-judge` is required because Deepr cannot prove the vendor CLI's billing source |
+| CLI judge for local eval | Quarantined compatibility surface | Even `--allow-cli-judge` exits before process creation because billing source, overage posture, and total cost cannot be proven |
 
 Local-model execution runs quality-tolerant steps at $0 against a local Ollama
 endpoint. Force it with `--local`, choose explicit plan-quota capacity with
 `--plan <id>`, or admit a local model so maintenance uses owned capacity.
 Metered API overrides for the gated expert lifecycle surfaces do not dispatch
-in v2.39:
+in v2.40:
 
 ```bash
 deepr expert make "Platform Team Expert" --local -d "Platform engineering knowledge"
@@ -1157,7 +1158,6 @@ deepr expert sync "Platform Team Expert" --local --fresh-context --compile-claim
 deepr expert absorb "Platform Team Expert" report.md --local --dry-run
 deepr eval local --model qwen2.5:14b --judge-model qwen2.5:14b
 deepr eval local-context --model qwen2.5:14b --judge-model qwen2.5:14b --save
-deepr eval local --model qwen2.5:14b --judge-cli grok --allow-cli-judge
 deepr capacity admit --from-eval latest --task-class sync --yes
 deepr capacity admit llama3.1 --task-class absorb --days 60 --score 0.74
 deepr capacity admissions          # what's admitted (and when it expires)
@@ -1220,12 +1220,14 @@ inside Deepr; metered API and metered-at-margin plan paths require budget and
 cost-ledger gates.
 Deepr builds a bounded source pack first, then prepends it to the prompt and
 asks the model to cite source labels. The fresh/deep retrieval path is free-only
-inside Deepr: it can fetch explicit URLs, can use a configured self-hosted
-SearXNG endpoint (`DEEPR_SEARXNG_URL`), and otherwise can use DuckDuckGo when
-`ddgs` is installed. It does not use Brave, Tavily, or other API-key search
-providers. If no fresh sources are available, the model is told to say that
-current context is unavailable, and sync records no changes instead of absorbing
-that uncertainty as permanent beliefs.
+inside Deepr: it can fetch explicit URLs and can use DuckDuckGo when `ddgs` is
+installed. A configured self-hosted SearXNG endpoint
+(`DEEPR_SEARXNG_URL`) is visible and configuration-readable, but dispatch is
+blocked because Deepr cannot prove that its upstream engines have zero marginal
+cost. Deepr does not use Brave, Tavily, or other API-key search providers. If no
+fresh sources are available, the model is told to say that current context is
+unavailable, and sync records no changes instead of absorbing that uncertainty
+as permanent beliefs.
 
 When a sync run uses fresh/deep context, Deepr writes a bounded JSON source pack
 under the expert knowledge directory at
@@ -1339,39 +1341,21 @@ with `--max-concurrency` or `DEEPR_MCP_HTTP_MAX_CONCURRENCY`.
 Use `deepr mcp keys create/list/revoke` to manage those local key records, and
 `deepr mcp audit list` / `deepr mcp audit summary` to review and aggregate the
 local append-only remote-call audit log with key, tool, outcome, limit, and JSON
-filters. Use `deepr mcp serve --http` to run the same MCP server over HTTP/SSE
-on loopback by default. Use `deepr mcp smoke-http URL` to run `$0` health,
-initialize, tools/list, and free tool-search checks against a local or
-TLS-proxied HTTP MCP endpoint. Use `deepr mcp registration-manifest URL` to
-write a token-redacted `deepr-mcp-registration-manifest-v1` packet with endpoint
-metadata and optional smoke results for remote host setup. A
-repeatable hosted container recipe lives in
-[../deploy/mcp-http/](../deploy/mcp-http/); it publishes only loopback by
-default, mounts one Deepr data directory at `/data`, and bootstraps scoped keys
-before the service starts. An Azure Container Apps template under
-[../deploy/mcp-http/azure-container-apps/](../deploy/mcp-http/azure-container-apps/)
-uses the same image with persistent `/data`, HTTPS-only ingress, scoped-key
-state, and remote-audit durability while leaving provider keys out until paid
-tools are intentionally enabled. Its `maxConcurrentRequests` parameter feeds
-both the app's in-process cap and the platform HTTP scale rule.
-An AWS ECS Fargate template under
-[../deploy/mcp-http/aws-ecs-fargate/](../deploy/mcp-http/aws-ecs-fargate/)
-uses the same image with EFS-backed `/data`, HTTPS ALB ingress, scoped-key
-state, and remote-audit durability while leaving provider keys out until paid
-tools are intentionally enabled. Its `MaxConcurrentRequests` parameter feeds
-both the app's in-process cap and `deepr mcp serve --max-concurrency`.
-A GCP Cloud Run template under
-[../deploy/mcp-http/gcp-cloud-run/](../deploy/mcp-http/gcp-cloud-run/) uses the
-same image with Cloud Storage FUSE-backed `/data`, optional public invoker
-binding, scoped-key state, and remote-audit durability while leaving provider
-keys out until paid tools are intentionally enabled. It defaults to one Cloud
-Run instance and one MCP POST at a time while key and audit files live on the
-object-backed mount.
-A Cloudflare Worker edge ingress recipe under
-[../deploy/mcp-http/cloudflare-worker/](../deploy/mcp-http/cloudflare-worker/)
-fronts an existing HTTPS MCP origin, proxies only `/mcp` paths, caps request
-bodies at 1 MiB, forwards scoped-key auth headers, and leaves scoped-key state,
-budgets, rate limits, audit logs, and provider keys on the origin side.
+filters. Use `deepr mcp serve --http` to run the inbound MCP server over
+HTTP/SSE on loopback by default. The loopback-published container recipe in
+[../deploy/mcp-http/](../deploy/mcp-http/) is also executable locally, mounts
+one Deepr data directory at `/data`, and bootstraps scoped keys before service
+startup. Deepr's outbound `smoke-http`, URL-based `validate-consult`, and both
+managed and URL-based `validate-conversation` modes are blocked before network,
+server, socket, or model-executor construction pending independent cost
+authority. `registration-manifest` is network-free and records that remote
+smoke is blocked.
+
+The Azure Container Apps, AWS ECS Fargate, GCP Cloud Run, and Cloudflare Worker
+files under `deploy/mcp-http/` are mechanically inert reference templates only.
+They are not supported deployment surfaces, are not exercised against a cloud
+account, and cannot claim Deepr's ledger or `$5` ceiling bounds their compute,
+storage, networking, logging, gateway, or egress charges.
 
 See [design/capacity-waterfall.md](design/capacity-waterfall.md) for the capacity model and [design/local-fresh-context.md](design/local-fresh-context.md) for the fresh-context loop.
 
@@ -1424,7 +1408,7 @@ deepr costs alerts
 
 # View effective authority or set the binding monthly budget
 deepr costs limits
-deepr costs limits --monthly 10
+deepr costs limits --monthly 5
 deepr budget history --limit 20
 ```
 
@@ -1445,11 +1429,11 @@ Set the binding operator budget, then optionally narrow individual windows in
 the Deepr runtime environment. The tightest value always wins:
 
 ```bash
-deepr budget set 10
-DEEPR_MAX_COST_PER_JOB=2.0
-DEEPR_MAX_COST_PER_DAY=5.0
-DEEPR_MAX_COST_PER_WEEK=10.0
-DEEPR_MAX_COST_PER_MONTH=10.0
+deepr budget set 5
+DEEPR_MAX_COST_PER_JOB=1.0
+DEEPR_MAX_COST_PER_DAY=2.0
+DEEPR_MAX_COST_PER_WEEK=3.0
+DEEPR_MAX_COST_PER_MONTH=5.0
 ```
 
 `deepr costs limits --daily` is intentionally refused because its historical
@@ -1630,7 +1614,7 @@ deepr --help       # Full help
 ### Semantic Commands (Primary Interface)
 
 ```bash
-deepr research     # Exact preview and one bounded supported research request
+deepr research     # Exact write-free preview; production metered dispatch is blocked
 deepr learn        # Metered multi-phase execution gated in v2.36
 deepr team         # Metered multi-perspective execution gated in v2.36
 deepr check        # Legacy metered completion gated in v2.36
@@ -1643,7 +1627,7 @@ deepr skill        # Expert skill management
 ### Supporting Commands
 
 ```bash
-deepr run          # Low-level compatibility modes; only shared bounded paths dispatch
+deepr run          # Low-level compatibility modes; production metered dispatch is blocked
 deepr jobs         # Job management (list, status, get, cancel)
 deepr vector       # Inspect and clean existing provider vector stores
 deepr prep         # Campaign preview/status; new metered execution is gated
@@ -1709,17 +1693,17 @@ deepr jobs list --status completed
 ### Batch Processing
 
 ```bash
-# Process multiple queries
+# Preview multiple queries without reservations or provider requests
 for query in "query1" "query2" "query3"; do
-  deepr research "$query" --provider openai --model o4-mini-deep-research --budget 2 --yes
+  deepr research "$query" --provider openai --model o4-mini-deep-research --budget 1 --preview
 done
 
 # Check results
 deepr jobs list
 ```
 
-Each loop iteration is an independent reservation. It is not an atomic batch
-budget; metered auto-batch execution remains gated.
+Preview iterations are write-free and create no reservation or provider
+request. Metered auto-batch execution remains gated.
 
 ### Knowledge Management
 

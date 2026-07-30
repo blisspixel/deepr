@@ -24,11 +24,23 @@ from deepr.experts.consult_quality import (
     review_consult_quality_candidate_with_local_judge,
     review_consult_quality_candidate_with_plan_judge,
 )
+
+
+@pytest.fixture(autouse=True)
+def _trust_injected_unit_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Bypass the production client-attestation freeze in downstream unit tests."""
+    monkeypatch.setattr(
+        "deepr.providers.dispatch_authority.require_official_paid_client",
+        lambda _client, _provider: "test-attested",
+    )
+
+
 from deepr.experts.consult_traces import build_consult_trace, build_consult_trace_candidates
 from deepr.experts.metacognition import MetaCognitionTracker
 from deepr.experts.profile import ExpertProfile
 from deepr.experts.research_cost_gate import ResearchCostBlocked
 from deepr.experts.research_reservation_store import ResearchReservationStore
+from deepr.experts.semantic_model_gate import _mark_zero_dollar_client
 from deepr.observability.cost_ledger import CostLedger
 from deepr.services.metered_call import MeteredCallAccountingError
 
@@ -153,8 +165,9 @@ class _FakeChoice:
 
 
 class _FakeResponse:
-    def __init__(self, content: str, *, usage=None, response_id: str = ""):
+    def __init__(self, content: str, *, model: str, usage=None, response_id: str = ""):
         self.choices = [_FakeChoice(content)]
+        self.model = model
         self.usage = usage
         self.id = response_id
 
@@ -180,6 +193,7 @@ class _FakeConsultQualityCompletions:
                     "notes": "The consult answer did not use stored expert context.",
                 }
             ),
+            model=self.expected_model,
             usage=self.usage,
             response_id=self.response_id,
         )
@@ -195,8 +209,17 @@ class _FakeConsultQualityChat:
 
 
 class _FakeConsultQualityClient:
-    def __init__(self, *, expected_model: str = "judge-local", usage=None, response_id: str = ""):
+    def __init__(
+        self,
+        *,
+        expected_model: str = "judge-local",
+        usage=None,
+        response_id: str = "",
+        capacity_source: str | None = None,
+    ):
         self.chat = _FakeConsultQualityChat(expected_model=expected_model, usage=usage, response_id=response_id)
+        if capacity_source is not None:
+            _mark_zero_dollar_client(self, capacity_source=capacity_source)
 
 
 def test_build_consult_quality_review_records_reviewer_scores():
@@ -362,7 +385,7 @@ async def test_review_consult_quality_with_local_judge_scores_raw_trace_without_
         "consult_localjudge",
         judge_model="judge-local",
         trace_path=trace_path,
-        client=_FakeConsultQualityClient(),
+        client=_FakeConsultQualityClient(capacity_source="local"),
     )
 
     assert payload["judge"]["type"] == "calibrated_model"
@@ -410,7 +433,10 @@ async def test_review_consult_quality_with_plan_judge_records_zero_dollar_quota_
         plan_backend_id="codex",
         judge_model="gpt-5-mini",
         trace_path=trace_path,
-        client=_FakeConsultQualityClient(expected_model="gpt-5-mini"),
+        client=_FakeConsultQualityClient(
+            expected_model="gpt-5-mini",
+            capacity_source="plan_quota:codex",
+        ),
     )
 
     assert payload["judge"]["type"] == "calibrated_model"
@@ -426,6 +452,43 @@ async def test_review_consult_quality_with_plan_judge_records_zero_dollar_quota_
         "cost_ledger_source": "plan_quota",
     }
     assert "Thin answer." not in json.dumps(payload)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("judge_kind", ["local", "plan_quota"])
+async def test_zero_dollar_consult_judge_rejects_unproven_injected_client_before_dispatch(
+    tmp_path,
+    judge_kind,
+):
+    profile = _profile()
+    trace_path = _api_judge_trace_path(
+        tmp_path,
+        profile,
+        f"consult_unproven_{judge_kind}",
+        context={"source": "stored"},
+    )
+    client = _FakeConsultQualityClient(expected_model="judge-model")
+
+    with pytest.raises(ConsultQualityReviewError, match="zero-dollar capacity proof"):
+        if judge_kind == "local":
+            await review_consult_quality_candidate_with_local_judge(
+                profile,
+                f"consult_unproven_{judge_kind}",
+                judge_model="judge-model",
+                trace_path=trace_path,
+                client=client,
+            )
+        else:
+            await review_consult_quality_candidate_with_plan_judge(
+                profile,
+                f"consult_unproven_{judge_kind}",
+                plan_backend_id="codex",
+                judge_model="judge-model",
+                trace_path=trace_path,
+                client=client,
+            )
+
+    assert client.chat.completions.calls == []
 
 
 async def test_review_consult_quality_with_api_judge_settles_metered_cost(tmp_path):

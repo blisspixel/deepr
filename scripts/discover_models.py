@@ -61,6 +61,21 @@ except ImportError:
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
+LIVE_MODEL_DISCOVERY_ENABLED = False
+
+
+class LiveModelDiscoveryBlockedError(RuntimeError):
+    """External model metadata cannot establish a zero-dollar transport."""
+
+    code = "external_model_metadata_cost_unverified"
+
+
+def require_live_model_discovery() -> None:
+    """Block before credentials, HTTP libraries, or provider endpoints are used."""
+    raise LiveModelDiscoveryBlockedError(
+        "Live model discovery is blocked because endpoint, proxy, retry, and provider-account cost cannot be proven"
+    )
+
 
 # ─── Data types ───────────────────────────────────────────────────────────────
 
@@ -129,6 +144,7 @@ def load_registry() -> dict[str, RegistryModel]:
 
 def discover_openai_models() -> list[DiscoveredModel]:
     """Discover models via OpenAI API (GET /v1/models)."""
+    require_live_model_discovery()
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         logger.info("OPENAI_API_KEY not set, skipping OpenAI API discovery")
@@ -175,6 +191,7 @@ def discover_openai_models() -> list[DiscoveredModel]:
 
 def discover_xai_models() -> list[DiscoveredModel]:
     """Discover models via xAI API (OpenAI-compatible)."""
+    require_live_model_discovery()
     api_key = os.environ.get("XAI_API_KEY")
     if not api_key:
         logger.info("XAI_API_KEY not set, skipping xAI API discovery")
@@ -211,6 +228,7 @@ def discover_xai_models() -> list[DiscoveredModel]:
 
 def discover_gemini_models() -> list[DiscoveredModel]:
     """Discover models via Gemini API."""
+    require_live_model_discovery()
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         logger.info("GEMINI_API_KEY not set, skipping Gemini API discovery")
@@ -249,6 +267,7 @@ def discover_gemini_models() -> list[DiscoveredModel]:
 
 def discover_anthropic_models() -> list[DiscoveredModel]:
     """Discover models via Anthropic API (GET /v1/models)."""
+    require_live_model_discovery()
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         logger.info("ANTHROPIC_API_KEY not set, skipping Anthropic API discovery")
@@ -346,6 +365,7 @@ def preflight_check(providers: list[str] | None = None) -> dict[str, bool]:
 
 def discover_via_api(providers: list[str] | None = None) -> list[DiscoveredModel]:
     """Run API-based discovery for specified providers (or all)."""
+    require_live_model_discovery()
     targets = providers or list(API_DISCOVERERS.keys())
     all_models = []
     for provider in targets:
@@ -504,6 +524,7 @@ def _pick_llm(preference: str = "auto") -> dict | None:
 
 def _call_llm(config: dict, prompt: str, requests_mod) -> str:
     """Call the LLM API and return the response text."""
+    require_live_model_discovery()
     headers = {
         config["auth_header"]: f"{config['auth_prefix']}{config['api_key']}",
         "Content-Type": "application/json",
@@ -1010,6 +1031,13 @@ Examples:
                 ),
             )
         except MeteredExpertMutationDisabledError as exc:
+            print(f"BLOCKED [{exc.code}]: {exc}")
+            raise SystemExit(2) from exc
+
+    if not args.show_registry:
+        try:
+            require_live_model_discovery()
+        except LiveModelDiscoveryBlockedError as exc:
             print(f"BLOCKED [{exc.code}]: {exc}")
             raise SystemExit(2) from exc
 

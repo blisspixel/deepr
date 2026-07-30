@@ -8,10 +8,12 @@ from __future__ import annotations
 import asyncio
 from types import SimpleNamespace
 
+import httpx
 import pytest
 
 from deepr.backends import local
 from deepr.backends.fresh_context import FreshContext, FreshContextConfig, FreshSource, deep_fresh_context_config
+from deepr.experts.semantic_model_gate import _mark_zero_dollar_client
 
 
 class TestOwnedLocalEndpoint:
@@ -116,11 +118,21 @@ class _FakeChat:
 
 
 class _FakeClient:
-    def __init__(self, content=None, error=None):
+    def __init__(self, content=None, error=None, *, zero_dollar_proof=True):
         self.chat = _FakeChat(content, error)
+        if zero_dollar_proof:
+            _mark_zero_dollar_client(self, capacity_source="local")
 
 
 class TestResearchFn:
+    def test_unsealed_client_is_rejected_before_dispatch(self):
+        client = _FakeClient(content="must not run", zero_dollar_proof=False)
+
+        with pytest.raises(ValueError, match="zero-dollar capacity proof"):
+            local.make_local_research_fn("qwen", client=client)
+
+        assert client.chat.completions.calls == []
+
     async def test_returns_answer_and_zero_cost(self):
         fn = local.make_local_research_fn("qwen", client=_FakeClient(content="the answer"))
         result = await fn("what changed?", 5.0)
@@ -277,11 +289,21 @@ class _FakeEmbeddings:
 
 
 class _FakeEmbeddingClient:
-    def __init__(self, rows=None, error=None):
+    def __init__(self, rows=None, error=None, *, zero_dollar_proof=True):
         self.embeddings = _FakeEmbeddings(rows, error)
+        if zero_dollar_proof:
+            _mark_zero_dollar_client(self, capacity_source="local")
 
 
 class TestLocalEmbedder:
+    def test_unsealed_client_is_rejected_before_dispatch(self):
+        client = _FakeEmbeddingClient(zero_dollar_proof=False)
+
+        with pytest.raises(ValueError, match="zero-dollar capacity proof"):
+            local.make_local_embedder("nomic-embed-text", client=client)
+
+        assert client.embeddings.calls == []
+
     async def test_returns_vectors_in_claim_order(self):
         rows = [
             _FakeEmbeddingRow(1, [0.0, 1.0]),
@@ -325,6 +347,15 @@ class TestLocalEmbedder:
 
 
 class TestProbe:
+    async def test_unsealed_client_is_rejected_before_dispatch(self):
+        client = _FakeClient(content="must not run", zero_dollar_proof=False)
+
+        result = await local.probe_local("qwen", client=client)
+
+        assert result["ok"] is False
+        assert "zero-dollar capacity proof" in result["error"]
+        assert client.chat.completions.calls == []
+
     async def test_ok(self):
         result = await local.probe_local("qwen", client=_FakeClient(content="OK"))
         assert result["ok"] is True
@@ -460,12 +491,17 @@ class TestOllamaChatClientTimeout:
     def _capture(self, monkeypatch):
         captured = {}
 
+        class FakeHttpClient:
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+
         class FakeAsyncOpenAI:
             def __init__(self, **kwargs):
                 captured.update(kwargs)
 
         import openai
 
+        monkeypatch.setattr(httpx, "AsyncClient", FakeHttpClient)
         monkeypatch.setattr(openai, "AsyncOpenAI", FakeAsyncOpenAI)
         return captured
 
@@ -493,3 +529,61 @@ class TestOllamaChatClientTimeout:
         captured = self._capture(monkeypatch)
         local.ollama_chat_client(timeout=120.0)
         assert captured["timeout"] == 120.0
+
+    def test_transport_disables_retries_proxies_redirects_and_ambient_headers(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_CUSTOM_HEADERS", "Authorization: Bearer paid-secret")
+        monkeypatch.setenv("OPENAI_ORG_ID", "paid-org")
+        monkeypatch.setenv("OPENAI_PROJECT_ID", "paid-project")
+        captured = self._capture(monkeypatch)
+
+        local.ollama_chat_client()
+
+        assert captured["max_retries"] == 0
+        assert captured["organization"] == ""
+        assert captured["project"] == ""
+        assert captured["default_headers"] == {"Authorization": "Bearer ollama"}
+        config = captured["http_client"].kwargs
+        assert config["trust_env"] is False
+        assert config["follow_redirects"] is False
+        assert config["event_hooks"] == {"request": [local._guard_and_sanitize_ollama_request]}
+
+
+@pytest.mark.asyncio
+async def test_shared_local_request_guard_requires_cloud_disabled_and_strips_headers(monkeypatch) -> None:
+    class GuardClient:
+        def __init__(self, **kwargs):
+            assert kwargs["trust_env"] is False
+            assert kwargs["follow_redirects"] is False
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+        async def get(self, url: str):
+            assert url == "http://127.0.0.1:11434/api/status"
+            return SimpleNamespace(
+                status_code=200,
+                json=lambda: {"cloud": {"disabled": True, "source": "config"}},
+            )
+
+    request = httpx.Request(
+        "POST",
+        "http://127.0.0.1:11434/v1/chat/completions",
+        headers={
+            "Authorization": "Bearer paid-secret",
+            "OpenAI-Organization": "paid-org",
+            "X-Upstream-Provider": "metered",
+        },
+        json={"model": "local"},
+    )
+    monkeypatch.setattr(httpx, "AsyncClient", GuardClient)
+
+    await local._guard_and_sanitize_ollama_request(request)
+
+    assert request.headers["authorization"] == "Bearer ollama"
+    assert request.headers["host"] == "127.0.0.1:11434"
+    assert request.headers["user-agent"] == "deepr-local-ollama/1"
+    assert "openai-organization" not in request.headers
+    assert "x-upstream-provider" not in request.headers

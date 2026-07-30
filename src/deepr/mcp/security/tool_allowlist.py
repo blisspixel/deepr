@@ -191,7 +191,7 @@ class ToolAllowlist:
         "deepr_expert_validate": ToolConfig(
             name="deepr_expert_validate",
             category=ToolCategory.SENSITIVE,
-            description="Validate a claim against expert knowledge with one small paid call",
+            description="Validate a claim through a production-frozen paid contract",
             requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
             blocked_in={ResearchMode.READ_ONLY},
             metadata={REMOTE_METERED_SPEND_METADATA_KEY: True},
@@ -352,7 +352,7 @@ class ToolAllowlist:
         "deepr_agentic_research": ToolConfig(
             name="deepr_agentic_research",
             category=ToolCategory.WRITE,
-            description="Autonomous multi-step research; $1-$10 per call",
+            description="Autonomous multi-step research; $1-$5 per call",
             requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
             blocked_in={ResearchMode.READ_ONLY},
             metadata={REMOTE_METERED_SPEND_METADATA_KEY: True},
