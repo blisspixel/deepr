@@ -309,6 +309,40 @@ async def test_service_accounts_for_measured_executor_elapsed_time(tmp_path: Pat
 
 
 @pytest.mark.asyncio
+async def test_slow_waiting_capacity_turn_stays_resumable(tmp_path: Path) -> None:
+    """A waiting-capacity turn must not be failed by its own scheduling latency.
+
+    The service stamps measured elapsed time onto results, but the durable
+    verifier requires exactly zero usage for waiting_capacity. Stamping wall
+    clock here used to flip the turn to verifier_failed (non-retryable),
+    stranding a conversation that only needed to wait for capacity.
+    """
+    store = ExpertConversationStore(tmp_path / "conversation.db")
+
+    class SlowWaitingExecutor:
+        async def execute(self, _context: ConversationExecutionContext) -> TurnExecutionResult:
+            await asyncio.sleep(0.02)
+            return TurnExecutionResult.waiting_capacity()
+
+    executors: list[Any] = [SlowWaitingExecutor(), CompletingExecutor()]
+    service = ExpertConversationService(store, lambda: executors.pop(0))
+
+    waiting = await service.start(start_request())
+    assert waiting.turn["state"] == "waiting_capacity"
+    assert waiting.turn["capacity"]["turn"]["elapsed_ms"] == 0
+
+    resumed = await service.resume(
+        ConversationResumeRequest(
+            "owner-a",
+            waiting.conversation["conversation_id"],
+            waiting.conversation["version"],
+            "slow-resume",
+        )
+    )
+    assert resumed.turn["state"] == "completed"
+
+
+@pytest.mark.asyncio
 async def test_service_lifecycle_methods_share_the_durable_core(tmp_path: Path) -> None:
     store = ExpertConversationStore(tmp_path / "conversation.db")
     executors: list[Any] = []

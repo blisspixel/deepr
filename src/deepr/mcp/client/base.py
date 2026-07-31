@@ -13,7 +13,10 @@ import os
 from dataclasses import dataclass, field
 from typing import Any
 
-MCP_PROTOCOL_VERSION = "2024-11-05"
+# Outbound handshake revision when dispatch is unblocked. Deepr-as-client
+# still opens with the legacy initialize handshake (broadest server compat);
+# a stateless 2026-07-28 client mode lands with the dispatch unblock itself.
+MCP_PROTOCOL_VERSION = "2025-06-18"
 _MCP_CHILD_ENV_ALLOWLIST = frozenset(
     {
         "HOME",

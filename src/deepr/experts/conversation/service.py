@@ -167,7 +167,12 @@ class ExpertConversationService:
                 consult_lifecycle_trace_id=result.consult_lifecycle_trace_id,
             )
         measured_ms = min(remaining_ms, elapsed_ms)
-        if measured_ms > result.usage.elapsed_ms:
+        # A waiting-capacity turn performed no work, and the durable verifier
+        # requires exactly zero usage for that state. Stamping scheduling
+        # latency here would misclassify it as a verifier failure, which is
+        # non-retryable and permanently strands an otherwise resumable
+        # conversation.
+        if measured_ms > result.usage.elapsed_ms and result.state is not TurnState.WAITING_CAPACITY:
             result = replace(result, usage=replace(result.usage, elapsed_ms=measured_ms))
         return await asyncio.to_thread(self.store.finalize_turn, lease, result)
 

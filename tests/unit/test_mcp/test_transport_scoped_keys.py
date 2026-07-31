@@ -619,7 +619,8 @@ class TestStreamingHttpScopedKeys:
             )
         )
 
-        assert response.status == 204
+        # Accepted notification: 202 per the Streamable HTTP spec.
+        assert response.status == 202
         assert [event.tool for event in audit.read_recent()] == ["resources/list"]
 
     @pytest.mark.asyncio

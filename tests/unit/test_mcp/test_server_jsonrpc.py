@@ -145,11 +145,26 @@ class TestInitialize:
     async def test_initialize_returns_capabilities(self, mock_server):
         result = await _handle_initialize(mock_server, {})
 
-        assert result["protocolVersion"] == "2024-11-05"
+        # No requested version: answer with the latest legacy revision.
+        assert result["protocolVersion"] == "2025-06-18"
         assert "tools" in result["capabilities"]
         assert "resources" in result["capabilities"]
         assert "prompts" in result["capabilities"]
+        # logging was an over-claim (no logging/setLevel handler) and the
+        # feature is deprecated in the 2026-07-28 revision.
+        assert "logging" not in result["capabilities"]
         assert result["serverInfo"]["name"] == "deepr-research"
+
+    @pytest.mark.asyncio
+    async def test_initialize_echoes_supported_legacy_version(self, mock_server):
+        result = await _handle_initialize(mock_server, {"protocolVersion": "2024-11-05"})
+        assert result["protocolVersion"] == "2024-11-05"
+
+    @pytest.mark.asyncio
+    async def test_initialize_downgrades_unknown_version(self, mock_server):
+        # initialize never negotiates the modern stateless revision.
+        result = await _handle_initialize(mock_server, {"protocolVersion": "2026-07-28"})
+        assert result["protocolVersion"] == "2025-06-18"
 
     @pytest.mark.asyncio
     async def test_initialize_resources_support_subscribe(self, mock_server):

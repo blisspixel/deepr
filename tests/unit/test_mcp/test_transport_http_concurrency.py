@@ -72,7 +72,7 @@ class TestStreamingHttpConcurrency:
     async def test_health_reports_concurrency_limits(self):
         transport = StreamingHttpTransport(max_concurrent_requests=7)
 
-        response = await transport._handle_health(MagicMock())
+        response = await transport._handle_health(MagicMock(headers={}))
 
         assert response.status == 200
         payload = json.loads(response.text)
@@ -84,7 +84,7 @@ class TestStreamingHttpConcurrency:
         monkeypatch.setenv("DEEPR_MCP_HTTP_MAX_CONCURRENCY", "5")
         transport = StreamingHttpTransport()
 
-        response = await transport._handle_health(MagicMock())
+        response = await transport._handle_health(MagicMock(headers={}))
 
         assert response.status == 200
         assert json.loads(response.text)["max_concurrent_requests"] == 5

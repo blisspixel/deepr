@@ -227,7 +227,11 @@ class TestStdioServer:
 
         assert response is not None
         assert response.error is not None
-        assert "Test error" in response.error["message"]
+        assert response.error["code"] == -32603
+        # Handler exception text (paths, provider strings) must not reach the
+        # host client; it is logged locally instead.
+        assert response.error["message"] == "Internal error"
+        assert "Test error" not in str(response.to_dict())
 
     @pytest.mark.asyncio
     async def test_notification_no_response(self):
