@@ -2,8 +2,8 @@
 
 The command exists because a 30-job research campaign once billed $37.79 with
 zero surviving report artifacts, and nothing surfaced the loss for 24 days.
-Every settled dollar must map to an artifact on disk or be flagged as orphaned,
-with a nonzero exit so schedulers can alarm.
+Every settled dollar must map to an artifact, a durable disposition, or remain
+unexplained with a nonzero exit so schedulers can alarm.
 """
 
 import json
@@ -16,16 +16,22 @@ from deepr.cli.commands.costs import costs
 from deepr.observability.cost_ledger import CostLedger
 
 
-def _seed(tmp_path: Path, events: list[tuple[str, float, str, str]]) -> Path:
+def _seed(
+    tmp_path: Path,
+    events: list[tuple[str, float, str, str]],
+    *,
+    operation: str = "research_completion",
+) -> Path:
     ledger_path = tmp_path / "cost_ledger.jsonl"
     ledger = CostLedger(ledger_path=ledger_path)
-    for task_id, cost, provider, model in events:
+    for index, (task_id, cost, provider, model) in enumerate(events):
         ledger.record_event(
-            operation="research_completion",
+            operation=operation,
             provider=provider,
             cost_usd=cost,
             model=model,
             task_id=task_id,
+            idempotency_key=f"seed-{index}-{task_id}",
         )
     return ledger_path
 
@@ -44,6 +50,8 @@ def test_doctor_matches_spend_with_artifacts(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert payload["matched_spend_usd"] == 0.03
     assert payload["orphaned_spend_usd"] == 0.0
+    assert payload["unexplained_spend_usd"] == 0.0
+    assert payload["disposed_spend_usd"] == 0.0
 
 
 def test_doctor_flags_orphaned_spend_and_exits_nonzero(tmp_path: Path) -> None:
@@ -64,10 +72,48 @@ def test_doctor_flags_orphaned_spend_and_exits_nonzero(tmp_path: Path) -> None:
 
     payload = json.loads(result.output)
     # A job id with no matching report dir AND an event with no linkage key at
-    # all are both orphaned: unlinkable spend is the disease being surfaced.
+    # all are both unexplained until a durable disposition is recorded.
     assert payload["orphaned_spend_usd"] == 3.95
+    assert payload["unexplained_spend_usd"] == 3.95
     assert payload["matched_spend_usd"] == 0.0
+    assert payload["disposed_spend_usd"] == 0.0
     assert result.exit_code == 1
+
+
+def test_doctor_treats_disposed_spend_as_explained(tmp_path: Path) -> None:
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    ledger_path = _seed(
+        tmp_path,
+        [("portrait_Demo Expert", 0.04, "auto", "")],
+        operation="portrait_generation",
+    )
+    dry = CliRunner().invoke(
+        costs,
+        [
+            "dispose-unexplained",
+            "--json",
+            "--apply",
+            "--reports-dir",
+            str(reports),
+            "--ledger-path",
+            str(ledger_path),
+        ],
+    )
+    assert dry.exit_code == 0
+    applied = json.loads(dry.output)
+    assert applied["written"] == 1
+
+    result = CliRunner().invoke(
+        costs,
+        ["doctor", "--json", "--reports-dir", str(reports), "--ledger-path", str(ledger_path)],
+    )
+    payload = json.loads(result.output)
+    assert result.exit_code == 0
+    assert payload["disposed_spend_usd"] == 0.04
+    assert payload["unexplained_spend_usd"] == 0.0
+    assert payload["orphaned_spend_usd"] == 0.0
+    assert payload["disposed"][0]["disposition"] == "expected_non_report"
 
 
 def test_doctor_ignores_zero_cost_events(tmp_path: Path) -> None:
@@ -81,7 +127,7 @@ def test_doctor_ignores_zero_cost_events(tmp_path: Path) -> None:
     )
 
     payload = json.loads(result.output)
-    assert payload["matched"] == [] and payload["orphaned"] == []
+    assert payload["matched"] == [] and payload["orphaned"] == [] and payload["disposed"] == []
     assert result.exit_code == 0
 
 

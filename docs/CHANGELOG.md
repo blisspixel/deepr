@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Durable spend dispositions for settled cost events without report artifacts
+  (`spend_dispositions.jsonl`). `deepr costs doctor` now reports matched,
+  disposed, and unexplained buckets and fails only on unexplained spend.
+- `deepr costs dispose`, `deepr costs dispose-unexplained [--apply]`, and
+  `deepr costs dispositions` for forensic close-out without rewriting the
+  append-only ledger or calling providers.
+- Design note [docs/design/spend-dispositions.md](design/spend-dispositions.md)
+  and reconciliation report
+  [docs/dev/orphaned-spend-reconciliation-2026-07-31.md](dev/orphaned-spend-reconciliation-2026-07-31.md)
+  closing ROADMAP P0 orphaned-spend forensics ($41.16 disposed, $0.00
+  unexplained).
+
 ## [2.41.0] - 2026-07-31
 
 ### Added

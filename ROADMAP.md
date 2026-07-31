@@ -172,7 +172,7 @@ Deepr stays Python-first until a production-shaped benchmark proves that one
 stable bounded capability needs another language. The goal is a faster and more
 reliable product, not a four-language architecture diagram.
 
-- [ ] **P0: forensically reconcile the historical orphaned spend before any
+- [x] **P0: forensically reconcile the historical orphaned spend before any
   paid unfreeze.** The 2026-07-29 live `deepr costs doctor` run found 143
   settled events totaling `$41.16` without surviving report artifacts. Preserve
   the append-only ledger. Classify each event as failed or cancelled work,
@@ -182,6 +182,14 @@ reliable product, not a four-language architecture diagram.
   Acceptance requires a durable disposition for every event, zero unexplained
   settled dollars, and an independently reviewed reconciliation report. This
   investigation does not authorize a provider call or a ledger rewrite.
+  - [x] **2026-07-31 evidence:** durable `spend_dispositions.jsonl` plus
+    `deepr costs dispose` / `dispose-unexplained` / `dispositions`; doctor
+    reports matched / disposed / unexplained with exit 1 only on unexplained.
+    Live inventory closed at 143 dispositions ($41.16 disposed, $0.00
+    unexplained): 87 expected_non_report, 56 lost_artifact with job ids.
+    Report: [orphaned-spend-reconciliation-2026-07-31.md](docs/dev/orphaned-spend-reconciliation-2026-07-31.md).
+    Design: [spend-dispositions.md](docs/design/spend-dispositions.md). No
+    ledger rewrite; no provider call; paid unfreeze still blocked.
 - [ ] **P1: re-enable live metered expert chat only after one complete,
   provider-enforceable maximum-charge contract covers the whole session.** A
   fixed estimate, an output-only token cap, post-bill usage, a feature flag, or

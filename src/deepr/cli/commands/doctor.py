@@ -578,7 +578,7 @@ def check_spend_integrity() -> list[DiagnosticCheck]:
         check.message = f"Could not reconcile spend: {exc}"
     checks.append(check)
 
-    # 2. Orphaned spend: settled money with no surviving report artifact.
+    # 2. Unexplained spend: settled money with no report and no disposition.
     check = DiagnosticCheck("Paid artifacts on disk", "Spend")
     try:
         from datetime import UTC, datetime, timedelta
@@ -586,21 +586,32 @@ def check_spend_integrity() -> list[DiagnosticCheck]:
 
         from deepr.cli.commands.costs import _doctor_classify
         from deepr.observability.cost_ledger import CostLedger
+        from deepr.observability.spend_dispositions import latest_dispositions_by_event_key
 
         root = Path(load_config()["results_dir"])
         dir_names = [d.name for d in root.iterdir() if d.is_dir()] if root.exists() else []
         cutoff = datetime.now(UTC) - timedelta(days=45)
         events = CostLedger().with_locked_accounting_events(list)
-        matched, orphaned = _doctor_classify(events, dir_names, cutoff)
-        orphaned_total = sum(e["cost_usd"] for e in orphaned)
-        if orphaned_total > 0.005:
+        matched, disposed, unexplained = _doctor_classify(
+            events,
+            dir_names,
+            cutoff,
+            dispositions_by_key=latest_dispositions_by_event_key(),
+        )
+        unexplained_total = sum(e["cost_usd"] for e in unexplained)
+        disposed_total = sum(e["cost_usd"] for e in disposed)
+        matched_total = sum(e["cost_usd"] for e in matched)
+        if unexplained_total > 0.005:
             check.passed = False
-            check.message = f"${orphaned_total:.2f} of settled spend has no surviving artifact (45 days)"
+            check.message = (
+                f"${unexplained_total:.2f} of settled spend is unexplained (no artifact and no disposition, 45 days)"
+            )
             check.details.append("Run: deepr costs doctor")
+            check.details.append("Investigate: deepr costs dispose-unexplained")
         else:
             check.passed = True
             check.message = (
-                f"All paid events map to artifacts (${sum(e['cost_usd'] for e in matched):.2f} matched, 45 days)"
+                f"No unexplained spend (${matched_total:.2f} matched, ${disposed_total:.2f} disposed, 45 days)"
             )
     except Exception as exc:
         check.passed = False
