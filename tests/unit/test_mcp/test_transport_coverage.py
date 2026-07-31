@@ -197,7 +197,9 @@ class TestStdioServer:
 
         err = await srv._handle_message(Message(id="2", method="bad"))
         assert err.error["code"] == -32603
-        assert "nope" in err.error["message"]
+        # Sanitized: raw exception text stays in the local log.
+        assert err.error["message"] == "Internal error"
+        assert "nope" not in str(err.to_dict())
 
     @pytest.mark.asyncio
     async def test_notifications_return_none(self):
@@ -344,7 +346,8 @@ class TestStreamingHttpHandlers:
         t = StreamingHttpTransport(host="127.0.0.1")
         t.on_message(AsyncMock(return_value=None))
         resp = await t._handle_post(self._request())
-        assert resp.status == 204
+        # Accepted notification: 202 per the Streamable HTTP spec.
+        assert resp.status == 202
 
     @pytest.mark.asyncio
     async def test_handle_post_parse_error(self):
@@ -378,7 +381,7 @@ class TestStreamingHttpHandlers:
     @pytest.mark.asyncio
     async def test_handle_health(self):
         t = StreamingHttpTransport(host="127.0.0.1")
-        resp = await t._handle_health(MagicMock())
+        resp = await t._handle_health(MagicMock(headers={}))
         assert resp.status == 200
         data = json.loads(resp.text)
         assert data["status"] == "healthy"
@@ -571,7 +574,7 @@ class TestHttpClient:
             nonlocal called
             called = True
 
-        monkeypatch.setattr("deepr.mcp.transport.http.aiohttp.ClientSession", fail_client_session)
+        monkeypatch.setattr("deepr.mcp.transport.http_client.aiohttp.ClientSession", fail_client_session)
         with pytest.raises(MCPHttpDispatchBlockedError, match="remote service cost"):
             await client.connect()
         assert called is False

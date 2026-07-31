@@ -1,6 +1,6 @@
 # MCP and A2A Interop Checklist
 
-Status: current with Deepr v2.40.0. Last reviewed: 2026-07-29.
+Status: current with Deepr v2.41.0. Last reviewed: 2026-07-31.
 
 Use this checklist when connecting Deepr experts to another agent host through
 MCP or A2A. It is a compact integration review, not the command guide. For
@@ -23,10 +23,35 @@ copy-ready validation commands, use [MCP_AGENT_TEST_GUIDE.md](MCP_AGENT_TEST_GUI
 
 - Discover MCP tools, resources, and prompts dynamically. For Deepr, start with
   `deepr_tool_search` or `deepr_capabilities` instead of assuming a fixed full
-  tool list.
-- Negotiate capabilities per request under the final MCP `2026-07-28` stateless
-  core. Do not infer task, sampling, roots, or logging support from a prior
-  transport session.
+  tool list. Modern clients can call `server/discover` first for supported
+  versions, capabilities, and identity in one request.
+- Deepr's MCP server is dual-era as of v2.41.0. Modern `2026-07-28` requests
+  carry `io.modelcontextprotocol/protocolVersion` and
+  `io.modelcontextprotocol/clientCapabilities` in `params._meta` on every
+  request and get the stateless envelope (`resultType`, result `serverInfo`
+  `_meta`, `ttlMs`/`cacheScope` on cacheable methods). Legacy clients keep the
+  `initialize` handshake, now with real version negotiation
+  (`2025-06-18`/`2025-03-26`/`2024-11-05`).
+- Do not infer task, sampling, roots, or logging support from a prior transport
+  session. Deepr advertises none of those: sampling, roots, and logging are
+  deprecated in the `2026-07-28` revision and were never wired here, and the
+  unimplemented `logging` capability over-claim was removed in v2.41.0.
+- Modern change notifications use `subscriptions/listen`
+  (`resourceSubscriptions` filter honored; list-changed filters are declined
+  because the list surfaces are process-static). Legacy
+  `resources/subscribe`/`unsubscribe` remain available to handshake-era
+  clients only. Listen streams carry the same scoped-key controls as the
+  legacy subscribe RPCs (per-resource ACL, rate limit, append-only audit),
+  are capped per transport, use bounded per-stream queues, and accept at most
+  64 unique resource URIs per request (duplicates are collapsed).
+- On Streamable HTTP, modern requests must send `MCP-Protocol-Version`,
+  `Mcp-Method`, and (for `tools/call`, `resources/read`, `prompts/get`)
+  `Mcp-Name` headers matching the body; mismatches return HTTP 400 with
+  JSON-RPC `-32020`. Unknown methods return 404 + `-32601`; unsupported
+  versions 400 + `-32022` listing supported versions. `Mcp-Session-Id` and
+  `Last-Event-ID` are ignored (protocol sessions and SSE resumability are gone
+  from the revision). Origin headers are validated (403 on non-loopback
+  origins unless allowlisted via `DEEPR_MCP_HTTP_ALLOWED_ORIGINS`).
 - Filter visible tools by scope, mode, budget, and rate policy before giving a
   host broad access.
 - For an A2A 1.0 service, fetch the Agent Card at the standard discovery path
@@ -101,11 +126,13 @@ copy-ready validation commands, use [MCP_AGENT_TEST_GUIDE.md](MCP_AGENT_TEST_GUI
 - MCP long-running work should return a durable job or artifact reference, then
   expose status, progress, and final results through explicit tools or
   resources.
-- The final MCP Tasks feature is an optional extension for `tools/call`. Deepr
-  does not currently advertise or implement background Tasks. Its synchronous
-  tool calls and application-owned conversation handles remain the supported
-  surface until per-request capability negotiation and task authorization
-  binding are implemented and tested.
+- The final MCP Tasks feature is an optional extension for `tools/call`
+  (`io.modelcontextprotocol/tasks`). Deepr does not advertise or implement
+  background Tasks: no `extensions` entry appears in its capabilities, so a
+  conforming host never sends task requests. Synchronous tool calls and
+  application-owned conversation handles are the supported surface; the
+  stateless conversation-handle design matches the revision's guidance that
+  cross-request state travel as explicit identifiers in tool arguments.
 - A2A work should follow a task lifecycle: submit, poll or stream status,
   complete or fail, then attach result artifacts.
 - Deepr's current A2A adapter attaches the full `deepr-consult-v1` payload to

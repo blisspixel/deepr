@@ -23,9 +23,13 @@ remains for cloud-hosted agents.
 
 ### Transport
 
-Streamable HTTP (the current MCP spec transport, SSE for streaming) on the
-existing MCP server - the tool surface, allowlist, and error model do
-not change. stdio remains the local default; HTTP is an additional listener
+Streamable HTTP on the existing MCP server - the tool surface, allowlist, and
+error model do not change. As of v2.41.0 the endpoint implements the
+`2026-07-28` revision's server rules for modern clients (metadata-header and
+Origin validation, 404/-32601 unknown methods, 202 notifications,
+`subscriptions/listen` as a POST-response SSE stream, no protocol sessions or
+resumability) while still serving legacy `initialize`-era clients on the same
+endpoint. stdio remains the local default; HTTP is an additional listener
 (`deepr mcp serve --http --host 127.0.0.1 --port 8765`), one process, same
 dispatch.
 

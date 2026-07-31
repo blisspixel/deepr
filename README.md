@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.40.0-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.40.0)
+[![Version](https://img.shields.io/badge/version-2.41.0-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.41.0)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -67,7 +67,10 @@ deepr expert consult "What should we decide next?" --expert "My Domain Expert" -
 
 See [Quick Start](docs/QUICK_START.md), [Supported Surface](docs/SUPPORTED_SURFACE.md),
 and the [MCP Agent Guide](docs/MCP_AGENT_TEST_GUIDE.md) for workflows across the
-current 36 MCP tools.
+current 36 MCP tools. The MCP server implements the final `2026-07-28`
+protocol revision (stateless per-request negotiation, `server/discover`,
+`subscriptions/listen`, Streamable HTTP header and Origin validation) while
+still serving legacy `initialize`-era clients on both transports.
 
 ## Documentation
 

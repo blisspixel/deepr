@@ -68,6 +68,15 @@ from deepr.mcp.cost_status import current_cost_status
 from deepr.mcp.expert_reads import get_expert_handoff, get_expert_loop_status, get_semantic_recall, get_temporal_edges
 from deepr.mcp.metered_contract import MeteredMCPContractError, require_metered_api_contract
 from deepr.mcp.protocol_compat import LEGACY_METHOD_MAP
+from deepr.mcp.protocol_dispatch import dispatch_protocol_method, registered_method_names
+from deepr.mcp.protocol_modern import (
+    DISCOVER_INSTRUCTIONS,
+    LEGACY_PROTOCOL_VERSIONS,
+    MODERN_PROTOCOL_VERSION,
+    negotiate_legacy_initialize_version,
+    server_capabilities,
+    server_info,
+)
 from deepr.mcp.query_expert_tool import query_expert_tool
 from deepr.mcp.request_context import (
     current_mcp_request_can_access_owner,
@@ -212,7 +221,13 @@ class DeeprMCPServer:
                 "tools": self.registry.count(),
                 "dynamic_discovery": True,
                 "resource_subscriptions": True,
-                "elicitation": True,
+                # The elicitation router exists in-process but is not
+                # registered on any transport; do not advertise it as callable.
+                "elicitation": False,
+            },
+            "protocol": {
+                "modern": MODERN_PROTOCOL_VERSION,
+                "legacy": list(LEGACY_PROTOCOL_VERSIONS),
             },
             "security": {
                 "research_mode": self.tool_allowlist.mode.value,
@@ -1530,19 +1545,16 @@ def _build_tools_list(server: DeeprMCPServer, use_gateway: bool = True) -> list[
 
 
 async def _handle_initialize(server: DeeprMCPServer, params: dict[str, Any]) -> dict[str, Any]:
-    """Handle MCP initialize handshake."""
+    """Handle the legacy MCP initialize handshake (pre-2026 revisions).
+
+    Modern 2026-07-28 clients never call initialize: they send per-request
+    ``_meta`` and probe with the mandatory ``server/discover`` RPC instead.
+    """
     return {
-        "protocolVersion": "2024-11-05",
-        "capabilities": {
-            "tools": {"listChanged": False},
-            "resources": {"subscribe": True, "listChanged": False},
-            "prompts": {"listChanged": False},
-            "logging": {},
-        },
-        "serverInfo": {
-            "name": "deepr-research",
-            "version": SERVER_VERSION,
-        },
+        "protocolVersion": negotiate_legacy_initialize_version(params.get("protocolVersion")),
+        "capabilities": server_capabilities(),
+        "serverInfo": server_info(),
+        "instructions": DISCOVER_INSTRUCTIONS,
     }
 
 
@@ -1892,66 +1904,47 @@ _LEGACY_METHOD_MAP = LEGACY_METHOD_MAP
 
 
 async def run_stdio_server() -> None:
-    """Run MCP server using StdioServer for proper JSON-RPC dispatch."""
+    """Run MCP server using StdioServer for proper JSON-RPC dispatch.
+
+    Every method (both eras plus legacy aliases) routes through the shared
+    era-aware dispatch; ``subscriptions/listen`` registers as a streaming
+    method so modern clients get spec-conformant change notifications.
+    """
     global _server_start_time
     _server_start_time = time.time()
 
     deepr_server = DeeprMCPServer()
     stdio = StdioServer()
 
-    # Register MCP protocol methods
-    async def handle_initialize(params: dict[str, Any]) -> dict[str, Any]:
-        return await _handle_initialize(deepr_server, params)
+    def bind(method: str) -> Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]:
+        async def _handler(params: dict[str, Any]) -> dict[str, Any]:
+            return await dispatch_protocol_method(deepr_server, method, params)
 
-    async def handle_tools_list(params: dict[str, Any]) -> dict[str, Any]:
-        return await _handle_tools_list(deepr_server, params)
+        return _handler
 
-    async def handle_tools_call(params: dict[str, Any]) -> dict[str, Any]:
-        return await _handle_tools_call(deepr_server, params)
+    for method_name in registered_method_names():
+        stdio.register_method(method_name, bind(method_name))
 
-    async def handle_resources_list(params: dict[str, Any]) -> dict[str, Any]:
-        return await _handle_resources_list(deepr_server, params)
+    from deepr.mcp.subscriptions_listen import make_listen_opener
 
-    async def handle_resources_read(params: dict[str, Any]) -> dict[str, Any]:
-        return await _handle_resources_read(deepr_server, params)
-
-    async def handle_resources_subscribe(params: dict[str, Any]) -> dict[str, Any]:
-        return await _handle_resources_subscribe(deepr_server, params)
-
-    async def handle_resources_unsubscribe(params: dict[str, Any]) -> dict[str, Any]:
-        return await _handle_resources_unsubscribe(deepr_server, params)
-
-    async def handle_prompts_list(params: dict[str, Any]) -> dict[str, Any]:
-        return await _handle_prompts_list(deepr_server, params)
-
-    async def handle_prompts_get(params: dict[str, Any]) -> dict[str, Any]:
-        return await _handle_prompts_get(deepr_server, params)
-
-    # Register standard MCP methods
-    stdio.register_method("initialize", handle_initialize)
-    stdio.register_method("tools/list", handle_tools_list)
-    stdio.register_method("tools/call", handle_tools_call)
-    stdio.register_method("resources/list", handle_resources_list)
-    stdio.register_method("resources/read", handle_resources_read)
-    stdio.register_method("resources/subscribe", handle_resources_subscribe)
-    stdio.register_method("resources/unsubscribe", handle_resources_unsubscribe)
-    stdio.register_method("prompts/list", handle_prompts_list)
-    stdio.register_method("prompts/get", handle_prompts_get)
-
-    # Register legacy method names for backward compatibility
-    def make_legacy_handler(tool_name: str) -> Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]:
-        async def _make_legacy(params: dict[str, Any]) -> dict[str, Any]:
-            return await _handle_tools_call(deepr_server, {"name": tool_name, "arguments": params})
-
-        return _make_legacy
-
-    for legacy_name, new_name in _LEGACY_METHOD_MAP.items():
-        stdio.register_method(legacy_name, make_legacy_handler(new_name))
+    stdio.register_streaming_method(
+        "subscriptions/listen",
+        make_listen_opener(deepr_server.resource_handler, identity_provider=current_mcp_request_identity),
+    )
 
     logger.info("Deepr MCP Server v%s started (stdio transport)", SERVER_VERSION)
     logger.info("Registered %d tools, gateway discovery enabled", deepr_server.registry.count())
 
-    await stdio.run()
+    try:
+        await stdio.run()
+    finally:
+        # Best-effort graceful stop (closes active listen streams with the
+        # spec's empty response) on EOF and on Ctrl+C-driven cancellation.
+        try:
+            await asyncio.shield(stdio.stop())
+        except (Exception, asyncio.CancelledError) as exc:
+            # Shutdown must not mask the original exit path.
+            logger.debug("MCP stdio graceful stop did not complete: %s", exc)
 
 
 def main() -> None:

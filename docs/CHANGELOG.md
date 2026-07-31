@@ -7,6 +7,115 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.41.0] - 2026-07-31
+
+### Added
+
+- MCP `2026-07-28` protocol revision support. The server is now dual-era per
+  the spec's versioning rules: modern clients negotiate per request via
+  `_meta` (`io.modelcontextprotocol/protocolVersion` +
+  `io.modelcontextprotocol/clientCapabilities`) with no handshake, while
+  legacy clients keep the `initialize` path with real version negotiation
+  (`2025-06-18`, `2025-03-26`, `2024-11-05` echoed; anything else answers
+  `2025-06-18`).
+- Mandatory `server/discover` RPC on both transports: supported versions,
+  capabilities, server identity, LLM instructions, and cache hints in one
+  cacheable result.
+- Modern result envelope: `resultType: "complete"` on every modern result,
+  server identity in result `_meta`, and required `ttlMs`/`cacheScope`
+  cache fields on `tools/list`, `prompts/list`, `resources/list`,
+  `resources/read`, and `server/discover`.
+- `subscriptions/listen` on stdio and Streamable HTTP, replacing the legacy
+  subscribe RPCs for modern clients: `resourceSubscriptions` filter honored,
+  spec-ordered `notifications/subscriptions/acknowledged` first, every stream
+  notification tagged with `io.modelcontextprotocol/subscriptionId`, silent
+  teardown on client cancel, and a graceful empty response on server-initiated
+  shutdown. List-changed filters are declined honestly (list surfaces are
+  process-static).
+- Streamable HTTP 2026-07-28 validation: `MCP-Protocol-Version`, `Mcp-Method`,
+  and `Mcp-Name` header/body matching with Base64 sentinel decoding (400 +
+  `-32020` on mismatch), 400 + `-32022` with the supported-version list for
+  unknown versions, 404 + `-32601` for unknown modern methods, HTTP 202 for
+  accepted notifications, and spec-mandated `Origin` validation (403 for
+  non-loopback origins unless allowlisted via
+  `DEEPR_MCP_HTTP_ALLOWED_ORIGINS`). `Mcp-Session-Id` and `Last-Event-ID`
+  are ignored per the revision.
+
+### Security
+
+- Capped and deduplicated `subscriptions/listen` resource filters (64 unique
+  URIs per request). Duplicate URIs previously registered independent
+  subscriptions, so one 600 KB request could register 20,000 subscriptions and
+  turn a single resource update into a 20,000-notification flood.
+- Bounded per-stream SSE queues so a listen client that stops reading applies
+  backpressure instead of growing server memory without limit.
+- Extended scoped-key rate limiting and append-only audit to
+  `subscriptions/listen`, matching the legacy subscribe RPCs, and capped
+  concurrent listen streams on both transports (the HTTP cap is reserved
+  atomically so concurrent opens cannot exceed it).
+- Required the configured credential on the MCP HTTP health endpoint, which
+  had exposed live saturation counters unauthenticated.
+- Namespaced legacy `/mcp/stream` subscriber ids by authenticated caller so
+  one client can no longer evict another client's stream by supplying its id.
+- Stopped leaking raw exception text (filesystem paths, provider strings) to
+  stdio clients; failures now log locally and return a generic
+  `Internal error`, matching the HTTP surface.
+- Rejected `Origin` values containing backslashes or userinfo before parsing,
+  closing a gap between `urlsplit` and browser URL semantics in the
+  DNS-rebinding defense.
+
+### Fixed
+
+- The stdio MCP server now works on Windows. The proactor event loop cannot
+  register ordinary stdio pipe handles with IOCP, so every host that launched
+  `python -m deepr.mcp.server` as a subprocess (Claude Desktop, Cursor,
+  VS Code) got a dead server; Windows now pumps stdin from a daemon thread and
+  writes stdout through a blocking fallback writer.
+- The stdio MCP server now exits when the host closes stdin instead of
+  spinning forever and orphaning the process.
+- A waiting-for-capacity expert conversation turn is no longer failed by its
+  own scheduling latency. The service stamped measured wall-clock onto every
+  result while the durable verifier requires exactly zero usage for
+  `waiting_capacity`, so any turn that took at least a millisecond (GC,
+  scheduling jitter, a loaded machine) was marked `verifier_failed`,
+  non-retryable, permanently stranding a conversation that only needed to
+  wait. Reproduced at roughly 1 in 75 turns locally and deterministically
+  under load.
+- Requests larger than 64 KiB over stdio are answered instead of silently
+  dropped: the JSON-RPC line limit is now 16 MiB (the asyncio default left
+  large `tools/call` payloads unanswered while the client waited forever), and
+  an oversize line returns a parse error rather than hanging.
+- Duplicate JSON-RPC ids no longer orphan an open stdio stream, and a
+  cancellation arriving while a stream is still opening is honored instead of
+  lost.
+- Modern `resources/read` failures return JSON-RPC `-32602` per the revision
+  (the retired `-32002` code is never emitted); the legacy contents-embedded
+  error shape is unchanged for handshake-era clients.
+- Unknown notifications over HTTP (including `notifications/initialized`,
+  sent by every legacy handshake) are accepted with HTTP 202 instead of
+  drawing a `-32601` error response, which JSON-RPC forbids for
+  notifications.
+- Legacy alias methods carrying modern `_meta` no longer lose the modern
+  envelope or pass `_meta` into tool keyword arguments (previously a
+  `TypeError` surfaced as `TOOL_EXECUTION_FAILED`).
+- Long-lived listen streams no longer hold a POST concurrency slot; idle
+  streams could previously starve every other request on the transport.
+- Removed the `logging` capability over-claim from `initialize` (no
+  `logging/setLevel` handler exists, and the feature is deprecated in
+  `2026-07-28`), and `deepr_status` no longer self-reports elicitation as
+  available while it is unwired on every transport.
+
+### Changed
+
+- `initialize` now negotiates instead of unconditionally returning
+  `2024-11-05`, and includes server `instructions` pointing agents at the
+  `deepr_tool_search` gateway.
+- `deepr_status` reports the dual-era protocol posture
+  (`protocol.modern` / `protocol.legacy`).
+- The outbound MCP client (release-blocked) declares `2025-06-18` for its
+  future legacy handshake; the outbound `HttpClient` moved to
+  `deepr.mcp.transport.http_client` (still importable from the old path).
+
 ## [2.40.0] - 2026-07-29
 
 ### Added

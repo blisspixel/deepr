@@ -56,7 +56,7 @@ async def test_http_message_handler_redacts_unexpected_exception_text():
     handler = _make_http_message_handler(MagicMock())
 
     with patch(
-        "deepr.mcp.http_server._dispatch_mcp_method",
+        "deepr.mcp.http_server.dispatch_protocol_method",
         new=AsyncMock(side_effect=RuntimeError("private-path-and-token")),
     ):
         response = await handler(HttpMessage(id="1", method="initialize", params={}))
@@ -78,6 +78,7 @@ async def test_run_http_server_starts_and_stops_transport():
             self.start = AsyncMock(side_effect=lambda: stop_event.set())
             self.stop = AsyncMock()
             self.on_message = MagicMock()
+            self.on_listen = MagicMock()
             created.append(self)
 
     server = MagicMock()

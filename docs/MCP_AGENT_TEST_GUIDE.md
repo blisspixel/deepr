@@ -3,6 +3,36 @@
 Use this when another agent needs to verify Deepr experts through MCP without
 surprise metered spend.
 
+## Protocol Versions
+
+Deepr's MCP server is dual-era per the MCP `2026-07-28` versioning spec:
+
+- **Modern clients** (`2026-07-28`) send
+  `io.modelcontextprotocol/protocolVersion` and
+  `io.modelcontextprotocol/clientCapabilities` in `params._meta` on every
+  request. No `initialize` handshake exists in this era; probe with
+  `server/discover` to learn supported versions, capabilities, and identity.
+  Results carry `resultType: "complete"`, server identity in result `_meta`,
+  and `ttlMs`/`cacheScope` on cacheable list/read methods. Change
+  notifications use `subscriptions/listen` with a `resourceSubscriptions`
+  filter. Unsupported versions return JSON-RPC `-32022` with the supported
+  list.
+- **Legacy clients** (`2025-06-18`, `2025-03-26`, `2024-11-05`) open with the
+  `initialize` handshake; the server echoes a supported requested version or
+  answers with `2025-06-18`. The pre-2026 surface (including
+  `resources/subscribe`) is unchanged for this era.
+
+A copy-ready modern probe over stdio:
+
+```json
+{"jsonrpc": "2.0", "id": 1, "method": "server/discover", "params": {"_meta": {"io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientCapabilities": {}}}}
+```
+
+Over Streamable HTTP, modern POSTs must also carry matching
+`MCP-Protocol-Version` and `Mcp-Method` headers (plus `Mcp-Name` for
+`tools/call`, `resources/read`, and `prompts/get`); mismatches return
+HTTP 400 with JSON-RPC `-32020`.
+
 ## Can An Agent Talk To Experts Today?
 
 Yes. The safe default path is:

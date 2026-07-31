@@ -178,7 +178,9 @@ _REQUIRED_SAFETY_FRAGMENTS = {
         "MCPErrorCode.COST_ACCOUNTING_UNAVAILABLE",
     ),
     "src/deepr/mcp/provider/sampling.py": ("raise SamplingFallbackDisabledError(",),
-    "src/deepr/mcp/transport/http.py": (
+    # The outbound client moved out of transport/http.py (server transport)
+    # into its own module; the boundaries live with the code they guard.
+    "src/deepr/mcp/transport/http_client.py": (
         "Outbound MCP HTTP clients are disabled",
         "Outbound MCP HTTP requests are disabled",
         "Outbound MCP HTTP subscriptions are disabled",

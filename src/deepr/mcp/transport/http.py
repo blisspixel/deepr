@@ -23,16 +23,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-import aiohttp
 from aiohttp import web
 
-from deepr.mcp.http_client_policy import (
-    MCPHttpDispatchBlockedError,
-    validated_mcp_http_timeout,
-    validated_remote_mcp_url,
-)
 from deepr.mcp.protocol_compat import HttpMessage as HttpMessage
 from deepr.mcp.protocol_compat import canonical_legacy_tool_call
+from deepr.mcp.protocol_modern import JsonRpcProtocolError
 from deepr.mcp.request_context import (
     MCPRequestIdentity,
     bind_mcp_request_identity,
@@ -42,7 +37,6 @@ from deepr.mcp.security.scoped_admission import ScopedMCPAdmission, ScopedMCPAdm
 from deepr.mcp.security.scoped_audit import scoped_mcp_response_cost_usd, scoped_mcp_response_error_code
 from deepr.mcp.security.scoped_keys import (
     RemoteMCPAuditLog,
-    ScopedMCPAuthzDecision,
     ScopedMCPBudgetDecision,
     ScopedMCPKeyContext,
     ScopedMCPKeyStore,
@@ -50,20 +44,22 @@ from deepr.mcp.security.scoped_keys import (
     authorize_scoped_mcp_tool_call,
     constrain_scoped_mcp_expert_arguments,
 )
+from deepr.mcp.subscriptions_listen import StreamCloser, StreamOpener
+from deepr.mcp.transport import http_scoped, http_sse
+from deepr.mcp.transport.http_validation import (
+    allowed_origins_from_env,
+    origin_is_allowed,
+    validate_streamable_http_request,
+)
 from deepr.utils.security import is_loopback_bind_host
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_CONCURRENT_REQUESTS = 32
 CONCURRENCY_RETRY_AFTER_SECONDS = 1
-_SCOPED_RESOURCE_METHODS = frozenset(
-    {
-        "resources/list",
-        "resources/read",
-        "resources/subscribe",
-        "resources/unsubscribe",
-    }
-)
+# Pending SSE payloads per listen stream. A peer that stops reading hits
+# backpressure here instead of growing the queue until the process dies.
+LISTEN_QUEUE_MAXSIZE = 1024
 
 
 def _is_loopback_host(host: str) -> bool:
@@ -191,15 +187,23 @@ class StreamingHttpTransport:
             else None
         )
         self._handler: Callable[[HttpMessage], Awaitable[HttpMessage | None]] | None = None
+        self._listen_opener: StreamOpener | None = None
+        self._allowed_origins = allowed_origins_from_env()
         self._app: web.Application | None = None
         self._runner: web.AppRunner | None = None
         self._stats = HttpTransportStats()
         self._subscribers: dict[str, asyncio.Queue[Any]] = {}
+        self._listen_queues: set[asyncio.Queue[Any]] = set()
+        self._listen_slots = 0
         self._running = False
 
     def on_message(self, handler: Callable[[HttpMessage], Awaitable[HttpMessage | None]]) -> None:
         """Set the message handler for incoming requests."""
         self._handler = handler
+
+    def on_listen(self, opener: StreamOpener) -> None:
+        """Set the opener for modern ``subscriptions/listen`` streams."""
+        self._listen_opener = opener
 
     async def start(self) -> None:
         """Start the HTTP server.
@@ -260,6 +264,11 @@ class StreamingHttpTransport:
             await queue.put(None)
         self._subscribers.clear()
 
+        # Signal active subscriptions/listen streams so they end gracefully
+        # (spec: server-initiated end sends the empty listen response first).
+        for listen_queue in list(self._listen_queues):
+            await listen_queue.put(None)
+
         if self._runner:
             await self._runner.cleanup()
 
@@ -268,6 +277,25 @@ class StreamingHttpTransport:
             {"jsonrpc": "2.0", "error": {"code": -32001, "message": "Unauthorized"}, "id": None},
             status=401,
         )
+
+    def _origin_rejection(self, request: "web.Request") -> web.Response | None:
+        """DNS-rebinding defense (spec MUST): 403 for a present-but-invalid Origin."""
+        origin = request.headers.get("Origin")
+        if origin_is_allowed(origin, extra_allowed=self._allowed_origins):
+            return None
+        self._stats.errors += 1
+        return web.json_response(
+            {"jsonrpc": "2.0", "error": {"code": -32600, "message": "Origin not allowed"}, "id": None},
+            status=403,
+        )
+
+    def _protocol_error_response(self, message_id: Any, exc: JsonRpcProtocolError) -> web.Response:
+        """Map a JsonRpcProtocolError onto its spec-mandated HTTP status."""
+        payload = {"jsonrpc": "2.0", "error": exc.to_error(), "id": message_id}
+        response_data = json.dumps(payload)
+        self._stats.bytes_sent += len(response_data)
+        self._stats.responses_sent += 1
+        return web.Response(text=response_data, status=exc.http_status, content_type="application/json")
 
     def _shared_token_matches(self, provided: str | None) -> bool:
         token = self._auth_token
@@ -323,80 +351,20 @@ class StreamingHttpTransport:
         """
         return self._authenticate_request(request)[1]
 
-    def _tool_call_parts(self, message: HttpMessage) -> tuple[str, dict[str, Any]]:
-        if message.method != "tools/call" or not isinstance(message.params, dict):
-            return "", {}
-        tool_name = str(message.params.get("name") or "")
-        arguments = message.params.get("arguments", {})
-        return tool_name, dict(arguments) if isinstance(arguments, dict) else {}
-
     def _canonicalize_legacy_method(self, message: HttpMessage) -> None:
         canonical = canonical_legacy_tool_call(message.method, message.params)
         if canonical is None:
             return
         tool_name, arguments = canonical
+        # _meta is protocol metadata, not a tool argument: keep it on the
+        # canonical params so modern requests stay modern through dispatch,
+        # and out of arguments so **kwargs tool handlers don't TypeError.
+        meta = arguments.pop("_meta", None)
         message.method = "tools/call"
-        message.params = {"name": tool_name, "arguments": arguments}
-
-    def _scoped_operation_parts(self, message: HttpMessage) -> tuple[str, dict[str, Any], str | None]:
-        tool_name, arguments = self._tool_call_parts(message)
-        if tool_name:
-            return tool_name, arguments, tool_name
-        if message.method in _SCOPED_RESOURCE_METHODS:
-            raw_params = message.params if isinstance(message.params, dict) else {}
-            params = {key: value for key, value in raw_params.items() if key != "_scoped_key"}
-            return str(message.method), params, None
-        return "", {}, None
-
-    def _scoped_denial_message(self, message: HttpMessage, decision: ScopedMCPAuthzDecision) -> HttpMessage:
-        return HttpMessage(
-            id=message.id,
-            error={
-                "code": -32003,
-                "message": decision.reason,
-                "data": {
-                    "error_code": decision.error_code,
-                    "requires_confirmation": decision.requires_confirmation,
-                    "requested_experts": list(decision.requested_experts),
-                },
-            },
-        )
-
-    def _scoped_budget_denial_message(self, message: HttpMessage, decision: ScopedMCPBudgetDecision) -> HttpMessage:
-        return HttpMessage(
-            id=message.id,
-            error={
-                "code": -32004,
-                "message": decision.reason,
-                "data": {
-                    "error_code": decision.error_code,
-                    "budget_limit_usd": decision.budget_limit_usd,
-                    "spent_usd": decision.spent_usd,
-                    "remaining_usd": decision.remaining_usd,
-                    "estimated_cost_usd": decision.estimated_cost_usd,
-                },
-            },
-        )
-
-    def _scoped_rate_limit_denial_message(
-        self,
-        message: HttpMessage,
-        decision: ScopedMCPRateLimitDecision,
-    ) -> HttpMessage:
-        return HttpMessage(
-            id=message.id,
-            error={
-                "code": -32005,
-                "message": decision.reason,
-                "data": {
-                    "error_code": decision.error_code,
-                    "limit_per_minute": decision.limit_per_minute,
-                    "calls_in_window": decision.calls_in_window,
-                    "window_seconds": decision.window_seconds,
-                    "retry_after_seconds": decision.retry_after_seconds,
-                },
-            },
-        )
+        params: dict[str, Any] = {"name": tool_name, "arguments": arguments}
+        if isinstance(meta, dict):
+            params["_meta"] = meta
+        message.params = params
 
     def _try_acquire_request_slot(self) -> bool:
         if self._stats.active_requests >= self._max_concurrent_requests:
@@ -406,6 +374,17 @@ class StreamingHttpTransport:
 
     def _release_request_slot(self) -> None:
         self._stats.active_requests = max(self._stats.active_requests - 1, 0)
+
+    def _try_acquire_listen_slot(self) -> bool:
+        """Reserve a listen-stream slot atomically (no await between check
+        and increment, so concurrent opens cannot exceed the cap)."""
+        if self._listen_slots >= self._max_concurrent_requests:
+            return False
+        self._listen_slots += 1
+        return True
+
+    def _release_listen_slot(self) -> None:
+        self._listen_slots = max(self._listen_slots - 1, 0)
 
     def _concurrency_limited_response(self) -> web.Response:
         payload = {
@@ -447,7 +426,7 @@ class StreamingHttpTransport:
         decision = authorize_scoped_mcp_tool_call(context, tool_name, arguments)
         if decision.allowed:
             return None
-        denied = self._scoped_denial_message(message, decision)
+        denied = http_scoped.authz_denial_message(message, decision)
         self._record_remote_call(context, message, denied, error_code=decision.error_code)
         return self._message_web_response(denied)
 
@@ -459,7 +438,7 @@ class StreamingHttpTransport:
     ) -> web.Response | None:
         if decision.allowed:
             return None
-        denied = self._scoped_rate_limit_denial_message(message, decision)
+        denied = http_scoped.rate_limit_denial_message(message, decision)
         self._record_remote_call(context, message, denied, error_code=decision.error_code)
         return self._message_web_response(denied)
 
@@ -471,7 +450,7 @@ class StreamingHttpTransport:
     ) -> web.Response | None:
         if decision.allowed:
             return None
-        denied = self._scoped_budget_denial_message(message, decision)
+        denied = http_scoped.budget_denial_message(message, decision)
         self._record_remote_call(context, message, denied, error_code=decision.error_code)
         return self._message_web_response(denied)
 
@@ -480,7 +459,7 @@ class StreamingHttpTransport:
         context: ScopedMCPKeyContext,
         message: HttpMessage,
     ) -> web.Response | None:
-        tool_name, arguments = self._tool_call_parts(message)
+        tool_name, arguments = http_scoped.tool_call_parts(message)
         if not tool_name:
             return None
         arguments = constrain_scoped_mcp_expert_arguments(context, tool_name, arguments)
@@ -497,7 +476,7 @@ class StreamingHttpTransport:
         if denied is not None:
             return None, denied
 
-        operation, operation_arguments, resolved_tool = self._scoped_operation_parts(message)
+        operation, operation_arguments, resolved_tool = http_scoped.scoped_operation_parts(message)
         admission = None
         if operation:
             if self._admission_store is None:
@@ -533,7 +512,7 @@ class StreamingHttpTransport:
     ) -> None:
         if not self._audit_log:
             return
-        operation, arguments, _tool_name = self._scoped_operation_parts(message)
+        operation, arguments, _tool_name = http_scoped.scoped_operation_parts(message)
         if not operation:
             return
         resolved_error = error_code or scoped_mcp_response_error_code(response)
@@ -557,7 +536,7 @@ class StreamingHttpTransport:
     ) -> None:
         if not context or not self._audit_log:
             return
-        operation, arguments, tool_name = self._scoped_operation_parts(message)
+        operation, arguments, tool_name = http_scoped.scoped_operation_parts(message)
         if not operation:
             return
         cost_usd = scoped_mcp_response_cost_usd(tool_name, arguments, response) if tool_name else None
@@ -587,7 +566,7 @@ class StreamingHttpTransport:
     ) -> None:
         if self._admission_store is None:
             raise RuntimeError("Scoped MCP admission store is unavailable")
-        _operation, arguments, tool_name = self._scoped_operation_parts(message)
+        _operation, arguments, tool_name = http_scoped.scoped_operation_parts(message)
         actual_cost = scoped_mcp_response_cost_usd(tool_name, arguments, response) if tool_name else None
 
         def _record(charge: float | None) -> None:
@@ -646,8 +625,11 @@ class StreamingHttpTransport:
             self._record_remote_call(context, message, response)
         return response
 
-    async def _handle_post(self, request: web.Request) -> web.Response:
+    async def _handle_post(self, request: web.Request) -> web.StreamResponse:
         """Handle incoming POST requests (JSON-RPC messages)."""
+        origin_rejection = self._origin_rejection(request)
+        if origin_rejection is not None:
+            return origin_rejection
         auth_context, unauthorized = self._authenticate_request(request)
         if unauthorized is not None:
             self._stats.errors += 1
@@ -655,6 +637,8 @@ class StreamingHttpTransport:
         if not self._try_acquire_request_slot():
             self._stats.errors += 1
             return self._concurrency_limited_response()
+        message_id: Any = None
+        slot_transferred = False
         try:
             body = await request.read()
             self._stats.bytes_received += len(body)
@@ -662,27 +646,39 @@ class StreamingHttpTransport:
 
             data = json.loads(body.decode("utf-8"))
             message = HttpMessage.from_dict(data)
-            self._canonicalize_legacy_method(message)
+            message_id = message.id
 
-            admission = None
-            if auth_context:
-                admission, scoped_response = self._apply_scoped_key_context(auth_context, message)
-                if scoped_response is not None:
-                    return scoped_response
+            # 2026-07-28 transport validation: Origin was checked above;
+            # metadata headers must match the body on modern requests. The
+            # legacy Mcp-Session-Id / Last-Event-ID headers are ignored per
+            # spec (protocol sessions and SSE resumability are gone).
+            validation = validate_streamable_http_request(request.headers, message)
 
-            response = await self._dispatch_message(request, auth_context, message, admission)
-            if response:
-                return self._message_web_response(response)
+            if validation.modern and message.method == "subscriptions/listen":
+                # The POST slot pool exists for request/response work; a
+                # long-lived stream would otherwise pin one slot per stream
+                # and N idle streams would starve every other request. Hand
+                # the slot back now; streams are capped separately.
+                self._release_request_slot()
+                slot_transferred = True
+                return await self._handle_subscriptions_listen(request, auth_context, message)
 
-            # No response needed (notification)
-            return web.Response(status=204)
+            return await self._handle_rpc_message(request, auth_context, message)
 
+        except JsonRpcProtocolError as exc:
+            self._stats.errors += 1
+            return self._protocol_error_response(message_id, exc)
         except json.JSONDecodeError:
             self._stats.errors += 1
             return web.json_response(
                 {"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"}, "id": None},
                 status=400,
             )
+        except web.HTTPException:
+            # aiohttp's own statuses (e.g. 413 for a body over client_max_size)
+            # must not be flattened into a 500.
+            self._stats.errors += 1
+            raise
         except Exception:
             # Log the full exception locally but return a generic
             # message to the caller. The previous ``str(e)`` echoed
@@ -695,83 +691,193 @@ class StreamingHttpTransport:
                 status=500,
             )
         finally:
-            self._release_request_slot()
+            if not slot_transferred:
+                self._release_request_slot()
 
-    async def _handle_stream(self, request: web.Request) -> web.StreamResponse:
+    async def _handle_rpc_message(
+        self,
+        request: web.Request,
+        auth_context: ScopedMCPKeyContext | None,
+        message: HttpMessage,
+    ) -> web.StreamResponse:
+        """Dispatch one ordinary (non-streaming) JSON-RPC message."""
+        self._canonicalize_legacy_method(message)
+
+        admission = None
+        if auth_context:
+            admission, scoped_response = self._apply_scoped_key_context(auth_context, message)
+            if scoped_response is not None:
+                return scoped_response
+
+        response = await self._dispatch_message(request, auth_context, message, admission)
+        if response:
+            return self._message_web_response(response)
+
+        # Accepted notification (202 per Streamable HTTP spec)
+        return web.Response(status=202)
+
+    async def _handle_subscriptions_listen(
+        self,
+        request: web.Request,
+        auth_context: ScopedMCPKeyContext | None,
+        message: HttpMessage,
+    ) -> web.StreamResponse:
+        """Serve a modern ``subscriptions/listen`` request as a long-lived SSE stream.
+
+        The session (filter validation, acknowledgment, resource
+        subscriptions) is opened before the SSE response starts so a malformed
+        request still gets a proper JSON error status. Closing the stream is
+        the cancellation signal; on server shutdown the graceful empty
+        response is emitted as the final event.
         """
-        Handle SSE stream for server-to-client notifications.
+        if message.id is None:
+            # Notification-shaped listen: nothing to stream to, but JSON-RPC
+            # forbids answering a notification with an error.
+            return web.Response(status=202)
+        if self._listen_opener is None:
+            raise JsonRpcProtocolError(-32601, "subscriptions/listen is not available", http_status=404)
+        # Listen streams are bounded separately from request slots; the count
+        # is reserved here (not derived from _listen_queues membership) so the
+        # cap cannot be exceeded by concurrent opens racing across an await.
+        if not self._try_acquire_listen_slot():
+            raise JsonRpcProtocolError(
+                -32006,
+                "MCP HTTP listen-stream limit exceeded",
+                data={"limit": self._max_concurrent_requests},
+                http_status=429,
+            )
 
-        Clients connect here to receive push notifications
-        (e.g., resource updates, job progress).
+        # Bounded queue: an SSE peer that stops reading applies backpressure
+        # instead of growing the queue without limit.
+        queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue(maxsize=LISTEN_QUEUE_MAXSIZE)
+        try:
+            opened = await self._open_listen_session(
+                request, auth_context, message, queue, self._listen_opener, message.id
+            )
+        except BaseException:
+            self._release_listen_slot()
+            raise
+        if isinstance(opened, web.Response):  # scoped-key denial
+            self._release_listen_slot()
+            return opened
+        return await self._stream_listen_events(request, queue, opened)
+
+    async def _open_listen_session(
+        self,
+        request: web.Request,
+        auth_context: ScopedMCPKeyContext | None,
+        message: HttpMessage,
+        queue: asyncio.Queue[dict[str, Any] | None],
+        opener: StreamOpener,
+        request_id: str | int,
+    ) -> StreamCloser | web.Response:
+        """Authorize and open one listen session, or return a scoped denial.
+
+        Scoped keys get the same rate-limit and audit treatment on listen as
+        on the legacy subscribe RPCs. The reservation settles immediately:
+        opening a stream costs `$0`, and a stream must not hold an admission
+        for its lifetime.
         """
-        unauthorized = self._check_auth(request)
-        if unauthorized is not None:
-            self._stats.errors += 1
-            return unauthorized
-        subscriber_id = request.query.get("subscriber_id", str(id(request)))
+        admission = None
+        if auth_context:
+            admission, scoped_response = self._apply_scoped_key_context(auth_context, message)
+            if scoped_response is not None:
+                return scoped_response
 
+        async def _send(payload: dict[str, Any]) -> None:
+            await queue.put(payload)
+
+        identity_token = bind_mcp_request_identity(self._request_identity(request, auth_context))
+        try:
+            return await opener(message.params or {}, request_id, _send)
+        finally:
+            reset_mcp_request_identity(identity_token)
+            if auth_context is not None and admission is not None:
+                self._settle_remote_call(auth_context, message, None, admission)
+
+    async def _stream_listen_events(
+        self,
+        request: web.Request,
+        queue: asyncio.Queue[dict[str, Any] | None],
+        closer: StreamCloser,
+    ) -> web.StreamResponse:
+        """Run the SSE response stream for an open listen session."""
         response = web.StreamResponse(
             status=200,
             headers={
                 "Content-Type": "text/event-stream",
                 "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
                 "X-Accel-Buffering": "no",
             },
         )
-        await response.prepare(request)
 
-        # Create queue for this subscriber. If a previous connection
-        # used the same subscriber_id (reconnect, or two clients omitting
-        # the id and id(request) colliding), signal that handler to
-        # close cleanly before replacing the queue. Without this the
-        # old handler keeps draining a queue nobody ever puts to -
-        # a zombie stream that only times out 30s later.
-        old_queue = self._subscribers.pop(subscriber_id, None)
-        if old_queue is not None:
-            try:
-                old_queue.put_nowait(None)  # Sentinel triggers `break` in the old loop
-            except asyncio.QueueFull:
-                pass
+        def _count_event(size: int) -> None:
+            self._stats.notifications_sent += 1
+            self._stats.bytes_sent += size
 
-        queue: asyncio.Queue[Any] = asyncio.Queue()
-        self._subscribers[subscriber_id] = queue
-        self._stats.active_streams += 1
-
+        # A None sentinel is enqueued only by stop(): server-initiated end.
+        # Client cancellation is the transport-level disconnect instead.
+        self._listen_queues.add(queue)
+        graceful = False
         try:
-            while self._running:
-                try:
-                    # Wait for notification with timeout
-                    notification = await asyncio.wait_for(queue.get(), timeout=30.0)
-
-                    if notification is None:
-                        break
-
-                    # Send as SSE event
-                    event_data = f"data: {json.dumps(notification)}\n\n"
-                    await response.write(event_data.encode("utf-8"))
-                    self._stats.notifications_sent += 1
-                    self._stats.bytes_sent += len(event_data)
-
-                except TimeoutError:
-                    # Send keepalive
-                    await response.write(b": keepalive\n\n")
-
+            await response.prepare(request)
+            self._stats.active_streams += 1
+            try:
+                graceful = await http_sse.pump_events(
+                    response,
+                    queue,
+                    is_running=lambda: self._running,
+                    on_event=_count_event,
+                )
+            finally:
+                self._stats.active_streams -= 1
         finally:
-            self._stats.active_streams -= 1
-            # Only remove the entry if it still points at THIS handler's queue.
-            # When a reconnect with the same subscriber_id replaces ``queue`` in
-            # ``_subscribers``, the old handler exits via its sentinel - but its
-            # finally block must NOT pop the new owner. An unconditional pop
-            # silently unregisters the replacement and stalls notification
-            # delivery until the next reconnect.
-            if self._subscribers.get(subscriber_id) is queue:
-                self._subscribers.pop(subscriber_id, None)
-
+            self._listen_queues.discard(queue)
+            self._release_listen_slot()
+            await closer(graceful)
+            if graceful:
+                # closer(graceful=True) enqueued the final JSON-RPC response;
+                # drain it onto the stream before closing.
+                await http_sse.drain_remaining(response, queue)
         return response
+
+    async def _handle_stream(self, request: web.Request) -> web.StreamResponse:
+        """Serve the legacy (pre-2026) SSE notification endpoint.
+
+        Modern clients use ``subscriptions/listen`` instead; this route stays
+        for handshake-era clients that opened a standalone stream.
+        """
+        origin_rejection = self._origin_rejection(request)
+        if origin_rejection is not None:
+            return origin_rejection
+        unauthorized = self._check_auth(request)
+        if unauthorized is not None:
+            self._stats.errors += 1
+            return unauthorized
+        # Namespace the client-supplied id by the authenticated caller so one
+        # client cannot evict another client's stream by guessing its id.
+        identity = self._request_identity(request, self._authenticate_request(request)[0])
+        requested_id = request.query.get("subscriber_id", str(id(request)))
+        subscriber_id = f"{identity.owner_id or identity.authentication}:{requested_id}"
+        return await http_sse.serve_legacy_stream(
+            request,
+            subscriber_id=subscriber_id,
+            subscribers=self._subscribers,
+            stats=self._stats,
+            is_running=lambda: self._running,
+        )
 
     async def _handle_health(self, request: web.Request) -> web.Response:
         """Health check endpoint."""
+        origin_rejection = self._origin_rejection(request)
+        if origin_rejection is not None:
+            return origin_rejection
+        # Saturation counters are operational detail: require the same
+        # credential as the tool surface whenever one is configured.
+        unauthorized = self._check_auth(request)
+        if unauthorized is not None:
+            self._stats.errors += 1
+            return unauthorized
         return web.json_response(
             {
                 "status": "healthy",
@@ -829,73 +935,8 @@ class StreamingHttpTransport:
         return f"http://{self._host}:{self._port}{self._path}"
 
 
-class HttpClient:
-    """
-    HTTP client for connecting to a remote MCP server.
-
-    Used when Deepr runs as a remote service and Claude
-    needs to connect to it over HTTP.
-    """
-
-    def __init__(
-        self,
-        base_url: str,
-        timeout: float = 30.0,
-        auth_token: str | None = None,
-    ):
-        self._base_url = validated_remote_mcp_url(base_url)
-        self._timeout = aiohttp.ClientTimeout(total=validated_mcp_http_timeout(timeout))
-        self._auth_token = auth_token or os.getenv("MCP_AUTH_TOKEN") or os.getenv("DEEPR_MCP_AUTH_TOKEN") or None
-        self._session: aiohttp.ClientSession | None = None
-        self._stream_task: asyncio.Task[None] | None = None
-        self._notification_handler: Callable[[dict[str, Any]], Awaitable[None]] | None = None
-
-    def _auth_headers(self) -> dict[str, Any]:
-        return {"Authorization": f"Bearer {self._auth_token}"} if self._auth_token else {}
-
-    async def connect(self) -> None:
-        """Refuse before creating a session or opening a socket."""
-        raise MCPHttpDispatchBlockedError(
-            "Outbound MCP HTTP clients are disabled because remote service cost cannot be proven before connection"
-        )
-
-    async def disconnect(self) -> None:
-        """Close the connection."""
-        if self._stream_task:
-            self._stream_task.cancel()
-            try:
-                await self._stream_task
-            except asyncio.CancelledError:
-                pass
-
-        if self._session:
-            await self._session.close()
-
-    async def send(self, message: HttpMessage) -> HttpMessage | None:
-        """Refuse every request before session access or POST."""
-        del message
-        raise MCPHttpDispatchBlockedError(
-            "Outbound MCP HTTP requests are disabled because remote service cost cannot be proven before dispatch"
-        )
-
-    def on_notification(self, handler: Callable[[dict[str, Any]], Awaitable[None]]) -> None:
-        """Set handler for incoming notifications."""
-        self._notification_handler = handler
-
-    async def subscribe(self, subscriber_id: str | None = None) -> None:
-        """Refuse SSE before task or socket creation."""
-        del subscriber_id
-        raise MCPHttpDispatchBlockedError(
-            "Outbound MCP HTTP subscriptions are disabled because remote service cost cannot be proven before dispatch"
-        )
-
-    async def _stream_loop(self, url: str) -> None:
-        """Refuse the internal SSE seam if called directly."""
-        del url
-        raise MCPHttpDispatchBlockedError(
-            "Outbound MCP HTTP streaming is disabled because remote service cost cannot be proven before dispatch"
-        )
-
+# Outbound client lives in its own module; re-exported here for compatibility.
+from deepr.mcp.transport.http_client import HttpClient as HttpClient
 
 # Convenience alias
 HttpTransport = StreamingHttpTransport

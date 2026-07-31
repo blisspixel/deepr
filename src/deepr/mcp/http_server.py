@@ -7,42 +7,15 @@ import logging
 import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import Any
 
 from deepr.mcp import server as mcp_server
+from deepr.mcp.protocol_dispatch import dispatch_protocol_method
+from deepr.mcp.protocol_modern import METHOD_NOT_FOUND_CODE, JsonRpcProtocolError
+from deepr.mcp.request_context import current_mcp_request_identity
+from deepr.mcp.subscriptions_listen import make_listen_opener
 from deepr.mcp.transport.http import HttpMessage, StreamingHttpTransport
 
 logger = logging.getLogger("deepr.mcp")
-
-
-_MCP_METHOD_HANDLERS: dict[
-    str,
-    Callable[[mcp_server.DeeprMCPServer, dict[str, Any]], Awaitable[dict[str, Any]]],
-] = {
-    "initialize": mcp_server._handle_initialize,
-    "tools/list": mcp_server._handle_tools_list,
-    "tools/call": mcp_server._handle_tools_call,
-    "resources/list": mcp_server._handle_resources_list,
-    "resources/read": mcp_server._handle_resources_read,
-    "resources/subscribe": mcp_server._handle_resources_subscribe,
-    "resources/unsubscribe": mcp_server._handle_resources_unsubscribe,
-    "prompts/list": mcp_server._handle_prompts_list,
-    "prompts/get": mcp_server._handle_prompts_get,
-}
-
-
-async def _dispatch_mcp_method(
-    server: mcp_server.DeeprMCPServer,
-    method: str,
-    params: dict[str, Any],
-) -> dict[str, Any]:
-    handler = _MCP_METHOD_HANDLERS.get(method)
-    if handler is not None:
-        return await handler(server, params)
-    legacy_tool = mcp_server._LEGACY_METHOD_MAP.get(method)
-    if legacy_tool:
-        return await mcp_server._handle_tools_call(server, {"name": legacy_tool, "arguments": params})
-    raise KeyError(method)
 
 
 def _make_http_message_handler(
@@ -58,14 +31,21 @@ def _make_http_message_handler(
             )
         params = message.params or {}
         try:
-            result = await _dispatch_mcp_method(server, message.method, params)
-        except KeyError:
-            if message.id is None:
+            result = await dispatch_protocol_method(server, message.method, params)
+        except JsonRpcProtocolError as exc:
+            if message.id is None and exc.code == METHOD_NOT_FOUND_CODE:
+                # Unknown notifications (e.g. notifications/initialized from
+                # every legacy handshake) are accepted and ignored: JSON-RPC
+                # forbids responding to a notification, and the transport
+                # answers 202 for None.
                 return None
-            return HttpMessage(
-                id=message.id,
-                error={"code": -32601, "message": f"Method not found: {message.method}"},
-            )
+            if exc.http_status != 200 or message.id is None:
+                # Propagate to the transport, which binds the spec-mandated
+                # HTTP status (400 for version/header errors, 404 for unknown
+                # modern methods) that an in-band error response would lose.
+                raise
+            # Legacy-era errors keep the transport-neutral 200 + error shape.
+            return HttpMessage(id=message.id, error=exc.to_error())
         except Exception:
             logger.exception("MCP HTTP method %s failed", message.method)
             if message.id is None:
@@ -112,6 +92,14 @@ async def run_http_server(
         max_concurrent_requests=max_concurrent_requests,
     )
     transport.on_message(_make_http_message_handler(deepr_server))
+    # Modern subscriptions/listen streams: identity was bound by the transport
+    # for the opening request, so the provider reads the request-scoped value.
+    transport.on_listen(
+        make_listen_opener(
+            deepr_server.resource_handler,
+            identity_provider=current_mcp_request_identity,
+        )
+    )
 
     await transport.start()
     server_version = str(getattr(mcp_server, "SERVER_VERSION", "unknown"))
