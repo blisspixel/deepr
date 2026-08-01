@@ -12,6 +12,14 @@ citations, provenance, and outcomes. It prefers owned local models, then proven
 subscription quota, with no automatic fallback to a paid API.
 
 <p align="center">
+  <img src="assets/cli-demo.png" width="92%" alt="Demo CLI session: capacity inventory, local expert consult with sample beliefs and gaps, and costs doctor on fictional data" />
+</p>
+
+<p align="center">
+  <em>Demo session only (fictional expert). Not a live account or real research content.</em>
+</p>
+
+<p align="center">
   <img src="assets/dashboard.png" width="49%" alt="Dashboard with cost trends, job status, and activity" />
   <img src="assets/expert-hub.png" width="49%" alt="Persistent expert hub with maintained domain knowledge" />
 </p>
