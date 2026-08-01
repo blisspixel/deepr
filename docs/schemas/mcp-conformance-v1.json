@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/mcp-conformance-v1.json",
+  "title": "Deepr MCP Offline Conformance v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "generated_at",
+    "server_version",
+    "mode",
+    "ok",
+    "cost_usd",
+    "contract",
+    "protocol",
+    "summary",
+    "checks"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-mcp-conformance-v1"},
+    "kind": {"const": "deepr.mcp.conformance"},
+    "generated_at": {"type": "string"},
+    "server_version": {"type": "string", "minLength": 1},
+    "mode": {"const": "offline"},
+    "ok": {"type": "boolean"},
+    "cost_usd": {"const": 0.0},
+    "contract": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "cost_usd",
+        "network_opened",
+        "calls_metered_api",
+        "writes_state",
+        "semantic_verdict",
+        "checks_form_and_side_effects_only",
+        "live_model_required"
+      ],
+      "properties": {
+        "cost_usd": {"const": 0.0},
+        "network_opened": {"const": false},
+        "calls_metered_api": {"const": false},
+        "writes_state": {"const": false},
+        "semantic_verdict": {"const": false},
+        "checks_form_and_side_effects_only": {"const": true},
+        "live_model_required": {"const": false}
+      }
+    },
+    "protocol": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["modern", "legacy", "supported"],
+      "properties": {
+        "modern": {"const": "2026-07-28"},
+        "legacy": {
+          "type": "array",
+          "items": {"type": "string"},
+          "minItems": 1
+        },
+        "supported": {
+          "type": "array",
+          "items": {"type": "string"},
+          "minItems": 2
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["ok", "check_count", "failed_checks"],
+      "properties": {
+        "ok": {"type": "boolean"},
+        "check_count": {"type": "integer", "minimum": 0},
+        "failed_checks": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["name", "status", "detail", "expected"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "status": {"type": "string", "enum": ["passed", "failed"]},
+          "detail": {"type": "string"},
+          "expected": {"type": "string"}
+        }
+      }
+    }
+  }
+}

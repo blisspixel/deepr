@@ -78,7 +78,9 @@ and the [MCP Agent Guide](docs/MCP_AGENT_TEST_GUIDE.md) for workflows across the
 current 36 MCP tools. The MCP server implements the final `2026-07-28`
 protocol revision (stateless per-request negotiation, `server/discover`,
 `subscriptions/listen`, Streamable HTTP header and Origin validation) while
-still serving legacy `initialize`-era clients on both transports.
+still serving legacy `initialize`-era clients on both transports. Operators can
+prove the offline host-interop posture with `deepr mcp conformance` (`$0`, no
+network, no model).
 
 ## Documentation
 

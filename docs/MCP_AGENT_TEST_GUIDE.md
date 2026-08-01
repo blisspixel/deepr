@@ -66,15 +66,16 @@ explicit plan-capacity path.
   expert fallback and return a `capacity.live_metered_fallback=false` marker.
 - API consult synthesis exposes explicit `provider`, `model`, and budget
   inputs for preview and contract testing. Production metered dispatch remains
-  blocked in v2.40 until authenticated provider account controls and current
-  credential identity are proven. Use local or plan modes for execution.
+  blocked (freeze since v2.40; still current on v2.42) until authenticated
+  provider account controls and current credential identity are proven. Use
+  local or plan modes for execution.
 - `deepr_query_expert` stays off metered APIs when the caller sets
   `backend` to `local` or `plan`. Those modes route one named expert through
   a read-only compiled-context chat turn, attach `readonly_chat_artifact`, set
   `research_triggered=0`, and reject `agentic=true`. Omitted or
-  `backend="api"` is blocked before provider work in v2.40 with
+  `backend="api"` is blocked before provider work with
   `metered_expert_chat_accounting_unavailable`.
-- `deepr_agentic_research` is always execution-blocked in v2.40.
+- `deepr_agentic_research` is always execution-blocked under the same freeze.
   `deepr_research` exposes a bounded metered request contract, but production
   dispatch is blocked by the same provider-account authority gate. Mutating
   tools are not safe for automatic no-cost testing unless their schema exposes
@@ -86,14 +87,33 @@ explicit plan-capacity path.
 
 ## Operator Self-Validation
 
-Before handing the endpoint to another machine, validate the consult contract
-from the operator shell:
+Before handing the endpoint to another machine, run the offline conformance
+rollup (preferred first gate):
+
+```powershell
+deepr mcp conformance --json
+```
+
+This costs `$0`, opens no network, calls no model, and emits
+`schema_version="deepr-mcp-conformance-v1"`. It must report `ok=true` with all
+of:
+
+| Check | Expected posture |
+| --- | --- |
+| `dual_era_protocol` | Modern `2026-07-28` plus legacy versions and tool aliases |
+| `offline_consult_validation` | 15 form checks on `deepr-consult-v1` |
+| `remote_smoke_fail_closed` | Smoke blocked; no network open |
+| `managed_conversation_fail_closed` | Managed loopback blocked without cost authority |
+| `registration_manifest_offline` | Manifest built; remote smoke pending cost authority |
+| `capabilities_map` | `deepr-capabilities-v1` with local + Claude zero-cost paths |
+
+Then validate the consult contract alone if you need a smaller fixture:
 
 ```powershell
 deepr mcp validate-consult --json
 ```
 
-This offline fixture costs `$0` and proves the `deepr-consult-v1` artifact,
+That offline fixture costs `$0` and proves the `deepr-consult-v1` artifact,
 `deepr-expert-collaboration-v1` metadata, trace linkage, no-metered capacity
 posture, cost fields, dissent handling, host action boundary, and secret
 redaction checks without requiring Ollama or a plan CLI.
@@ -110,9 +130,19 @@ deepr mcp validate-consult-fleet --plan claude --expert "AI Agent Harnesses" --j
 Claude is the current safety-eligible adapter for this live check. Each call
 first requires live provider metadata proving paid extra usage is disabled,
 then runs in safe mode with empty tool and MCP surfaces, no persistence, the
-included `sonnet` alias, and no API credential. Codex,
-OpenCode, Kiro, Grok, Antigravity, and Copilot are fleet-visible but fail before
-vendor dispatch; inspect their exact reasons with `deepr capacity fleet`.
+included `sonnet` alias, and no API credential. **Plan mode refuses when
+`ANTHROPIC_API_KEY` is set and non-empty** (including values loaded from
+`.env`). Use a dedicated shell and clear only that process variable so dotenv
+cannot reintroduce a truthy key:
+
+```powershell
+$env:ANTHROPIC_API_KEY = ""
+deepr mcp validate-consult --live --synthesis-backend plan --plan claude --json
+```
+
+Codex, OpenCode, Kiro, Grok, Antigravity, and Copilot are fleet-visible but
+fail before vendor dispatch; inspect their exact reasons with
+`deepr capacity fleet`.
 
 `capacity validate-fleet` is the preferred operator check when validating a
 plan fleet. It first proves CLI transport and auth, records quota observations,

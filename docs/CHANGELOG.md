@@ -12,6 +12,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [Approach contract](APPROACH.md): normative open-source method claims,
   refusals, capacity classes, epistemic state, and composition model. Linked
   from the README, docs index, and roadmap.
+- Offline MCP host-interop conformance rollup: `deepr mcp conformance`
+  (`deepr-mcp-conformance-v1`). Aggregates dual-era protocol constants, offline
+  consult form checks, remote smoke and managed-conversation fail-closed
+  postures, registration-manifest offline shape, and the capabilities map.
+  No network, no model, `$0`. Documented in
+  [MCP_AGENT_TEST_GUIDE.md](MCP_AGENT_TEST_GUIDE.md) and
+  [SUPPORTED_SURFACE.md](SUPPORTED_SURFACE.md).
+
+### Changed
+
+- Supported Surface status advanced to v2.42.0 / 2026-08-01 with dual-era MCP,
+  offline conformance, spend dispositions, and parent-budget substrate
+  language. Plan-quota operator guidance clarifies empty
+  `ANTHROPIC_API_KEY` process masking so `.env` cannot reintroduce a metered
+  credential.
 
 ## [2.42.0] - 2026-07-31
 
