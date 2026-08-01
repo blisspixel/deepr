@@ -224,6 +224,12 @@ reliable product, not a four-language architecture diagram.
     identity contract above. Only a reviewed code change may restore the paid
     surface. See
     [metered-expert-chat-reenable.md](docs/design/metered-expert-chat-reenable.md).
+  - [x] **2026-07-31 substrate:** offline `MaximumChargeEnvelope` evaluation in
+    `deepr.experts.maximum_charge_contract` prices exact token/tool/storage
+    maxima from the registry, rejects averages, enforces posture flags and the
+    $5 absolute ceiling, and surfaces structured incompleteness on blocked
+    metered chat paths. `METERED_EXPERT_CHAT_EXECUTION_ENABLED` and
+    `MAXIMUM_CHARGE_CONTRACT_RUNTIME_PROVEN` remain false; no paid re-enable.
 - [ ] **P1: migrate every gated metered expert lifecycle surface to one shared
   durable per-call and run-budget transaction.** This includes nonlocal
   `expert make` and `--learn`, API curriculum `expert plan`, provider-backed

@@ -20,6 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [docs/dev/orphaned-spend-reconciliation-2026-07-31.md](dev/orphaned-spend-reconciliation-2026-07-31.md)
   closing ROADMAP P0 orphaned-spend forensics ($41.16 disposed, $0.00
   unexplained).
+- Offline maximum-charge contract evaluator
+  (`deepr.experts.maximum_charge_contract`) for the metered expert-chat
+  re-enable path: exact unit maxima, registry pricing, posture and identity
+  fields, rejection of averages, $5 absolute ceiling. Metered chat remains
+  fail-closed (`METERED_EXPERT_CHAT_EXECUTION_ENABLED=False`).
 
 ## [2.41.0] - 2026-07-31
 

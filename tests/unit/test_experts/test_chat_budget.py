@@ -621,13 +621,14 @@ async def test_concurrent_metered_turns_make_zero_provider_calls_and_zero_ledger
     assert session.cost_accumulated == 0.0
     assert session.cost_session.total_cost == 0.0
     record.assert_not_called()
-    assert session.get_chat_capacity() == {
-        "metered": True,
-        "execution_enabled": False,
-        "status": "blocked",
-        "block_code": "metered_expert_chat_accounting_unavailable",
-        "explicit_allow": False,
-    }
+    capacity = session.get_chat_capacity()
+    assert capacity["metered"] is True
+    assert capacity["execution_enabled"] is False
+    assert capacity["status"] == "blocked"
+    assert capacity["block_code"] == "metered_expert_chat_accounting_unavailable"
+    assert capacity["explicit_allow"] is False
+    assert capacity["maximum_charge_contract_runtime_proven"] is False
+    assert capacity["maximum_charge_contract"]["complete"] is False
 
 
 async def test_all_auxiliary_metered_chat_paths_fail_before_dispatch(monkeypatch):
