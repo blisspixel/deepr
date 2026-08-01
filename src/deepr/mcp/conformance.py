@@ -1,7 +1,8 @@
 """Offline, machine-checkable MCP host-interop conformance report.
 
 Aggregates form and side-effect checks that prove Deepr's dual-era MCP posture
-without opening remote connections, calling models, or spending money. Semantic
+without opening remote connections, calling models, spending money, or starting
+the full MCP server (no expert-store session, no durable job state). Semantic
 answer quality is intentionally out of scope (AGENTIC_BALANCE).
 """
 
@@ -283,10 +284,18 @@ def _check_capabilities_map(*, version: str) -> ConformanceCheck:
     expected = "deepr-capabilities-v1 map builds with zero-cost synthesis paths"
     try:
         from deepr.mcp.capabilities import CAPABILITIES_SCHEMA_VERSION, build_capabilities
-        from deepr.mcp.server import DeeprMCPServer
+        from deepr.mcp.search.registry import create_default_registry
+        from deepr.mcp.server import _register_new_tools
 
-        server = DeeprMCPServer()
-        payload = build_capabilities(server.store, server.registry, version=version)
+        class _EmptyExpertStore:
+            """Read-only empty roster; no filesystem or network side effects."""
+
+            def list_all(self) -> list[Any]:
+                return []
+
+        registry = create_default_registry()
+        _register_new_tools(registry)
+        payload = build_capabilities(_EmptyExpertStore(), registry, version=version)
     except Exception as exc:
         return _failed("capabilities_map", f"{type(exc).__name__}: {exc}", expected=expected)
     if payload.get("schema_version") != CAPABILITIES_SCHEMA_VERSION:
