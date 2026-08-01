@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.42.0] - 2026-07-31
+
+### Added
+
+- Durable spend dispositions for settled cost events without report artifacts
+  (`spend_dispositions.jsonl`). `deepr costs doctor` now reports matched,
+  disposed, and unexplained buckets and fails only on unexplained spend.
+- `deepr costs dispose`, `deepr costs dispose-unexplained [--apply]`, and
+  `deepr costs dispositions` for forensic close-out without rewriting the
+  append-only ledger or calling providers.
+- Design note [docs/design/spend-dispositions.md](design/spend-dispositions.md)
+  and reconciliation report
+  [docs/dev/orphaned-spend-reconciliation-2026-07-31.md](dev/orphaned-spend-reconciliation-2026-07-31.md)
+  closing ROADMAP P0 orphaned-spend forensics ($41.16 disposed, $0.00
+  unexplained).
+- Offline maximum-charge contract evaluator
+  (`deepr.experts.maximum_charge_contract`) for the metered expert-chat
+  re-enable path: exact unit maxima, registry pricing, posture and identity
+  fields, rejection of averages, $5 absolute ceiling. Metered chat remains
+  fail-closed (`METERED_EXPERT_CHAT_EXECUTION_ENABLED=False`).
+- Shared parent budget transaction substrate
+  (`deepr.experts.parent_budget_transaction`) for multi-call metered lifecycle
+  runs: nested child admission under one ceiling, dispatch marks, settle or
+  conservative consume, freeze on overrun. Metered mutations remain fail-closed.
+- Durable parent budget journal (`deepr.experts.parent_budget_store`) with
+  append-only events and run replay for crash forensics.
+- `DurableParentBudget.open(..., require_complete_contract=True)` binds an
+  offline maximum-charge envelope to the parent open event before nested
+  admissions.
+- `deepr costs parent-budget` lists journal events or replays one run id.
+- `open_gated_lifecycle_budget` adoption entrypoint for known gated metered
+  lifecycle surfaces with a required complete maximum-charge envelope.
+
 ## [2.41.0] - 2026-07-31
 
 ### Added

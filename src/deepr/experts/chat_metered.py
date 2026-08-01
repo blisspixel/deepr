@@ -45,6 +45,28 @@ def apply_output_token_ceiling(
     raise MeteredExpertChatDisabledError("expert_chat_unbounded_token_envelope")
 
 
+def _blocked_contract_payload(
+    *,
+    provider: str,
+    model: str,
+    max_cost_per_job: float | None,
+    request_envelope: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Describe why metered chat remains blocked (never enables dispatch)."""
+    from deepr.experts.maximum_charge_contract import incomplete_contract_summary
+
+    summary = incomplete_contract_summary()
+    summary["requested_provider"] = provider
+    summary["requested_model"] = model
+    summary["requested_max_cost_per_job"] = max_cost_per_job
+    summary["request_envelope_keys"] = sorted(str(key) for key in request_envelope.keys())
+    summary["reason"] = (
+        "Metered expert chat requires one complete maximum-charge contract under a "
+        "parent ceiling; partial max_cost_per_job and request envelopes are not authority."
+    )
+    return summary
+
+
 async def execute_metered_chat_provider_call(
     *,
     provider: str,
@@ -55,8 +77,16 @@ async def execute_metered_chat_provider_call(
     request_envelope: Mapping[str, Any],
 ) -> T:
     """Refuse metered chat until the full provider charge has a hard bound."""
-    del provider, model, source, max_cost_per_job, call, request_envelope
-    raise MeteredExpertChatDisabledError("expert_chat_unbounded_provider_charge")
+    del source, call
+    raise MeteredExpertChatDisabledError(
+        "expert_chat_unbounded_provider_charge",
+        contract=_blocked_contract_payload(
+            provider=provider,
+            model=model,
+            max_cost_per_job=max_cost_per_job,
+            request_envelope=request_envelope,
+        ),
+    )
 
 
 def execute_metered_chat_provider_stream(
@@ -69,8 +99,16 @@ def execute_metered_chat_provider_stream(
     request_envelope: Mapping[str, Any],
 ) -> AsyncIterator[T]:
     """Refuse metered streams until the full provider charge has a hard bound."""
-    del provider, model, source, max_cost_per_job, events, request_envelope
-    raise MeteredExpertChatDisabledError("expert_chat_unbounded_provider_charge")
+    del source, events
+    raise MeteredExpertChatDisabledError(
+        "expert_chat_unbounded_provider_charge",
+        contract=_blocked_contract_payload(
+            provider=provider,
+            model=model,
+            max_cost_per_job=max_cost_per_job,
+            request_envelope=request_envelope,
+        ),
+    )
 
 
 def mirror_chat_session_spend(

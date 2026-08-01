@@ -172,7 +172,7 @@ Deepr stays Python-first until a production-shaped benchmark proves that one
 stable bounded capability needs another language. The goal is a faster and more
 reliable product, not a four-language architecture diagram.
 
-- [ ] **P0: forensically reconcile the historical orphaned spend before any
+- [x] **P0: forensically reconcile the historical orphaned spend before any
   paid unfreeze.** The 2026-07-29 live `deepr costs doctor` run found 143
   settled events totaling `$41.16` without surviving report artifacts. Preserve
   the append-only ledger. Classify each event as failed or cancelled work,
@@ -182,6 +182,14 @@ reliable product, not a four-language architecture diagram.
   Acceptance requires a durable disposition for every event, zero unexplained
   settled dollars, and an independently reviewed reconciliation report. This
   investigation does not authorize a provider call or a ledger rewrite.
+  - [x] **2026-07-31 evidence:** durable `spend_dispositions.jsonl` plus
+    `deepr costs dispose` / `dispose-unexplained` / `dispositions`; doctor
+    reports matched / disposed / unexplained with exit 1 only on unexplained.
+    Live inventory closed at 143 dispositions ($41.16 disposed, $0.00
+    unexplained): 87 expected_non_report, 56 lost_artifact with job ids.
+    Report: [orphaned-spend-reconciliation-2026-07-31.md](docs/dev/orphaned-spend-reconciliation-2026-07-31.md).
+    Design: [spend-dispositions.md](docs/design/spend-dispositions.md). No
+    ledger rewrite; no provider call; paid unfreeze still blocked.
 - [ ] **P1: re-enable live metered expert chat only after one complete,
   provider-enforceable maximum-charge contract covers the whole session.** A
   fixed estimate, an output-only token cap, post-bill usage, a feature flag, or
@@ -216,6 +224,12 @@ reliable product, not a four-language architecture diagram.
     identity contract above. Only a reviewed code change may restore the paid
     surface. See
     [metered-expert-chat-reenable.md](docs/design/metered-expert-chat-reenable.md).
+  - [x] **2026-07-31 substrate:** offline `MaximumChargeEnvelope` evaluation in
+    `deepr.experts.maximum_charge_contract` prices exact token/tool/storage
+    maxima from the registry, rejects averages, enforces posture flags and the
+    $5 absolute ceiling, and surfaces structured incompleteness on blocked
+    metered chat paths. `METERED_EXPERT_CHAT_EXECUTION_ENABLED` and
+    `MAXIMUM_CHARGE_CONTRACT_RUNTIME_PROVEN` remain false; no paid re-enable.
 - [ ] **P1: migrate every gated metered expert lifecycle surface to one shared
   durable per-call and run-budget transaction.** This includes nonlocal
   `expert make` and `--learn`, API curriculum `expert plan`, provider-backed
@@ -229,6 +243,20 @@ reliable product, not a four-language architecture diagram.
   cancellation, concurrency, replay, and ledger failure. Until each surface
   clears that contract it fails closed. Local and explicit plan-quota expert
   paths and `deepr eval calibrate --from` remain available.
+  - [x] **2026-07-31 substrate:** `ParentBudgetTransaction` admits nested child
+    maxima under one parent ceiling, one-use dispatch marks, exact settle or
+    conservative full-bound consume, cancel, freeze-on-overrun, and close
+    guards (`deepr.experts.parent_budget_transaction`). Mutation gate errors
+    now declare the parent-budget requirement and gated surface inventory.
+    `METERED_EXPERT_MUTATIONS_ENABLED` remains false; no surface re-enabled.
+  - [x] **2026-07-31 durability:** `DurableParentBudget` journals open/admit/
+    mark/settle/consume/cancel/close/freeze to append-only
+    `parent_budget_transactions.jsonl` with crash replay
+    (`deepr.experts.parent_budget_store`). Still no metered surface enable.
+  - [x] **2026-07-31 adoption entry:** `open_gated_lifecycle_budget` opens a
+    durable parent only for inventory surfaces and only with a complete
+    maximum-charge envelope; concurrent admit stress and ceiling-match
+    checks land. Per-surface wire-up and enable remain open.
 - [ ] **P1: re-enable metered multi-call research and hosted context only after
   their complete parent cost is enforceable.** Metered auto-batch, campaign,
   dream-team, prepared execution, continuation, and autonomous rounds need one
@@ -330,7 +358,15 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.40.0)
+## Current Status (v2.42.0)
+
+**v2.42.0 additions:** durable spend dispositions close historical orphaned
+settled spend without ledger rewrite (`costs doctor` matched/disposed/
+unexplained; `dispose` / `dispose-unexplained` / `dispositions`); offline
+maximum-charge contract evaluation for metered chat (still fail-closed);
+shared parent budget transaction substrate with durable journal, crash
+replay, `open_gated_lifecycle_budget`, and `costs parent-budget`. Paid
+dispatch remains frozen.
 
 **v2.40.0 additions:** the eval harness now ships the opt-in
 `deepr eval consult --structured-local` graph with immutable expert packets,

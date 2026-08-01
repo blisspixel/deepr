@@ -173,23 +173,32 @@ def cost_exposure_snapshot(*, now: datetime | None = None) -> dict[str, Any]:
 
 
 def audit_spend_integrity(days: int, reports_root: Path) -> dict:
-    """Classify paid ledger events in the window as artifact-matched or orphaned.
+    """Classify paid ledger events as matched, disposed, or unexplained.
 
-    Same classifier as `deepr costs doctor`: settled spend either maps to a
-    report directory on disk (by job-id fragment) or is money with nothing to
-    show for it.
+    Same classifier as `deepr costs doctor`. ``orphaned_spend`` is the still-
+    unexplained residual (no report artifact and no durable disposition).
     """
     from deepr.cli.commands.costs import _doctor_classify
     from deepr.observability.cost_ledger import CostLedger
+    from deepr.observability.spend_dispositions import latest_dispositions_by_event_key
 
     cutoff = datetime.now(UTC) - timedelta(days=days)
     dir_names = [d.name for d in reports_root.iterdir() if d.is_dir()] if reports_root.exists() else []
     events = CostLedger().with_locked_accounting_events(list)
-    matched, orphaned = _doctor_classify(events, dir_names, cutoff)
+    matched, disposed, unexplained = _doctor_classify(
+        events,
+        dir_names,
+        cutoff,
+        dispositions_by_key=latest_dispositions_by_event_key(),
+    )
     return {
         "days": days,
         "matched_spend": round(sum(e["cost_usd"] for e in matched), 2),
-        "orphaned_spend": round(sum(e["cost_usd"] for e in orphaned), 2),
+        "disposed_spend": round(sum(e["cost_usd"] for e in disposed), 2),
+        "orphaned_spend": round(sum(e["cost_usd"] for e in unexplained), 2),
+        "unexplained_spend": round(sum(e["cost_usd"] for e in unexplained), 2),
         "matched_events": len(matched),
-        "orphaned_events": len(orphaned),
+        "disposed_events": len(disposed),
+        "orphaned_events": len(unexplained),
+        "unexplained_events": len(unexplained),
     }

@@ -2,9 +2,16 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
+from deepr.experts.maximum_charge_contract import incomplete_contract_summary
+
 METERED_EXPERT_CHAT_EXECUTION_ENABLED = False
+# Offline maximum-charge evaluation may report complete; live re-enable still
+# requires a reviewed flip of METERED_EXPERT_CHAT_EXECUTION_ENABLED after live
+# provider overage-off observation. This flag is never true in v2.42.
+MAXIMUM_CHARGE_CONTRACT_RUNTIME_PROVEN = False
 HOSTED_EXPERT_STORAGE_LIFECYCLE_ACCOUNTING_ENABLED = False
 METERED_EXPERT_CHAT_BLOCK_CODE = "metered_expert_chat_accounting_unavailable"
 METERED_EXPERT_CHAT_CONFIRM_CODE = "metered_expert_chat_confirmation_required"
@@ -13,6 +20,12 @@ _METERED_CHAT_ALLOW_ENV = "DEEPR_ALLOW_METERED_EXPERT_CHAT"
 
 def validate_expert_chat_release_invariants() -> None:
     """Prevent a release from enabling chat without a hard provider charge bound."""
+    if METERED_EXPERT_CHAT_EXECUTION_ENABLED and not MAXIMUM_CHARGE_CONTRACT_RUNTIME_PROVEN:
+        raise RuntimeError(
+            "Metered expert chat cannot be enabled until the maximum-charge contract is "
+            "runtime-proven (serialized input, output, tools, cache, storage, identity, "
+            "and live overage-off observation under one parent ceiling)"
+        )
     if METERED_EXPERT_CHAT_EXECUTION_ENABLED:
         raise RuntimeError(
             "Metered expert chat cannot be enabled until serialized input, output, tools, cache writes, "
@@ -31,8 +44,16 @@ class MeteredExpertChatDisabledError(RuntimeError):
     retryable = False
     provider_work_dispatched = False
 
-    def __init__(self, operation: str, *, code: str | None = None, message: str | None = None) -> None:
+    def __init__(
+        self,
+        operation: str,
+        *,
+        code: str | None = None,
+        message: str | None = None,
+        contract: Mapping[str, Any] | None = None,
+    ) -> None:
         self.operation = operation
+        self.contract = dict(contract) if contract is not None else incomplete_contract_summary()
         if code is not None:
             self.code = code
         super().__init__(
@@ -53,7 +74,9 @@ class MeteredExpertChatDisabledError(RuntimeError):
             "retryable": self.retryable,
             "provider_work_dispatched": self.provider_work_dispatched,
             "metered_chat_execution_enabled": METERED_EXPERT_CHAT_EXECUTION_ENABLED,
+            "maximum_charge_contract_runtime_proven": MAXIMUM_CHARGE_CONTRACT_RUNTIME_PROVEN,
             "explicit_allow_env": _METERED_CHAT_ALLOW_ENV,
+            "maximum_charge_contract": self.contract,
         }
 
 
@@ -97,11 +120,14 @@ def expert_chat_capacity(backend: Any) -> dict[str, Any]:
         "status": "blocked",
         "block_code": METERED_EXPERT_CHAT_BLOCK_CODE,
         "explicit_allow": False,
+        "maximum_charge_contract_runtime_proven": MAXIMUM_CHARGE_CONTRACT_RUNTIME_PROVEN,
+        "maximum_charge_contract": incomplete_contract_summary(),
     }
 
 
 __all__ = [
     "HOSTED_EXPERT_STORAGE_LIFECYCLE_ACCOUNTING_ENABLED",
+    "MAXIMUM_CHARGE_CONTRACT_RUNTIME_PROVEN",
     "METERED_EXPERT_CHAT_BLOCK_CODE",
     "METERED_EXPERT_CHAT_CONFIRM_CODE",
     "METERED_EXPERT_CHAT_EXECUTION_ENABLED",

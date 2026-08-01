@@ -19,6 +19,10 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from deepr.cli.commands.costs_spend_dispositions import (
+    disposition_log_path_for_ledger,
+    register_spend_disposition_commands,
+)
 from deepr.cli.commands.provider_billing import reconcile_billing_command
 from deepr.observability.cost_ledger import CostLedger
 from deepr.observability.costs import CostDashboard
@@ -114,6 +118,7 @@ def costs():
 
 
 costs.add_command(reconcile_billing_command)
+register_spend_disposition_commands(costs)
 
 
 @costs.command()
@@ -710,42 +715,22 @@ def _print_tracking_checks(checks) -> None:
         console.print(f"[red]Issues found ({total - passed}/{total})[/red]")
 
 
-def _doctor_classify(events, dir_names, cutoff):
-    """Split paid ledger events into artifact-matched and orphaned entries."""
-    from datetime import datetime
+def _doctor_classify(events, dir_names, cutoff, dispositions_by_key=None):
+    """Split paid ledger events into matched, disposed, and unexplained.
 
-    matched: list[dict[str, Any]] = []
-    orphaned: list[dict[str, Any]] = []
-    for event in events:
-        cost = float(event.cost_usd or 0)
-        if cost <= 0:
-            continue
-        stamp = event.timestamp
-        if isinstance(stamp, str):
-            try:
-                stamp = datetime.fromisoformat(stamp)
-            except ValueError:
-                stamp = None
-        if stamp is not None and stamp.tzinfo is None:
-            stamp = stamp.replace(tzinfo=UTC)
-        if stamp is not None and stamp < cutoff:
-            continue
-        # task_id carries the job id (e.g. research_research-a7ae5c653d8c);
-        # report directories embed the first 8 hex chars of that job fragment.
-        task = str(event.task_id or "")
-        fragment = task.split("research-", 1)[1][:8] if "research-" in task else ""
-        entry = {
-            "timestamp": str(event.timestamp)[:19],
-            "provider": event.provider,
-            "model": event.model,
-            "cost_usd": round(cost, 4),
-            "task_id": task,
-        }
-        if fragment and any(fragment in name for name in dir_names):
-            matched.append(entry)
-        else:
-            orphaned.append(entry)
-    return matched, orphaned
+    ``orphaned`` in legacy call sites means unexplained only: spend that still
+    lacks both a report artifact and a durable disposition. Callers that need
+    the three-way split should use ``classify_paid_events`` directly.
+    """
+    from deepr.observability.spend_dispositions import classify_paid_events
+
+    matched, disposed, unexplained = classify_paid_events(
+        events,
+        dir_names,
+        cutoff,
+        dispositions_by_key=dispositions_by_key,
+    )
+    return matched, disposed, unexplained
 
 
 @costs.command()
@@ -771,14 +756,15 @@ def doctor(
 
     First audits the tracking stores themselves (ledger writable and
     accounting-ready, dashboard view drift vs the canonical ledger), then
-    reconciles paid ledger events against report artifacts on disk. Every
-    settled research dollar should map to a report directory that still
-    exists. Spend without a surviving artifact is ORPHANED and this command's
-    reason to exist: a 30-job, $37.79 campaign once billed with zero artifacts
-    retained, and nothing surfaced the loss for 24 days. Exits 1 when orphaned
-    spend is found, so schedulers and CI can alarm on it.
+    reconciles paid ledger events against report artifacts on disk. Settled
+    dollars without a report must either carry a durable disposition
+    (expected non-report, failed/cancelled, lost artifact, or unresolved
+    provider evidence) or remain UNEXPLAINED. Exits 1 when unexplained spend
+    remains, so schedulers and CI can alarm on it.
     """
     from datetime import datetime, timedelta
+
+    from deepr.observability.spend_dispositions import latest_dispositions_by_event_key
 
     dashboard = (
         CostDashboard(storage_path=Path(ledger_path).with_name("cost_log.json")) if ledger_path else CostDashboard()
@@ -804,42 +790,63 @@ def doctor(
     root = Path(reports_dir) if reports_dir else Path(load_config()["results_dir"])
     dir_names = [d.name for d in root.iterdir() if d.is_dir()] if root.exists() else []
     cutoff = datetime.now(UTC) - timedelta(days=days)
+    disp_path = disposition_log_path_for_ledger(ledger_path)
     try:
         events = ledger.with_locked_accounting_events(list)
     except Exception as exc:
         raise click.ClickException("Canonical cost ledger is unreadable; integrity status is UNKNOWN.") from exc
-    matched, orphaned = _doctor_classify(events, dir_names, cutoff)
+    matched, disposed, unexplained = _doctor_classify(
+        events,
+        dir_names,
+        cutoff,
+        dispositions_by_key=latest_dispositions_by_event_key(disp_path),
+    )
 
     matched_total = sum(e["cost_usd"] for e in matched)
-    orphaned_total = sum(e["cost_usd"] for e in orphaned)
+    disposed_total = sum(e["cost_usd"] for e in disposed)
+    unexplained_total = sum(e["cost_usd"] for e in unexplained)
+    # Backward-compatible alias: orphaned == still-unexplained only.
+    orphaned_total = unexplained_total
     if json_output:
         payload = {
             "days": days,
             "matched_spend_usd": round(matched_total, 2),
+            "disposed_spend_usd": round(disposed_total, 2),
+            "unexplained_spend_usd": round(unexplained_total, 2),
             "orphaned_spend_usd": round(orphaned_total, 2),
             "matched": matched,
-            "orphaned": orphaned,
+            "disposed": disposed,
+            "unexplained": unexplained,
+            "orphaned": unexplained,
             "tracking_checks": [{"name": name, "ok": ok, "details": details} for name, ok, details in tracking_checks],
         }
         click.echo(json.dumps(payload))
     else:
         _print_tracking_checks(tracking_checks)
         console.print(f"\n[bold]Cost doctor[/bold] (last {days} days)")
-        console.print(f"  matched spend:  ${matched_total:.2f} across {len(matched)} event(s) with artifacts on disk")
-        colour = "red" if orphaned_total > 0.005 else "green"
-        console.print(f"  [{colour}]orphaned spend: ${orphaned_total:.2f} across {len(orphaned)} event(s)[/{colour}]")
-        for entry in orphaned[:15]:
+        console.print(
+            f"  matched spend:     ${matched_total:.2f} across {len(matched)} event(s) with artifacts on disk"
+        )
+        console.print(
+            f"  disposed spend:    ${disposed_total:.2f} across {len(disposed)} event(s) with durable dispositions"
+        )
+        colour = "red" if unexplained_total > 0.005 else "green"
+        console.print(
+            f"  [{colour}]unexplained spend: ${unexplained_total:.2f} across {len(unexplained)} event(s)[/{colour}]"
+        )
+        for entry in unexplained[:15]:
             console.print(
-                f"    {entry['timestamp']}  ${entry['cost_usd']:6.2f}  {entry['provider']}/{entry['model']}",
+                f"    {entry['timestamp']}  ${entry['cost_usd']:6.2f}  "
+                f"{entry.get('operation', '')}  {entry['provider']}/{entry['model']}",
                 markup=False,
             )
-        if len(orphaned) > 15:
-            console.print(f"    ... and {len(orphaned) - 15} more")
-        if orphaned_total > 0.005:
+        if len(unexplained) > 15:
+            console.print(f"    ... and {len(unexplained) - 15} more")
+        if unexplained_total > 0.005:
             console.print(
-                "  Orphaned spend means money settled with no surviving report artifact: "
-                "a failed or cancelled job settled conservatively, or an artifact that was "
-                "lost after billing. Investigate before it compounds."
+                "  Unexplained spend means money settled with no surviving report artifact "
+                "and no durable disposition. Investigate with `deepr costs dispose-unexplained` "
+                "or `deepr costs dispose` before it compounds."
             )
-    if orphaned_total > 0.005 or not all(ok for _name, ok, _details in tracking_checks):
+    if unexplained_total > 0.005 or not all(ok for _name, ok, _details in tracking_checks):
         raise SystemExit(1)

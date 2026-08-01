@@ -1,6 +1,13 @@
 # Metered expert chat re-enable gate
 
-Status: blocked in v2.40. Last reviewed: 2026-07-29.
+Status: blocked in v2.42. Last reviewed: 2026-07-31.
+
+Offline maximum-charge evaluation lives in
+`deepr.experts.maximum_charge_contract`. A complete offline verdict is
+necessary but not sufficient for re-enable. Runtime flags
+`METERED_EXPERT_CHAT_EXECUTION_ENABLED` and
+`MAXIMUM_CHARGE_CONTRACT_RUNTIME_PROVEN` both remain false until a reviewed
+source change after live provider overage-off observation.
 
 Metered expert chat cannot be enabled by configuration, a feature flag, or
 `DEEPR_ALLOW_METERED_EXPERT_CHAT`. The runtime gate always refuses paid chat,
