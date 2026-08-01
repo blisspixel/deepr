@@ -148,6 +148,41 @@ def test_doctor_uses_configured_reports_root_by_default(
     assert payload["orphaned_spend_usd"] == 0.0
 
 
+def test_parent_budget_cli_lists_and_replays(tmp_path: Path) -> None:
+    from deepr.experts.parent_budget_store import DurableParentBudget
+
+    ledger_path = tmp_path / "cost_ledger.jsonl"
+    ledger_path.write_text("", encoding="utf-8")
+    journal = tmp_path / "parent_budget_transactions.jsonl"
+    durable = DurableParentBudget.open(
+        surface="fill_gaps",
+        parent_ceiling_usd=0.5,
+        run_id="run-cli-1",
+        path=journal,
+    )
+    child = durable.admit_child(operation="gap", max_usd=0.2, child_id="c1")
+    durable.settle_child(child.child_id, 0.1)
+    durable.close()
+
+    listed = CliRunner().invoke(
+        costs,
+        ["parent-budget", "--json", "--ledger-path", str(ledger_path)],
+    )
+    assert listed.exit_code == 0
+    listed_payload = json.loads(listed.output)
+    assert listed_payload["count"] >= 3
+
+    replayed = CliRunner().invoke(
+        costs,
+        ["parent-budget", "--json", "--run-id", "run-cli-1", "--ledger-path", str(ledger_path)],
+    )
+    assert replayed.exit_code == 0
+    replay_payload = json.loads(replayed.output)
+    assert replay_payload["found"] is True
+    assert replay_payload["transaction"]["state"] == "closed"
+    assert replay_payload["transaction"]["settled_usd"] == 0.1
+
+
 def test_doctor_fails_closed_on_malformed_canonical_ledger(tmp_path: Path) -> None:
     reports = tmp_path / "reports"
     reports.mkdir()

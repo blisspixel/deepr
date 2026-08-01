@@ -31,6 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   conservative consume, freeze on overrun. Metered mutations remain fail-closed.
 - Durable parent budget journal (`deepr.experts.parent_budget_store`) with
   append-only events and run replay for crash forensics.
+- `DurableParentBudget.open(..., require_complete_contract=True)` binds an
+  offline maximum-charge envelope to the parent open event before nested
+  admissions.
+- `deepr costs parent-budget` lists journal events or replays one run id.
 
 ## [2.41.0] - 2026-07-31
 

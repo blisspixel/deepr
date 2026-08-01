@@ -237,8 +237,81 @@ def dispose_unexplained(
         console.print("[dim]Dry run only. Re-run with --apply to record dispositions.[/dim]")
 
 
+@click.command("parent-budget")
+@click.option("--run-id", default=None, help="Replay one run id from the durable journal.")
+@click.option("--limit", type=int, default=20, show_default=True, help="Max journal events to show.")
+@click.option("--json", "json_output", is_flag=True, help="Machine-readable output.")
+@click.option("--ledger-path", default=None, hidden=True, help="Override journal path (tests).")
+def parent_budget_command(
+    run_id: str | None,
+    limit: int,
+    json_output: bool,
+    ledger_path: str | None,
+) -> None:
+    """Inspect durable parent budget transaction journal events."""
+    if limit < 1:
+        raise click.ClickException("--limit must be at least 1.")
+    from deepr.experts.parent_budget_store import (
+        load_parent_budget_events,
+        parent_budget_log_path,
+        replay_parent_budget,
+    )
+
+    journal = (
+        Path(ledger_path).with_name("parent_budget_transactions.jsonl")
+        if ledger_path
+        else parent_budget_log_path()
+    )
+    if run_id:
+        rebuilt = replay_parent_budget(run_id, journal)
+        payload = {
+            "path": str(journal),
+            "run_id": run_id,
+            "found": rebuilt is not None,
+            "transaction": None if rebuilt is None else rebuilt.to_dict(),
+        }
+        if json_output:
+            click.echo(json.dumps(payload, indent=2))
+            return
+        if rebuilt is None:
+            console.print(f"[yellow]No parent budget run {run_id!r}[/yellow]")
+            return
+        console.print_json(data=payload["transaction"])
+        return
+
+    events = load_parent_budget_events(journal)
+    tail = events[-limit:]
+    payload = {
+        "path": str(journal),
+        "count": len(events),
+        "events": tail,
+    }
+    if json_output:
+        click.echo(json.dumps(payload, indent=2))
+        return
+    if not events:
+        console.print("[dim]No parent budget journal events.[/dim]")
+        console.print(f"[dim]Log: {payload['path']}[/dim]")
+        return
+    table = Table(title="Parent Budget Journal (latest)")
+    table.add_column("Time", style="dim", no_wrap=True)
+    table.add_column("Event")
+    table.add_column("Run", max_width=20)
+    table.add_column("Surface / child", max_width=28)
+    for event in tail:
+        table.add_row(
+            str(event.get("recorded_at", ""))[:19],
+            str(event.get("event_type", "")),
+            str(event.get("run_id", ""))[:20],
+            str(event.get("surface") or event.get("child_id") or event.get("operation") or "")[:28],
+        )
+    console.print(table)
+    console.print(f"[dim]Log: {payload['path']} ({len(events)} events)[/dim]")
+
+
 def register_spend_disposition_commands(group: click.Group) -> None:
     """Attach disposition commands to the costs group."""
     group.add_command(list_dispositions)
     group.add_command(dispose_spend)
     group.add_command(dispose_unexplained)
+    group.add_command(parent_budget_command)
