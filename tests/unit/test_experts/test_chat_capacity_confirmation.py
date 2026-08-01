@@ -40,7 +40,12 @@ def test_owned_capacity_never_requires_metered_env(monkeypatch):
 
 def test_release_invariant_blocks_metered_chat_without_full_charge_envelope(monkeypatch):
     monkeypatch.setattr(chat_capacity, "METERED_EXPERT_CHAT_EXECUTION_ENABLED", True)
+    monkeypatch.setattr(chat_capacity, "MAXIMUM_CHARGE_CONTRACT_RUNTIME_PROVEN", False)
     monkeypatch.setattr(chat_capacity, "HOSTED_EXPERT_STORAGE_LIFECYCLE_ACCOUNTING_ENABLED", False)
 
+    with pytest.raises(RuntimeError, match="maximum-charge contract is runtime-proven"):
+        chat_capacity.validate_expert_chat_release_invariants()
+
+    monkeypatch.setattr(chat_capacity, "MAXIMUM_CHARGE_CONTRACT_RUNTIME_PROVEN", True)
     with pytest.raises(RuntimeError, match="provider-enforceable maximum-charge envelopes"):
         chat_capacity.validate_expert_chat_release_invariants()
