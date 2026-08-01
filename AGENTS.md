@@ -8,6 +8,11 @@ Three layers: kernel (`core/`, `providers/`, `queue/`, `routing/`,
 `observability/`), primitives (`experts/`, `services/`, `tools/`, `storage/`),
 interfaces (`cli/`, `web/`, `mcp/`).
 
+**Approach contract:** [docs/APPROACH.md](docs/APPROACH.md) freezes method-level
+claims and refusals. **Executable surface:** [docs/SUPPORTED_SURFACE.md](docs/SUPPORTED_SURFACE.md)
+wins for what currently runs. Do not treat roadmap or design notes as shipped
+capability.
+
 `ROADMAP.md` is the single source of truth for active work; completed items move to `docs/CHANGELOG.md` at release. Read its Planning Principles before adding features - especially "close the loop before widening it" and "self-improvement is a verification problem".
 
 `CONTRIBUTING.md` is the operating manual: how work goes from idea to shipped (frame -> design note -> small reversible increments -> verify -> ship -> validate) and the **Definition of Done** checklist every change clears. Before a contract-spanning or hard-to-reverse change, write a design note (`docs/design/`) or a decision record (`docs/decisions/`, ADRs) first - the *why*, and the alternatives rejected.

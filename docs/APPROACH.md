@@ -1,17 +1,22 @@
 # Deepr approach contract
 
 Status: normative approach document for the open-source tool, 2026-08-01.
-Executable capability lives in [SUPPORTED_SURFACE.md](SUPPORTED_SURFACE.md).
-Release history lives in [CHANGELOG.md](CHANGELOG.md). Design intent beyond
-what this contract freezes lives in [VISION.md](VISION.md) and
-[ROADMAP.md](../ROADMAP.md).
 
-This document freezes **what Deepr is as a method**, not a shipping checklist
-and not a product plan. If prose elsewhere conflicts with this contract on
-claims or refusals, treat this file as the approach-level source of truth
-until both are reconciled. If this contract conflicts with
-[SUPPORTED_SURFACE.md](SUPPORTED_SURFACE.md) on *what currently runs*, the
-supported surface wins for operators and host agents.
+| Question | Document |
+| --- | --- |
+| What is the method? | **This file** |
+| What currently runs? | [SUPPORTED_SURFACE.md](SUPPORTED_SURFACE.md) |
+| What capacity classes exist? | [CAPACITY.md](CAPACITY.md) (no-surprise-bills) |
+| What is active engineering work? | [ROADMAP.md](../ROADMAP.md) |
+| What is aspirational only? | [VISION.md](VISION.md) |
+| What changed in a release? | [CHANGELOG.md](CHANGELOG.md) |
+
+This document freezes **what Deepr is as a method**: an open-source tool and
+approach, not a shipping checklist and not a commercial product plan. If prose
+elsewhere conflicts with this contract on claims or refusals, treat this file
+as the approach-level source of truth until both are reconciled. If this
+contract conflicts with [SUPPORTED_SURFACE.md](SUPPORTED_SURFACE.md) on *what
+currently runs*, the supported surface wins for operators and host agents.
 
 ---
 
@@ -212,22 +217,28 @@ discipline is not following this approach even if it reuses the package name.
 
 ---
 
-## 11. Success criteria for the approach (not growth metrics)
+## 11. How to judge whether the approach is holding
 
-The approach is working when:
+The approach is holding when:
 
 - the same domain can be revisited with **inspectable state change** over time;
 - spend and capacity class are **reconstructible** from durable records;
 - meaning judgments are not smuggled in as brittle string rules;
 - hosts can compose Deepr without Deepr owning their workflow;
-- docs distinguish **runs today** from **designed later**.
+- docs distinguish **runs today** from **designed later**;
+- unknown-wrongness is treated as a first-class loop (refresh, contradiction,
+  revision), not an afterthought.
 
 The approach is failing when:
 
-- frozen or gated paths are marketed as general capability;
-- ledgers or freezes are worked around to "make demos work";
+- gated or design-only paths are described as general capability;
+- ledgers, freezes, or capacity proofs are weakened for convenience;
 - mechanical churn displaces evidence quality and calibration;
-- derived prose becomes the only memory.
+- derived prose becomes the only memory;
+- "more agents" substitutes for better evidence and clearer authority.
+
+This section is a quality bar for the method. It is not a growth metric and
+not a release gate.
 
 ---
 
@@ -236,7 +247,7 @@ The approach is failing when:
 | Document | Role |
 | --- | --- |
 | [SUPPORTED_SURFACE.md](SUPPORTED_SURFACE.md) | What currently runs and is portable |
-| [CAPACITY.md](CAPACITY.md) | Capacity ladder and no-surprise bills |
+| [CAPACITY.md](CAPACITY.md) | Capacity ladder and no-surprise-bills contract |
 | [plans/AGENTIC_BALANCE.md](plans/AGENTIC_BALANCE.md) | Determinism vs model judgment |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Technical layout |
 | [security/THREAT_MODEL.md](security/THREAT_MODEL.md) | Trust boundaries |
