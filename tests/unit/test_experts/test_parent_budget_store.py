@@ -61,6 +61,59 @@ def test_durable_freeze_on_overrun_is_replayable(tmp_path: Path) -> None:
     assert rebuilt.children["r1"].settled_usd == pytest.approx(0.3)
 
 
+def _complete_envelope(**overrides: object) -> dict[str, object]:
+    base: dict[str, object] = {
+        "parent_ceiling_usd": 1.0,
+        "provider": "openai",
+        "model": "gpt-5-mini",
+        "endpoint": "https://api.openai.com/v1",
+        "account_scope": "org_test",
+        "credential_fingerprint": "cred-fingerprint-test",
+        "request_digest": "sha256:deadbeef",
+        "input_tokens": 100,
+        "output_tokens": 50,
+        "reasoning_tokens": 0,
+        "cache_write_tokens": 0,
+        "cache_read_tokens": 0,
+        "tool_usd": 0.0,
+        "hosted_storage_usd": 0.0,
+        "background_jobs_usd": 0.0,
+        "transport_surcharge_usd": 0.0,
+        "fallback_usd": 0.0,
+        "retries_disabled": True,
+        "redirects_disabled": True,
+        "deepr_owned_client": True,
+        "official_endpoint_pinned": True,
+        "injected_client_rejected": True,
+        "overage_disabled": True,
+    }
+    base.update(overrides)
+    return base
+
+
+def test_open_requires_complete_contract_when_requested(tmp_path: Path) -> None:
+    path = tmp_path / "parent_budget_transactions.jsonl"
+    with pytest.raises(ParentBudgetError):
+        DurableParentBudget.open(
+            surface="expert_refresh",
+            parent_ceiling_usd=1.0,
+            path=path,
+            require_complete_contract=True,
+            maximum_charge_envelope=_complete_envelope(retries_disabled=False),
+        )
+    durable = DurableParentBudget.open(
+        surface="expert_refresh",
+        parent_ceiling_usd=1.0,
+        run_id="run-contract",
+        path=path,
+        require_complete_contract=True,
+        maximum_charge_envelope=_complete_envelope(parent_ceiling_usd=1.0),
+    )
+    assert durable.parent.run_id == "run-contract"
+    events = load_parent_budget_events(path)
+    assert events[-1]["maximum_charge_contract"]["complete"] is True
+
+
 def test_durable_cancel_and_consume(tmp_path: Path) -> None:
     path = tmp_path / "parent_budget_transactions.jsonl"
     durable = DurableParentBudget.open(

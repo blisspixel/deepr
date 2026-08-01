@@ -157,7 +157,34 @@ class DurableParentBudget:
         parent_ceiling_usd: float,
         run_id: str | None = None,
         path: Path | None = None,
+        maximum_charge_envelope: Mapping[str, Any] | None = None,
+        require_complete_contract: bool = False,
     ) -> DurableParentBudget:
+        """Open and journal a parent budget.
+
+        When ``require_complete_contract`` is true, a complete offline
+        maximum-charge envelope is mandatory. Completeness still does not
+        enable provider dispatch.
+        """
+        contract_summary: dict[str, Any] | None = None
+        if require_complete_contract or maximum_charge_envelope is not None:
+            from deepr.experts.maximum_charge_contract import evaluate_maximum_charge_contract
+
+            if maximum_charge_envelope is None:
+                raise ParentBudgetError(
+                    "maximum_charge_envelope is required when require_complete_contract is set"
+                )
+            verdict = evaluate_maximum_charge_contract(maximum_charge_envelope)
+            contract_summary = verdict.to_dict()
+            if require_complete_contract and not verdict.complete:
+                detail = "; ".join(verdict.failures) or "maximum-charge contract incomplete"
+                raise ParentBudgetError(detail)
+            if verdict.complete and verdict.computed_max_usd is not None:
+                if float(verdict.computed_max_usd) > float(parent_ceiling_usd) + 1e-9:
+                    raise ParentBudgetError(
+                        "maximum-charge computed_max_usd exceeds parent_ceiling_usd"
+                    )
+
         with _lock:
             parent = open_parent_budget_transaction(
                 surface=surface,
@@ -165,15 +192,16 @@ class DurableParentBudget:
                 run_id=run_id,
             )
             durable = cls(parent, path=path)
-            _append_event(
-                {
-                    "event_type": "opened",
-                    "run_id": parent.run_id,
-                    "surface": parent.surface,
-                    "parent_ceiling_usd": parent.parent_ceiling_usd,
-                },
-                path,
-            )
+            event: dict[str, Any] = {
+                "event_type": "opened",
+                "run_id": parent.run_id,
+                "surface": parent.surface,
+                "parent_ceiling_usd": parent.parent_ceiling_usd,
+                "require_complete_contract": require_complete_contract,
+            }
+            if contract_summary is not None:
+                event["maximum_charge_contract"] = contract_summary
+            _append_event(event, path)
             return durable
 
     def admit_child(
