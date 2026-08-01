@@ -261,11 +261,30 @@ def _non_negative_money(value: object, *, field_name: str) -> float:
 
 
 # Lifecycle surfaces that must adopt this parent transaction before metered
-# execution can be considered. Inventory only - not an enable list.
+# execution can be considered. Inventory only - not an enable list. Names match
+# ``require_metered_expert_mutation`` operation strings used in production call
+# sites so gate payloads and open_gated_lifecycle_budget share one vocabulary.
 GATED_METERED_LIFECYCLE_SURFACES: tuple[str, ...] = (
+    "api_curriculum_generation",
+    "api_autonomous_learning",
+    "api_expert_chat_council",
+    "api_expert_chat_plan",
+    "api_expert_portrait",
+    "api_provider_benchmark",
+    "api_consult_quality_judge",
+    "api_expert_sync",
+    "api_sync_compile_claims",
+    "api_expert_sync_all",
+    "api_eval_calibrate_corpus",
+    "api_knowledge_synthesis",
+    "api_knowledge_synthesis_extraction",
+    "api_expert_task_planner",
+    "composed_docs_analysis",
+    "multi_agent_team_research",
+    "hosted_expert_vector_upload",
+    # Planned ROADMAP names retained for design docs until call sites rename.
     "expert_make_nonlocal",
     "expert_make_learn",
-    "expert_plan_api_curriculum",
     "expert_refresh",
     "expert_refresh_synthesize",
     "expert_resume",
@@ -274,12 +293,7 @@ GATED_METERED_LIFECYCLE_SURFACES: tuple[str, ...] = (
     "fill_gaps",
     "fill_gaps_consensus",
     "fill_gaps_deep",
-    "expert_sync_api",
-    "expert_sync_all_api",
     "paid_portraits",
-    "consult_quality_judge_api",
-    "live_provider_benchmarks",
-    "eval_calibrate_corpus",
 )
 
 

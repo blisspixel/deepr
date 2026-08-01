@@ -32,7 +32,10 @@ def test_mutations_remain_fail_closed() -> None:
 
 def test_gated_surface_inventory_is_non_empty() -> None:
     assert "fill_gaps" in GATED_METERED_LIFECYCLE_SURFACES
+    assert "api_expert_portrait" in GATED_METERED_LIFECYCLE_SURFACES
+    assert "api_expert_sync" in GATED_METERED_LIFECYCLE_SURFACES
     assert surface_requires_parent_budget("fill_gaps") is True
+    assert surface_requires_parent_budget("api_expert_portrait") is True
     assert surface_requires_parent_budget("unknown") is False
 
 

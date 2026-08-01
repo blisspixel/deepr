@@ -253,6 +253,10 @@ reliable product, not a four-language architecture diagram.
     mark/settle/consume/cancel/close/freeze to append-only
     `parent_budget_transactions.jsonl` with crash replay
     (`deepr.experts.parent_budget_store`). Still no metered surface enable.
+  - [x] **2026-07-31 adoption entry:** `open_gated_lifecycle_budget` opens a
+    durable parent only for inventory surfaces and only with a complete
+    maximum-charge envelope; concurrent admit stress and ceiling-match
+    checks land. Per-surface wire-up and enable remain open.
 - [ ] **P1: re-enable metered multi-call research and hosted context only after
   their complete parent cost is enforceable.** Metered auto-batch, campaign,
   dream-team, prepared execution, continuation, and autonomous rounds need one

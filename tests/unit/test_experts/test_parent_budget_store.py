@@ -133,13 +133,13 @@ def test_open_gated_lifecycle_budget_rejects_unknown_surface(tmp_path: Path) -> 
             path=path,
         )
     durable = open_gated_lifecycle_budget(
-        surface="paid_portraits",
+        surface="api_expert_portrait",
         parent_ceiling_usd=1.0,
         maximum_charge_envelope=_complete_envelope(parent_ceiling_usd=1.0),
         run_id="run-portrait",
         path=path,
     )
-    assert durable.parent.surface == "paid_portraits"
+    assert durable.parent.surface == "api_expert_portrait"
 
 
 def test_durable_cancel_and_consume(tmp_path: Path) -> None:

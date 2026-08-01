@@ -35,6 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   offline maximum-charge envelope to the parent open event before nested
   admissions.
 - `deepr costs parent-budget` lists journal events or replays one run id.
+- `open_gated_lifecycle_budget` adoption entrypoint for known gated metered
+  lifecycle surfaces with a required complete maximum-charge envelope.
 
 ## [2.41.0] - 2026-07-31
 
