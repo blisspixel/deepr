@@ -179,6 +179,11 @@ class DurableParentBudget:
             if require_complete_contract and not verdict.complete:
                 detail = "; ".join(verdict.failures) or "maximum-charge contract incomplete"
                 raise ParentBudgetError(detail)
+            envelope_ceiling = maximum_charge_envelope.get("parent_ceiling_usd")
+            if envelope_ceiling is not None and abs(float(envelope_ceiling) - float(parent_ceiling_usd)) > 1e-9:
+                raise ParentBudgetError(
+                    "maximum_charge_envelope.parent_ceiling_usd must match parent_ceiling_usd"
+                )
             if verdict.complete and verdict.computed_max_usd is not None:
                 if float(verdict.computed_max_usd) > float(parent_ceiling_usd) + 1e-9:
                     raise ParentBudgetError(

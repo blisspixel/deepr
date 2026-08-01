@@ -101,6 +101,14 @@ def test_open_requires_complete_contract_when_requested(tmp_path: Path) -> None:
             require_complete_contract=True,
             maximum_charge_envelope=_complete_envelope(retries_disabled=False),
         )
+    with pytest.raises(ParentBudgetError, match="must match parent_ceiling_usd"):
+        DurableParentBudget.open(
+            surface="expert_refresh",
+            parent_ceiling_usd=1.0,
+            path=path,
+            require_complete_contract=True,
+            maximum_charge_envelope=_complete_envelope(parent_ceiling_usd=0.5),
+        )
     durable = DurableParentBudget.open(
         surface="expert_refresh",
         parent_ceiling_usd=1.0,
