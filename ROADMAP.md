@@ -33,6 +33,8 @@
 
 | Document | Description |
 |----------|-------------|
+| [Approach contract](docs/APPROACH.md) | What the method claims, refuses, and leaves experimental |
+| [Supported Surface](docs/SUPPORTED_SURFACE.md) | What currently runs and is portable |
 | [Models](docs/MODELS.md) | Provider comparison, costs, model selection |
 | [Experts](docs/EXPERTS.md) | Creating and using domain experts |
 | [Three Expert Council](docs/THREE_EXPERT_COUNCIL.md) | Temporal Knowledge Graphs, Digital Consciousness, and MCP experts under the repository-wide `$5` ceiling |
@@ -55,6 +57,10 @@
 | [Supported Surface](docs/SUPPORTED_SURFACE.md) | Stable, experimental, planned, and export guarantees |
 | [Changelog](docs/CHANGELOG.md) | Release history with migration notes |
 | [Vision](docs/VISION.md) | Long-term direction (v3.0+) |
+
+Approach-level claims and refusals are frozen in [docs/APPROACH.md](docs/APPROACH.md).
+Roadmap items are not approach claims until they land in
+[docs/SUPPORTED_SURFACE.md](docs/SUPPORTED_SURFACE.md) or that contract is revised.
 
 ---
 
