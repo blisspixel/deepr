@@ -5,6 +5,7 @@ import sys
 import click
 
 from deepr.cli.async_runner import run_async_command
+from deepr.cli.commands.mcp_conformance import conformance
 from deepr.cli.commands.mcp_consult_validation import validate_consult_fleet
 from deepr.cli.commands.mcp_conversation_validation import validate_conversation
 
@@ -17,6 +18,7 @@ def mcp():
     pass
 
 
+mcp.add_command(conformance)
 mcp.add_command(validate_consult_fleet)
 mcp.add_command(validate_conversation)
 

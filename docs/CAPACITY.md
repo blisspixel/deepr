@@ -229,12 +229,20 @@ deepr expert consult "What changed in plan capacity?" --plan claude --json
 deepr expert judge-consult-quality "Platform Team Expert" consult_abc123 --plan claude --json
 ```
 
-Run Claude plan commands from a dedicated shell without `ANTHROPIC_API_KEY`.
-For PowerShell, remove it only from that shell with
-`Remove-Item Env:ANTHROPIC_API_KEY -ErrorAction SilentlyContinue`. The stored
-Claude subscription login remains intact. Deepr intentionally refuses when the
-API credential is present rather than guessing which authentication path the
-vendor will charge.
+Run Claude plan commands from a dedicated shell without a truthy
+`ANTHROPIC_API_KEY`. Prefer setting an empty value for that process so
+checkout-local `.env` loading cannot reintroduce a real key
+(`load_dotenv` does not override an already-set process variable):
+
+```powershell
+$env:ANTHROPIC_API_KEY = ""
+deepr expert consult "question" --plan claude -y
+```
+
+`Remove-Item Env:ANTHROPIC_API_KEY` alone is not enough when `.env` still
+defines the key. The stored Claude subscription login remains intact. Deepr
+intentionally refuses when the API credential is present rather than guessing
+which authentication path the vendor will charge.
 
 The API judge form is visible but gated in v2.36.
 

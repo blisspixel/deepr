@@ -1,8 +1,9 @@
 # Supported Surface
 
-Status: v2.40.0 current main, 2026-07-29. This document defines what users and host
+Status: v2.42.0 current main, 2026-08-01. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
-data remains portable if development stops.
+data remains portable if development stops. Production metered dispatch remains
+frozen since v2.40 until provider account-control adapters land.
 
 ## Support Levels
 
@@ -80,16 +81,36 @@ must not be described as usable capacity.
 - Expert skill inventory, metadata, installation, and scaffolding. Python and
   MCP tool execution is quarantined before module import, process creation, or
   network dispatch; legacy `run-skill` validates and exits blocked.
-- MCP stdio server and MCP HTTP serve mode.
+- MCP stdio server and MCP HTTP serve mode. Dual-era protocol support for the
+  MCP `2026-07-28` revision (modern per-request `_meta` negotiation,
+  `server/discover`, `subscriptions/listen`, Streamable HTTP header/Origin
+  rules) while continuing to serve legacy `initialize`-era clients
+  (`2025-06-18`, `2025-03-26`, `2024-11-05`) on both transports.
+- Offline machine-checkable MCP host-interop rollup via
+  `deepr mcp conformance` (`deepr-mcp-conformance-v1`): dual-era constants,
+  offline consult form checks, remote smoke fail-closed posture, managed
+  conversation fail-closed posture, registration-manifest offline shape, and
+  the capabilities map. No network, no model, `$0`. Does not score semantic
+  answer quality.
+- Offline and live no-metered consult validation (`deepr mcp validate-consult`,
+  `validate-consult-fleet`) and fail-closed remote smoke / conversation
+  validation commands. Remote HTTP tool calls remain blocked until an
+  independently enforced cost authority exists.
 - MCP durable local expert conversations through
   `deepr_start_expert_conversation`, `deepr_continue_expert_conversation`,
   `deepr_get_expert_conversation`, and `deepr_close_expert_conversation`.
   Opaque application handles, scoped ownership, optimistic concurrency,
   idempotency, frozen expert snapshots, retention, and no metered fallback are
-  enforced by the shared conversation core. A separate validation command
-  exercises the full remote sequence.
+  enforced by the shared conversation core. Managed and remote conversation
+  validation currently fail closed before dispatch without cost authority.
 - Scoped MCP keys, per-key budgets, per-key rate limits, HTTP concurrency caps,
   HTTP smoke checks, registration manifests, and remote-call audit review.
+- Durable spend dispositions for settled cost events without report artifacts
+  (`deepr costs dispose`, `dispose-unexplained`, `dispositions`) and
+  `deepr costs doctor` matched / disposed / unexplained buckets. The
+  append-only cost ledger is never rewritten. Parent-budget transaction
+  substrate and offline maximum-charge contract evaluators are present for
+  future metered lifecycle re-enable; production paid dispatch stays blocked.
 - `deepr_expert_handoff`, `deepr_expert_loop_status`, and adjacent versioned
   handoff contracts. The MCP loop-status tool, the CLI JSON loop-status command,
   and `/api/experts/{name}/loop-status` share the `deepr-loop-status-v1` rollup
