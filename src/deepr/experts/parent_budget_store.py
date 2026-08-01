@@ -89,6 +89,51 @@ def load_parent_budget_events(path: Path | None = None) -> list[dict[str, Any]]:
     return events
 
 
+def _apply_consumed_event(parent: ParentBudgetTransaction, event: Mapping[str, Any]) -> None:
+    child_id = str(event.get("child_id") or "")
+    child = parent.children.get(child_id)
+    if child is None:
+        raise ParentBudgetError(f"missing child {child_id!r} for consume replay")
+    child.settled_usd = float(event.get("settled_usd") or child.max_usd)
+    child.state = ChildCallState.CONSUMED
+    if event.get("freeze"):
+        parent.state = ParentBudgetState.FROZEN
+        parent.freeze_reason = str(event.get("freeze_reason") or "")
+        return
+    child.metadata["consume_reason"] = str(event.get("reason") or "conservative_consume")
+
+
+def _apply_replay_event(parent: ParentBudgetTransaction, event: Mapping[str, Any]) -> None:
+    event_type = str(event.get("event_type") or "")
+    child_id = str(event.get("child_id") or "")
+    if event_type == "child_admitted":
+        parent.admit_child(
+            operation=str(event.get("operation") or ""),
+            max_usd=float(event.get("max_usd") or 0),
+            child_id=child_id,
+            metadata=dict(event.get("metadata") or {}),
+        )
+        return
+    if event_type == "dispatch_marked":
+        parent.mark_dispatch(child_id)
+        return
+    if event_type == "settled":
+        parent.settle_child(child_id, float(event.get("actual_usd") or 0))
+        return
+    if event_type == "consumed":
+        _apply_consumed_event(parent, event)
+        return
+    if event_type == "cancelled":
+        parent.cancel_child(child_id)
+        return
+    if event_type == "closed":
+        parent.state = ParentBudgetState.CLOSED
+        return
+    if event_type == "frozen":
+        parent.state = ParentBudgetState.FROZEN
+        parent.freeze_reason = str(event.get("freeze_reason") or "")
+
+
 def replay_parent_budget(run_id: str, path: Path | None = None) -> ParentBudgetTransaction | None:
     """Rebuild one parent transaction from the append-only journal."""
     target = str(run_id or "").strip()
@@ -98,8 +143,7 @@ def replay_parent_budget(run_id: str, path: Path | None = None) -> ParentBudgetT
     for event in load_parent_budget_events(path):
         if str(event.get("run_id") or "") != target:
             continue
-        event_type = str(event.get("event_type") or "")
-        if event_type == "opened":
+        if str(event.get("event_type") or "") == "opened":
             parent = open_parent_budget_transaction(
                 surface=str(event.get("surface") or ""),
                 parent_ceiling_usd=float(event.get("parent_ceiling_usd") or 0),
@@ -108,37 +152,7 @@ def replay_parent_budget(run_id: str, path: Path | None = None) -> ParentBudgetT
             continue
         if parent is None:
             raise ParentBudgetError(f"run {target!r} has events before opened")
-        child_id = str(event.get("child_id") or "")
-        if event_type == "child_admitted":
-            parent.admit_child(
-                operation=str(event.get("operation") or ""),
-                max_usd=float(event.get("max_usd") or 0),
-                child_id=child_id,
-                metadata=dict(event.get("metadata") or {}),
-            )
-        elif event_type == "dispatch_marked":
-            parent.mark_dispatch(child_id)
-        elif event_type == "settled":
-            parent.settle_child(child_id, float(event.get("actual_usd") or 0))
-        elif event_type == "consumed":
-            # Direct state restore if freeze path already applied.
-            child = parent.children.get(child_id)
-            if child is None:
-                raise ParentBudgetError(f"missing child {child_id!r} for consume replay")
-            child.settled_usd = float(event.get("settled_usd") or child.max_usd)
-            child.state = ChildCallState.CONSUMED
-            if event.get("freeze"):
-                parent.state = ParentBudgetState.FROZEN
-                parent.freeze_reason = str(event.get("freeze_reason") or "")
-            else:
-                child.metadata["consume_reason"] = str(event.get("reason") or "conservative_consume")
-        elif event_type == "cancelled":
-            parent.cancel_child(child_id)
-        elif event_type == "closed":
-            parent.state = ParentBudgetState.CLOSED
-        elif event_type == "frozen":
-            parent.state = ParentBudgetState.FROZEN
-            parent.freeze_reason = str(event.get("freeze_reason") or "")
+        _apply_replay_event(parent, event)
     return parent
 
 

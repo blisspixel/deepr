@@ -244,6 +244,74 @@ def _price_token_components(envelope: MaximumChargeEnvelope) -> dict[str, float]
     return components
 
 
+def _coerce_envelope(envelope: MaximumChargeEnvelope | Mapping[str, Any]) -> MaximumChargeEnvelope:
+    if isinstance(envelope, Mapping):
+        return envelope_from_mapping(envelope)
+    if isinstance(envelope, MaximumChargeEnvelope):
+        return envelope
+    raise MaximumChargeContractError("envelope must be a MaximumChargeEnvelope or mapping")
+
+
+def _parent_ceiling_failures(parent: float) -> list[str]:
+    failures: list[str] = []
+    if parent <= 0:
+        failures.append("parent_ceiling_usd must be positive")
+    if parent > ABSOLUTE_DEEPR_CEILING_USD:
+        failures.append(
+            f"parent_ceiling_usd ${parent:.4f} exceeds absolute Deepr ceiling "
+            f"${ABSOLUTE_DEEPR_CEILING_USD:.2f}"
+        )
+    return failures
+
+
+def _posture_and_authority_failures(typed: MaximumChargeEnvelope) -> list[str]:
+    failures: list[str] = []
+    if typed.expected_cost_usd is not None or typed.average_cost_usd is not None:
+        failures.append(
+            "expected_cost_usd and average_cost_usd are not spend authority and are rejected"
+        )
+    for flag in POSTURE_FLAGS:
+        if getattr(typed, flag) is not True:
+            failures.append(f"{flag} must be true")
+    if (
+        typed.provider_hard_limit_usd is not None
+        and typed.remaining_monthly_headroom_usd is not None
+        and typed.provider_hard_limit_usd > typed.remaining_monthly_headroom_usd + 1e-9
+    ):
+        failures.append(
+            "provider_hard_limit_usd exceeds remaining_monthly_headroom_usd; overage posture is unsafe"
+        )
+    return failures
+
+
+def _price_envelope_components(
+    typed: MaximumChargeEnvelope,
+) -> tuple[dict[str, float], list[str]]:
+    priced: dict[str, float] = {name: float(getattr(typed, name)) for name in USD_DIMENSIONS}
+    failures: list[str] = []
+    try:
+        priced.update(_price_token_components(typed))
+    except MaximumChargeContractError as exc:
+        failures.append(str(exc))
+    return priced, failures
+
+
+def _sum_against_parent(
+    priced: Mapping[str, float],
+    parent: float,
+) -> tuple[float | None, list[str]]:
+    if "input_tokens" not in priced:
+        return None, []
+    computed = sum(float(v) for v in priced.values())
+    if not math.isfinite(computed):
+        return None, ["computed_max_usd is not finite"]
+    if computed > parent + 1e-9:
+        return computed, [
+            f"computed_max_usd ${computed:.6f} exceeds parent_ceiling_usd ${parent:.6f}"
+        ]
+    return computed, []
+
+
 def evaluate_maximum_charge_contract(
     envelope: MaximumChargeEnvelope | Mapping[str, Any],
 ) -> MaximumChargeVerdict:
@@ -253,19 +321,8 @@ def evaluate_maximum_charge_contract(
     provider overage-off observation and ``METERED_EXPERT_CHAT_EXECUTION_ENABLED``
     remain separate gates.
     """
-    missing: list[str] = []
-    failures: list[str] = []
-    priced: dict[str, float] = {}
-    parent: float | None = None
-    computed: float | None = None
-
     try:
-        if isinstance(envelope, Mapping):
-            typed = envelope_from_mapping(envelope)
-        elif isinstance(envelope, MaximumChargeEnvelope):
-            typed = envelope
-        else:
-            raise MaximumChargeContractError("envelope must be a MaximumChargeEnvelope or mapping")
+        typed = _coerce_envelope(envelope)
     except MaximumChargeContractError as exc:
         return MaximumChargeVerdict(
             complete=False,
@@ -277,60 +334,19 @@ def evaluate_maximum_charge_contract(
         )
 
     parent = float(typed.parent_ceiling_usd)
-    if parent <= 0:
-        failures.append("parent_ceiling_usd must be positive")
-    if parent > ABSOLUTE_DEEPR_CEILING_USD:
-        failures.append(
-            f"parent_ceiling_usd ${parent:.4f} exceeds absolute Deepr ceiling ${ABSOLUTE_DEEPR_CEILING_USD:.2f}"
-        )
+    failures = _parent_ceiling_failures(parent)
+    failures.extend(_posture_and_authority_failures(typed))
+    priced, price_failures = _price_envelope_components(typed)
+    failures.extend(price_failures)
+    computed, sum_failures = _sum_against_parent(priced, parent)
+    failures.extend(sum_failures)
 
-    if typed.expected_cost_usd is not None or typed.average_cost_usd is not None:
-        failures.append("expected_cost_usd and average_cost_usd are not spend authority and are rejected")
-
-    for flag in POSTURE_FLAGS:
-        if getattr(typed, flag) is not True:
-            failures.append(f"{flag} must be true")
-
-    # Zero-maxima dimensions are allowed only when explicit (typed construction
-    # already required the keys). Sum USD dimensions.
-    for name in USD_DIMENSIONS:
-        priced[name] = float(getattr(typed, name))
-
-    try:
-        priced.update(_price_token_components(typed))
-    except MaximumChargeContractError as exc:
-        failures.append(str(exc))
-
-    if "input_tokens" in priced:
-        computed = sum(float(v) for v in priced.values())
-        if not math.isfinite(computed):
-            failures.append("computed_max_usd is not finite")
-            computed = None
-        elif parent is not None and computed > parent + 1e-9:
-            failures.append(f"computed_max_usd ${computed:.6f} exceeds parent_ceiling_usd ${parent:.6f}")
-
-    # Optional live-adjacent hard limit check when both sides are declared.
-    if (
-        typed.provider_hard_limit_usd is not None
-        and typed.remaining_monthly_headroom_usd is not None
-        and typed.provider_hard_limit_usd > typed.remaining_monthly_headroom_usd + 1e-9
-    ):
-        failures.append("provider_hard_limit_usd exceeds remaining_monthly_headroom_usd; overage posture is unsafe")
-
-    # Offline evaluation cannot prove a live provider observation; surface that
-    # as an explicit non-missing informational failure only when overage is
-    # claimed without any hard-limit / headroom pair.
-    if typed.overage_disabled and typed.provider_hard_limit_usd is None:
-        # overage_disabled alone is accepted offline as a declared posture; live
-        # dispatch still needs authenticated observation before re-enable.
-        pass
-
-    complete = not missing and not failures and computed is not None and parent is not None
+    complete = not failures and computed is not None
     return MaximumChargeVerdict(
         complete=complete,
         computed_max_usd=None if computed is None else round(computed, 6),
         parent_ceiling_usd=parent,
-        missing=tuple(missing),
+        missing=(),
         failures=tuple(failures),
         priced_components={key: round(float(value), 6) for key, value in priced.items()},
     )
