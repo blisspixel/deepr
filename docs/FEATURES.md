@@ -1418,7 +1418,7 @@ deepr budget history --limit 20
 - Timeline chart with anomaly detection (days > 2x average highlighted)
 - Per-expert costs: total research cost, monthly spending, budget usage, per-operation breakdown
 - Live pull-based CLI thresholds at 50%, 80%, 95%, and 100%; outbound delivery remains planned
-- Tracker integrity checks (ledger writable + drift vs dashboard totals) plus paid-events-vs-artifacts reconciliation via `deepr costs doctor`: every settled dollar either maps to a report directory on disk or is flagged as orphaned spend, with a nonzero exit so schedulers can alarm
+- Tracker integrity checks (ledger writable + drift vs dashboard totals) plus paid-events-vs-artifacts reconciliation via `deepr costs doctor`: every settled dollar maps to a report directory, a durable spend disposition, or remains unexplained (nonzero exit). Operators record dispositions with `deepr costs dispose` / `dispose-unexplained` and inspect parent budget journals with `deepr costs parent-budget`
 - A Spend section in `deepr doctor` that errors when the month is over budget or settled spend has no surviving artifact
 
 Cost tracking is always strict: a spend event that cannot be written durably to the canonical ledger raises instead of silently continuing. There is no lenient paid-accounting mode.

@@ -99,3 +99,34 @@ def test_cannot_close_with_open_children() -> None:
     parent.admit_child(operation="resume_step", max_usd=0.2)
     with pytest.raises(ParentBudgetError):
         parent.close()
+
+
+def test_concurrent_admits_never_oversubscribe() -> None:
+    import threading
+
+    parent = open_parent_budget_transaction(surface="fill_gaps_deep", parent_ceiling_usd=1.0)
+    errors: list[BaseException] = []
+    admitted = 0
+    admitted_lock = threading.Lock()
+
+    def worker(index: int) -> None:
+        nonlocal admitted
+        try:
+            parent.admit_child(operation=f"c{index}", max_usd=0.3, child_id=f"c{index}")
+            with admitted_lock:
+                admitted += 1
+        except ParentBudgetError as exc:
+            errors.append(exc)
+        except Exception as exc:  # pragma: no cover - unexpected
+            errors.append(exc)
+
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(10)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert admitted <= 3
+    assert parent.admitted_max_usd() <= 1.0 + 1e-9
+    assert all(isinstance(err, ParentBudgetError) for err in errors)
+    assert admitted + len(errors) == 10
