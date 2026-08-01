@@ -358,7 +358,15 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.40.0)
+## Current Status (v2.42.0)
+
+**v2.42.0 additions:** durable spend dispositions close historical orphaned
+settled spend without ledger rewrite (`costs doctor` matched/disposed/
+unexplained; `dispose` / `dispose-unexplained` / `dispositions`); offline
+maximum-charge contract evaluation for metered chat (still fail-closed);
+shared parent budget transaction substrate with durable journal, crash
+replay, `open_gated_lifecycle_budget`, and `costs parent-budget`. Paid
+dispatch remains frozen.
 
 **v2.40.0 additions:** the eval harness now ships the opt-in
 `deepr eval consult --structured-local` graph with immutable expert packets,
