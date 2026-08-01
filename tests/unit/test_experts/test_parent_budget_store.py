@@ -9,6 +9,7 @@ import pytest
 from deepr.experts.parent_budget_store import (
     DurableParentBudget,
     load_parent_budget_events,
+    open_gated_lifecycle_budget,
     replay_parent_budget,
 )
 from deepr.experts.parent_budget_transaction import ChildCallState, ParentBudgetError, ParentBudgetState
@@ -120,6 +121,25 @@ def test_open_requires_complete_contract_when_requested(tmp_path: Path) -> None:
     assert durable.parent.run_id == "run-contract"
     events = load_parent_budget_events(path)
     assert events[-1]["maximum_charge_contract"]["complete"] is True
+
+
+def test_open_gated_lifecycle_budget_rejects_unknown_surface(tmp_path: Path) -> None:
+    path = tmp_path / "parent_budget_transactions.jsonl"
+    with pytest.raises(ParentBudgetError, match="not in the gated"):
+        open_gated_lifecycle_budget(
+            surface="not_a_real_surface",
+            parent_ceiling_usd=1.0,
+            maximum_charge_envelope=_complete_envelope(),
+            path=path,
+        )
+    durable = open_gated_lifecycle_budget(
+        surface="paid_portraits",
+        parent_ceiling_usd=1.0,
+        maximum_charge_envelope=_complete_envelope(parent_ceiling_usd=1.0),
+        run_id="run-portrait",
+        path=path,
+    )
+    assert durable.parent.surface == "paid_portraits"
 
 
 def test_durable_cancel_and_consume(tmp_path: Path) -> None:

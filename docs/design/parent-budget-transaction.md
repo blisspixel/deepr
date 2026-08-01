@@ -32,9 +32,10 @@ transition to `parent_budget_transactions.jsonl` under the cost data dir.
 
 ## Adoption checklist (per surface)
 
-1. Open parent with explicit ceiling.
+1. Call `open_gated_lifecycle_budget(surface=..., parent_ceiling_usd=..., maximum_charge_envelope=...)`.
 2. Admit each nested call maximum before construction.
 3. Mark dispatch only after durable reservation succeeds.
 4. Settle exact usage or consume full bound.
 5. Hermetic tests for cancel, concurrency, replay, ledger failure.
-6. Reviewed enable for that surface only.
+6. Keep `require_metered_expert_mutation` / execution flags fail-closed until review.
+7. Reviewed enable for that surface only.

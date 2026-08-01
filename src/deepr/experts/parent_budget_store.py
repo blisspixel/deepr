@@ -142,6 +142,37 @@ def replay_parent_budget(run_id: str, path: Path | None = None) -> ParentBudgetT
     return parent
 
 
+def open_gated_lifecycle_budget(
+    *,
+    surface: str,
+    parent_ceiling_usd: float,
+    maximum_charge_envelope: Mapping[str, Any],
+    run_id: str | None = None,
+    path: Path | None = None,
+) -> DurableParentBudget:
+    """Open a durable parent budget for a gated metered lifecycle surface.
+
+    Requires a complete offline maximum-charge envelope and a known gated
+    surface name. Does not enable provider dispatch; callers must still pass
+    ``require_metered_expert_mutation`` / execution flags.
+    """
+    from deepr.experts.parent_budget_transaction import surface_requires_parent_budget
+
+    name = str(surface or "").strip()
+    if not surface_requires_parent_budget(name):
+        raise ParentBudgetError(
+            f"surface {name!r} is not in the gated metered lifecycle inventory"
+        )
+    return DurableParentBudget.open(
+        surface=name,
+        parent_ceiling_usd=parent_ceiling_usd,
+        run_id=run_id,
+        path=path,
+        maximum_charge_envelope=maximum_charge_envelope,
+        require_complete_contract=True,
+    )
+
+
 class DurableParentBudget:
     """Parent budget that journals every transition."""
 
@@ -338,6 +369,7 @@ __all__ = [
     "PARENT_BUDGET_SCHEMA_VERSION",
     "DurableParentBudget",
     "load_parent_budget_events",
+    "open_gated_lifecycle_budget",
     "parent_budget_log_path",
     "replay_parent_budget",
 ]
