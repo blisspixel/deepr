@@ -74,6 +74,8 @@ still serving legacy `initialize`-era clients on both transports.
 
 ## Documentation
 
+- [Approach contract](docs/APPROACH.md) - what the method claims, refuses, and leaves experimental
+- [Supported Surface](docs/SUPPORTED_SURFACE.md) - what currently runs
 - [Experts](docs/EXPERTS.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Models](docs/MODELS.md)

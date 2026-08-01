@@ -9,12 +9,14 @@ understand why it works the way it does.
 
 ## Getting started (learning)
 
-1. **[INSTALL.md](INSTALL.md)** - Installation and setup
-2. **[QUICK_START.md](QUICK_START.md)** - Your first research job
-3. **[EXAMPLES.md](EXAMPLES.md)** - Real-world usage examples
+1. **[APPROACH.md](APPROACH.md)** - Approach contract: claims, refusals, capacity classes, core loop
+2. **[INSTALL.md](INSTALL.md)** - Installation and setup
+3. **[QUICK_START.md](QUICK_START.md)** - Your first research job
+4. **[EXAMPLES.md](EXAMPLES.md)** - Real-world usage examples
 
 ## Core reference (looking things up)
 
+- **[SUPPORTED_SURFACE.md](SUPPORTED_SURFACE.md)** - Stable, experimental, gated, and portable surfaces
 - **[FEATURES.md](FEATURES.md)** - Complete feature and command reference
 - **[CAPACITY.md](CAPACITY.md)** - Local, plan-quota, metered API, scheduler, and no-surprise-bills behavior
 - **[EXPERTS.md](EXPERTS.md)** - Domain expert system guide
@@ -35,6 +37,8 @@ understand why it works the way it does.
 
 The reasoning behind contract-spanning choices, kept versioned with the code.
 
+- **[APPROACH.md](APPROACH.md)** - Normative open-source approach contract
+  (claims, refusals, capacity, epistemic state, composition).
 - **[plans/AGENTIC_BALANCE.md](plans/AGENTIC_BALANCE.md)** - Cross-cutting
   principle: workflow vs agent, what deepr hardcodes vs lets the model decide
   (determinism on side-effects, not meaning).

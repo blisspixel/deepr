@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- [Approach contract](APPROACH.md): normative open-source method claims,
+  refusals, capacity classes, epistemic state, and composition model. Linked
+  from the README, docs index, and roadmap.
+
 ## [2.42.0] - 2026-07-31
 
 ### Added
