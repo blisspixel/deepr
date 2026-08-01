@@ -243,6 +243,12 @@ reliable product, not a four-language architecture diagram.
   cancellation, concurrency, replay, and ledger failure. Until each surface
   clears that contract it fails closed. Local and explicit plan-quota expert
   paths and `deepr eval calibrate --from` remain available.
+  - [x] **2026-07-31 substrate:** `ParentBudgetTransaction` admits nested child
+    maxima under one parent ceiling, one-use dispatch marks, exact settle or
+    conservative full-bound consume, cancel, freeze-on-overrun, and close
+    guards (`deepr.experts.parent_budget_transaction`). Mutation gate errors
+    now declare the parent-budget requirement and gated surface inventory.
+    `METERED_EXPERT_MUTATIONS_ENABLED` remains false; no surface re-enabled.
 - [ ] **P1: re-enable metered multi-call research and hosted context only after
   their complete parent cost is enforceable.** Metered auto-batch, campaign,
   dream-team, prepared execution, continuation, and autonomous rounds need one
