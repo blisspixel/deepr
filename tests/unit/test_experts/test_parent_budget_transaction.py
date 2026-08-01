@@ -23,11 +23,12 @@ from deepr.experts.parent_budget_transaction import (
 def test_mutations_remain_fail_closed() -> None:
     assert METERED_EXPERT_MUTATIONS_ENABLED is False
     with pytest.raises(MeteredExpertMutationDisabledError) as caught:
-        require_metered_expert_mutation("expert_refresh", safe_alternative="use --local")
+        require_metered_expert_mutation("api_expert_sync", safe_alternative="use --local")
     payload = caught.value.to_dict()
     assert payload["provider_work_started"] is False
     assert payload["parent_budget_transaction_required"] is True
-    assert "expert_refresh" in payload["gated_lifecycle_surfaces"]
+    assert payload["parent_budget_surface_known"] is True
+    assert "api_expert_sync" in payload["gated_lifecycle_surfaces"]
 
 
 def test_gated_surface_inventory_is_non_empty() -> None:
