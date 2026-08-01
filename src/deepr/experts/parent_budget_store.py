@@ -174,9 +174,7 @@ def open_gated_lifecycle_budget(
 
     name = str(surface or "").strip()
     if not surface_requires_parent_budget(name):
-        raise ParentBudgetError(
-            f"surface {name!r} is not in the gated metered lifecycle inventory"
-        )
+        raise ParentBudgetError(f"surface {name!r} is not in the gated metered lifecycle inventory")
     return DurableParentBudget.open(
         surface=name,
         parent_ceiling_usd=parent_ceiling_usd,
@@ -216,9 +214,7 @@ class DurableParentBudget:
             from deepr.experts.maximum_charge_contract import evaluate_maximum_charge_contract
 
             if maximum_charge_envelope is None:
-                raise ParentBudgetError(
-                    "maximum_charge_envelope is required when require_complete_contract is set"
-                )
+                raise ParentBudgetError("maximum_charge_envelope is required when require_complete_contract is set")
             verdict = evaluate_maximum_charge_contract(maximum_charge_envelope)
             contract_summary = verdict.to_dict()
             if require_complete_contract and not verdict.complete:
@@ -226,14 +222,10 @@ class DurableParentBudget:
                 raise ParentBudgetError(detail)
             envelope_ceiling = maximum_charge_envelope.get("parent_ceiling_usd")
             if envelope_ceiling is not None and abs(float(envelope_ceiling) - float(parent_ceiling_usd)) > 1e-9:
-                raise ParentBudgetError(
-                    "maximum_charge_envelope.parent_ceiling_usd must match parent_ceiling_usd"
-                )
+                raise ParentBudgetError("maximum_charge_envelope.parent_ceiling_usd must match parent_ceiling_usd")
             if verdict.complete and verdict.computed_max_usd is not None:
                 if float(verdict.computed_max_usd) > float(parent_ceiling_usd) + 1e-9:
-                    raise ParentBudgetError(
-                        "maximum-charge computed_max_usd exceeds parent_ceiling_usd"
-                    )
+                    raise ParentBudgetError("maximum-charge computed_max_usd exceeds parent_ceiling_usd")
 
         with _lock:
             parent = open_parent_budget_transaction(

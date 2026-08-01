@@ -258,8 +258,7 @@ def _parent_ceiling_failures(parent: float) -> list[str]:
         failures.append("parent_ceiling_usd must be positive")
     if parent > ABSOLUTE_DEEPR_CEILING_USD:
         failures.append(
-            f"parent_ceiling_usd ${parent:.4f} exceeds absolute Deepr ceiling "
-            f"${ABSOLUTE_DEEPR_CEILING_USD:.2f}"
+            f"parent_ceiling_usd ${parent:.4f} exceeds absolute Deepr ceiling ${ABSOLUTE_DEEPR_CEILING_USD:.2f}"
         )
     return failures
 
@@ -267,9 +266,7 @@ def _parent_ceiling_failures(parent: float) -> list[str]:
 def _posture_and_authority_failures(typed: MaximumChargeEnvelope) -> list[str]:
     failures: list[str] = []
     if typed.expected_cost_usd is not None or typed.average_cost_usd is not None:
-        failures.append(
-            "expected_cost_usd and average_cost_usd are not spend authority and are rejected"
-        )
+        failures.append("expected_cost_usd and average_cost_usd are not spend authority and are rejected")
     for flag in POSTURE_FLAGS:
         if getattr(typed, flag) is not True:
             failures.append(f"{flag} must be true")
@@ -278,9 +275,7 @@ def _posture_and_authority_failures(typed: MaximumChargeEnvelope) -> list[str]:
         and typed.remaining_monthly_headroom_usd is not None
         and typed.provider_hard_limit_usd > typed.remaining_monthly_headroom_usd + 1e-9
     ):
-        failures.append(
-            "provider_hard_limit_usd exceeds remaining_monthly_headroom_usd; overage posture is unsafe"
-        )
+        failures.append("provider_hard_limit_usd exceeds remaining_monthly_headroom_usd; overage posture is unsafe")
     return failures
 
 
@@ -306,9 +301,7 @@ def _sum_against_parent(
     if not math.isfinite(computed):
         return None, ["computed_max_usd is not finite"]
     if computed > parent + 1e-9:
-        return computed, [
-            f"computed_max_usd ${computed:.6f} exceeds parent_ceiling_usd ${parent:.6f}"
-        ]
+        return computed, [f"computed_max_usd ${computed:.6f} exceeds parent_ceiling_usd ${parent:.6f}"]
     return computed, []
 
 

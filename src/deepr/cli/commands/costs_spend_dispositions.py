@@ -258,9 +258,7 @@ def parent_budget_command(
     )
 
     journal = (
-        Path(ledger_path).with_name("parent_budget_transactions.jsonl")
-        if ledger_path
-        else parent_budget_log_path()
+        Path(ledger_path).with_name("parent_budget_transactions.jsonl") if ledger_path else parent_budget_log_path()
     )
     if run_id:
         rebuilt = replay_parent_budget(run_id, journal)
