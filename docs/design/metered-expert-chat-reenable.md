@@ -1,6 +1,6 @@
 # Metered expert chat re-enable gate
 
-Status: blocked in v2.41. Last reviewed: 2026-07-31.
+Status: blocked in v2.42. Last reviewed: 2026-07-31.
 
 Offline maximum-charge evaluation lives in
 `deepr.experts.maximum_charge_contract`. A complete offline verdict is

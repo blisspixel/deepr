@@ -152,6 +152,12 @@ def _require_true(name: str, value: object) -> None:
         raise MaximumChargeContractError(f"{name} must be true")
 
 
+def _require_strict_bool(name: str, value: object) -> bool:
+    if not isinstance(value, bool):
+        raise MaximumChargeContractError(f"{name} must be a boolean")
+    return value
+
+
 def envelope_from_mapping(data: Mapping[str, Any]) -> MaximumChargeEnvelope:
     """Build a typed envelope from a mapping; raise on type errors."""
     if not isinstance(data, Mapping):
@@ -176,12 +182,12 @@ def envelope_from_mapping(data: Mapping[str, Any]) -> MaximumChargeEnvelope:
             "transport_surcharge_usd", data.get("transport_surcharge_usd")
         ),
         fallback_usd=_require_finite_non_negative("fallback_usd", data.get("fallback_usd")),
-        retries_disabled=bool(data.get("retries_disabled")),
-        redirects_disabled=bool(data.get("redirects_disabled")),
-        deepr_owned_client=bool(data.get("deepr_owned_client")),
-        official_endpoint_pinned=bool(data.get("official_endpoint_pinned")),
-        injected_client_rejected=bool(data.get("injected_client_rejected")),
-        overage_disabled=bool(data.get("overage_disabled")),
+        retries_disabled=_require_strict_bool("retries_disabled", data.get("retries_disabled")),
+        redirects_disabled=_require_strict_bool("redirects_disabled", data.get("redirects_disabled")),
+        deepr_owned_client=_require_strict_bool("deepr_owned_client", data.get("deepr_owned_client")),
+        official_endpoint_pinned=_require_strict_bool("official_endpoint_pinned", data.get("official_endpoint_pinned")),
+        injected_client_rejected=_require_strict_bool("injected_client_rejected", data.get("injected_client_rejected")),
+        overage_disabled=_require_strict_bool("overage_disabled", data.get("overage_disabled")),
         remaining_monthly_headroom_usd=(
             None
             if data.get("remaining_monthly_headroom_usd") is None

@@ -91,6 +91,12 @@ def test_rejects_missing_posture_flags() -> None:
     assert any("retries_disabled" in item for item in verdict.failures)
 
 
+def test_rejects_stringy_posture_flags() -> None:
+    verdict = evaluate_maximum_charge_contract(_complete_envelope(retries_disabled="false"))  # type: ignore[arg-type]
+    assert verdict.complete is False
+    assert any("boolean" in item for item in verdict.failures)
+
+
 def test_rejects_when_computed_max_exceeds_parent() -> None:
     # Tiny ceiling cannot cover 100k output tokens of gpt-5-mini.
     verdict = evaluate_maximum_charge_contract(_complete_envelope(parent_ceiling_usd=0.0001, output_tokens=100_000))

@@ -109,7 +109,7 @@ def event_identity_key_from_ledger_event(event: Any) -> str:
         timestamp = str(event.get("timestamp") or "")
         cost = float(event.get("cost_usd") or 0.0)
         return event_identity_key(
-            timestamp=timestamp[:32],
+            timestamp=timestamp,
             operation=str(event.get("operation") or ""),
             provider=str(event.get("provider") or ""),
             model=str(event.get("model") or ""),
@@ -307,7 +307,7 @@ def classify_paid_events(
             "timestamp": str(getattr(event, "timestamp", ""))[:19],
             "provider": provider,
             "model": model,
-            "cost_usd": round(cost, 4),
+            "cost_usd": round(cost, 6),
             "task_id": task,
             "operation": operation,
             "request_id": request_id,

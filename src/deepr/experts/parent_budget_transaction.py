@@ -183,6 +183,8 @@ class ParentBudgetTransaction:
     def close(self) -> None:
         """Close the parent after all children are terminal."""
         with self._lock:
+            if self.state == ParentBudgetState.CLOSED:
+                raise ParentBudgetError("parent budget is already closed")
             if self.state == ParentBudgetState.FROZEN:
                 raise ParentBudgetError("frozen parent cannot close cleanly; reconcile first")
             open_children = [

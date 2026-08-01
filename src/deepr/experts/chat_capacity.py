@@ -10,7 +10,7 @@ from deepr.experts.maximum_charge_contract import incomplete_contract_summary
 METERED_EXPERT_CHAT_EXECUTION_ENABLED = False
 # Offline maximum-charge evaluation may report complete; live re-enable still
 # requires a reviewed flip of METERED_EXPERT_CHAT_EXECUTION_ENABLED after live
-# provider overage-off observation. This flag is never true in v2.41.
+# provider overage-off observation. This flag is never true in v2.42.
 MAXIMUM_CHARGE_CONTRACT_RUNTIME_PROVEN = False
 HOSTED_EXPERT_STORAGE_LIFECYCLE_ACCOUNTING_ENABLED = False
 METERED_EXPERT_CHAT_BLOCK_CODE = "metered_expert_chat_accounting_unavailable"

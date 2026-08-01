@@ -292,27 +292,32 @@ class DurableParentBudget:
             try:
                 child = self.parent.settle_child(child_id, actual_usd)
             except ParentBudgetError:
-                # Freeze path already mutated child; journal consume + freeze.
-                child = self.parent.children[child_id]
-                _append_event(
-                    {
-                        "event_type": "consumed",
-                        "run_id": self.parent.run_id,
-                        "child_id": child_id,
-                        "settled_usd": child.settled_usd,
-                        "freeze": True,
-                        "freeze_reason": self.parent.freeze_reason,
-                    },
-                    self.path,
-                )
-                _append_event(
-                    {
-                        "event_type": "frozen",
-                        "run_id": self.parent.run_id,
-                        "freeze_reason": self.parent.freeze_reason,
-                    },
-                    self.path,
-                )
+                # Only the overrun path freezes and mutates the child first.
+                child = self.parent.children.get(child_id)
+                if (
+                    child is not None
+                    and self.parent.state is ParentBudgetState.FROZEN
+                    and child.state is ChildCallState.CONSUMED
+                ):
+                    _append_event(
+                        {
+                            "event_type": "consumed",
+                            "run_id": self.parent.run_id,
+                            "child_id": child_id,
+                            "settled_usd": child.settled_usd,
+                            "freeze": True,
+                            "freeze_reason": self.parent.freeze_reason,
+                        },
+                        self.path,
+                    )
+                    _append_event(
+                        {
+                            "event_type": "frozen",
+                            "run_id": self.parent.run_id,
+                            "freeze_reason": self.parent.freeze_reason,
+                        },
+                        self.path,
+                    )
                 raise
             _append_event(
                 {

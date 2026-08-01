@@ -105,6 +105,13 @@ def test_cannot_close_with_open_children() -> None:
         parent.close()
 
 
+def test_cannot_double_close() -> None:
+    parent = open_parent_budget_transaction(surface="expert_resume", parent_ceiling_usd=1.0)
+    parent.close()
+    with pytest.raises(ParentBudgetError, match="already closed"):
+        parent.close()
+
+
 def test_concurrent_admits_never_oversubscribe() -> None:
     import threading
 
