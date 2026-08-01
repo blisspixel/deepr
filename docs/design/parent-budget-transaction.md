@@ -18,11 +18,17 @@ transaction before any nested provider call. The pure coordination type is
 - Ambiguous usage uses `consume_child_ceiling`.
 - Close requires every child terminal; frozen parents cannot close cleanly.
 
+## Durability
+
+`DurableParentBudget` in `deepr.experts.parent_budget_store` appends every
+transition to `parent_budget_transactions.jsonl` under the cost data dir.
+`replay_parent_budget(run_id)` rebuilds the latest snapshot for crash forensics.
+
 ## Non-goals (current increment)
 
 - Provider dispatch
-- Durable on-disk parent transaction log (in-process first; durable store next)
 - Re-enabling `METERED_EXPERT_MUTATIONS_ENABLED`
+- Per-surface adoption of the durable parent transaction
 
 ## Adoption checklist (per surface)
 

@@ -249,6 +249,10 @@ reliable product, not a four-language architecture diagram.
     guards (`deepr.experts.parent_budget_transaction`). Mutation gate errors
     now declare the parent-budget requirement and gated surface inventory.
     `METERED_EXPERT_MUTATIONS_ENABLED` remains false; no surface re-enabled.
+  - [x] **2026-07-31 durability:** `DurableParentBudget` journals open/admit/
+    mark/settle/consume/cancel/close/freeze to append-only
+    `parent_budget_transactions.jsonl` with crash replay
+    (`deepr.experts.parent_budget_store`). Still no metered surface enable.
 - [ ] **P1: re-enable metered multi-call research and hosted context only after
   their complete parent cost is enforceable.** Metered auto-batch, campaign,
   dream-team, prepared execution, continuation, and autonomous rounds need one

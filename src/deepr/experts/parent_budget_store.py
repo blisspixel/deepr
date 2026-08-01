@@ -1,0 +1,310 @@
+"""Append-only durable journal for parent budget transactions.
+
+In-process ``ParentBudgetTransaction`` objects coordinate nested admissions.
+This store records the same transitions as JSONL events under the cost data
+directory so a crash mid-run leaves an auditable trail. Replay rebuilds the
+latest per-run snapshot without rewriting history.
+
+Never enables metered dispatch by itself.
+"""
+
+from __future__ import annotations
+
+import json
+import threading
+from collections.abc import Mapping
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+from deepr.experts.parent_budget_transaction import (
+    ChildCallSlot,
+    ChildCallState,
+    ParentBudgetError,
+    ParentBudgetState,
+    ParentBudgetTransaction,
+    open_parent_budget_transaction,
+)
+from deepr.utils.atomic_io import append_jsonl_durable
+
+PARENT_BUDGET_SCHEMA_VERSION = "deepr-parent-budget-event-v1"
+PARENT_BUDGET_KIND = "deepr.costs.parent_budget_event"
+
+_EVENT_TYPES = frozenset(
+    {
+        "opened",
+        "child_admitted",
+        "dispatch_marked",
+        "settled",
+        "consumed",
+        "cancelled",
+        "closed",
+        "frozen",
+    }
+)
+
+_lock = threading.RLock()
+
+
+def parent_budget_log_path(path: Path | None = None) -> Path:
+    if path is not None:
+        return path
+    from deepr.observability.cost_authority import default_cost_data_dir
+
+    return default_cost_data_dir() / "parent_budget_transactions.jsonl"
+
+
+def _now() -> datetime:
+    return datetime.now(UTC)
+
+
+def _append_event(event: Mapping[str, Any], path: Path | None) -> dict[str, Any]:
+    payload = dict(event)
+    payload.setdefault("schema_version", PARENT_BUDGET_SCHEMA_VERSION)
+    payload.setdefault("kind", PARENT_BUDGET_KIND)
+    payload.setdefault("recorded_at", _now().isoformat())
+    event_type = str(payload.get("event_type") or "")
+    if event_type not in _EVENT_TYPES:
+        raise ParentBudgetError(f"unknown parent budget event_type {event_type!r}")
+    if not str(payload.get("run_id") or "").strip():
+        raise ParentBudgetError("run_id is required")
+    append_jsonl_durable(parent_budget_log_path(path), payload, fsync=True)
+    return payload
+
+
+def load_parent_budget_events(path: Path | None = None) -> list[dict[str, Any]]:
+    resolved = parent_budget_log_path(path)
+    if not resolved.exists():
+        return []
+    events: list[dict[str, Any]] = []
+    with resolved.open(encoding="utf-8") as handle:
+        for line in handle:
+            text = line.strip()
+            if not text:
+                continue
+            payload = json.loads(text)
+            if not isinstance(payload, dict):
+                raise ParentBudgetError("parent budget event must be a JSON object")
+            events.append(payload)
+    return events
+
+
+def replay_parent_budget(run_id: str, path: Path | None = None) -> ParentBudgetTransaction | None:
+    """Rebuild one parent transaction from the append-only journal."""
+    target = str(run_id or "").strip()
+    if not target:
+        raise ParentBudgetError("run_id is required")
+    parent: ParentBudgetTransaction | None = None
+    for event in load_parent_budget_events(path):
+        if str(event.get("run_id") or "") != target:
+            continue
+        event_type = str(event.get("event_type") or "")
+        if event_type == "opened":
+            parent = open_parent_budget_transaction(
+                surface=str(event.get("surface") or ""),
+                parent_ceiling_usd=float(event.get("parent_ceiling_usd") or 0),
+                run_id=target,
+            )
+            continue
+        if parent is None:
+            raise ParentBudgetError(f"run {target!r} has events before opened")
+        child_id = str(event.get("child_id") or "")
+        if event_type == "child_admitted":
+            parent.admit_child(
+                operation=str(event.get("operation") or ""),
+                max_usd=float(event.get("max_usd") or 0),
+                child_id=child_id,
+                metadata=dict(event.get("metadata") or {}),
+            )
+        elif event_type == "dispatch_marked":
+            parent.mark_dispatch(child_id)
+        elif event_type == "settled":
+            parent.settle_child(child_id, float(event.get("actual_usd") or 0))
+        elif event_type == "consumed":
+            # Direct state restore if freeze path already applied.
+            child = parent.children.get(child_id)
+            if child is None:
+                raise ParentBudgetError(f"missing child {child_id!r} for consume replay")
+            child.settled_usd = float(event.get("settled_usd") or child.max_usd)
+            child.state = ChildCallState.CONSUMED
+            if event.get("freeze"):
+                parent.state = ParentBudgetState.FROZEN
+                parent.freeze_reason = str(event.get("freeze_reason") or "")
+            else:
+                child.metadata["consume_reason"] = str(event.get("reason") or "conservative_consume")
+        elif event_type == "cancelled":
+            parent.cancel_child(child_id)
+        elif event_type == "closed":
+            parent.state = ParentBudgetState.CLOSED
+        elif event_type == "frozen":
+            parent.state = ParentBudgetState.FROZEN
+            parent.freeze_reason = str(event.get("freeze_reason") or "")
+    return parent
+
+
+class DurableParentBudget:
+    """Parent budget that journals every transition."""
+
+    def __init__(self, parent: ParentBudgetTransaction, *, path: Path | None = None) -> None:
+        self.parent = parent
+        self.path = path
+
+    @classmethod
+    def open(
+        cls,
+        *,
+        surface: str,
+        parent_ceiling_usd: float,
+        run_id: str | None = None,
+        path: Path | None = None,
+    ) -> DurableParentBudget:
+        with _lock:
+            parent = open_parent_budget_transaction(
+                surface=surface,
+                parent_ceiling_usd=parent_ceiling_usd,
+                run_id=run_id,
+            )
+            durable = cls(parent, path=path)
+            _append_event(
+                {
+                    "event_type": "opened",
+                    "run_id": parent.run_id,
+                    "surface": parent.surface,
+                    "parent_ceiling_usd": parent.parent_ceiling_usd,
+                },
+                path,
+            )
+            return durable
+
+    def admit_child(
+        self,
+        *,
+        operation: str,
+        max_usd: float,
+        child_id: str | None = None,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> ChildCallSlot:
+        with _lock:
+            child = self.parent.admit_child(
+                operation=operation,
+                max_usd=max_usd,
+                child_id=child_id,
+                metadata=metadata,
+            )
+            _append_event(
+                {
+                    "event_type": "child_admitted",
+                    "run_id": self.parent.run_id,
+                    "child_id": child.child_id,
+                    "operation": child.operation,
+                    "max_usd": child.max_usd,
+                    "metadata": dict(child.metadata),
+                },
+                self.path,
+            )
+            return child
+
+    def mark_dispatch(self, child_id: str) -> ChildCallSlot:
+        with _lock:
+            child = self.parent.mark_dispatch(child_id)
+            _append_event(
+                {
+                    "event_type": "dispatch_marked",
+                    "run_id": self.parent.run_id,
+                    "child_id": child.child_id,
+                },
+                self.path,
+            )
+            return child
+
+    def settle_child(self, child_id: str, actual_usd: float) -> ChildCallSlot:
+        with _lock:
+            try:
+                child = self.parent.settle_child(child_id, actual_usd)
+            except ParentBudgetError:
+                # Freeze path already mutated child; journal consume + freeze.
+                child = self.parent.children[child_id]
+                _append_event(
+                    {
+                        "event_type": "consumed",
+                        "run_id": self.parent.run_id,
+                        "child_id": child_id,
+                        "settled_usd": child.settled_usd,
+                        "freeze": True,
+                        "freeze_reason": self.parent.freeze_reason,
+                    },
+                    self.path,
+                )
+                _append_event(
+                    {
+                        "event_type": "frozen",
+                        "run_id": self.parent.run_id,
+                        "freeze_reason": self.parent.freeze_reason,
+                    },
+                    self.path,
+                )
+                raise
+            _append_event(
+                {
+                    "event_type": "settled",
+                    "run_id": self.parent.run_id,
+                    "child_id": child.child_id,
+                    "actual_usd": child.settled_usd,
+                },
+                self.path,
+            )
+            return child
+
+    def consume_child_ceiling(self, child_id: str, *, reason: str) -> ChildCallSlot:
+        with _lock:
+            child = self.parent.consume_child_ceiling(child_id, reason=reason)
+            _append_event(
+                {
+                    "event_type": "consumed",
+                    "run_id": self.parent.run_id,
+                    "child_id": child.child_id,
+                    "settled_usd": child.settled_usd,
+                    "reason": reason,
+                    "freeze": False,
+                },
+                self.path,
+            )
+            return child
+
+    def cancel_child(self, child_id: str) -> ChildCallSlot:
+        with _lock:
+            child = self.parent.cancel_child(child_id)
+            _append_event(
+                {
+                    "event_type": "cancelled",
+                    "run_id": self.parent.run_id,
+                    "child_id": child.child_id,
+                },
+                self.path,
+            )
+            return child
+
+    def close(self) -> None:
+        with _lock:
+            self.parent.close()
+            _append_event(
+                {
+                    "event_type": "closed",
+                    "run_id": self.parent.run_id,
+                    "settled_usd": self.parent.settled_usd(),
+                },
+                self.path,
+            )
+
+    def to_dict(self) -> dict[str, Any]:
+        return self.parent.to_dict()
+
+
+__all__ = [
+    "PARENT_BUDGET_KIND",
+    "PARENT_BUDGET_SCHEMA_VERSION",
+    "DurableParentBudget",
+    "load_parent_budget_events",
+    "parent_budget_log_path",
+    "replay_parent_budget",
+]

@@ -29,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`deepr.experts.parent_budget_transaction`) for multi-call metered lifecycle
   runs: nested child admission under one ceiling, dispatch marks, settle or
   conservative consume, freeze on overrun. Metered mutations remain fail-closed.
+- Durable parent budget journal (`deepr.experts.parent_budget_store`) with
+  append-only events and run replay for crash forensics.
 
 ## [2.41.0] - 2026-07-31
 
