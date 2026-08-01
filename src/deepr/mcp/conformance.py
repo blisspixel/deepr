@@ -232,9 +232,10 @@ def _check_managed_conversation_fail_closed() -> ConformanceCheck:
             f"remote_tool_call_attempted={payload.get('remote_tool_call_attempted')!r}",
             expected=expected,
         )
-    error = payload.get("error") if isinstance(payload.get("error"), dict) else {}
-    code = error.get("error_code", "")
-    if "BLOCKED" not in str(code):
+    error_raw = payload.get("error")
+    error: dict[str, Any] = error_raw if isinstance(error_raw, dict) else {}
+    code = str(error.get("error_code", "") or "")
+    if "BLOCKED" not in code:
         return _failed(
             "managed_conversation_fail_closed",
             f"error_code={code!r} is not a blocked posture",
