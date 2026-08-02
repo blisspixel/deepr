@@ -522,7 +522,9 @@ def check_mcp_conformance() -> list[DiagnosticCheck]:
         protocol = payload.get("protocol") if isinstance(payload, dict) else {}
         failed = summary.get("failed_checks") if isinstance(summary, dict) else []
         modern = protocol.get("modern", "?") if isinstance(protocol, dict) else "?"
-        check_count = summary.get("check_count", len(report.checks)) if isinstance(summary, dict) else len(report.checks)
+        check_count = (
+            summary.get("check_count", len(report.checks)) if isinstance(summary, dict) else len(report.checks)
+        )
         if report.ok:
             check.passed = True
             check.message = f"ok ({check_count} checks; modern {modern})"
