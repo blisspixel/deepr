@@ -168,97 +168,23 @@ def _build_agent_guide_text(
     synthesis_backend: str,
     plan: str | None,
 ) -> str:
-    import json
+    from deepr.cli.commands.mcp_agent_guide_text import build_agent_guide_text
 
-    arguments: dict[str, object] = {
-        "_approved": True,
-        "question": "What should the current project do next?",
-        "max_experts": 3,
-        "synthesis_backend": synthesis_backend,
-        "budget": 0,
-    }
-    if experts:
-        arguments["experts"] = list(experts)
-    if synthesis_backend == "plan" and plan:
-        arguments["plan"] = plan
-    consult_call = {"name": "deepr_consult_experts", "arguments": arguments}
-
-    list_step = (
-        f"2. Use only these experts: {', '.join(experts)}."
-        if experts
-        else "2. Call deepr_list_experts and select one to three relevant experts."
+    return build_agent_guide_text(
+        endpoint=endpoint,
+        token=token,
+        key_id=key_id,
+        bind_host=bind_host,
+        port=port,
+        http_path=http_path,
+        keys_path=keys_path,
+        mode=mode,
+        budget=budget,
+        rate_limit=rate_limit,
+        experts=experts,
+        synthesis_backend=synthesis_backend,
+        plan=plan,
     )
-    info_step = (
-        "3. Call deepr_get_expert_info for one allowed expert with _approved=true."
-        if experts
-        else "3. Call deepr_get_expert_info for at least one selected expert with _approved=true."
-    )
-    key_line = f"Key id: {key_id}" if key_id else "Key id: shared token"
-    budget_line = "none" if budget is None else f"${budget:.2f}"
-    rate_line = "none" if rate_limit is None else f"{rate_limit}/minute"
-    normalized_path = _normalize_mcp_path(http_path)
-
-    return f"""# Deepr MCP Agent Trial
-
-## Operator
-
-Run this on the machine that owns the Deepr experts:
-
-```powershell
-cd C:\\GitHub\\deepr
-$env:DEEPR_MCP_KEYS_PATH = "{keys_path}"
-.\\.venv\\Scripts\\deepr.exe mcp serve --http --host {bind_host} --port {port} --path {normalized_path} --keys-path $env:DEEPR_MCP_KEYS_PATH
-```
-
-Smoke test:
-
-```powershell
-.\\.venv\\Scripts\\deepr.exe mcp smoke-http {endpoint} --auth-token "{token}"
-```
-
-Scoped key:
-
-```text
-{key_line}
-Mode: {mode}
-Budget: {budget_line}
-Rate limit: {rate_line}
-Token: {token}
-```
-
-## Agent Instructions
-
-Connect to:
-
-```text
-{endpoint}
-```
-
-Use this HTTP header:
-
-```text
-Authorization: Bearer {token}
-```
-
-Rules:
-
-1. First call deepr_tool_search with query "expert list handoff consult".
-{list_step}
-{info_step}
-4. Prefer deepr_expert_handoff for context. Include _approved=true.
-5. Prefer deepr_consult_experts for questions. Use one expert for focused advice or multiple experts for council guidance. Include _approved=true.
-6. Do not call deepr_query_expert, deepr_research, deepr_agentic_research, deepr_expert_absorb, deepr_reflect, deepr_install_skill, or mutating tools.
-7. For consults, force no-metered execution with synthesis_backend="{synthesis_backend}" and budget=0.
-8. Verify capacity.live_metered_fallback=false and cost_usd=0.
-9. If local or plan synthesis is unavailable, return the structured error. Do not retry with API or metered fallback.
-10. Preserve expert disagreement and uncertainty in your consolidated guidance. Deepr experts are perspectives, not a fact list.
-
-Example consult call:
-
-```json
-{json.dumps(consult_call, indent=2)}
-```
-"""
 
 
 def _filter_audit_records(records, *, key_id: str | None, tool_name: str | None, outcome: str | None):

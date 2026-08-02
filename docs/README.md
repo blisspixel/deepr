@@ -23,6 +23,7 @@ understand why it works the way it does.
 - **[design/local-structured-consult-graph.md](design/local-structured-consult-graph.md)** - Eval-only bounded local expert-position graph and promotion gates
 - **[MODELS.md](MODELS.md)** - Model selection and provider guide
 - **[../mcp/README.md](../mcp/README.md)** - MCP server setup and tools
+- **[MCP_AGENT_TEST_GUIDE.md](MCP_AGENT_TEST_GUIDE.md)** - No-surprise-cost agent test path and `deepr mcp conformance`
 - **[MCP_A2A_INTEROP_CHECKLIST.md](MCP_A2A_INTEROP_CHECKLIST.md)** - Current MCP and A2A host interop review checklist
 
 ## Technical

@@ -4,6 +4,16 @@
 
 Deepr exposes research and expert capabilities via Model Context Protocol (MCP) for AI agents including OpenClaw, Claude Desktop, Cursor, VS Code, and Zed. For a no-surprise-cost agent test path, see [docs/MCP_AGENT_TEST_GUIDE.md](../docs/MCP_AGENT_TEST_GUIDE.md).
 
+**Operator preflight (offline, $0):**
+
+```powershell
+deepr mcp conformance --json
+```
+
+This proves dual-era MCP `2026-07-28` host-interop form and side-effect posture
+(no network, no model). Also covered by `deepr doctor --skip-connectivity`.
+Interop review checklist: [docs/MCP_A2A_INTEROP_CHECKLIST.md](../docs/MCP_A2A_INTEROP_CHECKLIST.md).
+
 ---
 
 ## For the consuming agent (start here)

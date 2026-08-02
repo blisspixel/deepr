@@ -97,6 +97,18 @@ class TestDoctorChecks:
         assert any("one writer at a time" in detail.lower() for detail in expert_check.details)
         assert any("wait for sync" in detail.lower() for detail in expert_check.details)
 
+    def test_mcp_conformance_check_passes_offline(self):
+        from deepr.cli.commands.doctor import check_mcp_conformance
+
+        checks = check_mcp_conformance()
+        assert len(checks) == 1
+        check = checks[0]
+        assert check.name == "MCP offline conformance"
+        assert check.category == "MCP"
+        assert check.passed is True
+        assert "2026-07-28" in check.message or "ok" in check.message.lower()
+        assert any("mcp conformance" in detail.lower() for detail in check.details)
+
     async def test_database_check_surfaces_stale_queue_candidates_read_only(self, tmp_path):
         from deepr.cli.commands.doctor import check_database
         from deepr.queue import ResearchJob, SQLiteQueue
