@@ -40,6 +40,8 @@ def test_mcp_agent_guide_creates_scoped_zero_budget_key(tmp_path):
     assert "deepr_consult_experts" in guide
     assert "capacity.live_metered_fallback=false" in guide
     assert "cost_usd=0" in guide
+    assert "mcp conformance" in guide
+    assert "network_opened=false" in guide
     assert "one expert for focused advice or multiple experts for council guidance" in guide
     assert "Preserve expert disagreement and uncertainty" in guide
     assert "deepr_mcp_" not in keys_path.read_text(encoding="utf-8")

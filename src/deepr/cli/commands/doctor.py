@@ -401,7 +401,7 @@ def doctor(skip_connectivity: bool):
             raise click.ClickException("Could not load configuration. Review local settings and retry.") from exc
 
         # Run all checks
-        with click.progressbar(length=7, label="Running checks") as bar:
+        with click.progressbar(length=9, label="Running checks") as bar:
             all_checks.extend(await check_api_keys(config))
             bar.update(1)
 
@@ -425,6 +425,9 @@ def doctor(skip_connectivity: bool):
             bar.update(1)
 
             all_checks.extend(check_spend_integrity())
+            bar.update(1)
+
+            all_checks.extend(check_mcp_conformance())
             bar.update(1)
 
         # Print results
@@ -505,6 +508,37 @@ def check_native_instruments() -> list[DiagnosticCheck]:
     checks.append(check)
 
     return checks
+
+
+def check_mcp_conformance() -> list[DiagnosticCheck]:
+    """Offline dual-era MCP host-interop posture ($0, no network, no model)."""
+    check = DiagnosticCheck("MCP offline conformance", "MCP")
+    try:
+        from deepr.mcp.conformance import run_offline_mcp_conformance
+
+        report = run_offline_mcp_conformance()
+        payload = report.to_dict()
+        summary = payload.get("summary") if isinstance(payload, dict) else {}
+        failed = summary.get("failed_checks") if isinstance(summary, dict) else []
+        if report.ok:
+            check.passed = True
+            check.message = (
+                f"ok ({summary.get('check_count', len(report.checks))} checks; "
+                f"modern {payload.get('protocol', {}).get('modern', '?')})"
+            )
+            check.details.append("Run: deepr mcp conformance --json")
+            check.details.append("No network, no model, $0; form and side-effect posture only")
+        else:
+            check.message = f"failed: {', '.join(failed) if failed else 'unknown'}"
+            check.details.append("Run: deepr mcp conformance --json")
+            for item in report.checks:
+                if item.status != "passed":
+                    check.details.append(f"{item.name}: {item.detail}")
+    except Exception as exc:
+        check.message = f"probe error: {type(exc).__name__}"
+        check.details.append(str(exc)[:120])
+        check.details.append("Run: deepr mcp conformance --json")
+    return [check]
 
 
 def check_storage_locations() -> list[DiagnosticCheck]:

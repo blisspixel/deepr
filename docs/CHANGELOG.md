@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `deepr doctor` includes offline MCP host-interop conformance under the MCP
+  category (`deepr mcp conformance` form and side-effect rollup, $0).
+- MCP interop checklist, MCP README, and agent-guide operator preflight point
+  hosts at `deepr mcp conformance` as the dual-era proof gate (v2.43.0 baseline).
+
 ## [2.43.0] - 2026-08-02
 
 ### Added

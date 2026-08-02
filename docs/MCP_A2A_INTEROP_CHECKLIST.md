@@ -1,10 +1,27 @@
 # MCP and A2A Interop Checklist
 
-Status: current with Deepr v2.41.0. Last reviewed: 2026-07-31.
+Status: current with Deepr v2.43.0. Last reviewed: 2026-08-02.
 
 Use this checklist when connecting Deepr experts to another agent host through
 MCP or A2A. It is a compact integration review, not the command guide. For
 copy-ready validation commands, use [MCP_AGENT_TEST_GUIDE.md](MCP_AGENT_TEST_GUIDE.md).
+
+## Operator preflight (offline, $0)
+
+Before handing Deepr to a host agent, prove the dual-era form and side-effect
+posture on the operator machine:
+
+```powershell
+deepr mcp conformance --json
+deepr doctor --skip-connectivity
+```
+
+`deepr mcp conformance` must report `ok=true` with
+`schema_version="deepr-mcp-conformance-v1"`. It checks modern `2026-07-28`
+protocol constants, offline consult form contracts, remote smoke fail-closed,
+managed conversation fail-closed, registration-manifest offline shape, and the
+capabilities map. No network, no model, no semantic scoring. `deepr doctor`
+includes the same offline MCP conformance check under the MCP category.
 
 ## Current Sources
 
@@ -25,8 +42,9 @@ copy-ready validation commands, use [MCP_AGENT_TEST_GUIDE.md](MCP_AGENT_TEST_GUI
   `deepr_tool_search` or `deepr_capabilities` instead of assuming a fixed full
   tool list. Modern clients can call `server/discover` first for supported
   versions, capabilities, and identity in one request.
-- Deepr's MCP server is dual-era as of v2.41.0. Modern `2026-07-28` requests
-  carry `io.modelcontextprotocol/protocolVersion` and
+- Deepr's MCP server is dual-era (protocol baseline v2.41.0; offline proof
+  surface v2.43.0). Modern `2026-07-28` requests carry
+  `io.modelcontextprotocol/protocolVersion` and
   `io.modelcontextprotocol/clientCapabilities` in `params._meta` on every
   request and get the stateless envelope (`resultType`, result `serverInfo`
   `_meta`, `ttlMs`/`cacheScope` on cacheable methods). Legacy clients keep the

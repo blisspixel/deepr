@@ -206,15 +206,19 @@ Run this on the machine that owns the Deepr experts:
 
 ```powershell
 cd C:\\GitHub\\deepr
+# Offline dual-era host-interop proof ($0, no network, no model)
+.\\.venv\\Scripts\\deepr.exe mcp conformance --json
 $env:DEEPR_MCP_KEYS_PATH = "{keys_path}"
 .\\.venv\\Scripts\\deepr.exe mcp serve --http --host {bind_host} --port {port} --path {normalized_path} --keys-path $env:DEEPR_MCP_KEYS_PATH
 ```
 
-Smoke test:
+Remote smoke is intentionally fail-closed until cost authority is proven:
 
 ```powershell
 .\\.venv\\Scripts\\deepr.exe mcp smoke-http {endpoint} --auth-token "{token}"
 ```
+
+Expected: blocked report with network_opened=false (not a green remote probe).
 
 Scoped key:
 
