@@ -368,7 +368,7 @@ reliable product, not a four-language architecture diagram.
 
 **v2.43.1 additions:** `deepr doctor` surfaces offline MCP host-interop
 conformance under the MCP category; interop checklist, MCP README, and
-agent-guide preflight treat `deepr mcp conformance` as the dual-era proof
+agent-guide preflight treats `deepr mcp conformance` as the dual-era proof
 gate. Paid dispatch remains frozen.
 
 **v2.43.0 additions:** offline machine-checkable MCP host-interop conformance
