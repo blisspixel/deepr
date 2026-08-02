@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.43.0] - 2026-08-02
+
 ### Added
 
 - [Approach contract](APPROACH.md): normative open-source method claims,
@@ -18,15 +20,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   postures, registration-manifest offline shape, and the capabilities map.
   No network, no model, `$0`. Documented in
   [MCP_AGENT_TEST_GUIDE.md](MCP_AGENT_TEST_GUIDE.md) and
-  [SUPPORTED_SURFACE.md](SUPPORTED_SURFACE.md).
+  [SUPPORTED_SURFACE.md](SUPPORTED_SURFACE.md). Dual-era MCP `2026-07-28`
+  support remains the protocol baseline from v2.41.0; this release makes the
+  offline proof operator-facing and machine-checkable.
 
 ### Changed
 
-- Supported Surface status advanced to v2.42.0 / 2026-08-01 with dual-era MCP,
+- Supported Surface status advanced to v2.43.0 / 2026-08-02 with dual-era MCP,
   offline conformance, spend dispositions, and parent-budget substrate
   language. Plan-quota operator guidance clarifies empty
   `ANTHROPIC_API_KEY` process masking so `.env` cannot reintroduce a metered
   credential.
+- Demo CLI screenshot and render script for README (fictional session data).
 
 ## [2.42.0] - 2026-07-31
 

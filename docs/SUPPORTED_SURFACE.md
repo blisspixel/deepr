@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.42.0 current main, 2026-08-01. This document defines what users and host
+Status: v2.43.0 current main, 2026-08-02. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Production metered dispatch remains
 frozen since v2.40 until provider account-control adapters land.

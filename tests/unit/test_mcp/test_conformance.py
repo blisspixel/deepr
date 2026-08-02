@@ -67,7 +67,7 @@ def test_published_mcp_conformance_schema_matches_payload() -> None:
         Path(__file__).resolve().parents[3] / "docs" / "schemas" / "mcp-conformance-v1.json"
     )
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
-    payload = run_offline_mcp_conformance(server_version="2.42.0").to_dict()
+    payload = run_offline_mcp_conformance(server_version="2.43.0").to_dict()
     assert schema["properties"]["schema_version"]["const"] == payload["schema_version"]
     assert schema["properties"]["kind"]["const"] == payload["kind"]
     assert schema["properties"]["mode"]["const"] == payload["mode"]
