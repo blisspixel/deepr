@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.43.0 current main, 2026-08-02. This document defines what users and host
+Status: v2.43.1 current main, 2026-08-02. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Production metered dispatch remains
 frozen since v2.40 until provider account-control adapters land.
@@ -91,7 +91,8 @@ must not be described as usable capacity.
   offline consult form checks, remote smoke fail-closed posture, managed
   conversation fail-closed posture, registration-manifest offline shape, and
   the capabilities map. No network, no model, `$0`. Does not score semantic
-  answer quality.
+  answer quality. `deepr doctor` surfaces the same offline rollup under the MCP
+  category so host preflight is one command.
 - Offline and live no-metered consult validation (`deepr mcp validate-consult`,
   `validate-consult-fleet`) and fail-closed remote smoke / conversation
   validation commands. Remote HTTP tool calls remain blocked until an
