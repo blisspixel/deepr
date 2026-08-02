@@ -364,7 +364,17 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.42.0)
+## Current Status (v2.43.0)
+
+**v2.43.0 additions:** offline machine-checkable MCP host-interop conformance
+(`deepr mcp conformance`, `deepr-mcp-conformance-v1`) proving dual-era
+`2026-07-28` protocol constants, offline consult form contracts, remote smoke
+and managed-conversation fail-closed postures, registration-manifest offline
+shape, and the capabilities map at `$0` with no network or model. Approach
+contract (`docs/APPROACH.md`) freezes open-source method claims and refusals.
+Plan-quota operator guidance documents empty `ANTHROPIC_API_KEY` process
+masking so `.env` cannot reintroduce a metered credential. Paid dispatch
+remains frozen.
 
 **v2.42.0 additions:** durable spend dispositions close historical orphaned
 settled spend without ledger rewrite (`costs doctor` matched/disposed/
