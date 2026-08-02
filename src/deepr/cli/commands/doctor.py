@@ -519,13 +519,13 @@ def check_mcp_conformance() -> list[DiagnosticCheck]:
         report = run_offline_mcp_conformance()
         payload = report.to_dict()
         summary = payload.get("summary") if isinstance(payload, dict) else {}
+        protocol = payload.get("protocol") if isinstance(payload, dict) else {}
         failed = summary.get("failed_checks") if isinstance(summary, dict) else []
+        modern = protocol.get("modern", "?") if isinstance(protocol, dict) else "?"
+        check_count = summary.get("check_count", len(report.checks)) if isinstance(summary, dict) else len(report.checks)
         if report.ok:
             check.passed = True
-            check.message = (
-                f"ok ({summary.get('check_count', len(report.checks))} checks; "
-                f"modern {payload.get('protocol', {}).get('modern', '?')})"
-            )
+            check.message = f"ok ({check_count} checks; modern {modern})"
             check.details.append("Run: deepr mcp conformance --json")
             check.details.append("No network, no model, $0; form and side-effect posture only")
         else:
