@@ -9,9 +9,11 @@ answer quality is intentionally out of scope (AGENTIC_BALANCE).
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
+from collections.abc import Coroutine
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import Any, Literal, TypeVar
 
 from deepr.mcp.consult_validation import run_offline_consult_validation
 from deepr.mcp.protocol_compat import LEGACY_METHOD_MAP
@@ -28,6 +30,23 @@ CONFORMANCE_KIND = "deepr.mcp.conformance"
 CheckStatus = Literal["passed", "failed"]
 
 _PROBE_URL = "http://127.0.0.1:9/mcp"
+
+_T = TypeVar("_T")
+
+
+def _run_async(coro: Coroutine[Any, Any, _T]) -> _T:
+    """Run a coroutine from sync code, including under an already-running loop.
+
+    Doctor and other callers may invoke the suite from inside asyncio. Using
+    ``asyncio.run`` there raises; a worker thread keeps the check pure and $0.
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(asyncio.run, coro).result()
 
 
 @dataclass(frozen=True)
@@ -179,7 +198,7 @@ def _check_offline_consult() -> ConformanceCheck:
 def _check_remote_smoke_fail_closed() -> ConformanceCheck:
     expected = "smoke blocked before network; remote_tool_call_attempted=false"
     try:
-        report = asyncio.run(run_http_smoke(_PROBE_URL))
+        report = _run_async(run_http_smoke(_PROBE_URL))
         payload = report.to_dict()
     except Exception as exc:
         return _failed("remote_smoke_fail_closed", f"{type(exc).__name__}: {exc}", expected=expected)
@@ -213,7 +232,7 @@ def _check_managed_conversation_fail_closed() -> ConformanceCheck:
             run_managed_loopback_conversation_validation,
         )
 
-        report = asyncio.run(run_managed_loopback_conversation_validation())
+        report = _run_async(run_managed_loopback_conversation_validation())
         payload = report.to_dict()
     except Exception as exc:
         return _failed(
@@ -283,9 +302,30 @@ def _check_registration_manifest() -> ConformanceCheck:
 def _check_capabilities_map(*, version: str) -> ConformanceCheck:
     expected = "deepr-capabilities-v1 map builds with zero-cost synthesis paths"
     try:
-        from deepr.mcp.capabilities import CAPABILITIES_SCHEMA_VERSION, build_capabilities
-        from deepr.mcp.search.registry import create_default_registry
-        from deepr.mcp.server import _register_new_tools
+        from deepr.mcp.capabilities import (
+            _KEY_TOOLS,
+            CAPABILITIES_SCHEMA_VERSION,
+            build_capabilities,
+        )
+        from deepr.mcp.search.registry import ToolRegistry, ToolSchema
+    except Exception as exc:
+        return _failed("capabilities_map", f"{type(exc).__name__}: {exc}", expected=expected)
+
+    try:
+        # Build a minimal registry with only key tools so optional skill/docx
+        # deps are never imported (CI core-install has no optional extras).
+        registry = ToolRegistry()
+        for name, use_when in _KEY_TOOLS:
+            del use_when
+            registry.register(
+                ToolSchema(
+                    name=name,
+                    description=name,
+                    input_schema={"type": "object", "properties": {}},
+                    category="system",
+                    cost_tier="free",
+                )
+            )
 
         class _EmptyExpertStore:
             """Read-only empty roster; no filesystem or network side effects."""
@@ -293,8 +333,6 @@ def _check_capabilities_map(*, version: str) -> ConformanceCheck:
             def list_all(self) -> list[Any]:
                 return []
 
-        registry = create_default_registry()
-        _register_new_tools(registry)
         payload = build_capabilities(_EmptyExpertStore(), registry, version=version)
     except Exception as exc:
         return _failed("capabilities_map", f"{type(exc).__name__}: {exc}", expected=expected)
