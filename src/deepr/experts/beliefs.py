@@ -1029,6 +1029,26 @@ class BeliefStore:
         """
         return self.changes[-limit:]
 
+    def get_recent_invalidations(self, limit: int = 5) -> list[BeliefChange]:
+        """Recent archive/revise events that retire or supersede a claim.
+
+        Used by consult packets so synthesis can avoid treating invalidated
+        history as current (Memora / TKG invalidation research). This is a
+        routing/disclosure surface, not a semantic verdict on the claim text.
+        """
+        if limit <= 0:
+            return []
+        selected: list[BeliefChange] = []
+        for change in reversed(self.changes):
+            if change.change_type == "archived" and (change.old_claim or "").strip():
+                selected.append(change)
+            elif change.change_type == "revised" and change.invalidated_at is not None:
+                selected.append(change)
+            if len(selected) >= limit:
+                break
+        selected.reverse()
+        return selected
+
     def find_similar_with_score(self, belief: Belief) -> tuple[Belief, float] | None:
         """First same-domain word-overlap match (>0.7) + score, or None (a high-recall router, not a merge verdict; AGENTIC_BALANCE.md)."""
         belief_words = set(belief.claim.lower().split())

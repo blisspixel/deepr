@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `deepr doctor` queue lifecycle warnings now include concrete remediation
   commands (`jobs list`, `jobs cancel`, `costs doctor`) without mutating
   queue or spend state.
+- Dependency audit: `cryptography` 50.0.0 and frontend npm high-severity
+  advisory fixes (`brace-expansion`, `socket.io-parser`).
 
 ### Changed
 
@@ -26,6 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   freeze-aware dashboard posture.
 - ROADMAP Next Order Of Operations adds an explicit version ladder from
   v2.43.x through v3.0 and beyond (dependency order, no calendar estimates).
+- Consult stored-belief packets disclose recent archive/revise invalidations as
+  non-current history, and synthesis prompts forbid treating `[invalidated]`
+  lines as live facts (forgetting-aware / TKG invalidation research).
 
 ## [2.43.1] - 2026-08-02
 

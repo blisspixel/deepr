@@ -264,6 +264,8 @@ async def test_consult_uses_stored_beliefs_before_live_session():
         "belief_ids": [belief.id],
         "beliefs_verified": 0,
         "matched_terms": ["cache", "cost", "prompt"],
+        "invalidations_included": 0,
+        "invalidation_belief_ids": [],
     }
     assert "Stored belief perspective for Grounded Cost Expert." in perspective["response"]
     assert "cache creation tokens" in perspective["response"]
@@ -405,6 +407,47 @@ def test_synthesis_prompt_defines_verified_labels():
         label = assurance_short_label(level)
         assert label, f"verified level {level!r} produced an empty label"
         assert label in _SYNTHESIS_SYSTEM_PROMPT, f"{label!r} is not defined in the synthesis prompt"
+
+
+def test_stored_perspective_discloses_recent_invalidations():
+    """Retired claims must be labeled non-current in the consult packet.
+
+    Forgetting-aware memory research and TKG invalidation practice both require
+    that synthesis see retired history without treating it as live belief.
+    """
+    from types import SimpleNamespace
+
+    from deepr.experts.council import ExpertCouncil
+
+    active = Belief(
+        claim="Valid-time and transaction-time are distinct axes.",
+        confidence=0.9,
+        domain="temporal knowledge graphs",
+        trust_class="secondary",
+    )
+    invalidations = [
+        SimpleNamespace(
+            belief_id="old-1",
+            change_type="archived",
+            old_claim="Knowledge graphs need only one timestamp.",
+            new_claim="",
+            reason="contradicted by bi-temporal evidence",
+            invalidated_at=None,
+        )
+    ]
+    perspective = ExpertCouncil().build_stored_perspective(
+        "What should change after a single-timestamp claim is invalidated?",
+        "Temporal Knowledge Graphs",
+        "temporal knowledge graphs",
+        [active],
+        recent_invalidations=invalidations,
+    )
+    assert perspective is not None
+    assert "Recently invalidated or superseded claims" in perspective.response
+    assert "[invalidated] Knowledge graphs need only one timestamp." in perspective.response
+    assert "not current" in perspective.response
+    assert perspective.context["invalidations_included"] == 1
+    assert perspective.context["invalidation_belief_ids"] == ["old-1"]
 
 
 @pytest.mark.asyncio
