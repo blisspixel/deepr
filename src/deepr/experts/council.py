@@ -289,6 +289,48 @@ class ExpertCouncil:
             matched_terms=matched_terms,
         )
 
+    @staticmethod
+    def _render_selected_belief_lines(selected: list[Any], domain: str) -> list[str]:
+        """Render active belief lines for a consult packet."""
+        lines: list[str] = []
+        for belief in selected:
+            confidence = belief.get_current_confidence()
+            contested = (
+                f", contested with {len(belief.contradictions_with)} belief(s)" if belief.contradictions_with else ""
+            )
+            verified_label = assurance_short_label(getattr(belief, "grounding_assurance", ""))
+            verified = f", {verified_label}" if verified_label else ""
+            domain_label = belief.domain or domain or "general"
+            lines.append(f"- ({confidence:.2f}, {domain_label}{verified}{contested}) {belief.claim}")
+            refs = ExpertCouncil._compact_refs(belief.evidence_refs)
+            if refs:
+                lines.append(f"  Sources: {'; '.join(refs)}")
+        return lines
+
+    @staticmethod
+    def _render_invalidation_lines(invalidations: list[Any]) -> list[str]:
+        """Render retired claims as non-current history for synthesis."""
+        if not invalidations:
+            return []
+        lines = [
+            "",
+            "Recently invalidated or superseded claims (not current; do not treat as live facts):",
+        ]
+        for change in invalidations[:5]:
+            claim = str(getattr(change, "old_claim", "") or "").strip()
+            if not claim:
+                claim = str(getattr(change, "new_claim", "") or "").strip()
+            if not claim:
+                continue
+            reason = str(getattr(change, "reason", "") or "").strip()
+            change_type = str(getattr(change, "change_type", "") or "invalidated")
+            suffix = f" ({change_type}"
+            if reason:
+                suffix += f"; {reason}"
+            suffix += ")"
+            lines.append(f"- [invalidated] {claim}{suffix}")
+        return lines
+
     def build_stored_perspective(
         self,
         query: str,
@@ -332,37 +374,9 @@ class ExpertCouncil:
             selected_context.selection_note,
             f"{len(selected)} of {len(belief_list)} active beliefs included.",
             "",
+            *self._render_selected_belief_lines(selected, domain),
+            *self._render_invalidation_lines(invalidations),
         ]
-        for belief in selected:
-            confidence = belief.get_current_confidence()
-            contested = (
-                f", contested with {len(belief.contradictions_with)} belief(s)" if belief.contradictions_with else ""
-            )
-            verified_label = assurance_short_label(getattr(belief, "grounding_assurance", ""))
-            verified = f", {verified_label}" if verified_label else ""
-            domain_label = belief.domain or domain or "general"
-            lines.append(f"- ({confidence:.2f}, {domain_label}{verified}{contested}) {belief.claim}")
-            refs = self._compact_refs(belief.evidence_refs)
-            if refs:
-                lines.append(f"  Sources: {'; '.join(refs)}")
-
-        if invalidations:
-            lines.append("")
-            lines.append("Recently invalidated or superseded claims (not current; do not treat as live facts):")
-            for change in invalidations[:5]:
-                claim = str(getattr(change, "old_claim", "") or "").strip()
-                if not claim:
-                    claim = str(getattr(change, "new_claim", "") or "").strip()
-                if not claim:
-                    continue
-                reason = str(getattr(change, "reason", "") or "").strip()
-                change_type = str(getattr(change, "change_type", "") or "invalidated")
-                suffix = f" ({change_type}"
-                if reason:
-                    suffix += f"; {reason}"
-                suffix += ")"
-                lines.append(f"- [invalidated] {claim}{suffix}")
-
         lines.extend(render_original_ideas_for_council(original_ideas))
         if selected:
             confidence = sum(b.get_current_confidence() for b in selected) / len(selected)
