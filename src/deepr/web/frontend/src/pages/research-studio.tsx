@@ -81,6 +81,13 @@ export default function ResearchStudio() {
     queryFn: () => configApi.get(),
   })
 
+  const { data: costSummary } = useQuery({
+    queryKey: ['cost', 'summary'],
+    queryFn: () => costApi.getSummary(),
+    refetchInterval: 15000,
+  })
+  const paidApiFrozen = Boolean(costSummary?.paid_api_frozen)
+
   useEffect(() => {
     if (!initialDraft.draft
       && config?.default_model
@@ -288,6 +295,7 @@ export default function ResearchStudio() {
     && !isConfigLoading
     && !isConfigError
     && isAllowed
+    && !paidApiFrozen
     && confirmMeteredCost
     && !submitMutation.isPending
 
@@ -298,6 +306,29 @@ export default function ResearchStudio() {
         <h1 className="text-2xl font-semibold text-foreground">Research Studio</h1>
         <p className="text-sm text-muted-foreground mt-0.5">Configure and submit research tasks</p>
       </div>
+
+      {paidApiFrozen && (
+        <div role="alert" className="rounded-lg border border-warning/40 bg-warning/5 px-4 py-3 flex items-start gap-3">
+          <Info className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+          <div className="space-y-1 text-sm text-foreground">
+            <p>
+              <span className="font-semibold text-warning">Paid API dispatch is frozen.</span>{' '}
+              {costSummary?.freeze_reason || 'The effective monthly paid API ceiling is $0.'}
+            </p>
+            <p className="text-muted-foreground">
+              Use local or proven plan-quota expert workflows instead of metered research submission.
+              Preview estimates may still appear; submit stays blocked until paid authority is restored.
+            </p>
+            <p className="text-muted-foreground">
+              <Link to="/experts" className="text-primary hover:underline">Expert Hub</Link>
+              {' · '}
+              <Link to="/costs" className="text-primary hover:underline">Costs</Link>
+              {' · '}
+              <Link to="/help" className="text-primary hover:underline">Capacity help</Link>
+            </p>
+          </div>
+        </div>
+      )}
 
       {isConfigError && (
         <div role="alert" className="rounded-lg border border-warning/30 bg-warning/5 px-4 py-3 flex items-center gap-3">
@@ -642,9 +673,10 @@ export default function ResearchStudio() {
         <div className="rounded-lg border bg-card p-4">
           <h3 className="text-sm font-medium text-foreground mb-2">Tips for better results</h3>
           <ul className="space-y-1 text-xs text-muted-foreground">
+            <li>Prefer local expert consult when paid dispatch is frozen or the task is domain maintenance</li>
             <li>Be specific about what information you need and desired output format</li>
             <li>Mention preferred sources (peer-reviewed, government data, industry reports)</li>
-            <li>Use o4-mini for faster results or o3 for more thorough OpenAI deep research</li>
+            <li>When metered research is enabled, o4-mini is faster; o3 is deeper (and more expensive)</li>
             <li>Open Configuration to upload reference documents for this submission</li>
           </ul>
         </div>

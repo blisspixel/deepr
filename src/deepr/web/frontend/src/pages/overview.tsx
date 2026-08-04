@@ -107,13 +107,24 @@ export default function Overview() {
           <h1 className="text-2xl font-semibold text-foreground">Overview</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Research operations at a glance</p>
         </div>
-        <button
-          onClick={() => navigate('/research')}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          New Research
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => navigate(costSummary?.paid_api_frozen ? '/experts' : '/research')}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            {costSummary?.paid_api_frozen ? 'Ask Expert' : 'New Research'}
+          </button>
+          {costSummary?.paid_api_frozen && (
+            <button
+              onClick={() => navigate('/research')}
+              className="inline-flex items-center gap-2 px-3 py-2 border rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+              title="Metered research stays blocked while paid API is frozen"
+            >
+              Research (frozen)
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Connection warning */}

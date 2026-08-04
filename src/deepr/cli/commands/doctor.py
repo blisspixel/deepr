@@ -245,6 +245,9 @@ async def check_database(config) -> list[DiagnosticCheck]:
                 if diagnostics.oldest_stale_submitted_at:
                     lifecycle.details.append(f"Oldest submitted: {diagnostics.oldest_stale_submitted_at}")
                 lifecycle.details.append("Inspect job and reservation state before cancelling anything")
+                lifecycle.details.append("List: deepr jobs list --status queued")
+                lifecycle.details.append("Cancel one job only after inspection: deepr jobs cancel <job_id>")
+                lifecycle.details.append("Spend holds may need: deepr costs doctor (matched / disposed / unexplained)")
             else:
                 lifecycle.passed = True
                 lifecycle.message = "No queued zero-attempt rows older than 24 hours"

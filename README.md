@@ -12,16 +12,20 @@ citations, provenance, and outcomes. It prefers owned local models, then proven
 subscription quota, with no automatic fallback to a paid API.
 
 <p align="center">
-  <img src="assets/cli-demo.png" width="92%" alt="Demo CLI session: capacity inventory, local expert consult with sample beliefs and gaps, and costs doctor on fictional data" />
+  <img src="assets/cli-demo.png" width="92%" alt="Demo CLI session: doctor MCP conformance, capacity inventory, local expert consult with sample beliefs and gaps, and costs doctor on fictional data" />
 </p>
 
 <p align="center">
-  <em>Demo session only (fictional expert). Not a live account or real research content.</em>
+  <em>Demo CLI session only (fictional expert and spend). Not a live account or real research content. Regenerated with <code>python scripts/render_cli_demo_screenshot.py</code>.</em>
 </p>
 
 <p align="center">
-  <img src="assets/dashboard.png" width="49%" alt="Dashboard with cost trends, job status, and activity" />
-  <img src="assets/expert-hub.png" width="49%" alt="Persistent expert hub with maintained domain knowledge" />
+  <img src="assets/dashboard.png" width="49%" alt="Demo dashboard overview with paid API freeze banner, zero active jobs, and capacity posture" />
+  <img src="assets/expert-hub.png" width="49%" alt="Demo expert hub with persistent domain experts and health labels" />
+</p>
+
+<p align="center">
+  <em>Demo web UI only (fictional operators data). Regenerated with <code>python scripts/render_web_demo_screenshot.py</code>.</em>
 </p>
 
 ## Capacity
