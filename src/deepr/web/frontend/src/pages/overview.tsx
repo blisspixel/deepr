@@ -109,19 +109,23 @@ export default function Overview() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={() => navigate(costSummary?.paid_api_frozen ? '/experts' : '/research')}
+            onClick={() => navigate(!moneyKnown || costSummary.paid_api_frozen ? '/experts' : '/research')}
             className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
           >
             <Plus className="w-4 h-4" />
-            {costSummary?.paid_api_frozen ? 'Ask Expert' : 'New Research'}
+            {!moneyKnown || costSummary.paid_api_frozen ? 'Ask Expert' : 'New Research'}
           </button>
-          {costSummary?.paid_api_frozen && (
+          {(!moneyKnown || costSummary.paid_api_frozen) && (
             <button
               onClick={() => navigate('/research')}
               className="inline-flex items-center gap-2 px-3 py-2 border rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
-              title="Metered research stays blocked while paid API is frozen"
+              title={
+                !moneyKnown
+                  ? 'Metered research stays blocked while money state is unknown'
+                  : 'Metered research stays blocked while paid API is frozen'
+              }
             >
-              Research (frozen)
+              {!moneyKnown ? 'Research (blocked)' : 'Research (frozen)'}
             </button>
           )}
         </div>

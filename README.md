@@ -25,7 +25,7 @@ subscription quota, with no automatic fallback to a paid API.
 </p>
 
 <p align="center">
-  <em>Demo web UI only (fictional operators data). Regenerated with <code>python scripts/render_web_demo_screenshot.py</code>.</em>
+  <em>Demo web UI only (fictional operator data). Regenerated with <code>python scripts/render_web_demo_screenshot.py</code>.</em>
 </p>
 
 ## Capacity

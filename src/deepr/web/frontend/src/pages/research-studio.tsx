@@ -81,12 +81,18 @@ export default function ResearchStudio() {
     queryFn: () => configApi.get(),
   })
 
-  const { data: costSummary } = useQuery({
+  const {
+    data: costSummary,
+    isSuccess: costSummaryOk,
+    isError: costSummaryError,
+  } = useQuery({
     queryKey: ['cost', 'summary'],
     queryFn: () => costApi.getSummary(),
     refetchInterval: 15000,
   })
-  const paidApiFrozen = Boolean(costSummary?.paid_api_frozen)
+  const moneyKnown = costSummaryOk && !costSummaryError && costSummary !== undefined
+  const paidApiFrozen = moneyKnown && Boolean(costSummary.paid_api_frozen)
+  const paidDispatchBlocked = !moneyKnown || paidApiFrozen
 
   useEffect(() => {
     if (!initialDraft.draft
@@ -295,7 +301,7 @@ export default function ResearchStudio() {
     && !isConfigLoading
     && !isConfigError
     && isAllowed
-    && !paidApiFrozen
+    && !paidDispatchBlocked
     && confirmMeteredCost
     && !submitMutation.isPending
 
@@ -307,17 +313,21 @@ export default function ResearchStudio() {
         <p className="text-sm text-muted-foreground mt-0.5">Configure and submit research tasks</p>
       </div>
 
-      {paidApiFrozen && (
+      {paidDispatchBlocked && (
         <div role="alert" className="rounded-lg border border-warning/40 bg-warning/5 px-4 py-3 flex items-start gap-3">
           <Info className="w-4 h-4 text-warning shrink-0 mt-0.5" />
           <div className="space-y-1 text-sm text-foreground">
             <p>
-              <span className="font-semibold text-warning">Paid API dispatch is frozen.</span>{' '}
-              {costSummary?.freeze_reason || 'The effective monthly paid API ceiling is $0.'}
+              <span className="font-semibold text-warning">
+                {paidApiFrozen ? 'Paid API dispatch is frozen.' : 'Paid API dispatch is blocked.'}
+              </span>{' '}
+              {paidApiFrozen
+                ? (costSummary?.freeze_reason || 'The effective monthly paid API ceiling is $0.')
+                : 'Canonical money state is unknown or still loading; metered submit stays disabled.'}
             </p>
             <p className="text-muted-foreground">
               Use local or proven plan-quota expert workflows instead of metered research submission.
-              Preview estimates may still appear; submit stays blocked until paid authority is restored.
+              Preview estimates may still appear; submit stays blocked until paid authority is known and unfrozen.
             </p>
             <p className="text-muted-foreground">
               <Link to="/experts" className="text-primary hover:underline">Expert Hub</Link>

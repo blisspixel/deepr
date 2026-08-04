@@ -8,7 +8,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+try:
+    from PIL import Image, ImageDraw, ImageFont
+except ImportError as exc:  # pragma: no cover - developer tooling only
+    raise SystemExit(
+        "Pillow is required to render README web screenshots. "
+        "Install with: uv pip install pillow"
+    ) from exc
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "assets" / "dashboard.png"
