@@ -1,0 +1,22 @@
+{
+  "case_id": "transfer-case",
+  "arm": "fresh_research",
+  "executed_at": "2026-08-04T18:16:03+00:00",
+  "latency_seconds": 0.0,
+  "cost_usd": 0.0,
+  "capability_snapshot": {
+    "schema_version": "deepr-expert-value-capability-snapshot-v1",
+    "arm": "fresh_research",
+    "mode": "offline_extract",
+    "expert_name": "Temporal Knowledge Graphs",
+    "model": null,
+    "capacity_source": "offline_extract",
+    "metered_dispatch": false,
+    "network_required": false,
+    "writes_expert_state": false,
+    "tools": [],
+    "generated_at": "2026-08-04T18:16:03+00:00"
+  },
+  "question": "A product team wants point-in-time 'what did we believe on 2026-02-01?' for customer risk facts that later reverse. Which TKG design choices transfer from the frozen evidence, and which requirements are still missing?",
+  "world_id": "source-world-3"
+}

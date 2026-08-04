@@ -121,6 +121,29 @@ def build_expert_handoff(
         else build_loop_status_rollup(resolved_name, limit=_clamp(loop_limit, minimum=1, maximum=50))
     )
     perspective_state = build_perspective_state_packet(resolved_name, limit=max_claims)
+    recent_invalidations: list[dict[str, Any]] = []
+    try:
+        from deepr.experts.beliefs import BeliefStore
+        from deepr.experts.paths import canonical_expert_dir
+
+        belief_file = canonical_expert_dir(resolved_name) / "beliefs" / "beliefs.json"
+        if belief_file.exists():
+            store = BeliefStore(resolved_name, read_only=True, read_path=belief_file)
+            for change in store.get_recent_invalidations(limit=5):
+                recent_invalidations.append(
+                    {
+                        "belief_id": change.belief_id,
+                        "change_type": change.change_type,
+                        "claim": (change.old_claim or change.new_claim or "").strip(),
+                        "reason": change.reason or "",
+                        "invalidated_at": (
+                            change.invalidated_at.isoformat() if change.invalidated_at is not None else None
+                        ),
+                        "current": False,
+                    }
+                )
+    except Exception:
+        recent_invalidations = []
 
     claim_limit = _clamp(max_claims, minimum=0, maximum=100)
     gap_limit = _clamp(max_gaps, minimum=0, maximum=50)
@@ -167,6 +190,7 @@ def build_expert_handoff(
         },
         "expert_state": resolved_telemetry,
         "perspective_state": perspective_state,
+        "recent_invalidations": recent_invalidations,
         "loop_status": resolved_loop_status,
         "okf": {
             "schema_version": OKF_SCHEMA_VERSION,

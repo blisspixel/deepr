@@ -1,0 +1,41 @@
+{
+  "source_world_id": "source-world-1",
+  "as_of": "2026-01-01T00:00:00+00:00",
+  "predecessor_source_world_id": null,
+  "title": "TKG foundations freeze",
+  "supporting_sources": [
+    {
+      "id": "src-w1-valid-tx",
+      "claim_ref": "claim:bi-temporal-axes",
+      "text": "A bi-temporal knowledge edge records valid-time (when the fact is true in the world) separately from transaction-time (when the system learned or recorded it). Collapsing both into one timestamp loses either real-world history or system audit history."
+    },
+    {
+      "id": "src-w1-as-of",
+      "claim_ref": "claim:as-of-queries",
+      "text": "Point-in-time (as-of) queries must answer against a chosen time axis. An as-of valid-time query asks what was true then; an as-of transaction-time query asks what the system believed then."
+    },
+    {
+      "id": "src-w1-single-ts-risk",
+      "claim_ref": "claim:single-timestamp-risk",
+      "text": "A store that keeps only one timestamp cannot both answer 'what was true on date D' and 'when did we learn that' after late-arriving corrections."
+    }
+  ],
+  "distractor_sources": [
+    {
+      "id": "src-w1-distractor-vector",
+      "text": "Vector similarity alone is sufficient for temporal correctness if embeddings are recent."
+    }
+  ],
+  "noise_sources": [
+    {
+      "id": "src-w1-noise",
+      "text": "Some marketing copy uses 'temporal graph' for any graph with a created_at column."
+    }
+  ],
+  "introduced_claim_refs": [
+    "claim:bi-temporal-axes",
+    "claim:as-of-queries",
+    "claim:single-timestamp-risk"
+  ],
+  "invalidated_claim_refs": []
+}

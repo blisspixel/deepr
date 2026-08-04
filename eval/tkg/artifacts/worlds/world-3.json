@@ -1,0 +1,47 @@
+{
+  "source_world_id": "source-world-3",
+  "as_of": "2026-03-01T00:00:00+00:00",
+  "predecessor_source_world_id": "source-world-2",
+  "title": "Transfer and hard-negative freeze",
+  "supporting_sources": [
+    {
+      "id": "src-w3-product-transfer",
+      "claim_ref": "claim:product-as-of",
+      "text": "A customer-risk product that must answer 'what did we believe on 2026-02-01?' after later reversals needs both as-of transaction-time reconstruction and clear valid-time of risk facts. Missing product requirements include retention policy, who may invalidate, and latency SLOs."
+    },
+    {
+      "id": "src-w3-no-vendor-mandate",
+      "claim_ref": "claim:no-vendor-lock",
+      "text": "Bi-temporal requirements transfer across implementations; frozen evidence does not mandate a single vendor product."
+    },
+    {
+      "id": "src-w3-provenance-required",
+      "claim_ref": "claim:provenance-still-required",
+      "text": "Adopting a temporal knowledge graph does not remove the need for provenance and citations. Time axes answer when; provenance answers from where and with what authority."
+    },
+    {
+      "id": "src-w3-hard-negative",
+      "claim_ref": "claim:reject-provenance-drop",
+      "text": "The claim that temporal axes replace sources is false. Systems must keep source identity, citation, and confidence separate from valid-time and transaction-time."
+    }
+  ],
+  "distractor_sources": [
+    {
+      "id": "src-w3-distractor-rag",
+      "text": "Chunked RAG over chat logs is a complete substitute for bi-temporal edges if reindexed daily."
+    }
+  ],
+  "noise_sources": [
+    {
+      "id": "src-w3-noise",
+      "text": "Unrelated GPU pricing notes from a different domain pack."
+    }
+  ],
+  "introduced_claim_refs": [
+    "claim:product-as-of",
+    "claim:no-vendor-lock",
+    "claim:provenance-still-required",
+    "claim:reject-provenance-drop"
+  ],
+  "invalidated_claim_refs": []
+}

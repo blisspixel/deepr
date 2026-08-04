@@ -1,0 +1,22 @@
+{
+  "case_id": "update-case",
+  "arm": "static_history",
+  "executed_at": "2026-08-04T18:16:03+00:00",
+  "latency_seconds": 0.0,
+  "cost_usd": 0.0,
+  "capability_snapshot": {
+    "schema_version": "deepr-expert-value-capability-snapshot-v1",
+    "arm": "static_history",
+    "mode": "offline_extract",
+    "expert_name": "Temporal Knowledge Graphs",
+    "model": null,
+    "capacity_source": "offline_extract",
+    "metered_dispatch": false,
+    "network_required": false,
+    "writes_expert_state": false,
+    "tools": [],
+    "generated_at": "2026-08-04T18:16:03+00:00"
+  },
+  "question": "A prior claim that 'knowledge graphs need only one timestamp' has been invalidated. What should change in graph state, and what must remain queryable for audit?",
+  "world_id": "source-world-1"
+}
