@@ -40,6 +40,22 @@ export default function StatusBar() {
   const paidApiFrozen = moneyKnown && costSummary.paid_api_frozen
   const paidApiBlocked = !moneyKnown || paidApiFrozen
   const unresolvedHolds = moneyKnown ? costSummary.unresolved_holds : 0
+  const monthlyCap = moneyKnown ? costSummary.effective_monthly_limit : 0
+  const monthlyExposure = moneyKnown ? costSummary.exposure.monthly : 0
+  const monthlyUtilization =
+    moneyKnown && monthlyCap > 0 ? (monthlyExposure / monthlyCap) * 100 : null
+  const thresholdLabel =
+    monthlyUtilization === null
+      ? null
+      : monthlyUtilization >= 100
+        ? '100%'
+        : monthlyUtilization >= 95
+          ? '95%'
+          : monthlyUtilization >= 80
+            ? '80%'
+            : monthlyUtilization >= 50
+              ? '50%'
+              : null
   const connectionLabel = wsConnected
     ? 'Live updates connected'
     : isOnline && wsStatus === 'reconnecting'
@@ -69,6 +85,19 @@ export default function StatusBar() {
         <div className="hidden items-center gap-1.5 sm:flex">
           <DollarSign className="h-3 w-3" />
           <span>Today: {moneyKnown ? formatCurrency(costSummary.exposure.daily) : 'UNKNOWN'}</span>
+          {thresholdLabel && !paidApiFrozen && (
+            <span
+              className={cn(
+                'rounded px-1 font-medium',
+                monthlyUtilization !== null && monthlyUtilization >= 95
+                  ? 'text-destructive'
+                  : 'text-warning'
+              )}
+              title={`Monthly exposure at the ${thresholdLabel} threshold of the effective ceiling`}
+            >
+              {thresholdLabel} month
+            </span>
+          )}
         </div>
 
         {/* Month spend vs the governing budget, always visible: the exact

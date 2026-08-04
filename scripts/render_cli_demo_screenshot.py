@@ -7,15 +7,21 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+try:
+    from PIL import Image, ImageDraw, ImageFont
+except ImportError as exc:  # pragma: no cover - developer tooling only
+    raise SystemExit(
+        "Pillow is required to render README CLI screenshots. "
+        "Install with: uv pip install pillow"
+    ) from exc
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "assets" / "cli-demo.png"
 
-W, H = 1280, 780
+W, H = 1320, 860
 TITLEBAR_H = 36
 PAD_X, PAD_Y = 22, 14
-LINE_H = 20
+LINE_H = 19
 
 BG = (18, 18, 20)
 TITLE_BG = (32, 32, 36)
@@ -50,16 +56,24 @@ def main() -> None:
         draw.ellipse([x, 18, x + 12, 30], fill=color)
 
     font_title = _font("segoeui.ttf", 14)
-    font = _font("consola.ttf", 15)
-    font_bold = _font("consolab.ttf", 15)
+    font = _font("consola.ttf", 14)
+    font_bold = _font("consolab.ttf", 14)
 
-    title = "deepr  -  demo session"
-    draw.text((W // 2 - 80, 14), title, fill=DIM, font=font_title)
+    title = "deepr  -  demo session (fictional)"
+    draw.text((W // 2 - 120, 14), title, fill=DIM, font=font_title)
 
     lines: list[tuple[str, tuple[int, int, int], bool]] = [
-        ("PS C:\\demo\\deepr> deepr capacity", FG, False),
+        ("PS C:\\demo\\deepr> deepr doctor --skip-connectivity", FG, False),
         ("", FG, False),
-        ("  Capacity inventory (demo data)", CYAN, True),
+        ("  MCP", CYAN, True),
+        ("  OK MCP offline conformance: ok (6 checks; modern 2026-07-28)", GREEN, False),
+        ("      Run: deepr mcp conformance --json", DIM, False),
+        ("  Spend", CYAN, True),
+        ("  OK Monthly spend vs budget: $0.00 of $5.00", GREEN, False),
+        ("  OK Paid artifacts: no unexplained spend", GREEN, False),
+        ("  Summary: 15/19 checks passed (advisory only)", DIM, False),
+        ("", FG, False),
+        ("PS C:\\demo\\deepr> deepr capacity", FG, False),
         ("", FG, False),
         ("  Class            Status        Notes", DIM, False),
         ("  --------------   -----------   -----------------------------------------", MUTED, False),
@@ -101,31 +115,31 @@ def main() -> None:
             False,
         ),
         ("", FG, False),
-        ("  # demo data only - fictional expert, not a live account", MUTED, False),
         ("PS C:\\demo\\deepr> _", FG, False),
     ]
 
-    x0 = 8 + PAD_X
     y = 8 + TITLEBAR_H + PAD_Y
-    max_chars = 96
     for text, color, bold in lines:
         f = font_bold if bold else font
-        if len(text) > max_chars:
-            cut = text.rfind(" ", 0, max_chars)
-            if cut < 40:
-                cut = max_chars
-            draw.text((x0, y), text[:cut], fill=color, font=f)
-            y += LINE_H
-            draw.text((x0, y), "  " + text[cut:].lstrip(), fill=color, font=f)
-        else:
-            draw.text((x0, y), text, fill=color, font=f)
+        # Soft wrap long lines
+        if len(text) > 108:
+            chunk = text
+            while chunk:
+                piece = chunk[:108]
+                draw.text((PAD_X + 8, y), piece, fill=color, font=f)
+                y += LINE_H
+                chunk = chunk[108:]
+                if chunk:
+                    chunk = "    " + chunk
+            continue
+        draw.text((PAD_X + 8, y), text, fill=color, font=f)
         y += LINE_H
         if y > H - 28:
             break
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     img.save(OUT, "PNG", optimize=True)
-    print(f"wrote {OUT} ({OUT.stat().st_size} bytes, {img.size[0]}x{img.size[1]})")
+    print(f"Wrote {OUT}")
 
 
 if __name__ == "__main__":

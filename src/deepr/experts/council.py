@@ -59,7 +59,9 @@ _SYNTHESIS_SYSTEM_PROMPT = (
     "'cross-vendor verified' means two independent model vendors corroborated that claim, "
     "'same-vendor verified' means one vendor re-checked it with fresh context, an unlabeled "
     "belief was not independently corroborated, and 'contested with N belief(s)' means it "
-    "conflicts with other stored beliefs. Weigh corroboration and dissent alongside the stated "
+    "conflicts with other stored beliefs. Lines marked '[invalidated]' or under "
+    "'Recently invalidated or superseded claims' are retired history and must not be treated "
+    "as current facts. Weigh corroboration and dissent alongside the stated "
     "confidence; none of these is a guarantee of truth."
 )
 _SYNTHESIS_OUTPUT_TOKENS = 800
@@ -287,6 +289,48 @@ class ExpertCouncil:
             matched_terms=matched_terms,
         )
 
+    @staticmethod
+    def _render_selected_belief_lines(selected: list[Any], domain: str) -> list[str]:
+        """Render active belief lines for a consult packet."""
+        lines: list[str] = []
+        for belief in selected:
+            confidence = belief.get_current_confidence()
+            contested = (
+                f", contested with {len(belief.contradictions_with)} belief(s)" if belief.contradictions_with else ""
+            )
+            verified_label = assurance_short_label(getattr(belief, "grounding_assurance", ""))
+            verified = f", {verified_label}" if verified_label else ""
+            domain_label = belief.domain or domain or "general"
+            lines.append(f"- ({confidence:.2f}, {domain_label}{verified}{contested}) {belief.claim}")
+            refs = ExpertCouncil._compact_refs(belief.evidence_refs)
+            if refs:
+                lines.append(f"  Sources: {'; '.join(refs)}")
+        return lines
+
+    @staticmethod
+    def _render_invalidation_lines(invalidations: list[Any]) -> list[str]:
+        """Render retired claims as non-current history for synthesis."""
+        if not invalidations:
+            return []
+        lines = [
+            "",
+            "Recently invalidated or superseded claims (not current; do not treat as live facts):",
+        ]
+        for change in invalidations[:5]:
+            claim = str(getattr(change, "old_claim", "") or "").strip()
+            if not claim:
+                claim = str(getattr(change, "new_claim", "") or "").strip()
+            if not claim:
+                continue
+            reason = str(getattr(change, "reason", "") or "").strip()
+            change_type = str(getattr(change, "change_type", "") or "invalidated")
+            suffix = f" ({change_type}"
+            if reason:
+                suffix += f"; {reason}"
+            suffix += ")"
+            lines.append(f"- [invalidated] {claim}{suffix}")
+        return lines
+
     def build_stored_perspective(
         self,
         query: str,
@@ -295,6 +339,7 @@ class ExpertCouncil:
         beliefs: Iterable[Any],
         *,
         perspective_state: dict[str, Any] | None = None,
+        recent_invalidations: list[Any] | None = None,
     ) -> ExpertPerspective | None:
         """Build a deterministic perspective from an expert's belief store.
 
@@ -305,17 +350,22 @@ class ExpertCouncil:
         so the synthesis model can weigh how corroborated each belief is; per
         AGENTIC_BALANCE it never gates or reorders selection here, and an
         unverified belief is neither dropped nor penalized for lacking the stamp.
+
+        Recent archive/revise-with-invalidation events are disclosed as
+        non-current history so synthesis does not reuse retired claims as
+        live facts (forgetting-aware memory research).
         """
         perspective_state = perspective_state or build_perspective_state_packet(name, limit=3)
         original_ideas = list(perspective_state["original_ideas"])
         belief_list = list(beliefs)
-        if not belief_list and not original_ideas:
+        invalidations = list(recent_invalidations or [])
+        if not belief_list and not original_ideas and not invalidations:
             return None
 
         selected_context = self._select_stored_beliefs(query, belief_list)
         selected = selected_context.beliefs
 
-        if not selected and not original_ideas:
+        if not selected and not original_ideas and not invalidations:
             return None
 
         header = "Stored belief perspective" if selected else "Stored perspective state"
@@ -324,25 +374,16 @@ class ExpertCouncil:
             selected_context.selection_note,
             f"{len(selected)} of {len(belief_list)} active beliefs included.",
             "",
+            *self._render_selected_belief_lines(selected, domain),
+            *self._render_invalidation_lines(invalidations),
         ]
-        for belief in selected:
-            confidence = belief.get_current_confidence()
-            contested = (
-                f", contested with {len(belief.contradictions_with)} belief(s)" if belief.contradictions_with else ""
-            )
-            verified_label = assurance_short_label(getattr(belief, "grounding_assurance", ""))
-            verified = f", {verified_label}" if verified_label else ""
-            domain_label = belief.domain or domain or "general"
-            lines.append(f"- ({confidence:.2f}, {domain_label}{verified}{contested}) {belief.claim}")
-            refs = self._compact_refs(belief.evidence_refs)
-            if refs:
-                lines.append(f"  Sources: {'; '.join(refs)}")
-
         lines.extend(render_original_ideas_for_council(original_ideas))
         if selected:
             confidence = sum(b.get_current_confidence() for b in selected) / len(selected)
-        else:
+        elif original_ideas:
             confidence = sum(float(idea["confidence"]) for idea in original_ideas) / len(original_ideas)
+        else:
+            confidence = 0.0
         source = "belief_store" if selected else "perspective_state"
         context = {
             "source": source,
@@ -355,6 +396,10 @@ class ExpertCouncil:
                 1 for belief in selected if is_verified_assurance(getattr(belief, "grounding_assurance", ""))
             ),
             "matched_terms": sorted(selected_context.matched_terms)[:20],
+            "invalidations_included": len(invalidations),
+            "invalidation_belief_ids": [
+                str(getattr(change, "belief_id", "")) for change in invalidations if getattr(change, "belief_id", None)
+            ][:10],
         }
         if original_ideas:
             context.update(
@@ -392,6 +437,7 @@ class ExpertCouncil:
             domain,
             store.beliefs.values(),
             perspective_state=perspective_state,
+            recent_invalidations=store.get_recent_invalidations(limit=5),
         )
         if perspective is not None:
             self._attach_self_model_context(perspective.context, name)

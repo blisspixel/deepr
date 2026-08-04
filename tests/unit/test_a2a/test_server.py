@@ -65,6 +65,76 @@ class TestAgentCardEndpoint:
             assert "domain" in skill
 
 
+class TestTransportResponses:
+    """Transport must not silently drop clients on parse failures."""
+
+    @pytest.mark.asyncio
+    async def test_send_simple_uses_status_reason_phrase(self, server: A2AServer) -> None:
+        """Error statuses must not advertise as 'OK' in the status line."""
+
+        class _FakeWriter:
+            def __init__(self) -> None:
+                self.buf = bytearray()
+
+            def write(self, data: bytes) -> None:
+                self.buf.extend(data)
+
+            async def drain(self) -> None:
+                return None
+
+        writer = _FakeWriter()
+        await server._send_simple(writer, 404, {"error": "missing"})
+        status_line = writer.buf.decode().split("\r\n", 1)[0]
+        assert status_line == "HTTP/1.1 404 Not Found"
+
+        writer_ok = _FakeWriter()
+        await server._send_simple(writer_ok, 201, {"id": "task"})
+        assert writer_ok.buf.decode().split("\r\n", 1)[0] == "HTTP/1.1 201 Created"
+
+    @pytest.mark.asyncio
+    async def test_incomplete_body_returns_408_not_silent_close(self, server: A2AServer) -> None:
+        """Timed-out body reads answer with 408 JSON instead of hanging the client."""
+
+        class _Reader:
+            async def readline(self) -> bytes:
+                # First call is request line; subsequent header lines end headers.
+                if not hasattr(self, "_n"):
+                    self._n = 0
+                self._n += 1
+                if self._n == 1:
+                    return b"POST /tasks HTTP/1.1\r\n"
+                if self._n == 2:
+                    return b"Content-Length: 20\r\n"
+                return b"\r\n"
+
+            async def readexactly(self, n: int) -> bytes:
+                raise TimeoutError()
+
+        class _Writer:
+            def __init__(self) -> None:
+                self.buf = bytearray()
+                self.closed = False
+
+            def write(self, data: bytes) -> None:
+                self.buf.extend(data)
+
+            async def drain(self) -> None:
+                return None
+
+            def close(self) -> None:
+                self.closed = True
+
+            async def wait_closed(self) -> None:
+                return None
+
+        writer = _Writer()
+        await server._handle_connection(_Reader(), writer)  # type: ignore[arg-type]
+        text = writer.buf.decode()
+        assert "HTTP/1.1 408 Request Timeout" in text
+        assert "incomplete" in text.lower() or "timed out" in text.lower()
+        assert writer.closed is True
+
+
 class TestTaskCreation:
     """Test POST /tasks."""
 

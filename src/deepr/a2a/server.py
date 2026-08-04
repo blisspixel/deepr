@@ -38,6 +38,23 @@ logger = logging.getLogger(__name__)
 # Content-Length from buffering arbitrary memory.
 _MAX_REQUEST_BODY_BYTES = 1 * 1024 * 1024  # 1 MiB
 
+# Minimal reason phrases for the lightweight transport. Unknown codes fall
+# back to a safe generic token so clients never see "200 OK" on errors.
+_HTTP_REASON: dict[int, str] = {
+    200: "OK",
+    201: "Created",
+    400: "Bad Request",
+    401: "Unauthorized",
+    403: "Forbidden",
+    404: "Not Found",
+    408: "Request Timeout",
+    409: "Conflict",
+    413: "Payload Too Large",
+    429: "Too Many Requests",
+    500: "Internal Server Error",
+    503: "Service Unavailable",
+}
+
 
 class A2AServer:
     """Lightweight A2A HTTP server.
@@ -317,13 +334,23 @@ class A2AServer:
         reader: asyncio.StreamReader,
         writer: asyncio.StreamWriter,
     ) -> tuple[int, str] | None:
-        """Read the bounded headers used by the minimal A2A transport."""
+        """Read the bounded headers used by the minimal A2A transport.
+
+        Returns None after a response has been written (or attempted) so the
+        caller does not double-send. Timeouts and malformed lengths fail closed
+        with an explicit JSON error instead of a silent TCP close.
+        """
         content_length = 0
         auth_header = ""
         while True:
             try:
                 line = await asyncio.wait_for(reader.readline(), timeout=10.0)
             except TimeoutError:
+                await self._send_simple(
+                    writer,
+                    408,
+                    {"error": "Timed out reading HTTP headers"},
+                )
                 return None
             if line in (b"\r\n", b"\n", b""):
                 return content_length, auth_header
@@ -372,28 +399,51 @@ class A2AServer:
         try:
             target = await self._read_request_target(reader)
             if target is None:
+                # Incomplete or empty request line: answer so clients do not
+                # hang on a silent TCP close.
+                await self._send_simple(
+                    writer,
+                    400,
+                    {"error": "Malformed or incomplete HTTP request line"},
+                )
                 return
             headers = await self._read_headers(reader, writer)
             if headers is None:
+                # Header path may already have sent 400/413; otherwise bail.
                 return
             content_length, auth_header = headers
             body = await self._read_body(reader, content_length)
             if body is None:
+                await self._send_simple(
+                    writer,
+                    408,
+                    {"error": "Request body timed out or was incomplete"},
+                )
                 return
             method, path = target
             status, response = await self.handle_request(method, path, body, auth_header=auth_header)
             await self._send_simple(writer, status, response)
         except Exception:
             logger.exception("Error handling A2A connection")
-            # Intent: one bad A2A connection or request must not crash the server process; log and let the connection close in finally.
+            # Intent: one bad A2A connection or request must not crash the server
+            # process; still try to return a structured 500 before close.
+            try:
+                await self._send_simple(
+                    writer,
+                    500,
+                    {"error": "Internal server error handling A2A request"},
+                )
+            except Exception:
+                logger.exception("Failed to send A2A 500 response")
         finally:
             await self._close_writer(writer)
 
     @staticmethod
     async def _send_simple(writer: asyncio.StreamWriter, status: int, body: dict[str, Any]) -> None:
         response_json = json.dumps(body)
+        reason = _HTTP_REASON.get(int(status), "Response")
         http_response = (
-            f"HTTP/1.1 {status} OK\r\n"
+            f"HTTP/1.1 {status} {reason}\r\n"
             f"Content-Type: application/json\r\n"
             f"Content-Length: {len(response_json.encode('utf-8'))}\r\n"
             f"\r\n"

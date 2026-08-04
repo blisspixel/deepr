@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A2A lightweight HTTP transport no longer labels non-2xx responses as
+  `OK`, and incomplete or timed-out request bodies/headers return explicit
+  JSON `408`/`400`/`500` instead of a silent TCP close.
+- `deepr doctor` queue lifecycle warnings now include concrete remediation
+  commands (`jobs list`, `jobs cancel`, `costs doctor`) without mutating
+  queue or spend state.
+- Dependency audit: `cryptography` 50.0.0 and frontend npm high-severity
+  advisory fixes (`brace-expansion`, `socket.io-parser`).
+
+### Changed
+
+- Research Studio surfaces a paid-API-freeze banner, blocks submit while frozen,
+  and steers operators to local/plan expert workflows.
+- Dashboard status bar shows monthly exposure threshold markers (50/80/95/100%)
+  when money state is known.
+- README CLI and web demo screenshots regenerated for doctor/MCP preflight and
+  freeze-aware dashboard posture.
+- ROADMAP Next Order Of Operations adds an explicit version ladder from
+  v2.43.x through v3.0 and beyond (dependency order, no calendar estimates).
+- Consult stored-belief packets disclose recent archive/revise invalidations as
+  non-current history, and synthesis prompts forbid treating `[invalidated]`
+  lines as live facts (forgetting-aware / TKG invalidation research).
+
 ## [2.43.1] - 2026-08-02
 
 ### Changed
