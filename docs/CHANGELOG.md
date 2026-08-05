@@ -7,6 +7,81 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.44.0] - 2026-08-05
+
+Experts stop being fact ledgers. This release lands the first executable slice of
+the v2 expert architecture: an expert now keeps the material it learned from, can
+read that material several ways, and renders what it found as a notebook rather
+than a confidence-sorted bullet list.
+
+### Added
+
+- **Corpus retention** (`deepr.experts.corpus_store`): sources are kept
+  content-addressed under the expert, with origin identity, publisher, and trust
+  class. Previously `absorb` extracted atomic claims and discarded the text, so
+  no expert could re-read what it learned from, show the passage behind a claim,
+  or be re-derived when understanding of a field changed. Idempotent by content,
+  so a refresh cadence neither duplicates storage nor inflates origin counts;
+  superseding never deletes, so change stays visible.
+- **Study lenses** (`deepr.experts.study_lenses`): nine domain-agnostic lenses on
+  two axes. Interrogation lenses (mechanism, failure, contention, change,
+  absence) are ways of reading; perspective lenses (economic, operational,
+  human/cultural, adversarial, institutional) are who is reading. A mechanical
+  guard plus a pinned test refuse any lens prompt that names a subject matter.
+- **The study pass** (`deepr expert study`, `deepr.experts.study`): runs each
+  lens over the retained corpus independently, emitting typed findings anchored
+  to source text. Reads the corpus, never the belief store. Proposes; never
+  writes. An anchor that cannot be located is labeled, not deleted.
+- **Coverage reporting** (`deepr.experts.study_coverage`): what a pass read,
+  what it never read, and which sole-source origins nothing cited. Relevance
+  ranking surfaces what many sources say and buries the lone source that would
+  change the conclusion; this makes that visible.
+- **Notebook render** (`deepr.experts.notebook`): sectioned study document in
+  reading order - how it works, what breaks, where sources disagree, what is
+  missing - with confidence off the headline and coverage stated in the body.
+
+### Fixed
+
+- Belief dedup routing was polarity-blind, so "X ships in v2" and "X does not
+  ship in v2" scored as near-identical. Combined with the new provenance merge,
+  a contradicting source could lift the tertiary trust ceiling from 0.60 to 0.80
+  as if it were corroboration. The polarity guard now tokenizes on word
+  characters, so punctuation-adjacent negations ("is not, in fact, current") no
+  longer slip past.
+- A revised belief kept the prior `source_type` and `grounding_assurance`,
+  attributing rewritten text to a source that never asserted it.
+- MCP `knowledge_empty` defaulted to `True` and was corrected only inside a
+  suppressed exception, so an unreadable manifest reported a populated expert as
+  empty. Hosts skip consults on that field. Unknown is now distinguishable from
+  empty via `claim_count_known`.
+- `expert improve --execute` help offered a `--api` flag the command does not
+  define, and did not say that the step it runs is metered-gated and fails
+  closed while paid dispatch is frozen.
+
+### Documentation
+
+- [Expert v2 architecture](design/expert-v2-architecture.md): an expert is a
+  maintained corpus, study notes derived from it, positions it will defend, and a
+  record of how those changed, with atomic claims demoted to a retrieval index.
+- [Expert insight layer](design/expert-insight-layer.md): the missing reasoning
+  stage between acquisition and storage.
+- [Expert evidence base](design/expert-evidence-base.md): four literature
+  reviews (expertise science, knowledge management, agent memory, analytic
+  tradecraft) with what they support, what they contradict, and what not to
+  build. Includes findings that went against choices already made here.
+
+### Known limitations
+
+- Perspective lenses are provisional. Two independent studies found expert
+  personas do not improve factual accuracy; the claim that they surface
+  *different content* is untested, and they ship pending a matched-token-spend
+  comparison against N-sample self-consistency.
+- Displayed belief confidence remains largely a policy constant, and the
+  calibration harness has not produced a non-degenerate curve. Do not read a
+  confidence value as a probability.
+
+## [Previously unreleased]
+
 ### Fixed
 
 - A2A lightweight HTTP transport no longer labels non-2xx responses as

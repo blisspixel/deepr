@@ -1,9 +1,17 @@
 # Supported Surface
 
-Status: v2.43.1 current main, 2026-08-02. This document defines what users and host
+Status: v2.44.0 current main, 2026-08-05. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Production metered dispatch remains
 frozen since v2.40 until provider account-control adapters land.
+
+**v2.44.0 adds the expert study surface as experimental**: retained corpus
+(`corpus/index.jsonl` plus content-addressed sources), the multi-lens study pass,
+coverage reporting, and the notebook render. These are additive; existing belief
+stores are untouched and keep working. The study pass proposes findings and never
+writes to the belief store, so nothing here can alter an expert's beliefs without
+a separate, explicit absorb. Perspective lenses are provisional pending a
+matched-spend evaluation (see [expert-evidence-base.md](design/expert-evidence-base.md)).
 
 ## Support Levels
 
