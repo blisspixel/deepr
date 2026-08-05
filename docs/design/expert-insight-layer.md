@@ -218,14 +218,14 @@ force, and an insight layer is exactly the kind of feature that erodes them.
 
 Each is a finding from the research pass, not a guess.
 
-0. **Corpus retention.** Decide whether the expert keeps the source text it
-   absorbed (content-addressed under the expert directory, with the existing
-   `validate_path` containment), or keeps only a pointer into a Distill library
-   the operator owns. Retention costs disk and makes an expert directory large;
-   pointers are cheap but break the moment the operator moves or prunes the
-   library, and leave the expert unable to re-read itself. Without one of the
-   two, "think about it in multiple ways" is a single shot: the second lens has
-   nothing to read.
+0. **Corpus retention. Decided 2026-08-05: retain, content-addressed.** The
+   expert copies absorbed source text to `corpus/sources/<sha256>.md` under the
+   existing `validate_path` containment, with a `corpus/index.jsonl` carrying
+   origin key, url, publisher, fetched_at, hash, and trust class. Deduped across
+   the fleet by hash. Accepted cost: tens of MB per expert. Pointers into an
+   operator-owned Distill library were rejected because they break on move,
+   prune, or rename and leave the expert unable to re-read itself, which makes
+   "think about it in multiple ways" a single shot.
 1. **`absorb-dir` with publisher-collapsed origin identity.** Without batch
    ingestion there is no corpus to reason over. With naive per-file provenance,
    a 40-page crawl of one site reports 40 independent origins and lifts tertiary

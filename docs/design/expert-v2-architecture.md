@@ -191,7 +191,7 @@ Ordered by dependency. Each is a finding from the code, not a guess.
 
 | # | Prerequisite | Why |
 |---|---|---|
-| 0 | **Corpus retention** | Without it there is no second lens, no re-study, no passage to show. Everything else is downstream |
+| 0 | **Corpus retention** (decided 2026-08-05: retain, content-addressed) | Without it there is no second lens, no re-study, no passage to show. Everything else is downstream |
 | 1 | **`absorb-dir` with publisher-collapsed origins** | Corpus at scale, without letting a 40-page crawl of one site report 40 independent origins and inflate trust ceilings |
 | 2 | **Typed-state revision + `evidence_refs` on the record** | `promote_*` silently refuses duplicate titles and drops evidence refs into `uncertainty_log`. Writing insight onto a write-once substrate makes the first wrong reading permanent |
 | 3 | **The study pass** | The missing stage |

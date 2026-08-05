@@ -112,9 +112,29 @@ beliefs-only batch loop, every Distill and Learny corpus it ingests is
 permanently flattened to single-sentence facts, and the insight layer has to
 re-read all of it later. Design: [../design/expert-insight-layer.md](../design/expert-insight-layer.md).
 
+**Operator decisions, 2026-08-05 (settled, do not re-open without new evidence):**
+
+1. **Corpus retention: retain, content-addressed.** Sources are copied under the
+   expert directory at `corpus/sources/<sha256>.md` with a `corpus/index.jsonl`
+   carrying origin key, url, publisher, fetched_at, sha256, and trust class.
+   Deduped across the fleet by hash. Accepted cost: tens of MB per expert.
+   Rationale: an expert that cannot re-read its own sources cannot be studied
+   through a second lens, cannot show a passage, and cannot be re-derived when
+   the frame changes. Pointers into the operator's Distill library were rejected
+   because they break on move, prune, or rename, and leave no self-contained
+   expert export.
+2. **Absorb routes through the source-pack pipeline.** `absorb --file` builds a
+   one-source pack, then `claim_extraction` -> `claim_verification` ->
+   `graph_commit_envelope` -> `apply`, emitting beliefs **and** typed shapes.
+   Cost is one extra model call per absorb, $0 on `--local`. Widening the
+   absorber's own prompt was rejected: its gates are a `min_confidence` float
+   and two lexical routers, none of which can enforce `requires_external_support`
+   or `requires_disconfirming_signals`, so typed records would be admitted
+   through a gate never designed for them.
+
 | ID | Work | Done when |
 |---|---|---|
-| 3.5a | Operator decision on absorb-to-typed-shapes | Recorded: route absorb through the source-pack pipeline (one extra $0 local verification call, reuses the existing verifier contract), or accept typed state stays empty and say so in the docs |
+| 3.5a | Absorb routes through the source-pack pipeline | `absorb --file` emits typed shapes as well as beliefs; per-kind policy gates enforced; `--local` path stays $0 |
 | 3.5b | Typed-state provenance | `evidence_refs` persist **on** the record, not into `uncertainty_log` (`metacognition.py:473-483`); `ExpertStance` and siblings carry the field |
 | 3.5c | Typed-state revision | `revise_*` / `retire_*` beside the existing `promote_*`; today a duplicate title is silently refused (`metacognition.py:468-470`) and nothing can be corrected. Must land **before** the first insight is written |
 | 3.5d | Tracker path fix | `MetaCognitionTracker._get_expert_dir` (`metacognition.py:188-192`) reimplements slugging instead of calling `canonical_expert_dir`, the exact split-directory bug `beliefs.py:432-437` documents |
@@ -125,7 +145,8 @@ re-read all of it later. Design: [../design/expert-insight-layer.md](../design/e
 
 | ID | Work | Done when |
 |---|---|---|
-| 4.0 | `absorb-okf --trust-class` | A directory absorb path already exists (`expert_okf.py:185-274`) and passes no trust class, so every corpus through it caps at 0.60. Default `secondary` |
+| 4.0a | `absorb-okf --trust-class` | A directory absorb path already exists (`expert_okf.py:185-274`) and passes no trust class, so every corpus through it caps at 0.60. Default `secondary` |
+| 4.0b | **Corpus retention** | `corpus/index.jsonl` + `corpus/sources/<sha256>.md` written on every absorb, content-addressed and fleet-deduped, under `validate_path` containment. `expert corpus list` / `show <sha>` read it back at $0. This is prerequisite zero: without it a second study lens has nothing to read |
 | 4.1 | `expert absorb-dir` | Batch secondary absorb of a Markdown corpus tree, with **publisher-collapsed origin identity** (see below), a run manifest for idempotent re-absorb on Distill's refresh cadence, per-origin chunking, and resume after partial failure |
 | 4.2 | Doctor: distill on PATH | Advisory, `info` severity, `distill --version` only. Never shell out to `distill doctor`: it makes live provider network calls and would break `--skip-connectivity` |
 | 4.3 | Quality attaches corpus origins | Distinct origins rise after absorb-dir, **and a regression test pins that a 40-file single-host tree counts as one origin** |
