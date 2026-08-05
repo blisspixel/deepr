@@ -270,6 +270,38 @@ class TestMutationAudit:
         assert "report:file:b.md" not in kept.evidence_refs
         assert kept.get_current_confidence() == 0.6  # still single-source tertiary
 
+    def test_negation_guard_survives_adjacent_punctuation(self, tmp_path):
+        """Whitespace splitting leaves "not," attached and slips past the guard.
+
+        The polarity test must tokenize on word characters, or the guard fails
+        on exactly the natural phrasings a real source uses.
+        """
+        store = BeliefStore("Punctuation Test Expert", storage_dir=tmp_path / "beliefs")
+        original, _ = store.add_belief(
+            Belief(
+                claim="Release 2.0 is the latest supported version",
+                confidence=0.9,
+                domain="releases",
+                evidence_refs=["report:file:a.md"],
+                trust_class="tertiary",
+            )
+        )
+
+        opposing, _ = store.add_belief(
+            Belief(
+                claim="Release 2.0 is not, in fact, the latest supported version",
+                confidence=0.9,
+                domain="releases",
+                evidence_refs=["report:file:b.md"],
+                trust_class="tertiary",
+            )
+        )
+
+        assert opposing.id != original.id
+        kept = store.beliefs[original.id]
+        assert "report:file:b.md" not in kept.evidence_refs
+        assert kept.get_current_confidence() == 0.6
+
 
 class TestUsageSalience:
     def test_record_retrieval_bumps_counters(self, store):

@@ -29,6 +29,18 @@ _URL_SCHEME_RE = re.compile(r"^[a-z][a-z0-9+.\-]*://", re.IGNORECASE)
 # contradiction exists (that stays a model verdict).
 _NEGATION_WORDS = frozenset({"not", "no", "never", "false", "incorrect", "wrong"})
 
+# Whitespace splitting leaves punctuation attached, so "is not, in fact, current"
+# yields the token "not," and slips past the guard - re-enabling exactly the
+# opposite-polarity merge the guard exists to block. Tokenize on word characters
+# for the polarity test only; the overlap score keeps using whitespace splitting
+# so similarity semantics elsewhere are unchanged.
+_WORD_RE = re.compile(r"[a-z0-9']+")
+
+
+def _has_negation(claim: str) -> bool:
+    """True when a claim carries a negation marker, punctuation notwithstanding."""
+    return bool(set(_WORD_RE.findall(claim.lower())) & _NEGATION_WORDS)
+
 
 def _canonical_url_source_key(token: str) -> str | None:
     """Return one conservative source identity for an absolute URL.
@@ -1067,10 +1079,10 @@ class BeliefStore:
         contradiction path instead; it still concludes nothing on its own.
         """
         belief_words = set(belief.claim.lower().split())
-        has_negation = bool(belief_words & _NEGATION_WORDS)
+        has_negation = _has_negation(belief.claim)
         for existing in self.get_beliefs_by_domain(belief.domain):
             existing_words = set(existing.claim.lower().split())
-            if bool(existing_words & _NEGATION_WORDS) != has_negation:
+            if _has_negation(existing.claim) != has_negation:
                 continue
             overlap = len(belief_words & existing_words)
             similarity = overlap / max(len(belief_words), len(existing_words), 1)
@@ -1097,14 +1109,14 @@ class BeliefStore:
         Returns at most the 3 strongest matches to keep the graph sparse.
         """
         belief_words = set(belief.claim.lower().split())
-        has_negation = bool(belief_words & _NEGATION_WORDS)
+        has_negation = _has_negation(belief.claim)
 
         scored: list[tuple[float, Belief]] = []
         for existing in self.get_beliefs_by_domain(belief.domain):
             if existing.id == belief.id:
                 continue
             existing_words = set(existing.claim.lower().split())
-            if bool(existing_words & _NEGATION_WORDS) != has_negation:
+            if _has_negation(existing.claim) != has_negation:
                 continue
             overlap = len(belief_words & existing_words)
             similarity = overlap / max(len(belief_words), len(existing_words), 1)

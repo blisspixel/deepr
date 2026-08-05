@@ -255,16 +255,24 @@ def _render_quality_scorecard(card: Any) -> None:
 @click.option(
     "--execute",
     is_flag=True,
-    help="Run safe improve steps (discover-gaps; route-gaps dry-run). Never metered without --api.",
+    help=(
+        "Run the non-mutating improve steps: discover-gaps and route-gaps --dry-run. "
+        "discover-gaps is metered-gated and fails closed while paid dispatch is frozen."
+    ),
 )
 @click.option("--json", "as_json", is_flag=True, help="Emit scorecard + plan JSON")
 def expert_improve(name: str, local: bool, execute: bool, as_json: bool) -> None:
     """Research → plan → improve loop for one expert (structural orchestration).
 
-    Always prints a quality scorecard and an improve plan. With --execute,
-    runs only non-mutating or explicitly local-safe steps: discover-gaps and
-    route-gaps --dry-run. Absorb of primary docs remains an explicit operator
-    absorb command (files and trust-class must be chosen deliberately).
+    Always prints a quality scorecard and an improve plan. With --execute, runs
+    only non-mutating steps: discover-gaps and route-gaps --dry-run.
+
+    Note: discover-gaps is metered-gated and takes no --local, so while paid
+    dispatch is frozen that step fails closed rather than running. This command
+    has no --api option; nothing here can authorize spend.
+
+    Absorb of primary docs remains an explicit operator absorb command (files
+    and trust-class must be chosen deliberately).
 
     EXAMPLES:
       deepr expert improve "Meshtastic LoRa Mesh Automation" --local
