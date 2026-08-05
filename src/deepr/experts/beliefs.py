@@ -23,6 +23,12 @@ logger = logging.getLogger(__name__)
 # Free-text evidence excerpts ground one source but are not independent origins.
 _URL_SCHEME_RE = re.compile(r"^[a-z][a-z0-9+.\-]*://", re.IGNORECASE)
 
+# Polarity guard for the lexical similarity routers. Word overlap cannot see
+# negation, so opposite-polarity claims score near-identical. This filters
+# pairs out of the merge and supports-edge routers; it never concludes that a
+# contradiction exists (that stays a model verdict).
+_NEGATION_WORDS = frozenset({"not", "no", "never", "false", "incorrect", "wrong"})
+
 
 def _canonical_url_source_key(token: str) -> str | None:
     """Return one conservative source identity for an absolute URL.
@@ -1050,10 +1056,22 @@ class BeliefStore:
         return selected
 
     def find_similar_with_score(self, belief: Belief) -> tuple[Belief, float] | None:
-        """First same-domain word-overlap match (>0.7) + score, or None (a high-recall router, not a merge verdict; AGENTIC_BALANCE.md)."""
+        """First same-domain word-overlap match (>0.7) + score, or None (a high-recall router, not a merge verdict; AGENTIC_BALANCE.md).
+
+        Opposite-polarity pairs are excluded, matching :meth:`_find_related`.
+        Word overlap cannot see negation, so "X ships in v2" and "X does not
+        ship in v2" score near-identical. Since the dedup path now merges
+        provenance (which lifts the tertiary ceiling from 0.60 to 0.80), a
+        polarity-blind router would let a contradicting source read as
+        independent corroboration. Excluding the pair here routes it to the
+        contradiction path instead; it still concludes nothing on its own.
+        """
         belief_words = set(belief.claim.lower().split())
+        has_negation = bool(belief_words & _NEGATION_WORDS)
         for existing in self.get_beliefs_by_domain(belief.domain):
             existing_words = set(existing.claim.lower().split())
+            if bool(existing_words & _NEGATION_WORDS) != has_negation:
+                continue
             overlap = len(belief_words & existing_words)
             similarity = overlap / max(len(belief_words), len(existing_words), 1)
             if similarity > 0.7:
@@ -1078,16 +1096,15 @@ class BeliefStore:
 
         Returns at most the 3 strongest matches to keep the graph sparse.
         """
-        negation_words = {"not", "no", "never", "false", "incorrect", "wrong"}
         belief_words = set(belief.claim.lower().split())
-        has_negation = bool(belief_words & negation_words)
+        has_negation = bool(belief_words & _NEGATION_WORDS)
 
         scored: list[tuple[float, Belief]] = []
         for existing in self.get_beliefs_by_domain(belief.domain):
             if existing.id == belief.id:
                 continue
             existing_words = set(existing.claim.lower().split())
-            if bool(existing_words & negation_words) != has_negation:
+            if bool(existing_words & _NEGATION_WORDS) != has_negation:
                 continue
             overlap = len(belief_words & existing_words)
             similarity = overlap / max(len(belief_words), len(existing_words), 1)
@@ -1139,55 +1156,121 @@ class BeliefStore:
             return self.beliefs[existing.id], change
 
         if self.conflict_resolution == ConflictResolution.HIGHER_CONFIDENCE:
-            if new.get_current_confidence() > existing.get_current_confidence():
-                change = self._replace_belief_content(existing, new, "Higher effective-confidence evidence")
-                return self.beliefs[existing.id], change
-            else:
-                # Keep existing and audit the rejected candidate without
-                # treating it as corroboration or refreshing factual recency.
-                before = audit.belief_snapshot(existing)
-                old_confidence = existing.confidence
-                evidence_ref = f"conflicting:{new.id}"
-                if evidence_ref not in existing.evidence_refs:
-                    existing.evidence_refs.append(evidence_ref)
-                change = BeliefChange(
-                    belief_id=existing.id,
-                    change_type="updated",
-                    old_claim=existing.claim,
-                    new_claim=existing.claim,
-                    old_confidence=old_confidence,
-                    new_confidence=existing.confidence,
-                    reason="Retained lower-confidence conflicting evidence",
-                    evidence=evidence_ref,
-                )
-                self._record_change(change, before=before, after=audit.belief_snapshot(existing))
-                self._save()
-                return existing, None
+            # Dedup callers use this path for *similar claims*, not only true
+            # conflicts. Always merge non-conflicting provenance so multi-source
+            # tertiary ceilings (0.80) and secondary/primary upgrades work.
+            # Only adopt the new claim text / raise raw confidence when the new
+            # belief's *effective* confidence (trust ceiling applied) is higher
+            # - so a tertiary 0.99 cannot rewrite a primary 0.70 claim.
+            new_wins = new.get_current_confidence() > existing.get_current_confidence()
+            change = self._corroborate_belief(
+                existing,
+                new,
+                prefer_new_claim=new_wins,
+                raise_raw_confidence=new_wins,
+                reason=(
+                    "Higher effective-confidence corroborating evidence"
+                    if new_wins
+                    else "Corroborating evidence merged into retained belief"
+                ),
+            )
+            return self.beliefs[existing.id], change
 
         if self.conflict_resolution == ConflictResolution.MERGE:
-            # Merge evidence, average confidence
-            before = audit.belief_snapshot(existing)
-            old_confidence = existing.confidence
-            merged_confidence = (existing.confidence + new.confidence) / 2
-            for ref in new.evidence_refs:
-                existing.add_evidence(ref)
-            existing.update_confidence(merged_confidence, "Merged with new evidence")
-
-            change = BeliefChange(
-                belief_id=existing.id,
-                change_type="updated",
-                old_claim=existing.claim,
-                new_claim=existing.claim,
-                old_confidence=old_confidence,
-                new_confidence=merged_confidence,
+            change = self._corroborate_belief(
+                existing,
+                new,
+                prefer_new_claim=False,
+                raise_raw_confidence=True,
                 reason="Merged beliefs",
+                average_confidence=True,
             )
-            self._record_change(change, before=before, after=audit.belief_snapshot(existing))
-            self._save()
-            return existing, change
+            return self.beliefs[existing.id], change
 
         # ASK_USER - return both for user decision
         return existing, None
+
+    @staticmethod
+    def _trust_rank(trust_class: str) -> int:
+        return {"primary": 3, "secondary": 2, "tertiary": 1}.get(str(trust_class or "tertiary"), 1)
+
+    def _corroborate_belief(
+        self,
+        existing: Belief,
+        new: Belief,
+        *,
+        prefer_new_claim: bool,
+        reason: str,
+        average_confidence: bool = False,
+        raise_raw_confidence: bool = True,
+    ) -> BeliefChange:
+        """Merge corroborating provenance into an existing similar belief.
+
+        Deterministic only: unions evidence_refs (skipping conflicting: markers),
+        upgrades trust_class to the stronger tier, and optionally lifts raw
+        confidence. Effective confidence still applies the source-trust ceiling
+        at read time via ``get_current_confidence``.
+        """
+        before = audit.belief_snapshot(existing)
+        old_claim = existing.claim
+        old_confidence = existing.confidence
+        changed_at = _utc_now()
+
+        for ref in new.evidence_refs:
+            token = str(ref).strip()
+            if not token or token.lower().startswith("conflicting:"):
+                continue
+            existing.add_evidence(token)
+
+        if self._trust_rank(new.trust_class) > self._trust_rank(existing.trust_class):
+            existing.trust_class = new.trust_class
+
+        if average_confidence:
+            merged_confidence = (old_confidence + float(new.confidence)) / 2.0
+        elif raise_raw_confidence:
+            merged_confidence = max(float(old_confidence), float(new.confidence))
+        else:
+            merged_confidence = float(old_confidence)
+
+        claim_revised = bool(prefer_new_claim and new.claim.strip() and new.claim != existing.claim)
+        if claim_revised:
+            # Attribution follows the claim. Keeping the prior source_type and
+            # grounding_assurance on rewritten text would attribute the new
+            # assertion to a source that never made it. Evidence refs are
+            # unioned above, so prior corroboration is not lost.
+            existing.claim = new.claim
+            existing.source_type = new.source_type
+            existing.grounding_assurance = new.grounding_assurance
+
+        existing.history.append(
+            {
+                "timestamp": changed_at.isoformat(),
+                "old_claim": old_claim,
+                "new_claim": existing.claim,
+                "old_confidence": old_confidence,
+                "new_confidence": merged_confidence,
+                "reason": reason,
+                "corroborated": True,
+                "provenance_replaced": claim_revised,
+                "trust_class": existing.trust_class,
+            }
+        )
+        existing.confidence = merged_confidence
+        existing.updated_at = changed_at
+
+        change = BeliefChange(
+            belief_id=existing.id,
+            change_type="updated" if existing.claim == old_claim else "revised",
+            old_claim=old_claim,
+            new_claim=existing.claim,
+            old_confidence=old_confidence,
+            new_confidence=merged_confidence,
+            reason=reason,
+            evidence=new.evidence_refs[0] if new.evidence_refs else "",
+        )
+        self._record_change(change, before=before, after=audit.belief_snapshot(existing))
+        self._save()
+        return change
 
     def _replace_belief_content(self, existing: Belief, new: Belief, reason: str) -> BeliefChange:
         """Replace a stable belief's content and provenance as one audited unit."""
@@ -1195,6 +1278,20 @@ class BeliefStore:
         old_claim = existing.claim
         old_confidence = existing.confidence
         changed_at = _utc_now()
+        # Preserve prior independent provenance when replacing claim text so a
+        # newer write cannot erase multi-source corroboration.
+        merged_refs: list[str] = []
+        for ref in [*existing.evidence_refs, *new.evidence_refs]:
+            token = str(ref).strip()
+            if not token or token.lower().startswith("conflicting:"):
+                continue
+            if token not in merged_refs:
+                merged_refs.append(token)
+        better_trust = (
+            new.trust_class
+            if self._trust_rank(new.trust_class) >= self._trust_rank(existing.trust_class)
+            else existing.trust_class
+        )
         existing.history.append(
             {
                 "timestamp": changed_at.isoformat(),
@@ -1208,10 +1305,10 @@ class BeliefStore:
         )
         existing.claim = new.claim
         existing.confidence = new.confidence
-        existing.evidence_refs = list(new.evidence_refs)
+        existing.evidence_refs = merged_refs or list(new.evidence_refs)
         existing.source_type = new.source_type
         existing.decay_rate = new.decay_rate
-        existing.trust_class = new.trust_class
+        existing.trust_class = better_trust
         existing.grounding_assurance = new.grounding_assurance
         existing.updated_at = changed_at
 

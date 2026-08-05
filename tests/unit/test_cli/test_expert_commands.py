@@ -385,6 +385,10 @@ class TestExpertListCommand:
             total_research_cost=3.50,
             updated_at=datetime.now(UTC),
         )
+        mock_manifest = MagicMock()
+        mock_manifest.claim_count = 0
+        mock_manifest.avg_confidence = None
+        mock_expert.get_manifest = MagicMock(return_value=mock_manifest)
 
         with patch("deepr.experts.profile.ExpertStore") as mock_store_class:
             mock_store = MagicMock()
@@ -398,10 +402,44 @@ class TestExpertListCommand:
             assert "Test description" in output
             assert "Name:" in output
             assert "Description:" in output
+            assert "Claims: 0" in output
             assert "5" in output  # Documents count
             assert "10" in output  # Conversations count
-            assert "incomplete - no verified knowledge yet" in output
+            assert "incomplete - no claims or verified documents yet" in output
             assert 'deepr expert consult "your question" --expert "<name>" --local' in output
+
+    def test_expert_list_shows_claims_when_documents_zero(self, runner):
+        """Absorb --file experts have claims with Documents: 0; list must show claims."""
+        from datetime import UTC, datetime
+
+        from deepr.experts.profile import ExpertProfile
+
+        mock_expert = ExpertProfile(
+            name="Absorb Only Expert",
+            vector_store_id="local-only:absorb",
+            description="belief store only",
+            total_documents=0,
+            conversations=0,
+            updated_at=datetime.now(UTC),
+        )
+        mock_manifest = MagicMock()
+        mock_manifest.claim_count = 37
+        mock_manifest.avg_confidence = 0.6
+        mock_expert.get_manifest = MagicMock(return_value=mock_manifest)
+
+        with patch("deepr.experts.profile.ExpertStore") as mock_store_class:
+            mock_store = MagicMock()
+            mock_store.list_all.return_value = [mock_expert]
+            mock_store_class.return_value = mock_store
+
+            result = runner.invoke(cli, ["expert", "list"])
+
+            assert result.exit_code == 0, result.output
+            assert "Claims: 37" in result.output
+            assert "avg conf 0.60" in result.output
+            assert "Documents: 0" in result.output
+            assert "37 claim(s) in belief store" in result.output
+            assert "incomplete" not in result.output.lower() or "claim(s)" in result.output
 
 
 class TestExpertInfoCommand:

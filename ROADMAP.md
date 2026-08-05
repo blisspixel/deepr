@@ -366,6 +366,79 @@ reliable product, not a four-language architecture diagram.
 
 ## Current Status (v2.43.1)
 
+**Unreleased host-wiring polish (from live Claude Code validation):** coding
+hosts often fail because MCP tools never loaded (empty `mcpServers`, mid-session
+brief without restart), not because experts are empty. Shipping
+`deepr mcp install-host` (project `.mcp.json` + optional `claude mcp add`),
+`deepr mcp host-brief` (stdio agent paste), doctor advisory for project
+`.mcp.json`, and guide text that requires session restart + CLI fallback when
+tools are absent. Lesson: install + restart is the product path; a brief alone
+is not wiring.
+
+**Unreleased exceptional-expert quality (same validation):** consults can be
+mechanically correct and still only moderately useful. Design:
+`docs/design/exceptional-expert-quality.md`. Shipped pieces: absorb
+`--trust-class` (file defaults secondary), corroboration merge for multi-source
+ceilings, claims inventory UX, `deepr expert quality` structural scorecard,
+`deepr expert improve` research-plan-improve orchestrator. Remaining: primary
+source packs, challenge consult mode, auto primary absorb only with operator
+file authority. Known gaps in the shipped pieces: `expert improve` has no tests
+and its `--execute` path calls the metered-gated `discover-gaps`; the four new
+CLI commands have no CLI-level tests; there is no `reclassify` command despite
+earlier notes implying one.
+
+**Unreleased living-expert research stack + diverse councils:**
+
+| Doc | Role |
+|---|---|
+| [docs/design/expert-insight-layer.md](docs/design/expert-insight-layer.md) | **Corpus to perspective, not corpus to facts** - the missing reasoning stage |
+| [docs/design/living-expert-research-stack.md](docs/design/living-expert-research-stack.md) | Research: Distillr, Learny, capacity |
+| [docs/design/diverse-expert-council.md](docs/design/diverse-expert-council.md) | Research: multi-axis mock councils |
+| [docs/plans/living-expert-research-stack.md](docs/plans/living-expert-research-stack.md) | **Order of operations** Steps 0-8 (no calendar estimates) |
+| [docs/design/exceptional-expert-quality.md](docs/design/exceptional-expert-quality.md) | Living expert / wiki quality bar |
+| [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) | Instrument independence |
+
+**Runtime order (operators):** (1) `council-plan` diverse roster from idea/README
+-> (2) `make --local` each role -> (3) `deepen-plan` + Distill no-metered +
+`absorb --trust-class secondary` -> (4) optional intent as primary stance ->
+(5) `digest` + `quality` -> (6) `consult` with challenge prompt and explicit
+`-e` roster -> (7) `improve` and re-deepen.
+
+**Build order (see plan checkpoint, revised 2026-08-05 after a code-grounded
+research pass):** Steps **0-3 done**. **Next is Step 3.5, a blocking decision:**
+`expert absorb` can only emit atomic single-sentence `Belief` objects, so a
+batch absorb built before that decision permanently flattens every Distill and
+Learny corpus it ingests. Then Step 4 (`absorb-okf --trust-class`, then
+`absorb-dir` with publisher-collapsed origin identity), Step 5 (Distill
+preflight verifier and printed command rather than Deepr-side invocation),
+Step 6 (spawn, seeded subscriptions, challenge consult as a packet change),
+Step 7 (plan adapters only after proofs), Step 8 (re-scoped: the calibration
+harness already ran and produced a degenerate single-bin curve, so the work is
+honesty fixes rather than a first measurement).
+
+Three findings from that pass are worth stating at roadmap level because they
+change what "better experts" means:
+
+1. **The echo chamber is also a retrieval defect.** Consult packet selection
+   sorts by query overlap then effective confidence, while trust ceilings cap
+   tertiary domain claims at 0.60/0.80 and leave operator-attested stance
+   uncapped at 1.00. Absorbed project intent therefore structurally outranks
+   corroborated domain evidence for the available packet slots, even on a
+   well-deepened expert.
+2. **Displayed confidence is mostly a policy constant.** Across the live fleet,
+   77.4 percent of claims sit at exactly 0.60 and 91 percent of raw extraction
+   scores are at or above 0.9, with one claim below 0.7. Rendering that as a
+   two-decimal number invites agents to read a probability that was never
+   measured.
+3. **The typed perspective state already exists and is inert.** Stances,
+   concepts, hypotheses, and agendas are defined, gated, and committable, but
+   have zero production readers, zero populated instances across the fleet, no
+   revision path, and drop their evidence refs on write.
+
+**Capacity honesty:** Distill local no-metered = $0 API; Distill plan CLIs not
+live; Deepr plan = Claude only when paid-overage-off proven; other plan CLIs
+blocked; Learny typically metered; gap-execute defers specialist instruments.
+
 **v2.43.1 additions:** `deepr doctor` surfaces offline MCP host-interop
 conformance under the MCP category; interop checklist, MCP README, and
 agent-guide preflight treats `deepr mcp conformance` as the dual-era proof

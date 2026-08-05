@@ -713,9 +713,16 @@ class TestExpertTools:
         expert.get_manifest.side_effect = RuntimeError("manifest unavailable")
         mock_server.store.load.return_value = expert
         out = await mock_server.get_expert_info("e1")
-        # Manifest fields absent but core info present (exception swallowed)
+        # Core info present (exception swallowed), manifest-only fields absent.
         assert out["name"] == "e1"
-        assert "claim_count" not in out
+        assert "open_gap_count" not in out
+        assert "avg_confidence" not in out
+        # An unreadable manifest is unknown, not empty. Hosts skip consults on
+        # knowledge_empty, so reporting True here would tell an agent a
+        # populated expert has nothing to say.
+        assert out["claim_count"] == 0
+        assert out["claim_count_known"] is False
+        assert out["knowledge_empty"] is False
 
     @pytest.mark.asyncio
     async def test_query_expert_not_found(self, mock_server):

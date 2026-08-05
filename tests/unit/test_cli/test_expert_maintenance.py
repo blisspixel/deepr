@@ -2201,10 +2201,13 @@ class TestAbsorbFromFile:
                 captured["client"] = client
                 captured["estimated_cost"] = estimated_cost
 
-            async def absorb(self, report_id, report_text, *, min_confidence, dry_run, budget):
+            async def absorb(
+                self, report_id, report_text, *, min_confidence, dry_run, budget, trust_class="tertiary"
+            ):
                 captured["report_id"] = report_id
                 captured["report_text"] = report_text
                 captured["budget"] = budget
+                captured["trust_class"] = trust_class
                 return FakeResult()
 
         client = object()
@@ -2225,6 +2228,9 @@ class TestAbsorbFromFile:
         assert captured["client"] is client
         assert captured["estimated_cost"] == 0.0
         assert captured["budget"] == 0.10
+        # Operator-supplied files default to secondary, not the web-research
+        # tertiary cap: a flat 0.60 fleet was the reported inventory defect.
+        assert captured["trust_class"] == "secondary"
 
     def test_absorb_dry_run_grounding_flag_does_not_require_checker(self, monkeypatch):
         captured = {}

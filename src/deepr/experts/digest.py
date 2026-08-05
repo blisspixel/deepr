@@ -110,8 +110,72 @@ def _append_temporal_edge_section(lines: list[str], store: BeliefStore) -> None:
     lines.append("")
 
 
+def _sorted_beliefs(beliefs: list[Belief]) -> list[Belief]:
+    return sorted(beliefs, key=lambda b: (-b.get_current_confidence(), b.claim))
+
+
+def _section(lines: list[str], title: str, beliefs: list[Belief], *, empty_note: str = "") -> None:
+    lines += [f"## {title}", ""]
+    if not beliefs:
+        if empty_note:
+            lines += [f"*{empty_note}*", ""]
+        else:
+            lines += ["*None.*", ""]
+        return
+    lines += [_belief_line(b) for b in _sorted_beliefs(beliefs)]
+    lines.append("")
+
+
+def _partition_wiki_sections(beliefs: list[Belief]) -> dict[str, list[Belief]]:
+    """Structural wiki partitions (trust/provenance only; no semantic scoring)."""
+    stance: list[Belief] = []
+    multi: list[Belief] = []
+    secondary: list[Belief] = []
+    tertiary: list[Belief] = []
+    contested: list[Belief] = []
+    for b in beliefs:
+        if b.contradictions_with:
+            contested.append(b)
+        trust = (b.trust_class or "tertiary").lower()
+        if trust == "primary":
+            stance.append(b)
+        elif b._independent_source_count() >= 2:
+            multi.append(b)
+        elif trust == "secondary":
+            secondary.append(b)
+        else:
+            tertiary.append(b)
+    return {
+        "stance": stance,
+        "multi_source": multi,
+        "secondary": secondary,
+        "tertiary": tertiary,
+        "contested": contested,
+    }
+
+
+def _source_inventory(beliefs: list[Belief]) -> list[str]:
+    """Compact non-quote evidence origins, sorted for byte stability."""
+    keys: set[str] = set()
+    for b in beliefs:
+        for ref in b.evidence_refs:
+            token = str(ref).strip()
+            if not token or any(ch.isspace() for ch in token):
+                continue
+            if token.lower().startswith("conflicting:"):
+                continue
+            keys.add(token)
+    return sorted(keys)
+
+
 def build_digest(store: BeliefStore, *, expert_name: str = "") -> str:
-    """Compile the store into a browsable Markdown digest. Deterministic, $0."""
+    """Compile the store into a browsable Markdown digest. Deterministic, $0.
+
+    Wiki-shaped sections (stance, multi-source, secondary, tertiary, contested,
+    sources) are structural partitions over trust class and provenance. Full
+    domain inventory remains for complete browsing. Not a semantic maturity
+    narrative.
+    """
     name = expert_name or store.expert_name
     beliefs = list(store.beliefs.values())
 
@@ -124,6 +188,8 @@ def build_digest(store: BeliefStore, *, expert_name: str = "") -> str:
     conflicts = contested_query(store, expert_name=name)
     edge_count = len(store.edges)
     supports_count = sum(1 for e in store.edges.values() if e.edge_type == "supports")
+    parts = _partition_wiki_sections(beliefs)
+    sources = _source_inventory(beliefs)
 
     lines: list[str] = [
         _BANNER,
@@ -134,9 +200,48 @@ def build_digest(store: BeliefStore, *, expert_name: str = "") -> str:
         f"**{len(beliefs)}** beliefs across **{len(by_domain)}** domain(s) - "
         f"**{edge_count}** graph edge(s) ({supports_count} supporting) - "
         f"**{conflicts['open_count']}** open contradiction candidate(s) "
-        f"({conflicts['model_confirmed_count']} model-confirmed, {conflicts['unverified_count']} unverified)",
+        f"({conflicts['model_confirmed_count']} model-confirmed, {conflicts['unverified_count']} unverified) - "
+        f"**{len(sources)}** compact source origin(s)",
+        "",
+        "Wiki-shaped sections below are **derived partitions** (trust class and "
+        "provenance). The belief store remains canonical. Regenerate after absorb/sync.",
+        "",
+        "## Wiki index",
+        "",
+        "- Stance (primary trust)",
+        "- Multi-source corroborated",
+        "- Domain knowledge (secondary)",
+        "- Research / tertiary",
+        "- Contested",
+        "- Source inventory",
+        "- Full inventory by domain",
         "",
     ]
+
+    _section(
+        lines,
+        "Stance (operator / primary)",
+        parts["stance"],
+        empty_note="No primary-trust beliefs. Project stance may be absorbed with --trust-class primary.",
+    )
+    _section(
+        lines,
+        "Multi-source corroborated",
+        parts["multi_source"],
+        empty_note="No multi-origin claims yet. Absorb a second independent source to corroborate.",
+    )
+    _section(
+        lines,
+        "Domain knowledge (secondary)",
+        parts["secondary"],
+        empty_note="No secondary-trust beliefs. Prefer official docs via absorb --trust-class secondary.",
+    )
+    _section(
+        lines,
+        "Research / tertiary",
+        parts["tertiary"],
+        empty_note="No tertiary research claims.",
+    )
 
     if conflicts["open_count"]:
         lines += ["## Recorded Contradiction Candidates", ""]
@@ -156,11 +261,26 @@ def build_digest(store: BeliefStore, *, expert_name: str = "") -> str:
             lines.append(f"  **B** ({pair['b']['confidence']:.2f}): {pair['b']['claim']}")
         lines.append("")
 
+    _section(
+        lines,
+        "Contested beliefs",
+        parts["contested"],
+        empty_note="No beliefs currently marked with contradiction links.",
+    )
+
+    lines += ["## Source inventory", ""]
+    if sources:
+        lines += [f"- `{s}`" for s in sources]
+        lines.append("")
+    else:
+        lines += ["*No compact source origins recorded.*", ""]
+
     _append_temporal_edge_section(lines, store)
 
+    lines += ["## Full inventory by domain", ""]
     for domain in sorted(by_domain):
         domain_beliefs = by_domain[domain]
-        lines += [f"## {domain} ({len(domain_beliefs)})", ""]
+        lines += [f"### {domain} ({len(domain_beliefs)})", ""]
         lines += [_belief_line(b) for b in domain_beliefs]
         lines.append("")
 
@@ -170,10 +290,13 @@ def build_digest(store: BeliefStore, *, expert_name: str = "") -> str:
     lines += [
         "---",
         "",
+        "Deepen research corpus (Distill) then absorb: "
+        f'`deepr expert deepen-plan "{name}"` - '
         "Queries over this knowledge (always fresher than this file): "
         f'`deepr expert why "{name}" <claim>` - '
         f'`deepr expert what-changed "{name}" --since 7d` - '
-        f'`deepr expert contested "{name}"`',
+        f'`deepr expert contested "{name}"` - '
+        f'`deepr expert quality "{name}"`',
         "",
     ]
     return "\n".join(lines)

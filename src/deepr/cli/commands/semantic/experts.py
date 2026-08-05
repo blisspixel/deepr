@@ -15,6 +15,7 @@ from deepr.cli.colors import (
     print_success,
     print_warning,
 )
+from deepr.experts.claim_inventory import format_knowledge_status, read_claim_inventory
 from deepr.experts.metered_mutation_gate import (
     MeteredExpertMutationDisabledError,
     require_metered_expert_mutation,
@@ -560,12 +561,18 @@ def plan_curriculum(
     console.print(f'  deepr expert make "{domain}" --learn --budget {curriculum.total_estimated_cost:.2f}')
 
 
+def _expert_claim_inventory(expert) -> tuple[int, float | None]:
+    """Return (claim_count, avg_confidence) from the belief store manifest."""
+    inventory = read_claim_inventory(expert)
+    return inventory.claim_count, inventory.avg_confidence
+
+
 @expert.command(name="list")
 def list_experts():
     """List all available experts.
 
-    Shows expert names, descriptions, document counts, conversation history,
-    creation dates, and knowledge freshness status.
+    Shows expert names, descriptions, belief claim counts, document counts,
+    conversation history, creation dates, and knowledge freshness status.
 
     USAGE:
       deepr expert list
@@ -589,9 +596,13 @@ def list_experts():
     console.print(f"Found {len(experts)} expert(s):\n")
 
     for expert in experts:
+        inventory = read_claim_inventory(expert)
+        claim_count, avg_conf = inventory.claim_count, inventory.avg_confidence
         console.print(f"  [bold]Name:[/bold] {expert.name}")
         if expert.description:
             console.print(f"    Description: [dim]{expert.description}[/dim]")
+        conf_bit = f", avg conf {avg_conf:.2f}" if avg_conf is not None and claim_count else ""
+        console.print(f"    Claims: {claim_count}{conf_bit}")
         console.print(f"    Documents: {expert.total_documents}")
         console.print(f"    Conversations: {expert.conversations}")
         if expert.research_triggered > 0:
@@ -608,26 +619,15 @@ def list_experts():
         else:
             console.print(f"    Created: {created_str}, Updated: {updated_str}")
 
-        # Show knowledge freshness status
-        if expert.knowledge_cutoff_date:
-            freshness = expert.get_freshness_status()
-            age_days = freshness.get("age_days", 0)
-            status = freshness.get("status", "unknown")
-            # Color code the status
-            if status == "fresh":
-                status_color = "green"
-            elif status == "recent":
-                status_color = "yellow"
-            else:
-                status_color = "red"
-            console.print(f"    Knowledge: {age_days} days old [{status_color}]{status}[/{status_color}]")
-        else:
-            console.print("    Knowledge: [yellow]incomplete - no verified knowledge yet[/yellow]")
+        console.print(f"    Knowledge: {format_knowledge_status(expert, inventory)}")
 
         console.print()
 
     console.print("Usage:")
     console.print('  deepr expert consult "your question" --expert "<name>" --local')
+    console.print(
+        "  Note: Claims are the belief-store inventory. Documents: 0 with Claims > 0 is normal after absorb --file."
+    )
 
 
 @expert.command(name="info")
@@ -655,11 +655,21 @@ def expert_info(name: str):
     print_key_value("Provider", profile.provider)
     print_key_value("Model", profile.model)
 
+    claim_count, avg_conf = _expert_claim_inventory(profile)
+
     console.print()
     console.print("[bold cyan]Knowledge Base[/bold cyan]")
     print_key_value("Vector Store ID", profile.vector_store_id, indent=1)
+    print_key_value("Claims (belief store)", str(claim_count), indent=1)
+    if avg_conf is not None and claim_count:
+        print_key_value("Avg claim confidence", f"{avg_conf:.2f}", indent=1)
     print_key_value("Documents", str(profile.total_documents), indent=1)
     print_key_value("Source Files", str(len(profile.source_files)), indent=1)
+    if claim_count > 0 and profile.total_documents == 0:
+        console.print(
+            "  [dim]Note: Claims > 0 with Documents: 0 is normal after "
+            "`expert absorb --file` (beliefs without vector-store docs).[/dim]"
+        )
 
     if profile.source_files:
         console.print()
@@ -3321,5 +3331,6 @@ from deepr.cli.commands.semantic import expert_memory_card as _expert_memory_car
 from deepr.cli.commands.semantic import expert_okf as _expert_okf  # noqa: F401
 from deepr.cli.commands.semantic import expert_outcomes as _expert_outcomes  # noqa: F401
 from deepr.cli.commands.semantic import expert_portrait as _expert_portrait  # noqa: F401
+from deepr.cli.commands.semantic import expert_quality as _expert_quality  # noqa: F401
 from deepr.cli.commands.semantic import expert_self_model as _expert_self_model  # noqa: F401
 from deepr.cli.commands.semantic import expert_validate_export as _expert_validate_export  # noqa: F401

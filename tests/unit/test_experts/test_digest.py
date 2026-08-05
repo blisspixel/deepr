@@ -30,8 +30,10 @@ class TestDigest:
         assert "do not hand-edit" in digest
         assert "# Expert Digest: Digest Test Expert" in digest
         assert "**2** beliefs across **2** domain(s)" in digest
-        assert "## ai (1)" in digest
-        assert "## security (1)" in digest
+        assert "## Wiki index" in digest
+        assert "## Full inventory by domain" in digest
+        assert "### ai (1)" in digest
+        assert "### security (1)" in digest
 
     def test_byte_stable_for_unchanged_store(self, tmp_path):
         store = _store(tmp_path)
@@ -102,6 +104,48 @@ class TestDigest:
         assert "valid 2026-06-01T00:00:00+00:00 to 2026-06-30T00:00:00+00:00" in digest
         assert "observed 2026-06-15T12:00:00+00:00" in digest
         assert "scope release-window" in digest
+
+    def test_wiki_sections_partition_by_trust_and_sources(self, tmp_path):
+        store = _store(tmp_path)
+        store.add_belief(
+            Belief(
+                claim="Operator stance claim",
+                confidence=0.9,
+                domain="ai",
+                trust_class="primary",
+                evidence_refs=["report:file:intent.md"],
+            ),
+            check_conflicts=False,
+        )
+        store.add_belief(
+            Belief(
+                claim="Official docs claim",
+                confidence=0.95,
+                domain="ai",
+                trust_class="secondary",
+                evidence_refs=["report:file:official.md"],
+            ),
+            check_conflicts=False,
+        )
+        store.add_belief(
+            Belief(
+                claim="Multi origin claim",
+                confidence=0.9,
+                domain="ai",
+                trust_class="tertiary",
+                evidence_refs=["report:file:a.md", "report:file:b.md"],
+            ),
+            check_conflicts=False,
+        )
+
+        digest = build_digest(store)
+        assert "## Stance (operator / primary)" in digest
+        assert "## Multi-source corroborated" in digest
+        assert "## Domain knowledge (secondary)" in digest
+        assert "## Source inventory" in digest
+        assert "`report:file:official.md`" in digest
+        assert "deepen-plan" in digest
+        assert digest.index("Operator stance claim") < digest.index("### ai")
 
     def test_temporal_edge_section_renders_missing_endpoint_honestly(self, tmp_path):
         store = _store(tmp_path)

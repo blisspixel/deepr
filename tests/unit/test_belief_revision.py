@@ -355,11 +355,13 @@ class TestConflictResolution:
 
         retained, change = store.add_belief(candidate)
 
-        assert change is None
+        # Weaker effective confidence cannot rewrite claim or raise raw conf;
+        # provenance may still merge for multi-source accounting.
         assert retained.claim == "Python version is 3.11"
         assert retained.trust_class == "primary"
         assert retained.source_type == "operator_document"
         assert retained.grounding_assurance == "cross_vendor"
+        assert math.isclose(retained.confidence, 0.70)
         assert math.isclose(retained.get_current_confidence(), 0.70)
 
     def test_stronger_replacement_adopts_candidate_provenance_atomically(self, tmp_path):
@@ -393,10 +395,16 @@ class TestConflictResolution:
         assert replaced.id == existing.id
         assert replaced.claim == candidate.claim
         assert replaced.confidence == candidate.confidence
-        assert replaced.evidence_refs == candidate.evidence_refs
-        assert replaced.source_type == candidate.source_type
+        # Prior independent provenance is retained when the claim is revised, so
+        # a newer write cannot erase multi-source corroboration.
+        assert "report:old" in replaced.evidence_refs
+        assert "official:python" in replaced.evidence_refs
         assert replaced.trust_class == candidate.trust_class
+        # Attribution follows the claim: rewritten text must not stay attributed
+        # to a source that never asserted it.
+        assert replaced.source_type == candidate.source_type
         assert replaced.grounding_assurance == candidate.grounding_assurance
+        assert replaced.history[-1].get("corroborated") is True
         assert replaced.history[-1]["provenance_replaced"] is True
 
     def test_newer_wins(self, tmp_path):

@@ -622,13 +622,19 @@ def serve(
     Usage:
         deepr mcp serve
 
-    Configuration:
-        Add to the MCP host configuration:
+    Configuration (preferred):
+
+        deepr mcp install-host --project .
+        # then restart Claude Code / the host so MCP tools load
+
+    Manual host config shape:
+
         {
           "mcpServers": {
-            "deepr-experts": {
+            "deepr": {
               "command": "deepr",
-              "args": ["mcp", "serve"]
+              "args": ["mcp", "serve"],
+              "env": {"DEEPR_DATA_DIR": "<same root as experts>"}
             }
           }
         }
@@ -887,7 +893,9 @@ def test():
         click.echo(f"   Found {len(experts)} experts")
         for expert in experts:
             if "error" not in expert:
-                click.echo(f"   - {expert['name']}: {expert['domain']}")
+                claims = expert.get("claim_count", 0)
+                docs = expert.get("documents", 0)
+                click.echo(f"   - {expert['name']}: claims={claims} docs={docs} | {expert.get('domain', '')}")
 
         if not experts or "error" in experts[0]:
             click.echo("   No experts found. Create one with: deepr expert make")
@@ -899,8 +907,12 @@ def test():
             click.echo(f"\n2. Testing get_expert_info for '{expert_name}'...")
             info = await server.get_expert_info(expert_name)
             if "error" not in info:
-                click.echo(f"   Documents: {info['stats']['documents']}")
-                click.echo(f"   Conversations: {info['stats']['conversations']}")
+                stats = info.get("stats") or {}
+                click.echo(f"   Claims: {info.get('claim_count', stats.get('claim_count', 0))}")
+                click.echo(f"   Documents: {stats.get('documents')}")
+                click.echo(f"   Conversations: {stats.get('conversations')}")
+                if info.get("knowledge_note"):
+                    click.echo(f"   Note: {info['knowledge_note']}")
             else:
                 click.echo(f"   Error: {info['error']}")
 
@@ -924,3 +936,8 @@ def test():
     except Exception as e:
         click.echo(f"Test failed: {e}", err=True)
         sys.exit(1)
+
+
+from deepr.cli.commands.mcp_host_install import register_host_install_commands
+
+register_host_install_commands(mcp)
