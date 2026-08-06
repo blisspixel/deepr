@@ -330,13 +330,34 @@ def _kiro_argv(prompt: str, model: str | None) -> list[str]:
     return [*_append_model(args, "--model", model), prompt]
 
 
+_GROK_DENIED_TOOLS = (
+    "bash",
+    "shell",
+    "edit",
+    "write",
+    "read",
+    "web_search",
+    "web_fetch",
+    "browser",
+)
+"""Built-ins removed before dispatch. Deepr wants text back, nothing else."""
+
+
 def _grok_argv(prompt_path: str, model: str | None) -> list[str]:
     # Grok Build. --no-auto-update/--no-alt-screen for scripts. The prompt is read
     # from a file (prompt_is_file): a long research/synthesis prompt passed as
     # `-p <arg>` exceeds the Windows command-line length limit (WinError 206), so
     # `--prompt-file <path>` is the only headless-safe delivery. The client writes
     # the prompt to the temp file at prompt_path.
-    args = ["grok", "--no-auto-update", "--no-alt-screen"]
+    #
+    # Tools are stripped rather than trusted. A study or brief prompt carries
+    # retrieved web text, which is untrusted input that may contain
+    # instructions aimed at whatever reads it. Deepr wants one thing from this
+    # dispatch - text back - so every built-in that could touch the machine is
+    # removed and web access is turned off. Verified on this build: the answer
+    # returns clean with all of them gone.
+    args = ["grok", "--no-auto-update", "--no-alt-screen", "--disable-web-search"]
+    args += ["--disallowed-tools", ",".join(_GROK_DENIED_TOOLS)]
     args = _append_model(args, "--model", model)
     return [*args, "--prompt-file", prompt_path]
 
@@ -459,15 +480,11 @@ _ADAPTERS: tuple[PlanQuotaAdapter, ...] = (
         enabled_by_default=False,
         experimental=True,
         prompt_is_file=True,
-        execution_block_reason=(
-            "Grok native tool permissions cannot be disabled or confined to an explicit capability allowlist "
-            "for untrusted plan-quota prompts"
-        ),
         tos_note=(
             "subscription (SuperGrok/X Premium+) headless use is ToS gray-zone; xAI steers "
             "automation to the metered API key. Verify the exhaustion signature on your build."
         ),
-        value_note="visible/read-only; native tool permissions cannot be safely disabled for untrusted prompts",
+        value_note="visible/read-only; built-in tools stripped at dispatch and web access off",
     ),
     PlanQuotaAdapter(
         backend_id="antigravity",
