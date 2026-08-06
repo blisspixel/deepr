@@ -27,6 +27,7 @@ from deepr.cli.commands.semantic.experts import expert
 from deepr.cli.commands.semantic.study_backend import StudyBackendError, build_study_backend
 from deepr.experts.corpus_store import CorpusStore
 from deepr.experts.notebook import NOTEBOOK_MARKER, build_notebook
+from deepr.experts.paths import canonical_expert_dir
 from deepr.experts.study import run_study
 from deepr.experts.study_lenses import DEFAULT_LENS_KEYS, LENSES, resolve_lenses
 
@@ -463,6 +464,121 @@ def _write_notebook(profile: Any, result: Any, store: CorpusStore, *, quiet: boo
     path.write_text(text, encoding="utf-8")
     if not quiet:
         print_success(f"Notebook: {path}")
+
+
+@expert.command(name="brief")
+@click.argument("name")
+@click.option(
+    "--from-study",
+    type=click.Path(exists=True, dir_okay=False, path_type=str),
+    default=None,
+    help="Study JSON to brief from (default: the expert's saved study)",
+)
+@click.option("--local", is_flag=True, help="Force local capacity")
+@click.option("--plan", default=None, help="Prepaid plan backend id")
+@click.option("--model", default=None, help="Explicit local model")
+@click.option("--out", type=click.Path(dir_okay=False, path_type=str), default=None)
+@click.option("--json", "as_json", is_flag=True, help="Emit the brief JSON")
+def expert_brief(
+    name: str, from_study: str | None, local: bool, plan: str | None, model: str | None, out: str | None, as_json: bool
+) -> None:
+    """Synthesize NAME's study into a consultable brief ($0 local or plan).
+
+    The notebook is what you read to learn a subject. The brief is what makes a
+    two-minute conversation useful: where things stand, what is settled so you
+    can skip it, where the expert lands and why, and what would change its mind.
+
+    This is the one stage that forms a view, so it runs under constraints:
+    positions must cite the findings they rest on, must state what would
+    overturn them, and must carry forward disagreement they did not resolve.
+    Structural problems are reported rather than hidden.
+
+    EXAMPLES:
+
+      deepr expert brief "My Expert"
+      deepr expert brief "My Expert" --plan claude --out brief.md
+    """
+    profile = _load_profile(name)
+    result = _load_study_result(profile, from_study)
+
+    try:
+        backend = build_study_backend(profile=profile, local=local, plan=plan, model=model)
+    except StudyBackendError as exc:
+        click.echo(f"Error: {exc}", err=True)
+        sys.exit(2)
+
+    from deepr.experts.brief import build_brief, render_brief
+
+    store = CorpusStore(profile.name)
+    if not as_json:
+        print_header(f"Brief: {profile.name}")
+        print_key_value("Capacity", backend.cost_note)
+        print_key_value("From findings", str(len(result.findings)))
+        console.print("")
+
+    brief = asyncio.run(
+        build_brief(
+            expert_name=profile.name,
+            result=result,
+            corpus=store,
+            completion=backend.completion,
+            domain=getattr(profile, "domain", "") or "",
+        )
+    )
+
+    if as_json:
+        click.echo(json.dumps(brief.to_dict(), indent=2, sort_keys=True))
+        return
+
+    text = render_brief(brief)
+    target = Path(out) if out else canonical_expert_dir(profile.name) / "brief.md"
+    target.write_text(text, encoding="utf-8")
+    console.print(text)
+    print_success(f"Brief: {target}")
+    for warning in brief.integrity_warnings():
+        print_warning(warning)
+
+
+def _load_study_result(profile: Any, from_study: str | None) -> Any:
+    """Rehydrate a saved study, or exit telling the operator how to make one."""
+    from deepr.experts.study_contracts import LensOutcome, StudyFinding, StudyResult
+
+    path = Path(from_study) if from_study else canonical_expert_dir(profile.name) / "study.json"
+    if not path.exists():
+        click.echo(
+            f'Error: no study at {path}. Run: deepr expert study "{profile.name}" --out {path}',
+            err=True,
+        )
+        sys.exit(2)
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    result = StudyResult(expert_name=payload.get("expert", profile.name))
+    result.limitations = list(payload.get("limitations") or [])
+    for raw in payload.get("outcomes") or []:
+        findings = [
+            StudyFinding(
+                lens=f.get("lens", ""),
+                axis=f.get("axis", ""),
+                kind=f.get("kind", ""),
+                title=f.get("title", ""),
+                payload=f.get("payload") or {},
+                anchors=f.get("anchors") or [],
+                grounded_anchor_count=int(f.get("grounded_anchor_count", 0) or 0),
+                ungrounded_anchor_count=int(f.get("ungrounded_anchor_count", 0) or 0),
+                corpus_shas=f.get("corpus_shas") or [],
+            )
+            for f in (raw.get("findings") or [])
+        ]
+        result.outcomes.append(
+            LensOutcome(
+                lens=raw.get("lens", ""),
+                axis=raw.get("axis", ""),
+                status=raw.get("status", "ok"),
+                findings=findings,
+                detail=raw.get("detail", ""),
+            )
+        )
+    return result
 
 
 @expert.command(name="notebook")
