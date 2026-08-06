@@ -8,6 +8,12 @@
 
 Deepr, Recon, Distillr, and Primr are four independent tools that each solve one research problem well. Alone, each is useful. Together, they form a compound research system where the whole is greater than the sum of parts.
 
+**Living experts (2026-08 design):** the end state is not a bag of confidence
+facts. It is Distillr (and event-scale Learny) building receipted Markdown
+corpora, Deepr absorbing them into temporal expert memory, and coding agents
+consulting wiki-depth roles. Capacity and gap plan:
+[design/living-expert-research-stack.md](design/living-expert-research-stack.md).
+
 **What each tool does alone:**
 
 | Tool | Solo value | Install |

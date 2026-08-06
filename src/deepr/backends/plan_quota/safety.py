@@ -92,16 +92,26 @@ class SafetyDecision:
 
 
 def detect_auth_mode(adapter: PlanQuotaAdapter, env: Mapping[str, str]) -> AuthMode:
-    """Deterministic auth-mode detection from the environment.
+    """Deterministic auth-mode detection from what the dispatch can actually reach.
 
-    If any of the backend's metered-env vars is set and non-empty, the next
-    ``argv`` run would authenticate with that key and bill per use -> METERED.
-    Otherwise a backend whose stored authentication provenance is verified uses
-    its subscription/OAuth session. Backends that can route through an opaque
-    stored provider remain UNKNOWN. This is intentionally conservative on the
-    money side: removing a key does not prove which stored credential is used.
+    **Holding a credential is not spending it.** Operators legitimately keep API
+    keys in their environment for other tools. Refusing to run prepaid or local
+    capacity because a key exists somewhere protects no money and blocks the
+    free path, which pushes work toward the paid one - the opposite of the
+    intent.
+
+    What decides billing is whether the child process can *read* a metered
+    credential. So the environment inspected here is the child environment
+    (:func:`plan_quota_child_env`): allowlisted, with metered variables removed
+    by name. If a metered var can still reach the child, the next run would
+    authenticate with it and bill per use -> METERED, and the gate refuses
+    exactly as it always did.
+
+    Backends whose stored authentication provenance is unverified stay UNKNOWN.
+    Closing the environment path does not prove which stored credential a CLI
+    picks up from its own config directory, and that conservatism is retained.
     """
-    if _first_set(adapter.metered_env_vars, env):
+    if _first_set(adapter.metered_env_vars, plan_quota_child_env(adapter, env)):
         return AuthMode.METERED
     if not adapter.stored_plan_auth_verified:
         return AuthMode.UNKNOWN
@@ -109,15 +119,26 @@ def detect_auth_mode(adapter: PlanQuotaAdapter, env: Mapping[str, str]) -> AuthM
 
 
 def plan_quota_child_env(adapter: PlanQuotaAdapter, env: Mapping[str, str]) -> dict[str, str]:
-    """Return the least-privilege runtime and stored-session child environment."""
-    del adapter
-    return {key: value for key, value in env.items() if key.upper() in _PLAN_CHILD_ENV_ALLOWLIST}
+    """Return the least-privilege runtime and stored-session child environment.
+
+    Allowlist-based, so a credential held for another tool is never forwarded.
+    Metered variables are additionally removed by name: the allowlist already
+    excludes them, and removing them explicitly keeps that guarantee true even
+    if someone later adds a provider variable to the allowlist for an unrelated
+    reason.
+    """
+    metered = {name.upper() for name in adapter.metered_env_vars}
+    return {
+        key: value
+        for key, value in env.items()
+        if key.upper() in _PLAN_CHILD_ENV_ALLOWLIST and key.upper() not in metered
+    }
 
 
 def evaluate_plan_quota_safety(adapter: PlanQuotaAdapter, *, env: Mapping[str, str]) -> SafetyDecision:
     """Return the pre-run safety decision for ``adapter``. Deterministic, $0."""
     mode = detect_auth_mode(adapter, env)
-    metered_var = _first_set(adapter.metered_env_vars, env)
+    metered_var = _first_set(adapter.metered_env_vars, plan_quota_child_env(adapter, env))
 
     if mode is AuthMode.METERED:
         return SafetyDecision(

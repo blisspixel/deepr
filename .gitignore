@@ -131,6 +131,14 @@ Desktop.ini
 .kiro/
 .ruff_cache/
 
+# MCP host wiring is machine-specific: `deepr mcp install-host` writes absolute
+# interpreter and DEEPR_DATA_DIR paths for this operator only.
+.mcp.json
+
+# Generated evaluation run artifacts. The versioned rubrics and reports beside
+# them stay committed.
+eval/*/artifacts/
+
 # Ngrok binaries
 ngrok.exe
 ngrok

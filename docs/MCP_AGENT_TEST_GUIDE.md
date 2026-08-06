@@ -33,6 +33,43 @@ Over Streamable HTTP, modern POSTs must also carry matching
 `tools/call`, `resources/read`, and `prompts/get`); mismatches return
 HTTP 400 with JSON-RPC `-32020`.
 
+## Install Into Claude Code (or another stdio host)
+
+The common failure mode is not missing experts. It is a host session that
+never loaded Deepr MCP tools: empty `mcpServers`, unapproved project
+`.mcp.json`, or a session started before install. A pasted brief alone cannot
+create tools mid-session.
+
+On the machine that owns the experts:
+
+```powershell
+# Offline dual-era proof ($0, no network, no model)
+deepr mcp conformance --json
+
+# Wire this project: writes .mcp.json and runs `claude mcp add` when available
+deepr mcp install-host --project .
+# Optional: name experts in the printed brief
+deepr mcp host-brief --expert "My Domain Expert"
+
+# Doctor surfaces advisory host wiring under the MCP category
+deepr doctor --skip-connectivity
+```
+
+Then **fully restart the host session** (Claude Code / Desktop / Cursor). MCP
+tools load at process start. Confirm with `claude mcp list` (expect
+`deepr ... Connected`) or by calling `deepr_list_experts` from the agent.
+
+If tools are still missing mid-session, use the CLI fallback instead of
+inventing expert output:
+
+```powershell
+deepr expert consult "question" -e "My Domain Expert" --local --budget 0 -y --json
+```
+
+Set the host tool timeout to at least **600 seconds** for local large-model
+consults. `deepr mcp validate-consult --live` defaults to 60s and can time out
+even when the experts are healthy.
+
 ## Can An Agent Talk To Experts Today?
 
 Yes. The safe default path is:
@@ -196,34 +233,33 @@ credentials.
 
 ## Start The Server
 
-Use stdio for local agent tests:
+Prefer the installer (writes `.mcp.json` and registers Claude Code when present):
+
+```powershell
+deepr mcp install-host --project .
+```
+
+Manual stdio config for local agent tests:
 
 ```json
 {
   "mcpServers": {
-    "deepr-research": {
-      "command": "python",
-      "args": ["-m", "deepr.mcp.server"],
+    "deepr": {
+      "command": "deepr",
+      "args": ["mcp", "serve"],
       "env": {
         "DEEPR_LOG_LEVEL": "INFO",
-        "DEEPR_LOG_FORMAT": "json"
+        "DEEPR_DATA_DIR": "C:\\Users\\you\\.deepr"
       }
     }
   }
 }
 ```
 
-If the agent needs the same data root as the operator, add:
-
-```json
-{
-  "DEEPR_DATA_DIR": "C:\\GitHub\\deepr\\data"
-}
-```
-
-Use the operator's actual portable data root when different. Do not add
-`OPENAI_API_KEY`, `XAI_API_KEY`, `GEMINI_API_KEY`, or
-`AZURE_OPENAI_API_KEY` for a no-cost test.
+`DEEPR_DATA_DIR` must be the same portable root the operator used for
+`deepr expert make` / absorb (often `~/.deepr`, not a random repo `data/`
+folder). Use the operator's actual path. Do not add `OPENAI_API_KEY`,
+`XAI_API_KEY`, `GEMINI_API_KEY`, or `AZURE_OPENAI_API_KEY` for a no-cost test.
 
 ### Process and background model
 

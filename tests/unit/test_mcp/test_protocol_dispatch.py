@@ -99,9 +99,7 @@ class TestModernResourcesRead:
         server = MagicMock()
         server.resource_handler.read_resource.return_value = MagicMock(success=False)
         with pytest.raises(pm.JsonRpcProtocolError) as excinfo:
-            await dispatch_protocol_method(
-                server, "resources/read", _modern_params(uri="deepr://campaigns/x/status")
-            )
+            await dispatch_protocol_method(server, "resources/read", _modern_params(uri="deepr://campaigns/x/status"))
         # -32602 replaces the retired -32002 resource-not-found code.
         assert excinfo.value.code == pm.INVALID_PARAMS_CODE
         assert excinfo.value.data == {"uri": "deepr://campaigns/x/status"}

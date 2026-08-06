@@ -65,11 +65,7 @@ class TestModernRequestContext:
         assert excinfo.value.http_status == 400
 
     def test_malformed_optional_fields_are_dropped_not_fatal(self):
-        params = {
-            "_meta": _modern_meta(
-                **{pm.META_CLIENT_INFO: "not-a-dict", pm.META_LOG_LEVEL: 3}
-            )
-        }
+        params = {"_meta": _modern_meta(**{pm.META_CLIENT_INFO: "not-a-dict", pm.META_LOG_LEVEL: 3})}
         context = pm.modern_request_context(params)
         assert context is not None
         assert context.client_info is None

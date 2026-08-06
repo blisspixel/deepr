@@ -135,9 +135,7 @@ class TestOpenListenSession:
         with pytest.raises(pm.JsonRpcProtocolError):
             await open_listen_session(handler, 1, _modern_params("nope"), send)
         with pytest.raises(pm.JsonRpcProtocolError):
-            await open_listen_session(
-                handler, 1, _modern_params({"resourceSubscriptions": [1, 2]}), send
-            )
+            await open_listen_session(handler, 1, _modern_params({"resourceSubscriptions": [1, 2]}), send)
         assert handler.callbacks == {}
 
     @pytest.mark.asyncio
@@ -260,9 +258,7 @@ class TestStdioIntegration:
         server = StdioServer()
         server.register_streaming_method("subscriptions/listen", make_listen_opener(FakeResourceHandler()))
         server._transport.send = AsyncMock()
-        response = await server._handle_message(
-            Message(id="1", method="subscriptions/listen", params={})
-        )
+        response = await server._handle_message(Message(id="1", method="subscriptions/listen", params={}))
         assert response is not None
         assert response.error["code"] == pm.INVALID_PARAMS_CODE
 
@@ -302,7 +298,5 @@ class TestStdioIntegration:
     @pytest.mark.asyncio
     async def test_unrelated_cancelled_notification_is_ignored(self):
         server = StdioServer()
-        result = await server._handle_message(
-            Message(method="notifications/cancelled", params={"requestId": "ghost"})
-        )
+        result = await server._handle_message(Message(method="notifications/cancelled", params={"requestId": "ghost"}))
         assert result is None

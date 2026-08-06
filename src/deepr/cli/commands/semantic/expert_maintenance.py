@@ -113,6 +113,17 @@ def _with_absorb_overlap_guard(command):
     show_default=True,
     help="Drop candidate claims the report supports more weakly than this",
 )
+@click.option(
+    "--trust-class",
+    type=click.Choice(["primary", "secondary", "tertiary"], case_sensitive=False),
+    default=None,
+    help=(
+        "Provenance tier for absorbed beliefs. tertiary=capped 0.60 single-source "
+        "(research/web default); secondary=official/first-party docs (uncapped); "
+        "primary=operator-attested project stance (uncapped). "
+        "Default: secondary for --file, tertiary for research report ids."
+    ),
+)
 @click.option("--model", default=None, help="Override the extraction model (default: gpt-5-mini)")
 @click.option(
     "--budget",
@@ -159,6 +170,7 @@ def absorb_report(
     report_id: str | None,
     doc_file: str | None,
     min_confidence: float,
+    trust_class: str | None,
     model: str | None,
     budget: float,
     dry_run: bool,
@@ -181,6 +193,11 @@ def absorb_report(
     beliefs with the report id recorded as provenance. Deduped against existing
     beliefs, so re-absorbing only adds the delta.
 
+    Effective confidence is capped by source trust at read time: tertiary
+    single-source claims cannot exceed 0.60 (poisoned-web backstop). Use
+    --trust-class secondary for official docs and primary for operator stance
+    so high extraction scores are not silently floor-capped.
+
     Costs one small extraction call plus only the semantic verdicts dynamically
     routed by the report, all inside --budget (default $0.10), or $0 on a local
     model - forced with --local, or automatically when one is admitted for
@@ -196,6 +213,7 @@ def absorb_report(
       deepr expert absorb "AI Strategy Expert" <job_id> --dry-run
       deepr expert absorb "AI Strategy Expert" <job_id> --local -y
       deepr expert absorb "MCP Expert" --file docs/design/mcp.md --local -y
+      deepr expert absorb "Meshtastic" --file docs.md --local --trust-class secondary -y
     """
 
     if not math.isfinite(budget) or budget <= 0.0:
@@ -251,6 +269,9 @@ def absorb_report(
         if not report_text.strip():
             print_error(f"File is empty: {doc_file}")
             sys.exit(2)
+        # Operator intentionally fed a local document: default secondary so
+        # official digests are not silently capped like untrusted web tertiary.
+        resolved_trust = (trust_class or "secondary").lower()
     else:
         report_id = report_id or ""
         report_text = ContextIndex().get_report_content(report_id, max_chars=100000) or ""
@@ -258,6 +279,7 @@ def absorb_report(
             print_error(f"No report found for id: {report_id}")
             click.echo("Find report/job IDs with: deepr search")
             sys.exit(2)
+        resolved_trust = (trust_class or "tertiary").lower()
 
     run_grounding_checks = check_grounding and not dry_run
 
@@ -308,6 +330,7 @@ def absorb_report(
                 min_confidence=min_confidence,
                 dry_run=dry_run,
                 budget=budget,
+                trust_class=resolved_trust,
             )
         )
     except ReportAbsorberCostError as e:

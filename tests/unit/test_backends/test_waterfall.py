@@ -158,11 +158,24 @@ class TestExplicitPlanQuota:
         assert choice.is_plan_quota
         assert choice.plan_backend_id == "claude"
 
-    def test_api_key_present_is_refused(self):
+    def test_reachable_api_key_is_refused(self, monkeypatch):
+        """A key the dispatch could read still blocks, and names the variable."""
+        from deepr.backends.plan_quota import safety
+
+        monkeypatch.setattr(safety, "plan_quota_child_env", lambda adapter, env: dict(env))
         choice = choose_plan_quota_backend("claude", env={"ANTHROPIC_API_KEY": "sk-x"})
         assert choice.backend == BACKEND_UNAVAILABLE
         assert choice.plan_backend_id is None
         assert "ANTHROPIC_API_KEY" in choice.reason
+
+    def test_held_api_key_does_not_block_free_plan_capacity(self):
+        """Policy: prefer free capacity; a held credential is not spend.
+
+        Blocking prepaid capacity because a key exists elsewhere saves no money
+        and pushes the work toward the paid path instead.
+        """
+        choice = choose_plan_quota_backend("claude", env={"ANTHROPIC_API_KEY": "sk-x"})
+        assert choice.plan_backend_id == "claude"
 
     def test_native_tool_backend_is_refused(self):
         choice = choose_plan_quota_backend("codex", env={})
@@ -258,7 +271,10 @@ class TestPlanQuotaAutoRung:
         choice = self._auto(which=_fake_which("claude"), path=tmp_path)
         assert choice.backend == BACKEND_PLAN_QUOTA
 
-    def test_api_key_env_is_refused_even_when_admitted(self, tmp_path):
+    def test_reachable_api_key_is_refused_even_when_admitted(self, tmp_path, monkeypatch):
+        from deepr.backends.plan_quota import safety
+
+        monkeypatch.setattr(safety, "plan_quota_child_env", lambda adapter, env: dict(env))
         _record_quota_available(tmp_path / "quota.jsonl", "claude")
         choice = self._auto(
             which=_fake_which("claude"),
@@ -266,6 +282,15 @@ class TestPlanQuotaAutoRung:
             plan_env={"ANTHROPIC_API_KEY": "sk-x"},
         )
         assert choice.backend == BACKEND_UNAVAILABLE
+
+    def test_held_api_key_does_not_block_admitted_plan_routing(self, tmp_path):
+        _record_quota_available(tmp_path / "quota.jsonl", "claude")
+        choice = self._auto(
+            which=_fake_which("claude"),
+            path=tmp_path,
+            plan_env={"ANTHROPIC_API_KEY": "sk-x"},
+        )
+        assert choice.backend != BACKEND_UNAVAILABLE
 
     def test_metered_at_margin_cli_not_auto_routed(self, tmp_path):
         # copilot is metered-per-use, so it is not auto-routable even if a stray

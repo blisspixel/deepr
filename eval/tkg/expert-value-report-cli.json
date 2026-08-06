@@ -1,0 +1,810 @@
+{
+  "schema_version": "deepr-expert-value-report-v1",
+  "kind": "deepr.eval.expert_value_report",
+  "methodology_version": "1.0",
+  "rubric_version": "expert-value-rubric-v1",
+  "rubric": {
+    "correctness": [
+      "Unusable or contradicted by the frozen source world.",
+      "Major errors prevent the answer from supporting the case.",
+      "Partly correct, with material omissions or errors.",
+      "Mostly correct, with only minor issues.",
+      "Fully correct for the operator-accepted acceptance criteria."
+    ],
+    "source_relevance": [
+      "No relevant source use.",
+      "Sources are mostly irrelevant to the claims they accompany.",
+      "Source relevance is mixed or incomplete.",
+      "Sources are mostly relevant, with minor gaps.",
+      "Sources are directly relevant to the claims they accompany."
+    ],
+    "factual_support": [
+      "Claims are unsupported or contradicted by the cited material.",
+      "Support is weak for major factual claims.",
+      "Support is partial or uneven.",
+      "Major claims are supported, with minor gaps.",
+      "All material factual claims are supported by the frozen evidence."
+    ],
+    "uncertainty_calibration": [
+      "Confidence or abstention is dangerously mismatched to the evidence.",
+      "Uncertainty has a major mismatch with the evidence.",
+      "Uncertainty handling is mixed.",
+      "Uncertainty is mostly appropriate, with minor issues.",
+      "Confidence, caveats, and abstention are appropriate to the evidence."
+    ]
+  },
+  "generated_at": "2026-08-04T18:16:03.737427+00:00",
+  "review_input_sha256": "046793537325e443706ca3381df44f3cbcd2deb3cb13965a672620744133e531",
+  "review_set_id": "offline-pilot-temporal-knowledge-graphs",
+  "expert": {
+    "name": "Temporal Knowledge Graphs",
+    "blueprint_revision": 1,
+    "blueprint_content_hash": "58f9a5ee3b4ee681c7bff91ac6fb2311bc6b1cd7d89affda49f8223d9b1d2e22"
+  },
+  "protocol": {
+    "arms": [
+      "fresh_research",
+      "static_history",
+      "compiled_expert",
+      "maintained_expert"
+    ],
+    "source_world_count": 3,
+    "source_world_start": "2026-01-01T00:00:00+00:00",
+    "source_world_end": "2026-03-01T00:00:00+00:00",
+    "acceptance_case_count": 5,
+    "attested_trial_count": 20,
+    "evaluation_role_case_counts": {
+      "initial": 1,
+      "retention": 1,
+      "update": 1,
+      "forward_transfer": 1,
+      "hard_negative": 1
+    },
+    "missing_evaluation_roles": [],
+    "four_arm_matrix_complete": true,
+    "review_blinding": "blinded",
+    "review_order_randomized": true,
+    "review_assignment_ref": "review/assignment.json",
+    "review_assignment_sha256": "86cded98a97d46c7d9448e410ec5b15cc2eb0efad6f3c60e3ca38da3a3635826",
+    "protocol_attested_by": "session-operator",
+    "protocol_attested_at": "2026-08-04T18:16:03+00:00",
+    "statistical_sufficiency_assessed": false
+  },
+  "arm_results": [
+    {
+      "arm": "fresh_research",
+      "trial_count": 5,
+      "dimensions": {
+        "correctness": {
+          "attested_trials": 5,
+          "mean_score": 4.0
+        },
+        "source_relevance": {
+          "attested_trials": 5,
+          "mean_score": 3.4
+        },
+        "factual_support": {
+          "attested_trials": 5,
+          "mean_score": 4.0
+        },
+        "uncertainty_calibration": {
+          "attested_trials": 5,
+          "mean_score": 3.0
+        }
+      },
+      "false_support": {
+        "eligible_trials": 5,
+        "observed_trials": 0,
+        "rate": 0.0
+      },
+      "invalidated_belief_reuse": {
+        "eligible_trials": 2,
+        "observed_trials": 0,
+        "rate": 0.0
+      },
+      "negative_transfer": {
+        "eligible_trials": 4,
+        "observed_trials": 0,
+        "rate": 0.0
+      },
+      "expected_abstention_match": {
+        "eligible_trials": 5,
+        "observed_trials": 5,
+        "rate": 1.0
+      },
+      "retained_correctness": {
+        "eligible_trials": 1,
+        "observed_trials": 1,
+        "rate": 1.0
+      },
+      "forward_transfer": {
+        "eligible_trials": 1,
+        "observed_trials": 1,
+        "rate": 1.0
+      },
+      "update_latency_hours": {
+        "eligible_trials": 1,
+        "completed_trials": 1,
+        "completion_rate": 1.0,
+        "mean_completed": 0.0,
+        "maximum_completed": 0.0
+      },
+      "response_latency_seconds": {
+        "trial_count": 5,
+        "mean": 0.0
+      },
+      "costs_usd": {
+        "construction": 0.0,
+        "maintenance": 0.0,
+        "retrieval": 0.0,
+        "generation": 0.0,
+        "other_execution": 0.0,
+        "fixed_total": 0.0,
+        "marginal_total": 0.0,
+        "mean_marginal_per_consultation": 0.0,
+        "total_observed": 0.0
+      },
+      "reviewer_effort_minutes": {
+        "construction": 5.0,
+        "maintenance": 0.0,
+        "trial_review": 5.0,
+        "total": 10.0
+      }
+    },
+    {
+      "arm": "static_history",
+      "trial_count": 5,
+      "dimensions": {
+        "correctness": {
+          "attested_trials": 5,
+          "mean_score": 3.8
+        },
+        "source_relevance": {
+          "attested_trials": 5,
+          "mean_score": 3.4
+        },
+        "factual_support": {
+          "attested_trials": 5,
+          "mean_score": 3.8
+        },
+        "uncertainty_calibration": {
+          "attested_trials": 5,
+          "mean_score": 3.0
+        }
+      },
+      "false_support": {
+        "eligible_trials": 5,
+        "observed_trials": 0,
+        "rate": 0.0
+      },
+      "invalidated_belief_reuse": {
+        "eligible_trials": 2,
+        "observed_trials": 0,
+        "rate": 0.0
+      },
+      "negative_transfer": {
+        "eligible_trials": 4,
+        "observed_trials": 0,
+        "rate": 0.0
+      },
+      "expected_abstention_match": {
+        "eligible_trials": 5,
+        "observed_trials": 5,
+        "rate": 1.0
+      },
+      "retained_correctness": {
+        "eligible_trials": 1,
+        "observed_trials": 1,
+        "rate": 1.0
+      },
+      "forward_transfer": {
+        "eligible_trials": 1,
+        "observed_trials": 1,
+        "rate": 1.0
+      },
+      "update_latency_hours": {
+        "eligible_trials": 1,
+        "completed_trials": 1,
+        "completion_rate": 1.0,
+        "mean_completed": 0.0,
+        "maximum_completed": 0.0
+      },
+      "response_latency_seconds": {
+        "trial_count": 5,
+        "mean": 0.0
+      },
+      "costs_usd": {
+        "construction": 0.0,
+        "maintenance": 0.0,
+        "retrieval": 0.0,
+        "generation": 0.0,
+        "other_execution": 0.0,
+        "fixed_total": 0.0,
+        "marginal_total": 0.0,
+        "mean_marginal_per_consultation": 0.0,
+        "total_observed": 0.0
+      },
+      "reviewer_effort_minutes": {
+        "construction": 6.0,
+        "maintenance": 0.0,
+        "trial_review": 5.0,
+        "total": 11.0
+      }
+    },
+    {
+      "arm": "compiled_expert",
+      "trial_count": 5,
+      "dimensions": {
+        "correctness": {
+          "attested_trials": 5,
+          "mean_score": 4.0
+        },
+        "source_relevance": {
+          "attested_trials": 5,
+          "mean_score": 3.4
+        },
+        "factual_support": {
+          "attested_trials": 5,
+          "mean_score": 4.0
+        },
+        "uncertainty_calibration": {
+          "attested_trials": 5,
+          "mean_score": 3.0
+        }
+      },
+      "false_support": {
+        "eligible_trials": 5,
+        "observed_trials": 0,
+        "rate": 0.0
+      },
+      "invalidated_belief_reuse": {
+        "eligible_trials": 2,
+        "observed_trials": 0,
+        "rate": 0.0
+      },
+      "negative_transfer": {
+        "eligible_trials": 4,
+        "observed_trials": 0,
+        "rate": 0.0
+      },
+      "expected_abstention_match": {
+        "eligible_trials": 5,
+        "observed_trials": 5,
+        "rate": 1.0
+      },
+      "retained_correctness": {
+        "eligible_trials": 1,
+        "observed_trials": 1,
+        "rate": 1.0
+      },
+      "forward_transfer": {
+        "eligible_trials": 1,
+        "observed_trials": 1,
+        "rate": 1.0
+      },
+      "update_latency_hours": {
+        "eligible_trials": 1,
+        "completed_trials": 1,
+        "completion_rate": 1.0,
+        "mean_completed": 0.0,
+        "maximum_completed": 0.0
+      },
+      "response_latency_seconds": {
+        "trial_count": 5,
+        "mean": 0.0
+      },
+      "costs_usd": {
+        "construction": 0.0,
+        "maintenance": 0.0,
+        "retrieval": 0.0,
+        "generation": 0.0,
+        "other_execution": 0.0,
+        "fixed_total": 0.0,
+        "marginal_total": 0.0,
+        "mean_marginal_per_consultation": 0.0,
+        "total_observed": 0.0
+      },
+      "reviewer_effort_minutes": {
+        "construction": 7.0,
+        "maintenance": 0.0,
+        "trial_review": 5.0,
+        "total": 12.0
+      }
+    },
+    {
+      "arm": "maintained_expert",
+      "trial_count": 5,
+      "dimensions": {
+        "correctness": {
+          "attested_trials": 5,
+          "mean_score": 4.0
+        },
+        "source_relevance": {
+          "attested_trials": 5,
+          "mean_score": 3.4
+        },
+        "factual_support": {
+          "attested_trials": 5,
+          "mean_score": 4.0
+        },
+        "uncertainty_calibration": {
+          "attested_trials": 5,
+          "mean_score": 4.0
+        }
+      },
+      "false_support": {
+        "eligible_trials": 5,
+        "observed_trials": 0,
+        "rate": 0.0
+      },
+      "invalidated_belief_reuse": {
+        "eligible_trials": 2,
+        "observed_trials": 0,
+        "rate": 0.0
+      },
+      "negative_transfer": {
+        "eligible_trials": 4,
+        "observed_trials": 0,
+        "rate": 0.0
+      },
+      "expected_abstention_match": {
+        "eligible_trials": 5,
+        "observed_trials": 5,
+        "rate": 1.0
+      },
+      "retained_correctness": {
+        "eligible_trials": 1,
+        "observed_trials": 1,
+        "rate": 1.0
+      },
+      "forward_transfer": {
+        "eligible_trials": 1,
+        "observed_trials": 1,
+        "rate": 1.0
+      },
+      "update_latency_hours": {
+        "eligible_trials": 1,
+        "completed_trials": 1,
+        "completion_rate": 1.0,
+        "mean_completed": 0.0,
+        "maximum_completed": 0.0
+      },
+      "response_latency_seconds": {
+        "trial_count": 5,
+        "mean": 0.0
+      },
+      "costs_usd": {
+        "construction": 0.0,
+        "maintenance": 0.0,
+        "retrieval": 0.0,
+        "generation": 0.0,
+        "other_execution": 0.0,
+        "fixed_total": 0.0,
+        "marginal_total": 0.0,
+        "mean_marginal_per_consultation": 0.0,
+        "total_observed": 0.0
+      },
+      "reviewer_effort_minutes": {
+        "construction": 8.0,
+        "maintenance": 10.0,
+        "trial_review": 5.0,
+        "total": 23.0
+      }
+    }
+  ],
+  "comparisons": [
+    {
+      "target_arm": "maintained_expert",
+      "comparator_arm": "fresh_research",
+      "paired_bootstrap": {
+        "method": "paired_percentile_bootstrap",
+        "rng": "numpy.PCG64",
+        "resamples": 9999,
+        "confidence_level": 0.95,
+        "metrics": {
+          "correctness": {
+            "case_count": 5,
+            "mean_difference": 0.0,
+            "confidence_interval": {
+              "lower": 0.0,
+              "upper": 0.0
+            },
+            "seed": "220e2932b38f85f9"
+          },
+          "source_relevance": {
+            "case_count": 5,
+            "mean_difference": 0.0,
+            "confidence_interval": {
+              "lower": 0.0,
+              "upper": 0.0
+            },
+            "seed": "1dc4b08afa488326"
+          },
+          "factual_support": {
+            "case_count": 5,
+            "mean_difference": 0.0,
+            "confidence_interval": {
+              "lower": 0.0,
+              "upper": 0.0
+            },
+            "seed": "8f14017267364b80"
+          },
+          "uncertainty_calibration": {
+            "case_count": 5,
+            "mean_difference": 1.0,
+            "confidence_interval": {
+              "lower": 1.0,
+              "upper": 1.0
+            },
+            "seed": "05f818564c8270e9"
+          },
+          "false_support_observed": {
+            "case_count": 5,
+            "mean_difference": 0.0,
+            "confidence_interval": {
+              "lower": 0.0,
+              "upper": 0.0
+            },
+            "seed": "9dee96d8fe0483cc"
+          },
+          "invalidated_belief_reused": {
+            "case_count": 2,
+            "mean_difference": 0.0,
+            "confidence_interval": {
+              "lower": 0.0,
+              "upper": 0.0
+            },
+            "seed": "1771a015104d5176"
+          },
+          "negative_transfer_observed": {
+            "case_count": 4,
+            "mean_difference": 0.0,
+            "confidence_interval": {
+              "lower": 0.0,
+              "upper": 0.0
+            },
+            "seed": "e8fd599c116a2d79"
+          },
+          "retained_correctness": {
+            "case_count": 1,
+            "mean_difference": 0.0,
+            "confidence_interval": {
+              "lower": 0.0,
+              "upper": 0.0
+            },
+            "seed": "cbc482eb02d75117"
+          },
+          "forward_transfer_observed": {
+            "case_count": 1,
+            "mean_difference": 0.0,
+            "confidence_interval": {
+              "lower": 0.0,
+              "upper": 0.0
+            },
+            "seed": "0bd96f6cfb55ec62"
+          },
+          "update_completed": {
+            "case_count": 1,
+            "mean_difference": 0.0,
+            "confidence_interval": {
+              "lower": 0.0,
+              "upper": 0.0
+            },
+            "seed": "b397607792b09793"
+          }
+        }
+      },
+      "deltas": {
+        "mean_correctness": 0.0,
+        "mean_source_relevance": 0.0,
+        "mean_factual_support": 0.0,
+        "false_support_rate": 0.0,
+        "invalidated_belief_reuse_rate": 0.0,
+        "negative_transfer_rate": 0.0,
+        "mean_marginal_cost_usd": 0.0,
+        "reviewer_effort_minutes": 13.0
+      }
+    },
+    {
+      "target_arm": "maintained_expert",
+      "comparator_arm": "static_history",
+      "paired_bootstrap": {
+        "method": "paired_percentile_bootstrap",
+        "rng": "numpy.PCG64",
+        "resamples": 9999,
+        "confidence_level": 0.95,
+        "metrics": {
+          "correctness": {
+            "case_count": 5,
+            "mean_difference": 0.2,
+            "confidence_interval": {
+              "lower": 0.0,
+              "upper": 0.6
+            },
+            "seed": "2c5c3bd47f1bdc20"
+          },
+          "source_relevance": {
+            "case_count": 5,
+            "mean_difference": 0.0,
+            "confidence_interval": {
+              "lower": 0.0,
+              "upper": 0.0
+            },
+            "seed": "1dc4b08afa488326"
+          },
+          "factual_support": {
+            "case_count": 5,
+            "mean_difference": 0.2,
+            "confidence_interval": {
+              "lower": 0.0,
+              "upper": 0.6
+            },
+            "seed": "e1cc8bbb910beda3"
+          },
+          "uncertainty_calibration": {
+            "case_count": 5,
+            "mean_difference": 1.0,
+            "confidence_interval": {
+              "lower": 1.0,
+              "upper": 1.0
+            },
+            "seed": "05f818564c8270e9"
+          },
+          "false_support_observed": {
+            "case_count": 5,
+            "mean_difference": 0.0,
+            "confidence_interval": {
+              "lower": 0.0,
+              "upper": 0.0
+            },
+            "seed": "9dee96d8fe0483cc"
+          },
+          "invalidated_belief_reused": {
+            "case_count": 2,
+            "mean_difference": 0.0,
+            "confidence_interval": {
+              "lower": 0.0,
+              "upper": 0.0
+            },
+            "seed": "1771a015104d5176"
+          },
+          "negative_transfer_observed": {
+            "case_count": 4,
+            "mean_difference": 0.0,
+            "confidence_interval": {
+              "lower": 0.0,
+              "upper": 0.0
+            },
+            "seed": "e8fd599c116a2d79"
+          },
+          "retained_correctness": {
+            "case_count": 1,
+            "mean_difference": 0.0,
+            "confidence_interval": {
+              "lower": 0.0,
+              "upper": 0.0
+            },
+            "seed": "cbc482eb02d75117"
+          },
+          "forward_transfer_observed": {
+            "case_count": 1,
+            "mean_difference": 0.0,
+            "confidence_interval": {
+              "lower": 0.0,
+              "upper": 0.0
+            },
+            "seed": "0bd96f6cfb55ec62"
+          },
+          "update_completed": {
+            "case_count": 1,
+            "mean_difference": 0.0,
+            "confidence_interval": {
+              "lower": 0.0,
+              "upper": 0.0
+            },
+            "seed": "b397607792b09793"
+          }
+        }
+      },
+      "deltas": {
+        "mean_correctness": 0.2,
+        "mean_source_relevance": 0.0,
+        "mean_factual_support": 0.2,
+        "false_support_rate": 0.0,
+        "invalidated_belief_reuse_rate": 0.0,
+        "negative_transfer_rate": 0.0,
+        "mean_marginal_cost_usd": 0.0,
+        "reviewer_effort_minutes": 12.0
+      }
+    },
+    {
+      "target_arm": "maintained_expert",
+      "comparator_arm": "compiled_expert",
+      "paired_bootstrap": {
+        "method": "paired_percentile_bootstrap",
+        "rng": "numpy.PCG64",
+        "resamples": 9999,
+        "confidence_level": 0.95,
+        "metrics": {
+          "correctness": {
+            "case_count": 5,
+            "mean_difference": 0.0,
+            "confidence_interval": {
+              "lower": 0.0,
+              "upper": 0.0
+            },
+            "seed": "220e2932b38f85f9"
+          },
+          "source_relevance": {
+            "case_count": 5,
+            "mean_difference": 0.0,
+            "confidence_interval": {
+              "lower": 0.0,
+              "upper": 0.0
+            },
+            "seed": "1dc4b08afa488326"
+          },
+          "factual_support": {
+            "case_count": 5,
+            "mean_difference": 0.0,
+            "confidence_interval": {
+              "lower": 0.0,
+              "upper": 0.0
+            },
+            "seed": "8f14017267364b80"
+          },
+          "uncertainty_calibration": {
+            "case_count": 5,
+            "mean_difference": 1.0,
+            "confidence_interval": {
+              "lower": 1.0,
+              "upper": 1.0
+            },
+            "seed": "05f818564c8270e9"
+          },
+          "false_support_observed": {
+            "case_count": 5,
+            "mean_difference": 0.0,
+            "confidence_interval": {
+              "lower": 0.0,
+              "upper": 0.0
+            },
+            "seed": "9dee96d8fe0483cc"
+          },
+          "invalidated_belief_reused": {
+            "case_count": 2,
+            "mean_difference": 0.0,
+            "confidence_interval": {
+              "lower": 0.0,
+              "upper": 0.0
+            },
+            "seed": "1771a015104d5176"
+          },
+          "negative_transfer_observed": {
+            "case_count": 4,
+            "mean_difference": 0.0,
+            "confidence_interval": {
+              "lower": 0.0,
+              "upper": 0.0
+            },
+            "seed": "e8fd599c116a2d79"
+          },
+          "retained_correctness": {
+            "case_count": 1,
+            "mean_difference": 0.0,
+            "confidence_interval": {
+              "lower": 0.0,
+              "upper": 0.0
+            },
+            "seed": "cbc482eb02d75117"
+          },
+          "forward_transfer_observed": {
+            "case_count": 1,
+            "mean_difference": 0.0,
+            "confidence_interval": {
+              "lower": 0.0,
+              "upper": 0.0
+            },
+            "seed": "0bd96f6cfb55ec62"
+          },
+          "update_completed": {
+            "case_count": 1,
+            "mean_difference": 0.0,
+            "confidence_interval": {
+              "lower": 0.0,
+              "upper": 0.0
+            },
+            "seed": "b397607792b09793"
+          }
+        }
+      },
+      "deltas": {
+        "mean_correctness": 0.0,
+        "mean_source_relevance": 0.0,
+        "mean_factual_support": 0.0,
+        "false_support_rate": 0.0,
+        "invalidated_belief_reuse_rate": 0.0,
+        "negative_transfer_rate": 0.0,
+        "mean_marginal_cost_usd": 0.0,
+        "reviewer_effort_minutes": 11.0
+      }
+    }
+  ],
+  "break_even_estimates": [
+    {
+      "target_arm": "maintained_expert",
+      "comparator_arm": "fresh_research",
+      "status": "target_not_more_expensive_at_zero_consultations",
+      "fixed_cost_delta_usd": 0.0,
+      "marginal_savings_usd_per_consultation": 0.0,
+      "break_even_consultations": 0,
+      "cost_only": true,
+      "quality_considered": false
+    },
+    {
+      "target_arm": "maintained_expert",
+      "comparator_arm": "static_history",
+      "status": "target_not_more_expensive_at_zero_consultations",
+      "fixed_cost_delta_usd": 0.0,
+      "marginal_savings_usd_per_consultation": 0.0,
+      "break_even_consultations": 0,
+      "cost_only": true,
+      "quality_considered": false
+    },
+    {
+      "target_arm": "maintained_expert",
+      "comparator_arm": "compiled_expert",
+      "status": "target_not_more_expensive_at_zero_consultations",
+      "fixed_cost_delta_usd": 0.0,
+      "marginal_savings_usd_per_consultation": 0.0,
+      "break_even_consultations": 0,
+      "cost_only": true,
+      "quality_considered": false
+    }
+  ],
+  "artifact_verification": {
+    "mode": "local_filesystem_sha256",
+    "digest_algorithm": "sha256",
+    "reference_count": 48,
+    "declared_unique_reference_count": 48,
+    "verified_reference_count": 48,
+    "verified_file_count": 48,
+    "protocol_attested": true,
+    "independently_verified": true,
+    "all_matched": true,
+    "root_confined": true,
+    "network_access": false
+  },
+  "observed_outcomes": {
+    "linked_case_count": 0,
+    "deployed_arm_counts": {
+      "fresh_research": 0,
+      "static_history": 0,
+      "compiled_expert": 0,
+      "maintained_expert": 0
+    },
+    "result_counts": {
+      "succeeded": 0,
+      "mixed": 0,
+      "failed": 0,
+      "unresolved": 0
+    },
+    "causal_attribution": false
+  },
+  "contract": {
+    "input_semantic_review": "operator_attested",
+    "reviewer_identity_verified": false,
+    "evaluator_model_calls": 0,
+    "evaluator_provider_calls": 0,
+    "evaluator_network_access": false,
+    "evaluator_cost_usd": 0.0,
+    "artifact_references_opened": true,
+    "writes_authoritative_state": false,
+    "changes_defaults": false,
+    "winner_selected": false,
+    "causal_attribution": false,
+    "semantic_verdict": false,
+    "lexical_verdict_allowed": false,
+    "report_write_requires_explicit_path": true
+  }
+}

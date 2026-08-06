@@ -204,21 +204,103 @@ class TestMutationAudit:
         assert [entry.belief_id for entry in entries] == [first.id, second.id]
         assert [entry.belief_id for entry in fresh.iter_mutation_audit(since=cutoff)] == [second.id]
 
-    def test_lower_confidence_conflict_is_saved_and_audited_without_counting_as_absorb_change(self, tmp_path):
+    def test_lower_confidence_similar_claim_corroborates_without_overwriting(self, tmp_path):
         store = BeliefStore("Lifecycle Test Expert", storage_dir=tmp_path / "beliefs")
-        high, _ = store.add_belief(Belief(claim="Python is a popular language", confidence=0.9, domain="python"))
+        high, _ = store.add_belief(
+            Belief(
+                claim="Python is a popular language",
+                confidence=0.9,
+                domain="python",
+                evidence_refs=["report:file:a.md"],
+                trust_class="tertiary",
+            )
+        )
 
-        kept, change = store.add_belief(Belief(claim="Python is popular language", confidence=0.5, domain="python"))
+        kept, change = store.add_belief(
+            Belief(
+                claim="Python is popular language",
+                confidence=0.5,
+                domain="python",
+                evidence_refs=["report:file:b.md"],
+                trust_class="tertiary",
+            )
+        )
 
         assert kept.id == high.id
-        assert change is None
-        assert any(ref.startswith("conflicting:") for ref in kept.evidence_refs)
+        assert change is not None
+        assert kept.claim == "Python is a popular language"
+        assert kept.confidence == 0.9  # raw conf not raised by weaker candidate
+        assert "report:file:a.md" in kept.evidence_refs
+        assert "report:file:b.md" in kept.evidence_refs
+        assert kept.get_current_confidence() == 0.8  # two independent tertiary sources
         audited = store.iter_mutation_audit()[-1]
         assert audited.operation == "updated"
         assert audited.belief_id == high.id
 
-        reloaded = BeliefStore("Lifecycle Test Expert", storage_dir=store.storage_dir)
-        assert any(ref.startswith("conflicting:") for ref in reloaded.beliefs[high.id].evidence_refs)
+    def test_negated_claim_does_not_corroborate_into_a_higher_ceiling(self, tmp_path):
+        """A contradicting source must never read as independent corroboration.
+
+        Word overlap cannot see negation, so without a polarity guard the
+        opposite claim would dedup-merge and lift the single-source tertiary
+        ceiling from 0.60 to 0.80 - inverting the poisoned-ingestion backstop.
+        """
+        store = BeliefStore("Polarity Test Expert", storage_dir=tmp_path / "beliefs")
+        original, _ = store.add_belief(
+            Belief(
+                claim="Release 2.0 is the latest supported version",
+                confidence=0.9,
+                domain="releases",
+                evidence_refs=["report:file:a.md"],
+                trust_class="tertiary",
+            )
+        )
+
+        opposing, _ = store.add_belief(
+            Belief(
+                claim="Release 2.0 is not the latest supported version",
+                confidence=0.9,
+                domain="releases",
+                evidence_refs=["report:file:b.md"],
+                trust_class="tertiary",
+            )
+        )
+
+        assert opposing.id != original.id, "opposite-polarity claims must not merge"
+        kept = store.beliefs[original.id]
+        assert "report:file:b.md" not in kept.evidence_refs
+        assert kept.get_current_confidence() == 0.6  # still single-source tertiary
+
+    def test_negation_guard_survives_adjacent_punctuation(self, tmp_path):
+        """Whitespace splitting leaves "not," attached and slips past the guard.
+
+        The polarity test must tokenize on word characters, or the guard fails
+        on exactly the natural phrasings a real source uses.
+        """
+        store = BeliefStore("Punctuation Test Expert", storage_dir=tmp_path / "beliefs")
+        original, _ = store.add_belief(
+            Belief(
+                claim="Release 2.0 is the latest supported version",
+                confidence=0.9,
+                domain="releases",
+                evidence_refs=["report:file:a.md"],
+                trust_class="tertiary",
+            )
+        )
+
+        opposing, _ = store.add_belief(
+            Belief(
+                claim="Release 2.0 is not, in fact, the latest supported version",
+                confidence=0.9,
+                domain="releases",
+                evidence_refs=["report:file:b.md"],
+                trust_class="tertiary",
+            )
+        )
+
+        assert opposing.id != original.id
+        kept = store.beliefs[original.id]
+        assert "report:file:b.md" not in kept.evidence_refs
+        assert kept.get_current_confidence() == 0.6
 
 
 class TestUsageSalience:

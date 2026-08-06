@@ -61,6 +61,7 @@ from deepr.core.errors import DeeprError
 from deepr.core.reports import ReportGenerator
 from deepr.core.research import ResearchOrchestrator
 from deepr.experts.chat import ExpertChatSession
+from deepr.experts.claim_inventory import read_claim_inventory
 from deepr.experts.consult_transaction import DEFAULT_CONSULT_MAX_ELAPSED_SECONDS
 from deepr.experts.profile import ExpertStore
 from deepr.mcp.consult_tool import CONSULT_EXPERTS_INPUT_SCHEMA, CONSULT_EXPERTS_OUTPUT_SCHEMA, consult_experts_tool
@@ -332,16 +333,28 @@ class DeeprMCPServer:
         """List all available experts."""
         try:
             experts = self.store.list_all()
-            return [
-                {
+            rows: list[dict[str, Any]] = []
+            for expert in experts:
+                inventory = read_claim_inventory(expert)
+                # An unreadable manifest is unknown, not empty. Hosts skip
+                # consults on knowledge_empty, so defaulting it True would tell
+                # an agent a populated expert has nothing to say.
+                row: dict[str, Any] = {
                     "name": expert.name,
                     "domain": expert.domain,
                     "description": expert.description,
                     "documents": expert.total_documents,
                     "conversations": expert.activity_tracker.conversations,
+                    "claim_count": inventory.claim_count,
+                    "claim_count_known": inventory.manifest_available,
+                    "knowledge_empty": inventory.is_empty and expert.total_documents == 0,
                 }
-                for expert in experts
-            ]
+                with suppress(Exception):
+                    manifest = expert.get_manifest()
+                    row["open_gap_count"] = int(getattr(manifest, "open_gap_count", 0) or 0)
+                    row["avg_confidence"] = inventory.avg_confidence
+                rows.append(row)
+            return rows
         except (OSError, KeyError, ValueError) as e:
             return [_make_error("EXPERT_LIST_FAILED", str(e))]
 
@@ -355,6 +368,7 @@ class DeeprMCPServer:
             if not expert:
                 return _make_error("EXPERT_NOT_FOUND", f"Expert '{expert_name}' not found")
 
+            inventory = read_claim_inventory(expert)
             result: dict[str, Any] = {
                 "name": expert.name,
                 "domain": expert.domain,
@@ -365,18 +379,25 @@ class DeeprMCPServer:
                     "conversations": expert.activity_tracker.conversations,
                     "research_jobs": len(expert.research_jobs),
                     "total_cost": expert.budget_manager.total_spending,
+                    "claim_count": inventory.claim_count,
                 },
+                "claim_count": inventory.claim_count,
+                "claim_count_known": inventory.manifest_available,
+                "knowledge_empty": inventory.is_empty and expert.total_documents == 0,
                 "created_at": expert.created_at.isoformat() if expert.created_at else None,
                 "last_knowledge_refresh": (
                     expert.last_knowledge_refresh.isoformat() if expert.last_knowledge_refresh else None
                 ),
             }
+            if inventory.claim_count > 0 and expert.total_documents == 0:
+                result["knowledge_note"] = (
+                    "Claims present in belief store; Documents: 0 is normal after absorb --file (not an empty expert)."
+                )
             # Include manifest summary when available.
             with suppress(Exception):
                 manifest = expert.get_manifest()
-                result["claim_count"] = manifest.claim_count
                 result["open_gap_count"] = manifest.open_gap_count
-                result["avg_confidence"] = manifest.avg_confidence
+                result["avg_confidence"] = inventory.avg_confidence
             return result
         except (OSError, KeyError, ValueError) as e:
             return _make_error("EXPERT_INFO_FAILED", str(e))

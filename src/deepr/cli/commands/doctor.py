@@ -431,6 +431,7 @@ def doctor(skip_connectivity: bool):
             bar.update(1)
 
             all_checks.extend(check_mcp_conformance())
+            all_checks.extend(check_mcp_host_wiring())
             bar.update(1)
 
         # Print results
@@ -543,6 +544,46 @@ def check_mcp_conformance() -> list[DiagnosticCheck]:
         check.message = f"probe error: {type(exc).__name__}"
         check.details.append(str(exc)[:120])
         check.details.append("Run: deepr mcp conformance --json")
+    return [check]
+
+
+def check_mcp_host_wiring() -> list[DiagnosticCheck]:
+    """Project host wiring for coding agents (stdio MCP, $0, no network)."""
+    import shutil
+    from pathlib import Path
+
+    check = DiagnosticCheck("MCP host project wiring", "MCP")
+    try:
+        from deepr.mcp.host_install import probe_project_mcp_json
+
+        probe = probe_project_mcp_json(Path.cwd())
+        claude = shutil.which("claude")
+        if probe.get("has_server"):
+            check.passed = True
+            check.message = f"project .mcp.json has deepr ({probe.get('path')})"
+            check.details.append("Restart host session after config changes so tools load")
+            check.details.append("Verify: claude mcp list  (expect deepr Connected)")
+        elif probe.get("present"):
+            check.message = "project .mcp.json present but deepr server missing"
+            check.details.append(str(probe.get("detail")))
+            check.details.append("Run: deepr mcp install-host --project .")
+        else:
+            check.message = "no project .mcp.json with deepr"
+            check.details.append("Coding hosts need install + session restart, not only a pasted brief")
+            check.details.append("Run: deepr mcp install-host --project .")
+            check.details.append("Then: deepr mcp host-brief")
+        if claude:
+            check.details.append(f"claude CLI on PATH: {claude}")
+        else:
+            check.details.append("claude CLI not on PATH; .mcp.json still usable by hosts that read it")
+        # Advisory: missing host wiring is not a broken Deepr core.
+        if not check.passed:
+            check.passed = True
+            check.message = f"advisory: {check.message}"
+    except Exception as exc:
+        check.passed = True
+        check.message = f"advisory probe error: {type(exc).__name__}"
+        check.details.append(str(exc)[:120])
     return [check]
 
 

@@ -112,6 +112,7 @@ DAVinCI, 2605.11334 VERDI) run through the validated distillr integration:
 
 1. [x] Wire trust class through absorb (shipped 2026-06-11: `Belief.trust_class`, absorb marks research-derived beliefs tertiary, retroactive tertiary default on load).
 2. [x] Enforce floors (shipped 2026-06-11, design refinement: enforcement lives in `Belief.get_current_confidence` - read-time like decay - rather than at the write paths, so the cap holds retroactively and through EVERY path including merge and adjudication; regression-tested incl. the poisoned-0.98-extraction scenario).
+2b. [x] Operator file absorb defaults to `secondary` (official digests uncapped); research report ids stay `tertiary`. Explicit `--trust-class primary|secondary|tertiary`. Dedup merges corroborating provenance so multi-source tertiary can reach 0.80 and secondary upgrades apply (2026-08-05). Flat 0.60 on all absorb-file experts was a trust-class mis-stamp, not "the model is 60% sure".
 3. Build the calibration corpus + grading harness (`deepr eval calibrate`).
 4. First calibration run; publish `docs/CALIBRATION.md`; derive absorb's
    default threshold from the curve.

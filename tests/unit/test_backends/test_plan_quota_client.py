@@ -589,7 +589,11 @@ class TestResearchFn:
         assert result["source_pack"]["source_count"] == 1
         assert "No generation backend was called" in result["error"]
 
-    def test_plan_child_env_refuses_metered_api_keys_before_dispatch(self, tmp_path):
+    def test_reachable_metered_api_key_refuses_before_dispatch(self, tmp_path, monkeypatch):
+        """A key the child could read must stop the run and name the variable."""
+        from deepr.backends.plan_quota import safety
+
+        monkeypatch.setattr(safety, "plan_quota_child_env", lambda adapter, env: dict(env))
         runner = _runner(stdout="ans")
         with pytest.raises(PlanQuotaError, match="OPENAI_API_KEY"):
             make_plan_quota_research_fn(
@@ -1784,7 +1788,10 @@ class TestProbe:
         assert exc_info.value.__dict__["quota_recorded"] is True
         assert exc_info.value.__dict__["cost_recorded"] is True
 
-    async def test_probe_refuses_metered_api_keys_before_dispatch(self, tmp_path):
+    async def test_probe_refuses_reachable_metered_api_keys_before_dispatch(self, tmp_path, monkeypatch):
+        from deepr.backends.plan_quota import safety
+
+        monkeypatch.setattr(safety, "plan_quota_child_env", lambda adapter, env: dict(env))
         runner = _runner(stdout="OK")
         result = await probe_plan_quota(
             get_adapter("codex"),
