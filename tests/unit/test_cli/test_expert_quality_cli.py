@@ -35,9 +35,7 @@ def missing_expert(monkeypatch):
 
 
 class TestHelpSurfaces:
-    @pytest.mark.parametrize(
-        "command", ["quality", "improve", "deepen-plan", "council-plan"]
-    )
+    @pytest.mark.parametrize("command", ["quality", "improve", "deepen-plan", "council-plan"])
     def test_help_exits_clean(self, runner, command):
         result = runner.invoke(expert, [command, "--help"])
         assert result.exit_code == 0, result.output
@@ -76,9 +74,7 @@ class TestCouncilPlanOffline:
         assert result.exit_code == 0, result.output
 
     def test_json_payload_is_schema_shaped(self, runner):
-        result = runner.invoke(
-            expert, ["council-plan", "Review a project roadmap", "--json"]
-        )
+        result = runner.invoke(expert, ["council-plan", "Review a project roadmap", "--json"])
         assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
         assert payload["schema_version"] == "deepr-expert-council-plan-v1"
@@ -88,9 +84,7 @@ class TestCouncilPlanOffline:
 
     def test_roles_span_multiple_axes(self, runner):
         """A roster of one axis is the failure the diversity gate exists to stop."""
-        result = runner.invoke(
-            expert, ["council-plan", "Review a project roadmap", "--json"]
-        )
+        result = runner.invoke(expert, ["council-plan", "Review a project roadmap", "--json"])
         payload = json.loads(result.output)
         assert len({role["axis"] for role in payload["roles"]}) >= 4
 
@@ -101,9 +95,7 @@ class TestCouncilPlanOffline:
     def test_from_file_reads_the_file(self, runner, tmp_path):
         doc = tmp_path / "readme.md"
         doc.write_text("A project that automates configuration.", encoding="utf-8")
-        result = runner.invoke(
-            expert, ["council-plan", "--from-file", str(doc), "--json"]
-        )
+        result = runner.invoke(expert, ["council-plan", "--from-file", str(doc), "--json"])
         assert result.exit_code == 0, result.output
         assert json.loads(result.output)["roles"]
 

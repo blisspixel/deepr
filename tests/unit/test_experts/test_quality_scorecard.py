@@ -32,7 +32,9 @@ def test_circular_intent_only_scores_poor() -> None:
 def test_secondary_multi_source_scores_better() -> None:
     beliefs = []
     for i in range(30):
-        refs = [f"report:file:official-a.md", f"report:file:official-b.md"] if i < 10 else [f"report:file:official-a.md"]
+        refs = (
+            [f"report:file:official-a.md", f"report:file:official-b.md"] if i < 10 else [f"report:file:official-a.md"]
+        )
         beliefs.append(
             Belief(
                 claim=f"Official domain claim {i} about LoRa channel presets",

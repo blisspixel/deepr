@@ -1852,7 +1852,11 @@ class TestPlanQuotaSync:
         assert captured["absorber_client"] is chat_client
         assert captured["loop_run_kwargs"]["capacity_source"] == "plan_quota:claude"
 
-    def test_plan_refuses_api_key_env_before_running(self, monkeypatch):
+    def test_plan_refuses_reachable_api_key_before_running(self, monkeypatch):
+        """A credential the dispatch could read must stop it before any client."""
+        from deepr.backends.plan_quota import safety
+
+        monkeypatch.setattr(safety, "plan_quota_child_env", lambda adapter, env: dict(env))
         captured = {}
         self._fakes(monkeypatch, captured)
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-should-block")
@@ -2132,7 +2136,7 @@ class TestPlanQuotaSync:
         # The kiro second checker stays unbuilt because no verdict was weak.
         assert clients == ["claude", "antigravity"]
 
-    def test_absorb_plan_refuses_api_key_env_before_running(self, monkeypatch):
+    def test_absorb_plan_refuses_reachable_api_key_before_running(self, monkeypatch):
         profile = SimpleNamespace(name="Plan Expert", total_research_cost=0.0, last_knowledge_refresh=None)
         client_calls = []
 
@@ -2148,6 +2152,9 @@ class TestPlanQuotaSync:
             client_calls.append((args, kwargs))
             raise AssertionError("API-key plan client must not be constructed")
 
+        from deepr.backends.plan_quota import safety
+
+        monkeypatch.setattr(safety, "plan_quota_child_env", lambda adapter, env: dict(env))
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-should-block")
         monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
         monkeypatch.setattr("deepr.services.context_index.ContextIndex", FakeIndex)
@@ -2201,9 +2208,7 @@ class TestAbsorbFromFile:
                 captured["client"] = client
                 captured["estimated_cost"] = estimated_cost
 
-            async def absorb(
-                self, report_id, report_text, *, min_confidence, dry_run, budget, trust_class="tertiary"
-            ):
+            async def absorb(self, report_id, report_text, *, min_confidence, dry_run, budget, trust_class="tertiary"):
                 captured["report_id"] = report_id
                 captured["report_text"] = report_text
                 captured["budget"] = budget

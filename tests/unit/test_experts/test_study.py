@@ -83,9 +83,7 @@ class TestAnchoring:
         """Deciding a finding is wrong is meaning; this layer only checks form."""
         material = corpus.load_study_material()
         parsed = {
-            "fail_patterns": [
-                {"name": "fabricated", "anchors": ["this sentence never appeared anywhere at all"]}
-            ]
+            "fail_patterns": [{"name": "fabricated", "anchors": ["this sentence never appeared anywhere at all"]}]
         }
         findings = build_findings(LENSES["failure"], parsed, material)
         assert len(findings) == 1
@@ -94,11 +92,7 @@ class TestAnchoring:
 
     def test_anchor_matching_survives_reflowed_whitespace(self, corpus):
         material = corpus.load_study_material()
-        parsed = {
-            "fail_patterns": [
-                {"name": "reflowed", "anchors": ["A hash   of the primary\n name selects"]}
-            ]
-        }
+        parsed = {"fail_patterns": [{"name": "reflowed", "anchors": ["A hash   of the primary\n name selects"]}]}
         findings = build_findings(LENSES["failure"], parsed, material)
         assert findings[0].is_grounded is True
 
@@ -151,7 +145,9 @@ class TestRunStudy:
             return json.dumps({"fail_patterns": [{"name": "ok", "anchors": [CORPUS_TEXT[:60]]}]})
 
         result = await run_study(
-            expert_name="E", corpus=corpus, completion=_completion,
+            expert_name="E",
+            corpus=corpus,
+            completion=_completion,
             lens_keys=["failure", "adversarial"],
         )
         assert result.exit_code == 1
@@ -171,7 +167,8 @@ class TestRunStudy:
     @pytest.mark.asyncio
     async def test_parse_failure_is_recorded_not_raised(self, corpus):
         result = await run_study(
-            expert_name="E", corpus=corpus,
+            expert_name="E",
+            corpus=corpus,
             completion=_completion_returning("not json at all"),
             lens_keys=["failure"],
         )
@@ -184,7 +181,8 @@ class TestRunStudy:
         store = CorpusStore("Single Origin", storage_dir=tmp_path / "corpus")
         store.add("Only source body text here for study.", origin_key="url:only.example")
         result = await run_study(
-            expert_name="E", corpus=store,
+            expert_name="E",
+            corpus=store,
             completion=_completion_returning({"fail_patterns": []}),
             lens_keys=["failure"],
         )
@@ -193,7 +191,8 @@ class TestRunStudy:
     @pytest.mark.asyncio
     async def test_ungrounded_anchors_surface_as_a_limitation(self, corpus):
         result = await run_study(
-            expert_name="E", corpus=corpus,
+            expert_name="E",
+            corpus=corpus,
             completion=_completion_returning(
                 {"fail_patterns": [{"name": "x", "anchors": ["a phrase that is simply not present"]}]}
             ),
@@ -217,10 +216,9 @@ class TestRunStudy:
     @pytest.mark.asyncio
     async def test_result_serializes_with_counts(self, corpus):
         result = await run_study(
-            expert_name="E", corpus=corpus,
-            completion=_completion_returning(
-                {"fail_patterns": [{"name": "y", "anchors": [CORPUS_TEXT[:60]]}]}
-            ),
+            expert_name="E",
+            corpus=corpus,
+            completion=_completion_returning({"fail_patterns": [{"name": "y", "anchors": [CORPUS_TEXT[:60]]}]}),
             lens_keys=["failure", "operational"],
         )
         payload = result.to_dict()
@@ -232,7 +230,8 @@ class TestRunStudy:
     @pytest.mark.asyncio
     async def test_default_lenses_span_both_axes(self, corpus):
         result = await run_study(
-            expert_name="E", corpus=corpus,
+            expert_name="E",
+            corpus=corpus,
             completion=_completion_returning({"fail_patterns": []}),
         )
         coverage = result.axis_coverage()

@@ -3333,4 +3333,5 @@ from deepr.cli.commands.semantic import expert_outcomes as _expert_outcomes  # n
 from deepr.cli.commands.semantic import expert_portrait as _expert_portrait  # noqa: F401
 from deepr.cli.commands.semantic import expert_quality as _expert_quality  # noqa: F401
 from deepr.cli.commands.semantic import expert_self_model as _expert_self_model  # noqa: F401
+from deepr.cli.commands.semantic import expert_study as _expert_study  # noqa: F401
 from deepr.cli.commands.semantic import expert_validate_export as _expert_validate_export  # noqa: F401

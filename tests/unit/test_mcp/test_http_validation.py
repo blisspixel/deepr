@@ -43,17 +43,13 @@ class TestLegacyRequests:
 
     def test_legacy_version_header_is_tolerated(self):
         message = HttpMessage(id="1", method="tools/list", params={})
-        validation = validate_streamable_http_request(
-            {"MCP-Protocol-Version": "2025-06-18"}, message
-        )
+        validation = validate_streamable_http_request({"MCP-Protocol-Version": "2025-06-18"}, message)
         assert validation.modern is False
 
     def test_modern_header_without_body_meta_is_header_mismatch(self):
         message = HttpMessage(id="1", method="tools/list", params={})
         with pytest.raises(pm.JsonRpcProtocolError) as excinfo:
-            validate_streamable_http_request(
-                {"MCP-Protocol-Version": pm.MODERN_PROTOCOL_VERSION}, message
-            )
+            validate_streamable_http_request({"MCP-Protocol-Version": pm.MODERN_PROTOCOL_VERSION}, message)
         assert excinfo.value.code == pm.HEADER_MISMATCH_CODE
 
     def test_unknown_header_version_is_unsupported(self):
@@ -105,26 +101,20 @@ class TestModernHeaders:
     )
     def test_name_header_required_and_matched(self, method, source, value):
         message = _modern_message(method=method, params={source: value})
-        validation = validate_streamable_http_request(
-            _modern_headers(method=method, name=value), message
-        )
+        validation = validate_streamable_http_request(_modern_headers(method=method, name=value), message)
         assert validation.modern is True
 
         with pytest.raises(pm.JsonRpcProtocolError):
             validate_streamable_http_request(_modern_headers(method=method), message)
 
         with pytest.raises(pm.JsonRpcProtocolError):
-            validate_streamable_http_request(
-                _modern_headers(method=method, name="other"), message
-            )
+            validate_streamable_http_request(_modern_headers(method=method, name="other"), message)
 
     def test_name_header_base64_sentinel_decoded_before_compare(self):
         tool = "outil_météo"
         encoded = "=?base64?" + base64.b64encode(tool.encode("utf-8")).decode("ascii") + "?="
         message = _modern_message(method="tools/call", params={"name": tool})
-        validation = validate_streamable_http_request(
-            _modern_headers(method="tools/call", name=encoded), message
-        )
+        validation = validate_streamable_http_request(_modern_headers(method="tools/call", name=encoded), message)
         assert validation.modern is True
 
     def test_notifications_skip_header_enforcement(self):

@@ -159,8 +159,6 @@ class TestOriginCoverage:
         assert report.origin_coverage == 1.0
 
     def test_empty_corpus_does_not_divide_by_zero(self, store):
-        report = build_coverage_report(
-            studied=[], findings=[], stats=store.stats(), all_active=[]
-        )
+        report = build_coverage_report(studied=[], findings=[], stats=store.stats(), all_active=[])
         assert report.source_coverage == 0.0
         assert report.origin_coverage == 0.0

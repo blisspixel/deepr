@@ -124,13 +124,24 @@ class TestAdmitPlan:
         assert r.exit_code == 0, r.output
         assert is_admitted("plan:claude", "gap_fill")
 
-    def test_admit_refuses_api_key_present(self, monkeypatch, tmp_path):
+    def test_admit_refuses_reachable_api_key(self, monkeypatch, tmp_path):
+        """A credential the dispatch could read still blocks admission."""
+        from deepr.backends.plan_quota import safety
+
+        monkeypatch.setattr(safety, "plan_quota_child_env", lambda adapter, env: dict(env))
         monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-should-block")
         r = CliRunner().invoke(capacity, ["admit-plan", "claude"])
         assert r.exit_code == 2
         assert "ANTHROPIC_API_KEY" in r.output
         assert "explicitly budgeted API path" in r.output
+
+    def test_admit_allows_held_but_unreachable_api_key(self, monkeypatch, tmp_path):
+        """Holding a key for other tools must not deny the $0 path."""
+        monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-held-for-other-tools")
+        r = CliRunner().invoke(capacity, ["admit-plan", "claude"])
+        assert r.exit_code == 0, r.output
 
     def test_admit_choice_restricted_to_auto_routable(self):
         # ToS-gray / metered backends cannot be admitted for auto-routing.
@@ -215,13 +226,22 @@ class TestProbePlan:
     def test_registered(self):
         assert "probe-plan" in capacity.commands
 
-    def test_api_key_present_is_refused_for_probe(self, monkeypatch):
+    def test_reachable_api_key_is_refused_for_probe(self, monkeypatch):
+        from deepr.backends.plan_quota import safety
+
+        monkeypatch.setattr(safety, "plan_quota_child_env", lambda adapter, env: dict(env))
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-should-block")
         _stub_probe(monkeypatch, ok=True, reply="OK", latency_ms=7)
         r = CliRunner().invoke(capacity, ["probe-plan", "claude"])
         assert r.exit_code == 2
         assert "ANTHROPIC_API_KEY" in r.output
         assert "explicitly budgeted API path" in r.output
+
+    def test_held_api_key_does_not_block_probe(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-held-for-other-tools")
+        _stub_probe(monkeypatch, ok=True, reply="OK", latency_ms=7)
+        r = CliRunner().invoke(capacity, ["probe-plan", "claude"])
+        assert r.exit_code == 0, r.output
 
     def test_ok_round_trip(self, monkeypatch):
         _clean_env(monkeypatch)
@@ -329,7 +349,10 @@ class TestProbePlan:
         assert "cannot be proven prepaid or local" in payload["error"]
         assert not (tmp_path / "cost_ledger.jsonl").exists()
 
-    def test_kiro_api_key_is_refused_before_probe(self, monkeypatch, tmp_path):
+    def test_reachable_kiro_api_key_is_refused_before_probe(self, monkeypatch, tmp_path):
+        from deepr.backends.plan_quota import safety
+
+        monkeypatch.setattr(safety, "plan_quota_child_env", lambda adapter, env: dict(env))
         _clean_env(monkeypatch)
         monkeypatch.setenv("KIRO_API_KEY", "kiro-validation-key")
         monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
@@ -344,6 +367,22 @@ class TestProbePlan:
         payload = json.loads(result.output)
         assert payload["auth_mode"] == "metered"
         assert "KIRO_API_KEY" in payload["error"]
+        assert not (tmp_path / "cost_ledger.jsonl").exists()
+
+    def test_kiro_still_refused_when_key_is_unreachable(self, monkeypatch, tmp_path):
+        """Kiro stays blocked for tool confinement; only the reason moves."""
+        _clean_env(monkeypatch)
+        monkeypatch.setenv("KIRO_API_KEY", "kiro-validation-key")
+        monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
+
+        async def must_not_probe(*args, **kwargs):
+            raise AssertionError("Kiro probe must not dispatch")
+
+        monkeypatch.setattr("deepr.backends.plan_quota.probe_plan_quota", must_not_probe)
+        result = CliRunner().invoke(capacity, ["probe-plan", "kiro", "--json"])
+
+        assert result.exit_code == 2
+        assert "native read tools" in json.loads(result.output)["error"]
         assert not (tmp_path / "cost_ledger.jsonl").exists()
 
     def test_metered_backend_fails_closed_before_probe_in_human_mode(self, monkeypatch):

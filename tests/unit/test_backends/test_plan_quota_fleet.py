@@ -55,12 +55,22 @@ class TestFleetStatus:
         assert _row(rows, "codex")["installed"] is True
         assert _row(rows, "claude")["installed"] is False
 
-    def test_auth_mode_truthfully_reports_metered_key_when_present(self, tmp_path):
+    def test_auth_mode_reports_metered_when_a_key_can_reach_the_child(self, tmp_path, monkeypatch):
+        from deepr.backends.plan_quota import safety
+
+        monkeypatch.setattr(safety, "plan_quota_child_env", lambda adapter, env: dict(env))
         rows = build_fleet_status(
             which=_which("codex"), env={"OPENAI_API_KEY": "sk-x"}, quota_ledger_path=tmp_path / "q.jsonl"
         )
         assert _row(rows, "codex")["auth_mode"] == "metered"
         assert _row(rows, "codex")["raw_auth_mode"] == "metered"
+
+    def test_held_key_that_cannot_reach_the_child_is_not_reported_metered(self, tmp_path):
+        """Fleet status should not label prepaid capacity metered for a held key."""
+        rows = build_fleet_status(
+            which=_which("codex"), env={"OPENAI_API_KEY": "sk-x"}, quota_ledger_path=tmp_path / "q.jsonl"
+        )
+        assert _row(rows, "codex")["raw_auth_mode"] != "metered"
 
     def test_auth_mode_reports_unverified_stored_provider_as_unknown(self, tmp_path):
         rows = build_fleet_status(which=_which("opencode"), env={}, quota_ledger_path=tmp_path / "q.jsonl")

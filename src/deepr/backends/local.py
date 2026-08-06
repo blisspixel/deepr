@@ -135,6 +135,71 @@ def ollama_chat_client(base_url: str | None = None, *, timeout: float | None = N
     return _mark_zero_dollar_client(client, capacity_source="local")
 
 
+async def release_local_model(model: str, base_url: str | None = None) -> bool:
+    """Ask Ollama to unload ``model`` now, freeing VRAM.
+
+    ``_KEEP_ALIVE`` pins weights warm so a multi-call workload does not pay a
+    cold reload between calls. That is right during a run and rude after it: a
+    19 GB model sitting in VRAM for the rest of the keep-alive window blocks
+    every other GPU user on the machine, including a short probe that needed the
+    model for one second.
+
+    So the contract is: pin during the workload, release at the end. Callers that
+    finish a bounded run should call this in a ``finally``. Best effort - if the
+    server is gone or ignores the field, the keep-alive window simply expires as
+    before, so failing here is never worth surfacing as an error.
+    """
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0, trust_env=False, follow_redirects=False) as client:
+            response = await client.post(
+                f"{_base_url(base_url)}/api/generate",
+                json={"model": model, "keep_alive": 0, "prompt": ""},
+            )
+        return response.status_code < 400
+    except Exception:
+        return False
+
+
+async def local_model_runs_on_gpu(model: str, base_url: str | None = None) -> tuple[bool, str]:
+    """Report whether a loaded model is resident on GPU. Returns (on_gpu, detail).
+
+    A model whose weights plus context exceed available VRAM is silently placed
+    on CPU by Ollama, where a study pass that would take minutes instead takes
+    many hours. "$0 local" stays literally true and becomes practically
+    unusable, and the operator has no way to tell from Deepr's output. This makes
+    it visible so a run can be redirected to a smaller model or a shorter
+    context rather than appearing to hang.
+    """
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0, trust_env=False, follow_redirects=False) as client:
+            response = await client.get(f"{_base_url(base_url)}/api/ps")
+        if response.status_code >= 400:
+            return True, ""
+        for entry in (response.json() or {}).get("models") or []:
+            if entry.get("name") != model and entry.get("model") != model:
+                continue
+            total = int(entry.get("size") or 0)
+            on_gpu = int(entry.get("size_vram") or 0)
+            if total <= 0:
+                return True, ""
+            gpu_share = on_gpu / total
+            if gpu_share >= 0.99:
+                return True, ""
+            return False, (
+                f"{model} is {(1 - gpu_share) * 100:.0f}% on CPU "
+                f"({on_gpu / 1e9:.1f} GB of {total / 1e9:.1f} GB in VRAM). "
+                "Expect it to be many times slower than a GPU-resident run; "
+                "consider a smaller model or a shorter --max-corpus-chars."
+            )
+    except Exception:
+        return True, ""
+    return True, ""
+
+
 def default_local_model(base_url: str | None = None) -> str | None:
     """Pick a local model: DEEPR_LOCAL_MODEL if set, else the first one Ollama lists."""
     url = _base_url(base_url)

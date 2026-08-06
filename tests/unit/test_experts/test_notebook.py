@@ -92,11 +92,7 @@ class TestHonesty:
 
     def test_failed_lenses_are_reported(self):
         result = _result(
-            outcomes=[
-                LensOutcome(
-                    lens="contention", axis="interrogation", status="parse_failed", detail="bad json"
-                )
-            ]
+            outcomes=[LensOutcome(lens="contention", axis="interrogation", status="parse_failed", detail="bad json")]
         )
         text = build_notebook(result)
         assert "## Lenses that failed" in text

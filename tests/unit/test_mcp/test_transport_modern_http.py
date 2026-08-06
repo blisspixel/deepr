@@ -98,9 +98,7 @@ class TestModernPostStatuses:
 
         t = StreamingHttpTransport(host="127.0.0.1")
         t.on_message(_make_http_message_handler(MagicMock()))
-        resp = await t._handle_post(
-            _request(_modern_body(method="tasks/get"), _modern_headers(method="tasks/get"))
-        )
+        resp = await t._handle_post(_request(_modern_body(method="tasks/get"), _modern_headers(method="tasks/get")))
         assert resp.status == 404
         assert json.loads(resp.text)["error"]["code"] == pm.METHOD_NOT_FOUND_CODE
 
@@ -165,9 +163,7 @@ class TestOriginEnforcement:
     async def test_loopback_origin_is_allowed(self):
         t = StreamingHttpTransport(host="127.0.0.1")
         t.on_message(AsyncMock(return_value=HttpMessage(id="1", result={})))
-        resp = await t._handle_post(
-            _request(_modern_body(), {**_modern_headers(), "Origin": "http://localhost:5173"})
-        )
+        resp = await t._handle_post(_request(_modern_body(), {**_modern_headers(), "Origin": "http://localhost:5173"}))
         assert resp.status == 200
 
     @pytest.mark.asyncio
@@ -243,7 +239,6 @@ class TestSubscriptionsListenOverHttp:
         assert events[-1]["id"] == "listen-1"
         assert events[-1]["result"]["resultType"] == "complete"
         assert handler.unsubscribed == ["sub_1"]
-
 
     @pytest.mark.asyncio
     async def test_listen_stream_does_not_hold_a_request_slot(self):

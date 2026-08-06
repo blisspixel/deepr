@@ -11,28 +11,73 @@ from deepr.backends.plan_quota.safety import (
 )
 
 
+def _unfiltered_child_env(monkeypatch):
+    """Simulate a metered var reaching the child, to prove the gate still bites."""
+    from deepr.backends.plan_quota import safety
+
+    monkeypatch.setattr(safety, "plan_quota_child_env", lambda adapter, env: dict(env))
+
+
 class TestDetectAuthMode:
+    """Auth mode is decided by what the dispatch can reach, not what exists.
+
+    Policy: free capacity (plan/local) is the default and must not be blocked by
+    a credential the operator holds for other tools. Metered spend is a last
+    resort, explicitly requested and costed. So the money guard belongs on
+    *reachability*, not on *presence*.
+    """
+
     def test_clean_env_is_plan(self):
         assert detect_auth_mode(get_adapter("claude"), {}) == AuthMode.PLAN
 
-    def test_metered_env_var_is_metered(self):
+    def test_held_key_that_cannot_reach_the_child_does_not_block_free_capacity(self):
+        env = {"ANTHROPIC_API_KEY": "sk-ant-xxx", "PATH": "/usr/bin"}
+        assert "ANTHROPIC_API_KEY" not in plan_quota_child_env(get_adapter("claude"), env)
+        assert detect_auth_mode(get_adapter("claude"), env) == AuthMode.PLAN
+
+    def test_reachable_metered_var_is_still_metered(self, monkeypatch):
+        """The gate must remain able to refuse; this proves it was not disabled."""
+        _unfiltered_child_env(monkeypatch)
         assert detect_auth_mode(get_adapter("codex"), {"OPENAI_API_KEY": "sk-xxx"}) == AuthMode.METERED
+
+    def test_reachable_grok_key_is_metered(self, monkeypatch):
+        _unfiltered_child_env(monkeypatch)
+        assert detect_auth_mode(get_adapter("grok"), {"XAI_API_KEY": "xai-x"}) == AuthMode.METERED
+
+    def test_reachable_kiro_key_is_metered(self, monkeypatch):
+        _unfiltered_child_env(monkeypatch)
+        assert detect_auth_mode(get_adapter("kiro"), {"kiro_api_key": "key-x"}) == AuthMode.METERED
+
+    def test_case_collisions_cannot_hide_a_reachable_key(self, monkeypatch):
+        _unfiltered_child_env(monkeypatch)
+        env = {"anthropic_api_key": "key-x", "ANTHROPIC_API_KEY": ""}
+        assert detect_auth_mode(get_adapter("claude"), env) == AuthMode.METERED
+
+    def test_metered_vars_stripped_even_if_added_to_the_allowlist(self, monkeypatch):
+        """Removal by name, so the guarantee does not depend on the allowlist."""
+        from deepr.backends.plan_quota import safety
+
+        monkeypatch.setattr(safety, "_PLAN_CHILD_ENV_ALLOWLIST", frozenset({"PATH", "ANTHROPIC_API_KEY"}))
+        child = safety.plan_quota_child_env(get_adapter("claude"), {"ANTHROPIC_API_KEY": "k", "PATH": "/usr/bin"})
+        assert "ANTHROPIC_API_KEY" not in child
+        assert child["PATH"] == "/usr/bin"
 
     def test_blank_metered_var_is_still_plan(self):
         assert detect_auth_mode(get_adapter("codex"), {"OPENAI_API_KEY": "   "}) == AuthMode.PLAN
 
-    def test_grok_api_key_is_metered(self):
-        assert detect_auth_mode(get_adapter("grok"), {"XAI_API_KEY": "xai-x"}) == AuthMode.METERED
-
     def test_opencode_stored_auth_is_unknown(self):
         assert detect_auth_mode(get_adapter("opencode"), {}) == AuthMode.UNKNOWN
 
-    def test_kiro_api_key_is_metered(self):
-        assert detect_auth_mode(get_adapter("kiro"), {"kiro_api_key": "key-x"}) == AuthMode.METERED
+    def test_unverified_stored_auth_stays_unknown_even_with_a_clean_child(self):
+        """Closing the env path does not prove which stored credential is used."""
+        assert detect_auth_mode(get_adapter("opencode"), {"OPENAI_API_KEY": "sk-x"}) == AuthMode.UNKNOWN
 
-    def test_case_collisions_cannot_hide_a_metered_key(self):
-        env = {"anthropic_api_key": "key-x", "ANTHROPIC_API_KEY": ""}
-        assert detect_auth_mode(get_adapter("claude"), env) == AuthMode.METERED
+    def test_other_adapters_remain_blocked_by_their_own_gates(self):
+        """This narrows to `claude`: the rest are blocked for unrelated reasons."""
+        for backend_id in ("codex", "grok", "kiro", "opencode", "antigravity"):
+            adapter = get_adapter(backend_id)
+            assert adapter is not None
+            assert adapter.execution_block_reason, f"{backend_id} lost its execution block"
 
 
 class TestSafetyGate:
@@ -43,12 +88,20 @@ class TestSafetyGate:
         assert d.auth_mode == AuthMode.PLAN
         assert "live provider observation" in d.reason
 
-    def test_api_key_present_is_truthfully_refused(self):
+    def test_reachable_api_key_is_truthfully_refused(self, monkeypatch):
+        """A key the child can read still refuses, and names the variable."""
+        _unfiltered_child_env(monkeypatch)
         d = evaluate_plan_quota_safety(get_adapter("codex"), env={"OPENAI_API_KEY": "sk-xxx"})
         assert not d.safe
         assert d.auth_mode == AuthMode.METERED
         assert "OPENAI_API_KEY" in d.reason
         assert "explicitly budgeted API path" in d.reason
+
+    def test_held_key_does_not_block_prepaid_capacity(self):
+        """The policy in one test: having a key is not spending it."""
+        d = evaluate_plan_quota_safety(get_adapter("claude"), env={"ANTHROPIC_API_KEY": "sk-ant-xxx"})
+        assert d.auth_mode == AuthMode.PLAN
+        assert d.safe
 
     def test_child_env_is_a_runtime_allowlist(self):
         env = {
