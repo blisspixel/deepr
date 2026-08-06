@@ -282,12 +282,18 @@ async def run_study(
 
         parsed, error = extract_json_object(raw)
         if parsed is None:
+            # Include what actually came back. "no JSON object in response" is
+            # true and useless: it does not distinguish a model that answered in
+            # prose, one that was cut off mid-structure, and one that returned
+            # nothing at all, and those need different fixes.
+            snippet = " ".join((raw or "").split())[:300]
+            detail = f"{error}. Response began: {snippet!r}" if snippet else f"{error}. Response was empty."
             result.outcomes.append(
                 LensOutcome(
                     lens=lens.key,
                     axis=lens.axis,
                     status="parse_failed",
-                    detail=error,
+                    detail=detail,
                     elapsed_s=time.monotonic() - lens_started,
                 )
             )
