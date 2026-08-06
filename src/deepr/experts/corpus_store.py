@@ -246,10 +246,16 @@ class CorpusStore:
         """Active sources with their text, ordered deterministically.
 
         Ordering is by (origin_key, sha) so two study runs over an unchanged
-        corpus see identical material and stay comparable. When ``max_chars`` is
-        set, whole sources are included until the budget is reached; a source is
-        never truncated mid-way, because a lens reading half a document reports
-        absences that are artifacts of the cut.
+        corpus see identical material and stay comparable.
+
+        ``max_chars`` is a hard ceiling on the total returned, including within a
+        single source. An earlier version refused to split a source, reasoning
+        that a lens reading half a document reports absences caused by the cut.
+        That reasoning was right about the risk and wrong about the remedy: one
+        81k-char source silently returned four times a 45k budget, and the
+        oversized prompt made models abandon their output contract and write
+        prose instead. Splitting is handled by the caller, which chunks and
+        merges; this method's job is to respect the number it was given.
         """
         ordered = sorted(self.active_entries(), key=lambda e: (e.origin_key, e.sha256))
         out: list[tuple[CorpusEntry, str]] = []
@@ -258,8 +264,34 @@ class CorpusStore:
             text = self.read(entry.sha256)
             if text is None:
                 continue
-            if max_chars and used + len(text) > max_chars and out:
-                break
+            if max_chars:
+                remaining = max_chars - used
+                if remaining <= 0:
+                    break
+                if len(text) > remaining:
+                    text = text[:remaining]
             out.append((entry, text))
             used += len(text)
         return out
+
+    def iter_study_chunks(self, *, chunk_chars: int, max_chars: int = 0) -> list[list[tuple[CorpusEntry, str]]]:
+        """Split the corpus into slices small enough for one model call.
+
+        A lens given a whole corpus at once stops following its output contract:
+        measured, a 163k-char prompt produced a prose summary while a 43k-char
+        prompt produced valid structured output from the same model. Chunking is
+        what makes local capacity usable at all.
+
+        Slices never span sources, so every chunk carries its own provenance and
+        an anchor always resolves to one retained document.
+        """
+        chunks: list[list[tuple[CorpusEntry, str]]] = []
+        for entry, text in self.load_study_material(max_chars=max_chars):
+            if chunk_chars <= 0 or len(text) <= chunk_chars:
+                chunks.append([(entry, text)])
+                continue
+            for start in range(0, len(text), chunk_chars):
+                piece = text[start : start + chunk_chars]
+                if piece.strip():
+                    chunks.append([(entry, piece)])
+        return chunks

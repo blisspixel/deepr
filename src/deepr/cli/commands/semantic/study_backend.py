@@ -92,9 +92,39 @@ def build_study_backend(
     """
     if plan:
         return _build_plan_backend(plan=plan, plan_model=plan_model, max_tokens=max_tokens)
-    if local or not plan:
+    if local:
         return _build_local_backend(profile=profile, model=model, max_tokens=max_tokens)
-    raise StudyBackendError("no capacity selected: pass --local or --plan <backend>")
+
+    # Neither was asked for: prefer prepaid plan quota, then local.
+    #
+    # Both are $0 at the margin, so the tie-breakers are quality and machine
+    # cost. A plan CLI runs a frontier-class model and leaves the GPU alone; the
+    # local path runs whatever fits in free VRAM and holds the card for the
+    # duration. Preferring plan is therefore better work at no extra money, and
+    # local remains the guaranteed floor when no plan capacity is usable.
+    for backend in _preferred_plan_backends():
+        try:
+            return _build_plan_backend(plan=backend, plan_model=plan_model, max_tokens=max_tokens)
+        except StudyBackendError:
+            continue
+    return _build_local_backend(profile=profile, model=model, max_tokens=max_tokens)
+
+
+def _preferred_plan_backends() -> list[str]:
+    """Plan backends Deepr may auto-route to, best first.
+
+    Only adapters that are genuinely $0 at the margin with verified plan auth
+    and no execution block. Several installed CLIs (Codex, Grok, Antigravity,
+    Kiro) are excluded here not because their quota is spent but because their
+    native tool permissions cannot be confined before dispatch, which is a
+    separate gate from cost.
+    """
+    try:
+        from deepr.backends.plan_quota import auto_routable_adapters
+
+        return [adapter.backend_id for adapter in auto_routable_adapters()]
+    except Exception:
+        return []
 
 
 def _build_local_backend(

@@ -67,9 +67,7 @@ class TestChooseFittingModel:
         ]
 
     def test_picks_largest_that_fits_not_largest_overall(self):
-        chosen, estimates = choose_fitting_model(
-            self._candidates(), context_tokens=32768, vram_bytes=_VRAM_24
-        )
+        chosen, estimates = choose_fitting_model(self._candidates(), context_tokens=32768, vram_bytes=_VRAM_24)
         assert chosen is not None
         assert chosen not in {"llama3:70b", "qwen2.5-coder:32b"}
         assert estimates
@@ -88,9 +86,7 @@ class TestChooseFittingModel:
         assert estimates and not estimates[0].fits
 
     def test_models_with_unknown_size_are_not_chosen(self):
-        chosen, _ = choose_fitting_model(
-            [("mystery:latest", 2 * _GB, "")], context_tokens=8192, vram_bytes=_VRAM_24
-        )
+        chosen, _ = choose_fitting_model([("mystery:latest", 2 * _GB, "")], context_tokens=8192, vram_bytes=_VRAM_24)
         assert chosen is None
 
     def test_a_bigger_card_admits_a_bigger_model(self):

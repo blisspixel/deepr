@@ -152,7 +152,9 @@ class TestRunStudy:
         )
         assert result.exit_code == 1
         assert "adversarial" in result.failed_lenses
-        assert len(result.findings) == 1
+        # One finding per chunk: the corpus has two sources, so the working
+        # lens runs twice and its findings merge.
+        assert len(result.findings) == len(corpus.iter_study_chunks(chunk_chars=14000))
 
     @pytest.mark.asyncio
     async def test_all_lenses_failing_is_exit_two(self, corpus):

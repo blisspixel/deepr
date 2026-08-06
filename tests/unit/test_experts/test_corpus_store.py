@@ -124,14 +124,44 @@ class TestStudyMaterial:
         shas = [e.sha256 for e, _ in store.load_study_material()]
         assert shas == [new.sha256]
 
-    def test_budget_never_truncates_a_source(self, store):
-        """A lens reading half a document reports absences caused by the cut."""
+    def test_budget_is_a_hard_ceiling(self, store):
+        """One oversized source must not silently blow the budget.
+
+        Refusing to split returned 81k against a 45k budget, and the oversized
+        prompt made models abandon their output contract and write prose.
+        """
         store.add("x" * 500, origin_key="url:a.org")
         store.add("y" * 500, origin_key="url:b.org")
         material = store.load_study_material(max_chars=600)
-        assert len(material) == 1
-        assert len(material[0][1]) == 500
+        assert sum(len(text) for _, text in material) <= 600
 
-    def test_budget_always_returns_at_least_one_source(self, store):
+    def test_a_single_oversized_source_is_cut_to_the_budget(self, store):
         store.add("z" * 5000, origin_key="url:a.org")
-        assert len(store.load_study_material(max_chars=10)) == 1
+        material = store.load_study_material(max_chars=1000)
+        assert len(material) == 1
+        assert len(material[0][1]) == 1000
+
+
+class TestStudyChunks:
+    def test_a_large_source_splits_into_several_chunks(self, store):
+        store.add("q" * 45000, origin_key="url:a.org")
+        chunks = store.iter_study_chunks(chunk_chars=14000)
+        assert len(chunks) == 4
+        assert all(len(text) <= 14000 for chunk in chunks for _, text in chunk)
+
+    def test_chunks_never_span_two_sources(self, store):
+        """Every chunk carries one source's provenance, so anchors resolve."""
+        store.add("a" * 20000, origin_key="url:a.org")
+        store.add("b" * 20000, origin_key="url:b.org")
+        chunks = store.iter_study_chunks(chunk_chars=14000)
+        assert all(len(chunk) == 1 for chunk in chunks)
+
+    def test_small_corpus_is_one_chunk_per_source(self, store):
+        store.add("short one", origin_key="url:a.org")
+        store.add("short two", origin_key="url:b.org")
+        assert len(store.iter_study_chunks(chunk_chars=14000)) == 2
+
+    def test_chunking_respects_the_overall_budget(self, store):
+        store.add("m" * 40000, origin_key="url:a.org")
+        chunks = store.iter_study_chunks(chunk_chars=10000, max_chars=20000)
+        assert sum(len(text) for chunk in chunks for _, text in chunk) <= 20000
