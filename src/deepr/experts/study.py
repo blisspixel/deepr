@@ -44,6 +44,22 @@ from deepr.utils.prompt_security import sanitize_untrusted_content
 StudyCompletion = Callable[[str], Awaitable[str]]
 """prompt -> raw model text. Injected so this module owns no provider."""
 
+ProgressCallback = Callable[[str], None]
+"""Called before each model call, so a long run is not a silent one."""
+
+
+def _lens_progress(
+    on_progress: ProgressCallback | None,
+    lens_key: str,
+    index: int,
+    total: int,
+) -> ProgressCallback | None:
+    """Label a lens's chunk progress with where the whole run has got to."""
+    if on_progress is None:
+        return None
+    return lambda note: on_progress(f"lens {index}/{total} {lens_key}: {note}")
+
+
 _MAX_ANCHOR_PROBE = 400
 """Anchors longer than this are prefix-matched: models paraphrase tails."""
 
@@ -147,29 +163,54 @@ def _anchor_matches(anchor: str, haystacks: list[tuple[str, str]]) -> str | None
     return None
 
 
-def _title_for(item: dict[str, Any], lens: StudyLens) -> str:
+_TITLE_KEYS: tuple[str, ...] = (
+    "name",
+    "title",
+    "thread",
+    "topic",
+    "term",
+    "landmark",
+    "about",
+    "concept",
+    "claim",
+    "tension",
+    "description",
+    "observation",
+    "expected",
+)
+"""Keys a lens might use to name its subject, best first.
+
+``source`` is deliberately absent. Lens prompts do not dictate key names, so
+the model picks them, and at least one lens uses ``source`` for provenance
+rather than subject. Titling from it produced forty findings all named after
+the same corpus hash.
+"""
+
+
+def _is_provenance(value: str, corpus_shas: list[str]) -> bool:
+    """True when a candidate title is really a source identifier.
+
+    Titles are how the brief cites findings, so a title that is a hash makes
+    every citation match every finding and citation checking stops meaning
+    anything. Cheap to check, and it catches the general case rather than the
+    one key that happened to collide.
+    """
+    candidate = value.strip().lower()
+    return any(sha.startswith(candidate) or candidate.startswith(sha) for sha in corpus_shas if sha)
+
+
+def _title_for(item: dict[str, Any], lens: StudyLens, corpus_shas: list[str] | None = None) -> str:
     """Best title for one finding.
 
-    Each lens names its subject with whatever noun fits its question - a failure
-    mode has a ``name``, an orientation thread has a ``thread``, a source note
-    has a ``source``. Checking only for ``name`` renders a titleless stub, which
+    Each lens names its subject with whatever noun fits its question: a failure
+    mode has a ``name``, an orientation thread has a ``thread``, a tension has a
+    ``description``. Checking only for ``name`` renders a titleless stub, which
     is how a lens that worked perfectly can look broken in the notebook.
     """
-    for key in (
-        "name",
-        "title",
-        "thread",
-        "topic",
-        "term",
-        "landmark",
-        "source",
-        "about",
-        "observation",
-        "expected",
-        "concept",
-    ):
+    shas = corpus_shas or []
+    for key in _TITLE_KEYS:
         value = item.get(key)
-        if isinstance(value, str) and value.strip():
+        if isinstance(value, str) and value.strip() and not _is_provenance(value, shas):
             return value.strip()[:200]
     return f"{lens.key} finding"
 
@@ -233,7 +274,7 @@ def build_findings(
                 lens=lens.key,
                 axis=lens.axis,
                 kind=lens.output_field,
-                title=_title_for(item, lens),
+                title=_title_for(item, lens, shas),
                 payload={k: v for k, v in item.items() if k != "anchors"},
                 anchors=anchors,
                 grounded_anchor_count=grounded,
@@ -253,11 +294,16 @@ async def run_study(
     max_corpus_chars: int = _DEFAULT_MAX_CORPUS_CHARS,
     chunk_chars: int = _DEFAULT_CHUNK_CHARS,
     capacity_source: str = "",
+    on_progress: ProgressCallback | None = None,
 ) -> StudyResult:
     """Run every requested lens over the retained corpus.
 
     A lens that fails is recorded and the pass continues: one bad parse should
     not discard the work of five other lenses.
+
+    ``on_progress`` is called before each model call. A chunked study over a
+    real corpus is tens of calls and runs for many minutes; without it the run
+    is silent, and a silent run is indistinguishable from a hung one.
     """
     lenses = resolve_lenses(lens_keys)
     material = corpus.load_study_material(max_chars=max_corpus_chars)
@@ -303,11 +349,23 @@ async def run_study(
             "Each lens saw one chunk at a time, so cross-chunk connections may be missed."
         )
 
-    for lens in lenses:
+    for index, lens in enumerate(lenses, 1):
         lens_started = time.monotonic()
-        outcome = await _run_lens_over_chunks(lens, chunks, material, completion)
+        outcome = await _run_lens_over_chunks(
+            lens,
+            chunks,
+            material,
+            completion,
+            on_progress=_lens_progress(on_progress, lens.key, index, len(lenses)),
+        )
         outcome.elapsed_s = time.monotonic() - lens_started
         result.outcomes.append(outcome)
+        if on_progress:
+            grounded = sum(1 for f in outcome.findings if f.is_grounded)
+            on_progress(
+                f"lens {index}/{len(lenses)} {lens.key}: {len(outcome.findings)} finding(s), "
+                f"{grounded} anchored, {outcome.elapsed_s:.0f}s"
+            )
 
     result.elapsed_s = time.monotonic() - started
     ungrounded = sum(f.ungrounded_anchor_count for f in result.findings)
@@ -336,6 +394,7 @@ async def _run_lens_over_chunks(
     chunks: list[list[tuple[CorpusEntry, str]]],
     material: list[tuple[CorpusEntry, str]],
     completion: StudyCompletion,
+    on_progress: ProgressCallback | None = None,
 ) -> LensOutcome:
     """Run one lens across every chunk, merging findings.
 
@@ -347,6 +406,8 @@ async def _run_lens_over_chunks(
     failures: list[str] = []
 
     for index, chunk in enumerate(chunks, 1):
+        if on_progress:
+            on_progress(f"chunk {index}/{len(chunks)}")
         prompt = build_study_prompt(lens, chunk)
         try:
             raw = await completion(prompt)

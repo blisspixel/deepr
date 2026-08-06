@@ -4,8 +4,19 @@ import json
 
 import pytest
 
-from deepr.experts.brief import assemble_brief, build_brief, build_brief_prompt, render_brief
-from deepr.experts.brief_contracts import ExpertBrief, Position
+from deepr.experts.brief import (
+    assemble_brief,
+    build_brief,
+    build_brief_prompt,
+    provenance_for,
+    render_brief,
+)
+from deepr.experts.brief_contracts import (
+    LIKELIHOOD_BANDS,
+    AnticipatedQuestion,
+    ExpertBrief,
+    Position,
+)
 from deepr.experts.corpus_store import CorpusStore
 from deepr.experts.study_contracts import LensOutcome, StudyFinding, StudyResult
 
@@ -38,6 +49,21 @@ def corpus(tmp_path):
     return store
 
 
+def _sound_position(**overrides):
+    """A position with nothing structurally wrong with it."""
+    defaults = {
+        "question": "q",
+        "stance": "s",
+        "reasoning": "r",
+        "would_change_my_mind": "A controlled trial showing the reverse.",
+        "supported_by": ["F1"],
+        "unresolved_dissent": "one source disputes it",
+        "likelihood": "likely",
+        "confidence": "moderate",
+    }
+    return Position(**{**defaults, **overrides})
+
+
 _GOOD = {
     "orientation": "The field in sixty seconds.",
     "positions": [
@@ -49,6 +75,9 @@ _GOOD = {
             "supported_by": ["Silent restore failure"],
             "unresolved_dissent": "One source disputes the magnitude.",
             "confidence_basis": "two origins, consistent",
+            "likelihood": "likely",
+            "confidence": "moderate",
+            "resolution": "single",
         }
     ],
     "state": {"settled": ["A is real"], "live": ["magnitude"], "unknown": ["mechanism"]},
@@ -85,6 +114,31 @@ class TestPromptContract:
         findings = [_finding("F1"), _finding("Sources disagree on rate", lens="contention")]
         prompt = build_brief_prompt(_result(findings), expert_name="E")
         assert "contention lens" in prompt
+
+    def test_prompt_keeps_likelihood_and_confidence_apart(self):
+        """Blending them is the documented failure; the prompt must name the split."""
+        prompt = build_brief_prompt(_result([_finding("F1")]), expert_name="E")
+        assert "must not be mixed" in prompt
+        assert "coin flip" in prompt
+
+    def test_prompt_offers_only_the_closed_likelihood_vocabulary(self):
+        prompt = build_brief_prompt(_result([_finding("F1")]), expert_name="E")
+        for term in LIKELIHOOD_BANDS:
+            assert f'"{term}"' in prompt
+
+    def test_prompt_allows_declining_to_resolve(self):
+        """Without this the schema forces a stance, which guarantees invention."""
+        prompt = build_brief_prompt(_result([_finding("F1")]), expert_name="E")
+        assert "irreducible" in prompt
+        assert "Prefer irreducible over" in prompt
+
+    def test_prompt_requires_a_question_that_attacks(self):
+        prompt = build_brief_prompt(_result([_finding("F1")]), expert_name="E")
+        assert "weakens_thesis" in prompt
+
+    def test_prompt_rejects_formulaic_falsifiers_by_example(self):
+        prompt = build_brief_prompt(_result([_finding("F1")]), expert_name="E")
+        assert "If new evidence emerges" in prompt
 
     def test_unverified_findings_are_marked_in_the_prompt(self):
         prompt = build_brief_prompt(_result([_finding("F1", grounded=False)]), expert_name="E")
@@ -151,17 +205,143 @@ class TestIntegrityWarnings:
 
     def test_a_sound_brief_raises_no_warnings(self):
         brief = ExpertBrief(expert_name="E")
-        brief.positions = [
-            Position(
-                question="q",
-                stance="s",
-                reasoning="r",
-                would_change_my_mind="x",
-                supported_by=["F1"],
-                unresolved_dissent="one source disputes it",
+        brief.positions = [_sound_position()]
+        assert brief.integrity_warnings() == []
+
+    def test_stance_without_a_likelihood_cannot_be_scored_later(self):
+        brief = ExpertBrief(expert_name="E")
+        position = _sound_position()
+        position.likelihood = ""
+        brief.positions = [position]
+        assert any("no likelihood" in w for w in brief.integrity_warnings())
+
+    def test_several_sources_from_one_publisher_is_not_corroboration(self):
+        brief = ExpertBrief(expert_name="E")
+        position = _sound_position()
+        position.supporting_documents, position.distinct_roots = 5, 1
+        brief.positions = [position]
+        assert position.is_single_origin
+        assert any("single publisher" in w for w in brief.integrity_warnings())
+
+    def test_irreducible_without_dissent_is_a_contradiction(self):
+        brief = ExpertBrief(expert_name="E")
+        position = _sound_position()
+        position.resolution, position.unresolved_dissent = "irreducible", ""
+        brief.positions = [position]
+        assert any("irreducible" in w for w in brief.integrity_warnings())
+
+    def test_question_set_that_never_attacks_is_flagged(self):
+        brief = ExpertBrief(expert_name="E")
+        brief.positions = [_sound_position()]
+        brief.anticipated_questions = [AnticipatedQuestion(question="q", answer="a")]
+        assert any("marketing" in w for w in brief.integrity_warnings())
+
+
+class TestFalsifierQuality:
+    """A falsifier nobody can check cannot overturn anything."""
+
+    @pytest.mark.parametrize(
+        "falsifier",
+        [
+            "If new evidence emerges.",
+            "If further research changes the picture.",
+            "Better understanding of the mechanism.",
+        ],
+    )
+    def test_formulaic_falsifiers_are_flagged_as_decorative(self, falsifier):
+        assert Position(question="q", stance="s", reasoning="r", would_change_my_mind=falsifier).falsifier_is_decorative
+
+    @pytest.mark.parametrize(
+        "falsifier",
+        [
+            "A controlled trial showing the reverse.",
+            "New evidence that the rate is below 10%.",
+            "A published retraction of the founding study.",
+            "Audit logs showing the restore never ran.",
+        ],
+    )
+    def test_falsifiers_naming_something_checkable_pass(self, falsifier):
+        position = Position(question="q", stance="s", reasoning="r", would_change_my_mind=falsifier)
+        assert not position.falsifier_is_decorative
+
+    def test_a_missing_falsifier_is_not_reported_as_decorative(self):
+        """Absence has its own, louder warning; reporting both doubles the noise."""
+        assert not Position(question="q", stance="s", reasoning="r", would_change_my_mind="").falsifier_is_decorative
+
+
+class TestCalibration:
+    def test_likelihood_outside_the_vocabulary_is_dropped(self, corpus):
+        payload = json.loads(json.dumps(_GOOD))
+        payload["positions"][0]["likelihood"] = "pretty much a lock"
+        brief = assemble_brief(
+            payload, expert_name="E", result=_result([_finding("Silent restore failure")]), corpus=corpus
+        )
+        assert brief.positions[0].likelihood == ""
+
+    def test_known_likelihood_carries_its_numbers(self, corpus):
+        brief = assemble_brief(
+            _GOOD, expert_name="E", result=_result([_finding("Silent restore failure")]), corpus=corpus
+        )
+        assert brief.positions[0].likelihood_band == (55, 80)
+
+    def test_render_prints_the_band_beside_the_word(self, corpus):
+        """A glossary elsewhere does not work; the number travels with the term."""
+        brief = assemble_brief(
+            _GOOD, expert_name="E", result=_result([_finding("Silent restore failure")]), corpus=corpus
+        )
+        assert "likely (55-80%)" in render_brief(brief)
+
+    def test_likelihood_and_confidence_render_on_separate_lines(self, corpus):
+        brief = assemble_brief(
+            _GOOD, expert_name="E", result=_result([_finding("Silent restore failure")]), corpus=corpus
+        )
+        rendered = render_brief(brief)
+        likelihood_line = next(line for line in rendered.splitlines() if "Likelihood it holds" in line)
+        assert "moderate" not in likelihood_line
+
+    def test_unknown_resolution_falls_back_to_single(self, corpus):
+        payload = json.loads(json.dumps(_GOOD))
+        payload["positions"][0]["resolution"] = "mostly settled"
+        brief = assemble_brief(
+            payload, expert_name="E", result=_result([_finding("Silent restore failure")]), corpus=corpus
+        )
+        assert brief.positions[0].resolution == "single"
+
+    def test_irreducible_position_says_so_before_its_stance(self, corpus):
+        payload = json.loads(json.dumps(_GOOD))
+        payload["positions"][0]["resolution"] = "irreducible"
+        brief = assemble_brief(
+            payload, expert_name="E", result=_result([_finding("Silent restore failure")]), corpus=corpus
+        )
+        rendered = render_brief(brief)
+        assert rendered.index("Not resolved") < rendered.index("Stance:")
+
+
+class TestEvidentialDepth:
+    def test_position_counts_publishers_not_citations(self, corpus):
+        """Two findings from one publisher are one publisher's authority."""
+        shas = [e.sha256 for e in corpus.active_entries() if e.origin_key == "url:a.org"]
+        findings = [
+            StudyFinding(lens="failure", axis="interrogation", kind="k", title="F1", corpus_shas=shas[:1]),
+            StudyFinding(lens="failure", axis="interrogation", kind="k", title="F2", corpus_shas=shas[1:2]),
+        ]
+        documents, roots = provenance_for(["F1", "F2"], _result(findings), corpus)
+        assert (documents, roots) == (2, 1)
+
+    def test_single_origin_support_is_visible_in_the_render(self, corpus):
+        shas = [e.sha256 for e in corpus.active_entries() if e.origin_key == "url:a.org"]
+        findings = [
+            StudyFinding(
+                lens="failure",
+                axis="interrogation",
+                kind="k",
+                title="Silent restore failure",
+                grounded_anchor_count=1,
+                corpus_shas=shas,
             )
         ]
-        assert brief.integrity_warnings() == []
+        brief = assemble_brief(_GOOD, expert_name="E", result=_result(findings), corpus=corpus)
+        assert "not corroboration" in render_brief(brief)
 
 
 class TestBuildBrief:

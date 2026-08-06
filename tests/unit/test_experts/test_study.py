@@ -110,6 +110,67 @@ class TestAnchoring:
         assert len(findings) == 1
 
 
+class TestFindingTitles:
+    """Titles are how the brief cites findings, so a useless title is a broken citation."""
+
+    def test_a_lens_naming_its_subject_gets_that_name(self, corpus):
+        material = corpus.load_study_material()
+        parsed = {"fail_patterns": [{"name": "slot mismatch", "anchors": ["The reconciler applies desired state"]}]}
+        assert build_findings(LENSES["failure"], parsed, material)[0].title == "slot mismatch"
+
+    def test_a_tension_is_titled_from_its_description(self, corpus):
+        """The contention lens returns description/source/type, and none of them is 'name'."""
+        material = corpus.load_study_material()
+        parsed = {
+            "tensions": [
+                {
+                    "description": "Sources disagree on whether the export is a backup",
+                    "type": "disputed",
+                    "anchors": ["Operators frequently assume the export is a complete backup"],
+                }
+            ]
+        }
+        title = build_findings(LENSES["contention"], parsed, material)[0].title
+        assert title == "Sources disagree on whether the export is a backup"
+
+    def test_a_source_hash_is_never_used_as_a_title(self, corpus):
+        """Observed live: 40 findings all titled with the same corpus hash.
+
+        Every citation then matched every finding, so citation checking in the
+        brief silently stopped meaning anything.
+        """
+        material = corpus.load_study_material()
+        sha = material[0][0].sha256
+        parsed = {
+            "tensions": [
+                {
+                    "source": sha,
+                    "description": "Sources disagree on backup semantics",
+                    "anchors": ["Operators frequently assume the export is a complete backup"],
+                }
+            ]
+        }
+        title = build_findings(LENSES["contention"], parsed, material)[0].title
+        assert title == "Sources disagree on backup semantics"
+
+    def test_a_truncated_source_hash_is_also_rejected(self, corpus):
+        material = corpus.load_study_material()
+        parsed = {
+            "tensions": [
+                {
+                    "name": material[0][0].sha256[:12],
+                    "anchors": ["Operators frequently assume the export is a complete backup"],
+                }
+            ]
+        }
+        assert build_findings(LENSES["contention"], parsed, material)[0].title == "contention finding"
+
+    def test_a_finding_that_names_nothing_falls_back_to_the_lens(self, corpus):
+        material = corpus.load_study_material()
+        parsed = {"tensions": [{"anchors": ["The reconciler applies desired state"]}]}
+        assert build_findings(LENSES["contention"], parsed, material)[0].title == "contention finding"
+
+
 class TestPrompt:
     def test_prompt_carries_lens_and_corpus_and_demands_anchors(self, corpus):
         material = corpus.load_study_material()

@@ -10,7 +10,7 @@ summary of them. Summarizing is the low-utility operation; what makes an expert
 useful is that they have *landed somewhere* and can say why, and can tell you
 what they are not sure about without embarrassment.
 
-Two rules the types enforce structurally rather than by convention:
+Four rules the types enforce structurally rather than by convention:
 
 1. **A position carries its own falsifier.** A stance without a stated
    observation that would overturn it is not a judgment, it is an assertion.
@@ -20,14 +20,66 @@ Two rules the types enforce structurally rather than by convention:
    post-mortem examined found the correct answer had been present and was
    smoothed away; a brief that reads confident because it dropped the
    disagreement reproduces exactly that.
+3. **Likelihood and confidence are different quantities and never share a
+   field.** How likely a claim is to be true, and how sound the basis for that
+   estimate is, move independently: a well-evidenced claim can be a coin flip,
+   and a thinly-evidenced one can be near-certain. Analytic standards across
+   intelligence, climate and clinical practice all require the split, and all
+   three record harm from products that collapsed it.
+4. **A position may decline to resolve.** ``resolution`` makes "these did not
+   reconcile" a first-class answer, so the schema never forces a stance the
+   evidence does not support. Without it, a required stance field guarantees
+   invention whenever the findings genuinely conflict.
 """
 
 from __future__ import annotations
 
+import re
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-BRIEF_SCHEMA_VERSION = "deepr-expert-brief-v1"
+BRIEF_SCHEMA_VERSION = "deepr-expert-brief-v2"
+
+LIKELIHOOD_BANDS: dict[str, tuple[int, int]] = {
+    "almost no chance": (1, 5),
+    "very unlikely": (5, 20),
+    "unlikely": (20, 45),
+    "roughly even chance": (45, 55),
+    "likely": (55, 80),
+    "very likely": (80, 95),
+    "almost certain": (95, 99),
+}
+"""Closed vocabulary for how likely a claim is. Rendered with its numbers.
+
+Readers reconstruct these words wrong when the numbers live in a legend: given
+a published glossary, they still read "very likely" as roughly 65-75% when the
+author meant 90%+. So the band is printed inline, every time, not defined once.
+"""
+
+CONFIDENCE_LEVELS: tuple[str, ...] = ("high", "moderate", "low")
+"""How sound the basis is: source quantity, independence, and agreement."""
+
+RESOLUTIONS: tuple[str, ...] = ("single", "conditional", "irreducible")
+"""single: one stance. conditional: stance depends on a stated assumption.
+irreducible: the findings did not reconcile and the brief does not pretend."""
+
+_VAGUE_FALSIFIER_RE = re.compile(
+    r"\b(?:new (?:evidence|information|data|research|sources?)"
+    r"|(?:the )?evidence (?:change|changes|changed|shift\w*|weaken\w*|improv\w*)"
+    r"|further (?:study|studies|research|work|analysis)"
+    r"|more (?:data|evidence|research|sources?)"
+    r"|additional (?:data|evidence|research|sources?)"
+    r"|better (?:data|evidence|understanding))\b",
+    re.IGNORECASE,
+)
+
+_SPECIFICITY_RE = re.compile(
+    r"\d"
+    r"|\b(?:above|below|under|exceed\w*|fewer|greater|absent|missing|contradict\w*"
+    r"|replicat\w*|measur\w*|publish\w*|reverse\w*|trial|dataset|benchmark|audit"
+    r"|log|logs|incident|retract\w*|withdraw\w*)\b",
+    re.IGNORECASE,
+)
 
 
 @dataclass
@@ -45,6 +97,16 @@ class Position:
     """Disagreement this position does not settle, stated rather than smoothed."""
     confidence_basis: str = ""
     """What the confidence rests on: source count, independence, agreement."""
+    likelihood: str = ""
+    """How likely the stance is true. A term from LIKELIHOOD_BANDS, or empty."""
+    confidence: str = ""
+    """How sound the basis is. A term from CONFIDENCE_LEVELS, or empty."""
+    resolution: str = "single"
+    """single, conditional, or irreducible. See RESOLUTIONS."""
+    supporting_documents: int = 0
+    """Retained sources behind the cited findings."""
+    distinct_roots: int = 0
+    """Distinct publishers behind those sources. This is the number that counts."""
 
     @property
     def is_falsifiable(self) -> bool:
@@ -54,10 +116,40 @@ class Position:
     def is_grounded(self) -> bool:
         return bool(self.supported_by)
 
+    @property
+    def likelihood_band(self) -> tuple[int, int] | None:
+        return LIKELIHOOD_BANDS.get(self.likelihood)
+
+    @property
+    def is_single_origin(self) -> bool:
+        """Several sources, one publisher: apparent corroboration that is not.
+
+        The documented shape behind more than one intelligence failure, where a
+        judgment read as multiply-sourced and traced back to a single origin.
+        """
+        return self.distinct_roots == 1 and self.supporting_documents > 1
+
+    @property
+    def falsifier_is_decorative(self) -> bool:
+        """True when the falsifier is a formula rather than an observation.
+
+        Heuristic, and deliberately a warning rather than a rejection: it flags
+        stated falsifiers that reach for "if new evidence emerges" without ever
+        naming something that could be observed. A falsifier nobody could check
+        cannot overturn anything, which makes it an immunisation strategy
+        wearing the costume of rigour.
+        """
+        text = self.would_change_my_mind
+        if not text.strip():
+            return False
+        return bool(_VAGUE_FALSIFIER_RE.search(text)) and not _SPECIFICITY_RE.search(text)
+
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
         data["is_falsifiable"] = self.is_falsifiable
         data["is_grounded"] = self.is_grounded
+        data["is_single_origin"] = self.is_single_origin
+        data["likelihood_band"] = list(self.likelihood_band) if self.likelihood_band else None
         return data
 
 
@@ -75,6 +167,13 @@ class AnticipatedQuestion:
     why_asked: str = ""
     """What makes people ask this - often a common misconception worth naming."""
     supported_by: list[str] = field(default_factory=list)
+    weakens_thesis: bool = False
+    """True when the honest answer costs the brief something.
+
+    A question set is only preparation if at least one entry attacks. Questions
+    generated by turning the brief's own assertions interrogative are always
+    answerable, always on-thesis, and worthless.
+    """
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -146,19 +245,43 @@ class ExpertBrief:
     def ungrounded_positions(self) -> list[Position]:
         return [p for p in self.positions if not p.is_grounded]
 
+    def _position_warnings(self) -> list[str]:
+        """Problems with individual positions, counted rather than enumerated."""
+        checks = (
+            (
+                self.unfalsifiable_positions,
+                "state no observation that would overturn them. An unfalsifiable position is an "
+                "assertion, not a judgment.",
+            ),
+            (
+                self.ungrounded_positions,
+                "cite no supporting finding, so 'why do you think that' cannot be answered from the record.",
+            ),
+            (
+                [p for p in self.positions if p.falsifier_is_decorative],
+                "state a falsifier that names nothing observable. 'If new evidence emerges' cannot "
+                "be checked, so it cannot overturn anything.",
+            ),
+            (
+                [p for p in self.positions if p.is_single_origin],
+                "rest on several sources that trace to a single publisher. That reads as corroboration and is not.",
+            ),
+            (
+                [p for p in self.positions if p.stance and not p.likelihood],
+                "state a stance with no likelihood. A stance with no stated likelihood cannot be "
+                "scored later, and so was never a judgment.",
+            ),
+            (
+                [p for p in self.positions if p.resolution == "irreducible" and not p.unresolved_dissent],
+                "are marked irreducible but record no disagreement, which is a contradiction: "
+                "something must have failed to reconcile.",
+            ),
+        )
+        return [f"{len(group)} position(s) {message}" for group, message in checks if group]
+
     def integrity_warnings(self) -> list[str]:
         """Structural problems a reader must see. Never a verdict on correctness."""
-        warnings: list[str] = []
-        if self.unfalsifiable_positions:
-            warnings.append(
-                f"{len(self.unfalsifiable_positions)} position(s) state no observation that would "
-                "overturn them. An unfalsifiable position is an assertion, not a judgment."
-            )
-        if self.ungrounded_positions:
-            warnings.append(
-                f"{len(self.ungrounded_positions)} position(s) cite no supporting finding, so "
-                "'why do you think that' cannot be answered from the record."
-            )
+        warnings = self._position_warnings()
         sole_roots = [c for c in self.credibility if c.is_sole_root]
         if sole_roots:
             warnings.append(
@@ -170,6 +293,11 @@ class ExpertBrief:
                 "No position records unresolved dissent. That is possible, and it is also what a "
                 "brief looks like when disagreement has been averaged away; check the study "
                 "findings for contention the brief did not carry forward."
+            )
+        if self.anticipated_questions and not any(q.weakens_thesis for q in self.anticipated_questions):
+            warnings.append(
+                "No anticipated question weakens the brief's own position. A question set where "
+                "every answer reinforces the thesis is marketing, not preparation."
             )
         return warnings
 

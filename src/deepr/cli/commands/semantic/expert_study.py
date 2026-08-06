@@ -34,6 +34,26 @@ from deepr.experts.study_lenses import DEFAULT_LENS_KEYS, LENSES, resolve_lenses
 _MAX_SOURCE_CHARS = 400_000
 
 
+def canonical_study_path(expert_name: str) -> Path:
+    """Where a study is written and where every reader of one looks.
+
+    One function rather than a repeated literal: study wrote nowhere by default
+    while brief read from here, so briefing a finished study meant rerunning it.
+    """
+    return canonical_expert_dir(expert_name) / "study.json"
+
+
+def _echo_progress(note: str) -> None:
+    """Show where a study has got to, flushed so it appears while it runs.
+
+    A chunked study is tens of model calls over many minutes. Buffered output
+    means the operator sees nothing until the end, and a run that prints
+    nothing for half an hour looks exactly like a hung one.
+    """
+    click.echo(f"  {note}", err=True)
+    sys.stderr.flush()
+
+
 def _load_profile(name: str) -> Any:
     from deepr.experts.profile import ExpertStore
 
@@ -329,6 +349,7 @@ def expert_study(
                 lens_keys=[lens.key for lens in resolved],
                 max_corpus_chars=max_corpus_chars,
                 capacity_source=backend.capacity_source,
+                on_progress=None if as_json else _echo_progress,
             )
         finally:
             # Pin weights during the run, release at the end. Leaving a large
@@ -342,8 +363,13 @@ def expert_study(
     result = asyncio.run(_run())
 
     payload = result.to_dict()
+    serialized = json.dumps(payload, indent=2, sort_keys=True)
+    # Always persist to the canonical path, because that is where `expert
+    # brief` and `expert notebook` look. Requiring --out meant a study that
+    # cost real time to produce could not be briefed from without rerunning it.
+    canonical_study_path(profile.name).write_text(serialized, encoding="utf-8")
     if out:
-        Path(out).write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+        Path(out).write_text(serialized, encoding="utf-8")
     if write_notebook:
         _write_notebook(profile, result, store, quiet=as_json)
 
@@ -543,10 +569,10 @@ def _load_study_result(profile: Any, from_study: str | None) -> Any:
     """Rehydrate a saved study, or exit telling the operator how to make one."""
     from deepr.experts.study_contracts import LensOutcome, StudyFinding, StudyResult
 
-    path = Path(from_study) if from_study else canonical_expert_dir(profile.name) / "study.json"
+    path = Path(from_study) if from_study else canonical_study_path(profile.name)
     if not path.exists():
         click.echo(
-            f'Error: no study at {path}. Run: deepr expert study "{profile.name}" --out {path}',
+            f'Error: no study at {path}. Run: deepr expert study "{profile.name}"',
             err=True,
         )
         sys.exit(2)
@@ -602,7 +628,7 @@ def expert_notebook(name: str, from_study: str | None, out: str | None) -> None:
     from deepr.experts.paths import canonical_expert_dir
     from deepr.experts.study_contracts import LensOutcome, StudyFinding, StudyResult
 
-    study_path = Path(from_study) if from_study else canonical_expert_dir(profile.name) / "study.json"
+    study_path = Path(from_study) if from_study else canonical_study_path(profile.name)
     if not study_path.exists():
         click.echo(
             f'Error: no study found at {study_path}. Run: deepr expert study "{profile.name}" --local --out {study_path}',

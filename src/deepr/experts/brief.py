@@ -33,6 +33,9 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from deepr.experts.brief_contracts import (
+    CONFIDENCE_LEVELS,
+    LIKELIHOOD_BANDS,
+    RESOLUTIONS,
     AnticipatedQuestion,
     ExpertBrief,
     Position,
@@ -46,6 +49,8 @@ BriefCompletion = Callable[[str], Awaitable[str]]
 
 _MAX_FINDINGS_IN_PROMPT = 120
 _MAX_FIELD_CHARS = 600
+_LIKELIHOOD_CHOICES = ", ".join(f'"{term}"' for term in LIKELIHOOD_BANDS)
+_CONFIDENCE_CHOICES = ", ".join(f'"{level}"' for level in CONFIDENCE_LEVELS)
 
 
 def _render_finding(finding: StudyFinding) -> str:
@@ -87,27 +92,41 @@ Rules that make this honest rather than confident-sounding:
 
 - Every position must cite the finding titles it rests on, so "why do you think that" is
   answerable. Cite titles exactly as written below.
-- Every position must state an observation that would overturn it. A position with no falsifier
-  is an assertion; do not report one.
+- Every position must state an observation that would overturn it. Name something someone could
+  actually go and check: a measurement, a document, a result. "If new evidence emerges" is not a
+  falsifier, because nobody can check it. A position with no falsifier is an assertion.
+- "likelihood" and "confidence" are different things and must not be mixed. "likelihood" is how
+  likely the stance is true. "confidence" is how sound your basis for saying so is. A claim can
+  be a coin flip on excellent evidence, or near-certain on thin evidence.
 - Where the findings disagree, say what you did not resolve. Do not average disagreement into a
   middle position. Unresolved disagreement is a legitimate and useful output.
 - Separate what is settled, what is live, and what is genuinely unknown. Refusing to spend a
   reader's time on resolved questions is most of the value here.
+- At least one anticipated question must attack this brief rather than support it: the strongest
+  case that you are wrong, or what you did not look at. Mark it "weakens_thesis": true.
 - Do not introduce claims that are not supported by the findings below.
 {dissent_note}
+"likelihood" must be exactly one of: {_LIKELIHOOD_CHOICES}.
+"confidence" must be exactly one of: {_CONFIDENCE_CHOICES}.
+"resolution" must be exactly one of: single (you land on one stance);
+conditional (the stance depends on an assumption, which you state); irreducible (the findings
+did not reconcile, and you are reporting that rather than picking). Prefer irreducible over
+inventing agreement.
+
 Return JSON only, no prose outside it, with this shape:
 
 {{
   "orientation": "the sixty-second version a newcomer needs before asking anything",
   "positions": [
     {{"question": "", "stance": "", "reasoning": "",
+      "likelihood": "", "confidence": "", "resolution": "single",
       "would_change_my_mind": "", "supported_by": ["exact finding title"],
       "unresolved_dissent": "", "confidence_basis": ""}}
   ],
   "state": {{"settled": [""], "live": [""], "unknown": [""]}},
   "key_quantities": ["the numbers that anchor discussion here"],
   "anticipated_questions": [
-    {{"question": "", "answer": "", "why_asked": "", "supported_by": [""]}}
+    {{"question": "", "answer": "", "why_asked": "", "supported_by": [""], "weakens_thesis": false}}
   ],
   "common_failures": ["what people try first that does not work, and why"]
 }}
@@ -157,25 +176,56 @@ def build_credibility(corpus: CorpusStore) -> list[SourceCredibility]:
     return rows
 
 
-def _positions_from(raw_positions: Any, known_titles: set[str]) -> list[Position]:
+def _from_vocabulary(value: Any, allowed: Any) -> str:
+    """Keep a calibration term only if it is one of the terms we defined.
+
+    A term outside the vocabulary is dropped rather than passed through: an
+    invented likelihood word reads as calibration while carrying none.
+    """
+    term = _text(value).lower().rstrip(".")
+    return term if term in allowed else ""
+
+
+def provenance_for(titles: list[str], result: StudyResult, corpus: CorpusStore) -> tuple[int, int]:
+    """Sources and distinct publishers behind a set of cited findings.
+
+    The second number is the one that means anything. Five sources restating
+    one publisher is one publisher's authority, and a position resting on that
+    shape needs to say so rather than present five citations.
+    """
+    wanted = set(titles)
+    shas = {sha for f in result.findings if f.title in wanted for sha in f.corpus_shas}
+    origins = {entry.origin_key for sha in shas if (entry := corpus.entries.get(sha)) is not None}
+    return len(shas), len(origins)
+
+
+def _positions_from(raw_positions: Any, *, result: StudyResult, corpus: CorpusStore) -> list[Position]:
     """Build positions, keeping only citations that name a real finding.
 
     A position citing something that does not exist cannot answer "why do you
     think that", and keeping the citation would make it look like it could.
     """
+    known_titles = {f.title for f in result.findings}
     positions: list[Position] = []
     for raw in raw_positions or []:
         if not isinstance(raw, dict):
             continue
+        cited = [t for t in _as_list(raw.get("supported_by")) if t in known_titles]
+        documents, roots = provenance_for(cited, result, corpus)
         positions.append(
             Position(
                 question=_text(raw.get("question")),
                 stance=_text(raw.get("stance")),
                 reasoning=_text(raw.get("reasoning")),
                 would_change_my_mind=_text(raw.get("would_change_my_mind")),
-                supported_by=[t for t in _as_list(raw.get("supported_by")) if t in known_titles],
+                supported_by=cited,
                 unresolved_dissent=_text(raw.get("unresolved_dissent")),
                 confidence_basis=_text(raw.get("confidence_basis")),
+                likelihood=_from_vocabulary(raw.get("likelihood"), LIKELIHOOD_BANDS),
+                confidence=_from_vocabulary(raw.get("confidence"), CONFIDENCE_LEVELS),
+                resolution=_from_vocabulary(raw.get("resolution"), RESOLUTIONS) or "single",
+                supporting_documents=documents,
+                distinct_roots=roots,
             )
         )
     return positions
@@ -191,7 +241,7 @@ def assemble_brief(
     """Turn a parsed synthesis into a brief, keeping only verifiable citations."""
     known_titles = {f.title for f in result.findings}
 
-    positions = _positions_from(parsed.get("positions"), known_titles)
+    positions = _positions_from(parsed.get("positions"), result=result, corpus=corpus)
 
     questions = [
         AnticipatedQuestion(
@@ -199,6 +249,7 @@ def assemble_brief(
             answer=_text(raw.get("answer")),
             why_asked=_text(raw.get("why_asked")),
             supported_by=[t for t in _as_list(raw.get("supported_by")) if t in known_titles],
+            weakens_thesis=bool(raw.get("weakens_thesis")),
         )
         for raw in (parsed.get("anticipated_questions") or [])
         if isinstance(raw, dict) and _text(raw.get("question"))
@@ -270,27 +321,72 @@ async def build_brief(
     return assemble_brief(parsed, expert_name=expert_name, result=result, corpus=corpus)
 
 
+def _short(title: str, limit: int = 90) -> str:
+    """Shorten a citation for display, on a word boundary.
+
+    Lenses that describe rather than name produce sentence-length titles. Cited
+    verbatim they wrap into a wall and cut mid-word; the full title stays in the
+    JSON, this is only what the reader sees.
+    """
+    if len(title) <= limit:
+        return title
+    return title[:limit].rsplit(" ", 1)[0] + "..."
+
+
+def _render_calibration(position: Position) -> list[str]:
+    """Likelihood and confidence, on separate lines because they are separate.
+
+    The band is printed with its numbers every time. Readers hold the words to
+    a different scale than the author does, and a legend elsewhere does not fix
+    that, so the number travels with the word.
+    """
+    lines: list[str] = []
+    band = position.likelihood_band
+    if band:
+        lines.append(f"   - Likelihood it holds: {position.likelihood} ({band[0]}-{band[1]}%)")
+    if position.confidence:
+        basis = f" ({position.confidence_basis})" if position.confidence_basis else ""
+        lines.append(f"   - Confidence in that basis: {position.confidence}{basis}")
+    elif position.confidence_basis:
+        lines.append(f"   - Confidence rests on: {position.confidence_basis}")
+    return lines
+
+
+def _render_position(index: int, position: Position) -> list[str]:
+    """One position: where it lands, what it rests on, what would overturn it."""
+    label = {"irreducible": " (unresolved)", "conditional": " (conditional)"}.get(position.resolution, "")
+    lines = [f"{index}. **{position.question or 'Position'}**{label}"]
+    if position.resolution == "irreducible":
+        lines.append("   - **Not resolved.** The findings did not reconcile; both readings are below.")
+    lines.append(f"   - Stance: {position.stance}")
+    if position.reasoning:
+        lines.append(f"   - Because: {position.reasoning}")
+    lines.extend(_render_calibration(position))
+    if position.unresolved_dissent:
+        lines.append(f"   - **Does not resolve**: {position.unresolved_dissent}")
+    if position.would_change_my_mind:
+        lines.append(f"   - Would change my mind: {position.would_change_my_mind}")
+        if position.falsifier_is_decorative:
+            lines.append("   - **That falsifier names nothing observable**, so nothing can check it.")
+    else:
+        lines.append("   - **No falsifier stated**: treat as assertion, not judgment.")
+    if position.supported_by:
+        lines.append(f"   - Rests on: {'; '.join(_short(t) for t in position.supported_by[:4])}")
+    if position.supporting_documents:
+        depth = f"{position.supporting_documents} source(s), {position.distinct_roots} publisher(s)"
+        flag = " - **one publisher, so this is not corroboration**" if position.is_single_origin else ""
+        lines.append(f"   - Evidential depth: {depth}{flag}")
+    lines.append("")
+    return lines
+
+
 def _render_positions(brief: ExpertBrief) -> list[str]:
     """Render each position with what it rests on and what would overturn it."""
     if not brief.positions:
         return []
     lines = ["## Where I land, and why", ""]
     for index, position in enumerate(brief.positions, 1):
-        lines.append(f"{index}. **{position.question or 'Position'}**")
-        lines.append(f"   - Stance: {position.stance}")
-        if position.reasoning:
-            lines.append(f"   - Because: {position.reasoning}")
-        if position.confidence_basis:
-            lines.append(f"   - Confidence rests on: {position.confidence_basis}")
-        if position.unresolved_dissent:
-            lines.append(f"   - **Does not resolve**: {position.unresolved_dissent}")
-        if position.would_change_my_mind:
-            lines.append(f"   - Would change my mind: {position.would_change_my_mind}")
-        else:
-            lines.append("   - **No falsifier stated**: treat as assertion, not judgment.")
-        if position.supported_by:
-            lines.append(f"   - Rests on: {'; '.join(position.supported_by[:4])}")
-        lines.append("")
+        lines.extend(_render_position(index, position))
     return lines
 
 
@@ -329,7 +425,8 @@ def _render_questions(brief: ExpertBrief) -> list[str]:
         return []
     lines = ["## Questions I expect", ""]
     for question in brief.anticipated_questions:
-        lines.append(f"**{question.question}**")
+        attack = " (this one costs me something)" if question.weakens_thesis else ""
+        lines.append(f"**{question.question}**{attack}")
         lines.append(question.answer)
         if question.why_asked:
             lines.append(f"_Asked because: {question.why_asked}_")
