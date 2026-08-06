@@ -311,6 +311,8 @@ def expert_study(
         print_key_value("Capacity", backend.cost_note)
         print_key_value("Lenses", ", ".join(lens.key for lens in resolved))
         console.print("[dim]Independent passes; lenses are not asked to agree.[/dim]\n")
+        if backend.capacity_source.startswith("local:"):
+            _report_vram_headroom(quiet=as_json)
 
     async def _run() -> Any:
         local_model = (
@@ -384,6 +386,26 @@ def _prepare_study(
         sys.exit(2)
 
     return resolved, store, backend
+
+
+def _report_vram_headroom(*, quiet: bool) -> None:
+    """Say what is holding VRAM, so a downgrade is a choice rather than a surprise.
+
+    A study pass that quietly picks a weaker model because a browser and a screen
+    recorder hold 8 GB is making a decision the operator would likely overrule if
+    they could see it.
+    """
+    if quiet:
+        return
+    from deepr.backends.vram_report import collect_vram_report, describe_headroom
+
+    report = collect_vram_report()
+    # Roughly what a capable 24B model needs at 32K context.
+    lines = describe_headroom(report, needed_bytes=21_500_000_000)
+    for line in lines:
+        console.print(f"[dim]{line}[/dim]")
+    if lines:
+        console.print("")
 
 
 async def _warn_if_cpu_bound(model: str, *, quiet: bool) -> None:

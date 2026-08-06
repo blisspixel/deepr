@@ -511,7 +511,46 @@ def check_native_instruments() -> list[DiagnosticCheck]:
         check.details.append(str(e)[:60])
     checks.append(check)
 
+    checks.append(_check_local_gpu_headroom())
     return checks
+
+
+def _check_local_gpu_headroom() -> DiagnosticCheck:
+    """Report GPU memory and what is holding it ($0, read-only).
+
+    Free VRAM decides which local model can run entirely on GPU. A card whose
+    memory is largely held by desktop applications silently forces a weaker
+    model or a CPU spill, and neither is visible from Deepr's output otherwise.
+    Advisory only: a busy desktop is a normal state, not a fault.
+    """
+    check = DiagnosticCheck("Local GPU headroom", "Native Instruments")
+    check.failure_severity = "info"
+    try:
+        from deepr.backends.vram_report import collect_vram_report
+
+        report = collect_vram_report()
+        if report.total_bytes <= 0:
+            check.message = "No NVIDIA GPU detected (optional)"
+            check.details.append("Local study and absorb still run on CPU, more slowly.")
+            return check
+
+        check.passed = True
+        free_gb = report.free_bytes / 1e9
+        check.message = f"{free_gb:.1f} GB free of {report.total_bytes / 1e9:.1f} GB"
+        if report.processes:
+            check.details.append(
+                f"{len(report.processes)} process(es) attached, holding {report.used_bytes / 1e9:.1f} GB."
+            )
+        candidates = report.reclaimable_candidates
+        if candidates and report.used_bytes > 2_000_000_000:
+            check.details.append("Closing these would return VRAM: " + ", ".join(candidates[:6]))
+        check.details.append("Free VRAM decides which local model runs fully on GPU rather than spilling to CPU.")
+        if report.detail:
+            check.details.append(report.detail)
+    except Exception as e:
+        check.message = "Probe error"
+        check.details.append(str(e)[:60])
+    return check
 
 
 def check_mcp_conformance() -> list[DiagnosticCheck]:

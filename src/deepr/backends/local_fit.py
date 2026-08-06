@@ -28,23 +28,28 @@ _VRAM_OVERHEAD_BYTES = 1_800_000_000
 
 # Bytes of KV cache per token, per billion parameters, at fp16.
 #
-# Measured, not derived. Loading each model at 32K context and reading Ollama's
+# Measured, not derived. Loading each model at 16K context and reading Ollama's
 # own reported footprint gives, for (total - weights) / (params * tokens):
 #
-#     devstral-small-2:24b   ~8,300 bytes/token/B
-#     qwen2.5-coder:32b     ~11,800
-#     qwen2.5:14b           ~20,500
+#     qwen3:30b              ~5,100 bytes/token/B
+#     gemma4:26b             ~8,000
+#     devstral-small-2:24b   ~9,700
+#     qwen2.5-coder:32b     ~12,200
+#     qwen3.6:27b           ~16,500
+#     qwen2.5:14b           ~18,300
 #
-# The spread is real: KV cost scales with layer count and grouped-query sharing,
-# not with parameter count, so a smaller model with proportionally more layers
-# costs more per parameter. A single per-parameter constant is therefore an
-# approximation whatever value it takes.
+# The spread is real and it is not noise: KV cost scales with layer count and
+# grouped-query sharing, not with parameter count, so a smaller model with
+# proportionally more layers costs more per parameter than a larger one. A
+# single per-parameter constant is an approximation at any value.
 #
-# Take the top of the measured range. Over-estimating picks a smaller model that
-# runs on GPU; under-estimating picks a larger one that silently falls back to
-# CPU and turns a minutes-long study pass into an hours-long one. The asymmetry
-# is not close.
-_KV_BYTES_PER_TOKEN_PER_B = 21_000
+# Sit near the top of the measured range rather than at the maximum. The extreme
+# is conservative to the point of being useless: at 21,000 this rejected a 24B
+# model that measurably fits in 24 GB, which means recommending a weaker model
+# for no reason. Mistakes in the optimistic direction are caught after load by
+# `local_model_runs_on_gpu`, which observes the real split and warns; there is no
+# equivalent recovery from silently never offering a model that would have run.
+_KV_BYTES_PER_TOKEN_PER_B = 16_500
 
 
 @dataclass(frozen=True)
