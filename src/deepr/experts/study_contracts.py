@@ -16,6 +16,7 @@ meaning is not this module's job.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+from dataclasses import fields as dataclass_fields
 from typing import Any
 
 STUDY_SCHEMA_VERSION = "deepr-expert-study-v1"
@@ -145,6 +146,8 @@ class StudyResult:
     limitations: list[str] = field(default_factory=list)
     coverage: Any = None
     """CoverageReport: what the pass read and cited versus what the corpus holds."""
+    independence: Any = None
+    """IndependenceReport: how many independent origins the corpus really holds."""
 
     @property
     def findings(self) -> list[StudyFinding]:
@@ -218,6 +221,7 @@ class StudyResult:
                 "axis_coverage": self.axis_coverage(),
             },
             "coverage": self.coverage.to_dict() if self.coverage is not None else None,
+            "independence": self.independence.to_dict() if self.independence is not None else None,
             "outcomes": [o.to_dict() for o in self.outcomes],
             "limitations": self.limitations,
         }
@@ -231,7 +235,10 @@ class StudyResult:
         record produced a document missing the section that reports what the
         pass never read.
         """
+        from deepr.experts.corpus_independence import IndependenceReport
         from deepr.experts.study_coverage import CoverageReport
+
+        _INDEPENDENCE_FIELDS = {f.name for f in dataclass_fields(IndependenceReport)}
 
         corpus = data.get("corpus") or {}
         result = cls(
@@ -246,4 +253,9 @@ class StudyResult:
         )
         result.outcomes = [LensOutcome.from_dict(o) for o in (data.get("outcomes") or [])]
         result.coverage = CoverageReport.from_dict(data.get("coverage"))
+        independence = data.get("independence")
+        if independence:
+            result.independence = IndependenceReport(
+                **{k: v for k, v in independence.items() if k in _INDEPENDENCE_FIELDS}
+            )
         return result

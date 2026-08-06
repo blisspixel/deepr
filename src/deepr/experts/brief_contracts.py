@@ -153,6 +153,24 @@ class Position:
         return data
 
 
+def _position_from(data: dict[str, Any]) -> Position:
+    """One position back from its persisted form, calibration intact."""
+    return Position(
+        question=data.get("question", ""),
+        stance=data.get("stance", ""),
+        reasoning=data.get("reasoning", ""),
+        would_change_my_mind=data.get("would_change_my_mind", ""),
+        supported_by=list(data.get("supported_by") or []),
+        unresolved_dissent=data.get("unresolved_dissent", ""),
+        confidence_basis=data.get("confidence_basis", ""),
+        likelihood=data.get("likelihood", ""),
+        confidence=data.get("confidence", ""),
+        resolution=data.get("resolution", "single"),
+        supporting_documents=int(data.get("supporting_documents", 0) or 0),
+        distinct_roots=int(data.get("distinct_roots", 0) or 0),
+    )
+
+
 @dataclass
 class AnticipatedQuestion:
     """A question the expert expects, with the answer already prepared.
@@ -303,10 +321,55 @@ class ExpertBrief:
             )
         return warnings
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ExpertBrief:
+        """Rebuild a brief from its persisted form, so it can be consulted."""
+        state = data.get("state") or {}
+        brief = cls(
+            expert_name=data.get("expert", ""),
+            schema_version=data.get("schema_version", BRIEF_SCHEMA_VERSION),
+            orientation=data.get("orientation", ""),
+            state=SettledState(
+                settled=list(state.get("settled") or []),
+                live=list(state.get("live") or []),
+                unknown=list(state.get("unknown") or []),
+            ),
+            key_quantities=list(data.get("key_quantities") or []),
+            common_failures=list(data.get("common_failures") or []),
+            finding_titles=dict(data.get("finding_titles") or {}),
+            limitations=list(data.get("limitations") or []),
+            generated_from_findings=int(data.get("generated_from_findings", 0) or 0),
+        )
+        brief.positions = [_position_from(p) for p in (data.get("positions") or []) if isinstance(p, dict)]
+        brief.anticipated_questions = [
+            AnticipatedQuestion(
+                question=q.get("question", ""),
+                answer=q.get("answer", ""),
+                why_asked=q.get("why_asked", ""),
+                supported_by=list(q.get("supported_by") or []),
+                weakens_thesis=bool(q.get("weakens_thesis")),
+            )
+            for q in (data.get("anticipated_questions") or [])
+            if isinstance(q, dict)
+        ]
+        brief.credibility = [
+            SourceCredibility(
+                origin=c.get("origin", ""),
+                source_count=int(c.get("source_count", 0) or 0),
+                trust_class=c.get("trust_class", ""),
+                note=c.get("note", ""),
+                is_sole_root=bool(c.get("is_sole_root")),
+            )
+            for c in (data.get("credibility") or [])
+            if isinstance(c, dict)
+        ]
+        return brief
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "schema_version": self.schema_version,
             "expert": self.expert_name,
+            "finding_titles": self.finding_titles,
             "orientation": self.orientation,
             "positions": [p.to_dict() for p in self.positions],
             "state": self.state.to_dict(),

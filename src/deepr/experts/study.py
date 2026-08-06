@@ -35,6 +35,7 @@ from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any
 
+from deepr.experts.corpus_independence import measure_independence
 from deepr.experts.corpus_store import CorpusEntry, CorpusStore
 from deepr.experts.study_contracts import LensOutcome, StudyFinding, StudyResult
 from deepr.experts.study_coverage import build_coverage_report
@@ -339,11 +340,11 @@ async def run_study(
             f"Studied {len(material)} of {stats.active_count} retained sources "
             f"(corpus budget {max_corpus_chars} chars). Findings may miss material."
         )
-    if stats.distinct_origins < 2:
-        result.limitations.append(
-            "Corpus has a single origin, so the contention lens has nothing "
-            "independent to compare and agreement here is not corroboration."
-        )
+    # Counted by origin rather than by document, because a document count is
+    # not an evidence count and every downstream corroboration number is built
+    # on this one.
+    result.independence = measure_independence(corpus.active_entries())
+    result.limitations.extend(result.independence.concerns())
 
     # One call per lens per chunk. A lens handed a whole corpus stops following
     # its output contract - measured, a 163k-char prompt produced a prose

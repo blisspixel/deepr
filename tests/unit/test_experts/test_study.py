@@ -285,7 +285,26 @@ class TestRunStudy:
             completion=_completion_returning({"fail_patterns": []}),
             lens_keys=["failure"],
         )
-        assert any("single origin" in limit for limit in result.limitations)
+        assert result.independence.effective_source_count == 1.0
+        assert any("agreeing with itself" in limit for limit in result.limitations)
+
+    @pytest.mark.asyncio
+    async def test_many_pages_from_one_publisher_still_count_as_one(self, tmp_path):
+        """The shape of the run this check was written for: 3 pages, 1 publisher."""
+        store = CorpusStore("One Publisher", storage_dir=tmp_path / "corpus")
+        for n in range(3):
+            store.add(f"Page {n} body text retained for study.", origin_key="url:en.wikipedia.org")
+
+        result = await run_study(
+            expert_name="E",
+            corpus=store,
+            completion=_completion_returning({"fail_patterns": []}),
+            lens_keys=["failure"],
+        )
+
+        assert result.independence.source_count == 3
+        assert result.independence.effective_source_count == 1.0
+        assert result.independence.is_thin
 
     @pytest.mark.asyncio
     async def test_ungrounded_anchors_surface_as_a_limitation(self, corpus):

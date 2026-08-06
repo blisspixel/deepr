@@ -43,6 +43,11 @@ def canonical_study_path(expert_name: str) -> Path:
     return canonical_expert_dir(expert_name) / "study.json"
 
 
+def canonical_brief_path(expert_name: str) -> Path:
+    """Where the structured brief lives, for anything that wants to consult it."""
+    return canonical_expert_dir(expert_name) / "brief.json"
+
+
 def _echo_progress(note: str) -> None:
     """Show where a study has got to, flushed so it appears while it runs.
 
@@ -256,11 +261,13 @@ def expert_corpus(name: str, as_json: bool) -> None:
         console.print("\n[yellow]Nothing retained yet.[/yellow] A study pass over an empty corpus finds nothing.")
         console.print(f'[dim]Retain a source: deepr expert retain "{profile.name}" ./doc.md[/dim]')
         return
-    if stats.distinct_origins < 2:
-        print_warning(
-            "Single origin: agreement within one publisher is not corroboration, "
-            "and the contention lens will have nothing independent to compare."
-        )
+
+    from deepr.experts.corpus_independence import measure_independence
+
+    independence = measure_independence(store.active_entries())
+    print_key_value("Independent origins", f"{independence.effective_source_count:.1f} effective")
+    for concern in independence.concerns():
+        print_warning(concern)
     console.print("\n[bold]Origins[/bold]")
     for origin in sorted(store.distinct_origins()):
         count = len(store.entries_for_origin(origin))
@@ -465,6 +472,10 @@ def _render_study_summary(result: Any) -> None:
     # can still report dozens of findings and read as a success, which is
     # exactly what happened before this line existed.
     print_key_value("Drawing on 2+ sources", str(len(result.cross_source_findings)))
+    if result.independence is not None:
+        effective = result.independence.effective_source_count
+        nominal = result.independence.source_count
+        print_key_value("Independent origins", f"{effective:.1f} effective, from {nominal} source(s)")
     print_key_value("Cost", f"${result.cost_usd:.2f}")
     if result.limitations:
         console.print("\n[bold yellow]Limitations[/bold yellow]")
@@ -557,8 +568,15 @@ def expert_brief(
         )
     )
 
+    # Persist the structured form always, not only under --json. Rendering to
+    # markdown destroys every typed field - the likelihood band, the falsifier,
+    # what the position did not resolve - so a brief that only ever existed as
+    # prose could not be consulted, only read.
+    payload = json.dumps(brief.to_dict(), indent=2, sort_keys=True)
+    canonical_brief_path(profile.name).write_text(payload, encoding="utf-8")
+
     if as_json:
-        click.echo(json.dumps(brief.to_dict(), indent=2, sort_keys=True))
+        click.echo(payload)
         return
 
     text = render_brief(brief)
