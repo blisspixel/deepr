@@ -149,17 +149,42 @@ class TestStudyChunks:
         assert len(chunks) == 4
         assert all(len(text) <= 14000 for chunk in chunks for _, text in chunk)
 
-    def test_chunks_never_span_two_sources(self, store):
-        """Every chunk carries one source's provenance, so anchors resolve."""
+    def test_an_oversized_source_is_split_alone(self, store):
+        """A source too big to share a slice keeps its own provenance."""
         store.add("a" * 20000, origin_key="url:a.org")
         store.add("b" * 20000, origin_key="url:b.org")
         chunks = store.iter_study_chunks(chunk_chars=14000)
         assert all(len(chunk) == 1 for chunk in chunks)
 
-    def test_small_corpus_is_one_chunk_per_source(self, store):
+    def test_sources_share_a_chunk_when_the_budget_allows(self, store):
+        """A lens shown one source at a time cannot compare sources.
+
+        Packing is what makes cross-source contention possible at all: with a
+        slice per source, disagreement between publishers is not merely rare,
+        it cannot be found.
+        """
         store.add("short one", origin_key="url:a.org")
         store.add("short two", origin_key="url:b.org")
-        assert len(store.iter_study_chunks(chunk_chars=14000)) == 2
+        chunks = store.iter_study_chunks(chunk_chars=14000)
+        assert len(chunks) == 1
+        assert {entry.origin_key for entry, _ in chunks[0]} == {"url:a.org", "url:b.org"}
+
+    def test_packing_stops_at_the_budget(self, store):
+        store.add("a" * 6000, origin_key="url:a.org")
+        store.add("b" * 6000, origin_key="url:b.org")
+        store.add("c" * 6000, origin_key="url:c.org")
+        chunks = store.iter_study_chunks(chunk_chars=10000)
+        assert len(chunks) == 3
+        assert all(sum(len(t) for _, t in chunk) <= 10000 for chunk in chunks)
+
+    def test_every_retained_char_survives_chunking(self, store):
+        """An off-by-one that dropped or duplicated text would pass a count check."""
+        store.add("a" * 25000, origin_key="url:a.org")
+        store.add("b" * 3000, origin_key="url:b.org")
+        chunks = store.iter_study_chunks(chunk_chars=10000)
+        rebuilt = "".join(text for chunk in chunks for _, text in chunk)
+        assert rebuilt.count("a") == 25000
+        assert rebuilt.count("b") == 3000
 
     def test_chunking_respects_the_overall_budget(self, store):
         store.add("m" * 40000, origin_key="url:a.org")

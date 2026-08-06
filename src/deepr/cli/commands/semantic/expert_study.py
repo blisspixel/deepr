@@ -348,6 +348,7 @@ def expert_study(
                 completion=backend.completion,
                 lens_keys=[lens.key for lens in resolved],
                 max_corpus_chars=max_corpus_chars,
+                chunk_chars=backend.chunk_chars,
                 capacity_source=backend.capacity_source,
                 on_progress=None if as_json else _echo_progress,
             )
@@ -460,6 +461,10 @@ def _render_study_summary(result: Any) -> None:
     console.print("")
     print_key_value("Findings", str(len(result.findings)))
     print_key_value("Anchored in corpus", str(len(result.grounded_findings)))
+    # Shown always, including when it is zero. A pass that compared no sources
+    # can still report dozens of findings and read as a success, which is
+    # exactly what happened before this line existed.
+    print_key_value("Drawing on 2+ sources", str(len(result.cross_source_findings)))
     print_key_value("Cost", f"${result.cost_usd:.2f}")
     if result.limitations:
         console.print("\n[bold yellow]Limitations[/bold yellow]")
@@ -567,7 +572,7 @@ def expert_brief(
 
 def _load_study_result(profile: Any, from_study: str | None) -> Any:
     """Rehydrate a saved study, or exit telling the operator how to make one."""
-    from deepr.experts.study_contracts import LensOutcome, StudyFinding, StudyResult
+    from deepr.experts.study_contracts import StudyResult
 
     path = Path(from_study) if from_study else canonical_study_path(profile.name)
     if not path.exists():
@@ -578,33 +583,7 @@ def _load_study_result(profile: Any, from_study: str | None) -> Any:
         sys.exit(2)
 
     payload = json.loads(path.read_text(encoding="utf-8"))
-    result = StudyResult(expert_name=payload.get("expert", profile.name))
-    result.limitations = list(payload.get("limitations") or [])
-    for raw in payload.get("outcomes") or []:
-        findings = [
-            StudyFinding(
-                lens=f.get("lens", ""),
-                axis=f.get("axis", ""),
-                kind=f.get("kind", ""),
-                title=f.get("title", ""),
-                payload=f.get("payload") or {},
-                anchors=f.get("anchors") or [],
-                grounded_anchor_count=int(f.get("grounded_anchor_count", 0) or 0),
-                ungrounded_anchor_count=int(f.get("ungrounded_anchor_count", 0) or 0),
-                corpus_shas=f.get("corpus_shas") or [],
-            )
-            for f in (raw.get("findings") or [])
-        ]
-        result.outcomes.append(
-            LensOutcome(
-                lens=raw.get("lens", ""),
-                axis=raw.get("axis", ""),
-                status=raw.get("status", "ok"),
-                findings=findings,
-                detail=raw.get("detail", ""),
-            )
-        )
-    return result
+    return StudyResult.from_dict(payload, expert_name=profile.name)
 
 
 @expert.command(name="notebook")
@@ -626,44 +605,8 @@ def expert_notebook(name: str, from_study: str | None, out: str | None) -> None:
     """
     profile = _load_profile(name)
     from deepr.experts.paths import canonical_expert_dir
-    from deepr.experts.study_contracts import LensOutcome, StudyFinding, StudyResult
 
-    study_path = Path(from_study) if from_study else canonical_study_path(profile.name)
-    if not study_path.exists():
-        click.echo(
-            f'Error: no study found at {study_path}. Run: deepr expert study "{profile.name}" --local --out {study_path}',
-            err=True,
-        )
-        sys.exit(2)
-
-    payload = json.loads(study_path.read_text(encoding="utf-8"))
-    result = StudyResult(expert_name=payload.get("expert", profile.name))
-    result.limitations = list(payload.get("limitations") or [])
-    for raw in payload.get("outcomes") or []:
-        findings = [
-            StudyFinding(
-                lens=f.get("lens", ""),
-                axis=f.get("axis", ""),
-                kind=f.get("kind", ""),
-                title=f.get("title", ""),
-                payload=f.get("payload") or {},
-                anchors=f.get("anchors") or [],
-                grounded_anchor_count=int(f.get("grounded_anchor_count", 0) or 0),
-                ungrounded_anchor_count=int(f.get("ungrounded_anchor_count", 0) or 0),
-                corpus_shas=f.get("corpus_shas") or [],
-            )
-            for f in (raw.get("findings") or [])
-        ]
-        result.outcomes.append(
-            LensOutcome(
-                lens=raw.get("lens", ""),
-                axis=raw.get("axis", ""),
-                status=raw.get("status", "ok"),
-                findings=findings,
-                detail=raw.get("detail", ""),
-            )
-        )
-
+    result = _load_study_result(profile, from_study)
     store = CorpusStore(profile.name)
     text = build_notebook(
         result,

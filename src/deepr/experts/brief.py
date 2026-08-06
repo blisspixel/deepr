@@ -54,8 +54,13 @@ _CONFIDENCE_CHOICES = ", ".join(f'"{level}"' for level in CONFIDENCE_LEVELS)
 
 
 def _render_finding(finding: StudyFinding) -> str:
-    """One finding as a compact line the synthesis can cite by title."""
-    parts = [f"[{finding.lens}] {finding.title}"]
+    """One finding as a compact line the synthesis cites by its id.
+
+    The id leads because it is what citations resolve against. Titles collide
+    and get truncated, so a citation that went through the title could match
+    several findings at once or none at all.
+    """
+    parts = [f"{finding.finding_id} [{finding.lens}] {finding.title}"]
     for key, value in finding.payload.items():
         if key in {"anchors", "name", "title", "thread"}:
             continue
@@ -90,8 +95,9 @@ change your mind.
 
 Rules that make this honest rather than confident-sounding:
 
-- Every position must cite the finding titles it rests on, so "why do you think that" is
-  answerable. Cite titles exactly as written below.
+- Every position must cite the findings it rests on, so "why do you think that" is answerable.
+  Cite by the id at the start of each finding line, for example "contention-4". Ids only; a
+  citation that is not an id from the list below will be dropped.
 - Every position must state an observation that would overturn it. Name something someone could
   actually go and check: a measurement, a document, a result. "If new evidence emerges" is not a
   falsifier, because nobody can check it. A position with no falsifier is an assertion.
@@ -120,7 +126,7 @@ Return JSON only, no prose outside it, with this shape:
   "positions": [
     {{"question": "", "stance": "", "reasoning": "",
       "likelihood": "", "confidence": "", "resolution": "single",
-      "would_change_my_mind": "", "supported_by": ["exact finding title"],
+      "would_change_my_mind": "", "supported_by": ["finding id, e.g. contention-4"],
       "unresolved_dissent": "", "confidence_basis": ""}}
   ],
   "state": {{"settled": [""], "live": [""], "unknown": [""]}},
@@ -186,15 +192,15 @@ def _from_vocabulary(value: Any, allowed: Any) -> str:
     return term if term in allowed else ""
 
 
-def provenance_for(titles: list[str], result: StudyResult, corpus: CorpusStore) -> tuple[int, int]:
+def provenance_for(finding_ids: list[str], result: StudyResult, corpus: CorpusStore) -> tuple[int, int]:
     """Sources and distinct publishers behind a set of cited findings.
 
     The second number is the one that means anything. Five sources restating
     one publisher is one publisher's authority, and a position resting on that
     shape needs to say so rather than present five citations.
     """
-    wanted = set(titles)
-    shas = {sha for f in result.findings if f.title in wanted for sha in f.corpus_shas}
+    wanted = set(finding_ids)
+    shas = {sha for f in result.findings if f.finding_id in wanted for sha in f.corpus_shas}
     origins = {entry.origin_key for sha in shas if (entry := corpus.entries.get(sha)) is not None}
     return len(shas), len(origins)
 
@@ -205,12 +211,12 @@ def _positions_from(raw_positions: Any, *, result: StudyResult, corpus: CorpusSt
     A position citing something that does not exist cannot answer "why do you
     think that", and keeping the citation would make it look like it could.
     """
-    known_titles = {f.title for f in result.findings}
+    known_ids = {f.finding_id for f in result.findings if f.finding_id}
     positions: list[Position] = []
     for raw in raw_positions or []:
         if not isinstance(raw, dict):
             continue
-        cited = [t for t in _as_list(raw.get("supported_by")) if t in known_titles]
+        cited = [t for t in _as_list(raw.get("supported_by")) if t in known_ids]
         documents, roots = provenance_for(cited, result, corpus)
         positions.append(
             Position(
@@ -239,7 +245,7 @@ def assemble_brief(
     corpus: CorpusStore,
 ) -> ExpertBrief:
     """Turn a parsed synthesis into a brief, keeping only verifiable citations."""
-    known_titles = {f.title for f in result.findings}
+    known_ids = {f.finding_id for f in result.findings if f.finding_id}
 
     positions = _positions_from(parsed.get("positions"), result=result, corpus=corpus)
 
@@ -248,7 +254,7 @@ def assemble_brief(
             question=_text(raw.get("question")),
             answer=_text(raw.get("answer")),
             why_asked=_text(raw.get("why_asked")),
-            supported_by=[t for t in _as_list(raw.get("supported_by")) if t in known_titles],
+            supported_by=[t for t in _as_list(raw.get("supported_by")) if t in known_ids],
             weakens_thesis=bool(raw.get("weakens_thesis")),
         )
         for raw in (parsed.get("anticipated_questions") or [])
@@ -271,6 +277,7 @@ def assemble_brief(
         anticipated_questions=questions,
         common_failures=_as_list(parsed.get("common_failures")),
         credibility=build_credibility(corpus),
+        finding_titles={f.finding_id: f.title for f in result.findings if f.finding_id},
         generated_from_findings=len(result.findings),
     )
 
@@ -352,7 +359,12 @@ def _render_calibration(position: Position) -> list[str]:
     return lines
 
 
-def _render_position(index: int, position: Position) -> list[str]:
+def _cited_labels(position: Position, titles: dict[str, str]) -> str:
+    """Render citations as readable titles, keeping the id for lookup."""
+    return "; ".join(f"{_short(titles.get(cid, cid))} ({cid})" for cid in position.supported_by[:4])
+
+
+def _render_position(index: int, position: Position, titles: dict[str, str]) -> list[str]:
     """One position: where it lands, what it rests on, what would overturn it."""
     label = {"irreducible": " (unresolved)", "conditional": " (conditional)"}.get(position.resolution, "")
     lines = [f"{index}. **{position.question or 'Position'}**{label}"]
@@ -371,7 +383,7 @@ def _render_position(index: int, position: Position) -> list[str]:
     else:
         lines.append("   - **No falsifier stated**: treat as assertion, not judgment.")
     if position.supported_by:
-        lines.append(f"   - Rests on: {'; '.join(_short(t) for t in position.supported_by[:4])}")
+        lines.append(f"   - Rests on: {_cited_labels(position, titles)}")
     if position.supporting_documents:
         depth = f"{position.supporting_documents} source(s), {position.distinct_roots} publisher(s)"
         flag = " - **one publisher, so this is not corroboration**" if position.is_single_origin else ""
@@ -386,7 +398,7 @@ def _render_positions(brief: ExpertBrief) -> list[str]:
         return []
     lines = ["## Where I land, and why", ""]
     for index, position in enumerate(brief.positions, 1):
-        lines.extend(_render_position(index, position))
+        lines.extend(_render_position(index, position, brief.finding_titles))
     return lines
 
 

@@ -171,6 +171,42 @@ class TestFindingTitles:
         assert build_findings(LENSES["contention"], parsed, material)[0].title == "contention finding"
 
 
+class TestProvenanceHonesty:
+    """The numbers that make a brief look corroborated must not be fiction."""
+
+    def test_a_finding_is_credited_only_to_the_source_the_lens_read(self, tmp_path):
+        """Grounding used to run against the whole corpus, not the chunk shown.
+
+        Shared boilerplate is ubiquitous in web-acquired text, so an anchor
+        would resolve to whichever source sorted first among those containing
+        it. Findings were credited to documents the lens never saw, and the
+        coverage report then called the real source untouched.
+        """
+        shared = "This material is provided without warranty of any kind whatsoever."
+        store = CorpusStore("Provenance Expert", storage_dir=tmp_path / "corpus")
+        store.add(f"Alpha document. {shared}", origin_key="url:aaa.example")
+        store.add(f"Zulu document. {shared}", origin_key="url:zzz.example")
+
+        material = store.load_study_material()
+        zulu = [(entry, text) for entry, text in material if "Zulu" in text]
+        assert zulu, "fixture must contain the Zulu source"
+
+        parsed = {"fail_patterns": [{"name": "shared boilerplate", "anchors": [shared]}]}
+        findings = build_findings(LENSES["failure"], parsed, zulu)
+
+        assert findings[0].corpus_shas == [zulu[0][0].sha256]
+
+    def test_findings_get_unique_ids_across_chunks(self, corpus):
+        parsed = {"fail_patterns": [{"name": "a", "anchors": ["x"]}, {"name": "b", "anchors": ["y"]}]}
+        material = corpus.load_study_material()
+        first = build_findings(LENSES["failure"], parsed, material, start_index=1)
+        second = build_findings(LENSES["failure"], parsed, material, start_index=len(first) + 1)
+
+        ids = [f.finding_id for f in first + second]
+        assert ids == ["failure-1", "failure-2", "failure-3", "failure-4"]
+        assert len(set(ids)) == len(ids)
+
+
 class TestPrompt:
     def test_prompt_carries_lens_and_corpus_and_demands_anchors(self, corpus):
         material = corpus.load_study_material()

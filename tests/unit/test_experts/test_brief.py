@@ -17,20 +17,28 @@ from deepr.experts.brief_contracts import (
     ExpertBrief,
     Position,
 )
-from deepr.experts.corpus_store import CorpusStore
+from deepr.experts.corpus_store import CorpusStore, content_hash
 from deepr.experts.study_contracts import LensOutcome, StudyFinding, StudyResult
 
+# Real shas for the corpus fixture below. The fixture used to anchor findings to
+# a made-up sha, so every provenance lookup missed and the evidential-depth
+# branch was never taken by any test while all of them passed.
+_SHA_A = content_hash("first source body")
+_SHA_A2 = content_hash("second source body")
+_SHA_B = content_hash("third source body")
 
-def _finding(title, lens="failure", *, grounded=True, payload=None):
+
+def _finding(title, lens="failure", *, grounded=True, payload=None, fid="failure-1", shas=None):
     return StudyFinding(
         lens=lens,
         axis="interrogation",
         kind="fail_patterns",
         title=title,
+        finding_id=fid,
         payload=payload or {"trigger": "t", "correction": "c"},
         grounded_anchor_count=1 if grounded else 0,
         ungrounded_anchor_count=0 if grounded else 1,
-        corpus_shas=["abc123"] if grounded else [],
+        corpus_shas=list(shas) if shas else ([_SHA_A] if grounded else []),
     )
 
 
@@ -72,7 +80,7 @@ _GOOD = {
             "stance": "Mostly, under stated conditions.",
             "reasoning": "Two independent origins report it.",
             "would_change_my_mind": "A controlled result showing the reverse.",
-            "supported_by": ["Silent restore failure"],
+            "supported_by": ["failure-1"],
             "unresolved_dissent": "One source disputes the magnitude.",
             "confidence_basis": "two origins, consistent",
             "likelihood": "likely",
@@ -87,7 +95,7 @@ _GOOD = {
             "question": "Isn't this just Y?",
             "answer": "No, because Z.",
             "why_asked": "surface similarity",
-            "supported_by": ["Silent restore failure"],
+            "supported_by": ["failure-1"],
         }
     ],
     "common_failures": ["Everyone tries the naive fix first."],
@@ -149,11 +157,11 @@ class TestAssemble:
     def test_positions_keep_only_real_citations(self, corpus):
         """A citation naming no real finding cannot answer 'why do you think that'."""
         payload = json.loads(json.dumps(_GOOD))
-        payload["positions"][0]["supported_by"] = ["Silent restore failure", "Invented finding"]
+        payload["positions"][0]["supported_by"] = ["failure-1", "invented-99"]
         brief = assemble_brief(
             payload, expert_name="E", result=_result([_finding("Silent restore failure")]), corpus=corpus
         )
-        assert brief.positions[0].supported_by == ["Silent restore failure"]
+        assert brief.positions[0].supported_by == ["failure-1"]
 
     def test_unresolved_dissent_is_carried_forward(self, corpus):
         brief = assemble_brief(
@@ -322,10 +330,14 @@ class TestEvidentialDepth:
         """Two findings from one publisher are one publisher's authority."""
         shas = [e.sha256 for e in corpus.active_entries() if e.origin_key == "url:a.org"]
         findings = [
-            StudyFinding(lens="failure", axis="interrogation", kind="k", title="F1", corpus_shas=shas[:1]),
-            StudyFinding(lens="failure", axis="interrogation", kind="k", title="F2", corpus_shas=shas[1:2]),
+            StudyFinding(
+                lens="failure", axis="interrogation", kind="k", title="F1", finding_id="f-1", corpus_shas=shas[:1]
+            ),
+            StudyFinding(
+                lens="failure", axis="interrogation", kind="k", title="F2", finding_id="f-2", corpus_shas=shas[1:2]
+            ),
         ]
-        documents, roots = provenance_for(["F1", "F2"], _result(findings), corpus)
+        documents, roots = provenance_for(["f-1", "f-2"], _result(findings), corpus)
         assert (documents, roots) == (2, 1)
 
     def test_single_origin_support_is_visible_in_the_render(self, corpus):
@@ -336,6 +348,7 @@ class TestEvidentialDepth:
                 axis="interrogation",
                 kind="k",
                 title="Silent restore failure",
+                finding_id="failure-1",
                 grounded_anchor_count=1,
                 corpus_shas=shas,
             )

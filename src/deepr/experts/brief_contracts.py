@@ -232,6 +232,8 @@ class ExpertBrief:
     common_failures: list[str] = field(default_factory=list)
     """What people try first that does not work."""
     credibility: list[SourceCredibility] = field(default_factory=list)
+    finding_titles: dict[str, str] = field(default_factory=dict)
+    """Cited finding id to its title, so the render can show words not handles."""
     limitations: list[str] = field(default_factory=list)
     generated_from_findings: int = 0
     cost_usd: float = 0.0

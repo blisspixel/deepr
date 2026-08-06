@@ -275,23 +275,42 @@ class CorpusStore:
         return out
 
     def iter_study_chunks(self, *, chunk_chars: int, max_chars: int = 0) -> list[list[tuple[CorpusEntry, str]]]:
-        """Split the corpus into slices small enough for one model call.
+        """Group the corpus into slices small enough for one model call.
 
-        A lens given a whole corpus at once stops following its output contract:
-        measured, a 163k-char prompt produced a prose summary while a 43k-char
-        prompt produced valid structured output from the same model. Chunking is
-        what makes local capacity usable at all.
+        A lens given more than its capacity can hold stops following its output
+        contract, so the corpus is sliced. But a slice holding a single source
+        is a lens that cannot compare sources: cross-source disagreement becomes
+        impossible rather than rare, and a contention lens then reports
+        documents contradicting themselves.
 
-        Slices never span sources, so every chunk carries its own provenance and
-        an anchor always resolves to one retained document.
+        So sources are packed together up to the budget, and a source is split
+        only when it exceeds the budget on its own. On a capacity tier with room
+        for the whole corpus this yields one chunk, which is what makes
+        comparison possible at all.
         """
         chunks: list[list[tuple[CorpusEntry, str]]] = []
+        current: list[tuple[CorpusEntry, str]] = []
+        used = 0
+
+        def flush() -> None:
+            nonlocal current, used
+            if current:
+                chunks.append(current)
+                current, used = [], 0
+
         for entry, text in self.load_study_material(max_chars=max_chars):
-            if chunk_chars <= 0 or len(text) <= chunk_chars:
-                chunks.append([(entry, text)])
+            if chunk_chars > 0 and len(text) > chunk_chars:
+                # Too big to share a slice with anything; split it alone.
+                flush()
+                for start in range(0, len(text), chunk_chars):
+                    piece = text[start : start + chunk_chars]
+                    if piece.strip():
+                        chunks.append([(entry, piece)])
                 continue
-            for start in range(0, len(text), chunk_chars):
-                piece = text[start : start + chunk_chars]
-                if piece.strip():
-                    chunks.append([(entry, piece)])
+            if chunk_chars > 0 and current and used + len(text) > chunk_chars:
+                flush()
+            current.append((entry, text))
+            used += len(text)
+
+        flush()
         return chunks

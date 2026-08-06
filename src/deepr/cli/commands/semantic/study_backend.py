@@ -27,6 +27,27 @@ class StudyBackendError(ValueError):
     """Setup failure that must exit non-zero before any model call."""
 
 
+_LOCAL_CHUNK_CHARS = 14_000
+"""Corpus chars per call on a local model.
+
+Conservative, and pending a re-measurement: the run that motivated this number
+used a 16,384-token ``num_ctx`` against a ~41,000-token prompt, and Ollama
+truncates over-length input silently from the front, which would have removed
+the output contract sitting at the top of the prompt. The model may have
+returned prose because it never saw the instruction, not because it could not
+follow it.
+"""
+
+_PLAN_CHUNK_CHARS = 200_000
+"""Corpus chars per call on a prepaid plan model.
+
+Measured on plan:claude: 200,000 corpus chars became a 567,000-char prompt and
+the output contract held. Applying the local limit here was costing far more
+than call count. A lens that only ever sees one source cannot compare sources,
+so chunking small made cross-source contention impossible rather than rare.
+"""
+
+
 @dataclass(frozen=True)
 class StudyBackend:
     """A resolved completion callable plus what it costs and where it runs."""
@@ -34,6 +55,8 @@ class StudyBackend:
     completion: StudyCompletion
     capacity_source: str
     cost_note: str
+    chunk_chars: int = _LOCAL_CHUNK_CHARS
+    """How much corpus this tier can hold in one call and still stay structured."""
 
 
 def _completion_from_chat_client(
@@ -218,6 +241,7 @@ def _build_plan_backend(*, plan: str, plan_model: str | None, max_tokens: int) -
         completion=_completion_from_chat_client(client, resolved_model, max_tokens=max_tokens),
         capacity_source=f"plan:{adapter.backend_id}",
         cost_note="$0 at the margin (prepaid plan)",
+        chunk_chars=_PLAN_CHUNK_CHARS,
     )
 
 

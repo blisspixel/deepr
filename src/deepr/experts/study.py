@@ -260,8 +260,14 @@ def build_findings(
     lens: StudyLens,
     parsed: dict[str, Any],
     material: list[tuple[CorpusEntry, str]],
+    *,
+    start_index: int = 1,
 ) -> list[StudyFinding]:
-    """Turn one lens's parsed output into anchored findings."""
+    """Turn one lens's parsed output into anchored findings.
+
+    ``start_index`` continues numbering across chunks so ids stay unique for
+    the whole lens rather than restarting at every call.
+    """
     haystacks = [(entry.sha256, _normalize(text)) for entry, text in material]
     findings: list[StudyFinding] = []
     for item in _lens_items(lens, parsed):
@@ -274,6 +280,7 @@ def build_findings(
                 lens=lens.key,
                 axis=lens.axis,
                 kind=lens.output_field,
+                finding_id=f"{lens.key}-{start_index + len(findings)}",
                 title=_title_for(item, lens, shas),
                 payload={k: v for k, v in item.items() if k != "anchors"},
                 anchors=anchors,
@@ -374,6 +381,20 @@ async def run_study(
             f"{ungrounded} quoted anchor(s) were not found in the retained corpus. "
             "Those findings are labeled ungrounded, not removed; review before use."
         )
+    # A finding with no anchors at all contributes zero to the count above, so
+    # the warning could not fire for the worst case: a pass that ignored the
+    # anchor contract entirely. Nothing verifiable came back, and that has to
+    # be louder than silence.
+    if result.findings and not result.grounded_findings:
+        result.limitations.append(
+            f"None of the {len(result.findings)} finding(s) could be verified against the "
+            "retained corpus. Treat this pass as unusable rather than partial."
+        )
+    if len(result.findings) > 1 and not result.cross_source_findings:
+        result.limitations.append(
+            "No finding draws on more than one source, so nothing here compares sources. "
+            "Disagreement reported by this pass is disagreement within a single document."
+        )
 
     # Coverage, not just output volume. Relevance-driven reading reproduces
     # shared-information bias: what many sources say gets surfaced, and the lone
@@ -425,11 +446,28 @@ async def _run_lens_over_chunks(
             failures.append(f"chunk {index}: {error}. Began: {snippet!r}" if snippet else f"chunk {index}: {error}")
             continue
 
-        findings.extend(build_findings(lens, parsed, material))
+        # Ground against the chunk the lens was actually shown, not the whole
+        # corpus. Grounding against `material` let an anchor resolve to
+        # whichever source sorted first among those containing the phrase, so
+        # a finding could be credited to a document the lens never read. Shared
+        # boilerplate makes that the common case, not an edge case, and the
+        # coverage report then reports the true source as untouched.
+        findings.extend(build_findings(lens, parsed, chunk, start_index=len(findings) + 1))
 
     if findings or not failures:
         detail = f"{len(failures)} of {len(chunks)} chunk(s) failed: " + "; ".join(failures[:2]) if failures else ""
-        return LensOutcome(lens=lens.key, axis=lens.axis, status="ok", findings=findings, detail=detail)
+        # "ok" with nine of ten chunks failed is what a scheduler reads as a
+        # clean run. Partial is its own status so the exit code can say so.
+        status = "partial" if failures else "ok"
+        return LensOutcome(
+            lens=lens.key,
+            axis=lens.axis,
+            status=status,
+            findings=findings,
+            detail=detail,
+            chunks_total=len(chunks),
+            chunks_failed=len(failures),
+        )
     return LensOutcome(
         lens=lens.key,
         axis=lens.axis,
