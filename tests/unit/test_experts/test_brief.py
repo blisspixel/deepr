@@ -442,3 +442,28 @@ class TestRender:
             _GOOD, expert_name="E", result=_result([_finding("Silent restore failure")]), corpus=corpus
         )
         assert render_brief(brief) == render_brief(brief)
+
+
+class TestHouseStyle:
+    """Plain punctuation, enforced rather than requested."""
+
+    def test_the_prompt_states_the_style_rule(self):
+        prompt = build_brief_prompt(_result([_finding("F1")]), expert_name="E")
+        assert "never an en dash or em dash" in prompt
+
+    def test_dashes_and_smart_quotes_are_normalized_on_the_way_in(self, corpus):
+        """A prompt is a request. This is the part that cannot be declined."""
+        payload = json.loads(json.dumps(_GOOD))
+        payload["orientation"] = "plant–fungus “wood-wide web” — really…"
+        brief = assemble_brief(
+            payload, expert_name="E", result=_result([_finding("Silent restore failure")]), corpus=corpus
+        )
+        assert brief.orientation == 'plant-fungus "wood-wide web" - really...'
+
+    def test_a_rendered_brief_carries_no_dashes_or_curly_quotes(self, corpus):
+        payload = json.loads(json.dumps(_GOOD))
+        payload["positions"][0]["stance"] = "Mostly — under “stated” conditions"
+        brief = assemble_brief(
+            payload, expert_name="E", result=_result([_finding("Silent restore failure")]), corpus=corpus
+        )
+        assert not (set(render_brief(brief)) & set("–—‘’“”…"))

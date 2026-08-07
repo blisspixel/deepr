@@ -228,6 +228,72 @@ def build_consult_context(
     return context
 
 
+def _render_position_block(index: int, position: Position) -> list[str]:
+    """One position, with the two things that make it a judgment not a claim."""
+    band = position.likelihood_band
+    lines = [f"{index}. {position.question or 'Position'}", f"   Stance: {position.stance}"]
+    if position.reasoning:
+        lines.append(f"   Because: {position.reasoning}")
+    if band:
+        lines.append(f"   Likelihood it holds: {position.likelihood} ({band[0]}-{band[1]}%)")
+    if position.confidence:
+        lines.append(f"   Confidence in that basis: {position.confidence}")
+    if position.unresolved_dissent:
+        lines.append(f"   Does not resolve: {position.unresolved_dissent}")
+    if position.would_change_my_mind:
+        lines.append(f"   Would change my mind: {position.would_change_my_mind}")
+    else:
+        lines.append("   No falsifier stated: treat as assertion, not judgment.")
+    if position.is_single_origin:
+        lines.append(
+            f"   Rests on {position.supporting_documents} source(s) from one publisher, "
+            "which reads as corroboration and is not."
+        )
+    return lines
+
+
+def render_consult_packet(context: ConsultContext) -> str:
+    """Everything the expert brings to this turn, in reading order.
+
+    Orientation first, then where it landed, then the specifics, then the
+    passages. A reader who stops after the first section still has the part
+    that matters most, which is what is settled and therefore skippable.
+    """
+    blocks = [render_standing_header(context)]
+
+    if context.positions:
+        lines = ["Where I land on what you asked:", ""]
+        for index, position in enumerate(context.positions, 1):
+            lines += _render_position_block(index, position)
+            lines.append("")
+        blocks.append("\n".join(lines).strip())
+    elif context.coverage == "partial":
+        blocks.append(
+            "I have not formed a position on this. What follows is material from my sources that "
+            "bears on it, and it has not been reconciled into a view."
+        )
+    else:
+        blocks.append(
+            "I hold nothing on this question. Saying so is the honest answer; inventing one from "
+            "adjacent material would not be."
+        )
+
+    if context.findings:
+        lines = ["What my sources actually say:", ""]
+        lines += [f"- [{f.finding_id}] {f.title}" for f in context.findings[:12]]
+        blocks.append("\n".join(lines))
+
+    if context.sources:
+        lines = ["Passages, so you can check rather than take my word:", ""]
+        for sha, origin, passage in context.sources[:4]:
+            lines.append(f"--- {origin} ({sha[:12]}) ---")
+            lines.append(passage[:1200])
+            lines.append("")
+        blocks.append("\n".join(lines).strip())
+
+    return "\n\n".join(block for block in blocks if block)
+
+
 def render_standing_header(context: ConsultContext) -> str:
     """The part that is always present, whatever was asked.
 

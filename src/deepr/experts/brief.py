@@ -111,6 +111,10 @@ Rules that make this honest rather than confident-sounding:
 - At least one anticipated question must attack this brief rather than support it: the strongest
   case that you are wrong, or what you did not look at. Mark it "weakens_thesis": true.
 - Do not introduce claims that are not supported by the findings below.
+
+House style, which applies to every field you return: write plain ASCII punctuation. Use a
+regular hyphen, never an en dash or em dash. Use straight quotes, never curly ones. No emoji.
+Prose, not decoration.
 {dissent_note}
 "likelihood" must be exactly one of: {_LIKELIHOOD_CHOICES}.
 "confidence" must be exactly one of: {_CONFIDENCE_CHOICES}.
@@ -151,8 +155,27 @@ def _as_list(value: Any) -> list[str]:
     return []
 
 
+_TYPOGRAPHY = str.maketrans(
+    {
+        "–": "-",
+        "—": "-",
+        "‘": "'",
+        "’": "'",
+        "“": '"',
+        "”": '"',
+        "…": "...",
+        " ": " ",
+    }
+)
+"""House style, enforced rather than requested.
+
+The prompt asks for plain punctuation and mostly gets it. Mostly is not a
+contract, and a stray en dash survives into every artifact downstream, so the
+substitution happens here where it cannot be declined."""
+
+
 def _text(value: Any) -> str:
-    return " ".join(str(value or "").split())
+    return " ".join(str(value or "").translate(_TYPOGRAPHY).split())
 
 
 def build_credibility(corpus: CorpusStore) -> list[SourceCredibility]:

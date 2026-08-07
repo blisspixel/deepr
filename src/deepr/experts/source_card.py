@@ -166,6 +166,10 @@ anchor. A claim you cannot anchor should not be reported.
 
 Report only what this source contains. Do not add what you know from elsewhere.
 
+House style, which applies to every field you return: write plain ASCII punctuation. Use a
+regular hyphen, never an en dash or em dash. Use straight quotes, never curly ones. No emoji.
+Prose, not decoration.
+
 Return JSON only, no prose outside it, no code fence:
 
 {{

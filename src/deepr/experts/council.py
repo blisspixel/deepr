@@ -166,6 +166,19 @@ class ExpertPerspective:
     context: dict[str, Any] = field(default_factory=dict)
 
 
+_COVERAGE_CONFIDENCE = {"grounded": 0.75, "partial": 0.4, "uncovered": 0.0}
+"""Confidence in the packet, not in the answer.
+
+grounded means a position exists and its support resolves to a retained
+passage. uncovered is zero on purpose: a perspective assembled from nothing
+must not be weighted as if it were evidence.
+"""
+
+
+def _confidence_for_coverage(context: Any) -> float:
+    return _COVERAGE_CONFIDENCE.get(context.coverage, 0.0)
+
+
 def _render_synthesis_perspectives(perspectives: list[ExpertPerspective]) -> list[str]:
     return [
         f"**{perspective.expert_name}** ({perspective.domain}):\n{perspective.response[:1000]}"
@@ -331,6 +344,56 @@ class ExpertCouncil:
             lines.append(f"- [invalidated] {claim}{suffix}")
         return lines
 
+    @staticmethod
+    def _load_consult_context(query: str, name: str) -> Any:
+        """Assemble the studied layers for this question, or None if unbriefed."""
+        from deepr.experts.consult_context import build_consult_context, load_brief, load_study
+        from deepr.experts.corpus_store import CorpusStore
+        from deepr.experts.paths import canonical_expert_dir
+
+        expert_dir = canonical_expert_dir(name)
+        brief = load_brief(expert_dir / "brief.json")
+        if brief is None:
+            return None
+        try:
+            corpus: Any = CorpusStore(name)
+        except Exception:
+            corpus = None
+        return build_consult_context(
+            expert_name=name,
+            question=query,
+            brief=brief,
+            result=load_study(expert_dir / "study.json"),
+            corpus=corpus,
+        )
+
+    def _build_briefed_perspective(self, query: str, name: str, domain: str) -> ExpertPerspective | None:
+        """A perspective built from what the expert studied, not from claim strings."""
+        try:
+            context = self._load_consult_context(query, name)
+        except Exception:  # pragma: no cover - never break consult on a bad artifact
+            logger.debug("consult context unavailable for %s", name, exc_info=True)
+            return None
+        if context is None:
+            return None
+
+        from deepr.experts.consult_context import render_consult_packet
+
+        return ExpertPerspective(
+            expert_name=name,
+            domain=domain,
+            response=render_consult_packet(context),
+            confidence=_confidence_for_coverage(context),
+            context={
+                "source": "brief",
+                "coverage": context.coverage,
+                "positions_included": len(context.positions),
+                "findings_included": len(context.findings),
+                "source_passages": len(context.sources),
+                "evidence_chars": context.evidence_chars(),
+            },
+        )
+
     def build_stored_perspective(
         self,
         query: str,
@@ -355,6 +418,14 @@ class ExpertCouncil:
         non-current history so synthesis does not reuse retired claims as
         live facts (forgetting-aware memory research).
         """
+        # A briefed expert leads with the brief. The belief store is a ledger of
+        # atomic claims; the brief is where the expert landed, with the
+        # falsifier and the dissent it did not resolve, and behind each position
+        # the findings and the retained passage. Beliefs remain the fallback for
+        # experts that have never been studied.
+        if (briefed := self._build_briefed_perspective(query, name, domain)) is not None:
+            return briefed
+
         perspective_state = perspective_state or build_perspective_state_packet(name, limit=3)
         original_ideas = list(perspective_state["original_ideas"])
         belief_list = list(beliefs)
