@@ -77,6 +77,11 @@ class TestDetectAuthMode:
         for backend_id in ("codex", "grok", "kiro", "opencode", "antigravity"):
             adapter = get_adapter(backend_id)
             assert adapter is not None
+            if backend_id == "grok":
+                # Confined at dispatch rather than blocked; the argv strips the
+                # native tools. test_plan_quota_adapters pins that directly.
+                assert "--disallowed-tools" in " ".join(adapter.argv_builder("p.txt", None))
+                continue
             assert adapter.execution_block_reason, f"{backend_id} lost its execution block"
 
 

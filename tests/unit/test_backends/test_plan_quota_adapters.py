@@ -133,9 +133,29 @@ class TestRegistry:
         assert not adapter.stored_plan_auth_verified
         assert adapter.execution_block_reason
 
-    def test_read_capable_native_tool_backends_are_execution_blocked(self):
+    def test_read_capable_native_tool_backends_never_run_unconfined(self):
+        """Blocked, or confined at dispatch. Never neither.
+
+        The invariant is that no backend with live file and shell tools sees an
+        untrusted prompt with those tools available. An execution block is one
+        way to satisfy it; stripping the tools in the argv is the other, and is
+        strictly better because the backend stays usable.
+        """
         for backend_id in ("codex", "kiro", "grok", "antigravity"):
-            assert get_adapter(backend_id).execution_block_reason, backend_id
+            adapter = get_adapter(backend_id)
+            assert adapter is not None, backend_id
+            if adapter.execution_block_reason:
+                continue
+            argv = " ".join(adapter.argv_builder("prompt.txt", None))
+            assert "--disallowed-tools" in argv, f"{backend_id} runs with native tools live"
+            for tool in ("bash", "edit", "write", "read"):
+                assert tool in argv, f"{backend_id} does not strip {tool}"
+
+    def test_grok_strips_its_tools_and_web_access(self):
+        """Pins the confinement that replaced grok's execution block."""
+        argv = " ".join(get_adapter("grok").argv_builder("prompt.txt", None))
+        assert "--disable-web-search" in argv
+        assert "--disallowed-tools" in argv
 
     def test_gray_zone_backends_off_by_default(self):
         for bid in ("kiro", "grok", "antigravity"):
