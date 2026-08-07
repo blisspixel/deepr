@@ -95,10 +95,21 @@ class TestChooseFittingModel:
         assert chosen == "llama3:70b"
 
     def test_shorter_context_admits_a_bigger_model(self):
-        long_ctx, _ = choose_fitting_model(self._candidates(), context_tokens=65536, vram_bytes=_VRAM_24)
-        short_ctx, _ = choose_fitting_model(self._candidates(), context_tokens=4096, vram_bytes=_VRAM_24)
+        """KV cache grows with context, so a shorter one leaves room for weights.
+
+        The previous assertion was `long_ctx != short_ctx or short_ctx is not
+        None`, which the second clause makes unconditionally true. It passed
+        whatever the function did.
+        """
+        long_ctx, long_est = choose_fitting_model(self._candidates(), context_tokens=65536, vram_bytes=_VRAM_24)
+        short_ctx, short_est = choose_fitting_model(self._candidates(), context_tokens=4096, vram_bytes=_VRAM_24)
+
         assert short_ctx is not None
-        assert long_ctx != short_ctx or short_ctx is not None
+        assert sum(1 for e in short_est if e.fits) >= sum(1 for e in long_est if e.fits)
+        if long_ctx is not None:
+            long_params = next(e.params_b for e in long_est if e.name == long_ctx)
+            short_params = next(e.params_b for e in short_est if e.name == short_ctx)
+            assert short_params >= long_params
 
 
 class TestDetectVram:

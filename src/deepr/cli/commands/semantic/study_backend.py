@@ -64,11 +64,15 @@ def _completion_from_chat_client(
 ) -> StudyCompletion:
     """Adapt an OpenAI-style chat client to the study pass's callable.
 
-    ``context_tokens`` is passed through to Ollama as ``num_ctx``. Without it the
-    server allocates KV cache for the model's own configured context - commonly
-    32K - regardless of how much is actually needed, which silently invalidates
-    any VRAM sizing done beforehand and pushes the model onto CPU. Providers
-    that do not understand the field ignore it.
+    ``context_tokens`` is offered to Ollama as ``num_ctx``, best effort. The
+    intent is that without it the server allocates KV cache for the model's own
+    configured context - commonly 32K - regardless of how much is needed, which
+    invalidates any VRAM sizing done beforehand and pushes the model onto CPU.
+
+    Best effort is the honest wording: the field rides in ``extra_body`` and
+    Ollama's OpenAI-compatible endpoint has been observed ignoring it, so a
+    sizing decision made upstream may not be the one the server enacts. Plan
+    quota clients share this adapter and ignore the field entirely.
     """
     extra_body: dict[str, Any] = {"keep_alive": "10m"}
     if context_tokens > 0:
@@ -92,7 +96,8 @@ def _completion_from_chat_client(
             # problem; the actual fix is a larger budget or fewer sources.
             raise StudyBackendError(
                 f"response hit the {max_tokens}-token output limit and was cut off "
-                "mid-structure. Raise --max-output-tokens or lower --max-corpus-chars."
+                "mid-structure. Lower --max-corpus-chars so each call has less to "
+                "report on, or run fewer lenses per pass."
             )
         return text
 

@@ -188,7 +188,10 @@ def choose_fitting_model(
     Largest-that-fits, because within a family more parameters generally read
     better, and the constraint that matters is not spilling.
 
-    Returns ``(None, estimates)`` when VRAM is unknown or nothing fits, so the
+    Returns ``(None, [])`` when VRAM is unknown, since nothing was measured and
+    an estimate against an unknown budget would be invention. Returns
+    ``(None, estimates)`` when VRAM is known and nothing fits, so the caller can
+    show what was considered and why each candidate was rejected. Either way the
     caller keeps its existing behavior instead of silently downgrading.
     """
     vram = vram_bytes if vram_bytes is not None else detect_vram_bytes()
