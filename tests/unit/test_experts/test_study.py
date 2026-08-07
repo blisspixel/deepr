@@ -110,6 +110,103 @@ class TestAnchoring:
         assert len(findings) == 1
 
 
+class TestFindingTitles:
+    """Titles are how the brief cites findings, so a useless title is a broken citation."""
+
+    def test_a_lens_naming_its_subject_gets_that_name(self, corpus):
+        material = corpus.load_study_material()
+        parsed = {"fail_patterns": [{"name": "slot mismatch", "anchors": ["The reconciler applies desired state"]}]}
+        assert build_findings(LENSES["failure"], parsed, material)[0].title == "slot mismatch"
+
+    def test_a_tension_is_titled_from_its_description(self, corpus):
+        """The contention lens returns description/source/type, and none of them is 'name'."""
+        material = corpus.load_study_material()
+        parsed = {
+            "tensions": [
+                {
+                    "description": "Sources disagree on whether the export is a backup",
+                    "type": "disputed",
+                    "anchors": ["Operators frequently assume the export is a complete backup"],
+                }
+            ]
+        }
+        title = build_findings(LENSES["contention"], parsed, material)[0].title
+        assert title == "Sources disagree on whether the export is a backup"
+
+    def test_a_source_hash_is_never_used_as_a_title(self, corpus):
+        """Observed live: 40 findings all titled with the same corpus hash.
+
+        Every citation then matched every finding, so citation checking in the
+        brief silently stopped meaning anything.
+        """
+        material = corpus.load_study_material()
+        sha = material[0][0].sha256
+        parsed = {
+            "tensions": [
+                {
+                    "source": sha,
+                    "description": "Sources disagree on backup semantics",
+                    "anchors": ["Operators frequently assume the export is a complete backup"],
+                }
+            ]
+        }
+        title = build_findings(LENSES["contention"], parsed, material)[0].title
+        assert title == "Sources disagree on backup semantics"
+
+    def test_a_truncated_source_hash_is_also_rejected(self, corpus):
+        material = corpus.load_study_material()
+        parsed = {
+            "tensions": [
+                {
+                    "name": material[0][0].sha256[:12],
+                    "anchors": ["Operators frequently assume the export is a complete backup"],
+                }
+            ]
+        }
+        assert build_findings(LENSES["contention"], parsed, material)[0].title == "contention finding"
+
+    def test_a_finding_that_names_nothing_falls_back_to_the_lens(self, corpus):
+        material = corpus.load_study_material()
+        parsed = {"tensions": [{"anchors": ["The reconciler applies desired state"]}]}
+        assert build_findings(LENSES["contention"], parsed, material)[0].title == "contention finding"
+
+
+class TestProvenanceHonesty:
+    """The numbers that make a brief look corroborated must not be fiction."""
+
+    def test_a_finding_is_credited_only_to_the_source_the_lens_read(self, tmp_path):
+        """Grounding used to run against the whole corpus, not the chunk shown.
+
+        Shared boilerplate is ubiquitous in web-acquired text, so an anchor
+        would resolve to whichever source sorted first among those containing
+        it. Findings were credited to documents the lens never saw, and the
+        coverage report then called the real source untouched.
+        """
+        shared = "This material is provided without warranty of any kind whatsoever."
+        store = CorpusStore("Provenance Expert", storage_dir=tmp_path / "corpus")
+        store.add(f"Alpha document. {shared}", origin_key="url:aaa.example")
+        store.add(f"Zulu document. {shared}", origin_key="url:zzz.example")
+
+        material = store.load_study_material()
+        zulu = [(entry, text) for entry, text in material if "Zulu" in text]
+        assert zulu, "fixture must contain the Zulu source"
+
+        parsed = {"fail_patterns": [{"name": "shared boilerplate", "anchors": [shared]}]}
+        findings = build_findings(LENSES["failure"], parsed, zulu)
+
+        assert findings[0].corpus_shas == [zulu[0][0].sha256]
+
+    def test_findings_get_unique_ids_across_chunks(self, corpus):
+        parsed = {"fail_patterns": [{"name": "a", "anchors": ["x"]}, {"name": "b", "anchors": ["y"]}]}
+        material = corpus.load_study_material()
+        first = build_findings(LENSES["failure"], parsed, material, start_index=1)
+        second = build_findings(LENSES["failure"], parsed, material, start_index=len(first) + 1)
+
+        ids = [f.finding_id for f in first + second]
+        assert ids == ["failure-1", "failure-2", "failure-3", "failure-4"]
+        assert len(set(ids)) == len(ids)
+
+
 class TestPrompt:
     def test_prompt_carries_lens_and_corpus_and_demands_anchors(self, corpus):
         material = corpus.load_study_material()
@@ -152,7 +249,9 @@ class TestRunStudy:
         )
         assert result.exit_code == 1
         assert "adversarial" in result.failed_lenses
-        assert len(result.findings) == 1
+        # One finding per chunk: the corpus has two sources, so the working
+        # lens runs twice and its findings merge.
+        assert len(result.findings) == len(corpus.iter_study_chunks(chunk_chars=14000))
 
     @pytest.mark.asyncio
     async def test_all_lenses_failing_is_exit_two(self, corpus):
@@ -186,7 +285,26 @@ class TestRunStudy:
             completion=_completion_returning({"fail_patterns": []}),
             lens_keys=["failure"],
         )
-        assert any("single origin" in limit for limit in result.limitations)
+        assert result.independence.effective_source_count == 1.0
+        assert any("agreeing with itself" in limit for limit in result.limitations)
+
+    @pytest.mark.asyncio
+    async def test_many_pages_from_one_publisher_still_count_as_one(self, tmp_path):
+        """The shape of the run this check was written for: 3 pages, 1 publisher."""
+        store = CorpusStore("One Publisher", storage_dir=tmp_path / "corpus")
+        for n in range(3):
+            store.add(f"Page {n} body text retained for study.", origin_key="url:en.wikipedia.org")
+
+        result = await run_study(
+            expert_name="E",
+            corpus=store,
+            completion=_completion_returning({"fail_patterns": []}),
+            lens_keys=["failure"],
+        )
+
+        assert result.independence.source_count == 3
+        assert result.independence.effective_source_count == 1.0
+        assert result.independence.is_thin
 
     @pytest.mark.asyncio
     async def test_ungrounded_anchors_surface_as_a_limitation(self, corpus):

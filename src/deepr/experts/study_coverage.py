@@ -27,6 +27,7 @@ Nothing here judges whether a finding is good. It counts what was consulted.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+from dataclasses import fields as dataclass_fields
 from typing import Any
 
 from deepr.experts.corpus_store import CorpusEntry, CorpusStats
@@ -51,6 +52,19 @@ class CoverageReport:
     """Sources that are the only one from their origin. Hidden profiles live here."""
     uncited_singleton_origins: list[str] = field(default_factory=list)
     """Sole-source origins nothing cited. The highest-value review queue."""
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> CoverageReport | None:
+        """Rebuild a coverage report from its serialized form.
+
+        Coverage is what stops a pass that read a third of its corpus from
+        reading as complete, so a rehydration that silently drops it produces
+        a document that looks more thorough than the run it describes.
+        """
+        if not data:
+            return None
+        fields = {f.name for f in dataclass_fields(cls)}
+        return cls(**{k: v for k, v in data.items() if k in fields})
 
     @property
     def source_coverage(self) -> float:

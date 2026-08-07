@@ -246,10 +246,16 @@ class CorpusStore:
         """Active sources with their text, ordered deterministically.
 
         Ordering is by (origin_key, sha) so two study runs over an unchanged
-        corpus see identical material and stay comparable. When ``max_chars`` is
-        set, whole sources are included until the budget is reached; a source is
-        never truncated mid-way, because a lens reading half a document reports
-        absences that are artifacts of the cut.
+        corpus see identical material and stay comparable.
+
+        ``max_chars`` is a hard ceiling on the total returned, including within a
+        single source. An earlier version refused to split a source, reasoning
+        that a lens reading half a document reports absences caused by the cut.
+        That reasoning was right about the risk and wrong about the remedy: one
+        81k-char source silently returned four times a 45k budget, and the
+        oversized prompt made models abandon their output contract and write
+        prose instead. Splitting is handled by the caller, which chunks and
+        merges; this method's job is to respect the number it was given.
         """
         ordered = sorted(self.active_entries(), key=lambda e: (e.origin_key, e.sha256))
         out: list[tuple[CorpusEntry, str]] = []
@@ -258,8 +264,53 @@ class CorpusStore:
             text = self.read(entry.sha256)
             if text is None:
                 continue
-            if max_chars and used + len(text) > max_chars and out:
-                break
+            if max_chars:
+                remaining = max_chars - used
+                if remaining <= 0:
+                    break
+                if len(text) > remaining:
+                    text = text[:remaining]
             out.append((entry, text))
             used += len(text)
         return out
+
+    def iter_study_chunks(self, *, chunk_chars: int, max_chars: int = 0) -> list[list[tuple[CorpusEntry, str]]]:
+        """Group the corpus into slices small enough for one model call.
+
+        A lens given more than its capacity can hold stops following its output
+        contract, so the corpus is sliced. But a slice holding a single source
+        is a lens that cannot compare sources: cross-source disagreement becomes
+        impossible rather than rare, and a contention lens then reports
+        documents contradicting themselves.
+
+        So sources are packed together up to the budget, and a source is split
+        only when it exceeds the budget on its own. On a capacity tier with room
+        for the whole corpus this yields one chunk, which is what makes
+        comparison possible at all.
+        """
+        chunks: list[list[tuple[CorpusEntry, str]]] = []
+        current: list[tuple[CorpusEntry, str]] = []
+        used = 0
+
+        def flush() -> None:
+            nonlocal current, used
+            if current:
+                chunks.append(current)
+                current, used = [], 0
+
+        for entry, text in self.load_study_material(max_chars=max_chars):
+            if chunk_chars > 0 and len(text) > chunk_chars:
+                # Too big to share a slice with anything; split it alone.
+                flush()
+                for start in range(0, len(text), chunk_chars):
+                    piece = text[start : start + chunk_chars]
+                    if piece.strip():
+                        chunks.append([(entry, piece)])
+                continue
+            if chunk_chars > 0 and current and used + len(text) > chunk_chars:
+                flush()
+            current.append((entry, text))
+            used += len(text)
+
+        flush()
+        return chunks

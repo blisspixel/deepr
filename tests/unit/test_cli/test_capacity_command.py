@@ -454,23 +454,27 @@ class TestProbeFleet:
         assert payload["results"][0]["backend"] == "claude"
 
     def test_explicit_unconfined_experimental_backend_is_refused(self, monkeypatch):
+        """antigravity stays refused: its tools cannot be stripped at dispatch.
+
+        grok is deliberately absent from this case. It carries the same class
+        of native tools and is now confined in its argv instead of blocked, so
+        asserting a refusal here would pin the block rather than the property
+        the block exists to protect.
+        """
         _clean_env(monkeypatch)
-        _stub_path(monkeypatch, "grok", "agy")
+        _stub_path(monkeypatch, "agy")
         _stub_probe(monkeypatch, ok=True, reply="OK")
 
-        r = CliRunner().invoke(
-            capacity,
-            ["probe-fleet", "--backend", "grok", "--backend", "antigravity", "--json"],
-        )
+        r = CliRunner().invoke(capacity, ["probe-fleet", "--backend", "antigravity", "--json"])
 
         assert r.exit_code == 1, r.output
         payload = json.loads(r.output)
         assert payload["ok_count"] == 0
-        assert payload["failed_count"] == 2
-        assert [result["backend"] for result in payload["results"]] == ["grok", "antigravity"]
+        assert payload["failed_count"] == 1
+        assert [result["backend"] for result in payload["results"]] == ["antigravity"]
         assert all(result["experimental"] for result in payload["results"])
         assert "native tool permissions" in payload["results"][0]["error"]
-        assert "transcript side effects" in payload["results"][1]["error"]
+        assert "transcript side effects" in payload["results"][0]["error"]
 
     def test_explicit_metered_backend_is_blocked_by_default(self, monkeypatch):
         _clean_env(monkeypatch)

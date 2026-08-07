@@ -47,6 +47,39 @@ class StudyLens:
 
 _INTERROGATION: tuple[StudyLens, ...] = (
     StudyLens(
+        key="synopsis",
+        axis="interrogation",
+        summary="What this source actually says, in its own terms",
+        output_field="notes",
+        prompt="""Read this material and write the notes a serious student would take on it.
+
+Not a compression of the text and not a verdict on it: an account of what it says, what it is
+for, what it establishes, and where it stops. Preserve the specifics that make it usable later -
+named things, quantities, conditions, dates, defined terms. Note what the source treats as
+settled versus what it hedges, and note its own stated scope or limits.
+
+Someone should be able to read your notes and know whether this source is worth returning to,
+and for what.
+
+Report only what this material contains.""",
+    ),
+    StudyLens(
+        key="orientation",
+        axis="interrogation",
+        summary="The shape of the subject: threads, landmarks, state of play",
+        output_field="orientation",
+        prompt="""Read this material as someone building a map of an unfamiliar subject.
+
+Produce orientation, not summary: what are the main threads and how do they relate; what are the
+landmark works, findings, or positions that everything else references; what vocabulary must be
+understood before the rest makes sense; what appears settled and what is visibly still moving;
+who or what the recurring reference points are.
+
+Also state what a newcomer would most usefully read or resolve next, and why that specifically.
+
+This is the overview a student writes before they can reason about the subject at all.""",
+    ),
+    StudyLens(
         key="mechanism",
         axis="interrogation",
         summary="How it actually works beneath the vocabulary",
@@ -184,6 +217,8 @@ as what would need checking and against which authority.""",
 LENSES: dict[str, StudyLens] = {lens.key: lens for lens in (*_INTERROGATION, *_PERSPECTIVE)}
 
 DEFAULT_LENS_KEYS: tuple[str, ...] = (
+    "synopsis",
+    "orientation",
     "mechanism",
     "failure",
     "contention",
@@ -191,8 +226,17 @@ DEFAULT_LENS_KEYS: tuple[str, ...] = (
     "operational",
     "adversarial",
 )
-"""A spread across both axes. Deliberately not every lens: a study pass costs one
-model call per lens, and a default that runs nine is a default nobody runs."""
+"""What a person does when they set out to know a subject, in order.
+
+Read and take notes (synopsis). Build a map of the territory (orientation). Then
+interrogate it: how it works, what breaks, where the sources disagree, what is
+missing. Then read it as the people who have to live with it (operational,
+adversarial).
+
+The analytical lenses came first in development and were, on their own, a
+mistake: they produce sharp observations about material the reader has no
+orientation in. Notes and a map are what make the rest legible, and they are the
+first thing a student writes."""
 
 
 # Subject-matter words. A lens naming any of these is tuned to one topic.

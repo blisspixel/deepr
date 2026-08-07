@@ -35,6 +35,7 @@ from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any
 
+from deepr.experts.corpus_independence import measure_independence
 from deepr.experts.corpus_store import CorpusEntry, CorpusStore
 from deepr.experts.study_contracts import LensOutcome, StudyFinding, StudyResult
 from deepr.experts.study_coverage import build_coverage_report
@@ -44,13 +45,38 @@ from deepr.utils.prompt_security import sanitize_untrusted_content
 StudyCompletion = Callable[[str], Awaitable[str]]
 """prompt -> raw model text. Injected so this module owns no provider."""
 
+ProgressCallback = Callable[[str], None]
+"""Called before each model call, so a long run is not a silent one."""
+
+
+def _lens_progress(
+    on_progress: ProgressCallback | None,
+    lens_key: str,
+    index: int,
+    total: int,
+) -> ProgressCallback | None:
+    """Label a lens's chunk progress with where the whole run has got to."""
+    if on_progress is None:
+        return None
+    return lambda note: on_progress(f"lens {index}/{total} {lens_key}: {note}")
+
+
 _MAX_ANCHOR_PROBE = 400
 """Anchors longer than this are prefix-matched: models paraphrase tails."""
 
 _MIN_ANCHOR_LEN = 12
 """Shorter phrases match by coincidence and would make grounding meaningless."""
 
-_DEFAULT_MAX_CORPUS_CHARS = 120_000
+_DEFAULT_MAX_CORPUS_CHARS = 400_000
+
+_DEFAULT_CHUNK_CHARS = 14_000
+"""Corpus chars per model call.
+
+Measured: at ~163k prompt chars both a 14B and a 24B abandoned their JSON output
+contract and returned a prose summary; at ~43k prompt chars the same 24B
+returned valid structured output in 27 seconds. The limit that matters is
+instruction-following under prompt length, not the model's context window, and
+it binds well below the window."""
 
 
 def _utc_now_iso() -> str:
@@ -138,10 +164,54 @@ def _anchor_matches(anchor: str, haystacks: list[tuple[str, str]]) -> str | None
     return None
 
 
-def _title_for(item: dict[str, Any], lens: StudyLens) -> str:
-    for key in ("name", "title", "about", "observation", "expected", "concept"):
+_TITLE_KEYS: tuple[str, ...] = (
+    "name",
+    "title",
+    "thread",
+    "topic",
+    "term",
+    "landmark",
+    "about",
+    "concept",
+    "claim",
+    "tension",
+    "description",
+    "observation",
+    "expected",
+)
+"""Keys a lens might use to name its subject, best first.
+
+``source`` is deliberately absent. Lens prompts do not dictate key names, so
+the model picks them, and at least one lens uses ``source`` for provenance
+rather than subject. Titling from it produced forty findings all named after
+the same corpus hash.
+"""
+
+
+def _is_provenance(value: str, corpus_shas: list[str]) -> bool:
+    """True when a candidate title is really a source identifier.
+
+    Titles are how the brief cites findings, so a title that is a hash makes
+    every citation match every finding and citation checking stops meaning
+    anything. Cheap to check, and it catches the general case rather than the
+    one key that happened to collide.
+    """
+    candidate = value.strip().lower()
+    return any(sha.startswith(candidate) or candidate.startswith(sha) for sha in corpus_shas if sha)
+
+
+def _title_for(item: dict[str, Any], lens: StudyLens, corpus_shas: list[str] | None = None) -> str:
+    """Best title for one finding.
+
+    Each lens names its subject with whatever noun fits its question: a failure
+    mode has a ``name``, an orientation thread has a ``thread``, a tension has a
+    ``description``. Checking only for ``name`` renders a titleless stub, which
+    is how a lens that worked perfectly can look broken in the notebook.
+    """
+    shas = corpus_shas or []
+    for key in _TITLE_KEYS:
         value = item.get(key)
-        if isinstance(value, str) and value.strip():
+        if isinstance(value, str) and value.strip() and not _is_provenance(value, shas):
             return value.strip()[:200]
     return f"{lens.key} finding"
 
@@ -191,8 +261,14 @@ def build_findings(
     lens: StudyLens,
     parsed: dict[str, Any],
     material: list[tuple[CorpusEntry, str]],
+    *,
+    start_index: int = 1,
 ) -> list[StudyFinding]:
-    """Turn one lens's parsed output into anchored findings."""
+    """Turn one lens's parsed output into anchored findings.
+
+    ``start_index`` continues numbering across chunks so ids stay unique for
+    the whole lens rather than restarting at every call.
+    """
     haystacks = [(entry.sha256, _normalize(text)) for entry, text in material]
     findings: list[StudyFinding] = []
     for item in _lens_items(lens, parsed):
@@ -205,7 +281,8 @@ def build_findings(
                 lens=lens.key,
                 axis=lens.axis,
                 kind=lens.output_field,
-                title=_title_for(item, lens),
+                finding_id=f"{lens.key}-{start_index + len(findings)}",
+                title=_title_for(item, lens, shas),
                 payload={k: v for k, v in item.items() if k != "anchors"},
                 anchors=anchors,
                 grounded_anchor_count=grounded,
@@ -223,12 +300,18 @@ async def run_study(
     completion: StudyCompletion,
     lens_keys: list[str] | tuple[str, ...] | None = None,
     max_corpus_chars: int = _DEFAULT_MAX_CORPUS_CHARS,
+    chunk_chars: int = _DEFAULT_CHUNK_CHARS,
     capacity_source: str = "",
+    on_progress: ProgressCallback | None = None,
 ) -> StudyResult:
     """Run every requested lens over the retained corpus.
 
     A lens that fails is recorded and the pass continues: one bad parse should
     not discard the work of five other lenses.
+
+    ``on_progress`` is called before each model call. A chunked study over a
+    real corpus is tens of calls and runs for many minutes; without it the run
+    is silent, and a silent run is indistinguishable from a hung one.
     """
     lenses = resolve_lenses(lens_keys)
     material = corpus.load_study_material(max_chars=max_corpus_chars)
@@ -257,51 +340,40 @@ async def run_study(
             f"Studied {len(material)} of {stats.active_count} retained sources "
             f"(corpus budget {max_corpus_chars} chars). Findings may miss material."
         )
-    if stats.distinct_origins < 2:
+    # Counted by origin rather than by document, because a document count is
+    # not an evidence count and every downstream corroboration number is built
+    # on this one.
+    result.independence = measure_independence(corpus.active_entries())
+    result.limitations.extend(result.independence.concerns())
+
+    # One call per lens per chunk. A lens handed a whole corpus stops following
+    # its output contract - measured, a 163k-char prompt produced a prose
+    # summary where a 43k-char prompt produced valid structured output from the
+    # same model - so the corpus is sliced and findings are merged.
+    chunks = corpus.iter_study_chunks(chunk_chars=chunk_chars, max_chars=max_corpus_chars) or [material]
+    if len(chunks) > 1:
         result.limitations.append(
-            "Corpus has a single origin, so the contention lens has nothing "
-            "independent to compare and agreement here is not corroboration."
+            f"Corpus was read in {len(chunks)} chunk(s) of up to {chunk_chars} chars. "
+            "Each lens saw one chunk at a time, so cross-chunk connections may be missed."
         )
 
-    for lens in lenses:
+    for index, lens in enumerate(lenses, 1):
         lens_started = time.monotonic()
-        prompt = build_study_prompt(lens, material)
-        try:
-            raw = await completion(prompt)
-        except Exception as exc:
-            result.outcomes.append(
-                LensOutcome(
-                    lens=lens.key,
-                    axis=lens.axis,
-                    status="model_error",
-                    detail=str(exc)[:300],
-                    elapsed_s=time.monotonic() - lens_started,
-                )
-            )
-            continue
-
-        parsed, error = extract_json_object(raw)
-        if parsed is None:
-            result.outcomes.append(
-                LensOutcome(
-                    lens=lens.key,
-                    axis=lens.axis,
-                    status="parse_failed",
-                    detail=error,
-                    elapsed_s=time.monotonic() - lens_started,
-                )
-            )
-            continue
-
-        result.outcomes.append(
-            LensOutcome(
-                lens=lens.key,
-                axis=lens.axis,
-                status="ok",
-                findings=build_findings(lens, parsed, material),
-                elapsed_s=time.monotonic() - lens_started,
-            )
+        outcome = await _run_lens_over_chunks(
+            lens,
+            chunks,
+            material,
+            completion,
+            on_progress=_lens_progress(on_progress, lens.key, index, len(lenses)),
         )
+        outcome.elapsed_s = time.monotonic() - lens_started
+        result.outcomes.append(outcome)
+        if on_progress:
+            grounded = sum(1 for f in outcome.findings if f.is_grounded)
+            on_progress(
+                f"lens {index}/{len(lenses)} {lens.key}: {len(outcome.findings)} finding(s), "
+                f"{grounded} anchored, {outcome.elapsed_s:.0f}s"
+            )
 
     result.elapsed_s = time.monotonic() - started
     ungrounded = sum(f.ungrounded_anchor_count for f in result.findings)
@@ -309,6 +381,20 @@ async def run_study(
         result.limitations.append(
             f"{ungrounded} quoted anchor(s) were not found in the retained corpus. "
             "Those findings are labeled ungrounded, not removed; review before use."
+        )
+    # A finding with no anchors at all contributes zero to the count above, so
+    # the warning could not fire for the worst case: a pass that ignored the
+    # anchor contract entirely. Nothing verifiable came back, and that has to
+    # be louder than silence.
+    if result.findings and not result.grounded_findings:
+        result.limitations.append(
+            f"None of the {len(result.findings)} finding(s) could be verified against the "
+            "retained corpus. Treat this pass as unusable rather than partial."
+        )
+    if len(result.findings) > 1 and not result.cross_source_findings:
+        result.limitations.append(
+            "No finding draws on more than one source, so nothing here compares sources. "
+            "Disagreement reported by this pass is disagreement within a single document."
         )
 
     # Coverage, not just output volume. Relevance-driven reading reproduces
@@ -323,3 +409,69 @@ async def run_study(
     )
     result.limitations.extend(result.coverage.concerns())
     return result
+
+
+async def _run_lens_over_chunks(
+    lens: StudyLens,
+    chunks: list[list[tuple[CorpusEntry, str]]],
+    material: list[tuple[CorpusEntry, str]],
+    completion: StudyCompletion,
+    on_progress: ProgressCallback | None = None,
+) -> LensOutcome:
+    """Run one lens across every chunk, merging findings.
+
+    A chunk that fails does not discard the chunks that succeeded: partial
+    findings from a large corpus beat none. The outcome is ``ok`` when any chunk
+    parsed, and carries a note about the ones that did not.
+    """
+    findings: list[StudyFinding] = []
+    failures: list[str] = []
+
+    for index, chunk in enumerate(chunks, 1):
+        if on_progress:
+            on_progress(f"chunk {index}/{len(chunks)}")
+        prompt = build_study_prompt(lens, chunk)
+        try:
+            raw = await completion(prompt)
+        except Exception as exc:
+            failures.append(f"chunk {index}: {str(exc)[:160]}")
+            continue
+
+        parsed, error = extract_json_object(raw)
+        if parsed is None:
+            # Include what actually came back. "no JSON object in response" is
+            # true and useless: it does not distinguish a model that answered in
+            # prose, one that was cut off mid-structure, and one that returned
+            # nothing at all, and those need different fixes.
+            snippet = " ".join((raw or "").split())[:160]
+            failures.append(f"chunk {index}: {error}. Began: {snippet!r}" if snippet else f"chunk {index}: {error}")
+            continue
+
+        # Ground against the chunk the lens was actually shown, not the whole
+        # corpus. Grounding against `material` let an anchor resolve to
+        # whichever source sorted first among those containing the phrase, so
+        # a finding could be credited to a document the lens never read. Shared
+        # boilerplate makes that the common case, not an edge case, and the
+        # coverage report then reports the true source as untouched.
+        findings.extend(build_findings(lens, parsed, chunk, start_index=len(findings) + 1))
+
+    if findings or not failures:
+        detail = f"{len(failures)} of {len(chunks)} chunk(s) failed: " + "; ".join(failures[:2]) if failures else ""
+        # "ok" with nine of ten chunks failed is what a scheduler reads as a
+        # clean run. Partial is its own status so the exit code can say so.
+        status = "partial" if failures else "ok"
+        return LensOutcome(
+            lens=lens.key,
+            axis=lens.axis,
+            status=status,
+            findings=findings,
+            detail=detail,
+            chunks_total=len(chunks),
+            chunks_failed=len(failures),
+        )
+    return LensOutcome(
+        lens=lens.key,
+        axis=lens.axis,
+        status="parse_failed",
+        detail="; ".join(failures[:3]),
+    )

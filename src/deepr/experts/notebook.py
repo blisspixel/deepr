@@ -37,6 +37,8 @@ NOTEBOOK_MARKER = "<!-- deepr:expert-notebook-v1 -->"
 # Reading order: orientation, then mechanism, then the things that bite, then
 # what is unsettled. Claims come last because they are the index, not the point.
 _SECTION_ORDER: tuple[tuple[str, str, str], ...] = (
+    ("orientation", "The shape of this subject", "Main threads, landmarks, vocabulary, and what is still moving."),
+    ("synopsis", "Source notes", "What each source says in its own terms, and what it is good for."),
     ("mechanism", "How this works", "The underlying model, beneath the vocabulary."),
     ("failure", "What breaks", "Trigger, symptom, correction, and how to detect it early."),
     ("contention", "Where sources disagree", "Both sides quoted, and what would settle it."),
@@ -51,6 +53,20 @@ _SECTION_ORDER: tuple[tuple[str, str, str], ...] = (
 
 # Fields rendered as labeled lines, in this order, when a finding carries them.
 _DETAIL_ORDER: tuple[str, ...] = (
+    # Notes and orientation come first: they are what a reader needs before any
+    # of the analytical fields below mean anything.
+    "description",
+    "says",
+    "establishes",
+    "scope",
+    "limits",
+    "settled",
+    "hedged",
+    "key_terms",
+    "landmarks",
+    "still_moving",
+    "read_next",
+    "why",
     "trigger",
     "symptom",
     "mechanism",

@@ -15,6 +15,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
+from deepr.experts.briefed_perspective import build_briefed_perspective
 from deepr.experts.constants import MAX_COUNCIL_CONCURRENCY, SYNTHESIS_BUDGET_FRACTION, UTILITY_MODEL
 from deepr.experts.consult_lifecycle import ConsultLifecycleError
 from deepr.experts.council_synthesis_costs import (
@@ -355,6 +356,14 @@ class ExpertCouncil:
         non-current history so synthesis does not reuse retired claims as
         live facts (forgetting-aware memory research).
         """
+        # A briefed expert leads with the brief. The belief store is a ledger of
+        # atomic claims; the brief is where the expert landed, with the
+        # falsifier and the dissent it did not resolve, and behind each position
+        # the findings and the retained passage. Beliefs remain the fallback for
+        # experts that have never been studied.
+        if (briefed := build_briefed_perspective(query, name, domain, ExpertPerspective)) is not None:
+            return briefed
+
         perspective_state = perspective_state or build_perspective_state_packet(name, limit=3)
         original_ideas = list(perspective_state["original_ideas"])
         belief_list = list(beliefs)

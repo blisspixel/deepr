@@ -27,10 +27,36 @@ from deepr.cli.commands.semantic.experts import expert
 from deepr.cli.commands.semantic.study_backend import StudyBackendError, build_study_backend
 from deepr.experts.corpus_store import CorpusStore
 from deepr.experts.notebook import NOTEBOOK_MARKER, build_notebook
+from deepr.experts.paths import canonical_expert_dir
 from deepr.experts.study import run_study
 from deepr.experts.study_lenses import DEFAULT_LENS_KEYS, LENSES, resolve_lenses
 
 _MAX_SOURCE_CHARS = 400_000
+
+
+def canonical_study_path(expert_name: str) -> Path:
+    """Where a study is written and where every reader of one looks.
+
+    One function rather than a repeated literal: study wrote nowhere by default
+    while brief read from here, so briefing a finished study meant rerunning it.
+    """
+    return canonical_expert_dir(expert_name) / "study.json"
+
+
+def canonical_brief_path(expert_name: str) -> Path:
+    """Where the structured brief lives, for anything that wants to consult it."""
+    return canonical_expert_dir(expert_name) / "brief.json"
+
+
+def _echo_progress(note: str) -> None:
+    """Show where a study has got to, flushed so it appears while it runs.
+
+    A chunked study is tens of model calls over many minutes. Buffered output
+    means the operator sees nothing until the end, and a run that prints
+    nothing for half an hour looks exactly like a hung one.
+    """
+    click.echo(f"  {note}", err=True)
+    sys.stderr.flush()
 
 
 def _load_profile(name: str) -> Any:
@@ -235,11 +261,13 @@ def expert_corpus(name: str, as_json: bool) -> None:
         console.print("\n[yellow]Nothing retained yet.[/yellow] A study pass over an empty corpus finds nothing.")
         console.print(f'[dim]Retain a source: deepr expert retain "{profile.name}" ./doc.md[/dim]')
         return
-    if stats.distinct_origins < 2:
-        print_warning(
-            "Single origin: agreement within one publisher is not corroboration, "
-            "and the contention lens will have nothing independent to compare."
-        )
+
+    from deepr.experts.corpus_independence import measure_independence
+
+    independence = measure_independence(store.active_entries())
+    print_key_value("Independent origins", f"{independence.effective_source_count:.1f} effective")
+    for concern in independence.concerns():
+        print_warning(concern)
     console.print("\n[bold]Origins[/bold]")
     for origin in sorted(store.distinct_origins()):
         count = len(store.entries_for_origin(origin))
@@ -311,6 +339,8 @@ def expert_study(
         print_key_value("Capacity", backend.cost_note)
         print_key_value("Lenses", ", ".join(lens.key for lens in resolved))
         console.print("[dim]Independent passes; lenses are not asked to agree.[/dim]\n")
+        if backend.capacity_source.startswith("local:"):
+            _report_vram_headroom(quiet=as_json)
 
     async def _run() -> Any:
         local_model = (
@@ -325,7 +355,9 @@ def expert_study(
                 completion=backend.completion,
                 lens_keys=[lens.key for lens in resolved],
                 max_corpus_chars=max_corpus_chars,
+                chunk_chars=backend.chunk_chars,
                 capacity_source=backend.capacity_source,
+                on_progress=None if as_json else _echo_progress,
             )
         finally:
             # Pin weights during the run, release at the end. Leaving a large
@@ -339,8 +371,13 @@ def expert_study(
     result = asyncio.run(_run())
 
     payload = result.to_dict()
+    serialized = json.dumps(payload, indent=2, sort_keys=True)
+    # Always persist to the canonical path, because that is where `expert
+    # brief` and `expert notebook` look. Requiring --out meant a study that
+    # cost real time to produce could not be briefed from without rerunning it.
+    canonical_study_path(profile.name).write_text(serialized, encoding="utf-8")
     if out:
-        Path(out).write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+        Path(out).write_text(serialized, encoding="utf-8")
     if write_notebook:
         _write_notebook(profile, result, store, quiet=as_json)
 
@@ -386,6 +423,26 @@ def _prepare_study(
     return resolved, store, backend
 
 
+def _report_vram_headroom(*, quiet: bool) -> None:
+    """Say what is holding VRAM, so a downgrade is a choice rather than a surprise.
+
+    A study pass that quietly picks a weaker model because a browser and a screen
+    recorder hold 8 GB is making a decision the operator would likely overrule if
+    they could see it.
+    """
+    if quiet:
+        return
+    from deepr.backends.vram_report import collect_vram_report, describe_headroom
+
+    report = collect_vram_report()
+    # Roughly what a capable 24B model needs at 32K context.
+    lines = describe_headroom(report, needed_bytes=21_500_000_000)
+    for line in lines:
+        console.print(f"[dim]{line}[/dim]")
+    if lines:
+        console.print("")
+
+
 async def _warn_if_cpu_bound(model: str, *, quiet: bool) -> None:
     """Say when a model spilled to CPU instead of appearing to hang.
 
@@ -411,6 +468,14 @@ def _render_study_summary(result: Any) -> None:
     console.print("")
     print_key_value("Findings", str(len(result.findings)))
     print_key_value("Anchored in corpus", str(len(result.grounded_findings)))
+    # Shown always, including when it is zero. A pass that compared no sources
+    # can still report dozens of findings and read as a success, which is
+    # exactly what happened before this line existed.
+    print_key_value("Drawing on 2+ sources", str(len(result.cross_source_findings)))
+    if result.independence is not None:
+        effective = result.independence.effective_source_count
+        nominal = result.independence.source_count
+        print_key_value("Independent origins", f"{effective:.1f} effective, from {nominal} source(s)")
     print_key_value("Cost", f"${result.cost_usd:.2f}")
     if result.limitations:
         console.print("\n[bold yellow]Limitations[/bold yellow]")
@@ -443,6 +508,102 @@ def _write_notebook(profile: Any, result: Any, store: CorpusStore, *, quiet: boo
         print_success(f"Notebook: {path}")
 
 
+@expert.command(name="brief")
+@click.argument("name")
+@click.option(
+    "--from-study",
+    type=click.Path(exists=True, dir_okay=False, path_type=str),
+    default=None,
+    help="Study JSON to brief from (default: the expert's saved study)",
+)
+@click.option("--local", is_flag=True, help="Force local capacity")
+@click.option("--plan", default=None, help="Prepaid plan backend id")
+@click.option("--model", default=None, help="Explicit local model")
+@click.option("--out", type=click.Path(dir_okay=False, path_type=str), default=None)
+@click.option("--json", "as_json", is_flag=True, help="Emit the brief JSON")
+def expert_brief(
+    name: str, from_study: str | None, local: bool, plan: str | None, model: str | None, out: str | None, as_json: bool
+) -> None:
+    """Synthesize NAME's study into a consultable brief ($0 local or plan).
+
+    The notebook is what you read to learn a subject. The brief is what makes a
+    two-minute conversation useful: where things stand, what is settled so you
+    can skip it, where the expert lands and why, and what would change its mind.
+
+    This is the one stage that forms a view, so it runs under constraints:
+    positions must cite the findings they rest on, must state what would
+    overturn them, and must carry forward disagreement they did not resolve.
+    Structural problems are reported rather than hidden.
+
+    EXAMPLES:
+
+      deepr expert brief "My Expert"
+      deepr expert brief "My Expert" --plan claude --out brief.md
+    """
+    profile = _load_profile(name)
+    result = _load_study_result(profile, from_study)
+
+    try:
+        backend = build_study_backend(profile=profile, local=local, plan=plan, model=model)
+    except StudyBackendError as exc:
+        click.echo(f"Error: {exc}", err=True)
+        sys.exit(2)
+
+    from deepr.experts.brief import build_brief, render_brief
+
+    store = CorpusStore(profile.name)
+    if not as_json:
+        print_header(f"Brief: {profile.name}")
+        print_key_value("Capacity", backend.cost_note)
+        print_key_value("From findings", str(len(result.findings)))
+        console.print("")
+
+    brief = asyncio.run(
+        build_brief(
+            expert_name=profile.name,
+            result=result,
+            corpus=store,
+            completion=backend.completion,
+            domain=getattr(profile, "domain", "") or "",
+        )
+    )
+
+    # Persist the structured form always, not only under --json. Rendering to
+    # markdown destroys every typed field - the likelihood band, the falsifier,
+    # what the position did not resolve - so a brief that only ever existed as
+    # prose could not be consulted, only read.
+    payload = json.dumps(brief.to_dict(), indent=2, sort_keys=True)
+    canonical_brief_path(profile.name).write_text(payload, encoding="utf-8")
+
+    if as_json:
+        click.echo(payload)
+        return
+
+    text = render_brief(brief)
+    target = Path(out) if out else canonical_expert_dir(profile.name) / "brief.md"
+    target.write_text(text, encoding="utf-8")
+    console.print(text)
+    print_success(f"Brief: {target}")
+    for warning in brief.integrity_warnings():
+        print_warning(warning)
+
+
+def _load_study_result(profile: Any, from_study: str | None) -> Any:
+    """Rehydrate a saved study, or exit telling the operator how to make one."""
+    from deepr.experts.study_contracts import StudyResult
+
+    path = Path(from_study) if from_study else canonical_study_path(profile.name)
+    if not path.exists():
+        click.echo(
+            f'Error: no study at {path}. Run: deepr expert study "{profile.name}"',
+            err=True,
+        )
+        sys.exit(2)
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return StudyResult.from_dict(payload, expert_name=profile.name)
+
+
 @expert.command(name="notebook")
 @click.argument("name")
 @click.option(
@@ -462,44 +623,8 @@ def expert_notebook(name: str, from_study: str | None, out: str | None) -> None:
     """
     profile = _load_profile(name)
     from deepr.experts.paths import canonical_expert_dir
-    from deepr.experts.study_contracts import LensOutcome, StudyFinding, StudyResult
 
-    study_path = Path(from_study) if from_study else canonical_expert_dir(profile.name) / "study.json"
-    if not study_path.exists():
-        click.echo(
-            f'Error: no study found at {study_path}. Run: deepr expert study "{profile.name}" --local --out {study_path}',
-            err=True,
-        )
-        sys.exit(2)
-
-    payload = json.loads(study_path.read_text(encoding="utf-8"))
-    result = StudyResult(expert_name=payload.get("expert", profile.name))
-    result.limitations = list(payload.get("limitations") or [])
-    for raw in payload.get("outcomes") or []:
-        findings = [
-            StudyFinding(
-                lens=f.get("lens", ""),
-                axis=f.get("axis", ""),
-                kind=f.get("kind", ""),
-                title=f.get("title", ""),
-                payload=f.get("payload") or {},
-                anchors=f.get("anchors") or [],
-                grounded_anchor_count=int(f.get("grounded_anchor_count", 0) or 0),
-                ungrounded_anchor_count=int(f.get("ungrounded_anchor_count", 0) or 0),
-                corpus_shas=f.get("corpus_shas") or [],
-            )
-            for f in (raw.get("findings") or [])
-        ]
-        result.outcomes.append(
-            LensOutcome(
-                lens=raw.get("lens", ""),
-                axis=raw.get("axis", ""),
-                status=raw.get("status", "ok"),
-                findings=findings,
-                detail=raw.get("detail", ""),
-            )
-        )
-
+    result = _load_study_result(profile, from_study)
     store = CorpusStore(profile.name)
     text = build_notebook(
         result,

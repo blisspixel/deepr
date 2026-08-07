@@ -7,8 +7,13 @@ found. This module closes that.
 
 Uses the existing fetch stack rather than a second one, so the same address
 pinning, redirect handling, and content extraction apply as everywhere else in
-Deepr. Conditional-GET validators are recorded per source so a refresh is a
-304 rather than a re-download and a duplicate entry.
+Deepr.
+
+Refresh is idempotent by content, not by HTTP: an unchanged page re-fetches and
+re-hashes to the same sha, so nothing new is written. There are no
+conditional-GET validators - a re-fetch is a full download that is then
+discarded. That costs bandwidth and saves correctness, and the correctness is
+what the corroboration counts depend on.
 
 Costs network only. No model call, no metered surface.
 """
@@ -97,17 +102,18 @@ def _origin_key_for(url: str) -> str:
 
 
 def _as_source_text(page: Any, url: str) -> str:
-    """Render fetched content as the markdown the corpus retains."""
+    """Render fetched content as the markdown the corpus retains.
+
+    Nothing that varies between two fetches of an unchanged page may appear
+    here, because this text is what gets content-hashed. A ``fetched_at`` date
+    in the body made every refresh a new sha, so one page refreshed daily read
+    as seven independent sources by the end of a week, and every corroboration
+    count downstream inflated with it. Retrieval time is per-entry metadata and
+    lives on ``CorpusEntry``, where it does not change identity.
+    """
     title = (getattr(page, "title", "") or "").strip()
     text = (getattr(page, "text", "") or "").strip()
-    header = [
-        "---",
-        f"url: {url}",
-        f"title: {title}",
-        f"fetched_at: {datetime.now(UTC).date().isoformat()}",
-        "---",
-        "",
-    ]
+    header = ["---", f"url: {url}", f"title: {title}", "---", ""]
     if title:
         header.extend([f"# {title}", ""])
     return "\n".join(header) + text

@@ -124,14 +124,69 @@ class TestStudyMaterial:
         shas = [e.sha256 for e, _ in store.load_study_material()]
         assert shas == [new.sha256]
 
-    def test_budget_never_truncates_a_source(self, store):
-        """A lens reading half a document reports absences caused by the cut."""
+    def test_budget_is_a_hard_ceiling(self, store):
+        """One oversized source must not silently blow the budget.
+
+        Refusing to split returned 81k against a 45k budget, and the oversized
+        prompt made models abandon their output contract and write prose.
+        """
         store.add("x" * 500, origin_key="url:a.org")
         store.add("y" * 500, origin_key="url:b.org")
         material = store.load_study_material(max_chars=600)
-        assert len(material) == 1
-        assert len(material[0][1]) == 500
+        assert sum(len(text) for _, text in material) <= 600
 
-    def test_budget_always_returns_at_least_one_source(self, store):
+    def test_a_single_oversized_source_is_cut_to_the_budget(self, store):
         store.add("z" * 5000, origin_key="url:a.org")
-        assert len(store.load_study_material(max_chars=10)) == 1
+        material = store.load_study_material(max_chars=1000)
+        assert len(material) == 1
+        assert len(material[0][1]) == 1000
+
+
+class TestStudyChunks:
+    def test_a_large_source_splits_into_several_chunks(self, store):
+        store.add("q" * 45000, origin_key="url:a.org")
+        chunks = store.iter_study_chunks(chunk_chars=14000)
+        assert len(chunks) == 4
+        assert all(len(text) <= 14000 for chunk in chunks for _, text in chunk)
+
+    def test_an_oversized_source_is_split_alone(self, store):
+        """A source too big to share a slice keeps its own provenance."""
+        store.add("a" * 20000, origin_key="url:a.org")
+        store.add("b" * 20000, origin_key="url:b.org")
+        chunks = store.iter_study_chunks(chunk_chars=14000)
+        assert all(len(chunk) == 1 for chunk in chunks)
+
+    def test_sources_share_a_chunk_when_the_budget_allows(self, store):
+        """A lens shown one source at a time cannot compare sources.
+
+        Packing is what makes cross-source contention possible at all: with a
+        slice per source, disagreement between publishers is not merely rare,
+        it cannot be found.
+        """
+        store.add("short one", origin_key="url:a.org")
+        store.add("short two", origin_key="url:b.org")
+        chunks = store.iter_study_chunks(chunk_chars=14000)
+        assert len(chunks) == 1
+        assert {entry.origin_key for entry, _ in chunks[0]} == {"url:a.org", "url:b.org"}
+
+    def test_packing_stops_at_the_budget(self, store):
+        store.add("a" * 6000, origin_key="url:a.org")
+        store.add("b" * 6000, origin_key="url:b.org")
+        store.add("c" * 6000, origin_key="url:c.org")
+        chunks = store.iter_study_chunks(chunk_chars=10000)
+        assert len(chunks) == 3
+        assert all(sum(len(t) for _, t in chunk) <= 10000 for chunk in chunks)
+
+    def test_every_retained_char_survives_chunking(self, store):
+        """An off-by-one that dropped or duplicated text would pass a count check."""
+        store.add("a" * 25000, origin_key="url:a.org")
+        store.add("b" * 3000, origin_key="url:b.org")
+        chunks = store.iter_study_chunks(chunk_chars=10000)
+        rebuilt = "".join(text for chunk in chunks for _, text in chunk)
+        assert rebuilt.count("a") == 25000
+        assert rebuilt.count("b") == 3000
+
+    def test_chunking_respects_the_overall_budget(self, store):
+        store.add("m" * 40000, origin_key="url:a.org")
+        chunks = store.iter_study_chunks(chunk_chars=10000, max_chars=20000)
+        assert sum(len(text) for chunk in chunks for _, text in chunk) <= 20000

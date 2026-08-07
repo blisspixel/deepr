@@ -56,7 +56,8 @@ class TestCoverage:
         """Never read is a different failure from read and not cited."""
         store.add("x" * 400, origin_key="url:a.org")
         store.add("y" * 400, origin_key="url:b.org")
-        studied = store.load_study_material(max_chars=500)
+        # Budget admits the first source only; the second is never seen.
+        studied = store.load_study_material(max_chars=400)
         assert len(studied) == 1
 
         report = build_coverage_report(
