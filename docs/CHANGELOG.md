@@ -7,6 +7,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.45.0] - 2026-08-07
+
+Experts stop reporting numbers that are not true. The v2 stack from 2.44.0 was
+sound in shape and wrong in several of its measurements; this release corrects
+them, connects the studied layers to the verb the product is named for, and
+gives an expert a way to decide what to read.
+
+### Added
+
+- **Corpus independence** (`deepr.experts.corpus_independence`): effective
+  source count as the Hill number of order 1 over origin shares. Three pages
+  from one publisher score 1.0 against a nominal 3, computed with no model and
+  no network, so a corpus fails before a study spends anything on it. Reported
+  rather than refused: studying a thin corpus and saying it is thin beats
+  refusing and leaving the operator with nothing.
+- **Source cards** (`deepr.experts.source_card`, `deepr.experts.card_pass`):
+  one card per document recording what it is, what it establishes, what is
+  notable and where it stops. Bounded (measured at 14.6% of corpus bytes),
+  incremental (adding a source costs one call; an unchanged corpus costs
+  none), and anchored (35 of 36 claims grounded verbatim on the live run).
+- **Consult context** (`deepr.experts.consult_context`,
+  `deepr.experts.briefed_perspective`): a briefed expert now answers from its
+  brief, carrying orientation, the positions the question touches with their
+  falsifiers and unresolved dissent, the findings behind them, and the
+  retained passages. Measured at 11,082 chars of evidence against the roughly
+  4,000 the belief path allowed. Coverage is three-way (grounded, partial,
+  uncovered) so "I have no position but here is what bears on it" is sayable.
+- **Acquisition planning** (`deepr.experts.acquisition_plan`): six query arms
+  emitted by template rather than requested from a model, because prompting a
+  searcher to broaden has been measured not to work while changing what the
+  mechanism retrieves does. The adversarial and genre arms run whether or not
+  anything asks for them.
+
+### Fixed
+
+- **Cross-source comparison was impossible by construction.** Chunks never
+  packed more than one source and the chunk budget measured on a local 14B was
+  applied to every capacity tier. A contention lens reporting 40 findings was
+  reporting 40 documents disagreeing with themselves. Chunk size is now a
+  property of the capacity tier and sources pack up to that budget; the same
+  corpus and lens went from 0 to 4 findings drawing on more than one source.
+- **`expert acquire` was not idempotent.** `fetched_at` sat inside the
+  content-hashed body, so refreshing an unchanged page created a second entry
+  and every corroboration count inflated with the refresh cadence.
+- **Anchor provenance was misattributed.** Findings were grounded against the
+  whole corpus rather than the chunk the lens saw, so an anchor resolved to
+  whichever source sorted first among those containing it, and the coverage
+  report then called the true source untouched.
+- **Citations went through finding titles**, which collide and truncate. One
+  citation could claim every finding sharing a string while a long title could
+  never match at all. Citations now resolve by stable finding id.
+- **`expert study` exited 0** when every finding was unverifiable and reported
+  `ok` when most chunks failed. Both are indistinguishable from a clean run to
+  a scheduler.
+- **h2 pinned past CVE-2026-71554** in both pyproject and the lockfile.
+
+### Changed
+
+- Grok is confined at dispatch rather than execution-blocked: native tools are
+  stripped and web access disabled in the argv. The guard tests now assert the
+  property (blocked, or provably confined, never neither) rather than the flag.
+- House style is enforced rather than requested: en dashes, em dashes and curly
+  quotes are normalized out of brief fields.
+
 ## [2.44.0] - 2026-08-05
 
 Experts stop being fact ledgers. This release lands the first executable slice of
