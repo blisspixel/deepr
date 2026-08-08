@@ -15,6 +15,7 @@ from deepr.experts.acquisition_plan import plan_queries
 from deepr.experts.corpus_search import (
     SearchHit,
     SearchResult,
+    interleave_by_arm,
     parse_result_urls,
     run_search_plan,
     search_once,
@@ -74,7 +75,7 @@ class TestSearchOnce:
     async def test_a_failing_query_returns_empty_rather_than_raising(self):
         """One dead query must not abort a plan of thirty."""
         client = _client({"q": RuntimeError("network down")})
-        assert await search_once("q", client=client) == []
+        assert await search_once("q", client=client, min_interval_s=0) == []
 
 
 class TestRunPlan:
@@ -82,7 +83,7 @@ class TestRunPlan:
     async def test_every_query_in_the_plan_is_carried_to_the_network(self):
         plan = plan_queries("widgets")
         client = _client({})
-        await run_search_plan(plan, client=client)
+        await run_search_plan(plan, client=client, min_interval_s=0)
         assert len(client.calls) == len(plan.queries)
 
     @pytest.mark.asyncio
@@ -90,7 +91,7 @@ class TestRunPlan:
         plan = plan_queries("widgets")
         client = _client({q.text: _HTML for q in plan.by_arm("adversarial")})
 
-        result = await run_search_plan(plan, client=client)
+        result = await run_search_plan(plan, client=client, min_interval_s=0)
 
         assert result.hits
         assert {h.arm for h in result.hits} == {"adversarial"}
@@ -100,7 +101,7 @@ class TestRunPlan:
         plan = plan_queries("widgets")
         client = _client({q.text: _HTML for q in plan.queries})
 
-        result = await run_search_plan(plan, client=client)
+        result = await run_search_plan(plan, client=client, min_interval_s=0)
 
         assert len(result.hits) == len({h.url for h in result.hits})
 
@@ -114,7 +115,7 @@ class TestRunPlan:
         plan = plan_queries("widgets")
         client = _client({q.text: _HTML for q in plan.queries})
 
-        result = await run_search_plan(plan, client=client)
+        result = await run_search_plan(plan, client=client, min_interval_s=0)
 
         empty = result.arms_that_found_nothing()
         assert "genre" in empty
@@ -125,9 +126,56 @@ class TestRunPlan:
         plan = plan_queries("widgets")
         client = _client({q.text: _HTML for q in plan.queries})
 
-        result = await run_search_plan(plan, max_urls=1, client=client)
+        result = await run_search_plan(plan, max_urls=1, client=client, min_interval_s=0)
 
-        assert any("unrun" in f for f in result.failures)
+        assert "ceiling" in result.stopped_early
+        assert result.unrun_queries > 0
+
+
+class TestEarlyStopping:
+    """Running every query put ~120 requests at one free endpoint in a burst.
+
+    Three builds came back rate-limited with zero results, which is
+    indistinguishable from a subject nobody has written about. The goal was
+    never to run every query; it was a corpus spanning enough publishers.
+    """
+
+    @pytest.mark.asyncio
+    async def test_the_plan_stops_once_enough_hosts_are_found(self):
+        plan = plan_queries("widgets")
+        client = _client({q.text: _HTML for q in plan.queries})
+
+        result = await run_search_plan(plan, target_hosts=2, client=client, min_interval_s=0)
+
+        assert "distinct hosts" in result.stopped_early
+        assert len(client.calls) < len(plan.queries)
+
+    @pytest.mark.asyncio
+    async def test_it_will_not_stop_before_every_arm_has_run(self):
+        """Coverage reached in the descriptive arm is the popular half only."""
+        plan = plan_queries("widgets")
+        client = _client({q.text: _HTML for q in plan.queries})
+
+        result = await run_search_plan(plan, target_hosts=1, client=client, min_interval_s=0)
+
+        assert result.every_arm_tried
+        assert {"adversarial", "primary"} <= result.attempted_arms
+
+    @pytest.mark.asyncio
+    async def test_arms_are_interleaved_so_an_early_stop_is_unbiased(self):
+        plan = plan_queries("widgets")
+        arms = [q.arm for q in interleave_by_arm(list(plan.queries))]
+        assert len(set(arms[:4])) == 4, "the first queries must span arms, not repeat one"
+
+    @pytest.mark.asyncio
+    async def test_running_the_whole_plan_is_still_possible(self):
+        plan = plan_queries("widgets")
+        client = _client({})
+
+        result = await run_search_plan(plan, client=client, min_interval_s=0)
+
+        assert not result.stopped_early
+        assert len(client.calls) == len(plan.queries)
 
 
 class TestReporting:

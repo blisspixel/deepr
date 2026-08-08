@@ -364,7 +364,47 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.43.1)
+## Current Status (v2.45.0)
+
+**Shipped in v2.45.0 (see docs/CHANGELOG.md):** the v2 expert stack is now
+reachable from `consult`, an expert can source its own corpus, and several
+measurements that were quietly false have been corrected. Corpus independence
+is reported as effective origin count rather than document count; a
+hand-assembled three-page corpus scores 1.0 against a nominal 3, while an
+expert-sourced one reaches 18.5.
+
+**Where the honest gaps are.** The corpus accumulates; the understanding does
+not. Every `study` recomputes findings and every `brief` overwrites the last,
+so an expert that has existed for six months has read more than a new one but
+has not learned more. There is still no evaluation, so "better" remains an
+opinion: the one control-arm comparison run against a bare prompt was close on
+a well-known topic, and Deepr's demonstrated margin is checkability and
+specificity rather than knowledge. Consult refusals - the most precisely
+specified gaps the system produces, generated free by real questions - are not
+captured anywhere.
+
+**Next, in dependency order:**
+
+1. **Position survival.** Keep prior briefs instead of overwriting; diff
+   positions on rebuild; record how many corpus changes a position has
+   survived and whether its falsifier has been observed. This is what turns
+   elapsed time into evidence, and every part needed already exists.
+2. **Evaluation with control arms.** A base model with no corpus and a placebo
+   expert on an unrelated corpus, with context recorded alongside every
+   outcome from the start. Retrofitting context is how a measurement system
+   ends up confidently wrong.
+3. **Consultation traces become the reading queue.** A refusal is a specified
+   gap; it should decide what the expert reads next.
+4. **Nothing derived is destroyed on rebuild.** `supersede` rather than
+   overwrite for cards, briefs and positions - the discipline the corpus
+   already has and nothing above it does.
+
+Design: [docs/design/skills-as-learning-systems.md](docs/design/skills-as-learning-systems.md)
+evaluates the wider "skills as bi-temporal learning systems" frame, maps what
+Deepr already has against it, and is explicit about which parts are premature
+and why.
+
+## Superseded Status (v2.43.1)
 
 **Unreleased host-wiring polish (from live Claude Code validation):** coding
 hosts often fail because MCP tools never loaded (empty `mcpServers`, mid-session

@@ -422,3 +422,58 @@ class TestReentrancy:
 
         assert calls, "a failed lens must be re-read"
         assert result.outcomes[0].status == "ok"
+
+
+class TestResumeIsCorpusAware:
+    """An expert accumulates sources; resume must not outrun that.
+
+    Keyed on lens name alone, adding a source and re-running reuses findings
+    that never saw the new material - an expert that silently stops learning
+    from what it retained.
+    """
+
+    @pytest.mark.asyncio
+    async def test_a_lens_is_re_read_when_the_corpus_grew(self, corpus, tmp_path):
+        completion = _completion_returning({"fail_patterns": [{"name": "x", "anchors": [CORPUS_TEXT[:60]]}]})
+        first = await run_study(expert_name="E", corpus=corpus, completion=completion, lens_keys=["failure"])
+        assert first.outcomes[0].corpus_fingerprint
+
+        corpus.add("A third source arriving after the first pass.", origin_key="url:three.example")
+        second = await run_study(
+            expert_name="E",
+            corpus=corpus,
+            completion=completion,
+            lens_keys=["failure"],
+            resume_from=first.outcomes,
+        )
+
+        assert not any("Resumed" in limit for limit in second.limitations)
+        assert any("corpus changed" in limit for limit in second.limitations)
+
+    @pytest.mark.asyncio
+    async def test_an_unchanged_corpus_still_resumes(self, corpus):
+        completion = _completion_returning({"fail_patterns": [{"name": "x", "anchors": [CORPUS_TEXT[:60]]}]})
+        first = await run_study(expert_name="E", corpus=corpus, completion=completion, lens_keys=["failure"])
+
+        second = await run_study(
+            expert_name="E",
+            corpus=corpus,
+            completion=completion,
+            lens_keys=["failure"],
+            resume_from=first.outcomes,
+        )
+
+        assert any("Resumed" in limit for limit in second.limitations)
+
+    @pytest.mark.asyncio
+    async def test_an_outcome_without_a_fingerprint_is_still_reusable(self, corpus):
+        """Studies written before this existed must not all be discarded."""
+        legacy = LensOutcome(lens="failure", axis="interrogation", status="ok")
+        result = await run_study(
+            expert_name="E",
+            corpus=corpus,
+            completion=_completion_returning({"fail_patterns": []}),
+            lens_keys=["failure"],
+            resume_from=[legacy],
+        )
+        assert any("Resumed" in limit for limit in result.limitations)

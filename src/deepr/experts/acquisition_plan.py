@@ -132,6 +132,8 @@ class AcquisitionPlan:
     excluded_publishers: list[str] = field(default_factory=list)
     search_key: str = ""
     """The shortened noun phrase actually templated, when the topic was long."""
+    fallback_reason: str = ""
+    """Set when a proposed plan was refused and these templates were used."""
 
     def by_arm(self, arm: str) -> list[AcquisitionQuery]:
         return [q for q in self.queries if q.arm == arm]
@@ -155,6 +157,12 @@ class AcquisitionPlan:
             )
         if not self.by_arm(ARM_PRIMARY):
             notes.append("No primary-source queries, so the corpus may be entirely secondary retelling.")
+        if self.fallback_reason:
+            notes.append(
+                f"Queries are templated because {self.fallback_reason}. Templates do not know this "
+                "field's terminology, its critics, or where its primary work is published, so "
+                "coverage here is guaranteed in shape only."
+            )
         if self.search_key and self.search_key != self.topic:
             notes.append(
                 f"Queries were built from {self.search_key!r} rather than the full topic, which is too "

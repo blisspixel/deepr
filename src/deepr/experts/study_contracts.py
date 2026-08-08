@@ -93,6 +93,12 @@ class LensOutcome:
     cost_usd: float = 0.0
     chunks_total: int = 0
     chunks_failed: int = 0
+    corpus_fingerprint: str = ""
+    """Which sources this lens read, so a stale reuse is detectable.
+
+    An expert accumulates sources. Resuming on lens name alone reuses findings
+    that never saw the new material, which is an expert that silently stops
+    learning from what it retained."""
     """How much of the corpus this lens actually got through.
 
     Carried as counts rather than only in a prose ``detail`` string, so a run
@@ -110,6 +116,7 @@ class LensOutcome:
             "cost_usd": self.cost_usd,
             "chunks_total": self.chunks_total,
             "chunks_failed": self.chunks_failed,
+            "corpus_fingerprint": self.corpus_fingerprint,
             "finding_count": len(self.findings),
             "grounded_count": sum(1 for f in self.findings if f.is_grounded),
             "findings": [f.to_dict() for f in self.findings],
@@ -126,6 +133,7 @@ class LensOutcome:
             elapsed_s=float(data.get("elapsed_s", 0.0) or 0.0),
             chunks_total=int(data.get("chunks_total", 0) or 0),
             chunks_failed=int(data.get("chunks_failed", 0) or 0),
+            corpus_fingerprint=data.get("corpus_fingerprint", ""),
         )
 
 

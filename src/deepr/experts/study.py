@@ -52,6 +52,18 @@ CheckpointCallback = Callable[[StudyResult], None]
 """Called after each lens, so work already paid for survives an interruption."""
 
 
+def corpus_fingerprint(material: list[tuple[CorpusEntry, str]]) -> str:
+    """A stable id for exactly the sources a pass read.
+
+    Sorted shas, hashed. Adding a source changes it, so a lens outcome from
+    before that source arrived can be recognized as stale rather than reused.
+    """
+    import hashlib
+
+    shas = sorted(entry.sha256 for entry, _ in material)
+    return hashlib.sha256("|".join(shas).encode("utf-8")).hexdigest()[:16]
+
+
 def _lens_progress(
     on_progress: ProgressCallback | None,
     lens_key: str,
@@ -313,9 +325,17 @@ async def _run_lenses(
     would make one bad interruption permanent, which is the opposite of what
     resuming is for.
     """
-    done = {o.lens: o for o in (resume_from or []) if o.status in {"ok", "partial"}}
+    fingerprint = corpus_fingerprint(material)
+    reusable = [o for o in (resume_from or []) if o.status in {"ok", "partial"}]
+    stale = [o for o in reusable if o.corpus_fingerprint and o.corpus_fingerprint != fingerprint]
+    done = {o.lens: o for o in reusable if not o.corpus_fingerprint or o.corpus_fingerprint == fingerprint}
     if done:
         result.limitations.append(f"Resumed: {len(done)} lens(es) reused from an earlier run and not re-read.")
+    if stale:
+        result.limitations.append(
+            f"{len(stale)} lens(es) from an earlier run were re-read because the corpus changed since. "
+            "Reusing them would have carried findings that never saw the new sources."
+        )
 
     for index, lens in enumerate(lenses, 1):
         if (earlier := done.get(lens.key)) is not None:
@@ -333,6 +353,7 @@ async def _run_lenses(
             on_progress=_lens_progress(on_progress, lens.key, index, len(lenses)),
         )
         outcome.elapsed_s = time.monotonic() - started
+        outcome.corpus_fingerprint = fingerprint
         result.outcomes.append(outcome)
         if on_progress:
             grounded = sum(1 for f in outcome.findings if f.is_grounded)
