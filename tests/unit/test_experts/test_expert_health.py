@@ -18,7 +18,9 @@ def _strong(**overrides) -> ExpertHealth:
     defaults = dict(
         name="E",
         sources=20,
-        effective_origins=12.0,
+        origin_count=12,
+        dominant_share=0.2,
+        effective_origins=10.5,
         findings=90,
         grounded_findings=88,
         cross_source_findings=20,
@@ -77,10 +79,26 @@ class TestCapsThatIgnoreDepth:
 
 
 class TestDepthIsOrigins:
-    def test_many_documents_from_one_publisher_do_not_count_as_depth(self):
-        thin = _strong(sources=30, effective_origins=1.0)
+    def test_one_publisher_is_not_depth_however_many_documents(self):
+        thin = _strong(sources=30, origin_count=1, dominant_share=1.0, effective_origins=1.0)
         assert thin.grade == "B"
         assert "one publisher agreeing with itself" in thin.next_action
+
+    def test_reading_more_of_the_best_source_does_not_lower_the_grade(self):
+        """exp(H) fell when an expert read more of its most authoritative source.
+
+        Five publishers with one document each scored 5.0; the same five with
+        twenty from the best scored 1.98 and were told to acquire elsewhere.
+        The grade-optimal move was deleting evidence.
+        """
+        spread = _strong(sources=5, origin_count=5, dominant_share=0.2, effective_origins=5.0)
+        deeper = _strong(sources=24, origin_count=5, dominant_share=0.4, effective_origins=1.98)
+        assert deeper.grade == spread.grade == "S"
+
+    def test_capture_is_caught_by_share_not_entropy(self):
+        captured = _strong(sources=24, origin_count=5, dominant_share=0.83, effective_origins=1.98)
+        assert captured.is_captured
+        assert captured.grade == "B"
 
     def test_unverifiable_findings_block_the_climb(self):
         shaky = _strong(grounded_findings=10)
@@ -156,3 +174,58 @@ class TestFleetSummary:
         assert summary["closed"] == 1
         assert summary["s_tier"] == 1
         assert summary["consultable"] == 2
+
+
+class TestOpennessIsJudgedAgainstTheSubject:
+    """Certainty is correct in some subjects, and the rule was domain-blind.
+
+    Expert intuition is valid where the environment is regular and feedback
+    exists; on a frozen specification there is no live dissent and an expert
+    manufacturing some is worse than one reporting none. Measured expert
+    organizations also err toward under-confidence, worst on the hardest
+    questions, so a uniform penalty on certainty pushes the wrong way.
+    """
+
+    def test_a_settled_subject_is_not_penalized_for_having_no_dissent(self):
+        settled = _strong(contention_findings=0, positions_with_dissent=0)
+        assert not settled.subject_is_contested
+        assert settled.is_open
+        assert settled.grade == "S"
+
+    def test_a_brief_that_dropped_real_contention_is_closed(self):
+        """The lens found it and the brief carried none of it. That is averaging."""
+        dropped = _strong(contention_findings=15, positions_with_dissent=0)
+        assert dropped.dropped_the_dissent
+        assert not dropped.is_open
+        assert dropped.grade == "B"
+        assert "carried none of them" in dropped.next_action
+
+    def test_carrying_the_dissent_forward_clears_it(self):
+        kept = _strong(contention_findings=15, positions_with_dissent=4)
+        assert not kept.dropped_the_dissent
+        assert kept.grade == "S"
+
+    def test_declared_openness_alone_cannot_rescue_a_dropped_dissent(self):
+        """Self-report is the weakest channel; it must not override the check."""
+        loud = _strong(contention_findings=15, positions_with_dissent=0, open_questions=9, known_weaknesses=9)
+        assert not loud.is_open
+        assert loud.grade == "B"
+
+    def test_contention_findings_are_read_from_the_study(self, tmp_path):
+        import json as _json
+
+        (tmp_path / "study.json").write_text(
+            _json.dumps(
+                {
+                    "totals": {"findings": 40, "grounded_findings": 39, "cross_source_findings": 8},
+                    "independence": {"source_count": 12, "origin_count": 9, "dominant_share": 0.2},
+                    "outcomes": [
+                        {"lens": "contention", "finding_count": 6},
+                        {"lens": "failure", "finding_count": 34},
+                    ],
+                    "started_at": "2026-08-07T00:00:00+00:00",
+                }
+            ),
+            encoding="utf-8",
+        )
+        assert assess_expert("E", tmp_path).contention_findings == 6

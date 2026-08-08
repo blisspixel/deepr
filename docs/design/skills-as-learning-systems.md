@@ -89,16 +89,46 @@ pairs with the control-arm requirement already established: without a base
 model with no corpus and a placebo expert on an unrelated corpus, no number
 Deepr reports is interpretable.
 
-## The risk, stated plainly
+## The risk, stated precisely
 
 > Without a promotion pipeline, a self-improving skill becomes an automated
 > superstition generator.
 
-This is the correct objection to the whole idea and it applies to Deepr today,
-not hypothetically. The brief already forms positions from findings. If a
-future version revised itself from its own consult outcomes with no gate, it
-would manufacture confident procedure from noise, and its own provenance trail
-would make the superstition look well-sourced.
+This is a real objection and it is narrower than it first reads. It is about a
+system that **optimizes its own procedures against a metric with no gate** -
+the failure where a loop learns that skipping an inconvenient compliance step
+raises throughput seventeen percent. The defense is that some things are not
+learnable away, which is what trust classes are for.
+
+It is emphatically **not** an argument against an expert holding a view. An
+expert that stated only facts would be worthless; the value is entirely in the
+judgment that is not yet a fact. A PhD-level expert is not a fact list with
+better recall. They hold positions, know which are contested, know what would
+change their mind, and are open about the difference - and much of what they
+know is perspective rather than fact, because on many questions there is no
+single reading of the evidence to converge on.
+
+The distinction that matters is not fact versus non-fact. It is:
+
+| Legitimate | Superstition |
+|---|---|
+| a view, held with its falsifier | a causal claim promoted from noise |
+| revisable when the evidence moves | immune because nothing can check it |
+| one perspective, labeled as one | the perspective, labeled as the answer |
+| dissent preserved | dissent averaged away |
+
+Deepr already separates these structurally, which is worth stating because it
+means the guard exists where it is needed and nowhere else. `Position` cannot
+be useful without `would_change_my_mind`; `unresolved_dissent` survives
+synthesis rather than being smoothed; `resolution` can be `irreducible` so the
+schema never forces a stance the evidence does not support; and the five
+perspective lenses are five legitimate readings of one corpus, not four wrong
+ones and a right one.
+
+So the promotion gate belongs on **procedure that acts** - anything that could
+change what the system does without a human - and not on perspective that
+informs. Putting it on the second would produce an expert too timid to be
+worth consulting, which is a worse product than a slightly wrong one.
 
 Two Deepr-specific versions of the same hazard:
 

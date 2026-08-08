@@ -75,6 +75,11 @@ class IndependenceReport:
         data["is_thin"] = self.is_thin
         return data
 
+    # origin_count and dominant_share are already fields, so asdict carries
+    # them. Named here because the health grade gates on them: effective
+    # source count describes concentration and must not be a gate, since it
+    # falls when an expert reads more of its best source.
+
     def concerns(self) -> list[str]:
         """What a reader must know before trusting anything derived from this."""
         notes: list[str] = []
