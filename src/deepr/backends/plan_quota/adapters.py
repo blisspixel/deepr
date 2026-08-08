@@ -371,8 +371,16 @@ def _antigravity_argv(prompt: str, model: str | None) -> list[str]:
     # prompt cannot invoke either, and text output is requested explicitly
     # because the non-TTY stdout-drop bug (June 2026) leaves captured stdout
     # empty on exit 0; the client treats empty output as an error.
+    #
+    # `--sandbox` and `--mode plan` are the confinement. agy has no tool
+    # allowlist flag, so the two available levers are used instead: sandbox
+    # restricts the terminal, and plan mode cannot apply edits. Without both,
+    # a retrieved prompt reaches live file and shell tools, which is the thing
+    # the old execution block existed to prevent - removing the block without
+    # adding these left the invariant unsatisfied rather than satisfied by a
+    # different route.
     args = _append_model(["agy"], "--model", model)
-    args += ["--disable-slash-commands", "--output-format", "text"]
+    args += ["--sandbox", "--mode", "plan", "--disable-slash-commands", "--output-format", "text"]
     return [*args, "-p", prompt]
 
 

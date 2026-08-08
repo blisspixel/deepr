@@ -147,9 +147,32 @@ class TestRegistry:
             if adapter.execution_block_reason:
                 continue
             argv = " ".join(adapter.argv_builder("prompt.txt", None))
-            assert "--disallowed-tools" in argv, f"{backend_id} runs with native tools live"
-            for tool in ("bash", "edit", "write", "read"):
-                assert tool in argv, f"{backend_id} does not strip {tool}"
+            if "--disallowed-tools" in argv:
+                for tool in ("bash", "edit", "write", "read"):
+                    assert tool in argv, f"{backend_id} does not strip {tool}"
+                continue
+            # No tool-allowlist flag on this CLI, so the sandbox is the
+            # confinement. It satisfies the same invariant by a different
+            # route: the tools exist and cannot write or reach the network.
+            assert "--sandbox" in argv, f"{backend_id} runs with native tools live"
+
+    def test_codex_sandbox_is_read_only_and_offline(self):
+        argv = " ".join(get_adapter("codex").argv_builder("prompt.txt", None))
+        assert "--sandbox read-only" in argv
+        assert "network_access=false" in argv
+        assert 'approval_policy="never"' in argv
+
+    def test_antigravity_cannot_edit_or_run_a_terminal(self):
+        """agy has no tool allowlist, so both available levers are pulled.
+
+        Removing its execution block without these left the invariant
+        unsatisfied rather than satisfied another way: a retrieved prompt
+        reached live file and shell tools.
+        """
+        argv = " ".join(get_adapter("antigravity").argv_builder("prompt.txt", None))
+        assert "--sandbox" in argv
+        assert "--mode plan" in argv
+        assert "--dangerously-skip-permissions" not in argv
 
     def test_grok_strips_its_tools_and_web_access(self):
         """Pins the confinement that replaced grok's execution block."""

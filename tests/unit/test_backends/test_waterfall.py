@@ -177,11 +177,22 @@ class TestExplicitPlanQuota:
         choice = choose_plan_quota_backend("claude", env={"ANTHROPIC_API_KEY": "sk-x"})
         assert choice.plan_backend_id == "claude"
 
-    def test_native_tool_backend_is_refused(self):
+    def test_native_tool_backend_is_accepted_once_confined(self):
+        """codex was refused for its native tools; it now runs sandboxed.
+
+        The refusal protected against an untrusted prompt reaching live file
+        and shell tools. Once the argv runs read-only and offline with
+        escalation off, the property holds and the refusal was pinning the
+        mechanism. test_plan_quota_adapters pins the sandbox itself.
+        """
         choice = choose_plan_quota_backend("codex", env={})
+        assert choice.plan_backend_id == "codex", choice.reason
+
+    def test_unconfinable_backend_is_still_refused(self):
+        """kiro cannot confine its native read tools, so the gate still holds."""
+        choice = choose_plan_quota_backend("kiro", env={})
         assert choice.backend == BACKEND_UNAVAILABLE
         assert choice.plan_backend_id is None
-        assert "native read and shell tools" in choice.reason
 
     def test_unknown_backend_is_unavailable(self):
         choice = choose_plan_quota_backend("bogus", env={})
