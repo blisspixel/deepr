@@ -85,3 +85,18 @@ def build_briefed_perspective(query: str, name: str, domain: str, perspective_cl
             "evidence_chars": context.evidence_chars(),
         },
     )
+
+
+def briefed_perspective_without_beliefs(query: str, name: str, domain: str, perspective_cls: Any) -> Any:
+    """A perspective for an expert that has a brief and no belief ledger.
+
+    acquire -> study -> brief never writes the claim ledger, because admission
+    is a separate decision from reading. Consult gated its whole path on
+    ``beliefs.json`` existing, so exactly that expert - corpus, findings and
+    positions all on disk - answered "no stored belief context is available".
+    """
+    from deepr.experts.paths import canonical_expert_dir
+
+    if not (canonical_expert_dir(name) / "brief.json").exists():
+        return None
+    return build_briefed_perspective(query, name, domain, perspective_cls)

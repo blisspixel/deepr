@@ -232,3 +232,36 @@ class TestBriefRoundTrip:
         path = tmp_path / "brief.json"
         path.write_text("{not json", encoding="utf-8")
         assert load_brief(path) is None
+
+
+class TestBriefedExpertWithoutBeliefs:
+    """acquire -> study -> brief never writes the claim ledger.
+
+    Consult gated its whole path on beliefs.json existing, so an expert with a
+    corpus, findings and positions all on disk answered "no stored belief
+    context is available". Observed live on a freshly built expert.
+    """
+
+    def test_a_brief_alone_produces_a_perspective(self, tmp_path, monkeypatch, brief):
+        import json
+
+        from deepr.experts import briefed_perspective as bp
+
+        (tmp_path / "brief.json").write_text(json.dumps(brief.to_dict()), encoding="utf-8")
+        monkeypatch.setattr(bp, "canonical_expert_dir", lambda name: tmp_path, raising=False)
+        monkeypatch.setattr("deepr.experts.paths.canonical_expert_dir", lambda name: tmp_path)
+
+        class _P:
+            def __init__(self, **kw):
+                self.__dict__.update(kw)
+
+        result = bp.briefed_perspective_without_beliefs("latency clusters", "E", "d", _P)
+
+        assert result is not None
+        assert result.context["source"] == "brief"
+
+    def test_no_brief_falls_through_rather_than_inventing(self, tmp_path, monkeypatch):
+        from deepr.experts import briefed_perspective as bp
+
+        monkeypatch.setattr("deepr.experts.paths.canonical_expert_dir", lambda name: tmp_path)
+        assert bp.briefed_perspective_without_beliefs("q", "E", "d", object) is None

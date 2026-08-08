@@ -15,7 +15,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
-from deepr.experts.briefed_perspective import build_briefed_perspective
+from deepr.experts.briefed_perspective import briefed_perspective_without_beliefs, build_briefed_perspective
 from deepr.experts.constants import MAX_COUNCIL_CONCURRENCY, SYNTHESIS_BUDGET_FRACTION, UTILITY_MODEL
 from deepr.experts.consult_lifecycle import ConsultLifecycleError
 from deepr.experts.council_synthesis_costs import (
@@ -437,7 +437,7 @@ class ExpertCouncil:
         original_ideas = list(perspective_state["original_ideas"])
         belief_file = canonical_expert_dir(name) / "beliefs" / "beliefs.json"
         if not belief_file.exists() and not original_ideas:
-            return None
+            return briefed_perspective_without_beliefs(query, name, domain, ExpertPerspective)
 
         store = BeliefStore(name, read_only=True, read_path=belief_file)
         perspective = self.build_stored_perspective(
