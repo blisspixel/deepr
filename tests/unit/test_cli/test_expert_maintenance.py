@@ -1717,14 +1717,14 @@ class TestPlanQuotaSync:
                 "claude",
                 "--check-grounding",
                 "--checker-plan",
-                "antigravity",
+                "kiro",
                 "-y",
                 "--json",
             ],
         )
 
         assert result.exit_code == 2, result.output
-        assert "Antigravity CLI (Google plan) execution is disabled" in result.output
+        assert "Kiro CLI execution is disabled" in result.output
         assert client_calls == []
 
     def test_plan_claude_runs_on_prepaid_and_records_source(self, monkeypatch):

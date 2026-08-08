@@ -1,9 +1,12 @@
-"""Grading a fleet, where certainty counts against you.
+"""Grading a fleet as a progression, one thing per rung.
 
-The rule that shapes everything here: an expert holding no unresolved dissent,
-naming no open questions and admitting no weakness is not finished, it is
-closed. A full cup has no room. So openness is graded, and S requires all four
-of deep, current, holding a perspective, and still looking.
+F nothing, D claims without a corpus, C researched but holding no view, B
+consultable with something structurally wrong, A well researched with a
+perspective, S all of A plus current plus actually in use.
+
+The only difference between A and S is liveness, and that is deliberate: an
+expert nobody has asked anything in six months is not being kept honest by
+anything, however good its corpus looks.
 """
 
 import json
@@ -31,33 +34,39 @@ def _strong(**overrides) -> ExpertHealth:
         open_questions=4,
         known_weaknesses=2,
         age_days=2,
+        consulted_days_ago=3,
     )
     return ExpertHealth(**{**defaults, **overrides})
 
 
 class TestTheLadder:
-    def test_all_four_reaches_s(self):
+    def test_well_researched_current_and_in_use_is_s(self):
         assert _strong().grade == "S"
 
-    def test_a_closed_expert_cannot_reach_s(self):
-        """The full cup. Certainty is where learning stops, not where it ends."""
-        closed = _strong(positions_with_dissent=0, open_questions=0, known_weaknesses=0)
-        assert not closed.is_open
+    def test_never_consulted_is_the_difference_between_a_and_s(self):
+        """A good expert nothing has ever asked is not being kept honest."""
+        unused = _strong(consulted_days_ago=-1)
+        assert not unused.is_in_use
+        assert unused.grade == "A"
+
+    def test_consulted_long_ago_is_also_only_a(self):
+        assert _strong(consulted_days_ago=200).grade == "A"
+
+    def test_not_current_is_a_however_much_it_is_used(self):
+        assert _strong(age_days=60).grade == "A"
+        assert _strong(age_days=400).grade == "A"
+
+    def test_no_perspective_is_b_not_a(self):
+        """Positions without a reading is a well-organized index, not an expert."""
+        assert _strong(standpoint="").grade == "B"
+
+    def test_a_closed_expert_that_dropped_real_dissent_is_b(self):
+        closed = _strong(contention_findings=12, positions_with_dissent=0)
         assert closed.grade == "B"
 
-    def test_no_perspective_caps_below_s(self):
-        """Positions without a reading is a well-organized index."""
-        assert _strong(standpoint="").grade == "A"
-
-    def test_open_but_not_hungry_caps_below_s(self):
-        """Leaving a gap unstated is not the same as going after it."""
-        assert _strong(known_weaknesses=0).grade == "A"
-
-    def test_stale_drops_further(self):
-        assert _strong(age_days=400).grade == "B"
-
-    def test_deep_but_not_current_is_a_not_s(self):
-        assert _strong(age_days=60).grade == "A"
+    def test_naming_no_weakness_no_longer_blocks_the_top(self):
+        """Self-reported hunger was the weakest signal here and gated the most."""
+        assert _strong(known_weaknesses=0, open_questions=0).grade == "S"
 
 
 class TestCapsThatIgnoreDepth:
@@ -95,6 +104,9 @@ class TestDepthIsOrigins:
         deeper = _strong(sources=24, origin_count=5, dominant_share=0.4, effective_origins=1.98)
         assert deeper.grade == spread.grade == "S"
 
+    def test_too_few_publishers_is_b_however_current_and_used(self):
+        assert _strong(origin_count=2).grade == "B"
+
     def test_capture_is_caught_by_share_not_entropy(self):
         captured = _strong(sources=24, origin_count=5, dominant_share=0.83, effective_origins=1.98)
         assert captured.is_captured
@@ -118,6 +130,8 @@ class TestNextAction:
             (_strong(open_questions=0), "no open questions"),
             (_strong(known_weaknesses=0), "nothing it is weak on"),
             (_strong(age_days=90), "Re-acquire to reach S"),
+            (_strong(consulted_days_ago=-1), "nobody has consulted it ever"),
+            (_strong(consulted_days_ago=120), "in 120 days"),
             (_strong(), "S tier"),
         ],
     )
@@ -172,8 +186,14 @@ class TestFleetSummary:
         fleet = [_strong(), _strong(positions_with_dissent=0, open_questions=0, known_weaknesses=0)]
         summary = fleet_summary(fleet)
         assert summary["closed"] == 1
-        assert summary["s_tier"] == 1
+        assert summary["s_tier"] == 2
         assert summary["consultable"] == 2
+
+    def test_good_experts_nobody_uses_are_counted(self):
+        """The triage question this answers: what did we build and abandon."""
+        summary = fleet_summary([_strong(), _strong(consulted_days_ago=-1)])
+        assert summary["unused"] == 1
+        assert summary["s_tier"] == 1
 
 
 class TestOpennessIsJudgedAgainstTheSubject:
@@ -191,6 +211,11 @@ class TestOpennessIsJudgedAgainstTheSubject:
         assert not settled.subject_is_contested
         assert settled.is_open
         assert settled.grade == "S"
+
+    def test_a_settled_subject_that_declares_nothing_is_still_fine(self):
+        """Manufactured doubt on a frozen spec would be worse than none."""
+        quiet = _strong(contention_findings=0, positions_with_dissent=0, open_questions=0, known_weaknesses=0)
+        assert quiet.grade == "S"
 
     def test_a_brief_that_dropped_real_contention_is_closed(self):
         """The lens found it and the brief carried none of it. That is averaging."""

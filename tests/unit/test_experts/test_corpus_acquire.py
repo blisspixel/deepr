@@ -13,7 +13,6 @@ import pytest
 from deepr.experts.corpus_acquire import _as_source_text, acquire_sources
 from deepr.experts.corpus_store import CorpusStore, content_hash
 
-
 _BODY = "Retained pages must clear the nav-shell guard, so fixture bodies are realistic rather than a few words. " * 4
 
 

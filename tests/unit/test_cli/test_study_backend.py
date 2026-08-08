@@ -7,8 +7,8 @@ import pytest
 from deepr.cli.commands.semantic import study_backend
 from deepr.cli.commands.semantic.study_backend import (
     StudyBackendError,
-    build_study_backend,
     _preferred_plan_backends,
+    build_study_backend,
 )
 
 

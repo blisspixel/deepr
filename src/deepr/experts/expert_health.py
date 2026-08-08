@@ -44,19 +44,36 @@ with a large corpus and no formed view is a search index. It may be a very
 good search index, and the grade should not imply it is a consultable expert,
 because the whole difference is whether it has landed anywhere.
 
-**Certainty lowers the grade rather than raising it.** An expert holding no
-unresolved dissent, naming no open questions and having never changed its mind
-is not a finished expert; it is a closed one. A full cup has no room, and an
-expert that believes it has the subject has stopped being able to learn it -
-which is the moment it stops being worth consulting, whatever its corpus looks
-like.
+**Dropping real disagreement lowers the grade; declared certainty does not.**
+The full-cup instinct is sound and the obvious way to measure it is wrong.
+Asking an expert to declare its open questions and weaknesses grades a
+self-report against a rubric it can read, and a frozen specification has no
+live dissent to declare - manufacturing some there would be worse than
+reporting none. So the penalty attaches to one checkable comparison instead:
+the contention lens found disagreement in the corpus and the brief carried
+none of it into a position. That is disagreement being averaged away, and it
+is a claim about two artifacts rather than about a personality.
 
-**S is all four at once, and deliberately hard to reach.** Deep and
-independently sourced, current, holding a perspective of its own rather than a
-pile of facts, and still actively wanting to know more. Anything short of all
-four is not S. Most experts should sit below it, including good ones: a grade
-most things reach measures nothing, and the top of this ladder exists to
-describe something worth aiming at rather than to hand out praise.
+**The ladder is a progression, not a lattice.** It reads in one direction and
+each rung adds one thing:
+
+| | |
+|---|---|
+| F | brand new. Nothing to go on. |
+| D | claims, but no retained corpus, so nothing can be re-read or checked. |
+| C | a corpus, and initial research done. Findings, no formed view yet. |
+| B | briefed and consultable, but something structural is wrong - one publisher supplies most of it, or the findings do not trace back. |
+| A | well researched, independently sourced, holds a perspective and insights. Not current, or not being used. |
+| S | all of A, plus up to date, plus actually consulted lately and given a chance to research and update since. |
+
+The only difference between A and S is **liveness**. A is a good expert; S is a
+good expert that is being used and is keeping up. That is deliberate, because
+an expert nobody has asked anything in six months is not being maintained by
+anything, and the grade should say so before somebody relies on it.
+
+An earlier version of this ladder gated S on four independent properties at
+once and every rung had its own escape hatches. It was harder to explain than
+the thing it measured, which is the wrong trade for a triage letter.
 """
 
 from __future__ import annotations
@@ -76,6 +93,10 @@ staleness rate varies by subject far more than any single number admits."""
 
 _CURRENT_DAYS = 30
 """Read within a month. S claims to be up to date, so it has to have looked."""
+
+_IN_USE_DAYS = 30
+"""Consulted within a month. The A-to-S difference, and the only signal here
+that records something happening outside the expert's own directory."""
 
 _DOMINANT_SHARE = 0.6
 """One publisher above this share sets what the corpus can conclude."""
@@ -144,6 +165,13 @@ class ExpertHealth:
     cards: int = 0
     age_days: int = -1
     """Days since the study was last run. -1 when never."""
+    consulted_days_ago: int = -1
+    """Days since anyone last asked this expert anything. -1 when never.
+
+    The signal that separates A from S. Everything else on this record
+    describes the artifact; this one is the only evidence that the artifact is
+    load-bearing for somebody. An expert nobody has consulted in six months is
+    not being maintained by anything, whatever its corpus looks like."""
 
     integrity_warnings: list[str] = field(default_factory=list)
 
@@ -222,6 +250,16 @@ class ExpertHealth:
         return 0 <= self.age_days <= _CURRENT_DAYS
 
     @property
+    def is_in_use(self) -> bool:
+        """Somebody has actually asked this expert something lately.
+
+        Usage rather than quality, and that is the point: it is the one field
+        here that no amount of careful artifact construction can fake, because
+        it records something that happened outside the expert.
+        """
+        return 0 <= self.consulted_days_ago <= _IN_USE_DAYS
+
+    @property
     def is_captured(self) -> bool:
         """One publisher supplies most of the corpus, or there is only one.
 
@@ -236,32 +274,33 @@ class ExpertHealth:
     def grade(self) -> str:
         """A triage letter. Always read with ``next_action``.
 
-        A missing brief caps at C however deep the corpus, because an expert
-        that has not landed anywhere is a search index and should not grade as
-        a consultable expert.
+        One direction, one thing per rung. A missing brief caps at C however
+        deep the corpus, because an expert that has not landed anywhere is a
+        search index and should not grade as a consultable expert.
         """
         if not self.sources and not self.beliefs:
             return "F"
         if not self.sources:
             return "D"
-        if not self.is_studied:
+        if not self.is_studied or not self.is_consultable:
             return "C"
-        if not self.is_consultable:
-            return "C"
-        if self.is_captured or self.grounded_ratio < 0.5:
-            return "B"
-        if not self.is_open:
-            # A closed expert cannot climb however good its corpus. Certainty
-            # across the board is not mastery of a subject; it is the point at
-            # which one stops learning it.
+
+        # Structural problems keep an expert at B however much it has read.
+        # A corpus that is one publisher wearing hats, or findings that do not
+        # trace back to a passage, are wrong in a way more reading cannot fix.
+        if self.is_captured or self.grounded_ratio < 0.5 or self.dropped_the_dissent:
             return "B"
 
-        deep = self.origin_count >= _GOOD_ORIGINS and self.cross_source_findings > 0 and not self.is_captured
-        if deep and self.is_current and self.has_perspective and self.is_hungry:
+        well_researched = (
+            self.origin_count >= _GOOD_ORIGINS
+            and self.cross_source_findings > 0
+            and self.has_perspective
+        )
+        if not well_researched:
+            return "B"
+        if self.is_current and self.is_in_use:
             return "S"
-        if deep and not self.is_stale:
-            return "A"
-        return "B"
+        return "A"
 
     def _next_action_checks(self) -> list[tuple[bool, str]]:
         """Every reason an expert might need work, worst first.
@@ -327,6 +366,13 @@ class ExpertHealth:
                 not self.is_current,
                 f"Strong, but last read {self.age_days} days ago. Re-acquire to reach S.",
             ),
+            (
+                not self.is_in_use,
+                "Strong and current, but nobody has consulted it"
+                + (" ever" if self.consulted_days_ago < 0 else f" in {self.consulted_days_ago} days")
+                + ". Consult it, or retire it - an expert nothing asks is not being kept honest "
+                "by anything.",
+            ),
         ]
 
     @property
@@ -335,7 +381,7 @@ class ExpertHealth:
         for failing, message in self._next_action_checks():
             if failing:
                 return message
-        return "S tier. Deep, current, holds a perspective, and still looking."
+        return "S tier. Well researched, current, holds a perspective, and in use."
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
@@ -349,6 +395,7 @@ class ExpertHealth:
             is_hungry=self.is_hungry,
             has_perspective=self.has_perspective,
             is_current=self.is_current,
+            is_in_use=self.is_in_use,
             is_captured=self.is_captured,
             subject_is_contested=self.subject_is_contested,
             dropped_the_dissent=self.dropped_the_dissent,
@@ -375,9 +422,54 @@ def _age_days(started_at: str, *, now: datetime | None = None) -> int:
     return max(0, ((now or datetime.now(UTC)) - when).days)
 
 
-def assess_expert(name: str, expert_dir: Path, *, beliefs: int = 0, now: datetime | None = None) -> ExpertHealth:
-    """Read what is on disk for one expert. No model call, no network."""
-    health = ExpertHealth(name=name, beliefs=beliefs)
+def last_consulted_days(*, now: datetime | None = None, limit: int = 500) -> dict[str, int]:
+    """Days since each expert was last consulted, from the local trace store.
+
+    One scan for a whole fleet rather than one per expert: the traces are a
+    single append-only log, so assessing fifty experts individually would read
+    the same file fifty times.
+
+    An unreadable or missing trace store yields an empty mapping, which grades
+    every expert as never-consulted. That is the right way to be wrong here -
+    it says "no evidence anyone uses this", which is exactly what a missing
+    log means.
+    """
+    try:
+        from deepr.experts.consult_traces import load_consult_traces
+
+        traces = load_consult_traces(limit=limit)
+    except Exception:
+        return {}
+
+    seen: dict[str, int] = {}
+    for trace in traces:
+        days = _age_days(str(trace.get("recorded_at") or ""), now=now)
+        if days < 0:
+            continue
+        payload = trace.get("result") or trace
+        names = payload.get("experts_consulted") or trace.get("requested_experts") or []
+        for expert_name in names:
+            key = str(expert_name)
+            if key not in seen or days < seen[key]:
+                seen[key] = days
+    return seen
+
+
+def assess_expert(
+    name: str,
+    expert_dir: Path,
+    *,
+    beliefs: int = 0,
+    now: datetime | None = None,
+    consulted_days_ago: int = -1,
+) -> ExpertHealth:
+    """Read what is on disk for one expert. No model call, no network.
+
+    ``consulted_days_ago`` is passed in rather than read here, because it lives
+    in a fleet-wide log rather than this expert's directory. Callers grading a
+    fleet should call ``last_consulted_days`` once and index into it.
+    """
+    health = ExpertHealth(name=name, beliefs=beliefs, consulted_days_ago=consulted_days_ago)
 
     study = _load_json(expert_dir / "study.json")
     if study:
@@ -445,5 +537,6 @@ def fleet_summary(fleet: list[ExpertHealth]) -> dict[str, Any]:
         "never_studied": sum(1 for e in fleet if not e.is_studied),
         "closed": sum(1 for e in fleet if e.is_studied and not e.is_open),
         "dropped_dissent": sum(1 for e in fleet if e.dropped_the_dissent),
+        "unused": sum(1 for e in fleet if e.is_consultable and not e.is_in_use),
         "s_tier": sum(1 for e in fleet if e.grade == "S"),
     }

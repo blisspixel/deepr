@@ -16,7 +16,12 @@ import click
 
 from deepr.cli.colors import console, print_header, print_key_value
 from deepr.cli.commands.semantic.experts import expert
-from deepr.experts.expert_health import ExpertHealth, assess_expert, fleet_summary
+from deepr.experts.expert_health import (
+    ExpertHealth,
+    assess_expert,
+    fleet_summary,
+    last_consulted_days,
+)
 from deepr.experts.paths import canonical_expert_dir
 
 _GRADE_COLOR = {"S": "bright_green", "A": "green", "B": "cyan", "C": "yellow", "D": "yellow", "F": "red"}
@@ -33,8 +38,22 @@ def _belief_count(name: str) -> int:
 
 
 def collect_fleet(names: list[str]) -> list[ExpertHealth]:
-    """Assess every named expert from what is on disk."""
-    return [assess_expert(n, canonical_expert_dir(n), beliefs=_belief_count(n)) for n in names]
+    """Assess every named expert from what is on disk.
+
+    Consult recency comes from one scan of the shared trace log rather than
+    per expert, because it is a single append-only file and forty experts
+    would otherwise read it forty times.
+    """
+    consulted = last_consulted_days()
+    return [
+        assess_expert(
+            n,
+            canonical_expert_dir(n),
+            beliefs=_belief_count(n),
+            consulted_days_ago=consulted.get(n, -1),
+        )
+        for n in names
+    ]
 
 
 def _render_row(health: ExpertHealth) -> None:
