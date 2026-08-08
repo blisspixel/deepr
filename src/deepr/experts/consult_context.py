@@ -269,14 +269,12 @@ def render_consult_packet(context: ConsultContext) -> str:
         blocks.append("\n".join(lines).strip())
     elif context.coverage == "partial":
         blocks.append(
-            "I have not formed a position on this. What follows is material from my sources that "
-            "bears on it, and it has not been reconciled into a view."
+            "I have not formed a position on this, so take what follows as material rather than a "
+            "view. It bears on your question and I have not reconciled it. If it is close enough "
+            "to be worth settling, say so and I will read further and come back with a position."
         )
     else:
-        blocks.append(
-            "I hold nothing on this question. Saying so is the honest answer; inventing one from "
-            "adjacent material would not be."
-        )
+        blocks.append(_render_uncovered(context))
 
     if context.findings:
         lines = ["What my sources actually say:", ""]
@@ -292,6 +290,36 @@ def render_consult_packet(context: ConsultContext) -> str:
         blocks.append("\n".join(lines).strip())
 
     return "\n\n".join(block for block in blocks if block)
+
+
+def _render_uncovered(context: ConsultContext) -> str:
+    """Say no, and then say what would turn it into a yes.
+
+    Honest refusal that stops there leaves the asker where they started. What
+    an expert who is glad to be asked adds is the route: what it would take to
+    answer, and what nearby thing it does hold. Refusing usefully is still
+    helping, and it is also the only way a refusal becomes work the expert can
+    go and do.
+    """
+    lines = [
+        "I do not hold a position on this. Inventing one from adjacent material would be worse "
+        "than saying so, but I would like to be able to answer it."
+    ]
+    if context.live:
+        lines.append("")
+        lines.append("Nearest things I am already working on:")
+        lines += [f"- {item}" for item in context.live[:3]]
+    if context.unknown:
+        lines.append("")
+        lines.append("Already on my list of what I do not know:")
+        lines += [f"- {item}" for item in context.unknown[:3]]
+    lines.append("")
+    lines.append(
+        "What would let me answer: sources on this specific question, which is an acquire and "
+        "re-study rather than a guess. Point me at material or ask me to go looking, and this "
+        "becomes something I hold rather than something I decline."
+    )
+    return "\n".join(lines)
 
 
 def render_standing_header(context: ConsultContext) -> str:

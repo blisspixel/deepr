@@ -3322,6 +3322,7 @@ from deepr.cli.commands.semantic import expert_cleanup as _expert_cleanup  # noq
 from deepr.cli.commands.semantic import expert_consult as _expert_consult  # noqa: F401
 from deepr.cli.commands.semantic import expert_consult_quality as _expert_consult_quality  # noqa: F401
 from deepr.cli.commands.semantic import expert_consult_traces as _expert_consult_traces  # noqa: F401
+from deepr.cli.commands.semantic import expert_fleet_health as _expert_fleet_health  # noqa: F401
 from deepr.cli.commands.semantic import expert_freshness as _expert_freshness  # noqa: F401
 from deepr.cli.commands.semantic import expert_gap_routes as _expert_gap_routes  # noqa: F401
 from deepr.cli.commands.semantic import expert_learn_web as _expert_learn_web  # noqa: F401
