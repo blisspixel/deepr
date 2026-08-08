@@ -11,6 +11,7 @@ from deepr.experts.study import (
     extract_json_object,
     run_study,
 )
+from deepr.experts.study_contracts import LensOutcome
 from deepr.experts.study_lenses import LENSES
 
 CORPUS_TEXT = (
@@ -355,3 +356,69 @@ class TestRunStudy:
         coverage = result.axis_coverage()
         assert coverage["interrogation"] >= 2
         assert coverage["perspective"] >= 2
+
+
+class TestReentrancy:
+    """Recovery is structural, not conversational.
+
+    A study is tens of model calls over many minutes. Holding it all in memory
+    until the end means one interruption discards work that already succeeded
+    and was already paid for.
+    """
+
+    @pytest.mark.asyncio
+    async def test_the_pass_is_checkpointed_after_every_lens(self, corpus):
+        seen: list[int] = []
+        result = await run_study(
+            expert_name="E",
+            corpus=corpus,
+            completion=_completion_returning({"fail_patterns": [{"name": "x", "anchors": [CORPUS_TEXT[:60]]}]}),
+            lens_keys=["failure", "mechanism"],
+            checkpoint=lambda r: seen.append(len(r.outcomes)),
+        )
+        assert seen == [1, 2]
+        assert len(result.outcomes) == 2
+
+    @pytest.mark.asyncio
+    async def test_a_completed_lens_is_reused_rather_than_re_read(self, corpus):
+        calls: list[str] = []
+
+        async def _completion(prompt):
+            calls.append(prompt)
+            return json.dumps({"fail_patterns": [{"name": "x", "anchors": [CORPUS_TEXT[:60]]}]})
+
+        first = await run_study(expert_name="E", corpus=corpus, completion=_completion, lens_keys=["failure"])
+        after_first = len(calls)
+
+        second = await run_study(
+            expert_name="E",
+            corpus=corpus,
+            completion=_completion,
+            lens_keys=["failure", "mechanism"],
+            resume_from=first.outcomes,
+        )
+
+        assert len(calls) > after_first, "the new lens must still run"
+        assert len(second.outcomes) == 2
+        assert any("Resumed" in limit for limit in second.limitations)
+
+    @pytest.mark.asyncio
+    async def test_a_failed_lens_is_retried_rather_than_reused(self, corpus):
+        """Reusing a parse failure would make the interruption permanent."""
+        failed = LensOutcome(lens="failure", axis="interrogation", status="parse_failed")
+        calls: list[str] = []
+
+        async def _completion(prompt):
+            calls.append(prompt)
+            return json.dumps({"fail_patterns": [{"name": "x", "anchors": [CORPUS_TEXT[:60]]}]})
+
+        result = await run_study(
+            expert_name="E",
+            corpus=corpus,
+            completion=_completion,
+            lens_keys=["failure"],
+            resume_from=[failed],
+        )
+
+        assert calls, "a failed lens must be re-read"
+        assert result.outcomes[0].status == "ok"

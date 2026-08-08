@@ -54,6 +54,12 @@ class SearchResult:
 
     hits: list[SearchHit] = field(default_factory=list)
     failures: list[str] = field(default_factory=list)
+    attempted_arms: set[str] = field(default_factory=set)
+    """Every arm the plan ran, so an arm can be reported as contributing nothing.
+
+    Derived from failures alone, an arm whose every result was already seen
+    showed as neither found nor failed - invisible rather than reported. That
+    is a check passing because its subject is missing rather than sound."""
 
     @property
     def distinct_hosts(self) -> set[str]:
@@ -68,7 +74,7 @@ class SearchResult:
         balanced.
         """
         found = {hit.arm for hit in self.hits if hit.arm}
-        attempted = {q.split("::", 1)[0] for q in self.failures if "::" in q}
+        attempted = set(self.attempted_arms) | {q.split("::", 1)[0] for q in self.failures if "::" in q}
         return sorted(attempted - found)
 
     def to_dict(self) -> dict[str, Any]:
@@ -77,6 +83,7 @@ class SearchResult:
             "distinct_hosts": len(self.distinct_hosts),
             "hits": [hit.to_dict() for hit in self.hits],
             "failures": self.failures,
+            "arms_that_found_nothing": self.arms_that_found_nothing(),
         }
 
 
@@ -112,7 +119,10 @@ async def search_once(query: str, *, limit: int = 6, client: Any = None) -> list
     import httpx
 
     owns_client = client is None
-    client = client or httpx.AsyncClient(timeout=25.0, follow_redirects=True)
+    # trust_env=False so proxy environment variables cannot silently reroute a
+    # search, and no redirect chasing so a result page cannot walk this
+    # somewhere unintended. The endpoint answers the POST directly.
+    client = client or httpx.AsyncClient(timeout=25.0, trust_env=False, follow_redirects=False)
     try:
         response = await client.post(_ENDPOINT, data={"q": query}, headers={"User-Agent": _USER_AGENT})
         if response.status_code >= 400:
@@ -148,6 +158,7 @@ async def run_search_plan(
                 f"stopped at {max_urls} candidate URLs; {len(plan.queries) - index + 1} queries unrun"
             )
             break
+        result.attempted_arms.add(query.arm)
         if on_progress:
             on_progress(f"query {index}/{len(plan.queries)} [{query.arm}] {query.text[:60]}")
 

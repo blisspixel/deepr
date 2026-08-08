@@ -48,6 +48,9 @@ StudyCompletion = Callable[[str], Awaitable[str]]
 ProgressCallback = Callable[[str], None]
 """Called before each model call, so a long run is not a silent one."""
 
+CheckpointCallback = Callable[[StudyResult], None]
+"""Called after each lens, so work already paid for survives an interruption."""
+
 
 def _lens_progress(
     on_progress: ProgressCallback | None,
@@ -293,6 +296,56 @@ def build_findings(
     return findings
 
 
+async def _run_lenses(
+    result: StudyResult,
+    *,
+    lenses: Any,
+    chunks: list[list[tuple[CorpusEntry, str]]],
+    material: list[tuple[CorpusEntry, str]],
+    completion: StudyCompletion,
+    resume_from: list[LensOutcome] | None,
+    on_progress: ProgressCallback | None,
+    checkpoint: CheckpointCallback | None,
+) -> None:
+    """Run each lens, reusing any an earlier pass already completed.
+
+    Only ``ok`` and ``partial`` outcomes are reused. Reusing a parse failure
+    would make one bad interruption permanent, which is the opposite of what
+    resuming is for.
+    """
+    done = {o.lens: o for o in (resume_from or []) if o.status in {"ok", "partial"}}
+    if done:
+        result.limitations.append(f"Resumed: {len(done)} lens(es) reused from an earlier run and not re-read.")
+
+    for index, lens in enumerate(lenses, 1):
+        if (earlier := done.get(lens.key)) is not None:
+            result.outcomes.append(earlier)
+            if on_progress:
+                on_progress(f"lens {index}/{len(lenses)} {lens.key}: reused from an earlier run")
+            continue
+
+        started = time.monotonic()
+        outcome = await _run_lens_over_chunks(
+            lens,
+            chunks,
+            material,
+            completion,
+            on_progress=_lens_progress(on_progress, lens.key, index, len(lenses)),
+        )
+        outcome.elapsed_s = time.monotonic() - started
+        result.outcomes.append(outcome)
+        if on_progress:
+            grounded = sum(1 for f in outcome.findings if f.is_grounded)
+            on_progress(
+                f"lens {index}/{len(lenses)} {lens.key}: {len(outcome.findings)} finding(s), "
+                f"{grounded} anchored, {outcome.elapsed_s:.0f}s"
+            )
+        if checkpoint is not None:
+            # Per lens rather than at the end, so an interruption costs one
+            # lens instead of the whole pass.
+            checkpoint(result)
+
+
 async def run_study(
     *,
     expert_name: str,
@@ -303,11 +356,19 @@ async def run_study(
     chunk_chars: int = _DEFAULT_CHUNK_CHARS,
     capacity_source: str = "",
     on_progress: ProgressCallback | None = None,
+    checkpoint: CheckpointCallback | None = None,
+    resume_from: list[LensOutcome] | None = None,
 ) -> StudyResult:
     """Run every requested lens over the retained corpus.
 
     A lens that fails is recorded and the pass continues: one bad parse should
     not discard the work of five other lenses.
+
+    Recovery is structural, not conversational. ``checkpoint`` is called after
+    each lens with the result so far, and ``resume_from`` carries completed
+    lenses back in, so a pass killed at lens seven of eight resumes rather than
+    restarting. Without it every interruption costs the whole run again, which
+    on a real corpus is tens of model calls that already succeeded.
 
     ``on_progress`` is called before each model call. A chunked study over a
     real corpus is tens of calls and runs for many minutes; without it the run
@@ -357,23 +418,16 @@ async def run_study(
             "Each lens saw one chunk at a time, so cross-chunk connections may be missed."
         )
 
-    for index, lens in enumerate(lenses, 1):
-        lens_started = time.monotonic()
-        outcome = await _run_lens_over_chunks(
-            lens,
-            chunks,
-            material,
-            completion,
-            on_progress=_lens_progress(on_progress, lens.key, index, len(lenses)),
-        )
-        outcome.elapsed_s = time.monotonic() - lens_started
-        result.outcomes.append(outcome)
-        if on_progress:
-            grounded = sum(1 for f in outcome.findings if f.is_grounded)
-            on_progress(
-                f"lens {index}/{len(lenses)} {lens.key}: {len(outcome.findings)} finding(s), "
-                f"{grounded} anchored, {outcome.elapsed_s:.0f}s"
-            )
+    await _run_lenses(
+        result,
+        lenses=lenses,
+        chunks=chunks,
+        material=material,
+        completion=completion,
+        resume_from=resume_from,
+        on_progress=on_progress,
+        checkpoint=checkpoint,
+    )
 
     result.elapsed_s = time.monotonic() - started
     ungrounded = sum(f.ungrounded_anchor_count for f in result.findings)

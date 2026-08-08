@@ -110,3 +110,26 @@ class TestSerialization:
     @pytest.mark.parametrize("arm", [ARM_DESCRIPTIVE, ARM_ADVERSARIAL, ARM_GENRE, ARM_PRIMARY])
     def test_every_query_states_why_it_is_in_the_plan(self, arm):
         assert all(q.rationale for q in plan_queries("X").by_arm(arm))
+
+
+class TestLongTopics:
+    """Found by using it: a sentence-length topic makes every query unusable."""
+
+    def test_a_long_topic_is_shortened_for_templating(self):
+        plan = plan_queries("How to keep AI agent produced software work from degrading into low quality output")
+        assert plan.search_key
+        assert len(plan.search_key.split()) <= 6
+        assert all(len(q.text) < 90 for q in plan.by_arm(ARM_ADVERSARIAL))
+
+    def test_the_shortening_is_reported_not_done_quietly(self):
+        plan = plan_queries("How to keep AI agent produced software work from degrading into low quality output")
+        assert any("too" in c and "template" in c for c in plan.concerns())
+
+    def test_a_short_topic_is_left_alone(self):
+        plan = plan_queries("AI generated code slop")
+        assert plan.search_key == plan.topic
+        assert not any("shortened" in c for c in plan.concerns())
+
+    def test_stopwords_do_not_consume_the_budget(self):
+        """Six content words, not six tokens of 'how to the of'."""
+        assert "slop" in plan_queries("how to deal with the problem of AI slop in code").search_key

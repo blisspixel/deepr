@@ -48,6 +48,48 @@ def canonical_brief_path(expert_name: str) -> Path:
     return canonical_expert_dir(expert_name) / "brief.json"
 
 
+def _checkpoint_study(expert_name: str):
+    """Persist the pass after every lens.
+
+    A study is tens of model calls over many minutes. Holding all of it in
+    memory until the end means one interruption throws away work that already
+    succeeded and was already paid for.
+    """
+
+    def _write(result: Any) -> None:
+        try:
+            canonical_study_path(expert_name).write_text(
+                json.dumps(result.to_dict(), indent=2, sort_keys=True), encoding="utf-8"
+            )
+        except OSError:
+            # A failed checkpoint must not end a run that is otherwise fine.
+            pass
+
+    return _write
+
+
+def _resume_source(expert_name: str, *, rebuild: bool) -> list[Any] | None:
+    """Completed lenses to reuse, or None when the operator asked for a re-read."""
+    return None if rebuild else _resumable_outcomes(expert_name)
+
+
+def _resumable_outcomes(expert_name: str) -> list[Any]:
+    """Lens outcomes from an earlier pass over this same corpus.
+
+    Keyed on nothing but the lens: a corpus that changed produces different
+    findings, so `--rebuild` is the honest option when sources moved.
+    """
+    from deepr.experts.study_contracts import StudyResult
+
+    path = canonical_study_path(expert_name)
+    if not path.exists():
+        return []
+    try:
+        return StudyResult.from_dict(json.loads(path.read_text(encoding="utf-8"))).outcomes
+    except (json.JSONDecodeError, OSError, TypeError, ValueError):
+        return []
+
+
 def _echo_progress(note: str) -> None:
     """Show where a study has got to, flushed so it appears while it runs.
 
@@ -297,6 +339,11 @@ def expert_corpus(name: str, as_json: bool) -> None:
     is_flag=True,
     help="Leave the local model resident after the run (default: release VRAM)",
 )
+@click.option(
+    "--rebuild",
+    is_flag=True,
+    help="Re-read every lens instead of resuming ones an earlier pass completed",
+)
 @click.option("--json", "as_json", is_flag=True, help="Emit the study JSON to stdout")
 def expert_study(
     name: str,
@@ -310,6 +357,7 @@ def expert_study(
     out: str | None,
     write_notebook: bool,
     keep_warm: bool,
+    rebuild: bool,
     as_json: bool,
 ) -> None:
     """Read NAME's retained corpus through several lenses ($0 local or plan).
@@ -358,6 +406,8 @@ def expert_study(
                 chunk_chars=backend.chunk_chars,
                 capacity_source=backend.capacity_source,
                 on_progress=None if as_json else _echo_progress,
+                checkpoint=_checkpoint_study(profile.name),
+                resume_from=_resume_source(profile.name, rebuild=rebuild),
             )
         finally:
             # Pin weights during the run, release at the end. Leaving a large
