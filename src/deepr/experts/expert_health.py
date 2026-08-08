@@ -291,11 +291,7 @@ class ExpertHealth:
         if self.is_captured or self.grounded_ratio < 0.5 or self.dropped_the_dissent:
             return "B"
 
-        well_researched = (
-            self.origin_count >= _GOOD_ORIGINS
-            and self.cross_source_findings > 0
-            and self.has_perspective
-        )
+        well_researched = self.origin_count >= _GOOD_ORIGINS and self.cross_source_findings > 0 and self.has_perspective
         if not well_researched:
             return "B"
         if self.is_current and self.is_in_use:

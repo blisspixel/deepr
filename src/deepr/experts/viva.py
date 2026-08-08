@@ -243,9 +243,7 @@ def _text(value: Any) -> str:
 
 def build_examiner_prompt(*, subject: str, examiner_frame: str, brief: str, count: int = 4) -> str:
     """Ask an outsider to probe, from wherever they actually stand."""
-    return EXAMINER_PROMPT.format(
-        subject=subject, examiner_frame=examiner_frame, brief=brief, count=count
-    )
+    return EXAMINER_PROMPT.format(subject=subject, examiner_frame=examiner_frame, brief=brief, count=count)
 
 
 def build_candidate_prompt(*, subject: str, brief: str, questions: list[str]) -> str:
@@ -254,9 +252,7 @@ def build_candidate_prompt(*, subject: str, brief: str, questions: list[str]) ->
 
 
 def build_judge_prompt(*, subject: str, exchanges: list[VivaExchange]) -> str:
-    transcript = "\n\n".join(
-        f"Q: {e.question}\n(probing: {e.probes})\nA: {e.answer}" for e in exchanges
-    )
+    transcript = "\n\n".join(f"Q: {e.question}\n(probing: {e.probes})\nA: {e.answer}" for e in exchanges)
     return JUDGE_PROMPT.format(subject=subject, transcript=transcript)
 
 
