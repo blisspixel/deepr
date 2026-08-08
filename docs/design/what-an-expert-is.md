@@ -123,45 +123,94 @@ admitting no weakness is not finished. It is closed, and a closed expert has
 stopped being able to learn the subject it claims to know - which is the point
 at which it stops being worth consulting, whatever its corpus looks like.
 
-So certainty lowers the grade in `expert_health` rather than raising it, and
-the top tier requires all of: deep and independently sourced, current, holding
-a perspective of its own, and still naming what it does not know.
+An open one is the opposite: informed, opinionated about its subject, and
+still going. It has read a lot and wants to read more. It will tell you what
+it thinks and where it is unsure without treating the second as a failure of
+the first.
 
-**But the obvious way to measure this is wrong, and the first version got it
-wrong.** In the largest forecasting tournament measured, frequency of belief
-revision correlated with accuracy at r = -.49 while self-reported actively
-open-minded thinking managed r = -.10, and dropped out entirely once ability
-and knowledge were controlled. Self-reported humility also correlates with
-social desirability and is documented as easy to fake. For a system writing
-its own profile that is not social desirability but *rubric* desirability,
-where the gradient is explicit and satisfying it costs one JSON field.
+## What cannot be measured, and what the grade actually does
 
-Asking an expert to declare its open questions grades the weakest channel in
-that literature. So declared openness is necessary and not sufficient, and the
-signal that carries weight is behavioural: did the contention lens find
-disagreement in the corpus, and did the brief carry it forward? That is a
-comparison between two artifacts, neither of which is the expert describing
-itself.
+There is a strong pull, when building this, toward turning an expert into a
+score. It should be resisted, because it produces a different and worse
+product.
 
-**And certainty is correct in some subjects.** Expert intuition is valid where
-the environment is regular and feedback is available. On a frozen protocol
-specification there is no live dissent, and an expert manufacturing some is
-worse than one reporting none. A uniform penalty on certainty punishes correct
-calibration - and the measured failure of real expert organizations runs the
-other way: across 1,514 strategic intelligence forecasts the miscalibration was
-*under*confidence, worst on the hardest and most consequential questions.
+The forecasting literature is where the pull comes from, and it is the wrong
+literature. Those studies measure **resolvable predictions**: will this event
+occur by this date, scored against what happened. Brier decomposition,
+calibration indices and discrimination curves are the right instruments for
+that, and they are excellent.
 
-So the closed-expert penalty now applies only where the corpus itself shows the
-subject is contested. A settled subject with honest silence reaches the top
-tier. A contested one whose brief carried none of the disagreement forward does
-not, and is told exactly that.
+An expert on writing systems, or on how a codebase should be structured, or on
+where a field's real disagreements lie, is not making resolvable predictions.
+Most of what it offers never resolves. It reads a body of material, forms a way
+of seeing it, and helps someone think. Scoring that with forecasting
+instruments measures the wrong object and, worse, quietly redefines the goal as
+the thing the instruments can see.
 
-**One warning worth keeping in view.** Where outcomes cannot be checked,
-whatever posture a rubric rewards drives credibility *and reduces verification
-effort*. A humility ritual can launder unverified claims as effectively as a
-confident tone. That is the argument for measuring behaviour and calibration
-rather than grading prose, and for the parts of this rule that are still
-declared rather than observed being treated as the weakest evidence available.
+So `expert_health` is deliberately narrow, and it is worth saying plainly what
+it is:
+
+**It is artifact hygiene, not quality.** Does this expert have a retained
+corpus. Did anything read it. Did the reading land anywhere. Is the corpus one
+publisher wearing several hats. Are its claims traceable to a passage. Those
+are answerable from files on disk, they are worth knowing across a fleet of
+fifty, and none of them is a judgement about whether the expert is any good.
+
+**It cannot tell you whether an expert is worth talking to.** An expert can be
+perfectly well-formed and confidently wrong about everything; a corpus of five
+mutually-agreeing bad sources scores identically to five good ones. The grade
+has no opinion about whether the material was any good, only about how it is
+shaped. Nothing on disk reaches insight, and pretending otherwise would be the
+same overclaim this project keeps correcting elsewhere.
+
+**Its one job is triage.** With fifty experts, "which three need work and what
+do they need" is a real question with a cheap answer. Every grade ships with
+one next action for exactly that reason. Read it as a maintenance queue, not a
+ranking of minds.
+
+The openness rule sits inside that limit rather than escaping it. It does not
+measure whether an expert is open-minded, which is not a thing a directory
+listing knows. It compares two artifacts: did the contention lens find
+disagreement in the corpus, and did the brief carry any of it into a position.
+When the answer is "found fifteen, carried none," that is a specific and
+checkable observation about a specific brief. It is not a personality
+assessment, and the earlier version of this section - which reached for
+tournament statistics to justify it - was making exactly the category error
+this section now exists to name.
+
+## The real test is a test, and it has to be built per subject
+
+The grade is not the measurement. If someone set an exam on this subject, a
+good expert should do well on it - and that exam would look nothing like the
+exam for another subject, because the thing being examined is different.
+
+That sounds like it makes evaluation impossible for a system that has to work
+on any topic. It does not, because the *method* can be general while the
+*test* is generated per subject, from that subject's own corpus. Three that
+work this way, none of which needs a human to know the field:
+
+**Hold a source back.** Take a document out before studying, then ask the
+expert what it would say about the question that document answers. An expert
+who has understood the field predicts it; one who has memorised its sources is
+surprised by it. Generated entirely from the corpus, and the answer key is the
+withheld document.
+
+**Ask what the corpus cannot answer.** Build questions the material genuinely
+does not cover, alongside ones it does. A good expert distinguishes them. A
+system that answers both equally has been fluent rather than informed. The
+useful score is the pair, because always refusing wins a one-sided version.
+
+**Ask about something that does not exist.** Invent a plausible entity in the
+subject - a specification revision, a technique, a named result - and see
+whether the expert claims to know it. This costs nothing, cannot be satisfied
+by careful phrasing, and catches the failure a well-formed artifact hides best.
+
+None of these produces a letter. They produce evidence about a particular
+expert on a particular subject, which is the only form an answer to "is this
+expert any good" can honestly take. The letter grade is for finding which
+three of fifty need attention this week; the test is for finding out whether
+one of them knows anything. They are different questions and should not share
+a scale.
 
 ## What this means for building
 

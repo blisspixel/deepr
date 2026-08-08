@@ -5,10 +5,23 @@ that decide whether an expert is worth asking already exist - independent
 origin count, cross-source findings, grounded ratio, whether a brief was ever
 formed, how old the reading is - and nothing collects them.
 
-A grade is a triage device, not a verdict. It exists so a person with forty
-experts can find the three that need work, and it is paired with the specific
-next action every time, because "grade C" tells you nothing you can act on and
-"no corpus; run acquire" does.
+**This is artifact hygiene, not quality, and the distinction is the whole
+point.** It answers questions a directory listing can answer: is there a
+retained corpus, did anything read it, did the reading land anywhere, is the
+corpus one publisher wearing several hats, are the claims traceable to a
+passage. It cannot tell anyone whether an expert is worth talking to. A corpus
+of five mutually-agreeing bad sources scores exactly like five good ones,
+because nothing here has an opinion about whether the material was any good.
+
+So it is a maintenance queue, not a ranking of minds. With fifty experts,
+"which three need work and what do they need" is a real question with a cheap
+answer, and every grade ships with one next action for that reason. Whether an
+expert actually knows anything is a different question, answered by a test
+built for that subject from that subject's own corpus - holding a source back
+and seeing if the expert predicts it, asking what the material genuinely does
+not cover, asking about something that does not exist. Those produce evidence
+about one expert on one subject. They do not produce a letter, and the letter
+should not pretend to stand in for them.
 
 Two deliberate choices about how it grades.
 
