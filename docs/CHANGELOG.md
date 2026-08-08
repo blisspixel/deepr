@@ -157,6 +157,15 @@ than a confidence-sorted bullet list.
 - Dependency audit: `cryptography` 50.0.0 and frontend npm high-severity
   advisory fixes (`brace-expansion`, `socket.io-parser`).
 
+### Added
+
+- `$0` offline expert-value pilot harness (`deepr.evals.expert_value_pilot`) and
+  CLI `deepr eval expert-value NAME --run-offline-pilot`: frozen source worlds,
+  four arms, capability snapshots, workbook + artifact-root report without
+  models or network. TKG flagship offline pilot artifacts under `eval/tkg/`.
+- Expert handoff payloads include `recent_invalidations` (non-current archive /
+  revise history) for host agents.
+
 ### Changed
 
 - Research Studio surfaces a paid-API-freeze banner, blocks submit while frozen,

@@ -1,0 +1,127 @@
+{
+  "review_set_id": "offline-pilot-temporal-knowledge-graphs",
+  "blinding": "blinded",
+  "order_randomized": true,
+  "assignment": [
+    {
+      "order": 1,
+      "acceptance_case_id": "initial-case",
+      "arm": "compiled_expert",
+      "blind_id": "cell-01"
+    },
+    {
+      "order": 2,
+      "acceptance_case_id": "hard-negative-case",
+      "arm": "compiled_expert",
+      "blind_id": "cell-02"
+    },
+    {
+      "order": 3,
+      "acceptance_case_id": "initial-case",
+      "arm": "maintained_expert",
+      "blind_id": "cell-03"
+    },
+    {
+      "order": 4,
+      "acceptance_case_id": "initial-case",
+      "arm": "static_history",
+      "blind_id": "cell-04"
+    },
+    {
+      "order": 5,
+      "acceptance_case_id": "update-case",
+      "arm": "fresh_research",
+      "blind_id": "cell-05"
+    },
+    {
+      "order": 6,
+      "acceptance_case_id": "retention-case",
+      "arm": "static_history",
+      "blind_id": "cell-06"
+    },
+    {
+      "order": 7,
+      "acceptance_case_id": "hard-negative-case",
+      "arm": "fresh_research",
+      "blind_id": "cell-07"
+    },
+    {
+      "order": 8,
+      "acceptance_case_id": "hard-negative-case",
+      "arm": "maintained_expert",
+      "blind_id": "cell-08"
+    },
+    {
+      "order": 9,
+      "acceptance_case_id": "update-case",
+      "arm": "compiled_expert",
+      "blind_id": "cell-09"
+    },
+    {
+      "order": 10,
+      "acceptance_case_id": "transfer-case",
+      "arm": "fresh_research",
+      "blind_id": "cell-10"
+    },
+    {
+      "order": 11,
+      "acceptance_case_id": "hard-negative-case",
+      "arm": "static_history",
+      "blind_id": "cell-11"
+    },
+    {
+      "order": 12,
+      "acceptance_case_id": "retention-case",
+      "arm": "maintained_expert",
+      "blind_id": "cell-12"
+    },
+    {
+      "order": 13,
+      "acceptance_case_id": "update-case",
+      "arm": "static_history",
+      "blind_id": "cell-13"
+    },
+    {
+      "order": 14,
+      "acceptance_case_id": "transfer-case",
+      "arm": "compiled_expert",
+      "blind_id": "cell-14"
+    },
+    {
+      "order": 15,
+      "acceptance_case_id": "initial-case",
+      "arm": "fresh_research",
+      "blind_id": "cell-15"
+    },
+    {
+      "order": 16,
+      "acceptance_case_id": "transfer-case",
+      "arm": "maintained_expert",
+      "blind_id": "cell-16"
+    },
+    {
+      "order": 17,
+      "acceptance_case_id": "retention-case",
+      "arm": "fresh_research",
+      "blind_id": "cell-17"
+    },
+    {
+      "order": 18,
+      "acceptance_case_id": "retention-case",
+      "arm": "compiled_expert",
+      "blind_id": "cell-18"
+    },
+    {
+      "order": 19,
+      "acceptance_case_id": "update-case",
+      "arm": "maintained_expert",
+      "blind_id": "cell-19"
+    },
+    {
+      "order": 20,
+      "acceptance_case_id": "transfer-case",
+      "arm": "static_history",
+      "blind_id": "cell-20"
+    }
+  ]
+}

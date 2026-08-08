@@ -761,7 +761,7 @@ the gate for that version is proven.
 | Target | Focus | Why this order | Gate to call it done |
 | --- | --- | --- | --- |
 | **v2.43.x** (shipped) | Dual-era MCP, offline `mcp conformance`, doctor preflight, approach contract | Host interop must be provable offline before more remote surface | Offline conformance green; doctor MCP category OK; paid still frozen |
-| **v2.44** | Flagship longitudinal expert-value pilot (TKG first) at `$0` | Differentiator is measured decision value, not more tools | One blueprint-bound workbook + artifact-root report published; no default policy change from the report alone |
+| **v2.44** | Flagship longitudinal expert-value pilot (TKG first) at `$0` | Differentiator is measured decision value, not more tools | Offline pilot harness shipped; TKG workbook + artifact-root report published; optional local-model arms still operator-run; no default policy change from the report alone |
 | **v2.45** | Recall and memory quality evidence (lexical-first default; vector only with vetted report) | Compiled experts need honest candidate recall before self-improvement | Operator-labeled recall libraries; no silent scheduler default flip |
 | **v2.46** | Threshold alerts that reach operators (dispatch + dashboard + durable outbox substrate) | Caps that nobody sees mid-run are incomplete | 50/80/95/100% visible at submit surfaces; 100% remains hard block |
 | **v2.47** | Parent graph budget before any paid fan-out; finish incomplete pricing envelopes | Paid multi-call without one parent ceiling recreates surprise bills | Nested child envelopes reserved and settled under one parent; fan-out still gated until proof |

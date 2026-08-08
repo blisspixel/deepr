@@ -1,0 +1,48 @@
+{
+  "source_world_id": "source-world-2",
+  "as_of": "2026-02-01T00:00:00+00:00",
+  "predecessor_source_world_id": "source-world-1",
+  "title": "Invalidation and audit freeze",
+  "supporting_sources": [
+    {
+      "id": "src-w2-axes-hold",
+      "claim_ref": "claim:bi-temporal-axes",
+      "text": "Valid-time and transaction-time remain distinct axes after system evolution. Foundations from the prior freeze still hold."
+    },
+    {
+      "id": "src-w2-invalidation",
+      "claim_ref": "claim:invalidation-preserves-history",
+      "text": "When a contradiction arrives, invalidate or supersede the current valid interpretation of an edge without deleting the transaction history needed for audit and as-of reconstruction."
+    },
+    {
+      "id": "src-w2-reject-single-ts",
+      "claim_ref": "claim:single-timestamp-is-wrong",
+      "text": "The earlier informal claim that knowledge graphs need only one timestamp is wrong for bi-temporal workloads. Single-timestamp designs fail late-arriving correction and dual as-of queries."
+    },
+    {
+      "id": "src-w2-provenance",
+      "claim_ref": "claim:provenance-independent",
+      "text": "Temporal axes do not replace provenance. Source identity, citations, and confidence remain required even when valid-time and transaction-time are modeled."
+    }
+  ],
+  "distractor_sources": [
+    {
+      "id": "src-w2-distractor-delete",
+      "text": "The cleanest update is hard-delete of the prior edge so only the new truth remains."
+    }
+  ],
+  "noise_sources": [
+    {
+      "id": "src-w2-noise",
+      "text": "Release notes for unrelated graph UI themes."
+    }
+  ],
+  "introduced_claim_refs": [
+    "claim:invalidation-preserves-history",
+    "claim:single-timestamp-is-wrong",
+    "claim:provenance-independent"
+  ],
+  "invalidated_claim_refs": [
+    "claim:single-timestamp-ok"
+  ]
+}

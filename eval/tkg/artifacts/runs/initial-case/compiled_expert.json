@@ -1,0 +1,22 @@
+{
+  "case_id": "initial-case",
+  "arm": "compiled_expert",
+  "executed_at": "2026-08-04T18:16:03+00:00",
+  "latency_seconds": 0.0,
+  "cost_usd": 0.0,
+  "capability_snapshot": {
+    "schema_version": "deepr-expert-value-capability-snapshot-v1",
+    "arm": "compiled_expert",
+    "mode": "offline_extract",
+    "expert_name": "Temporal Knowledge Graphs",
+    "model": null,
+    "capacity_source": "offline_extract",
+    "metered_dispatch": false,
+    "network_required": false,
+    "writes_expert_state": false,
+    "tools": [],
+    "generated_at": "2026-08-04T18:16:03+00:00"
+  },
+  "question": "Using only the frozen source world, explain the difference between valid-time and transaction-time for a knowledge edge, and give one concrete failure mode of collapsing them into a single timestamp.",
+  "world_id": "source-world-1"
+}

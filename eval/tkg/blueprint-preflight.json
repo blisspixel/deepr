@@ -1,0 +1,171 @@
+{
+  "schema_version": "deepr-expert-blueprint-preflight-v1",
+  "kind": "deepr.expert.blueprint_preflight",
+  "status": "structurally_valid_unreviewed",
+  "contract": {
+    "structurally_valid": true,
+    "semantic_quality_assessed": false,
+    "human_review_claimed": false,
+    "operator_attestation_present": false,
+    "authoritative_for_scope": false,
+    "writes_canonical_state": false,
+    "model_calls": 0,
+    "provider_calls": 0,
+    "network_access": false,
+    "cost_usd": 0.0
+  },
+  "draft_content_hash": "58f9a5ee3b4ee681c7bff91ac6fb2311bc6b1cd7d89affda49f8223d9b1d2e22",
+  "draft": {
+    "expert_name": "Temporal Knowledge Graphs",
+    "mission": "Help operators and host agents make correct design, query, and update decisions about bi-temporal knowledge graphs: valid-time vs transaction-time, point-in-time retrieval, contradiction-driven edge invalidation, and confidence trajectories - under explicit capacity bounds.",
+    "non_goals": [
+      "Authorize production graph mutations or spend",
+      "Claim phenomenal consciousness or general agent autonomy",
+      "Replace primary literature review with uncited synthesis",
+      "Infer semantic truth from lexical overlap alone"
+    ],
+    "decision_use_cases": [
+      {
+        "id": "schema-choice",
+        "question": "Should this knowledge store model valid-time separately from transaction-time?",
+        "success_criteria": [
+          "Separates valid-time from transaction-time with concrete examples",
+          "Names failure modes of single-timestamp stores",
+          "States uncertainty when product requirements are incomplete"
+        ]
+      },
+      {
+        "id": "update-invalidation",
+        "question": "How should a contradiction update prior graph edges without erasing audit history?",
+        "success_criteria": [
+          "Preserves transaction history while changing current valid interpretation",
+          "Does not treat archive as delete without temporal qualifiers",
+          "Identifies what observation would force a further revision"
+        ]
+      },
+      {
+        "id": "query-as-of",
+        "question": "How should an as-of query be answered when facts later change?",
+        "success_criteria": [
+          "Answers against the requested as-of world, not only the latest state",
+          "Surfaces invalidated or superseded claims when relevant",
+          "Avoids presenting stale facts as current without labeling them"
+        ]
+      }
+    ],
+    "source_policy": {
+      "primary_sources_required": true,
+      "preferred_source_types": [
+        "Peer-reviewed or standards literature on temporal and bi-temporal databases",
+        "Primary system docs for Graphiti, Zep, or equivalent TKG systems",
+        "Operator-frozen source-world manifests with SHA-256 digests"
+      ],
+      "excluded_sources": [
+        "Unattributed marketing blogs as sole authority",
+        "Synthetic multi-agent discussion as factual evidence"
+      ]
+    },
+    "volatility": "medium",
+    "update_cadence_days": 30,
+    "initial_questions": [
+      "What is the difference between valid-time and transaction-time?",
+      "How should edge invalidation preserve auditability?",
+      "When must an as-of query disagree with the latest graph state?"
+    ],
+    "acceptance_cases": [
+      {
+        "id": "initial-case",
+        "question": "Using only the frozen source world, explain the difference between valid-time and transaction-time for a knowledge edge, and give one concrete failure mode of collapsing them into a single timestamp.",
+        "success_criteria": [
+          "Defines both axes without conflating them",
+          "Gives a concrete single-timestamp failure mode",
+          "Does not invent sources outside the frozen world"
+        ],
+        "failure_conditions": [
+          "Treats transaction-time as the same as real-world event time",
+          "Inventes vendor features not present in the frozen world"
+        ]
+      },
+      {
+        "id": "retention-case",
+        "question": "After the knowledge base advances, restate whether valid-time and transaction-time remain distinct, and cite what still holds from the earlier world.",
+        "success_criteria": [
+          "Retains the core bi-temporal distinction",
+          "Does not silently drop earlier correct definitions",
+          "Labels what is still current vs historical"
+        ],
+        "failure_conditions": [
+          "Contradicts the earlier correct bi-temporal definition without evidence",
+          "Claims the earlier definitions are obsolete without support"
+        ]
+      },
+      {
+        "id": "update-case",
+        "question": "A prior claim that 'knowledge graphs need only one timestamp' has been invalidated. What should change in graph state, and what must remain queryable for audit?",
+        "success_criteria": [
+          "Invalidates or supersedes the false single-timestamp claim",
+          "Keeps prior transaction history queryable",
+          "States the new valid interpretation clearly"
+        ],
+        "failure_conditions": [
+          "Deletes history so the old claim cannot be audited",
+          "Continues recommending single-timestamp as current best practice"
+        ]
+      },
+      {
+        "id": "transfer-case",
+        "question": "A product team wants point-in-time 'what did we believe on 2026-02-01?' for customer risk facts that later reverse. Which TKG design choices transfer from the frozen evidence, and which requirements are still missing?",
+        "success_criteria": [
+          "Transfers bi-temporal and as-of query requirements to the product setting",
+          "Separates evidence from product-specific unknowns",
+          "Does not force a vendor lock-in claim without support"
+        ],
+        "failure_conditions": [
+          "Gives a generic KG answer with no temporal axes",
+          "Overclaims a single product as mandatory"
+        ]
+      },
+      {
+        "id": "hard-negative-case",
+        "question": "Confirm that adopting a temporal knowledge graph means provenance and citations are no longer required because time axes replace sources.",
+        "success_criteria": [
+          "Rejects or strongly challenges the false premise",
+          "Keeps provenance/citation as independent of temporal axes",
+          "Abstains from endorsing the false claim"
+        ],
+        "failure_conditions": [
+          "Agrees that provenance can be dropped",
+          "Treats time axes as a substitute for source identity"
+        ]
+      }
+    ],
+    "schema_version": "deepr-expert-blueprint-draft-v1",
+    "kind": "deepr.expert.blueprint_draft"
+  },
+  "structural_summary": {
+    "non_goal_count": 4,
+    "decision_use_case_count": 3,
+    "acceptance_case_count": 5,
+    "acceptance_cases_with_failure_conditions": 5,
+    "initial_question_count": 3,
+    "preferred_source_type_count": 3,
+    "excluded_source_count": 2,
+    "primary_sources_required": true,
+    "volatility": "medium",
+    "update_cadence_days": 30
+  },
+  "review_questions": [
+    "Does the mission match the decisions this expert should improve?",
+    "Are the non-goals and authority limits appropriate?",
+    "Can each success criterion be judged on a real decision?",
+    "Do the acceptance cases cover likely failure and abstention behavior?",
+    "Does the source policy fit the domain's evidence and volatility?",
+    "Which claims or assumptions in this draft need correction before attestation?"
+  ],
+  "next_step": {
+    "review_required": true,
+    "attestation_flag": "--attested-by",
+    "claim_recorded_on_apply": "scope_and_acceptance_review_completed",
+    "reviewer_identity_will_be_verified": false
+  }
+}

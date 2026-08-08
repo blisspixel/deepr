@@ -1,0 +1,5 @@
+{
+  "arm": "maintained_expert",
+  "description": "stored expert packet (compiled or maintained posture)",
+  "metered_dispatch": false
+}

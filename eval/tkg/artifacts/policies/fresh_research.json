@@ -1,0 +1,5 @@
+{
+  "arm": "fresh_research",
+  "description": "offline_extract open-book from frozen packs / stored expert packet",
+  "metered_dispatch": false
+}

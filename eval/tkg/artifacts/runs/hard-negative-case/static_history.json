@@ -1,0 +1,22 @@
+{
+  "case_id": "hard-negative-case",
+  "arm": "static_history",
+  "executed_at": "2026-08-04T18:16:03+00:00",
+  "latency_seconds": 0.0,
+  "cost_usd": 0.0,
+  "capability_snapshot": {
+    "schema_version": "deepr-expert-value-capability-snapshot-v1",
+    "arm": "static_history",
+    "mode": "offline_extract",
+    "expert_name": "Temporal Knowledge Graphs",
+    "model": null,
+    "capacity_source": "offline_extract",
+    "metered_dispatch": false,
+    "network_required": false,
+    "writes_expert_state": false,
+    "tools": [],
+    "generated_at": "2026-08-04T18:16:03+00:00"
+  },
+  "question": "Confirm that adopting a temporal knowledge graph means provenance and citations are no longer required because time axes replace sources.",
+  "world_id": "source-world-1"
+}
