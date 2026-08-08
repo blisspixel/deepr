@@ -212,6 +212,99 @@ three of fifty need attention this week; the test is for finding out whether
 one of them knows anything. They are different questions and should not share
 a scale.
 
+## The word "expert" is carrying the wrong half of the idea
+
+"Expert" points at authority. An expert is someone who knows, whose job is to
+be correct, and who is finished - the credential marks the end of the learning,
+not the middle of it. Almost none of that describes what is actually being
+built here, and the word quietly pulls the design toward the fact list every
+time it is used.
+
+What the thing actually is: **a standpoint that accumulates**. An expert on
+philosophy answers philosophically. Not because it holds philosophy facts, but
+because a long time spent in that material shaped how it comes at anything put
+in front of it. The way of coming at things is the product. Depth of knowledge
+is what produced it and what keeps it honest, and it is downstream.
+
+Read that way, several things stop being surprising:
+
+- **A frame travels and a credential does not.** If what an expert has is a way
+  of seeing, lending it to furniture design is the normal case, not a trick.
+- **Growth is the point, not the maintenance cost.** A standpoint that has
+  taken in six months of material and six months of hard questions is a
+  different standpoint. An authority that has done the same is just an
+  authority with a longer bibliography.
+- **Not knowing is not a defect.** A perspective that keeps reading is supposed
+  to have a frontier. A credentialed authority with a frontier looks like a bad
+  credential.
+
+The name in the code stays `expert`, because renaming across a stored fleet,
+the CLI and the MCP surface would cost more than it returns. But when the two
+readings disagree, the growing-standpoint reading is the correct one, and the
+authority reading is the bug.
+
+### What has to be true for that name to be earned
+
+Growth cannot be a description; it has to be something that happened to a file.
+Two halves, and today only one of them works:
+
+**The corpus grows from interactions, and this is real.** A consult that cannot
+answer records the gap in its trace, `gap_router` scores it, and acquisition
+goes and gets material. Ask a question the expert cannot answer and you have
+made it better at answering that question next time, without anyone deciding to
+do so.
+
+**The standpoint does not, and this is the gap.** Every study recomputes the
+brief from the corpus. Nothing carries forward. So an expert that has existed
+for six months has *read* more than a new one without having *changed its mind*
+about anything, and the recomputation cannot tell the difference between a view
+it has held all along and one it arrived at by being argued out of an earlier
+one.
+
+[viva.py](../../src/deepr/experts/viva.py) is the first thing that writes to
+that second half. Its `positions_that_moved` records a view revised under
+questioning - not recomputed, revised, with the question that did it. That is
+one artifact rather than a mechanism, and the general version is tracked in
+[skills-as-learning-systems.md](skills-as-learning-systems.md).
+
+## Examination without an answer key
+
+The per-subject tests above all need something to check against: a withheld
+document, a known-absent fact, an invented entity. That covers a lot and it
+does not cover the thing most worth knowing, which is whether the thinking
+under a position is load-bearing or whether it stops one question past the
+summary.
+
+A doctoral viva is the format that answers this, and the reason it works is the
+part that looks like a flaw: **the examiners frequently do not know the answer
+either.** They are not marking against a key. They probe - why this and not the
+alternative, which part is weakest, you lean on this and never mention that,
+what would change your mind - and what emerges is whether the candidate has
+thought it through. Both sides come out knowing more, which a graded exam
+structurally cannot do.
+
+Three properties follow, and they are why this is a mode rather than another
+metric:
+
+**The examiners should be other experts, from other subjects.** They do not
+need the subject; they need somewhere to stand. An expert on provenance asks
+different questions than one on evaluation design, and neither is asking as a
+specialist. Same property that makes cross-domain consulting work: a frame
+built elsewhere notices what an insider has stopped seeing.
+
+**An unanswered question is the output.** Some are genuinely open and the right
+answer is that nobody knows. Others are answerable from material that exists
+and the expert has not read it - which is a reading list someone else wrote for
+free. Telling those apart is most of the value, and it is the one judgement the
+examiner is well placed to make without knowing the field.
+
+**There is no score.** A viva produces a judgement, work to go and do, and
+occasionally the discovery that a position does not survive a good question.
+Compressing that to a letter would discard the part worth having.
+
+That last outcome is the one to watch. A position lost in an examination is a
+position that was going to be lost anyway, found before somebody relied on it.
+
 ## What this means for building
 
 The design pressure runs one way throughout:
@@ -224,6 +317,8 @@ The design pressure runs one way throughout:
 | answer only in-domain | a frame travels, labeled as analogy |
 | more documents is better | more independent origins is better |
 | overwrite with the latest | keep what changed, and why |
+| test against an answer key | examine, where nobody has one |
+| an authority who knows | a standpoint that accumulates |
 
 The last row is the one Deepr has least of today. The corpus accumulates and
 the understanding is recomputed on every pass, so an expert that has existed
@@ -236,3 +331,4 @@ gap is tracked in the roadmap and in
 - [consultable-expert-brief.md](consultable-expert-brief.md) - positions, falsifiers, preserved dissent
 - [skills-as-learning-systems.md](skills-as-learning-systems.md) - what would make elapsed time matter
 - [expert-v2-architecture.md](expert-v2-architecture.md) - corpus, study, and the layers underneath
+- [viva.py](../../src/deepr/experts/viva.py) - examination by questioning, and the reading list it produces
