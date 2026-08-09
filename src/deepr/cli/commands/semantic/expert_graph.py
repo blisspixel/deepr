@@ -31,11 +31,52 @@ from deepr.cli.colors import console, print_header, print_key_value, print_succe
 from deepr.cli.commands.semantic.experts import expert
 from deepr.experts.evidence_graph import build_graph, render_graph
 from deepr.experts.paths import canonical_expert_dir
+from deepr.experts.perspective_graph import render_perspective
 
 
 def canonical_graph_path(expert_name: str) -> Path:
     """Where the evidence graph lives, and where anything reading one looks."""
     return canonical_expert_dir(expert_name) / "graph" / "evidence.json"
+
+
+def canonical_perspective_path(expert_name: str) -> Path:
+    """Where the expert's account of itself lives."""
+    return canonical_expert_dir(expert_name) / "graph" / "perspective.json"
+
+
+def _build_perspective(expert_name: str, *, at: str) -> Any:
+    """Assemble the biography from what the expert wrote about itself.
+
+    Separate from the evidence graph on purpose. That one answers "why do you
+    think that" and is a fact structure. This one answers "who are you and
+    what moved you", and its nodes have no truth value - a commitment about
+    conduct is not a claim about the world, and it is still part of who the
+    expert is.
+    """
+    from deepr.experts.expert_profile_card import ExpertProfile
+    from deepr.experts.perspective_graph import build_perspective_graph
+    from deepr.experts.viva import VivaResult
+
+    directory = canonical_expert_dir(expert_name)
+
+    profile = None
+    try:
+        profile = ExpertProfile.from_dict(json.loads((directory / "profile_card.json").read_text(encoding="utf-8")))
+    except (json.JSONDecodeError, OSError, TypeError, ValueError):
+        pass
+
+    viva = None
+    try:
+        viva = VivaResult(
+            expert_name=expert_name,
+            positions_that_moved=list(
+                json.loads((directory / "viva.json").read_text(encoding="utf-8")).get("positions_that_moved") or []
+            ),
+        )
+    except (json.JSONDecodeError, OSError, TypeError, ValueError):
+        pass
+
+    return build_perspective_graph(expert_name=expert_name, profile=profile, viva=viva, at=at)
 
 
 def _load_profile(name: str) -> Any:
@@ -91,6 +132,32 @@ def _render_human(graph: Any, *, path: Path) -> None:
     print_success(f"Written to {path}")
 
 
+def _render_perspective_summary(perspective: Any, *, path: Path) -> None:
+    """Who the expert is, as distinct from what it can prove."""
+    console.print()
+    if perspective.chosen_name:
+        print_key_value("Calls itself", perspective.chosen_name)
+
+    stats = perspective.stats()
+    print_key_value(
+        "Perspective",
+        f"{stats['standpoints']} standpoint(s), {stats['shifts']} recorded change(s) of mind, "
+        f"{stats['pursuits']} open pursuit(s)",
+    )
+
+    if not perspective.has_a_history:
+        print_warning(
+            "Never recorded changing its mind. It may have read a great deal; nothing it read "
+            "has moved it, which is the state a new expert is already in."
+        )
+    else:
+        console.print("\n[bright_yellow]What moved it[/bright_yellow]")
+        for shift in perspective.shifts[:5]:
+            console.print(f"  - {shift.text}")
+
+    print_success(f"Written to {path}")
+
+
 @expert.command(name="graph")
 @click.argument("name")
 @click.option("--out", type=click.Path(dir_okay=False, path_type=str), default=None, help="Write the graph JSON here")
@@ -127,23 +194,32 @@ def expert_graph(name: str, out: str | None, write_markdown: bool, as_json: bool
         )
         sys.exit(2)
 
+    built_at = datetime.now(UTC).isoformat()
     graph = build_graph(
         expert_name=profile.name,
         study=study,
         brief=brief,
         corpus_entries=_corpus_entries(profile.name),
-        at=datetime.now(UTC).isoformat(),
+        at=built_at,
     )
 
     path = Path(out) if out else canonical_graph_path(profile.name)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(graph.to_dict(), indent=2), encoding="utf-8")
 
+    # The biography, beside the evidence. Two graphs answering two questions:
+    # "why do you think that" and "who are you and what moved you".
+    perspective = _build_perspective(profile.name, at=built_at)
+    perspective_path = canonical_perspective_path(profile.name)
+    perspective_path.write_text(json.dumps(perspective.to_dict(), indent=2), encoding="utf-8")
+
     if write_markdown:
         path.with_suffix(".md").write_text(render_graph(graph), encoding="utf-8")
+        perspective_path.with_suffix(".md").write_text(render_perspective(perspective), encoding="utf-8")
 
     if as_json:
         click.echo(json.dumps(graph.to_dict(), indent=2))
     else:
-        print_header(f"Evidence graph: {profile.name}")
+        print_header(f"Graphs: {profile.name}")
         _render_human(graph, path=path)
+        _render_perspective_summary(perspective, path=perspective_path)
