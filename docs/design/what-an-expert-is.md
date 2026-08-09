@@ -106,6 +106,8 @@ sounding evidenced is the failure the whole system is built against.
 Cross-domain is a different mode, not a relaxation of that one. It never
 claims coverage. It claims a frame.
 
+    deepr expert perspective "Provenance and Belief Revision" "how should we design flat-pack furniture"
+
 ## An expert that is glad to be asked
 
 An expert that cannot answer should still want to. "I hold nothing on this" is
@@ -254,17 +256,26 @@ goes and gets material. Ask a question the expert cannot answer and you have
 made it better at answering that question next time, without anyone deciding to
 do so.
 
-**The standpoint does not, and this is the gap.** Every study recomputes the
-brief from the corpus. Nothing carries forward. So an expert that has existed
-for six months has *read* more than a new one without having *changed its mind*
-about anything, and the recomputation cannot tell the difference between a view
-it has held all along and one it arrived at by being argued out of an earlier
-one.
+**The standpoint barely does, and that is the gap.** Every study recomputes the
+brief from the corpus. Nothing about the brief carries forward. So an expert
+that has existed for six months has *read* more than a new one without the
+brief having *changed its mind* about anything, and the recomputation cannot
+tell a view held all along from one arrived at by being argued out of an
+earlier one.
 
-[viva.py](../../src/deepr/experts/viva.py) is the first thing that writes to
-that second half. Its `positions_that_moved` records a view revised under
-questioning - not recomputed, revised, with the question that did it. That is
-one artifact rather than a mechanism, and the general version is tracked in
+Two things now write to that second half, and both are narrow:
+
+- `deepr expert profile` keeps an append-only standpoint. When a re-read moves
+  it, the old reading is kept alongside what moved it. That history is the only
+  thing in an expert's directory that cannot be regenerated from the corpus,
+  which is why the command refuses to write at all rather than replace it with
+  an empty one.
+- `deepr expert viva` records `positions_that_moved`: a view revised under
+  questioning, with the question that did it. One real run moved nine.
+
+Both are artifacts rather than a mechanism. Nothing yet *uses* a prior
+standpoint to constrain the next brief, so the recomputation still happens and
+the history sits beside it. The general version is tracked in
 [skills-as-learning-systems.md](skills-as-learning-systems.md).
 
 ## Examination without an answer key
@@ -304,6 +315,40 @@ Compressing that to a letter would discard the part worth having.
 
 That last outcome is the one to watch. A position lost in an examination is a
 position that was going to be lost anyway, found before somebody relied on it.
+
+    deepr expert viva "Agentic Harness Design" --plan claude --markdown
+
+### What running it actually taught
+
+Three things, none of which the design predicted and none of which a unit test
+would have found.
+
+**The reading queue started out permanently empty.** The first real run
+returned twelve questions, twelve answered, nothing to go and read. The
+examiners were probing the brief's *reasoning*, and a reasoning question can
+always be answered by introspection - "no, I did not run that check" is honest,
+useful, and not a knowledge gap. Nothing was asking about substance the corpus
+might not cover, so the loop back into acquisition could never fire. Examiners
+now spend at least a third of their questions naming something specific a
+serious practitioner would expect to see, and asking about it directly.
+
+**The judge was scoring candour instead of substance.** Asked whether aviation
+human-factors research on alarm fatigue had been consulted, the expert said no
+and explained what it had used instead - a model answer to a coverage question,
+and a textbook gap. It was marked "answered" for being direct and well
+reasoned. The fix is to make the verdict mechanical and put it *before* any
+judgement of quality: does the reply contain the substance, or explain its
+absence? How gracefully the second is written does not turn it into the first.
+
+**Over-correcting produced a queue nobody could act on.** Entries like "the
+expert explaining its own confidence methodology" appeared, which no amount of
+reading fills - the expert already holds everything needed and simply did not
+say. A gap must now name material *outside* the expert. Those belong in a
+re-brief, not an acquisition queue.
+
+The pattern across all three: the design was right about what a viva is for and
+wrong about every default that decides what comes out of one. Only running it
+against a real brief distinguished those.
 
 ## What this means for building
 
