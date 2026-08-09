@@ -221,6 +221,25 @@ class TestRefusalsBeforeWriting:
         assert r.exit_code == 2
         assert "has not landed anywhere" in r.output
 
+    def test_a_brief_holding_no_positions_is_refused(self, profile, expert_home, monkeypatch):
+        """Measured: a timed-out synthesis wrote an empty brief, and profiling
+        against it produced a standpoint about the pipeline failing rather than
+        about the subject. The "did it return a standpoint" check cannot catch
+        that, because a description of the failure is a non-empty standpoint.
+        """
+        directory = expert_home / "Subject"
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / "brief.json").write_text(
+            json.dumps({"expert_name": "Subject", "positions": [], "limitations": ["synthesis timed out"]}),
+            encoding="utf-8",
+        )
+        _stub_backend(monkeypatch, _reply())
+
+        r = CliRunner().invoke(expert, ["profile", "Subject"])
+
+        assert r.exit_code == 2
+        assert "no positions" in r.output
+
     def test_a_capacity_refusal_is_named(self, profile, expert_home, monkeypatch):
         _write_brief(expert_home, "Subject")
 

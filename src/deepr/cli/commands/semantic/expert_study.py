@@ -634,6 +634,18 @@ def expert_brief(
     target = Path(out) if out else canonical_expert_dir(profile.name) / "brief.md"
     target.write_text(text, encoding="utf-8")
     console.print(text)
+
+    # A brief with no positions is a failed brief, whatever else went right.
+    # Measured: a synthesis call timed out, the empty brief was written with
+    # the failure recorded only as a limitation, and the command exited 0
+    # printing the path as though it had worked. `expert profile` then read it
+    # and produced a standpoint about the pipeline failing rather than about
+    # the subject. Exiting 2 stops that chain at the first link.
+    if not brief.positions:
+        reason = brief.limitations[0] if brief.limitations else "no positions were produced"
+        click.echo(f"Error: the brief holds no positions, so it is not consultable. {reason}", err=True)
+        sys.exit(2)
+
     print_success(f"Brief: {target}")
     for warning in brief.integrity_warnings():
         print_warning(warning)

@@ -83,9 +83,16 @@ def _material(expert_name: str) -> tuple[str, str, int]:
 
     directory = canonical_expert_dir(expert_name)
     brief = load_brief(directory / "brief.json")
-    if brief is None:
+    if brief is None or not brief.positions:
+        # An empty brief is worse than a missing one, because it looks like
+        # material. Measured: a timed-out synthesis left a brief holding zero
+        # positions and only a limitation, and profiling against it produced a
+        # standpoint about the pipeline failing instead of about the subject.
+        # The "did it return a standpoint" check cannot catch that - a
+        # description of the failure is a perfectly non-empty standpoint.
+        detail = "has no brief" if brief is None else "has a brief holding no positions"
         click.echo(
-            f"Error: {expert_name} has no brief, so it has not landed anywhere to describe. "
+            f"Error: {expert_name} {detail}, so it has not landed anywhere to describe. "
             f'Run: deepr expert brief "{expert_name}"',
             err=True,
         )
