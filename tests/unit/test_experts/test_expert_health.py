@@ -181,6 +181,71 @@ class TestAssessFromDisk:
         assert assess_expert("E", tmp_path).grade == "F"
 
 
+class TestConsultRecencyComesFromRealTraces:
+    """The shape was guessed wrong once and silently graded everything A.
+
+    A consult trace nests under `input` and `output`. Reading a flat
+    `experts_consulted` found nothing, so every expert looked never-consulted
+    and the top of the ladder was unreachable for a second reason.
+    """
+
+    def _write(self, path, records):
+        path.write_text("\n".join(json.dumps(r) for r in records), encoding="utf-8")
+
+    def test_both_requested_and_consulted_names_are_read(self, tmp_path, monkeypatch):
+        from datetime import UTC, datetime
+
+        from deepr.experts import expert_health
+
+        traces = [
+            {
+                "recorded_at": "2026-08-01T00:00:00+00:00",
+                "input": {"requested_experts": ["Asked For"]},
+                "output": {"experts_consulted": ["Actually Spoke"]},
+            }
+        ]
+        monkeypatch.setattr(expert_health, "_load_traces_for_recency", lambda limit: traces, raising=False)
+        monkeypatch.setattr(
+            "deepr.experts.consult_traces.load_consult_traces", lambda limit=500: traces, raising=False
+        )
+
+        seen = expert_health.last_consulted_days(now=datetime(2026, 8, 6, tzinfo=UTC))
+
+        assert seen["Asked For"] == 5
+        assert seen["Actually Spoke"] == 5
+
+    def test_a_failed_consult_still_counts_as_being_used(self, tmp_path, monkeypatch):
+        """The question is whether anyone wants this expert, not whether it worked."""
+        from datetime import UTC, datetime
+
+        from deepr.experts import expert_health
+
+        traces = [
+            {
+                "recorded_at": "2026-08-05T00:00:00+00:00",
+                "input": {"requested_experts": ["Wanted"]},
+                "output": {},
+                "status": "failed",
+            }
+        ]
+        monkeypatch.setattr(
+            "deepr.experts.consult_traces.load_consult_traces", lambda limit=500: traces, raising=False
+        )
+
+        assert expert_health.last_consulted_days(now=datetime(2026, 8, 6, tzinfo=UTC))["Wanted"] == 1
+
+    def test_an_unreadable_trace_store_grades_everyone_never_consulted(self, monkeypatch):
+        """Being wrong toward 'no evidence of use' is the safe direction."""
+        from deepr.experts import expert_health
+
+        def boom(limit=500):
+            raise OSError("trace store is gone")
+
+        monkeypatch.setattr("deepr.experts.consult_traces.load_consult_traces", boom, raising=False)
+
+        assert expert_health.last_consulted_days() == {}
+
+
 class TestFleetSummary:
     def test_closed_experts_are_counted_separately(self):
         fleet = [_strong(), _strong(positions_with_dissent=0, open_questions=0, known_weaknesses=0)]

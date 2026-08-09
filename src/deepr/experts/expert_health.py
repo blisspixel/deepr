@@ -442,8 +442,13 @@ def last_consulted_days(*, now: datetime | None = None, limit: int = 500) -> dic
         days = _age_days(str(trace.get("recorded_at") or ""), now=now)
         if days < 0:
             continue
-        payload = trace.get("result") or trace
-        names = payload.get("experts_consulted") or trace.get("requested_experts") or []
+        # Both sides of the record, because they answer different questions.
+        # `output.experts_consulted` is who actually spoke; `input.requested_
+        # experts` is who was asked for. A consult that failed still means
+        # somebody wanted this expert's view, which is the thing being
+        # measured - "is anyone using it", not "did it succeed".
+        names = list((trace.get("output") or {}).get("experts_consulted") or [])
+        names += list((trace.get("input") or {}).get("requested_experts") or [])
         for expert_name in names:
             key = str(expert_name)
             if key not in seen or days < seen[key]:

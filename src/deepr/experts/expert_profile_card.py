@@ -225,6 +225,47 @@ rather than inventing a change.
 """
 
 
+def parse_profile(
+    parsed: dict[str, Any],
+    *,
+    expert_name: str,
+    at: str,
+    prior: ExpertProfile | None = None,
+    corpus_fingerprint: str = "",
+    sources_read: int = 0,
+) -> ExpertProfile:
+    """Build a profile from what the model returned, carrying the history forward.
+
+    The two halves of this are separate on purpose. ``from_dict`` reads a
+    profile that was already persisted, so ``shifts`` are already in it. This
+    reads a fresh model reply, where the shift is reported as a *pair of loose
+    fields* (``shift_from_prior``, ``shift_because``) and the prior profile's
+    accumulated shifts live somewhere else entirely - on the prior object.
+
+    Without this step a re-profile silently drops every recorded change of
+    mind, which would make the one artifact in this system that tracks a
+    revision lossy on exactly the operation that produces revisions.
+    """
+    profile = ExpertProfile.from_dict({**parsed, "expert_name": expert_name})
+    profile.corpus_fingerprint = corpus_fingerprint
+    profile.sources_read = sources_read
+
+    if prior is not None:
+        profile.shifts = list(prior.shifts)
+
+    was = " ".join(str(parsed.get("shift_from_prior") or "").split())
+    because = " ".join(str(parsed.get("shift_because") or "").split())
+    if was and because and prior is not None:
+        profile.record_shift(
+            at=at,
+            was=was,
+            now=profile.standpoint,
+            because=because,
+            fingerprint=corpus_fingerprint,
+        )
+    return profile
+
+
 def build_profile_prompt(expert_name: str, *, material: str, prior: ExpertProfile | None = None) -> str:
     """Ask the expert to account for itself, showing it its own prior reading."""
     prior_block = ""
