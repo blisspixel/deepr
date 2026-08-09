@@ -376,6 +376,7 @@ async def run_study(
     max_corpus_chars: int = _DEFAULT_MAX_CORPUS_CHARS,
     chunk_chars: int = _DEFAULT_CHUNK_CHARS,
     capacity_source: str = "",
+    model: str = "",
     on_progress: ProgressCallback | None = None,
     checkpoint: CheckpointCallback | None = None,
     resume_from: list[LensOutcome] | None = None,
@@ -406,6 +407,7 @@ async def run_study(
         corpus_origins=stats.distinct_origins,
         corpus_chars=sum(len(text) for _, text in material),
         capacity_source=capacity_source,
+        model=model,
         started_at=_utc_now_iso(),
     )
 

@@ -59,7 +59,8 @@ def _stub_backend(monkeypatch, reply):
 
     class FakeBackend:
         cost_note = "$0 local"
-        capacity_source = "local:test"
+        capacity_source = "local:qwen2.5:14b"
+        model = "qwen2.5:14b"
 
     fake = FakeBackend()
     fake.completion = completion
@@ -154,6 +155,7 @@ class TestRefusalsBeforeSpending:
         class FakeBackend:
             cost_note = "$0"
             capacity_source = "plan:claude"
+            model = ""
             completion = staticmethod(refusing)
 
         monkeypatch.setattr(

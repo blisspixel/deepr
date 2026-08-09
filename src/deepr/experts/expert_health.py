@@ -165,6 +165,18 @@ class ExpertHealth:
     cards: int = 0
     age_days: int = -1
     """Days since the study was last run. -1 when never."""
+    model_tier: str = "unknown"
+    """The weakest model that read this corpus or wrote this standpoint.
+
+    Weighted heavily, and deliberately so. A small local model and a frontier
+    model reading the same corpus through the same lenses produce genuinely
+    different experts, and no downstream statistic recovers the difference: a
+    shallow finding is grounded, traceable and cross-source exactly as easily
+    as a deep one, so every corroboration metric scores both alike.
+
+    It is also the only signal on this record that is a fact rather than an
+    inference. Everything else here infers quality from structure, and two of
+    those inferences have already had to be withdrawn."""
     consulted_days_ago: int = -1
     """Days since anyone last asked this expert anything. -1 when never.
 
@@ -248,6 +260,19 @@ class ExpertHealth:
     @property
     def is_current(self) -> bool:
         return 0 <= self.age_days <= _CURRENT_DAYS
+
+    @property
+    def read_by_a_capable_model(self) -> bool:
+        """Whether a mid-tier or better model did the reading.
+
+        Unknown does not pass. An expert built before this was recorded, or by
+        a model whose size cannot be read off its tag, has no evidence either
+        way - and absence of evidence must not read as evidence of quality,
+        which is the mistake that produced every withdrawn signal here.
+        """
+        from deepr.experts.model_provenance import TIER_MID, at_least
+
+        return at_least(self.model_tier, TIER_MID)
 
     @property
     def is_in_use(self) -> bool:
@@ -392,6 +417,7 @@ class ExpertHealth:
             has_perspective=self.has_perspective,
             is_current=self.is_current,
             is_in_use=self.is_in_use,
+            read_by_a_capable_model=self.read_by_a_capable_model,
             is_captured=self.is_captured,
             subject_is_contested=self.subject_is_contested,
             dropped_the_dissent=self.dropped_the_dissent,
@@ -404,6 +430,19 @@ def _load_json(path: Path) -> dict[str, Any]:
         return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
     except (json.JSONDecodeError, OSError, ValueError):
         return {}
+
+
+def _weakest_model_tier(study: dict[str, Any] | None, profile: dict[str, Any] | None) -> str:
+    """The weakest model in this expert's chain, across the artifacts that stamp one.
+
+    Study and profile only. The brief is written from findings the study
+    produced, so it cannot be better than them; stamping it as well would add a
+    third read of the same constraint without adding information.
+    """
+    from deepr.experts.model_provenance import ModelProvenance, weakest
+
+    stamps = [ModelProvenance.from_dict((source or {}).get("model_provenance")) for source in (study, profile)]
+    return weakest(stamps).tier
 
 
 def _age_days(started_at: str, *, now: datetime | None = None) -> int:
@@ -509,6 +548,8 @@ def assess_expert(
         health.open_questions = sum(
             1 for item in (state.get("unknown") or []) + (state.get("live") or []) if admits_something(item)
         )
+
+    health.model_tier = _weakest_model_tier(study, _load_json(expert_dir / "profile_card.json"))
 
     profile = _load_json(expert_dir / "profile_card.json")
     if profile:

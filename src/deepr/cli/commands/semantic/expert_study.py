@@ -405,6 +405,7 @@ def expert_study(
                 max_corpus_chars=max_corpus_chars,
                 chunk_chars=backend.chunk_chars,
                 capacity_source=backend.capacity_source,
+                model=backend.model,
                 on_progress=None if as_json else _echo_progress,
                 checkpoint=_checkpoint_study(profile.name),
                 resume_from=_resume_source(profile.name, rebuild=rebuild),

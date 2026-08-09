@@ -38,6 +38,7 @@ from deepr.experts.expert_profile_card import (
     build_profile_prompt,
     parse_profile,
 )
+from deepr.experts.model_provenance import record as provenance_record
 from deepr.experts.paths import canonical_expert_dir
 
 _MAX_MATERIAL_CHARS = 60_000
@@ -226,11 +227,18 @@ def expert_profile_cmd(
         )
         sys.exit(2)
 
+    # Stamp which model wrote this. A standpoint is the most model-dependent
+    # artifact an expert has: it is the one place the reading is asked for
+    # directly rather than derived from the corpus, so knowing what produced it
+    # matters more here than anywhere else.
+    payload = profile.to_dict()
+    payload["model_provenance"] = provenance_record(backend.capacity_source, backend.model).to_dict()
+
     path = canonical_profile_path(stored.name)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(profile.to_dict(), indent=2), encoding="utf-8")
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     if as_json:
-        click.echo(json.dumps(profile.to_dict(), indent=2))
+        click.echo(json.dumps(payload, indent=2))
     else:
         _render(profile, path=path)

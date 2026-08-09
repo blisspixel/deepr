@@ -22,6 +22,13 @@ from typing import Any
 STUDY_SCHEMA_VERSION = "deepr-expert-study-v1"
 
 
+def _provenance(capacity_source: str, model: str) -> Any:
+    """Stamp which model did the reading, imported lazily to avoid a cycle."""
+    from deepr.experts.model_provenance import record
+
+    return record(capacity_source, model)
+
+
 @dataclass
 class StudyFinding:
     """One item produced by one lens.
@@ -148,6 +155,12 @@ class StudyResult:
     corpus_origins: int = 0
     corpus_chars: int = 0
     capacity_source: str = ""
+    model: str = ""
+    """The model behind ``capacity_source``, where one was chosen explicitly.
+
+    ``capacity_source`` names the dispatch (``plan:grok``); this names what ran
+    inside it. Empty when a plan CLI picked for itself, which is honest rather
+    than absent - Deepr sees the process, not the routing decision inside it."""
     started_at: str = ""
     elapsed_s: float = 0.0
     cost_usd: float = 0.0
@@ -217,6 +230,8 @@ class StudyResult:
                 "chars": self.corpus_chars,
             },
             "capacity_source": self.capacity_source,
+            "model": self.model,
+            "model_provenance": _provenance(self.capacity_source, self.model).to_dict(),
             "started_at": self.started_at,
             "elapsed_s": round(self.elapsed_s, 2),
             "cost_usd": self.cost_usd,
@@ -255,6 +270,7 @@ class StudyResult:
             corpus_origins=int(corpus.get("distinct_origins", 0) or 0),
             corpus_chars=int(corpus.get("chars", 0) or 0),
             capacity_source=data.get("capacity_source", ""),
+            model=data.get("model", ""),
             started_at=data.get("started_at", ""),
             elapsed_s=float(data.get("elapsed_s", 0.0) or 0.0),
             limitations=list(data.get("limitations") or []),

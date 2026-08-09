@@ -57,6 +57,13 @@ class StudyBackend:
     cost_note: str
     chunk_chars: int = _LOCAL_CHUNK_CHARS
     """How much corpus this tier can hold in one call and still stay structured."""
+    model: str = ""
+    """What ran inside the dispatch, where Deepr chose it.
+
+    Empty for a plan CLI invoked without an explicit model, because the CLI
+    picks for itself and Deepr sees the process rather than that decision.
+    Recorded so an artifact can say which model read the corpus - the single
+    largest determinant of what a study pass finds, and previously discarded."""
 
 
 def _completion_from_chat_client(
@@ -177,6 +184,7 @@ def _build_local_backend(
             client, local_model, max_tokens=max_tokens, context_tokens=context_tokens
         ),
         capacity_source=f"local:{local_model}",
+        model=local_model,
         cost_note=f"$0 (local model {local_model} @ {context_tokens} ctx){fit_note}",
     )
 
@@ -245,6 +253,7 @@ def _build_plan_backend(*, plan: str, plan_model: str | None, max_tokens: int) -
     return StudyBackend(
         completion=_completion_from_chat_client(client, resolved_model, max_tokens=max_tokens),
         capacity_source=f"plan:{adapter.backend_id}",
+        model=plan_model or "",
         cost_note="$0 at the margin (prepaid plan)",
         chunk_chars=_PLAN_CHUNK_CHARS,
     )

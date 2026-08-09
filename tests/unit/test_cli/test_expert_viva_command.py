@@ -76,7 +76,8 @@ def _stub_backend(monkeypatch, replies):
         return state["replies"].pop(0) if state["replies"] else ""
 
     class FakeBackend:
-        capacity_source = "local:test"
+        capacity_source = "local:qwen2.5:14b"
+        model = "qwen2.5:14b"
         cost_note = "$0 local"
 
     fake = FakeBackend()
@@ -176,6 +177,7 @@ class TestAnExaminationThatRuns:
 
         class FakeBackend:
             capacity_source = "plan:claude"
+            model = ""
             cost_note = "$0 at the margin"
             completion = staticmethod(refusing)
 
