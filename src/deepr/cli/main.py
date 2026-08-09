@@ -369,6 +369,18 @@ def main():
     TTY, never block or surprise a non-interactive caller.
     """
     _ensure_utf8_console()
+
+    # Before any command runs, move metered API keys out of this process.
+    # Deepr already strips them from plan-quota child processes; that protects
+    # the child and not the parent. A key set at the OS level stays readable by
+    # anything in-process for the whole run, and removing it from `.env` only
+    # looks like removing it - measured here, three keys survived that edit
+    # because Windows was their real source. Not being set beats being checked:
+    # a guard has to be reached, an absent variable cannot be read at all.
+    from deepr.security.key_quarantine import quarantine_metered_keys
+
+    quarantine_metered_keys()
+
     if "NO_COLOR" in os.environ:
         apply_no_color()
     # Route the no-args case through Click with an explicit subcommand to
