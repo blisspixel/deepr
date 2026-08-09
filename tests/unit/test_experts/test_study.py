@@ -197,15 +197,100 @@ class TestProvenanceHonesty:
 
         assert findings[0].corpus_shas == [zulu[0][0].sha256]
 
-    def test_findings_get_unique_ids_across_chunks(self, corpus):
+    def test_distinct_findings_get_distinct_ids(self, corpus):
         parsed = {"fail_patterns": [{"name": "a", "anchors": ["x"]}, {"name": "b", "anchors": ["y"]}]}
-        material = corpus.load_study_material()
-        first = build_findings(LENSES["failure"], parsed, material, start_index=1)
-        second = build_findings(LENSES["failure"], parsed, material, start_index=len(first) + 1)
+        findings = build_findings(LENSES["failure"], parsed, corpus.load_study_material())
 
-        ids = [f.finding_id for f in first + second]
-        assert ids == ["failure-1", "failure-2", "failure-3", "failure-4"]
-        assert len(set(ids)) == len(ids)
+        ids = [f.finding_id for f in findings]
+        assert len(set(ids)) == len(ids) == 2
+
+    def test_the_same_finding_seen_twice_gets_the_same_id(self, corpus):
+        """Positional ids could not recognise a re-sighting; content-derived ids can.
+
+        The same finding surfacing in two chunks used to become two findings
+        with two ordinals. It is one finding corroborated twice.
+        """
+        parsed = {"fail_patterns": [{"name": "a", "anchors": ["x"]}]}
+        material = corpus.load_study_material()
+
+        first = build_findings(LENSES["failure"], parsed, material)
+        second = build_findings(LENSES["failure"], parsed, material)
+
+        assert first[0].finding_id == second[0].finding_id
+
+    def test_an_id_does_not_shift_when_an_earlier_finding_disappears(self, corpus):
+        """The bug: a partial resume re-ran one lens, everything renumbered, and
+        a brief citing `failure-30` silently repointed at a different finding.
+        The citation still validated, which is worse than failing."""
+        material = corpus.load_study_material()
+        both = build_findings(
+            LENSES["failure"],
+            {"fail_patterns": [{"name": "a", "anchors": ["x"]}, {"name": "b", "anchors": ["y"]}]},
+            material,
+        )
+        second_only = build_findings(LENSES["failure"], {"fail_patterns": [{"name": "b", "anchors": ["y"]}]}, material)
+
+        assert both[1].finding_id == second_only[0].finding_id
+
+
+class TestReSightingsMergeRatherThanDuplicate:
+    """A finding found again is corroborated, not duplicated.
+
+    Two records sharing one id in the same list would make every downstream
+    lookup keyed by finding_id resolve arbitrarily, so this is a correctness
+    requirement of content-derived ids and not only a nicety.
+    """
+
+    def _finding(self, shas, anchors=("x",)):
+        from deepr.experts.record_identity import finding_thread_id
+        from deepr.experts.study_contracts import StudyFinding
+
+        return StudyFinding(
+            lens="failure",
+            axis="interrogation",
+            kind="fail_patterns",
+            finding_id=finding_thread_id(lens="failure", title="t", anchors=list(anchors)),
+            title="t",
+            anchors=list(anchors),
+            corpus_shas=list(shas),
+            grounded_anchor_count=1,
+        )
+
+    def test_sources_accumulate_across_sightings(self):
+        from deepr.experts.study import _absorb
+
+        findings = [self._finding(["sha-a"])]
+        _absorb(findings, [self._finding(["sha-b"])])
+
+        assert len(findings) == 1
+        assert findings[0].corpus_shas == ["sha-a", "sha-b"]
+
+    def test_a_repeated_source_is_not_counted_twice(self):
+        from deepr.experts.study import _absorb
+
+        findings = [self._finding(["sha-a"])]
+        _absorb(findings, [self._finding(["sha-a"])])
+
+        assert findings[0].corpus_shas == ["sha-a"]
+
+    def test_a_genuinely_different_finding_is_appended(self):
+        from deepr.experts.study import _absorb
+
+        findings = [self._finding(["sha-a"], anchors=("x",))]
+        _absorb(findings, [self._finding(["sha-b"], anchors=("completely other",))])
+
+        assert len(findings) == 2
+
+    def test_a_one_source_finding_becoming_cross_source_is_visible(self):
+        """The evidential claim genuinely changed, and that is the point."""
+        from deepr.experts.study import _absorb
+
+        findings = [self._finding(["sha-a"])]
+        assert len(set(findings[0].corpus_shas)) == 1
+
+        _absorb(findings, [self._finding(["sha-b"])])
+
+        assert len(set(findings[0].corpus_shas)) == 2
 
 
 class TestPrompt:

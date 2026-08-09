@@ -37,6 +37,7 @@ from typing import Any
 
 from deepr.experts.corpus_independence import measure_independence
 from deepr.experts.corpus_store import CorpusEntry, CorpusStore
+from deepr.experts.record_identity import finding_thread_id
 from deepr.experts.study_contracts import LensOutcome, StudyFinding, StudyResult
 from deepr.experts.study_coverage import build_coverage_report
 from deepr.experts.study_lenses import StudyLens, resolve_lenses
@@ -272,18 +273,43 @@ def _ground_anchors(anchors: list[str], haystacks: list[tuple[str, str]]) -> tup
     return grounded, ungrounded, shas
 
 
+def _absorb(findings: list[StudyFinding], fresh: list[StudyFinding]) -> None:
+    """Add each fresh finding, merging it into an existing one of the same id.
+
+    Content-derived ids make a re-sighting recognisable, which positional ids
+    could not: the same finding surfacing in two chunks used to become two
+    findings with two ordinals. Now it is one finding corroborated by two
+    passages, and its ``corpus_shas`` accumulate.
+
+    That accumulation is the point. A finding anchored in one source and a
+    finding anchored in two are different evidential claims, and the second is
+    what a lens genuinely comparing sources produces. Appending a duplicate
+    would also put two records with one id in the same list, which every
+    downstream lookup keyed by ``finding_id`` would then resolve arbitrarily.
+    """
+    by_id = {f.finding_id: f for f in findings}
+    for candidate in fresh:
+        existing = by_id.get(candidate.finding_id)
+        if existing is None:
+            findings.append(candidate)
+            by_id[candidate.finding_id] = candidate
+            continue
+        for sha in candidate.corpus_shas:
+            if sha not in existing.corpus_shas:
+                existing.corpus_shas.append(sha)
+        for anchor in candidate.anchors:
+            if anchor not in existing.anchors:
+                existing.anchors.append(anchor)
+        existing.grounded_anchor_count += candidate.grounded_anchor_count
+        existing.ungrounded_anchor_count += candidate.ungrounded_anchor_count
+
+
 def build_findings(
     lens: StudyLens,
     parsed: dict[str, Any],
     material: list[tuple[CorpusEntry, str]],
-    *,
-    start_index: int = 1,
 ) -> list[StudyFinding]:
-    """Turn one lens's parsed output into anchored findings.
-
-    ``start_index`` continues numbering across chunks so ids stay unique for
-    the whole lens rather than restarting at every call.
-    """
+    """Turn one lens's parsed output into anchored findings."""
     haystacks = [(entry.sha256, _normalize(text)) for entry, text in material]
     findings: list[StudyFinding] = []
     for item in _lens_items(lens, parsed):
@@ -291,13 +317,19 @@ def build_findings(
             continue
         anchors = _read_anchors(item)
         grounded, ungrounded, shas = _ground_anchors(anchors, haystacks)
+        title = _title_for(item, lens, shas)
         findings.append(
             StudyFinding(
                 lens=lens.key,
                 axis=lens.axis,
                 kind=lens.output_field,
-                finding_id=f"{lens.key}-{start_index + len(findings)}",
-                title=_title_for(item, lens, shas),
+                # Derived from content, not from position in this list. The
+                # positional form renumbered whenever a partial resume re-ran
+                # one lens, so a brief citing `failure-30` silently repointed at
+                # a different finding - and the citation still validated against
+                # the id set, which is worse than failing.
+                finding_id=finding_thread_id(lens=lens.key, title=title, anchors=anchors),
+                title=title,
                 payload={k: v for k, v in item.items() if k != "anchors"},
                 anchors=anchors,
                 grounded_anchor_count=grounded,
@@ -536,7 +568,7 @@ async def _run_lens_over_chunks(
         # a finding could be credited to a document the lens never read. Shared
         # boilerplate makes that the common case, not an edge case, and the
         # coverage report then reports the true source as untouched.
-        findings.extend(build_findings(lens, parsed, chunk, start_index=len(findings) + 1))
+        _absorb(findings, build_findings(lens, parsed, chunk))
 
     if findings or not failures:
         detail = f"{len(failures)} of {len(chunks)} chunk(s) failed: " + "; ".join(failures[:2]) if failures else ""

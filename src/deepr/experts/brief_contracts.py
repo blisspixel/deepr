@@ -92,7 +92,18 @@ class Position:
     would_change_my_mind: str
     """The observation that would overturn this. Empty makes the position invalid."""
     supported_by: list[str] = field(default_factory=list)
-    """Finding titles this rests on, so 'why do you think that' is answerable."""
+    """Finding *ids* this rests on, so 'why do you think that' is answerable.
+
+    Ids, not titles, and the distinction is load-bearing: titles collide,
+    several lenses fall back to a constant when the model names nothing, and a
+    title containing a newline can never be matched. This docstring said
+    "titles" while the prompt and the citation filter both used ids - a stale
+    comment stating the opposite of the code, which is how the next reader
+    introduces a real bug.
+
+    The ids are still positional (``{lens}-{ordinal}``), so they are stable
+    within a run and not across runs. Making them content-derived is step one
+    of the V2 work."""
     unresolved_dissent: str = ""
     """Disagreement this position does not settle, stated rather than smoothed."""
     confidence_basis: str = ""
