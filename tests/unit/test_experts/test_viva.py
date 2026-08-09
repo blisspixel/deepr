@@ -19,6 +19,7 @@ from deepr.experts.viva import (
     attach_judgements,
     build_candidate_prompt,
     build_examiner_prompt,
+    build_judge_prompt,
     parse_questions,
     render_viva,
 )
@@ -197,6 +198,42 @@ class TestPrompts:
 
     def test_the_candidate_is_invited_to_change_its_mind(self):
         assert "changed_my_mind" in build_candidate_prompt(subject="s", brief="B", questions=["Q"])
+
+    def test_examiners_are_required_to_ask_about_the_subject_not_only_the_brief(self):
+        """Measured: without this, a live run returned 12 answered and 0 gaps.
+
+        Reasoning questions can always be answered by introspection - "no, I
+        did not run that check" is honest and is not a knowledge gap. Only a
+        question about substance the corpus may not cover can find something
+        the expert has not read, so the reading queue stays empty without one.
+        """
+        prompt = build_examiner_prompt(subject="s", examiner_frame="f", brief="B")
+        assert "Coverage questions" in prompt
+        assert "third of your questions must be coverage questions" in prompt
+
+    def test_the_judge_decides_on_substance_not_on_candour(self):
+        """Measured: a model gap answer was graded 'answered' for being candid.
+
+        Asked whether aviation human-factors work on alarm fatigue had been
+        consulted, the expert said no and explained what it used instead. The
+        judge rewarded the honesty and threw away the reading-list entry.
+        """
+        prompt = build_judge_prompt(subject="s", exchanges=[_exchange()])
+        assert "does it contain" in prompt
+        assert "explain the absence" in prompt
+        assert "alarm-fatigue" in prompt
+        assert "judging failure" in prompt
+
+    def test_a_gap_must_name_material_outside_the_expert(self):
+        """Measured: over-correcting produced 'the expert explaining its own...'
+
+        No amount of reading fills a missing account of the expert's own
+        reasoning - it already holds everything needed and did not say. Those
+        belong in a re-brief, not in an acquisition queue.
+        """
+        prompt = build_judge_prompt(subject="s", exchanges=[_exchange()])
+        assert "outside the expert" in prompt
+        assert "the expert explaining" in prompt
 
     def test_house_style_reaches_every_prompt(self):
         """No em dashes, per the house rule, stated where the model will see it."""

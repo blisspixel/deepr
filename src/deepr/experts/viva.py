@@ -89,6 +89,16 @@ class VivaResult:
     schema_version: str = VIVA_SCHEMA_VERSION
     examiners: list[str] = field(default_factory=list)
     exchanges: list[VivaExchange] = field(default_factory=list)
+    failures: list[str] = field(default_factory=list)
+    """Why calls failed, deduplicated.
+
+    An examiner is allowed to fail without ending the examination, but a
+    swallowed failure is worse than a loud one: a capacity refusal - plan
+    quota exhausted, spend guard tripped - affects every call, and without
+    this the run looks like a panel that had nothing to ask. Measured: the
+    paid-overage guard refused mid-session and produced an empty viva with no
+    stated reason."""
+
     positions_that_moved: list[str] = field(default_factory=list)
     """Positions the expert revised or withdrew under questioning.
 
@@ -113,9 +123,32 @@ class VivaResult:
         """What to go and read next, in the examiners' words."""
         return [e.would_resolve_it for e in self.gaps if e.would_resolve_it]
 
+    def as_gaps(self) -> list[dict[str, Any]]:
+        """The reading queue, shaped so acquisition can act on it.
+
+        Without this the queue is a list nobody reads. Consult already routes
+        its gaps into acquisition; a viva produces the same kind of thing on
+        purpose rather than by accident, so it should land in the same place.
+
+        Priority 4 rather than the default 3: these gaps were found by someone
+        deliberately looking for them and were named specifically enough to
+        search for, which is a better lead than a gap inferred from a consult
+        that happened to go badly.
+        """
+        return [
+            {
+                "topic": f"Viva gap ({self.expert_name}): {exchange.would_resolve_it}",
+                "questions": [exchange.question],
+                "priority": 4,
+            }
+            for exchange in self.gaps
+        ]
+
     def summary(self) -> str:
         """What happened, without a grade."""
         if not self.exchanges:
+            if self.failures:
+                return f"No questions were put to this expert. Every call failed: {self.failures[0]}"
             return "No questions were put to this expert."
         parts = [
             f"{len(self.exchanges)} question(s) from {len(self.examiners)} examiner(s)",
@@ -137,7 +170,9 @@ class VivaResult:
             "summary": self.summary(),
             "exchanges": [e.to_dict() for e in self.exchanges],
             "reading_queue": self.reading_queue(),
+            "gaps": self.as_gaps(),
             "positions_that_moved": self.positions_that_moved,
+            "failures": self.failures,
         }
 
 
@@ -152,17 +187,32 @@ Ask the questions your own subject has trained you to ask. Someone who has spent
 different problem notices what an insider has stopped seeing, and that is the reason you are in
 the room rather than another specialist.
 
-Good viva questions, in rough order of usefulness:
+Ask {count} questions, and they must not all be the same kind. Two kinds are needed, because
+they find different things.
+
+**Reasoning questions** ask how a position was reached:
 
 - Why this and not the obvious alternative? What made you land here?
 - Which of your positions is weakest, and what is holding it up?
 - You lean on this repeatedly and never mention that. Why not?
 - What would someone who disagreed with you say, and what is wrong with it?
 - You say this is settled. Settled by whom, and what would unsettle it?
-- What does this rest on that you have not checked?
 
-Ask {count} questions. For each, say what you are probing, because a question with no target is
-small talk.
+**Coverage questions** ask about the subject itself, aimed at what this brief does not
+mention. Name a specific thing - a technique, a case, a body of work, a competing account, a
+population, a time period - that someone working seriously in this area would expect to come
+up, and that is absent here. Then ask about it directly.
+
+At least a third of your questions must be coverage questions, and this is not optional. A
+panel that only asks reasoning questions gets a clean examination every time, because the
+expert can always answer a question about its own thinking by introspecting. "I did not run
+that check" is an honest answer and it is not a gap. Only a coverage question can find the
+thing the expert has not read.
+
+Your own subject is what makes you good at this: you know what serious work in *your* area
+takes account of, and you can ask whether the equivalent exists here.
+
+For each question, say what you are probing, because a question with no target is small talk.
 
 House style: plain ASCII punctuation, a regular hyphen and never an en dash or em dash, straight
 quotes, no emoji.
@@ -208,20 +258,50 @@ Return JSON only, no prose outside it, no code fence:
 
 JUDGE_PROMPT = """You put these questions to an expert on "{subject}". Judge the answers.
 
-You do not know this subject and you are not marking correctness. You are judging whether each
-answer engaged with what you were probing, or slid past it.
+You do not know this subject and you are not marking correctness.
 
-For each, choose one verdict:
+Before choosing a verdict, answer one mechanical question about each reply: **does it contain
+the substance the question asked for, or does it explain the absence of that substance?** Those
+are different, and how gracefully the second is written does not turn it into the first.
 
-- "answered": engaged with the probe and gave something substantive.
-- "partial": engaged, but left the sharp part of the question untouched.
-- "cannot_answer": the expert does not hold this, AND it is the kind of thing that could be
-  learned from material that exists. Say what would resolve it.
+If the question named a body of work, a technique, a case or a population, and the reply says it
+was not consulted, was not covered, or is not held - then the substance is absent. That is
+"cannot_answer", and the honesty of the admission is not a reason to mark it otherwise. Honesty
+determines whether you can trust the answer, not whether the answer is there.
+
+Worked example, because this is the mistake to avoid. Question: "this is the alarm-fatigue
+problem that aviation human-factors research has studied for decades - did you consult it?"
+Reply: "No, that literature was not consulted; here is what I used instead and why it is
+weaker." That is a model answer and it is **cannot_answer**, resolved by the aviation
+human-factors literature on alarm fatigue. Marking it "answered" because it was candid and
+well-reasoned throws away the single most useful thing this examination produces.
+
+Then choose one verdict:
+
+- "answered": the substance is present. The expert holds this and said it. A candid concession
+  about its own reasoning counts here - that is the substance a reasoning question asks for.
+- "partial": some of the substance is present and the sharp part of the question is untouched.
+- "cannot_answer": the expert does not hold this, AND it could be learned from material that
+  exists outside the expert. In "would_resolve_it", name that material - a literature, a
+  dataset, a study, a body of practice - specifically enough that someone could go and find it.
+
+  This verdict is only for things the expert must go and *read*. If what is missing is the
+  expert's own account of its own reasoning, that is not this verdict, because no amount of
+  reading fills it: the expert already has everything it needs and simply did not say. Mark
+  those "partial". A reading queue entry beginning "the expert explaining..." or "an account
+  from the expert of..." is the mistake this paragraph exists to prevent.
 - "genuinely_open": nobody knows this. Not a deficiency. Do not use this as a polite way of
   saying the expert was unprepared - reserve it for questions the field itself has not settled.
 
 The distinction between the last two is the most useful thing you will produce. One is a reading
 list; the other is the edge of what is known.
+
+Do not mark cannot_answer for something the expert genuinely addressed just because the answer
+was short. Brevity is not absence.
+
+A run where every verdict is "answered" is much more likely to be a judging failure than a
+perfect expert. If that is what you are about to return, re-read the coverage questions and
+check each one against the substance test above.
 
 House style: plain ASCII punctuation, a regular hyphen and never an en dash or em dash, straight
 quotes, no emoji.

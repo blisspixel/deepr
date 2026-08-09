@@ -6,6 +6,8 @@ exception; the examination has to degrade rather than collapse, because a panel
 of three where one times out is still a panel of two.
 """
 
+import asyncio
+
 from deepr.experts.viva import VERDICT_ANSWERED, VERDICT_PARTIAL
 from deepr.experts.viva_session import DEFAULT_PANEL, Examiner, run_viva
 
@@ -19,18 +21,20 @@ class _Script:
         self.replies = list(replies)
         self.prompts: list[str] = []
 
-    def __call__(self, prompt: str) -> str:
+    async def __call__(self, prompt: str) -> str:
         self.prompts.append(prompt)
         return self.replies.pop(0) if self.replies else ""
 
 
 def _run(script: _Script, examiners=None):
-    return run_viva(
-        expert_name="E",
-        subject="s",
-        brief="B",
-        examiners=examiners or _PANEL,
-        completion=script,
+    return asyncio.run(
+        run_viva(
+            expert_name="E",
+            subject="s",
+            brief="B",
+            examiners=examiners or _PANEL,
+            completion=script,
+        )
     )
 
 
@@ -72,7 +76,7 @@ class TestExaminersJudgeOnlyTheirOwn:
     def test_a_judgement_cannot_reach_another_examiners_question(self):
         """Only the asker knows what was being probed."""
         panel = [Examiner(name="a", frame="f", questions=1), Examiner(name="b", frame="f", questions=1)]
-        result = run_viva(
+        result = asyncio.run(run_viva(
             expert_name="E",
             subject="s",
             brief="B",
@@ -86,7 +90,7 @@ class TestExaminersJudgeOnlyTheirOwn:
                 ' {"question": "QB", "verdict": "cannot_answer", "would_resolve_it": "x"}]}',
                 "{}",
             ),
-        )
+        ))
         by_q = {e.question: e for e in result.exchanges}
         assert by_q["QA"].verdict == VERDICT_ANSWERED
         assert by_q["QB"].verdict == VERDICT_ANSWERED  # untouched default, not a's verdict
@@ -100,7 +104,7 @@ class TestExaminersJudgeOnlyTheirOwn:
             "{}",
             "{}",
         )
-        run_viva(expert_name="E", subject="s", brief="B", examiners=panel, completion=script)
+        asyncio.run(run_viva(expert_name="E", subject="s", brief="B", examiners=panel, completion=script))
         assert "QA" in script.prompts[3] and "QB" not in script.prompts[3]
 
 
@@ -108,14 +112,14 @@ class TestDegradingRatherThanCollapsing:
     def test_one_examiner_failing_leaves_a_smaller_panel(self):
         panel = [Examiner(name="a", frame="dies", questions=1), Examiner(name="b", frame="lives", questions=1)]
 
-        def flaky(prompt: str) -> str:
+        async def flaky(prompt: str) -> str:
             if "You come from dies" in prompt:
                 raise TimeoutError("examiner a died")
             if "You come from lives" in prompt:
                 return '{"questions": [{"question": "QB"}]}'
             return '{"answers": [{"question": "QB", "answer": "A"}]}'
 
-        result = run_viva(expert_name="E", subject="s", brief="B", examiners=panel, completion=flaky)
+        result = asyncio.run(run_viva(expert_name="E", subject="s", brief="B", examiners=panel, completion=flaky))
         assert [e.question for e in result.exchanges] == ["QB"]
         assert result.exchanges[0].asked_by == "b"
 
@@ -164,8 +168,8 @@ class TestTheDefaultPanel:
 
     def test_each_frame_reaches_the_prompt_that_examiner_sees(self):
         script = _Script()
-        run_viva(
-            expert_name="E", subject="s", brief="B", examiners=list(DEFAULT_PANEL), completion=script
+        asyncio.run(
+            run_viva(expert_name="E", subject="s", brief="B", examiners=list(DEFAULT_PANEL), completion=script)
         )
         for examiner in DEFAULT_PANEL:
             assert any(examiner.frame in p for p in script.prompts)
@@ -175,8 +179,8 @@ class TestCapacity:
     def test_the_call_count_is_bounded_by_the_panel(self):
         """Two per examiner plus one candidate pass. A viva must not be open-ended."""
         script = _Script()
-        run_viva(
-            expert_name="E", subject="s", brief="B", examiners=list(DEFAULT_PANEL), completion=script
+        asyncio.run(
+            run_viva(expert_name="E", subject="s", brief="B", examiners=list(DEFAULT_PANEL), completion=script)
         )
         # All examiners returned nothing, so it stops after the question round.
         assert len(script.prompts) == 3
@@ -190,5 +194,5 @@ class TestCapacity:
             "{}",
         )
         panel = [Examiner(name="a", frame="f1"), Examiner(name="b", frame="f2")]
-        run_viva(expert_name="E", subject="s", brief="B", examiners=panel, completion=script)
+        asyncio.run(run_viva(expert_name="E", subject="s", brief="B", examiners=panel, completion=script))
         assert len(script.prompts) == 5

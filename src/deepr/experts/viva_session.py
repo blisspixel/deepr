@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -40,7 +40,15 @@ from deepr.experts.viva import (
     parse_questions,
 )
 
-VivaCompletion = Callable[[str], str]
+VivaCompletion = Callable[[str], Awaitable[str]]
+"""prompt -> raw model text. The same shape as ``StudyCompletion``, so a viva
+inherits the study pass's capacity resolution unchanged.
+
+Async even though a viva has nothing to overlap - the three passes have a real
+dependency chain and run in order. It is async so the whole examination shares
+one event loop and one client: a per-call ``asyncio.run`` would build and tear
+down a loop for each question, which is how the portrait path met "Event loop
+is closed" on Windows."""
 
 _FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL)
 
@@ -82,15 +90,23 @@ def _parse_json(text: str) -> dict[str, Any]:
     return parsed if isinstance(parsed, dict) else {}
 
 
-def _ask(completion: VivaCompletion, prompt: str) -> dict[str, Any]:
-    """One call, where a failure is an empty result rather than an exception."""
+async def _ask(completion: VivaCompletion, prompt: str, failures: list[str]) -> dict[str, Any]:
+    """One call, where a failure is an empty result rather than an exception.
+
+    The reason is recorded rather than discarded. One examiner timing out is
+    noise; every call refusing because plan quota ran out is the whole story,
+    and a caller that only sees an empty result cannot tell those apart.
+    """
     try:
-        return _parse_json(completion(prompt))
-    except Exception:
+        return _parse_json(await completion(prompt))
+    except Exception as exc:
+        reason = f"{type(exc).__name__}: {exc}"
+        if reason not in failures:
+            failures.append(reason)
         return {}
 
 
-def run_viva(
+async def run_viva(
     *,
     expert_name: str,
     subject: str,
@@ -103,11 +119,12 @@ def run_viva(
 
     questions: list[VivaExchange] = []
     for examiner in examiners:
-        parsed = _ask(
+        parsed = await _ask(
             completion,
             build_examiner_prompt(
                 subject=subject, examiner_frame=examiner.frame, brief=brief, count=examiner.questions
             ),
+            result.failures,
         )
         questions.extend(parse_questions(parsed, asked_by=examiner.name))
 
@@ -115,9 +132,10 @@ def run_viva(
         return result
     result.exchanges = questions
 
-    answers = _ask(
+    answers = await _ask(
         completion,
         build_candidate_prompt(subject=subject, brief=brief, questions=[q.question for q in questions]),
+        result.failures,
     )
     result.positions_that_moved = attach_answers(questions, answers)
 
@@ -128,7 +146,8 @@ def run_viva(
         mine = [q for q in questions if q.asked_by == examiner.name]
         if not mine:
             continue
-        attach_judgements(mine, _ask(completion, build_judge_prompt(subject=subject, exchanges=mine)))
+        judgements = await _ask(completion, build_judge_prompt(subject=subject, exchanges=mine), result.failures)
+        attach_judgements(mine, judgements)
 
     return result
 
