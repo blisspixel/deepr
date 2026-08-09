@@ -1,12 +1,15 @@
 """Grading a fleet as a progression, one thing per rung.
 
-F nothing, D claims without a corpus, C researched but holding no view, B
-consultable with something structurally wrong, A well researched with a
-perspective, S all of A plus current plus actually in use.
+Five gates hold an expert at B: a thin or captured corpus, findings that reach
+no passage, a small or unrecorded model doing the reading, no standpoint of its
+own, and - separating A from S - staleness or disuse.
 
-The only difference between A and S is liveness, and that is deliberate: an
-expert nobody has asked anything in six months is not being kept honest by
-anything, however good its corpus looks.
+What is deliberately *not* a gate matters as much. Cross-source counts,
+contention carried forward, declared open questions and named weaknesses were
+all inferences about quality from a structural proxy, and every one of them is
+satisfied by a shallow reading as easily as a deep one. Which model did the
+reading predicts more than all of them together and is a fact rather than an
+inference.
 """
 
 import json
@@ -35,6 +38,8 @@ def _strong(**overrides) -> ExpertHealth:
         known_weaknesses=2,
         age_days=2,
         consulted_days_ago=3,
+        graph_is_formed=True,
+        model_tier="frontier",
     )
     return ExpertHealth(**{**defaults, **overrides})
 
@@ -60,13 +65,94 @@ class TestTheLadder:
         """Positions without a reading is a well-organized index, not an expert."""
         assert _strong(standpoint="").grade == "B"
 
-    def test_a_closed_expert_that_dropped_real_dissent_is_b(self):
+    def test_dropped_dissent_is_now_a_warning_rather_than_a_gate(self):
+        """Kept as a signal, demoted from the ladder.
+
+        It is an inference about quality from a structural proxy, and a
+        shallow reading satisfies it as easily as a deep one. The next action
+        still says so; the letter no longer does.
+        """
         closed = _strong(contention_findings=12, positions_with_dissent=0)
-        assert closed.grade == "B"
+        assert closed.dropped_the_dissent
+        assert closed.grade == "S"
 
     def test_naming_no_weakness_no_longer_blocks_the_top(self):
         """Self-reported hunger was the weakest signal here and gated the most."""
         assert _strong(known_weaknesses=0, open_questions=0).grade == "S"
+
+
+class TestTheModelThatDidTheReading:
+    """Weighted heavily, because it is a fact rather than an inference.
+
+    A small model and a frontier model reading the same corpus through the
+    same lenses produce different experts, and nothing downstream recovers the
+    difference: a shallow finding is grounded, traceable and cross-source
+    exactly as easily as a deep one.
+    """
+
+    def test_a_small_model_holds_an_otherwise_perfect_expert_at_b(self):
+        assert _strong(model_tier="small").grade == "B"
+
+    def test_an_unrecorded_model_does_not_pass_either(self):
+        """Absence of evidence must not read as evidence of quality."""
+        assert _strong(model_tier="unknown").grade == "B"
+
+    def test_mid_tier_is_enough(self):
+        assert _strong(model_tier="mid").grade == "S"
+
+    def test_the_next_action_names_the_tier_and_says_what_to_do(self):
+        action = _strong(model_tier="small").next_action
+        assert "small model" in action
+        assert "plan backend" in action
+
+    def test_a_study_predating_the_stamp_is_classified_from_capacity_source(self, tmp_path):
+        """The whole existing fleet is rankable without re-studying anything.
+
+        capacity_source has always recorded which backend ran, and the tier is
+        derived from exactly that. Requiring the newer stamp would have burned
+        hours of quota to recover information already on disk.
+        """
+        (tmp_path / "study.json").write_text(
+            json.dumps({"capacity_source": "plan:grok", "totals": {"findings": 1}}), encoding="utf-8"
+        )
+        assert assess_expert("E", tmp_path).model_tier == "frontier"
+
+    def test_the_newer_stamp_wins_where_both_are_present(self, tmp_path):
+        (tmp_path / "study.json").write_text(
+            json.dumps(
+                {
+                    "capacity_source": "plan:grok",
+                    "model_provenance": {"capacity_source": "local:qwen2.5:7b", "tier": "small"},
+                }
+            ),
+            encoding="utf-8",
+        )
+        assert assess_expert("E", tmp_path).model_tier == "small"
+
+
+class TestTheGraphGate:
+    """Structural, and stronger than the ratio beside it.
+
+    grounded_ratio averages - half the findings anchoring nowhere still scores
+    0.5 and reads as middling. This asks whether any claim connects to a
+    passage at all.
+    """
+
+    def test_an_expert_whose_claims_reach_no_passage_is_held_at_b(self):
+        assert _strong(graph_is_formed=False).grade == "B"
+
+    def test_the_next_action_points_at_the_command_that_shows_the_break(self):
+        assert "expert graph" in _strong(graph_is_formed=False).next_action
+
+    def test_it_is_read_from_the_evidence_graph_on_disk(self, tmp_path):
+        (tmp_path / "graph").mkdir()
+        (tmp_path / "graph" / "evidence.json").write_text(
+            json.dumps({"stats": {"is_formed": True}}), encoding="utf-8"
+        )
+        assert assess_expert("E", tmp_path).graph_is_formed
+
+    def test_a_missing_graph_reads_as_not_formed_rather_than_raising(self, tmp_path):
+        assert not assess_expert("E", tmp_path).graph_is_formed
 
 
 class TestCapsThatIgnoreDepth:
@@ -282,12 +368,15 @@ class TestOpennessIsJudgedAgainstTheSubject:
         quiet = _strong(contention_findings=0, positions_with_dissent=0, open_questions=0, known_weaknesses=0)
         assert quiet.grade == "S"
 
-    def test_a_brief_that_dropped_real_contention_is_closed(self):
-        """The lens found it and the brief carried none of it. That is averaging."""
+    def test_a_brief_that_dropped_real_contention_is_still_reported(self):
+        """The lens found it and the brief carried none of it. That is averaging.
+
+        Still detected and still the next action; no longer a gate on the
+        letter, because it is a proxy rather than a fact.
+        """
         dropped = _strong(contention_findings=15, positions_with_dissent=0)
         assert dropped.dropped_the_dissent
         assert not dropped.is_open
-        assert dropped.grade == "B"
         assert "carried none of them" in dropped.next_action
 
     def test_carrying_the_dissent_forward_clears_it(self):
@@ -299,7 +388,6 @@ class TestOpennessIsJudgedAgainstTheSubject:
         """Self-report is the weakest channel; it must not override the check."""
         loud = _strong(contention_findings=15, positions_with_dissent=0, open_questions=9, known_weaknesses=9)
         assert not loud.is_open
-        assert loud.grade == "B"
 
     def test_contention_findings_are_read_from_the_study(self, tmp_path):
         import json as _json

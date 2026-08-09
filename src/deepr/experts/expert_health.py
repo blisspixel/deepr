@@ -62,9 +62,26 @@ each rung adds one thing:
 | F | brand new. Nothing to go on. |
 | D | claims, but no retained corpus, so nothing can be re-read or checked. |
 | C | a corpus, and initial research done. Findings, no formed view yet. |
-| B | briefed and consultable, but something structural is wrong - one publisher supplies most of it, or the findings do not trace back. |
-| A | well researched, independently sourced, holds a perspective and insights. Not current, or not being used. |
-| S | all of A, plus up to date, plus actually consulted lately and given a chance to research and update since. |
+| B | briefed and consultable, and one of five things is wrong. |
+| A | all five clear, and it holds a perspective. Not current, or not being used. |
+| S | all of A, plus read in the last month, plus actually consulted in it. |
+
+The five gates at B, and nothing else:
+
+1. **A thin or captured corpus** - fewer than five publishers, or one supplying
+   most of it.
+2. **Findings that do not trace back** - and no path in the evidence graph from
+   any position to a passage.
+3. **A small or unrecorded model did the reading** - see ``model_tier``.
+4. **No standpoint of its own** - positions without a reading is an index.
+5. **Not current, or nobody uses it** - which separates A from S.
+
+Deliberately dropped as gates, kept as warnings: cross-source findings,
+contention carried forward, declared open questions, named weaknesses,
+recorded mind changes, settled-claim counts. Each was an inference about
+quality from a structural proxy, and every one of them can be satisfied by a
+shallow reading as easily as a deep one. Which model did the reading predicts
+more than all of them together, and is a fact rather than an inference.
 
 The only difference between A and S is **liveness**. A is a good expert; S is a
 good expert that is being used and is keeping up. That is deliberate, because
@@ -165,6 +182,15 @@ class ExpertHealth:
     cards: int = 0
     age_days: int = -1
     """Days since the study was last run. -1 when never."""
+    graph_is_formed: bool = False
+    """Whether a position reaches a source through a finding.
+
+    Structural, and stronger than the ratio beside it. ``grounded_ratio``
+    averages - a brief where half the findings anchor nowhere still scores 0.5
+    and reads as middling. This asks whether the traversal exists at all:
+    whether any claim connects to a passage someone can open. Read from the
+    evidence graph, which is derived from artifacts already on disk, so it
+    costs nothing and cannot disagree with them."""
     model_tier: str = "unknown"
     """The weakest model that read this corpus or wrote this standpoint.
 
@@ -310,15 +336,16 @@ class ExpertHealth:
         if not self.is_studied or not self.is_consultable:
             return "C"
 
-        # Structural problems keep an expert at B however much it has read.
-        # A corpus that is one publisher wearing hats, or findings that do not
-        # trace back to a passage, are wrong in a way more reading cannot fix.
-        if self.is_captured or self.grounded_ratio < 0.5 or self.dropped_the_dissent:
+        # Five gates, each wrong in a way more reading cannot fix.
+        if self.is_captured or self.origin_count < _GOOD_ORIGINS:
+            return "B"
+        if self.grounded_ratio < 0.5 or not self.graph_is_formed:
+            return "B"
+        if not self.read_by_a_capable_model:
+            return "B"
+        if not self.has_perspective:
             return "B"
 
-        well_researched = self.origin_count >= _GOOD_ORIGINS and self.cross_source_findings > 0 and self.has_perspective
-        if not well_researched:
-            return "B"
         if self.is_current and self.is_in_use:
             return "S"
         return "A"
@@ -353,6 +380,17 @@ class ExpertHealth:
                 f"{self.sources} source(s) across {self.origin_count} publisher(s), with "
                 f"{self.dominant_share:.0%} from the largest. Agreement here is mostly one "
                 "publisher agreeing with itself. Acquire from elsewhere.",
+            ),
+            (
+                not self.graph_is_formed and self.positions > 0,
+                "No position reaches a source through a finding, so no claim connects to a passage "
+                "anyone can open. Run `expert graph` to see where the chain breaks.",
+            ),
+            (
+                not self.read_by_a_capable_model,
+                f"Read by a {self.model_tier} model. A small model and a frontier model reading the "
+                "same corpus produce different experts, and no later statistic recovers the "
+                "difference. Re-study on a plan backend.",
             ),
             (
                 self.cross_source_findings == 0 and self.findings > 1,
@@ -439,9 +477,21 @@ def _weakest_model_tier(study: dict[str, Any] | None, profile: dict[str, Any] | 
     produced, so it cannot be better than them; stamping it as well would add a
     third read of the same constraint without adding information.
     """
-    from deepr.experts.model_provenance import ModelProvenance, weakest
+    from deepr.experts.model_provenance import ModelProvenance, record, weakest
 
-    stamps = [ModelProvenance.from_dict((source or {}).get("model_provenance")) for source in (study, profile)]
+    stamps: list[ModelProvenance] = []
+    for source in (study, profile):
+        data = source or {}
+        if stamp := data.get("model_provenance"):
+            stamps.append(ModelProvenance.from_dict(stamp))
+            continue
+        # Fall back to the older ``capacity_source`` field. Every study written
+        # before the stamp existed still recorded which backend ran, and the
+        # tier is derived from exactly that - so the whole existing fleet is
+        # rankable without re-studying anything, which would have burned hours
+        # of quota to recover information already sitting on disk.
+        if legacy := data.get("capacity_source"):
+            stamps.append(record(str(legacy), str(data.get("model") or "")))
     return weakest(stamps).tier
 
 
@@ -550,6 +600,8 @@ def assess_expert(
         )
 
     health.model_tier = _weakest_model_tier(study, _load_json(expert_dir / "profile_card.json"))
+    graph = _load_json(expert_dir / "graph" / "evidence.json")
+    health.graph_is_formed = bool(((graph or {}).get("stats") or {}).get("is_formed"))
 
     profile = _load_json(expert_dir / "profile_card.json")
     if profile:
