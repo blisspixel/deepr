@@ -448,7 +448,7 @@ class TestResumeIsCorpusAware:
         )
 
         assert not any("Resumed" in limit for limit in second.limitations)
-        assert any("corpus changed" in limit for limit in second.limitations)
+        assert any("could not be shown to have read this corpus" in limit for limit in second.limitations)
 
     @pytest.mark.asyncio
     async def test_an_unchanged_corpus_still_resumes(self, corpus):
@@ -466,8 +466,18 @@ class TestResumeIsCorpusAware:
         assert any("Resumed" in limit for limit in second.limitations)
 
     @pytest.mark.asyncio
-    async def test_an_outcome_without_a_fingerprint_is_still_reusable(self, corpus):
-        """Studies written before this existed must not all be discarded."""
+    async def test_an_outcome_that_cannot_prove_what_it_read_is_re_read(self, corpus):
+        """The guard fails closed, and the earlier fail-open version was wrong.
+
+        It was written to spare legacy studies a re-read. Measured on a live
+        expert, every outcome on disk carried an empty fingerprint - so the
+        exception was the rule, and every lens was reused unconditionally
+        however much the corpus had grown. That is the exact failure the
+        fingerprint exists to prevent.
+
+        The trade is one re-read per lens, once, against an expert that
+        silently stops learning from everything it acquires afterwards.
+        """
         legacy = LensOutcome(lens="failure", axis="interrogation", status="ok")
         result = await run_study(
             expert_name="E",
@@ -476,4 +486,5 @@ class TestResumeIsCorpusAware:
             lens_keys=["failure"],
             resume_from=[legacy],
         )
-        assert any("Resumed" in limit for limit in result.limitations)
+        assert not any("Resumed" in limit for limit in result.limitations)
+        assert any("could not be shown to have read this corpus" in limit for limit in result.limitations)

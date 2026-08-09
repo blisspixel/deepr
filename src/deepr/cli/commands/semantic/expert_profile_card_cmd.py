@@ -92,7 +92,16 @@ def _material(expert_name: str) -> tuple[str, str, int]:
         sys.exit(2)
 
     study = load_study(directory / "study.json")
-    fingerprint = getattr(study, "corpus_fingerprint", "") if study else ""
+    # The fingerprint lives on each LensOutcome, not on the result. Reading it
+    # off the result returned "" every time, so the one field designed to
+    # anchor a change of mind to a corpus state never held a value. Take the
+    # newest lens's fingerprint: all lenses in a completed pass share one, and
+    # in a resumed pass the newest is the corpus the standpoint was formed on.
+    fingerprint = ""
+    for outcome in reversed(list(getattr(study, "outcomes", []) or [])) if study else []:
+        if candidate := str(getattr(outcome, "corpus_fingerprint", "") or ""):
+            fingerprint = candidate
+            break
     sources = int(getattr(getattr(study, "independence", None), "source_count", 0) or 0) if study else 0
     return render_brief(brief)[:_MAX_MATERIAL_CHARS], fingerprint, sources
 

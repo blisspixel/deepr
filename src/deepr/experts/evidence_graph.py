@@ -309,7 +309,13 @@ def build_graph(
                 id=position_id,
                 kind=NODE_POSITION,
                 label=str(getattr(position, "question", "") or position_id),
-                first_seen=at,
+                # Left empty rather than stamped with the build time. A
+                # position's real first_seen is when the brief was written,
+                # and a brief carries no timestamp - so filling it from `at`
+                # produced a field that equalled built_at and reset on every
+                # rebuild. An honestly empty field beats a confidently wrong
+                # one, and this is the first thing V2 has to fix.
+                first_seen="",
                 attrs={
                     "stance": str(getattr(position, "stance", "") or ""),
                     "likelihood": str(getattr(position, "likelihood", "") or ""),

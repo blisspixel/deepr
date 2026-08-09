@@ -327,14 +327,20 @@ async def _run_lenses(
     """
     fingerprint = corpus_fingerprint(material)
     reusable = [o for o in (resume_from or []) if o.status in {"ok", "partial"}]
-    stale = [o for o in reusable if o.corpus_fingerprint and o.corpus_fingerprint != fingerprint]
-    done = {o.lens: o for o in reusable if not o.corpus_fingerprint or o.corpus_fingerprint == fingerprint}
+    # Fail closed. An outcome that cannot say which corpus it read is stale by
+    # definition: trusting it was the fail-open branch of this guard, and it
+    # defeated exactly what the fingerprint exists for. Measured on a live
+    # expert - every outcome on disk carried an empty fingerprint, so every
+    # lens was reused unconditionally however much the corpus had grown.
+    stale = [o for o in reusable if o.corpus_fingerprint != fingerprint]
+    done = {o.lens: o for o in reusable if o.corpus_fingerprint == fingerprint}
     if done:
         result.limitations.append(f"Resumed: {len(done)} lens(es) reused from an earlier run and not re-read.")
     if stale:
         result.limitations.append(
-            f"{len(stale)} lens(es) from an earlier run were re-read because the corpus changed since. "
-            "Reusing them would have carried findings that never saw the new sources."
+            f"{len(stale)} lens(es) from an earlier run were re-read because they could not be "
+            "shown to have read this corpus. Reusing them would have carried findings that never "
+            "saw the new sources."
         )
 
     for index, lens in enumerate(lenses, 1):
