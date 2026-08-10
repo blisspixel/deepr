@@ -125,8 +125,11 @@ def build_study_backend(
     Local is the default when nothing is specified: a study pass is many calls,
     and the safe default for many calls is the one that cannot bill.
     """
-    if plan:
-        return _build_plan_backend(plan=plan, plan_model=plan_model, max_tokens=max_tokens)
+    named = [p.strip() for p in str(plan or "").split(",") if p.strip()]
+    if len(named) > 1:
+        return _build_pooled_backend(profile=profile, plans=named, max_tokens=max_tokens)
+    if named:
+        return _build_plan_backend(plan=named[0], plan_model=plan_model, max_tokens=max_tokens)
     if local:
         return _build_local_backend(profile=profile, model=model, max_tokens=max_tokens)
 
@@ -137,12 +140,57 @@ def build_study_backend(
     # local path runs whatever fits in free VRAM and holds the card for the
     # duration. Preferring plan is therefore better work at no extra money, and
     # local remains the guaranteed floor when no plan capacity is usable.
-    for backend in _preferred_plan_backends():
+    #
+    # Pooled when more than one is auto-routable, so a mid-run exhaustion moves
+    # to the next plan rather than ending the run with idle capacity sitting
+    # beside it. Only auto-routable adapters are eligible here: the others are
+    # explicit-only for tool-confinement reasons, which is a consent gate and
+    # not something a default may quietly cross.
+    preferred = _preferred_plan_backends()
+    if len(preferred) > 1:
+        try:
+            return _build_pooled_backend(profile=profile, plans=preferred, max_tokens=max_tokens)
+        except StudyBackendError:
+            pass
+    for backend in preferred:
         try:
             return _build_plan_backend(plan=backend, plan_model=plan_model, max_tokens=max_tokens)
         except StudyBackendError:
             continue
     return _build_local_backend(profile=profile, model=model, max_tokens=max_tokens)
+
+
+def _build_pooled_backend(*, profile: Any, plans: list[str], max_tokens: int) -> StudyBackend:
+    """Spread one run across several prepaid plans, moving on as each runs out.
+
+    The failure this fixes was watched repeatedly rather than imagined: a study
+    or brief died on one plan's weekly cap while three other plans sat idle,
+    and the operator re-ran it by hand against a different `--plan`. The pool
+    does that, and it retires a plan the moment it reports exhaustion so the
+    round-robin stops handing work to a backend that will fail identically for
+    every remaining call.
+
+    ``chunk_chars`` is the smallest across the pool, because a chunk sized for
+    the most capacious member would break on the tightest one and the run
+    cannot know in advance which member serves any given call.
+    """
+    from deepr.experts.backend_pool import build_pool
+
+    pool = build_pool(profile, plans)
+    if not pool.backends:
+        detail = "; ".join(pool.unavailable + pool.skipped) or "none resolved"
+        raise StudyBackendError(f"no plan-quota backend available from {', '.join(plans)}: {detail}")
+
+    note = f"$0 at the margin (prepaid plans: {', '.join(pool.names)})"
+    if pool.skipped:
+        note += f"; skipped at cap: {len(pool.skipped)}"
+    return StudyBackend(
+        completion=pool.complete,
+        capacity_source=f"plan:{'+'.join(pool.names)}",
+        model="",
+        cost_note=note,
+        chunk_chars=pool.chunk_chars or _PLAN_CHUNK_CHARS,
+    )
 
 
 def _preferred_plan_backends() -> list[str]:

@@ -53,6 +53,12 @@ class BackendPool:
     """Plans that would not build, with the reason, so a thin pool is visible."""
     skipped: list[str] = field(default_factory=list)
     """Plans left out because they were already at their cap, named not hidden."""
+    retired: list[str] = field(default_factory=list)
+    """Plans that ran out *during* the run, with the reason.
+
+    Distinct from ``skipped``, which was known before starting. A run that
+    began with four plans and finished on one did something worth reporting,
+    and without this it looks identical to a run that had one all along."""
     headroom_note: str = ""
     _index: int = 0
     _lock: Any = None
@@ -84,34 +90,62 @@ class BackendPool:
             self._index += 1
             return backend
 
-    async def complete(self, prompt: str) -> str:
-        """Run one prompt on the next backend, retrying once elsewhere.
+    async def _retire(self, backend: PooledBackend, reason: str) -> None:
+        """Take a backend out of rotation for the rest of this run.
 
-        The retry is deliberately single and on a *different* backend: a
-        prompt that fails twice is usually the prompt, and retrying the same
-        plan just spends quota to learn nothing.
+        The difference between a bad prompt and a dead plan. A prompt failure
+        is one call; an exhausted weekly quota fails identically for every
+        remaining call, so leaving it in rotation spends a wasted round-trip
+        every cycle - and on a long study that is hundreds of them.
+
+        Retirement is per-run and never persisted. Quota comes back, and a
+        cached "grok is dead" would outlive the reset that fixed it.
         """
+        async with self._lock:
+            if backend in self.backends:
+                self.backends.remove(backend)
+                self.retired.append(f"{backend.name}: {reason[:120]}")
+
+    async def complete(self, prompt: str) -> str:
+        """Run one prompt, moving on from any backend that has run out.
+
+        Two failure kinds, handled differently:
+
+        - **Capacity.** The plan is out. Retire it and try the next one, until
+          the pool is empty. This is what makes a run survive a mid-flight
+          exhaustion instead of dying with three healthy plans still idle.
+        - **Anything else.** Retried once on a *different* backend, then
+          returned. A prompt that fails twice is usually the prompt, and
+          retrying the same plan spends quota to learn nothing.
+        """
+        from deepr.experts.study import _is_capacity_failure
+
+        # Started with nothing is a different condition from ran out, and the
+        # caller needs to tell them apart: one is a setup problem, the other
+        # means wait for a reset.
         if not self.backends:
             raise RuntimeError("no plan-quota backend is available")
 
-        first = await self._next()
-        first.calls += 1
-        try:
-            return await first.completion(prompt)
-        except Exception:
-            first.failures += 1
-            if len(self.backends) < 2:
-                raise
+        attempted: list[PooledBackend] = []
+        last_error: Exception | None = None
 
-        second = await self._next()
-        if second is first:
-            second = await self._next()
-        second.calls += 1
-        try:
-            return await second.completion(prompt)
-        except Exception:
-            second.failures += 1
-            raise
+        while self.backends:
+            backend = await self._next()
+            backend.calls += 1
+            try:
+                return await backend.completion(prompt)
+            except Exception as exc:
+                backend.failures += 1
+                last_error = exc
+                if _is_capacity_failure(exc):
+                    await self._retire(backend, str(exc))
+                    continue
+                # Not capacity: one retry elsewhere, then give up on this prompt.
+                attempted.append(backend)
+                if len(attempted) >= 2 or len(self.backends) < 2:
+                    raise
+
+        raise last_error or RuntimeError("every plan-quota backend ran out of capacity: " + "; ".join(self.retired))
 
 
 def build_pool(
