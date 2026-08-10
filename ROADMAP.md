@@ -408,18 +408,25 @@ naming: a module with tests is not a shipped feature.
 calendar, and the sequence is derived from what blocks what rather than from
 what looks appetising.
 
-1. **Durable identity for positions, end to end.** `position_thread_id` now
-   backs the evidence graph and nothing else. Until a position keeps its
-   identity across a re-brief, no falsifier can be tracked, no history can be
-   kept, and no revision can be told apart from a replacement. Everything
-   below depends on this.
-2. **Stop destroying judgement on rebuild.** Append-only findings and
-   positions with a derived current view, `supersede` rather than overwrite,
-   and a reason required on every supersession. Writes are atomic now; what
-   they write is still a wholesale replacement. This is also the single gate
-   holding `brief` and `profile` out of unattended operation, per
-   [autonomy-boundary.md](docs/design/autonomy-boundary.md).
-3. **Freeze falsifiers as predictions.** A resolution criterion and a
+1. ~~**Durable identity for positions.**~~ **Done.** A position is keyed on its
+   question and keeps that identity across a re-brief.
+2. ~~**Stop destroying judgement on rebuild.**~~ **Done for positions.**
+   `positions.json` is an append-only ledger; `brief.json` remains the derived
+   current view. A revision closes its predecessor and opens a successor; a
+   position a re-brief did not reach is closed as *not restated* rather than
+   retired, because the expert did not decide to drop it.
+
+   Running it twice was what made it real. The same corpus briefed twice
+   produced seven differently-worded questions and restated none of the nine
+   already held, because `build_brief` took no prior and a model with no memory
+   legitimately rephrases. Showing the brief what it already holds took that
+   from *0 revised, 9 not restated* to *7 revised, 0 not restated*.
+
+   **Findings are still rebuilt wholesale.** Positions were the urgent half -
+   they carry the falsifiers - but a finding ledger is the same shape and is
+   what `study` needs before it can run unattended.
+3. **Freeze falsifiers as predictions.** Now unblocked, and next.
+   [Why](docs/design/the-feedback-signal.md) A resolution criterion and a
    resolution date, immutable once written. This starts a clock that cannot be
    started retroactively, so it is worth doing before the mechanism that reads
    it exists.

@@ -74,15 +74,20 @@ are visible without any new measurement.
 |---|---|
 | Positions register what would overturn them | **exists** (`would_change_my_mind`, with a decorative-falsifier check) |
 | An append-only outcomes log | **exists**, operator-attested, **zero consumers** |
-| Durable position identity so a falsifier survives a re-brief | **partly** - `position_thread_id` is wired into the graph only |
+| Durable position identity so a falsifier survives a re-brief | **built** - a position keeps its identity and history across a re-brief |
 | A resolution *criterion* and a resolution *date* on each falsifier | **missing** |
 | Anything that checks whether a falsifier fired | **missing** |
 | A rule for what a fired falsifier does to the position | **missing** |
 
-The third row is why this is blocked on the identity work rather than
-independent of it. A falsifier registered against `position-3` is worthless the
-moment a re-brief makes `position-3` a different question, and until today that
-is exactly what happened on every run.
+That row was the blocker and is now clear. A falsifier registered against
+`position-3` was worthless the moment a re-brief made `position-3` a different
+question, which is what happened on every run until the ledger landed.
+
+Worth noting how narrowly that was true. Identity alone was not enough: the
+brief also had to be shown its prior questions, because a model with no memory
+rephrases them and a content-derived id then matches nothing. A falsifier clock
+started before that fix would have reset itself every run while appearing to
+work.
 
 ## The smallest mechanism that closes it
 

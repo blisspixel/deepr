@@ -1,8 +1,40 @@
 # Expert V2: identity and a clock, not a new subsystem
 
-Status: proposed, 2026-08-09. Completes prerequisites #2 and #4 of
+Status: partly built, 2026-08-10. Completes prerequisites #2 and #4 of
 [expert-v2-architecture.md](expert-v2-architecture.md), which are the two of
 seven that were never built.
+
+## What is built
+
+Steps 0 through 2 of the order below have landed.
+
+- **`record_identity`** gives findings and positions content-derived thread and
+  version ids. A finding is keyed on lens, normalised title and anchor set; a
+  position on its question alone, so revising a stance does not change what the
+  position is about.
+- **`record_time`** is the single implementation of closed-open intervals, the
+  `END_OF_TIME` sentinel and the parser, replacing what would otherwise have
+  been three of each.
+- **`position_ledger`** stores every version of every position an expert has
+  held, with supersession reasons and survival counted by distinct corpus
+  fingerprint. `brief.json` stays the derived current view.
+
+**One assumption in this document was wrong and the code found it.** The design
+took for granted that a re-brief would restate recognisably the same questions.
+It does not: the same corpus briefed twice produced seven differently-worded
+questions and restated none of the nine already held, so thread identity never
+matched and survival could never accumulate. A model handed the same corpus and
+no memory rephrases legitimately. The fix is that `build_brief` now receives the
+positions the expert already holds and is asked to reuse their wording exactly -
+which moved the same corpus from *0 revised, 9 not restated* to *7 revised, 0
+not restated*.
+
+The general lesson is worth keeping: **content-derived identity is only stable
+if the content generator is stable, and a model is not one unless it is shown
+its own prior output.**
+
+Findings still rebuild wholesale. They are the same shape and the same fix, and
+they are what `study` needs before it can run unattended.
 
 ## The finding that reframes the work
 
