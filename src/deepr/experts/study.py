@@ -53,6 +53,70 @@ CheckpointCallback = Callable[[StudyResult], None]
 """Called after each lens, so work already paid for survives an interruption."""
 
 
+_CAPACITY_MARKERS = (
+    "quota",
+    "usage balance exhausted",
+    "payment required",
+    "402",
+    "insufficient credit",
+    "rate limit",
+    "429",
+)
+"""Text that means the backend cannot be asked, rather than would not answer.
+
+A string check because the completion callable is injected and the study pass
+deliberately owns no provider - it cannot import a backend exception type
+without acquiring the dependency the injection exists to avoid. The typed check
+below is the real one; this catches the same condition arriving as a wrapped or
+stringified error from a plan CLI's stderr.
+"""
+
+
+def _note_capacity_stop(
+    result: StudyResult,
+    exc: BaseException,
+    *,
+    lens: StudyLens,
+    index: int,
+    total: int,
+    on_progress: ProgressCallback | None,
+) -> None:
+    """Record that the pass stopped short, and why, where a machine can see it.
+
+    The outcomes already gathered are real - they were read before capacity ran
+    out. What must not happen is the result reading as though the remaining
+    lenses were asked and found nothing.
+    """
+    remaining = total - index + 1
+    result.limitations.append(
+        f"Capacity ran out during lens {index}/{total} ({lens.key}): {str(exc)[:160]}. "
+        f"{remaining} lens(es) were never read, so this study is incomplete rather than thin. "
+        "Resume once capacity returns; completed lenses will be reused."
+    )
+    if on_progress:
+        on_progress(f"lens {index}/{total} {lens.key}: capacity exhausted, stopping")
+
+
+def _is_capacity_failure(exc: BaseException) -> bool:
+    """Whether this failure means the backend is unavailable, not unhelpful.
+
+    The distinction decides whether a pass may continue. A model that answered
+    in prose produced a genuinely partial result and the pass should carry on;
+    a backend that has run out of quota will fail identically for every
+    remaining call, and continuing only buys a thinner artifact that looks
+    complete.
+    """
+    try:
+        from deepr.backends.plan_quota.errors import PlanQuotaError
+
+        if isinstance(exc, PlanQuotaError):
+            return True
+    except ImportError:
+        pass
+    text = str(exc).lower()
+    return any(marker in text for marker in _CAPACITY_MARKERS)
+
+
 def corpus_fingerprint(material: list[tuple[CorpusEntry, str]]) -> str:
     """A stable id for exactly the sources a pass read.
 
@@ -383,13 +447,19 @@ async def _run_lenses(
             continue
 
         started = time.monotonic()
-        outcome = await _run_lens_over_chunks(
-            lens,
-            chunks,
-            material,
-            completion,
-            on_progress=_lens_progress(on_progress, lens.key, index, len(lenses)),
-        )
+        try:
+            outcome = await _run_lens_over_chunks(
+                lens,
+                chunks,
+                material,
+                completion,
+                on_progress=_lens_progress(on_progress, lens.key, index, len(lenses)),
+            )
+        except Exception as exc:
+            if not _is_capacity_failure(exc):
+                raise
+            _note_capacity_stop(result, exc, lens=lens, index=index, total=len(lenses), on_progress=on_progress)
+            break
         outcome.elapsed_s = time.monotonic() - started
         outcome.corpus_fingerprint = fingerprint
         result.outcomes.append(outcome)
@@ -549,6 +619,21 @@ async def _run_lens_over_chunks(
         try:
             raw = await completion(prompt)
         except Exception as exc:
+            if _is_capacity_failure(exc):
+                # Stop the whole pass. Catching this as a per-chunk failure kept
+                # calling a dead backend for every remaining chunk and lens and
+                # then wrote a complete-looking study.json whose findings were
+                # thin, with the reason recorded only as prose in `limitations`
+                # that no downstream code reads. `brief` then read it as truth.
+                #
+                # Measured: a study "completed" with 44 findings from two of
+                # eight lenses after the backend exhausted mid-run, and nothing
+                # in the artifact said so in a way a machine could act on.
+                #
+                # "The corpus had nothing to say" and "I could not ask" are
+                # different results, and the difference has to survive into the
+                # artifact rather than being flattened into a failure count.
+                raise
             failures.append(f"chunk {index}: {str(exc)[:160]}")
             continue
 
