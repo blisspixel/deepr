@@ -44,6 +44,7 @@ from deepr.experts.research_practice import (
     render_practice,
     update_watches,
 )
+from deepr.utils.atomic_io import atomic_write_json
 
 _MAX_MATERIAL_CHARS = 40_000
 
@@ -238,7 +239,7 @@ def expert_practice(
 
     path = canonical_practice_path(profile.name)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(practice.to_dict(), indent=2), encoding="utf-8")
+    atomic_write_json(path, practice.to_dict(), fsync=True)
 
     if write_markdown:
         path.with_suffix(".md").write_text(render_practice(practice), encoding="utf-8")

@@ -30,6 +30,7 @@ from deepr.experts.notebook import NOTEBOOK_MARKER, build_notebook
 from deepr.experts.paths import canonical_expert_dir
 from deepr.experts.study import run_study
 from deepr.experts.study_lenses import DEFAULT_LENS_KEYS, LENSES, resolve_lenses
+from deepr.utils.atomic_io import atomic_write_json
 
 _MAX_SOURCE_CHARS = 400_000
 
@@ -58,9 +59,11 @@ def _checkpoint_study(expert_name: str):
 
     def _write(result: Any) -> None:
         try:
-            canonical_study_path(expert_name).write_text(
-                json.dumps(result.to_dict(), indent=2, sort_keys=True), encoding="utf-8"
-            )
+            # Atomic, because this is the write most likely to be interrupted:
+            # it rewrites the whole file after every lens across a run lasting
+            # hours. A bare write_text that dies partway leaves a truncated
+            # study.json, and the next stage reads it as the expert's findings.
+            atomic_write_json(canonical_study_path(expert_name), result.to_dict(), sort_keys=True, fsync=True)
         except OSError:
             # A failed checkpoint must not end a run that is otherwise fine.
             pass
@@ -426,7 +429,7 @@ def expert_study(
     # Always persist to the canonical path, because that is where `expert
     # brief` and `expert notebook` look. Requiring --out meant a study that
     # cost real time to produce could not be briefed from without rerunning it.
-    canonical_study_path(profile.name).write_text(serialized, encoding="utf-8")
+    atomic_write_json(canonical_study_path(profile.name), payload, sort_keys=True, fsync=True)
     if out:
         Path(out).write_text(serialized, encoding="utf-8")
     if write_notebook:
@@ -624,7 +627,7 @@ def expert_brief(
     # what the position did not resolve - so a brief that only ever existed as
     # prose could not be consulted, only read.
     payload = json.dumps(brief.to_dict(), indent=2, sort_keys=True)
-    canonical_brief_path(profile.name).write_text(payload, encoding="utf-8")
+    atomic_write_json(canonical_brief_path(profile.name), brief.to_dict(), sort_keys=True, fsync=True)
 
     if as_json:
         click.echo(payload)

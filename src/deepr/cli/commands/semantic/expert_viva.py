@@ -32,6 +32,7 @@ from deepr.cli.commands.semantic.study_backend import StudyBackendError, build_s
 from deepr.experts.paths import canonical_expert_dir
 from deepr.experts.viva import VivaResult, render_viva
 from deepr.experts.viva_session import DEFAULT_PANEL, Examiner, run_viva
+from deepr.utils.atomic_io import atomic_write_json
 
 _MAX_BRIEF_CHARS = 60_000
 """What an examiner is shown. A brief is small; this is a runaway guard, not a
@@ -251,7 +252,7 @@ def expert_viva(
 
     path = Path(out) if out else canonical_viva_path(profile.name)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    atomic_write_json(path, payload, fsync=True)
 
     if write_markdown:
         markdown_path = path.with_suffix(".md")

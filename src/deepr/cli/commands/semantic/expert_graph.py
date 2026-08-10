@@ -32,6 +32,7 @@ from deepr.cli.commands.semantic.experts import expert
 from deepr.experts.evidence_graph import build_graph, render_graph
 from deepr.experts.paths import canonical_expert_dir
 from deepr.experts.perspective_graph import render_perspective
+from deepr.utils.atomic_io import atomic_write_json
 
 
 def canonical_graph_path(expert_name: str) -> Path:
@@ -205,13 +206,13 @@ def expert_graph(name: str, out: str | None, write_markdown: bool, as_json: bool
 
     path = Path(out) if out else canonical_graph_path(profile.name)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(graph.to_dict(), indent=2), encoding="utf-8")
+    atomic_write_json(path, graph.to_dict(), fsync=True)
 
     # The biography, beside the evidence. Two graphs answering two questions:
     # "why do you think that" and "who are you and what moved you".
     perspective = _build_perspective(profile.name, at=built_at)
     perspective_path = canonical_perspective_path(profile.name)
-    perspective_path.write_text(json.dumps(perspective.to_dict(), indent=2), encoding="utf-8")
+    atomic_write_json(perspective_path, perspective.to_dict(), fsync=True)
 
     if write_markdown:
         path.with_suffix(".md").write_text(render_graph(graph), encoding="utf-8")

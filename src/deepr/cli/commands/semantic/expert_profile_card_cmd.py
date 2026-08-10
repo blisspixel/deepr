@@ -40,6 +40,7 @@ from deepr.experts.expert_profile_card import (
 )
 from deepr.experts.model_provenance import record as provenance_record
 from deepr.experts.paths import canonical_expert_dir
+from deepr.utils.atomic_io import atomic_write_json
 
 _MAX_MATERIAL_CHARS = 60_000
 
@@ -252,7 +253,7 @@ def expert_profile_cmd(
 
     path = canonical_profile_path(stored.name)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    atomic_write_json(path, payload, fsync=True)
 
     if as_json:
         click.echo(json.dumps(payload, indent=2))
