@@ -123,10 +123,13 @@ def _resume_source(expert_name: str, *, rebuild: bool) -> list[Any] | None:
 
 
 def _resumable_outcomes(expert_name: str) -> list[Any]:
-    """Lens outcomes from an earlier pass over this same corpus.
+    """Lens outcomes from an earlier pass, for `run_study` to filter.
 
-    Keyed on nothing but the lens: a corpus that changed produces different
-    findings, so `--rebuild` is the honest option when sources moved.
+    Everything on disk is returned. Deciding what is still usable happens in
+    `run_study`, which fingerprints the corpus and discards any outcome formed
+    over different material, so a corpus that moved is re-read without anyone
+    passing `--rebuild`. That flag now means "re-read even though the corpus is
+    unchanged", not "re-read because it changed".
     """
     from deepr.experts.study_contracts import StudyResult
 

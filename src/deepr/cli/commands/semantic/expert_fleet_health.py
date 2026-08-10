@@ -84,7 +84,10 @@ def expert_health_cmd(show_all: bool, as_json: bool) -> None:
     from deepr.experts.profile import ExpertStore
 
     names = [p.name for p in ExpertStore().list_all()]
-    fleet = sorted(collect_fleet(names), key=lambda h: (_GRADE_ORDER.get(h.grade, 9), -h.effective_origins, h.name))
+    # Thinnest first within a grade, matching what the heading promises. The
+    # sort was descending, so the experts most in need of sources sat at the
+    # bottom of a list whose whole purpose is showing what needs attention.
+    fleet = sorted(collect_fleet(names), key=lambda h: (_GRADE_ORDER.get(h.grade, 9), h.effective_origins, h.name))
     summary = fleet_summary(fleet)
 
     if as_json:

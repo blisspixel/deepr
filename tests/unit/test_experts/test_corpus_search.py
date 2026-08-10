@@ -186,3 +186,35 @@ class TestReporting:
     def test_arms_that_found_nothing_appears_in_the_payload(self):
         result = SearchResult(attempted_arms={"adversarial"})
         assert result.to_dict()["arms_that_found_nothing"] == ["adversarial"]
+
+
+class TestCoverageIsJudgedAgainstThePlan:
+    """The gate was hardcoded to 5 while ARMS held 6.
+
+    A plan containing all six arms could satisfy the gate with one arm never
+    run, and which arm got skipped was whatever the interleave left last.
+    Comparing against ``len(ARMS)`` instead would break the other way: many
+    plans carry no terminology queries at all, so the gate would never open
+    and every query would run - the request burst the early stop exists to
+    prevent.
+    """
+
+    def test_a_six_arm_plan_is_not_covered_by_five(self):
+        result = SearchResult(
+            planned_arms={"descriptive", "adversarial", "genre", "primary", "recency", "terminology"},
+            attempted_arms={"descriptive", "adversarial", "genre", "primary", "recency"},
+        )
+        assert not result.every_arm_tried
+
+    def test_a_five_arm_plan_is_covered_by_its_own_five(self):
+        arms = {"descriptive", "adversarial", "genre", "primary", "recency"}
+        assert SearchResult(planned_arms=arms, attempted_arms=set(arms)).every_arm_tried
+
+    def test_a_real_plan_can_reach_coverage_at_all(self):
+        """Guards the regression that would silence early stopping entirely."""
+        plan = plan_queries("widgets")
+        planned = {q.arm for q in plan.queries if q.arm}
+        assert SearchResult(planned_arms=planned, attempted_arms=planned).every_arm_tried
+
+    def test_a_hand_built_result_does_not_read_as_permanently_incomplete(self):
+        assert SearchResult(attempted_arms={"descriptive"}).every_arm_tried

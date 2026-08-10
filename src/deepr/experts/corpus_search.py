@@ -101,6 +101,12 @@ class SearchResult:
     Derived from failures alone, an arm whose every result was already seen
     showed as neither found nor failed - invisible rather than reported. That
     is a check passing because its subject is missing rather than sound."""
+    planned_arms: set[str] = field(default_factory=set)
+    """The arms this plan actually contains, which is not always every arm.
+
+    ``plan_queries`` emits a terminology arm only for some subjects, so a plan
+    can legitimately hold five of the six declared arms. Coverage has to be
+    judged against what was planned rather than against the constant."""
 
     @property
     def distinct_hosts(self) -> set[str]:
@@ -124,8 +130,23 @@ class SearchResult:
 
         The gate on early stopping. Coverage reached during the descriptive
         arm is not coverage; it is the popular half of the subject.
+
+        Judged against the arms this plan holds, not the ``ARMS`` constant.
+        The check was hardcoded to 5 while ``ARMS`` held 6, so a plan
+        containing all six could stop with one arm never run. Comparing to
+        ``len(ARMS)`` instead would be worse: ``plan_queries`` emits no
+        terminology queries for many subjects, so the gate would never open,
+        early stopping would never fire, and the run would issue every query -
+        the ~120-request burst that got three builds rate-limited and is the
+        reason any of this exists.
+
+        An empty ``planned_arms`` means the caller built a result by hand
+        rather than through ``run_search_plan``; falling back to the attempted
+        set keeps that from reading as permanently incomplete.
         """
-        return len(self.attempted_arms) >= 5
+        if not self.planned_arms:
+            return bool(self.attempted_arms)
+        return self.planned_arms <= self.attempted_arms
 
     @property
     def looks_throttled(self) -> bool:
@@ -239,9 +260,9 @@ async def run_search_plan(
     with a corpus spanning enough independent publishers. Once that holds, the
     remaining queries are waste for us and abuse for them.
     """
-    result = SearchResult()
     seen: set[str] = set()
     queries = interleave_by_arm(list(plan.queries))
+    result = SearchResult(planned_arms={q.arm for q in queries if q.arm})
 
     for index, query in enumerate(queries, 1):
         if len(result.hits) >= max_urls:
