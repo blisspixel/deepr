@@ -379,25 +379,79 @@ so an expert that has existed for six months has read more than a new one but
 has not learned more. There is still no evaluation, so "better" remains an
 opinion: the one control-arm comparison run against a bare prompt was close on
 a well-known topic, and Deepr's demonstrated margin is checkability and
-specificity rather than knowledge. Consult refusals - the most precisely
-specified gaps the system produces, generated free by real questions - are not
-captured anywhere.
+specificity rather than knowledge.
 
-**Next, in dependency order:**
+**Who this is for, which the roadmap had left implicit.** The bottleneck when a
+team moves from running a few agents to running many is context - what the
+agents do not know and cannot be told again on every task. That is what an
+expert is, and it is reached through the MCP surface rather than the terminal.
+The consequence for prioritisation is stated in
+[where-deepr-sits.md](docs/design/where-deepr-sits.md): work that improves what
+a consult returns to an agent outranks work that improves what it prints to a
+human, traceability is a feature rather than hygiene because nobody reviewing
+six streams of output can check claims by hand, and a silently stale expert is
+worse than none for exactly the same reason.
 
-1. **Position survival.** Keep prior briefs instead of overwriting; diff
-   positions on rebuild; record how many corpus changes a position has
-   survived and whether its falsifier has been observed. This is what turns
-   elapsed time into evidence, and every part needed already exists.
-2. **Evaluation with control arms.** A base model with no corpus and a placebo
-   expert on an unrelated corpus, with context recorded alongside every
-   outcome from the start. Retrofitting context is how a measurement system
-   ends up confidently wrong.
-3. **Consultation traces become the reading queue.** A refusal is a specified
-   gap; it should decide what the expert reads next.
-4. **Nothing derived is destroyed on rebuild.** `supersede` rather than
-   overwrite for cards, briefs and positions - the discipline the corpus
-   already has and nothing above it does.
+**Since then**, the loop grew the parts that make it inspectable rather than
+merely runnable: an evidence graph joining claims to passages, a perspective
+graph recording what moved a standpoint, a research practice holding live
+questions and earned sources, a viva that examines an expert and returns a
+costed reading list, and `expert status`, which distinguishes a stage that
+*produced a file* from one that *produced a result*. Capacity now spreads
+across prepaid plans and retires one that runs out mid-run.
+
+Several of those existed already and were wired to nothing. Six modules this
+round were found built, tested and unreachable, which is a pattern worth
+naming: a module with tests is not a shipped feature.
+
+**Next, in dependency order.** Order is the claim here; nothing below is a
+calendar, and the sequence is derived from what blocks what rather than from
+what looks appetising.
+
+1. **Durable identity for positions, end to end.** `position_thread_id` now
+   backs the evidence graph and nothing else. Until a position keeps its
+   identity across a re-brief, no falsifier can be tracked, no history can be
+   kept, and no revision can be told apart from a replacement. Everything
+   below depends on this.
+2. **Stop destroying judgement on rebuild.** Append-only findings and
+   positions with a derived current view, `supersede` rather than overwrite,
+   and a reason required on every supersession. Writes are atomic now; what
+   they write is still a wholesale replacement. This is also the single gate
+   holding `brief` and `profile` out of unattended operation, per
+   [autonomy-boundary.md](docs/design/autonomy-boundary.md).
+3. **Freeze falsifiers as predictions.** A resolution criterion and a
+   resolution date, immutable once written. This starts a clock that cannot be
+   started retroactively, so it is worth doing before the mechanism that reads
+   it exists.
+4. **Resolve them against later material, and record the discrepancy only.**
+   The signal is the gap between an ex ante position and a later grounded
+   outcome; see [the-feedback-signal.md](docs/design/the-feedback-signal.md).
+   Deliberately no controller in the first pass - adjusting confidence against
+   an unvalidated signal is how a system optimises the wrong thing quietly.
+5. **A point-in-time read.** `history_of(thread)` first, then `as_of(t)`, with
+   `current()` as the zero-argument default. Blocked on a real bug:
+   `get_current_confidence` decays against wall-clock, so a historical read
+   would return a past record carrying today's confidence.
+6. **Then, and only then, unattended operation** for the stages that already
+   pass the reversibility test - `source`, `study`, `graph`, `viva` - with a
+   quota preflight rather than a schedule. Two runs died mid-flight on quota
+   exhaustion in a single session; a loop that does not model remaining
+   capacity fails inside the most expensive step.
+
+**Refinements worth doing alongside, none of them blocking:**
+
+- **`stage_contract` enforced at the stage, not only in `expert status`.** It
+  reports correctly and does not yet gate anything.
+- **Consult failover.** `--plan a,b,c` fails over mid-call for study and brief,
+  and only picks a plan with headroom for consult, because a consult builds a
+  chat client rather than a completion callable.
+- **antigravity cannot launch on Windows** despite the fleet reporting it
+  installed and active, which silently costs a whole quota pool.
+- **One time module.** 64 duplicated `_utc_now()` definitions and four
+  hand-rolled UTC coercions guarantee closed-open intervals get implemented
+  three ways.
+- **The 38 D-grade experts.** Real belief stores with no retained corpus.
+  They are not consultable and will not become so by accident.
 
 Design: [docs/design/skills-as-learning-systems.md](docs/design/skills-as-learning-systems.md)
 evaluates the wider "skills as bi-temporal learning systems" frame, maps what

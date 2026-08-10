@@ -108,6 +108,34 @@ claims coverage. It claims a frame.
 
     deepr expert perspective "Provenance and Belief Revision" "how should we design flat-pack furniture"
 
+## The question an expert exists to answer
+
+There is a reframe from the agent-adoption literature that states this
+project's purpose better than this document previously did. Describing what
+changes as a team's agents get good enough to trust:
+
+> "Did you read the code?" becomes "what context was the model missing and how
+> do we solve it for next time?"
+
+That second question is the one Deepr exists to answer. Once output arrives
+faster than anyone can review it line by line, the leverage moves from
+inspecting answers to fixing what the answerer did not know - permanently,
+rather than by pasting more into a prompt.
+
+Read that way, several parts of the system stop looking like separate features:
+
+- A **viva** finds what an expert could not answer *and that material exists to
+  answer*, which is a specific, actionable statement of missing context.
+- The **gap router** turns that into acquisition rather than a note.
+- The **practice** keeps the resulting questions as an agenda, so the next
+  acquisition differs from the last.
+- The **evidence graph** answers "what did this rest on", which is the check a
+  reader performs when they cannot re-derive the claim themselves.
+
+All four are mechanisms for "what was missing, and how is it not missing next
+time". None of them said so, and naming it makes it obvious which work belongs
+in this system and which does not.
+
 ## An expert that is glad to be asked
 
 An expert that cannot answer should still want to. "I hold nothing on this" is
