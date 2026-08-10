@@ -19,10 +19,13 @@ from deepr.cli.commands.semantic.experts import expert
 
 @pytest.fixture
 def expert_home(tmp_path, monkeypatch):
+    from deepr.experts import paths
+
     home = tmp_path / "experts"
-    monkeypatch.setattr(
-        "deepr.cli.commands.semantic.expert_profile_card_cmd.canonical_expert_dir", lambda n: home / n
-    )
+    # Both: the layout helpers look the root up on `paths` at call time, while
+    # the command module still binds its own reference at import.
+    monkeypatch.setattr(paths, "canonical_expert_dir", lambda n: home / n)
+    monkeypatch.setattr("deepr.cli.commands.semantic.expert_profile_card_cmd.canonical_expert_dir", lambda n: home / n)
     return home
 
 
@@ -92,14 +95,14 @@ def _reply(standpoint="I read this as a dependency problem.", **extra):
 
 class TestItUnlocksThePerspectiveRung:
     def test_it_writes_the_file_expert_health_reads(self, profile, expert_home, monkeypatch):
-        """Nothing wrote profile_card.json, so the top of the ladder was unreachable."""
+        """Nothing wrote self.json, so the top of the ladder was unreachable."""
         _write_brief(expert_home, "Subject")
         _stub_backend(monkeypatch, _reply())
 
         r = CliRunner().invoke(expert, ["profile", "Subject"])
 
         assert r.exit_code == 0, r.output
-        written = json.loads((expert_home / "Subject" / "profile_card.json").read_text(encoding="utf-8"))
+        written = json.loads((expert_home / "Subject" / "self.json").read_text(encoding="utf-8"))
         assert written["standpoint"]
         assert written["has_standpoint"] is True
 
@@ -118,7 +121,7 @@ class TestTheShiftHistory:
         _write_brief(expert_home, "Subject")
         directory = expert_home / "Subject"
         directory.mkdir(parents=True, exist_ok=True)
-        (directory / "profile_card.json").write_text(
+        (directory / "self.json").write_text(
             json.dumps({"expert_name": "Subject", "standpoint": "I used to read it as a naming problem."}),
             encoding="utf-8",
         )
@@ -133,7 +136,7 @@ class TestTheShiftHistory:
         r = CliRunner().invoke(expert, ["profile", "Subject"])
 
         assert r.exit_code == 0, r.output
-        written = json.loads((directory / "profile_card.json").read_text(encoding="utf-8"))
+        written = json.loads((directory / "self.json").read_text(encoding="utf-8"))
         assert len(written["shifts"]) == 1
         assert written["shifts"][0]["because"].startswith("The failure lens")
         assert "changed its mind 1 time(s)" in r.output
@@ -142,7 +145,7 @@ class TestTheShiftHistory:
         """Append-only. Overwriting leaves the state a new expert is already in."""
         _write_brief(expert_home, "Subject")
         directory = expert_home / "Subject"
-        (directory / "profile_card.json").write_text(
+        (directory / "self.json").write_text(
             json.dumps(
                 {
                     "expert_name": "Subject",
@@ -163,26 +166,26 @@ class TestTheShiftHistory:
 
         CliRunner().invoke(expert, ["profile", "Subject"])
 
-        written = json.loads((directory / "profile_card.json").read_text(encoding="utf-8"))
+        written = json.loads((directory / "self.json").read_text(encoding="utf-8"))
         assert [s["was"] for s in written["shifts"]] == ["First reading.", "Second reading."]
 
     def test_an_unchanged_standpoint_records_no_shift(self, profile, expert_home, monkeypatch):
         """Inventing a change is worse than reporting none."""
         _write_brief(expert_home, "Subject")
         directory = expert_home / "Subject"
-        (directory / "profile_card.json").write_text(
+        (directory / "self.json").write_text(
             json.dumps({"expert_name": "Subject", "standpoint": "Same reading."}), encoding="utf-8"
         )
         _stub_backend(monkeypatch, _reply(standpoint="Same reading.", shift_from_prior="", shift_because=""))
 
         CliRunner().invoke(expert, ["profile", "Subject"])
 
-        assert json.loads((directory / "profile_card.json").read_text(encoding="utf-8"))["shifts"] == []
+        assert json.loads((directory / "self.json").read_text(encoding="utf-8"))["shifts"] == []
 
     def test_the_prior_standpoint_is_shown_to_the_model(self, profile, expert_home, monkeypatch):
         """It cannot report a change it was never shown."""
         _write_brief(expert_home, "Subject")
-        (expert_home / "Subject" / "profile_card.json").write_text(
+        (expert_home / "Subject" / "self.json").write_text(
             json.dumps({"expert_name": "Subject", "standpoint": "An earlier reading."}), encoding="utf-8"
         )
         completion = _stub_backend(monkeypatch, _reply())
@@ -196,7 +199,7 @@ class TestRefusalsBeforeWriting:
     def test_an_unusable_reply_does_not_destroy_the_shift_history(self, profile, expert_home, monkeypatch):
         """The history is the only unrecomputable thing in the directory."""
         _write_brief(expert_home, "Subject")
-        card = expert_home / "Subject" / "profile_card.json"
+        card = expert_home / "Subject" / "self.json"
         card.write_text(
             json.dumps(
                 {

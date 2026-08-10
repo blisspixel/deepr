@@ -411,7 +411,7 @@ what looks appetising.
 1. ~~**Durable identity for positions.**~~ **Done.** A position is keyed on its
    question and keeps that identity across a re-brief.
 2. ~~**Stop destroying judgement on rebuild.**~~ **Done for positions.**
-   `positions.json` is an append-only ledger; `brief.json` remains the derived
+   `hold/history.json` is an append-only ledger; `hold/current.json` remains the derived
    current view. A revision closes its predecessor and opens a successor; a
    position a re-brief did not reach is closed as *not restated* rather than
    retired, because the expert did not decide to drop it.

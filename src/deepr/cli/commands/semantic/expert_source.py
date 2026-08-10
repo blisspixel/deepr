@@ -40,7 +40,7 @@ import click
 from deepr.cli.colors import console, print_header, print_key_value, print_success, print_warning
 from deepr.cli.commands.semantic.experts import expert
 from deepr.cli.commands.semantic.study_backend import StudyBackendError, build_study_backend
-from deepr.experts.paths import canonical_expert_dir
+from deepr.experts.expert_layout import attend_path
 
 
 def _load_profile(name: str) -> Any:
@@ -57,7 +57,7 @@ def _pursuit_queries(expert_name: str, limit: int) -> list[str]:
     """The expert's own live questions, if it has a practice."""
     from deepr.experts.research_practice import ResearchPractice
 
-    path = canonical_expert_dir(expert_name) / "practice.json"
+    path = attend_path(expert_name)
     try:
         practice = ResearchPractice.from_dict(json.loads(path.read_text(encoding="utf-8")))
     except (json.JSONDecodeError, OSError, TypeError, ValueError):

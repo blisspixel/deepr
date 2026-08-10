@@ -26,6 +26,7 @@ from deepr.cli.colors import console, print_header, print_key_value, print_succe
 from deepr.cli.commands.semantic.experts import expert
 from deepr.cli.commands.semantic.study_backend import StudyBackendError, build_study_backend
 from deepr.experts.corpus_store import CorpusStore
+from deepr.experts.expert_layout import hold_current_path, hold_history_path, hold_rendered_path, noticed_path
 from deepr.experts.notebook import NOTEBOOK_MARKER, build_notebook
 from deepr.experts.paths import canonical_expert_dir
 from deepr.experts.study import run_study
@@ -41,17 +42,17 @@ def canonical_study_path(expert_name: str) -> Path:
     One function rather than a repeated literal: study wrote nowhere by default
     while brief read from here, so briefing a finished study meant rerunning it.
     """
-    return canonical_expert_dir(expert_name) / "study.json"
+    return noticed_path(expert_name)
 
 
 def canonical_brief_path(expert_name: str) -> Path:
     """Where the structured brief lives, for anything that wants to consult it."""
-    return canonical_expert_dir(expert_name) / "brief.json"
+    return hold_current_path(expert_name)
 
 
 def canonical_position_ledger_path(expert_name: str) -> Path:
     """Where every version of every position this expert has held is kept."""
-    return canonical_expert_dir(expert_name) / "positions.json"
+    return hold_history_path(expert_name)
 
 
 def _live_positions(expert_name: str) -> list[Any]:
@@ -587,7 +588,6 @@ def _render_study_summary(result: Any) -> None:
 
 
 def _write_notebook(profile: Any, result: Any, store: CorpusStore, *, quiet: bool) -> None:
-    from deepr.experts.paths import canonical_expert_dir
 
     path = canonical_expert_dir(profile.name) / "notebook.md"
     if path.exists() and NOTEBOOK_MARKER not in path.read_text(encoding="utf-8", errors="replace"):
@@ -693,7 +693,8 @@ def expert_brief(
         return
 
     text = render_brief(brief)
-    target = Path(out) if out else canonical_expert_dir(profile.name) / "brief.md"
+    target = Path(out) if out else hold_rendered_path(profile.name)
+    target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(text, encoding="utf-8")
     console.print(text)
 
@@ -762,7 +763,6 @@ def expert_notebook(name: str, from_study: str | None, out: str | None) -> None:
     this file is safe to delete.
     """
     profile = _load_profile(name)
-    from deepr.experts.paths import canonical_expert_dir
 
     result = _load_study_result(profile, from_study)
     store = CorpusStore(profile.name)

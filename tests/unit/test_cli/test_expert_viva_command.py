@@ -21,9 +21,10 @@ def expert_home(tmp_path, monkeypatch):
     from deepr.experts import paths
 
     home = tmp_path / "experts"
+    # Patched on `paths` alone: every path helper resolves through
+    # `expert_layout`, which looks the root up on the module at call time
+    # rather than binding it at import.
     monkeypatch.setattr(paths, "canonical_expert_dir", lambda name: home / name)
-    for module in ("deepr.cli.commands.semantic.expert_viva",):
-        monkeypatch.setattr(f"{module}.canonical_expert_dir", lambda name: home / name)
     return home
 
 
@@ -137,7 +138,7 @@ class TestAnExaminationThatRuns:
         r = CliRunner().invoke(expert, ["viva", "Candidate"])
 
         assert r.exit_code == 0, r.output
-        written = json.loads((expert_home / "Candidate" / "viva.json").read_text(encoding="utf-8"))
+        written = json.loads((expert_home / "Candidate" / "met" / "examination.json").read_text(encoding="utf-8"))
         assert written["reading_queue"] == ["The 2024 errata."]
         assert "The 2024 errata." in r.output
 
@@ -151,7 +152,7 @@ class TestAnExaminationThatRuns:
         r = CliRunner().invoke(expert, ["viva", "Candidate", "--markdown"])
 
         assert r.exit_code == 0, r.output
-        assert (expert_home / "Candidate" / "viva.md").exists()
+        assert (expert_home / "Candidate" / "met" / "examination.md").exists()
 
     def test_a_panel_that_asked_nothing_exits_two(self, profile, expert_home, monkeypatch):
         """A broken backend must not read as a clean examination."""
@@ -198,7 +199,8 @@ class TestAnExaminationThatRuns:
         refusal happens before anything is written.
         """
         _write_brief(expert_home, "Candidate")
-        existing = expert_home / "Candidate" / "viva.json"
+        existing = expert_home / "Candidate" / "met" / "examination.json"
+        existing.parent.mkdir(parents=True, exist_ok=True)
         existing.write_text('{"summary": "an earlier examination"}', encoding="utf-8")
         _stub_backend(monkeypatch, ["not json", "not json", "not json"])
 

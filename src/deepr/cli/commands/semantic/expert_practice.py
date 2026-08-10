@@ -35,6 +35,7 @@ import click
 from deepr.cli.colors import console, print_header, print_key_value, print_success, print_warning
 from deepr.cli.commands.semantic.experts import expert
 from deepr.cli.commands.semantic.study_backend import StudyBackendError, build_study_backend
+from deepr.experts.expert_layout import attend_path, hold_current_path, part_in, self_path
 from deepr.experts.paths import canonical_expert_dir
 from deepr.experts.research_practice import (
     ResearchPractice,
@@ -51,7 +52,7 @@ _MAX_MATERIAL_CHARS = 40_000
 
 def canonical_practice_path(expert_name: str) -> Path:
     """Where the practice lives, and where acquisition should read it."""
-    return canonical_expert_dir(expert_name) / "practice.json"
+    return attend_path(expert_name)
 
 
 def _load_profile(name: str) -> Any:
@@ -89,7 +90,7 @@ def _seed_from_artifacts(practice: ResearchPractice, expert_name: str, *, at: st
     """
     directory = canonical_expert_dir(expert_name)
 
-    viva = _read_json(directory / "viva.json")
+    viva = _read_json(part_in(directory, "met_examination"))
     open_pursuits(
         practice,
         [str(q) for q in (viva.get("reading_queue") or [])],
@@ -98,7 +99,7 @@ def _seed_from_artifacts(practice: ResearchPractice, expert_name: str, *, at: st
         why="an examiner found this answerable and I could not answer it",
     )
 
-    profile = _read_json(directory / "profile_card.json")
+    profile = _read_json(part_in(directory, "self"))
     open_pursuits(
         practice,
         [str(q) for q in (profile.get("open_questions") or [])],
@@ -121,7 +122,7 @@ def _material(expert_name: str) -> str:
     from deepr.experts.brief import render_brief
     from deepr.experts.consult_context import load_brief
 
-    brief = load_brief(canonical_expert_dir(expert_name) / "brief.json")
+    brief = load_brief(hold_current_path(expert_name))
     if brief is None:
         return ""
     return render_brief(brief)[:_MAX_MATERIAL_CHARS]
@@ -220,7 +221,7 @@ def expert_practice(
             print_header(f"Practice: {profile.name}")
             print_key_value("Capacity", backend.cost_note)
 
-        card = _read_json(canonical_expert_dir(profile.name) / "profile_card.json")
+        card = _read_json(self_path(profile.name))
         prompt = build_practice_prompt(
             expert_name=str(card.get("chosen_name") or profile.name),
             standpoint=str(card.get("standpoint") or ""),

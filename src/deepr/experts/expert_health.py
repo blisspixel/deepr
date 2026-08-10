@@ -102,6 +102,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from deepr.experts.expert_layout import part_in
+
 HEALTH_SCHEMA_VERSION = "deepr-expert-health-v1"
 
 _STALE_DAYS = 90
@@ -561,7 +563,7 @@ def assess_expert(
     """
     health = ExpertHealth(name=name, beliefs=beliefs, consulted_days_ago=consulted_days_ago)
 
-    study = _load_json(expert_dir / "study.json")
+    study = _load_json(part_in(expert_dir, "noticed"))
     if study:
         totals = study.get("totals") or {}
         health.findings = int(totals.get("findings", 0) or 0)
@@ -586,7 +588,7 @@ def assess_expert(
             except OSError:
                 pass
 
-    brief = _load_json(expert_dir / "brief.json")
+    brief = _load_json(part_in(expert_dir, "hold_current"))
     if brief:
         positions = brief.get("positions") or []
         health.positions = len(positions)
@@ -599,11 +601,11 @@ def assess_expert(
             1 for item in (state.get("unknown") or []) + (state.get("live") or []) if admits_something(item)
         )
 
-    health.model_tier = _weakest_model_tier(study, _load_json(expert_dir / "profile_card.json"))
+    health.model_tier = _weakest_model_tier(study, _load_json(part_in(expert_dir, "self")))
     graph = _load_json(expert_dir / "graph" / "evidence.json")
     health.graph_is_formed = bool(((graph or {}).get("stats") or {}).get("is_formed"))
 
-    profile = _load_json(expert_dir / "profile_card.json")
+    profile = _load_json(part_in(expert_dir, "self"))
     if profile:
         health.standpoint = profile.get("standpoint", "")
         health.open_questions += sum(1 for q in (profile.get("open_questions") or []) if admits_something(q))

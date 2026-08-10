@@ -17,7 +17,7 @@ Steps 0 through 2 of the order below have landed.
   been three of each.
 - **`position_ledger`** stores every version of every position an expert has
   held, with supersession reasons and survival counted by distinct corpus
-  fingerprint. `brief.json` stays the derived current view.
+  fingerprint. `hold/current.json` stays the derived current view.
 
 **One assumption in this document was wrong and the code found it.** The design
 took for granted that a re-brief would restate recognisably the same questions.
@@ -337,12 +337,12 @@ the time the thing happened. Keep the true timestamp and add a per-store
 monotonic `seq`; order is `(recorded_at, seq)`. One field, and timestamps stop
 being fiction.
 
-**3. Whole-file overwrites are the actual history bug.** `study.json` and
-`brief.json` are written with a bare whole-file write on every checkpoint. That
+**3. Whole-file overwrites are the actual history bug.** `noticed/current.json`
+and `hold/current.json` are written with a bare whole-file write on every checkpoint. That
 is what makes history unrecoverable - a correctness problem, not a performance
 one. The belief store already does this correctly with an append-only
 `events.jsonl`, atomic writes, fsync and a lock. Copy that pattern for
-`findings.jsonl` and `positions.jsonl` with a derived `current.json`.
+`noticed/history.jsonl` and `hold/history.jsonl` with a derived `current.json`.
 
 **4. One time module, one interval predicate.** There are 64 duplicated
 `_utc_now()` definitions and at least four separate hand-rolled naive-to-UTC

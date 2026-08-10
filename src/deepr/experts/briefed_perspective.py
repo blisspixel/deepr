@@ -36,10 +36,11 @@ def load_consult_context(query: str, name: str) -> Any:
     """Assemble the studied layers for this question, or None if unbriefed."""
     from deepr.experts.consult_context import build_consult_context, load_brief, load_study
     from deepr.experts.corpus_store import CorpusStore
+    from deepr.experts.expert_layout import part_in
     from deepr.experts.paths import canonical_expert_dir
 
     expert_dir = canonical_expert_dir(name)
-    brief = load_brief(expert_dir / "brief.json")
+    brief = load_brief(part_in(expert_dir, "hold_current"))
     if brief is None:
         return None
     try:
@@ -50,7 +51,7 @@ def load_consult_context(query: str, name: str) -> Any:
         expert_name=name,
         question=query,
         brief=brief,
-        result=load_study(expert_dir / "study.json"),
+        result=load_study(part_in(expert_dir, "noticed")),
         corpus=corpus,
     )
 
@@ -95,8 +96,8 @@ def briefed_perspective_without_beliefs(query: str, name: str, domain: str, pers
     ``beliefs.json`` existing, so exactly that expert - corpus, findings and
     positions all on disk - answered "no stored belief context is available".
     """
-    from deepr.experts.paths import canonical_expert_dir
+    from deepr.experts.expert_layout import hold_current_path
 
-    if not (canonical_expert_dir(name) / "brief.json").exists():
+    if not hold_current_path(name).exists():
         return None
     return build_briefed_perspective(query, name, domain, perspective_cls)

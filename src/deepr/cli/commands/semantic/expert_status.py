@@ -32,6 +32,7 @@ import click
 
 from deepr.cli.colors import console, print_header, print_key_value, print_warning
 from deepr.cli.commands.semantic.experts import expert
+from deepr.experts.expert_layout import resolve_relative
 from deepr.experts.paths import canonical_expert_dir
 from deepr.experts.stage_contract import STAGES, evaluate_all, next_stage
 
@@ -67,7 +68,7 @@ def _read_artifacts(directory: Path) -> dict[str, dict[str, Any] | None]:
 
     artifacts: dict[str, dict[str, Any] | None] = {}
     for relative in sorted(wanted):
-        path = directory / relative
+        path = resolve_relative(directory, relative)
         if not path.exists():
             artifacts[relative] = None
             continue

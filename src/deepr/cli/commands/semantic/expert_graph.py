@@ -30,6 +30,7 @@ import click
 from deepr.cli.colors import console, print_header, print_key_value, print_success, print_warning
 from deepr.cli.commands.semantic.experts import expert
 from deepr.experts.evidence_graph import build_graph, render_graph
+from deepr.experts.expert_layout import became_path, part_in
 from deepr.experts.paths import canonical_expert_dir
 from deepr.experts.perspective_graph import render_perspective
 from deepr.utils.atomic_io import atomic_write_json
@@ -42,7 +43,7 @@ def canonical_graph_path(expert_name: str) -> Path:
 
 def canonical_perspective_path(expert_name: str) -> Path:
     """Where the expert's account of itself lives."""
-    return canonical_expert_dir(expert_name) / "graph" / "perspective.json"
+    return became_path(expert_name)
 
 
 def _build_perspective(expert_name: str, *, at: str) -> Any:
@@ -62,7 +63,7 @@ def _build_perspective(expert_name: str, *, at: str) -> Any:
 
     profile = None
     try:
-        profile = ExpertProfile.from_dict(json.loads((directory / "profile_card.json").read_text(encoding="utf-8")))
+        profile = ExpertProfile.from_dict(json.loads(part_in(directory, "self").read_text(encoding="utf-8")))
     except (json.JSONDecodeError, OSError, TypeError, ValueError):
         pass
 
@@ -71,7 +72,10 @@ def _build_perspective(expert_name: str, *, at: str) -> Any:
         viva = VivaResult(
             expert_name=expert_name,
             positions_that_moved=list(
-                json.loads((directory / "viva.json").read_text(encoding="utf-8")).get("positions_that_moved") or []
+                json.loads(part_in(directory, "met_examination").read_text(encoding="utf-8")).get(
+                    "positions_that_moved"
+                )
+                or []
             ),
         )
     except (json.JSONDecodeError, OSError, TypeError, ValueError):
@@ -184,8 +188,8 @@ def expert_graph(name: str, out: str | None, write_markdown: bool, as_json: bool
 
     profile = _load_profile(name)
     directory = canonical_expert_dir(profile.name)
-    study = load_study(directory / "study.json")
-    brief = load_brief(directory / "brief.json")
+    study = load_study(part_in(directory, "noticed"))
+    brief = load_brief(part_in(directory, "hold_current"))
 
     if study is None and brief is None:
         click.echo(

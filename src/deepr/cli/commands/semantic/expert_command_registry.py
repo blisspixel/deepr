@@ -29,6 +29,7 @@ from deepr.cli.commands.semantic import expert_learn_web as _expert_learn_web  #
 from deepr.cli.commands.semantic import expert_loop_status as _expert_loop_status  # noqa: F401
 from deepr.cli.commands.semantic import expert_maintenance as _expert_maintenance  # noqa: F401
 from deepr.cli.commands.semantic import expert_memory_card as _expert_memory_card  # noqa: F401
+from deepr.cli.commands.semantic import expert_migrate as _expert_migrate  # noqa: F401
 from deepr.cli.commands.semantic import expert_okf as _expert_okf  # noqa: F401
 from deepr.cli.commands.semantic import expert_outcomes as _expert_outcomes  # noqa: F401
 from deepr.cli.commands.semantic import expert_perspective as _expert_perspective  # noqa: F401

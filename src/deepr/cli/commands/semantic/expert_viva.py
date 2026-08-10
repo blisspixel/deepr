@@ -29,7 +29,7 @@ import click
 from deepr.cli.colors import console, print_header, print_key_value, print_success, print_warning
 from deepr.cli.commands.semantic.experts import expert
 from deepr.cli.commands.semantic.study_backend import StudyBackendError, build_study_backend
-from deepr.experts.paths import canonical_expert_dir
+from deepr.experts.expert_layout import hold_current_path, met_examination_path
 from deepr.experts.viva import VivaResult, render_viva
 from deepr.experts.viva_session import DEFAULT_PANEL, Examiner, run_viva
 from deepr.utils.atomic_io import atomic_write_json
@@ -41,7 +41,7 @@ budget, and a brief that hits it is a brief with something wrong with it."""
 
 def canonical_viva_path(expert_name: str) -> Path:
     """Where an examination is written, and where anything reading one looks."""
-    return canonical_expert_dir(expert_name) / "viva.json"
+    return met_examination_path(expert_name)
 
 
 def _load_profile(name: str) -> Any:
@@ -65,7 +65,7 @@ def _load_brief_text(expert_name: str) -> str:
     from deepr.experts.brief import render_brief
     from deepr.experts.consult_context import load_brief
 
-    brief = load_brief(canonical_expert_dir(expert_name) / "brief.json")
+    brief = load_brief(hold_current_path(expert_name))
     if brief is None:
         click.echo(
             f"Error: {expert_name} has no brief, so it holds no positions to examine. "
@@ -89,7 +89,7 @@ def _panel_from_experts(names: tuple[str, ...]) -> list[Examiner]:
 
     panel: list[Examiner] = []
     for name in names:
-        brief = load_brief(canonical_expert_dir(name) / "brief.json")
+        brief = load_brief(hold_current_path(name))
         if brief is None:
             print_warning(f"Skipping examiner {name}: no brief, so it has no standpoint to ask from.")
             continue

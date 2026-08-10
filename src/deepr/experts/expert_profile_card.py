@@ -82,6 +82,15 @@ class ExpertProfile:
     """What it is still working on. A researcher has these; an index does not."""
     where_it_is_weak: list[str] = field(default_factory=list)
     """What it knows it does not know well. Stated by the expert, not inferred."""
+    appearance: str = ""
+    """How it wants to be depicted, in its own words.
+
+    Identity, not decoration. An expert that chooses its own name should choose
+    its own face, and the alternative - generating "a portrait of an expert on
+    X" from the subject - produces a picture of the *topic* rather than of the
+    one holding a view about it. Two experts on the same subject with opposite
+    standpoints would come out looking identical, which is exactly backwards
+    for the thing a portrait is for: telling them apart at a glance."""
     voice: str = ""
     """How it writes: register and habits, derived from what it read."""
     glad_to_be_asked_about: list[str] = field(default_factory=list)
@@ -155,6 +164,7 @@ class ExpertProfile:
             preferred_lens=data.get("preferred_lens", ""),
             open_questions=list(data.get("open_questions") or []),
             where_it_is_weak=list(data.get("where_it_is_weak") or []),
+            appearance=data.get("appearance", ""),
             voice=data.get("voice", ""),
             glad_to_be_asked_about=list(data.get("glad_to_be_asked_about") or []),
             corpus_fingerprint=data.get("corpus_fingerprint", ""),
@@ -207,6 +217,16 @@ it and own that it is a reading.
 - "open_questions": what you are genuinely still working on. Not gaps in the corpus - questions
   you find unresolved and want to pursue.
 - "where_it_is_weak": what you know you do not know well here. Be specific.
+- "appearance": how you want to be depicted, in one or two sentences. Someone will render this as
+  a portrait and people will see it before they read a word you wrote.
+
+  Describe a subject: bearing, expression, what surrounds them, what they are doing or have just
+  stopped doing, the light. It does not have to be human, and it does not have to be literal. What
+  it must do is fit *you* - your temperament and how you come at this subject - rather than
+  illustrate your topic. An expert on flooding is not a picture of a flood.
+
+  The failure to avoid is describing your field. If someone who knew your subject but not you
+  would produce the same description, it is not yours.
 - "voice": how you write, in one or two sentences. This should follow from what you read: a
   corpus of formal specifications and one of practitioner writing do not produce the same voice.
 - "glad_to_be_asked_about": the questions you would most want to be brought, and would dig into
@@ -220,7 +240,8 @@ Return JSON only, no prose outside it, no code fence:
 
 {{
   "chosen_name": "", "standpoint": "", "what_the_subject_is_about": "",
-  "preferred_lens": "", "open_questions": [""], "where_it_is_weak": [""], "voice": "",
+  "preferred_lens": "", "open_questions": [""], "where_it_is_weak": [""],
+  "appearance": "", "voice": "",
   "glad_to_be_asked_about": [""],
   "shift_from_prior": "", "shift_because": ""
 }}

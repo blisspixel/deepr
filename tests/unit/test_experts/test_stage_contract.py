@@ -23,12 +23,12 @@ def _artifacts(**overrides):
     """A fully healthy expert, unless a key is overridden with None or junk."""
     defaults = {
         "corpus/index.jsonl": {"active_count": 12},
-        "study.json": {"totals": {"findings": 40, "grounded_findings": 31}},
-        "brief.json": {"positions": [{"question": "Q"}]},
-        "profile_card.json": {"standpoint": "I read this as a systems problem."},
+        "noticed/current.json": {"totals": {"findings": 40, "grounded_findings": 31}},
+        "hold/current.json": {"positions": [{"question": "Q"}]},
+        "self.json": {"standpoint": "I read this as a systems problem."},
         "graph/evidence.json": {"stats": {"is_formed": True}},
-        "practice.json": {"stats": {"live_pursuits": 3}},
-        "viva.json": {"exchanges": [{"question": "Q"}]},
+        "attend/practice.json": {"stats": {"live_pursuits": 3}},
+        "met/examination.json": {"exchanges": [{"question": "Q"}]},
     }
     return {**defaults, **overrides}
 
@@ -36,7 +36,7 @@ def _artifacts(**overrides):
 class TestPresenceIsNotValidity:
     def test_a_brief_holding_no_positions_blocks_the_profile(self):
         """The exact failure: a timed-out synthesis wrote a parseable, useless brief."""
-        state = evaluate_stage(get_stage(STAGE_PROFILE), _artifacts(**{"brief.json": {"positions": []}}))
+        state = evaluate_stage(get_stage(STAGE_PROFILE), _artifacts(**{"hold/current.json": {"positions": []}}))
 
         assert state.status == "blocked"
         assert "holds no positions" in state.blockers[0].reason
@@ -45,13 +45,14 @@ class TestPresenceIsNotValidity:
     def test_a_study_with_findings_that_anchor_in_nothing_blocks_the_brief(self):
         """Briefing from it produces positions resting on text nobody can open."""
         state = evaluate_stage(
-            get_stage(STAGE_BRIEF), _artifacts(**{"study.json": {"totals": {"findings": 40, "grounded_findings": 0}}})
+            get_stage(STAGE_BRIEF),
+            _artifacts(**{"noticed/current.json": {"totals": {"findings": 40, "grounded_findings": 0}}}),
         )
         assert state.status == "blocked"
 
     def test_an_unreadable_input_blocks_exactly_like_a_missing_one(self):
         """Treating a corrupt file as present is how the corruption travels."""
-        missing = evaluate_stage(get_stage(STAGE_BRIEF), _artifacts(**{"study.json": None}))
+        missing = evaluate_stage(get_stage(STAGE_BRIEF), _artifacts(**{"noticed/current.json": None}))
         assert missing.status == "blocked"
 
     def test_an_empty_corpus_blocks_the_study(self):
@@ -62,7 +63,7 @@ class TestPresenceIsNotValidity:
 class TestProducingAFileIsNotSucceeding:
     def test_an_artifact_that_carries_nothing_reads_as_failed_not_done(self):
         """Without this, an empty output is indistinguishable from a good one."""
-        state = evaluate_stage(get_stage(STAGE_BRIEF), _artifacts(**{"brief.json": {"positions": []}}))
+        state = evaluate_stage(get_stage(STAGE_BRIEF), _artifacts(**{"hold/current.json": {"positions": []}}))
         assert state.produced
         assert state.status == "failed"
 
@@ -70,7 +71,7 @@ class TestProducingAFileIsNotSucceeding:
         assert evaluate_stage(get_stage(STAGE_BRIEF), _artifacts()).status == "done"
 
     def test_an_absent_artifact_with_inputs_met_reads_as_ready(self):
-        state = evaluate_stage(get_stage(STAGE_BRIEF), _artifacts(**{"brief.json": None}))
+        state = evaluate_stage(get_stage(STAGE_BRIEF), _artifacts(**{"hold/current.json": None}))
         assert state.status == "ready"
 
     def test_a_graph_that_is_a_pile_of_nodes_reads_as_failed(self):
@@ -89,11 +90,11 @@ class TestWhatToDoNext:
     def test_a_failed_stage_outranks_a_ready_one(self):
         """Building on top of a stage that produced nothing usable is how a
         timed-out brief became a standpoint about the pipeline failing."""
-        states = evaluate_all(_artifacts(**{"brief.json": {"positions": []}, "practice.json": None}))
+        states = evaluate_all(_artifacts(**{"hold/current.json": {"positions": []}, "attend/practice.json": None}))
         assert next_stage(states).name == STAGE_BRIEF
 
     def test_otherwise_the_first_runnable_stage_wins(self):
-        states = evaluate_all(_artifacts(**{"practice.json": None, "viva.json": None}))
+        states = evaluate_all(_artifacts(**{"attend/practice.json": None, "met/examination.json": None}))
         assert next_stage(states).name == "practice"
 
     def test_a_complete_expert_has_nothing_next(self):
@@ -114,7 +115,7 @@ class TestTheWholeLoop:
 
     def test_the_graph_needs_both_a_study_and_a_brief(self):
         """It joins claims to passages, so half the chain is not enough."""
-        state = evaluate_stage(get_stage(STAGE_GRAPH), _artifacts(**{"brief.json": {"positions": []}}))
+        state = evaluate_stage(get_stage(STAGE_GRAPH), _artifacts(**{"hold/current.json": {"positions": []}}))
         assert state.status == "blocked"
 
     def test_every_blocker_names_a_command_that_would_fix_it(self):
@@ -123,6 +124,6 @@ class TestTheWholeLoop:
                 assert blocker.fix.startswith("expert "), blocker
 
     def test_states_serialize_for_the_json_surface(self):
-        payload = evaluate_all(_artifacts(**{"brief.json": {"positions": []}}))[2].to_dict()
+        payload = evaluate_all(_artifacts(**{"hold/current.json": {"positions": []}}))[2].to_dict()
         assert payload["status"] == "failed"
         assert payload["success_means"]

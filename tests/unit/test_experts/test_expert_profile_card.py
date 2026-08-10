@@ -111,3 +111,19 @@ class TestParsingCarriesHistoryForward:
         )
         assert profile.corpus_fingerprint == "abc123"
         assert profile.sources_read == 12
+
+
+class TestTheFaceItChose:
+    """Appearance is identity, so it has to survive a round trip like the name."""
+
+    def test_it_survives_a_round_trip(self) -> None:
+        profile = ExpertProfile.from_dict({"expert_name": "x", "appearance": "A surveyor at dusk."})
+        assert ExpertProfile.from_dict(profile.to_dict()).appearance == "A surveyor at dusk."
+
+    def test_a_profile_written_before_the_field_existed_still_loads(self) -> None:
+        assert ExpertProfile.from_dict({"expert_name": "x", "standpoint": "s"}).appearance == ""
+
+    def test_the_prompt_asks_for_it(self) -> None:
+        prompt = build_profile_prompt("flooding", material="...")
+        assert '"appearance"' in prompt
+        assert "not illustrate your topic" in prompt or "rather than\n  illustrate your topic" in prompt

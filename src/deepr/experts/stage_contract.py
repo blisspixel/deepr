@@ -123,21 +123,21 @@ _STUDY_NEEDS_CORPUS = Requirement(
 )
 
 _BRIEF_NEEDS_STUDY = Requirement(
-    artifact="study.json",
+    artifact="noticed/current.json",
     holds=_has_grounded_findings,
     describe="the study produced no grounded findings, so a brief would rest on nothing checkable",
     fix="expert study",
 )
 
 _NEEDS_BRIEF = Requirement(
-    artifact="brief.json",
+    artifact="hold/current.json",
     holds=_has_positions,
     describe="the brief holds no positions, so the expert has not landed anywhere",
     fix="expert brief",
 )
 
 _NEEDS_PROFILE = Requirement(
-    artifact="profile_card.json",
+    artifact="self.json",
     holds=_has_standpoint,
     describe="no standpoint recorded, so the expert has no reading of its own",
     fix="expert profile",
@@ -154,21 +154,21 @@ STAGES: tuple[Stage, ...] = (
     Stage(
         name=STAGE_STUDY,
         requires=(_STUDY_NEEDS_CORPUS,),
-        produces="study.json",
+        produces="noticed/current.json",
         succeeds_when=_has_grounded_findings,
         success_means="at least one finding anchored in the retained text",
     ),
     Stage(
         name=STAGE_BRIEF,
         requires=(_BRIEF_NEEDS_STUDY,),
-        produces="brief.json",
+        produces="hold/current.json",
         succeeds_when=_has_positions,
         success_means="at least one position, each citing the findings it rests on",
     ),
     Stage(
         name=STAGE_PROFILE,
         requires=(_NEEDS_BRIEF,),
-        produces="profile_card.json",
+        produces="self.json",
         succeeds_when=_has_standpoint,
         success_means="a standpoint in the expert's own terms",
     ),
@@ -182,14 +182,14 @@ STAGES: tuple[Stage, ...] = (
     Stage(
         name=STAGE_PRACTICE,
         requires=(_NEEDS_BRIEF,),
-        produces="practice.json",
+        produces="attend/practice.json",
         succeeds_when=lambda p: bool((p.get("stats") or {}).get("live_pursuits")),
         success_means="at least one live pursuit to chase",
     ),
     Stage(
         name=STAGE_VIVA,
         requires=(_NEEDS_BRIEF,),
-        produces="viva.json",
+        produces="met/examination.json",
         succeeds_when=lambda v: bool(v.get("exchanges")),
         success_means="at least one question was put to the expert",
     ),

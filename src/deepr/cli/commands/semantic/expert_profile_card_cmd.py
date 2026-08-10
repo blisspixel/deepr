@@ -33,6 +33,7 @@ import click
 from deepr.cli.colors import console, print_header, print_key_value, print_success, print_warning
 from deepr.cli.commands.semantic.experts import expert
 from deepr.cli.commands.semantic.study_backend import StudyBackendError, build_study_backend
+from deepr.experts.expert_layout import part_in, self_path
 from deepr.experts.expert_profile_card import (
     ExpertProfile,
     build_profile_prompt,
@@ -47,7 +48,7 @@ _MAX_MATERIAL_CHARS = 60_000
 
 def canonical_profile_path(expert_name: str) -> Path:
     """Where the profile lives, and where `expert health` looks for it."""
-    return canonical_expert_dir(expert_name) / "profile_card.json"
+    return self_path(expert_name)
 
 
 def _load_profile(name: str) -> Any:
@@ -83,7 +84,7 @@ def _material(expert_name: str) -> tuple[str, str, int]:
     from deepr.experts.consult_context import load_brief, load_study
 
     directory = canonical_expert_dir(expert_name)
-    brief = load_brief(directory / "brief.json")
+    brief = load_brief(part_in(directory, "hold_current"))
     if brief is None or not brief.positions:
         # An empty brief is worse than a missing one, because it looks like
         # material. Measured: a timed-out synthesis left a brief holding zero
@@ -99,7 +100,7 @@ def _material(expert_name: str) -> tuple[str, str, int]:
         )
         sys.exit(2)
 
-    study = load_study(directory / "study.json")
+    study = load_study(part_in(directory, "noticed"))
     # The fingerprint lives on each LensOutcome, not on the result. Reading it
     # off the result returned "" every time, so the one field designed to
     # anchor a change of mind to a corpus state never held a value. Take the

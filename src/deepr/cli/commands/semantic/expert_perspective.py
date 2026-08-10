@@ -39,6 +39,7 @@ from deepr.experts.cross_domain import (
     frame_material,
     render_reading,
 )
+from deepr.experts.expert_layout import part_in
 from deepr.experts.paths import canonical_expert_dir
 
 
@@ -65,7 +66,7 @@ def _build_context(expert_name: str, question: str) -> Any:
     from deepr.experts.corpus_store import CorpusStore
 
     directory = canonical_expert_dir(expert_name)
-    brief = load_brief(directory / "brief.json")
+    brief = load_brief(part_in(directory, "hold_current"))
     if brief is None:
         click.echo(
             f'Error: {expert_name} has no brief, so it holds no frame to lend. Run: deepr expert brief "{expert_name}"',
@@ -83,7 +84,7 @@ def _build_context(expert_name: str, question: str) -> Any:
         expert_name=expert_name,
         question=question,
         brief=brief,
-        result=load_study(directory / "study.json"),
+        result=load_study(part_in(directory, "noticed")),
         corpus=corpus,
     )
 
