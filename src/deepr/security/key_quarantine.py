@@ -102,9 +102,7 @@ def quarantine_metered_keys(env: dict[str, str] | None = None) -> list[str]:
 def quarantined_names(env: dict[str, str] | None = None) -> list[str]:
     """Which keys this process moved aside, for reporting."""
     target = os.environ if env is None else env
-    return sorted(
-        name.removeprefix(QUARANTINE_PREFIX) for name in target if name.startswith(QUARANTINE_PREFIX)
-    )
+    return sorted(name.removeprefix(QUARANTINE_PREFIX) for name in target if name.startswith(QUARANTINE_PREFIX))
 
 
 def live_metered_names(env: dict[str, str] | None = None) -> list[str]:

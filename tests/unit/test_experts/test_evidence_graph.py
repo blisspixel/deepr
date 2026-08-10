@@ -61,7 +61,8 @@ class TestTheChainIsCopiedNotInferred:
     def test_positions_point_at_the_findings_they_were_recorded_as_resting_on(self):
         graph = _built()
         rests = [(e.source, e.target) for e in graph.edges if e.kind == EDGE_RESTS_ON]
-        assert ("position-1", "failure-1") in rests
+        assert graph.positions[0].id.startswith("position-")
+        assert (graph.positions[0].id, "failure-1") in rests
 
     def test_an_anchor_naming_a_source_no_longer_retained_is_not_an_edge(self):
         """A dangling edge would let a claim cite a passage nobody can open."""
@@ -76,6 +77,34 @@ class TestTheChainIsCopiedNotInferred:
         assert [e.target for e in graph.edges if e.kind == EDGE_RESTS_ON] == ["failure-1"]
 
 
+class TestAPositionKeepsItsIdentity:
+    """`position-{index}` made position-3 a different question every rebuild,
+    which is why nothing outside the graph file could ever refer to one."""
+
+    def test_the_same_question_keeps_the_same_id_across_rebuilds(self):
+        first = _built()
+        rebuilt = _built()
+        assert [p.id for p in first.positions] == [p.id for p in rebuilt.positions]
+
+    def test_reordering_the_brief_does_not_reassign_ids(self):
+        one = SimpleNamespace(positions=[_position("Q1", []), _position("Q2", [])])
+        two = SimpleNamespace(positions=[_position("Q2", []), _position("Q1", [])])
+
+        ids_one = {p.label: p.id for p in _built(brief=one).positions}
+        ids_two = {p.label: p.id for p in _built(brief=two).positions}
+
+        assert ids_one == ids_two
+
+    def test_a_different_question_gets_a_different_id(self):
+        graph = _built(brief=SimpleNamespace(positions=[_position("Q1", []), _position("Q2", [])]))
+        assert len({p.id for p in graph.positions}) == 2
+
+    def test_a_position_with_no_question_still_gets_an_id(self):
+        """Falls back to the positional form rather than colliding on empty."""
+        graph = _built(brief=SimpleNamespace(positions=[_position("", [])]))
+        assert graph.positions[0].id
+
+
 class TestTheIntegrityCheck:
     def test_a_position_resting_on_ungrounded_findings_reaches_no_source(self):
         """Not partially grounded. A bibliography citing empty pages."""
@@ -83,8 +112,8 @@ class TestTheIntegrityCheck:
             study=_study([_finding("failure-1", [], grounded=False)]),
             brief=SimpleNamespace(positions=[_position("Q", ["failure-1"])]),
         )
-        assert not graph.reaches_a_source("position-1")
-        assert [p.id for p in graph.unsupported_positions] == ["position-1"]
+        assert not graph.reaches_a_source(graph.positions[0].id)
+        assert graph.unsupported_positions == graph.positions
 
     def test_one_working_path_is_enough(self):
         graph = _built(
@@ -92,7 +121,7 @@ class TestTheIntegrityCheck:
             brief=SimpleNamespace(positions=[_position("Q", ["failure-1", "failure-2"])]),
             corpus_entries=[_entry("sha-b", "b.org")],
         )
-        assert graph.reaches_a_source("position-1")
+        assert graph.reaches_a_source(graph.positions[0].id)
         assert graph.unsupported_positions == []
 
     def test_a_position_citing_nothing_reaches_no_source(self):

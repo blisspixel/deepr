@@ -38,6 +38,8 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any
 
+from deepr.experts.record_identity import position_thread_id
+
 EVIDENCE_GRAPH_SCHEMA_VERSION = "deepr-evidence-graph-v1"
 
 NODE_SOURCE = "source"
@@ -303,7 +305,12 @@ def build_graph(
     known_findings = {n.id for n in graph.findings}
     positions = list(getattr(brief, "positions", []) or []) if brief is not None else []
     for index, position in enumerate(positions, start=1):
-        position_id = f"position-{index}"
+        # Derived from the question, so a position keeps its identity across
+        # re-briefs and reorderings. The positional form made `position-3` a
+        # different question every time the brief was rebuilt, which is why
+        # nothing outside this file could ever refer to a position.
+        question = str(getattr(position, "question", "") or "")
+        position_id = position_thread_id(question) if question else f"position-{index}"
         graph.nodes.append(
             GraphNode(
                 id=position_id,
