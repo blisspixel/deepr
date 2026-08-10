@@ -35,6 +35,7 @@ than adjusted.
 from __future__ import annotations
 
 import os
+from collections.abc import MutableMapping
 
 QUARANTINE_PREFIX = "DEEPR_QUARANTINED_"
 
@@ -70,15 +71,19 @@ where any client library that happens to be importable could pick one up.
 _TRUTHY = {"1", "true", "yes", "on"}
 
 
-def _opted_out(env: dict[str, str]) -> bool:
+def _opted_out(env: MutableMapping[str, str]) -> bool:
     return str(env.get(OPT_OUT_VAR, "")).strip().lower() in _TRUTHY
 
 
-def quarantine_metered_keys(env: dict[str, str] | None = None) -> list[str]:
+def quarantine_metered_keys(env: MutableMapping[str, str] | None = None) -> list[str]:
     """Move metered keys out of the environment. Returns the names moved.
 
     Mutates ``os.environ`` by default, which is the point: it must affect the
     running process, not a copy of its environment.
+
+    Typed as a MutableMapping rather than a dict because ``os.environ`` is an
+    ``os._Environ``, which is not a dict; annotating it as one type-checks
+    locally and fails under the strict islands in CI.
 
     Preserved rather than deleted. An operator who has approved a spend should
     be able to recover the value they set, and silently destroying a
@@ -99,13 +104,13 @@ def quarantine_metered_keys(env: dict[str, str] | None = None) -> list[str]:
     return moved
 
 
-def quarantined_names(env: dict[str, str] | None = None) -> list[str]:
+def quarantined_names(env: MutableMapping[str, str] | None = None) -> list[str]:
     """Which keys this process moved aside, for reporting."""
     target = os.environ if env is None else env
     return sorted(name.removeprefix(QUARANTINE_PREFIX) for name in target if name.startswith(QUARANTINE_PREFIX))
 
 
-def live_metered_names(env: dict[str, str] | None = None) -> list[str]:
+def live_metered_names(env: MutableMapping[str, str] | None = None) -> list[str]:
     """Metered keys still readable in this process.
 
     Should be empty after startup. Anything here is a key a provider SDK could
