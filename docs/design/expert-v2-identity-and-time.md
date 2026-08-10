@@ -76,11 +76,44 @@ similar sentences, and the check is deterministic and free.
 
 ```
 valid_from, valid_to          # when it is true of the world. Usually unknown.
-ingested_at, invalidated_at   # when this expert held it. Never null on ingest.
+recorded_at, superseded_at    # when the store learned it. Never null on record.
+held_from, held_to            # when the expert actually held it. Often unknown.
 ```
 
-Closed-open intervals, UTC. `ingested_at` is never mutated; a revision is a new
-row that closes its predecessor's `invalidated_at`.
+**Three axes, not two, and the correction came from Deepr's own TKG expert.**
+An earlier draft of this document had two axes and described the transaction
+pair as "when this expert held it". Consulted on the design, the expert
+rejected exactly that:
+
+> The proposed design treats `ingested_at` and `invalidated_at` as when the
+> expert held a belief. The expert perspective only supports these as
+> transaction or system-observation times. Those are not equivalent. An expert
+> may form, revise, or abandon a belief before Deepr receives or processes the
+> corresponding record.
+
+It is right, and the gap is not hypothetical here. A viva moves a position
+*during* the examination; the JSON lands afterwards, and a slow backend can put
+minutes between them. A re-profile records a changed standpoint whose change
+happened while reading, not at the moment of the write. Answering "what did you
+believe in June" from transaction time answers a different question - what the
+store had recorded by June - and the two diverge exactly when a run is slow,
+resumed, or replayed, which is when someone is most likely to be asking.
+
+So `held_from` is separate, and usually unknown. Where the record itself names
+the moment - a viva exchange, a recorded shift - it is populated from that.
+Where it does not, it stays null rather than being filled from `recorded_at`,
+because a fabricated belief time is the same failure as a fabricated valid
+time: it produces a chain that sorts confidently into the wrong order.
+
+**And point-in-time semantics are the actual work.** The same consult:
+"correctness depends on point-in-time query semantics, not merely adding four
+timestamp columns." Adding fields is an afternoon. Deciding what `as_of(t)`
+returns when a record has a null `held_from`, or when valid time and
+transaction time disagree, is the part that has to be specified before anything
+writes a column.
+
+Closed-open intervals, UTC. `recorded_at` is never mutated; a revision is a new
+row that closes its predecessor's `superseded_at`.
 
 Three decisions worth stating because the obvious choice is wrong in each:
 
@@ -102,7 +135,7 @@ and shipped a live Y2038 bug where "open" sorts before genuinely future dates.
 
 ### Revision: stamp, never delete
 
-Superseded records stay, with `invalidated_at`, a `superseded_by` pointer, and a
+Superseded records stay, with `superseded_at`, a `superseded_by` pointer, and a
 reason from a closed set: `retracted_by_source`, `superseded_by_newer`,
 `source_discredited`, `operator_retired`, `merge_loser`.
 
@@ -180,8 +213,9 @@ Each step is independently useful and none requires the next.
 
 1. **Content-derived, stable `finding_id`.** Blocks everything else. Append-only
    `study/findings.jsonl` plus a derived `study/current.json`.
-2. **`position_id`, and `supported_by` verified against it.** Add `ingested_at`
-   and `invalidated_at` to both records. `evidence_graph` then reads `first_seen`
+2. **`position_id`, and `supported_by` verified against it.** Add `recorded_at`
+   and `superseded_at` to both records, plus `held_from` where the record names
+   the moment it changed. `evidence_graph` then reads `first_seen`
    from the record instead of the run, which is the bug it currently documents
    against itself.
 3. **Sparse valid time.** Populated only where a source states a date.
