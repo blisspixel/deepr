@@ -73,11 +73,51 @@ def _render_finding(finding: StudyFinding) -> str:
     return "\n".join(parts)
 
 
-def build_brief_prompt(result: StudyResult, *, expert_name: str, domain: str = "") -> str:
+def _prior_positions_block(prior: list[Any]) -> str:
+    """Show the questions this expert already takes a position on.
+
+    Without this a re-brief is non-deterministic in its *phrasing*, and that
+    silently destroys position identity. Measured: the same corpus briefed
+    twice produced seven differently-worded questions and restated none of the
+    nine it already held, so every thread closed and reopened, no position
+    could ever accumulate survival evidence, and the ledger filled with
+    unrelated threads about the same subject.
+
+    Reusing a question verbatim is what makes a revision recognisable as one.
+    That has to be asked for explicitly, because a model given the same corpus
+    and no memory will legitimately phrase the same question differently every
+    time.
+    """
+    if not prior:
+        return ""
+    lines = "\n".join(
+        f'- "{str(getattr(p, "question", "") or "").strip()}"' for p in prior if getattr(p, "question", "")
+    )
+    if not lines:
+        return ""
+    return (
+        "\n===== QUESTIONS YOU ALREADY TAKE A POSITION ON =====\n"
+        f"{lines}\n"
+        "===== END =====\n\n"
+        "Where this corpus still speaks to one of those questions, **reuse its wording exactly** "
+        "and state your position on it now - which may be the same as before, or changed, and "
+        "either is a real result. Reusing the wording is what lets the system tell a revised "
+        "position from an unrelated new one; rephrasing it looks identical to abandoning the "
+        "question and starting another.\n"
+        "Where the corpus no longer supports a question, simply omit it. Do not restate a "
+        "position you can no longer support in order to keep the list stable.\n"
+        "Ask new questions freely where the material warrants them.\n"
+    )
+
+
+def build_brief_prompt(
+    result: StudyResult, *, expert_name: str, domain: str = "", prior_positions: list[Any] | None = None
+) -> str:
     """Assemble the synthesis prompt from independent findings."""
     findings = result.findings[:_MAX_FINDINGS_IN_PROMPT]
     rendered = "\n".join(_render_finding(f) for f in findings)
     contested = [f for f in result.findings if f.lens == "contention"]
+    prior_block = _prior_positions_block(list(prior_positions or []))
 
     dissent_note = (
         f"\n{len(contested)} finding(s) came from the contention lens, which looks for disagreement "
@@ -115,7 +155,7 @@ Rules that make this honest rather than confident-sounding:
 House style, which applies to every field you return: write plain ASCII punctuation. Use a
 regular hyphen, never an en dash or em dash. Use straight quotes, never curly ones. No emoji.
 Prose, not decoration.
-{dissent_note}
+{dissent_note}{prior_block}
 "likelihood" must be exactly one of: {_LIKELIHOOD_CHOICES}.
 "confidence" must be exactly one of: {_CONFIDENCE_CHOICES}.
 "resolution" must be exactly one of: single (you land on one stance);
@@ -321,6 +361,7 @@ async def build_brief(
     corpus: CorpusStore,
     completion: BriefCompletion,
     domain: str = "",
+    prior_positions: list[Any] | None = None,
 ) -> ExpertBrief:
     """Synthesize one brief. Returns an empty brief rather than raising."""
     from deepr.experts.study import extract_json_object
@@ -333,7 +374,7 @@ async def build_brief(
         )
         return brief
 
-    prompt = build_brief_prompt(result, expert_name=expert_name, domain=domain)
+    prompt = build_brief_prompt(result, expert_name=expert_name, domain=domain, prior_positions=prior_positions)
     try:
         raw = await completion(prompt)
     except Exception as exc:

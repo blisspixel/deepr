@@ -49,6 +49,51 @@ def canonical_brief_path(expert_name: str) -> Path:
     return canonical_expert_dir(expert_name) / "brief.json"
 
 
+def canonical_position_ledger_path(expert_name: str) -> Path:
+    """Where every version of every position this expert has held is kept."""
+    return canonical_expert_dir(expert_name) / "positions.json"
+
+
+def _live_positions(expert_name: str) -> list[Any]:
+    """Positions this expert currently holds, for the brief to restate or revise."""
+    from deepr.experts.position_ledger import load_ledger
+
+    try:
+        return list(load_ledger(canonical_position_ledger_path(expert_name), expert_name=expert_name).live)
+    except Exception:
+        return []
+
+
+def _record_positions(expert_name: str, brief: Any, result: Any) -> dict[str, int]:
+    """Fold this brief into the position ledger. Returns what changed.
+
+    Never fails the brief. A ledger write that goes wrong loses history, which
+    is bad; taking down a brief that a study just paid for is worse, and the
+    brief itself is still written either way.
+    """
+    from deepr.experts.position_ledger import load_ledger, record_brief
+    from deepr.experts.record_time import utc_now
+    from deepr.utils.atomic_io import atomic_write_json
+
+    path = canonical_position_ledger_path(expert_name)
+    try:
+        ledger = load_ledger(path, expert_name=expert_name)
+        # The corpus state this brief was formed over, so survival counts
+        # distinct material rather than distinct runs. Taken from the newest
+        # lens: all lenses in a completed pass share one fingerprint.
+        fingerprint = ""
+        for outcome in reversed(list(getattr(result, "outcomes", []) or [])):
+            if candidate := str(getattr(outcome, "corpus_fingerprint", "") or ""):
+                fingerprint = candidate
+                break
+
+        changed = record_brief(ledger, list(brief.positions), at=utc_now(), corpus_fingerprint=fingerprint)
+        atomic_write_json(path, ledger.to_dict(), fsync=True)
+        return changed
+    except Exception:
+        return {}
+
+
 def _checkpoint_study(expert_name: str):
     """Persist the pass after every lens.
 
@@ -612,6 +657,14 @@ def expert_brief(
         print_key_value("From findings", str(len(result.findings)))
         console.print("")
 
+    # Show the brief the questions this expert already takes a position on.
+    # Without it a re-brief is non-deterministic in phrasing, which silently
+    # destroys position identity: measured, the same corpus briefed twice
+    # produced seven differently-worded questions and restated none of the nine
+    # already held, so every thread closed and reopened and survival could
+    # never accumulate.
+    prior_positions = _live_positions(profile.name)
+
     brief = asyncio.run(
         build_brief(
             expert_name=profile.name,
@@ -619,13 +672,19 @@ def expert_brief(
             corpus=store,
             completion=backend.completion,
             domain=getattr(profile, "domain", "") or "",
+            prior_positions=prior_positions,
         )
     )
 
-    # Persist the structured form always, not only under --json. Rendering to
-    # markdown destroys every typed field - the likelihood band, the falsifier,
-    # what the position did not resolve - so a brief that only ever existed as
-    # prose could not be consulted, only read.
+    # Record what changed before writing the new brief. Every run used to
+    # discard the previous positions - likelihood bands, falsifiers, carried
+    # dissent - and derive fresh ones, so an expert that had existed six months
+    # had concluded nothing that outlived its last run. The ledger keeps the
+    # versions; brief.json stays the current view, because every reader in the
+    # system loads it and changing its shape to serve one new reader would
+    # break all of them.
+    changed = _record_positions(profile.name, brief, result)
+
     payload = json.dumps(brief.to_dict(), indent=2, sort_keys=True)
     atomic_write_json(canonical_brief_path(profile.name), brief.to_dict(), sort_keys=True, fsync=True)
 
@@ -648,6 +707,21 @@ def expert_brief(
         reason = brief.limitations[0] if brief.limitations else "no positions were produced"
         click.echo(f"Error: the brief holds no positions, so it is not consultable. {reason}", err=True)
         sys.exit(2)
+
+    if changed and any(changed.values()):
+        # What moved is the interesting part of a re-brief, and it was
+        # previously invisible: the file was overwritten and nothing said
+        # whether the expert had changed its mind or merely restated itself.
+        console.print(
+            f"\n[dim]Positions: {changed.get('new', 0)} new, {changed.get('revised', 0)} revised, "
+            f"{changed.get('unchanged', 0)} unchanged, {changed.get('not_restated', 0)} not restated.[/dim]"
+        )
+        if changed.get("not_restated"):
+            print_warning(
+                f"{changed['not_restated']} position(s) this expert held were not restated by this brief. "
+                "They are closed in the ledger rather than deleted; check whether the corpus moved or the "
+                "reading did."
+            )
 
     print_success(f"Brief: {target}")
     for warning in brief.integrity_warnings():
