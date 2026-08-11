@@ -1,6 +1,5 @@
 """Notebook render: readable, honest about gaps, byte-stable."""
 
-
 from deepr.experts.corpus_store import CorpusStore
 from deepr.experts.notebook import NOTEBOOK_MARKER, build_notebook
 from deepr.experts.study_contracts import LensOutcome, StudyFinding, StudyResult

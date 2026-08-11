@@ -187,6 +187,7 @@ from deepr.mcp.smoke import (
     MCPHttpSmokeStep,
     build_http_registration_manifest,
 )
+from tests.expert_time_helpers import recent_cutoff as _recent_cutoff
 from tests.unit.graph_commit_helpers import (
     graph_commit_agenda_operation,
     graph_commit_concept_operation,
@@ -532,7 +533,7 @@ def test_expert_self_model_schema_validates_runtime_payload():
         name="Self Model Expert",
         vector_store_id="vs-self-model",
         domain="self models",
-        knowledge_cutoff_date=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
+        knowledge_cutoff_date=_recent_cutoff(),
         last_knowledge_refresh=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
         installed_skills=["consult-review"],
     )
@@ -555,7 +556,7 @@ def test_expert_next_schema_validates_runtime_payload():
         name="Next Action Expert",
         vector_store_id="",
         domain="expert operations",
-        knowledge_cutoff_date=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
+        knowledge_cutoff_date=_recent_cutoff(),
     )
     manifest = ExpertManifest(
         expert_name=profile.name,
@@ -576,7 +577,7 @@ def test_expert_memory_card_schema_validates_runtime_payload():
         name="Memory Card Contract Expert",
         vector_store_id="vs-memory-contract",
         domain="expert memory",
-        knowledge_cutoff_date=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
+        knowledge_cutoff_date=_recent_cutoff(),
         last_knowledge_refresh=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
     )
     manifest = ExpertManifest(
@@ -619,7 +620,7 @@ def test_metacognitive_monitor_schema_validates_runtime_payload():
         name="Monitor Expert",
         vector_store_id="vs-monitor",
         domain="monitoring",
-        knowledge_cutoff_date=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
+        knowledge_cutoff_date=_recent_cutoff(),
         last_knowledge_refresh=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
     )
     manifest = ExpertManifest(
@@ -646,7 +647,7 @@ def test_self_model_update_schema_validates_runtime_payload(tmp_path):
         name="Self Model Update Contract Expert",
         vector_store_id="",
         domain="self-model updates",
-        knowledge_cutoff_date=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
+        knowledge_cutoff_date=_recent_cutoff(),
         last_knowledge_refresh=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
     )
     manifest = ExpertManifest(
@@ -682,7 +683,7 @@ def test_self_model_update_acceptance_schema_validates_runtime_payload(tmp_path)
         name="Self Model Acceptance Contract Expert",
         vector_store_id="",
         domain="self-model updates",
-        knowledge_cutoff_date=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
+        knowledge_cutoff_date=_recent_cutoff(),
         last_knowledge_refresh=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
     )
     manifest = ExpertManifest(
@@ -726,7 +727,7 @@ def test_metacognitive_promotion_schema_validates_runtime_payload(tmp_path):
         name="Promotion Expert",
         vector_store_id="vs-promotion",
         domain="promotion",
-        knowledge_cutoff_date=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
+        knowledge_cutoff_date=_recent_cutoff(),
         last_knowledge_refresh=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
     )
     manifest = ExpertManifest(

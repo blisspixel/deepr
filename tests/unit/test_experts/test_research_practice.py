@@ -243,7 +243,5 @@ class TestSerialization:
         assert restored.watches[0].positions_resting_on_it == 4
 
     def test_junk_is_dropped_rather_than_raising(self):
-        restored = ResearchPractice.from_dict(
-            {"pursuits": ["x", {}], "watches": ["y", {}], "interests": ["z", {}]}
-        )
+        restored = ResearchPractice.from_dict({"pursuits": ["x", {}], "watches": ["y", {}], "interests": ["z", {}]})
         assert restored.pursuits == restored.watches == restored.interests == []

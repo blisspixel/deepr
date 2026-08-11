@@ -114,9 +114,7 @@ class TestWhatAFactModelWouldDiscard:
     def test_conduct_is_kept_even_though_it_has_no_truth_value(self):
         """'I refuse to average live contentions' is not a claim about the world."""
         graph = _built()
-        assert [c.text for c in graph.commitments] == [
-            "I refuse to average live contentions into false consensus."
-        ]
+        assert [c.text for c in graph.commitments] == ["I refuse to average live contentions into false consensus."]
         assert any(e.kind == EDGE_HOLDS for e in graph.edges)
 
     def test_its_own_agenda_is_kept_separately_from_corpus_gaps(self):

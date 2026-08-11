@@ -29,7 +29,9 @@ def _study(findings, started_at="2026-08-01T00:00:00+00:00"):
 
 
 def _position(question, supported_by, **attrs):
-    return SimpleNamespace(question=question, supported_by=list(supported_by), stance="", likelihood="", confidence="", **attrs)
+    return SimpleNamespace(
+        question=question, supported_by=list(supported_by), stance="", likelihood="", confidence="", **attrs
+    )
 
 
 def _entry(sha, publisher="a.org", title=""):

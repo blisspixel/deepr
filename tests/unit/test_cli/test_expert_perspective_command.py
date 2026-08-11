@@ -64,9 +64,7 @@ def _stub_backend(monkeypatch, reply):
 
     fake = FakeBackend()
     fake.completion = completion
-    monkeypatch.setattr(
-        "deepr.cli.commands.semantic.expert_perspective.build_study_backend", lambda **kwargs: fake
-    )
+    monkeypatch.setattr("deepr.cli.commands.semantic.expert_perspective.build_study_backend", lambda **kwargs: fake)
     return completion
 
 
@@ -112,9 +110,7 @@ class TestItNeverClaimsCoverage:
 
 
 class TestWhatItLends:
-    def test_the_prompt_carries_patterns_rather_than_question_matched_evidence(
-        self, profile, expert_home, monkeypatch
-    ):
+    def test_the_prompt_carries_patterns_rather_than_question_matched_evidence(self, profile, expert_home, monkeypatch):
         """Ranking against a foreign question surfaces shared vocabulary, which
         is the least interesting thing a frame has to offer."""
         _write_brief(expert_home, "Lender")

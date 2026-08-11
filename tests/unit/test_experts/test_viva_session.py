@@ -76,21 +76,23 @@ class TestExaminersJudgeOnlyTheirOwn:
     def test_a_judgement_cannot_reach_another_examiners_question(self):
         """Only the asker knows what was being probed."""
         panel = [Examiner(name="a", frame="f", questions=1), Examiner(name="b", frame="f", questions=1)]
-        result = asyncio.run(run_viva(
-            expert_name="E",
-            subject="s",
-            brief="B",
-            examiners=panel,
-            completion=_Script(
-                '{"questions": [{"question": "QA"}]}',
-                '{"questions": [{"question": "QB"}]}',
-                '{"answers": []}',
-                # Examiner a tries to judge both.
-                '{"judgements": [{"question": "QA", "verdict": "answered"},'
-                ' {"question": "QB", "verdict": "cannot_answer", "would_resolve_it": "x"}]}',
-                "{}",
-            ),
-        ))
+        result = asyncio.run(
+            run_viva(
+                expert_name="E",
+                subject="s",
+                brief="B",
+                examiners=panel,
+                completion=_Script(
+                    '{"questions": [{"question": "QA"}]}',
+                    '{"questions": [{"question": "QB"}]}',
+                    '{"answers": []}',
+                    # Examiner a tries to judge both.
+                    '{"judgements": [{"question": "QA", "verdict": "answered"},'
+                    ' {"question": "QB", "verdict": "cannot_answer", "would_resolve_it": "x"}]}',
+                    "{}",
+                ),
+            )
+        )
         by_q = {e.question: e for e in result.exchanges}
         assert by_q["QA"].verdict == VERDICT_ANSWERED
         assert by_q["QB"].verdict == VERDICT_ANSWERED  # untouched default, not a's verdict
@@ -140,9 +142,7 @@ class TestDegradingRatherThanCollapsing:
 
     def test_an_unjudged_question_does_not_silently_pass_as_a_gap(self):
         """A judge that returned nothing leaves the default, which is not is_gap."""
-        result = _run(
-            _Script('{"questions": [{"question": "Q"}]}', '{"answers": []}', "")
-        )
+        result = _run(_Script('{"questions": [{"question": "Q"}]}', '{"answers": []}', ""))
         assert not result.exchanges[0].is_gap
         assert result.reading_queue() == []
 
@@ -168,9 +168,7 @@ class TestTheDefaultPanel:
 
     def test_each_frame_reaches_the_prompt_that_examiner_sees(self):
         script = _Script()
-        asyncio.run(
-            run_viva(expert_name="E", subject="s", brief="B", examiners=list(DEFAULT_PANEL), completion=script)
-        )
+        asyncio.run(run_viva(expert_name="E", subject="s", brief="B", examiners=list(DEFAULT_PANEL), completion=script))
         for examiner in DEFAULT_PANEL:
             assert any(examiner.frame in p for p in script.prompts)
 
@@ -179,9 +177,7 @@ class TestCapacity:
     def test_the_call_count_is_bounded_by_the_panel(self):
         """Two per examiner plus one candidate pass. A viva must not be open-ended."""
         script = _Script()
-        asyncio.run(
-            run_viva(expert_name="E", subject="s", brief="B", examiners=list(DEFAULT_PANEL), completion=script)
-        )
+        asyncio.run(run_viva(expert_name="E", subject="s", brief="B", examiners=list(DEFAULT_PANEL), completion=script))
         # All examiners returned nothing, so it stops after the question round.
         assert len(script.prompts) == 3
 

@@ -108,7 +108,11 @@ class TestAnswers:
         exchanges = [_exchange()]
         moved = attach_answers(
             exchanges,
-            {"answers": [{"question": exchanges[0].question, "answer": "A", "changed_my_mind": "I withdraw position 3."}]},
+            {
+                "answers": [
+                    {"question": exchanges[0].question, "answer": "A", "changed_my_mind": "I withdraw position 3."}
+                ]
+            },
         )
         assert moved == ["I withdraw position 3."]
 
@@ -134,7 +138,11 @@ class TestJudgements:
         exchanges = [_exchange()]
         attach_judgements(
             exchanges,
-            {"judgements": [{"question": exchanges[0].question, "verdict": VERDICT_PARTIAL, "note": "Dodged the sharp half."}]},
+            {
+                "judgements": [
+                    {"question": exchanges[0].question, "verdict": VERDICT_PARTIAL, "note": "Dodged the sharp half."}
+                ]
+            },
         )
         assert exchanges[0].examiner_note == "Dodged the sharp half."
 
@@ -175,7 +183,9 @@ class TestRender:
         assert "has not settled" not in text
 
     def test_the_examiner_is_named_next_to_the_question(self):
-        text = render_viva(VivaResult(expert_name="E", examiners=["furniture"], exchanges=[_exchange(asked_by="furniture")]))
+        text = render_viva(
+            VivaResult(expert_name="E", examiners=["furniture"], exchanges=[_exchange(asked_by="furniture")])
+        )
         assert "asked by furniture" in text
 
     def test_moved_positions_lead_the_document(self):

@@ -69,9 +69,7 @@ class TestAnExhaustedPlanIsRetired:
         assert pool.names == ["codex"]
 
     def test_retirement_is_reported_rather_than_silent(self):
-        pool = BackendPool(
-            backends=[_backend("grok", _dies("usage balance exhausted")), _backend("codex", _ok("ok"))]
-        )
+        pool = BackendPool(backends=[_backend("grok", _dies("usage balance exhausted")), _backend("codex", _ok("ok"))])
         asyncio.run(pool.complete("p"))
 
         assert any("grok" in note for note in pool.retired)

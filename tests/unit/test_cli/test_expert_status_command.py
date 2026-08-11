@@ -63,7 +63,10 @@ class TestItSeparatesFailedFromDone:
 
     def test_a_real_artifact_reads_as_done(self, profile, expert_home):
         _build(expert_home)
-        stages = {s["stage"]: s for s in json.loads(CliRunner().invoke(expert, ["status", "Subject", "--json"]).output)["stages"]}
+        stages = {
+            s["stage"]: s
+            for s in json.loads(CliRunner().invoke(expert, ["status", "Subject", "--json"]).output)["stages"]
+        }
         assert stages["brief"]["status"] == "done"
 
     def test_the_human_view_warns_about_failed_stages(self, profile, expert_home):
@@ -110,7 +113,10 @@ class TestReadingArtifacts:
         d = _build(expert_home)
         (d / "brief.json").write_text("{not json", encoding="utf-8")
 
-        stages = {s["stage"]: s for s in json.loads(CliRunner().invoke(expert, ["status", "Subject", "--json"]).output)["stages"]}
+        stages = {
+            s["stage"]: s
+            for s in json.loads(CliRunner().invoke(expert, ["status", "Subject", "--json"]).output)["stages"]
+        }
         assert stages["profile"]["status"] == "blocked"
 
     def test_an_empty_expert_reports_acquire_as_the_next_step(self, profile, expert_home):

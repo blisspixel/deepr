@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import shutil
-from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -24,6 +23,7 @@ from deepr.core.contracts import Claim, ExpertManifest, Gap
 from deepr.experts.beliefs import Belief
 from deepr.experts.profile import ExpertProfile
 from deepr.experts.profile_store import ExpertStore
+from tests.expert_time_helpers import recent_cutoff as _recent_cutoff
 
 
 def _profile() -> ExpertProfile:
@@ -31,7 +31,7 @@ def _profile() -> ExpertProfile:
         name="Agent Harness Expert",
         vector_store_id="vs-agent-harness",
         domain="agent harnesses",
-        knowledge_cutoff_date=datetime(2026, 6, 26, tzinfo=UTC),
+        knowledge_cutoff_date=_recent_cutoff(),
         installed_skills=["consult-review"],
     )
     manifest = ExpertManifest(

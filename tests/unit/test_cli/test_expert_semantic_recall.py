@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 from click.testing import CliRunner
@@ -12,6 +11,7 @@ from deepr.cli.commands.semantic.expert_semantic_recall import expert_refresh_se
 from deepr.cli.main import cli
 from deepr.experts.beliefs import Belief, BeliefStore
 from deepr.experts.profile import ExpertProfile
+from tests.expert_time_helpers import recent_cutoff as _recent_cutoff
 
 
 def _profile() -> ExpertProfile:
@@ -19,7 +19,7 @@ def _profile() -> ExpertProfile:
         name="Recall CLI Expert",
         vector_store_id="vs-recall-cli",
         domain="ai infrastructure",
-        knowledge_cutoff_date=datetime(2026, 6, 29, tzinfo=UTC),
+        knowledge_cutoff_date=_recent_cutoff(),
     )
 
 

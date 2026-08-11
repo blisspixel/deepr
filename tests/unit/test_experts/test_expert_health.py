@@ -146,9 +146,7 @@ class TestTheGraphGate:
 
     def test_it_is_read_from_the_evidence_graph_on_disk(self, tmp_path):
         (tmp_path / "graph").mkdir()
-        (tmp_path / "graph" / "evidence.json").write_text(
-            json.dumps({"stats": {"is_formed": True}}), encoding="utf-8"
-        )
+        (tmp_path / "graph" / "evidence.json").write_text(json.dumps({"stats": {"is_formed": True}}), encoding="utf-8")
         assert assess_expert("E", tmp_path).graph_is_formed
 
     def test_a_missing_graph_reads_as_not_formed_rather_than_raising(self, tmp_path):
@@ -291,9 +289,7 @@ class TestConsultRecencyComesFromRealTraces:
             }
         ]
         monkeypatch.setattr(expert_health, "_load_traces_for_recency", lambda limit: traces, raising=False)
-        monkeypatch.setattr(
-            "deepr.experts.consult_traces.load_consult_traces", lambda limit=500: traces, raising=False
-        )
+        monkeypatch.setattr("deepr.experts.consult_traces.load_consult_traces", lambda limit=500: traces, raising=False)
 
         seen = expert_health.last_consulted_days(now=datetime(2026, 8, 6, tzinfo=UTC))
 
@@ -314,9 +310,7 @@ class TestConsultRecencyComesFromRealTraces:
                 "status": "failed",
             }
         ]
-        monkeypatch.setattr(
-            "deepr.experts.consult_traces.load_consult_traces", lambda limit=500: traces, raising=False
-        )
+        monkeypatch.setattr("deepr.experts.consult_traces.load_consult_traces", lambda limit=500: traces, raising=False)
 
         assert expert_health.last_consulted_days(now=datetime(2026, 8, 6, tzinfo=UTC))["Wanted"] == 1
 

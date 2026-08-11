@@ -12,6 +12,7 @@ from deepr.cli.commands.semantic.expert_memory_card import expert_memory_card
 from deepr.cli.main import cli
 from deepr.core.contracts import Claim, ExpertManifest, Gap
 from deepr.experts.profile import ExpertProfile
+from tests.expert_time_helpers import recent_cutoff as _recent_cutoff
 
 
 def _profile() -> ExpertProfile:
@@ -19,7 +20,7 @@ def _profile() -> ExpertProfile:
         name="Memory Card Expert",
         vector_store_id="vs-memory-card",
         domain="agent memory",
-        knowledge_cutoff_date=datetime(2026, 6, 26, tzinfo=UTC),
+        knowledge_cutoff_date=_recent_cutoff(),
         last_knowledge_refresh=datetime(2026, 6, 26, tzinfo=UTC),
     )
     manifest = ExpertManifest(

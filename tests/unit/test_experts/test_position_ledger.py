@@ -41,7 +41,9 @@ class TestAThreadSurvivesARebrief:
     def test_the_same_question_keeps_one_thread_across_revisions(self):
         ledger = PositionLedger(expert_name="E")
         record_brief(ledger, [_position("Does X hold?")], at=JAN, corpus_fingerprint="c1")
-        record_brief(ledger, [_position("Does X hold?", likelihood="roughly even chance")], at=JUN, corpus_fingerprint="c2")
+        record_brief(
+            ledger, [_position("Does X hold?", likelihood="roughly even chance")], at=JUN, corpus_fingerprint="c2"
+        )
 
         assert ledger.stats()["threads"] == 1
         assert ledger.stats()["versions"] == 2

@@ -22,6 +22,7 @@ from deepr.experts.monitor_promotion import (
     promote_monitor_proposal,
 )
 from deepr.experts.profile import ExpertProfile
+from tests.expert_time_helpers import recent_cutoff as _recent_cutoff
 
 
 def _profile() -> ExpertProfile:
@@ -29,7 +30,7 @@ def _profile() -> ExpertProfile:
         name="Monitor Promotion Expert",
         vector_store_id="vs-monitor-promotion",
         domain="consult reliability",
-        knowledge_cutoff_date=datetime(2026, 6, 26, tzinfo=UTC),
+        knowledge_cutoff_date=_recent_cutoff(),
     )
     manifest = ExpertManifest(
         expert_name=profile.name,

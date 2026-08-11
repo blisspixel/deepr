@@ -28,6 +28,7 @@ from deepr.experts.self_model_updates import (
     default_self_model_update_dir,
     propose_self_model_update,
 )
+from tests.expert_time_helpers import recent_cutoff as _recent_cutoff
 
 
 def _profile(manifest: ExpertManifest) -> ExpertProfile:
@@ -35,7 +36,7 @@ def _profile(manifest: ExpertManifest) -> ExpertProfile:
         name="Self Model Update Expert",
         vector_store_id="",
         domain="self-model updates",
-        knowledge_cutoff_date=datetime(2026, 6, 26, tzinfo=UTC),
+        knowledge_cutoff_date=_recent_cutoff(),
         last_knowledge_refresh=datetime(2026, 6, 26, tzinfo=UTC),
     )
     profile.get_manifest = lambda: manifest  # type: ignore[method-assign]
