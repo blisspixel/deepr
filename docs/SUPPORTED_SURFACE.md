@@ -1,11 +1,24 @@
 # Supported Surface
 
-Status: v2.44.0 current main, 2026-08-05. This document defines what users and host
+Status: v2.46.0 current main, 2026-08-11. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Production metered dispatch remains
 frozen since v2.40 until provider account-control adapters land.
 
-**v2.44.0 adds the expert study surface as experimental**: retained corpus
+**v2.46.0 renames the files inside an expert directory.** They were named
+after the commands that wrote them; they are now named for what they are:
+`self.json`, `noticed/`, `hold/current.json` and `hold/history.json`,
+`became/`, `attend/`, `met/`. `corpus/` is unchanged.
+
+This matters to the portability contract below, so it is stated here rather
+than only in the changelog. Nothing is lost and nothing needs converting by
+hand: `deepr expert migrate` moves an expert in place, dry run by default, and
+every reader resolves the old path when only the old path exists, so an
+un-migrated expert stays fully readable. All 57 experts in the reference fleet
+were migrated and verified field by field against a pre-migration backup with
+zero differences. `beliefs/` and `knowledge/` are v1 storage and are untouched.
+
+**v2.44.0 added the expert study surface as experimental**: retained corpus
 (`corpus/index.jsonl` plus content-addressed sources), the multi-lens study pass,
 coverage reporting, and the notebook render. These are additive; existing belief
 stores are untouched and keep working. The study pass proposes findings and never
@@ -596,6 +609,11 @@ If development stops, users keep these portable artifacts:
   reports root.
 - Expert profiles, belief stores, event logs, edge stores, gap manifests, and
   loop-run records under the configured data root.
+- An expert's own account of itself (`self.json`), what it noticed in what it
+  read (`noticed/`), the view it currently holds and every view it has held
+  (`hold/`), what changed it (`became/`), what it is chasing (`attend/`), and
+  what has been put to it (`met/`). All plain JSON and Markdown under the
+  expert's directory, readable without Deepr.
 - Generated expert memory cards (`EXPERT.md`) when written. These are derived
   orientation views over canonical state, including labeled original-idea
   perspective state, and can be regenerated.
