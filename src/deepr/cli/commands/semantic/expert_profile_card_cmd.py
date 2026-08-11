@@ -195,6 +195,48 @@ def _render(profile: ExpertProfile, *, path: Path) -> None:
 
     console.print()
     print_success(f"Written to {path}")
+    _render_portrait_if_free(profile)
+
+
+def _render_portrait_if_free(profile: Any) -> None:
+    """Give a newly-described expert a face, when that costs nothing.
+
+    An expert writes how it wants to look as part of describing itself, and
+    leaving the picture to a separate command someone has to remember means
+    every expert built from here on has a placeholder instead of a face.
+
+    Runs only when a local image binary is configured, so this can never be
+    the thing that spends money. Failures are reported and swallowed: a
+    portrait is decoration next to the standpoint that was just written, and
+    losing that write to an image error would be a bad trade.
+    """
+    if not str(getattr(profile, "appearance", "") or "").strip():
+        return
+
+    from deepr.experts.local_image_cli import LOCAL_IMAGE_CLI_ENV, is_available
+
+    if not is_available():
+        console.print(f"[dim]No portrait: set {LOCAL_IMAGE_CLI_ENV} to render one locally at $0.[/dim]")
+        return
+
+    from deepr.experts.profile_store import ExpertStore
+
+    stored = ExpertStore().load(profile.expert_name)
+    if stored is None:
+        return
+    if getattr(stored, "portrait_url", None):
+        return
+
+    console.print("[dim]Rendering a portrait locally ($0, this takes a few minutes)...[/dim]")
+    try:
+        import asyncio
+
+        from deepr.experts.portraits import generate_and_save_portrait
+
+        url = asyncio.run(generate_and_save_portrait(stored, ExpertStore(), provider="local_cli"))
+        print_success(f"Portrait: {url}")
+    except Exception as exc:
+        print_warning(f"No portrait this time ({exc}). The profile above is written and unaffected.")
 
 
 @expert.command(name="profile")

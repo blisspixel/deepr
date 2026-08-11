@@ -17,20 +17,29 @@ from typing import NoReturn
 
 logger = logging.getLogger(__name__)
 
-# The house art style every expert portrait shares, so a whole library reads as
-# one coherent, branded set - the "Deepr Expert look". Override with
-# ``DEEPR_PORTRAIT_STYLE`` to set your own consistent look (e.g. "flat vector,
-# muted palette"); a per-run ``--style`` wins over both.
+# The house style is framing and palette, deliberately not character.
+#
+# It used to specify "high-end SaaS avatar", "modern-scholar aesthetic" and
+# "ultra-professional and trustworthy", and that overwhelmed everything else:
+# eight experts whose self-descriptions were a loading dock at dusk, a desk of
+# card indexes and a field of survey stakes all rendered as the same man in a
+# blazer behind a desk. A style clause strong enough to produce a coherent set
+# is also strong enough to erase what makes each subject itself.
+#
+# What stays is what a set genuinely needs to look related: light, framing,
+# crop, palette. What each expert brings is the person and the scene. The
+# negatives are load-bearing - "no studio headshot, no suit, no office" is what
+# stops the model reaching for its default professional portrait.
+#
+# Override with ``DEEPR_PORTRAIT_STYLE``; a per-run ``--style`` wins over both.
 DEFAULT_PORTRAIT_STYLE = (
-    "Premium vector-style portrait in a consistent 'Deepr Expert' look: "
-    "sophisticated modern-scholar aesthetic like a high-end SaaS avatar; clean "
-    "minimalist lines with subtle cyber-futurist tech accents; soft cinematic "
-    "studio lighting with a gentle rim light; confident three-quarter angle, "
-    "warm approachable expression; deep teal and indigo accent palette on a soft "
-    "off-white background with a faint gradient; a small symbolic icon from the "
-    "expert's own domain subtly integrated; head-and-shoulders, square and "
-    "circle-crop friendly; ultra-professional and trustworthy; no logos, no "
-    "clutter, no harsh shadows"
+    "Natural portrait photography, shot on location in the described setting, "
+    "with the described work actually in progress. Available light. Shallow "
+    "depth of field. Head and shoulders or waist up, subject off-centre, "
+    "square and circle-crop friendly. Muted palette with a deep teal accent. "
+    "Not a studio headshot, not an office, not a boardroom, no suit or blazer "
+    "unless the description calls for one, no corporate stock-photo styling, "
+    "no vector or illustration look, no floating icons or diagrams"
 )
 
 # Style preference env var (see ``portrait_style``).
@@ -91,6 +100,8 @@ def _local_image_base_url(value: str | None = None) -> str:
 
 def portrait_cost(provider: str | None) -> float:
     """Return the bounded metered estimate, rejecting unproven local labels."""
+    if provider == "local_cli":
+        return 0.0
     if provider == "local":
         _require_attested_local_image_capacity()
     if provider == "xai":
@@ -117,26 +128,24 @@ def _build_prompt(
 ) -> str:
     """Build an image generation prompt for one expert.
 
-    An expert that has written its own ``appearance`` gets that, and nothing
-    else describing the subject. Everything below this branch is the fallback
-    for an expert with no self-account yet, and it produces a picture of the
-    *field* rather than of the one holding a view about it: two experts on one
-    domain come out identical apart from a hash-seeded demographic rotation,
-    which is backwards for the thing a portrait is for. The rotation exists so
-    the fallback is at least varied, not because varying it is the goal.
+    An expert that has written its own ``appearance`` describes a *scene* - a
+    surveyor at dusk, a loading dock, a desk of card indexes - and almost never
+    says who is standing in it. Left at that, the model fills the gap with its
+    own default, and the first eight portraits generated this way came back as
+    the same white man in a blazer eight times, which defeats the entire point
+    of letting an expert choose its own face.
 
-    The style clause stays constant across the library either way, so a
-    self-chosen portrait still sits beside the others.
+    So the subject clause is always present: the expert's scene says what is
+    happening, and a name-seeded rotation says who is in it. The seed is
+    derived from the expert name, so a given expert looks like itself on every
+    re-render rather than becoming a different person each time.
+
+    The style clause stays constant across the library, so a self-chosen
+    portrait still sits beside the others.
     """
     import hashlib
 
-    if chosen := " ".join((appearance or "").split()):
-        # Trailing punctuation is stripped because the expert writes a sentence
-        # and the style clause is appended as another one.
-        chosen = chosen[:_MAX_APPEARANCE_CHARS].rstrip(" .,;:")
-        return f"{chosen}. {portrait_style(style)}. No text or watermarks."
-
-    # Deterministic diversity based on expert name. Non-crypto: md5 is used as a stable
+    # Deterministic diversity based on expert name. Non-crypto: sha256 is used as a stable
     # seed for portrait diversity rotation only, not for security/passwords/signatures.
     seed = int(hashlib.sha256(name.encode()).hexdigest(), 16)  # stable diversity seed (sha256)
     genders = ["woman", "man", "woman", "man", "non-binary person"]
@@ -156,9 +165,17 @@ def _build_prompt(
     ethnicity = ethnicities[(seed // 7) % len(ethnicities)]
     age = ages[(seed // 13) % len(ages)]
 
+    subject = f"a {age} {ethnicity} {gender}"
+
+    if chosen := " ".join((appearance or "").split()):
+        # Trailing punctuation is stripped because the expert writes a sentence
+        # and the style and subject clauses are appended as more of them.
+        chosen = chosen[:_MAX_APPEARANCE_CHARS].rstrip(" .,;:")
+        return f"Portrait of {subject}. {chosen}. {portrait_style(style)}. No text or watermarks."
+
     domain_hint = domain or description or name
     return (
-        f"Professional portrait of a {age} {ethnicity} {gender} who is an expert in "
+        f"Professional portrait of {subject} who is an expert in "
         f"{domain_hint[:100]}. Confident, approachable expression. "
         f"{portrait_style(style)}. No text or watermarks."
     )
@@ -201,6 +218,13 @@ def detect_provider() -> str | None:
     ``provider="xai"`` for explicit paid generation, or set
     ``DEEPR_ALLOW_METERED_IMAGE_AUTO=1`` to opt into metered auto-selection.
     """
+    from deepr.experts.local_image_cli import is_available as local_cli_available
+
+    # Preferred over everything: a local binary rendering against a model file
+    # on this disk costs nothing and cannot reach a metered provider.
+    if local_cli_available():
+        return "local_cli"
+
     local_image_url = os.getenv(LOCAL_IMAGE_URL_ENV, "")
     if local_image_url.strip():
         _local_image_base_url(local_image_url)
@@ -254,7 +278,11 @@ async def generate_portrait(
             "image generation, or set DEEPR_ALLOW_METERED_IMAGE_AUTO=1. Loopback image endpoints "
             "remain blocked until exact local-only capacity can be attested."
         )
-    if provider == "local":
+    if provider == "local_cli":
+        # No metered gate: this transport has no credential to spend and no
+        # endpoint to reach. Gating it would block the one $0 path available.
+        pass
+    elif provider == "local":
         _local_image_base_url()
         _require_attested_local_image_capacity()
     else:
@@ -268,16 +296,7 @@ async def generate_portrait(
     prompt = _build_prompt(name, domain, description, style=style, appearance=appearance)
     logger.info("Generating portrait for '%s' via %s", name, provider)
 
-    if provider == "local":
-        image_bytes = await _generate_local(prompt)
-    elif provider == "openai":
-        image_bytes = await _generate_openai(prompt)
-    elif provider == "google":
-        image_bytes = await _generate_google(prompt)
-    elif provider == "xai":
-        image_bytes = await _generate_xai(prompt)
-    else:
-        raise RuntimeError(f"Unknown provider: {provider}")
+    image_bytes = await _dispatch(provider, prompt)
 
     out = _resolve_output_dir(output_dir)
     await asyncio.to_thread(out.mkdir, parents=True, exist_ok=True)
@@ -338,7 +357,7 @@ async def generate_and_save_portrait(
     if effective_provider == "local":
         _local_image_base_url()
         _require_attested_local_image_capacity()
-    if effective_provider and effective_provider != "local":
+    if effective_provider and effective_provider not in {"local", "local_cli"}:
         from deepr.experts.metered_mutation_gate import require_metered_expert_mutation
 
         require_metered_expert_mutation(
@@ -415,6 +434,37 @@ async def _generate_xai(prompt: str) -> bytes:
     """Reject direct xAI image dispatch until durable lifecycle accounting ships."""
     del prompt
     raise RuntimeError("Metered portrait execution is blocked until every image call has durable accounting")
+
+
+async def _dispatch(provider: str, prompt: str) -> bytes:
+    """Route one prompt to its transport.
+
+    Split out of `generate_portrait` so adding a transport does not push that
+    function past the complexity ratchet; the gates and cost accounting around
+    it are the part worth keeping in one place, not the lookup.
+    """
+    transports = {
+        "local_cli": _generate_local_cli,
+        "local": _generate_local,
+        "openai": _generate_openai,
+        "google": _generate_google,
+        "xai": _generate_xai,
+    }
+    transport = transports.get(provider)
+    if transport is None:
+        raise RuntimeError(f"Unknown provider: {provider}")
+    return await transport(prompt)
+
+
+async def _generate_local_cli(prompt: str) -> bytes:
+    """Render through the configured local binary, off the event loop.
+
+    `asyncio.to_thread` because the render blocks for minutes; running it
+    inline would stall every other task in the loop for the duration.
+    """
+    from deepr.experts.local_image_cli import render
+
+    return await asyncio.to_thread(render, prompt)
 
 
 async def _generate_local(prompt: str) -> bytes:

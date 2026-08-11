@@ -81,7 +81,8 @@ def _render(prompt: str) -> bytes | None:
 
 
 def main(argv: list[str]) -> int:
-    wanted = {a.lower() for a in argv[1:]}
+    skip_existing = "--force" not in argv
+    wanted = {a.lower() for a in argv[1:] if a != "--force"}
 
     # Matched on the whole name or any word in it, so a two-word name like
     # "Marlow Chen" is selectable as `Marlow` rather than being unreachable.
@@ -98,13 +99,26 @@ def main(argv: list[str]) -> int:
     # will not find on any install that configures a data directory.
     portraits = default_portraits_dir()
     portraits.mkdir(parents=True, exist_ok=True)
+    if skip_existing:
+        # Five minutes of GPU per image, so re-rendering a portrait that already
+        # exists is the difference between finishing and appearing to hang.
+        experts = [
+            e for e in experts if not (portraits / f"{expert_slug(e[0]).replace(chr(95), chr(45))}.png").exists()
+        ]
+        if not experts:
+            print("Every named expert already has a portrait. Pass --force to redo them.")
+            return 0
     store = ExpertStore()
     rendered = 0
 
     for directory, chosen, appearance in experts:
         slug = expert_slug(directory).replace("_", "-")
         print(f"{chosen} ({directory})")
-        image = _render(_build_prompt(chosen, None, None, appearance=appearance))
+        # Seeded on the directory name, which is what the app passes too. The
+        # seed picks who is in the picture, so seeding the two paths differently
+        # would make the same expert a different person depending on which one
+        # rendered it.
+        image = _render(_build_prompt(directory, None, None, appearance=appearance))
         if image is None:
             continue
 

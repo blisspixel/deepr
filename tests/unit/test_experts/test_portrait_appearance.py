@@ -18,10 +18,37 @@ from deepr.experts.portraits import _build_prompt, self_chosen_appearance
 
 
 class TestTheExpertChoosesItsOwnFace:
-    def test_a_written_appearance_is_the_whole_subject(self) -> None:
+    def test_a_written_appearance_is_the_scene(self) -> None:
         prompt = _build_prompt("tkg", "temporal knowledge graphs", None, appearance="A surveyor at dusk.")
-        assert prompt.startswith("A surveyor at dusk.")
+        assert "A surveyor at dusk." in prompt
         assert "temporal knowledge graphs" not in prompt
+
+    def test_who_is_in_the_scene_is_stated_rather_than_left_to_the_model(self) -> None:
+        """An appearance describes a situation and rarely says who is in it.
+
+        Left unstated, the model supplies its own default, and eight experts
+        whose scenes were a loading dock, a card index and a survey field all
+        came back as the same man in a blazer.
+        """
+        assert _build_prompt("tkg", None, None, appearance="A surveyor at dusk.").startswith("Portrait of a ")
+
+    def test_the_same_expert_looks_like_itself_every_time(self) -> None:
+        first = _build_prompt("tkg", None, None, appearance="A surveyor at dusk.")
+        assert first == _build_prompt("tkg", None, None, appearance="A surveyor at dusk.")
+
+    def test_different_experts_are_different_people(self) -> None:
+        subjects = {
+            _build_prompt(n, None, None, appearance="At a desk.").split(".")[0]
+            for n in ("tkg", "anti-slop", "evaluation", "provenance", "retrieval", "mycorrhizal")
+        }
+        assert len(subjects) > 1, "the roster would be one person repeated"
+
+    def test_the_style_does_not_force_a_boardroom(self) -> None:
+        """The style used to say "high-end SaaS avatar" and "ultra-professional",
+        which overwhelmed every scene an expert described."""
+        prompt = _build_prompt("tkg", None, None, appearance="A surveyor at dusk.")
+        assert "no suit or blazer" in prompt
+        assert "Not a studio headshot" in prompt
 
     def test_the_field_is_used_only_when_nothing_was_chosen(self) -> None:
         assert "temporal knowledge graphs" in _build_prompt("tkg", "temporal knowledge graphs", None)
