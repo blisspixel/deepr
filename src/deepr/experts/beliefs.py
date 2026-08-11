@@ -181,7 +181,13 @@ class Belief:
         Returns:
             Current confidence after decay, capped by trust class.
         """
-        days_elapsed = (datetime.now(UTC) - self.updated_at).days
+        # Clamped at zero, because decay must never raise confidence. A belief
+        # stamped in the future - clock skew between machines writing to a
+        # synced folder is the realistic cause - gives a negative elapsed, and
+        # exp(-rate * negative) is greater than 1. Unclamped, a belief stored
+        # at 0.50 came back as 0.60: inflated to the trust ceiling, so the one
+        # record you had reason to distrust read as maximally trustworthy.
+        days_elapsed = max(0, (datetime.now(UTC) - self.updated_at).days)
         decayed = self.confidence * math.exp(-self.decay_rate * days_elapsed)
         return max(0.0, min(self._trust_ceiling(), decayed))
 

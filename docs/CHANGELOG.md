@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Position survival was stuck at 1** (`deepr.experts.position_ledger`).
+  `survived()` counts the distinct corpus states a position has been re-derived
+  over - "the number that makes elapsed time into evidence". Restating a
+  position identically deliberately adds no version, and the code recorded the
+  new corpus by *overwriting* the version's fingerprint rather than
+  accumulating. So the best-corroborated case - a position reached again and
+  again from material it had not seen - reported the same survival as one
+  written once and never revisited. The comment above the line already said
+  "survival is counted by fingerprint, so the evidence is kept"; the code
+  discarded it. Versions now carry `corroborated_over` alongside the corpus
+  they were first formed over, and identical restatements still add no version.
+
+  Survival counts from the next study rather than retroactively: the study
+  outcomes already on disk predate the fix that stamps a fingerprint on them.
+
+- **Confidence decay could raise confidence** (`deepr.experts.beliefs`).
+  `get_current_confidence` computed `now - updated_at` and fed it to
+  `exp(-rate * days)`. A belief stamped in the future gives a negative elapsed,
+  the exponent turns positive, and the trust ceiling then pinned the result at
+  the maximum: a belief stored at 0.50 came back as 0.60, so the one record
+  with a reason to be distrusted read as maximally trustworthy. Clock skew
+  between machines writing to a synced expert folder is the realistic cause.
+
+- **Watches left the practice silently** (`deepr.experts.research_practice`).
+  Stale watches were dropped and the list truncated to its cap with no record
+  of either, so a practice read as twelve deliberately chosen sources whether
+  or not it had ever been asked to choose. Both departures are now recorded in
+  `dropped_watches` with the reason.
+
+- **`expert migrate` counted conflicts without naming them.** The report
+  iterated `changed or attention`, which picks the first truthy list rather
+  than the union, so an expert that only had conflicts was counted in the
+  summary and never printed.
+
+### Removed
+
+- `portrait_path` from `deepr.experts.expert_layout`, which returned
+  `<expert>/self.png` while portraits actually live under
+  `runtime_data_path("portraits")`. A path helper pointing somewhere nothing
+  writes is worse than no helper. Also removed the unused
+  `EXPERT_LAYOUT_SCHEMA_VERSION` and `is_migrated`, and consolidated the three
+  hardcoded evidence-graph paths onto `evidence_graph_in`.
+
 ## [2.46.0] - 2026-08-11
 
 An expert stops being a list of retrieved claims and becomes something that

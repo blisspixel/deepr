@@ -1716,6 +1716,7 @@ def list_experts():
     """List all domain experts."""
     try:
         from deepr.experts.profile_store import ExpertStore
+        from deepr.web.expert_v2_api import roster_entry
 
         store = ExpertStore(str(_experts_dir))
         profiles = store.list_all()
@@ -1733,6 +1734,10 @@ def list_experts():
                     "last_active": getattr(profile, "updated_at", datetime.now(UTC)).isoformat(),
                     "created_at": getattr(profile, "created_at", datetime.now(UTC)).isoformat(),
                     "portrait_url": getattr(profile, "portrait_url", None),
+                    # What distinguishes one expert from another. Without these
+                    # the roster is forty rows of the same three counters, and
+                    # a reader has nothing to choose on.
+                    **roster_entry(profile.name),
                 }
             )
         return jsonify({"experts": experts})

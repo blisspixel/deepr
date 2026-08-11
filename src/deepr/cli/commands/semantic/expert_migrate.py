@@ -80,7 +80,11 @@ def expert_migrate(apply_changes: bool, as_json: bool) -> None:
         sys.exit(1 if attention else 0)
 
     print_header("Migrate experts" + ("" if apply_changes else " (dry run)"))
-    for result in changed or attention:
+    # Union, not `changed or attention`. That idiom picks the first truthy
+    # list, so an expert that only had conflicts was counted in the summary
+    # and never printed - the operator was told two needed a human and not
+    # which two, which is the silent truncation this command exists to avoid.
+    for result in [r for r in results if r.changed or r.needs_attention]:
         _report(result)
 
     if not changed and not attention:

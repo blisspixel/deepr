@@ -294,7 +294,7 @@ async def generate_portrait(
     return f"/portraits/{filename}"
 
 
-def _self_chosen_appearance(expert_name: str) -> str:
+def self_chosen_appearance(expert_name: str) -> str:
     """How this expert says it wants to look, or "" if it has not said.
 
     Read here rather than taken from the caller so every path that generates a
@@ -333,7 +333,7 @@ async def generate_and_save_portrait(
     )
 
     expert_name = str(getattr(profile, "name", "expert"))
-    appearance = _self_chosen_appearance(expert_name)
+    appearance = self_chosen_appearance(expert_name)
     effective_provider = provider or detect_provider()
     if effective_provider == "local":
         _local_image_base_url()

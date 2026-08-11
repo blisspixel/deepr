@@ -478,3 +478,39 @@ class TestHealthCheckSurfacing:
         checker = ExpertHealthChecker(self._profile())
         assert checker._archive_candidate_summaries() == []
         assert not (tmp_path / "data").exists()
+
+
+class TestDecayNeverRaisesConfidence:
+    """Decay is a one-way function. A future timestamp used to invert it.
+
+    ``get_current_confidence`` computed ``now - updated_at`` and fed it to
+    ``exp(-rate * days)``. A belief stamped in the future gives a negative
+    elapsed, so the exponent turns positive and the result exceeds the stored
+    value; the trust-ceiling cap then pinned it at the maximum. A belief stored
+    at 0.50 came back as 0.60 - the one record with a reason to be distrusted
+    reading as maximally trustworthy.
+
+    Clock skew between machines writing to a synced expert folder is the
+    realistic way this happens, which is exactly the setup where the two
+    machines disagree about what is current.
+    """
+
+    def _belief(self, *, days_offset: int) -> Belief:
+        belief = Belief(claim="a claim", domain="d", confidence=0.5)
+        belief.decay_rate = 0.01
+        belief.updated_at = datetime.now(UTC) + timedelta(days=days_offset)
+        return belief
+
+    def test_a_future_timestamp_does_not_inflate_confidence(self) -> None:
+        assert self._belief(days_offset=30).get_current_confidence() == pytest.approx(0.5)
+
+    def test_a_far_future_timestamp_does_not_inflate_confidence(self) -> None:
+        assert self._belief(days_offset=3650).get_current_confidence() == pytest.approx(0.5)
+
+    def test_the_past_still_decays(self) -> None:
+        """The fix must not flatten decay into a no-op."""
+        assert self._belief(days_offset=-30).get_current_confidence() < 0.5
+
+    def test_decay_never_exceeds_the_stored_value(self) -> None:
+        for offset in (-365, -30, -1, 0, 1, 30, 365):
+            assert self._belief(days_offset=offset).get_current_confidence() <= 0.5

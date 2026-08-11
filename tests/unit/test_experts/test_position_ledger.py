@@ -18,7 +18,7 @@ from deepr.experts.position_ledger import (
     PositionLedger,
     record_brief,
 )
-from deepr.experts.record_time import END_OF_TIME
+from deepr.experts.record_time import END_OF_TIME, utc_now
 
 JAN = "2026-01-01T00:00:00+00:00"
 JUN = "2026-06-01T00:00:00+00:00"
@@ -90,12 +90,20 @@ class TestAnIdenticalRestatementIsNotAVersion:
         assert len(ledger.versions) == 1
 
     def test_but_the_survival_evidence_is_kept(self):
-        """Reaching the same position again from new material is the evidence."""
+        """Reaching the same position again from new material is the evidence.
+
+        This asserted `corpus_fingerprint == "c2"` and passed, while the name
+        and the docstring said the opposite of what the assertion checked:
+        replacing c1 with c2 discards the fact that the position was reached
+        from two corpora, which is the entire evidence being described.
+        """
         ledger = PositionLedger(expert_name="E")
         record_brief(ledger, [_position("Q")], at=JAN, corpus_fingerprint="c1")
         record_brief(ledger, [_position("Q")], at=JUN, corpus_fingerprint="c2")
 
-        assert ledger.live[0].corpus_fingerprint == "c2"
+        assert ledger.survived(ledger.live[0].thread_id) == 2
+        assert ledger.live[0].corpus_fingerprint == "c1", "where it was first formed"
+        assert ledger.live[0].corroborated_over == ["c2"]
 
     def test_the_question_alone_does_not_make_two_versions_differ(self):
         """The question is the thread identity, not part of the content."""
@@ -214,3 +222,61 @@ class TestHygiene:
     def test_junk_versions_are_dropped_rather_than_raising(self):
         restored = PositionLedger.from_dict({"versions": ["nope", {}, {"thread_id": "t"}]})
         assert len(restored.versions) == 1
+
+
+class TestSurvivalCountsEveryCorpusItWasReachedFrom:
+    """The number that makes elapsed time into evidence, and it read 1 forever.
+
+    Restating a position identically deliberately adds no version - a version
+    differing in nothing is noise. The corpus it was re-derived over is not
+    noise though, and the code overwrote `corpus_fingerprint` with the newest
+    one instead of accumulating. So the best-corroborated case - a position
+    reached again and again from material it had not seen - reported the same
+    survival as one written once and never revisited.
+
+    The comment above that line already said "survival is counted by
+    fingerprint, so the evidence is kept". The code discarded it.
+    """
+
+    def _ledger_over(self, *fingerprints: str) -> tuple[PositionLedger, str]:
+        ledger = PositionLedger(expert_name="e")
+        for fingerprint in fingerprints:
+            record_brief(ledger, [_position("Q")], at=utc_now(), corpus_fingerprint=fingerprint)
+        return ledger, ledger.versions[0].thread_id
+
+    def test_each_distinct_corpus_counts_once(self) -> None:
+        ledger, thread = self._ledger_over("fp1", "fp2", "fp3")
+        assert ledger.survived(thread) == 3
+
+    def test_the_same_corpus_twice_counts_once(self) -> None:
+        """Re-running a brief must not manufacture corroboration."""
+        ledger, thread = self._ledger_over("fp1", "fp1", "fp1")
+        assert ledger.survived(thread) == 1
+
+    def test_an_identical_restatement_still_adds_no_version(self) -> None:
+        ledger, _ = self._ledger_over("fp1", "fp2", "fp3")
+        assert len(ledger.versions) == 1
+
+    def test_where_it_was_first_formed_is_not_overwritten(self) -> None:
+        ledger, _ = self._ledger_over("fp1", "fp2")
+        assert ledger.versions[0].corpus_fingerprint == "fp1"
+
+    def test_survival_carries_across_a_revision(self) -> None:
+        ledger = PositionLedger(expert_name="e")
+        record_brief(ledger, [_position("Q")], at=utc_now(), corpus_fingerprint="fp1")
+        thread = ledger.versions[0].thread_id
+        record_brief(ledger, [_position("Q")], at=utc_now(), corpus_fingerprint="fp2")
+        record_brief(ledger, [_position("Q", stance="it does not hold")], at=utc_now(), corpus_fingerprint="fp3")
+        assert ledger.survived(thread) == 3
+        assert len(ledger.versions) == 2
+
+    def test_it_survives_a_round_trip_through_disk(self) -> None:
+        ledger, thread = self._ledger_over("fp1", "fp2", "fp3")
+        assert PositionLedger.from_dict(ledger.to_dict()).survived(thread) == 3
+
+    def test_a_ledger_written_before_the_field_existed_still_loads(self) -> None:
+        ledger, thread = self._ledger_over("fp1", "fp2")
+        payload = ledger.to_dict()
+        for version in payload["versions"]:
+            version.pop("corroborated_over", None)
+        assert PositionLedger.from_dict(payload).survived(thread) == 1

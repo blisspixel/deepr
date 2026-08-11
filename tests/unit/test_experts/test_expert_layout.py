@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from deepr.experts import expert_layout
-from deepr.experts.expert_layout import MOVES, is_migrated, part_in, resolve_relative
+from deepr.experts.expert_layout import MOVES, part_in, resolve_relative
 from deepr.experts.expert_migration import migrate_all, migrate_expert
 
 
@@ -108,15 +108,6 @@ class TestMigrating:
         assert (expert_dir / "brief.json").exists()
         assert result.needs_attention
 
-    def test_is_migrated_tracks_the_move(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(expert_layout._paths, "canonical_expert_dir", lambda name: tmp_path / name)
-        directory = tmp_path / "flooding"
-        directory.mkdir()
-        (directory / "brief.json").write_text("{}", encoding="utf-8")
-        assert not is_migrated("flooding")
-        migrate_expert(directory)
-        assert is_migrated("flooding")
-
 
 class TestNotLosingData:
     def test_empty_v1_directories_are_removed(self, expert_dir: Path) -> None:
@@ -178,3 +169,35 @@ class TestMigratingAFleet:
 
     def test_a_missing_root_is_not_an_error(self, tmp_path: Path) -> None:
         assert migrate_all(tmp_path / "nope") == []
+
+
+class TestReportingWhatNeedsAHuman:
+    """A conflict has to be printed, not just counted.
+
+    The report iterated `changed or attention`, which picks the first truthy
+    list rather than the union. An expert that only had conflicts was counted
+    in the summary and never named, so the operator was told two needed a
+    human and not which two.
+    """
+
+    def test_a_conflict_is_listed_even_when_other_experts_moved(self, tmp_path: Path) -> None:
+        moved = tmp_path / "moves"
+        moved.mkdir()
+        (moved / "brief.json").write_text("{}", encoding="utf-8")
+
+        stuck = tmp_path / "conflicts"
+        (stuck / "hold").mkdir(parents=True)
+        (stuck / "brief.json").write_text("{}", encoding="utf-8")
+        (stuck / "hold" / "current.json").write_text("{}", encoding="utf-8")
+
+        results = migrate_all(tmp_path, dry_run=True)
+        reportable = [r.expert_name for r in results if r.changed or r.needs_attention]
+        assert reportable == ["conflicts", "moves"]
+
+    def test_an_expert_with_only_conflicts_is_reportable(self, expert_dir: Path) -> None:
+        (expert_dir / "hold").mkdir()
+        (expert_dir / "hold" / "current.json").write_text("{}", encoding="utf-8")
+        (expert_dir / "brief.json").write_text("{}", encoding="utf-8")
+        result = migrate_expert(expert_dir, dry_run=True)
+        assert not result.changed
+        assert result.needs_attention

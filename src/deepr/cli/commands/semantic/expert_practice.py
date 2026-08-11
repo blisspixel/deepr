@@ -35,7 +35,7 @@ import click
 from deepr.cli.colors import console, print_header, print_key_value, print_success, print_warning
 from deepr.cli.commands.semantic.experts import expert
 from deepr.cli.commands.semantic.study_backend import StudyBackendError, build_study_backend
-from deepr.experts.expert_layout import attend_path, hold_current_path, part_in, self_path
+from deepr.experts.expert_layout import attend_path, evidence_graph_in, hold_current_path, part_in, self_path
 from deepr.experts.paths import canonical_expert_dir
 from deepr.experts.research_practice import (
     ResearchPractice,
@@ -108,7 +108,7 @@ def _seed_from_artifacts(practice: ResearchPractice, expert_name: str, *, at: st
         why="I named this as something I am still working on",
     )
 
-    graph = _read_json(directory / "graph" / "evidence.json")
+    graph = _read_json(evidence_graph_in(directory))
     load_bearing = [
         (str(row.get("source") or ""), int(row.get("positions") or 0))
         for row in (graph.get("load_bearing_sources") or [])

@@ -245,3 +245,61 @@ class TestSerialization:
     def test_junk_is_dropped_rather_than_raising(self):
         restored = ResearchPractice.from_dict({"pursuits": ["x", {}], "watches": ["y", {}], "interests": ["z", {}]})
         assert restored.pursuits == restored.watches == restored.interests == []
+
+
+class TestAWatchNeverLeavesSilently:
+    """ "Append-only where it matters" has to include the removals.
+
+    `update_watches` dropped stale watches and truncated to the cap with no
+    record of either. A practice that silently truncated read as twelve
+    deliberately chosen sources whether or not it had ever been asked to
+    choose, and a publisher the expert decided had stopped mattering vanished
+    with the judgement that removed it.
+    """
+
+    _AT = "2026-08-11T00:00:00+00:00"
+
+    def test_being_outranked_is_recorded_with_a_reason(self) -> None:
+        practice = ResearchPractice(expert_name="e")
+        update_watches(practice, [(f"pub{i}", 100 - i) for i in range(15)], at=self._AT)
+
+        assert len(practice.watches) == 12
+        dropped = {d["origin"] for d in practice.dropped_watches}
+        assert dropped == {"pub12", "pub13", "pub14"}
+        assert all("outranked" in d["why"] for d in practice.dropped_watches)
+
+    def test_the_ones_kept_are_the_ones_carrying_the_most(self) -> None:
+        practice = ResearchPractice(expert_name="e")
+        update_watches(practice, [(f"pub{i}", 100 - i) for i in range(15)], at=self._AT)
+        assert practice.watches[0].origin == "pub0"
+
+    def test_going_quiet_is_recorded_with_a_reason(self) -> None:
+        practice = ResearchPractice(expert_name="e")
+        update_watches(practice, [("loud", 5), ("quiet", 4)], at=self._AT)
+        for _ in range(3):
+            update_watches(practice, [("loud", 5)], at=self._AT)
+
+        assert [w.origin for w in practice.watches] == ["loud"]
+        assert [d["origin"] for d in practice.dropped_watches] == ["quiet"]
+        assert "carried nothing" in practice.dropped_watches[0]["why"]
+
+    def test_a_quiet_spell_shorter_than_the_threshold_keeps_it(self) -> None:
+        """Three rounds, not one: a quiet quarter is not a dead publisher."""
+        practice = ResearchPractice(expert_name="e")
+        update_watches(practice, [("loud", 5), ("quiet", 4)], at=self._AT)
+        for _ in range(2):
+            update_watches(practice, [("loud", 5)], at=self._AT)
+
+        assert {w.origin for w in practice.watches} == {"loud", "quiet"}
+        assert practice.dropped_watches == []
+
+    def test_nothing_is_dropped_when_nothing_needs_to_be(self) -> None:
+        practice = ResearchPractice(expert_name="e")
+        update_watches(practice, [("a", 3), ("b", 2)], at=self._AT)
+        assert practice.dropped_watches == []
+
+    def test_the_record_survives_a_round_trip(self) -> None:
+        practice = ResearchPractice(expert_name="e")
+        update_watches(practice, [(f"pub{i}", 100 - i) for i in range(15)], at=self._AT)
+        restored = ResearchPractice.from_dict(practice.to_dict())
+        assert len(restored.dropped_watches) == 3
