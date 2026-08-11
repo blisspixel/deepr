@@ -283,6 +283,13 @@ def parse_profile(
 
     if prior is not None:
         profile.shifts = list(prior.shifts)
+        # A name, once answered to, is kept. Re-reading a corpus is not an
+        # occasion to become someone else, and the alternative is not
+        # hypothetical: a re-profile pass silently replaced Keel and Cairn -
+        # two distinct, established names - with "Merritt" and "Marlow Chen",
+        # and anything that had cited them by name was left pointing at nobody.
+        if prior.chosen_name.strip():
+            profile.chosen_name = prior.chosen_name
 
     was = " ".join(str(parsed.get("shift_from_prior") or "").split())
     because = " ".join(str(parsed.get("shift_because") or "").split())
@@ -297,8 +304,21 @@ def parse_profile(
     return profile
 
 
-def build_profile_prompt(expert_name: str, *, material: str, prior: ExpertProfile | None = None) -> str:
-    """Ask the expert to account for itself, showing it its own prior reading."""
+def build_profile_prompt(
+    expert_name: str,
+    *,
+    material: str,
+    prior: ExpertProfile | None = None,
+    taken_names: list[str] | None = None,
+) -> str:
+    """Ask the expert to account for itself, showing it its own prior reading.
+
+    ``taken_names`` are the names its colleagues already answer to. Without
+    them the models converge hard: four experts profiled in one pass came back
+    as Marlow, Marlow, Marlow Chen and Marlowe. A council in which two members
+    share a name cannot attribute a disagreement, which is the one thing the
+    chosen name exists to make possible.
+    """
     prior_block = ""
     if prior is not None and prior.has_standpoint:
         prior_block = (
@@ -306,5 +326,10 @@ def build_profile_prompt(expert_name: str, *, material: str, prior: ExpertProfil
             f'  "{prior.standpoint[:_MAX_FIELD_CHARS]}"\n'
             "Consider whether the material has moved it. Changing your mind is expected; "
             "pretending to have changed it is not.\n"
+        )
+    if names := [n.strip() for n in (taken_names or []) if n and n.strip()]:
+        prior_block += (
+            "\nNames your colleagues already answer to. Do not take one of these, "
+            "and do not pick something that sounds like one:\n  " + ", ".join(sorted(set(names))[:40]) + "\n"
         )
     return PROFILE_PROMPT.format(expert_name=expert_name, prior=prior_block, material=material)

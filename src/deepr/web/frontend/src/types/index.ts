@@ -171,6 +171,21 @@ export interface Expert {
   last_active: string
   created_at: string
   portrait_url?: string | null
+  /**
+   * The expert's own account of itself, from `self.json`.
+   *
+   * Optional because most of the fleet has never been profiled, and a roster
+   * has to render an expert that has not yet decided what it thinks. The
+   * counters above describe any document store; these are what let a reader
+   * tell one expert from another.
+   */
+  chosen_name?: string
+  standpoint?: string
+  glad_to_be_asked_about?: string[]
+  preferred_lens?: string
+  position_count?: number
+  falsifiable_count?: number
+  mind_changes?: number
 }
 
 export type ExpertLoopRunStatus = 'pending' | 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled'

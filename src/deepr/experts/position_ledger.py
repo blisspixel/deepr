@@ -85,6 +85,14 @@ class PositionVersion:
     superseded_by: str = ""
     supersession_reason: str = ""
     corpus_fingerprint: str = ""
+    """The corpus this statement was first formed over."""
+    corroborated_over: list[str] = field(default_factory=list)
+    """Later corpus states this same statement was reached again from.
+
+    Separate from ``corpus_fingerprint`` because they answer different
+    questions: where the view came from, and how many times it has been
+    re-derived from material it had not already seen. Overwriting the first
+    with the second loses both."""
     seq: int = 0
     """Tie-break within one instant.
 
@@ -119,6 +127,7 @@ class PositionVersion:
             superseded_by=str(data.get("superseded_by") or ""),
             supersession_reason=str(data.get("supersession_reason") or ""),
             corpus_fingerprint=str(data.get("corpus_fingerprint") or ""),
+            corroborated_over=[str(f) for f in (data.get("corroborated_over") or [])],
             seq=int(data.get("seq", 0) or 0),
         )
 
@@ -197,7 +206,11 @@ class PositionLedger:
         across four corpus fingerprints has been reached again from material it
         had not seen, which is different from one written once and copied.
         """
-        seen = {v.corpus_fingerprint for v in self.history_of(thread_id) if v.corpus_fingerprint}
+        seen: set[str] = set()
+        for version in self.history_of(thread_id):
+            if version.corpus_fingerprint:
+                seen.add(version.corpus_fingerprint)
+            seen.update(f for f in version.corroborated_over if f)
         return len(seen)
 
     def stats(self) -> dict[str, Any]:
@@ -276,8 +289,12 @@ def record_brief(
             # Identical restatement. Record that it survived this corpus state
             # without adding a version: survival is counted by fingerprint, so
             # the evidence is kept and the noise is not.
-            if corpus_fingerprint and corpus_fingerprint != prior.corpus_fingerprint:
-                prior.corpus_fingerprint = corpus_fingerprint
+            if (
+                corpus_fingerprint
+                and corpus_fingerprint != prior.corpus_fingerprint
+                and corpus_fingerprint not in prior.corroborated_over
+            ):
+                prior.corroborated_over.append(corpus_fingerprint)
             changed["unchanged"] += 1
             continue
 

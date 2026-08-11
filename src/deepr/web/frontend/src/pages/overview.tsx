@@ -208,67 +208,57 @@ export default function Overview() {
         </div>
       )}
 
-      {/* Stat Cards */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        {/* Active Jobs */}
-        <div className="rounded-lg border bg-card p-3 sm:p-5 space-y-2">
-          <div className="flex items-center gap-2">
-            {processingCount > 0 && <span className="w-2 h-2 rounded-full bg-info animate-pulse" />}
-            {processingCount === 0 && queuedCount > 0 && <span className="w-2 h-2 rounded-full bg-warning" />}
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Active Jobs</p>
-          </div>
-          <p className="text-2xl sm:text-3xl font-semibold text-foreground tabular-nums">{activeCount}</p>
-          <p className="text-xs text-muted-foreground">
-            {activeCount > 0 ? `${queuedCount} queued, ${processingCount} processing` : 'No active jobs'}
-          </p>
-        </div>
+      {/*
+        One line of live state, not four cards.
 
-        {/* Completed */}
-        <div className="rounded-lg border bg-card p-3 sm:p-5 space-y-2">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-3.5 h-3.5 text-success" />
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Completed</p>
-          </div>
-          <p className="text-2xl sm:text-3xl font-semibold text-foreground tabular-nums">{completedCount}</p>
-          <p className="text-xs text-muted-foreground">All time</p>
-        </div>
-
-        {/* Failed */}
-        <div className="rounded-lg border bg-card p-3 sm:p-5 space-y-2">
-          <div className="flex items-center gap-2">
-            <XCircle className="w-3.5 h-3.5 text-destructive" />
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Failed</p>
-          </div>
-          <p className="text-2xl sm:text-3xl font-semibold text-foreground tabular-nums">{failedCount}</p>
-          <p className="text-xs text-muted-foreground">All time</p>
-        </div>
-
-        {/* Daily Spend */}
-        <div className="rounded-lg border bg-card p-3 sm:p-5 space-y-2">
-          <div className="flex items-center gap-2">
-            <DollarSign className="w-3.5 h-3.5 text-muted-foreground" />
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Today</p>
-          </div>
-          <p className="text-2xl sm:text-3xl font-semibold text-foreground tabular-nums">
-            {moneyLabel(costSummary?.exposure.daily)}
-          </p>
-          <div className="space-y-1">
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>{moneyLabel(costSummary?.effective_caps.daily)} limit</span>
-              <span>{dailyUtilizationLabel}</span>
-            </div>
-            <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
-              <div
-                className={cn(
-                  'h-full rounded-full transition-all',
-                  dailyUtilization === null || dailyUtilization > 90 ? 'bg-destructive' :
-                  dailyUtilization > 70 ? 'bg-warning' : 'bg-success'
-                )}
-                style={{ width: `${dailyUtilization === null ? 100 : Math.min(dailyUtilization, 100)}%` }}
-              />
-            </div>
-          </div>
-        </div>
+        The quad it replaces - active / completed / failed / today's spend -
+        is the most recognizable shape in generated dashboards, and here it
+        was also mostly untrue: three of the four numbers never move on a
+        local-first install where paid dispatch is frozen, and the fourth
+        counted 323 queued jobs that cannot run. A row of large numerals that
+        do not change is decoration.
+      */}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border bg-card px-4 py-3 text-sm">
+        <span className="flex items-center gap-2">
+          <span
+            className={cn(
+              'status-dot',
+              processingCount > 0 ? 'text-info animate-pulse' : queuedCount > 0 ? 'text-warning' : 'text-muted-foreground'
+            )}
+          />
+          <span className="data-figure font-medium text-foreground">{activeCount}</span>
+          <span className="text-muted-foreground">active</span>
+        </span>
+        <span className="text-muted-foreground">
+          <span className="data-figure text-foreground">{completedCount}</span> completed
+        </span>
+        {failedCount > 0 && (
+          <span className="text-muted-foreground">
+            <span className="data-figure text-destructive">{failedCount}</span> failed
+          </span>
+        )}
+        <span className="text-muted-foreground">
+          <span className="data-figure text-foreground">{moneyLabel(costSummary?.exposure.daily)}</span> today of{' '}
+          <span className="data-figure">{moneyLabel(costSummary?.effective_caps.daily)}</span>
+        </span>
+        {/* Kept visible rather than folded into a percentage bar: OVER $0
+            CEILING and UNKNOWN are the two readings that matter here, and a
+            progress bar renders both as "some width". */}
+        {dailyUtilizationLabel !== '0%' && (
+          <span
+            className={cn(
+              'text-2xs uppercase',
+              dailyUtilization === null || !Number.isFinite(dailyUtilization ?? 0)
+                ? 'text-destructive'
+                : 'text-muted-foreground'
+            )}
+          >
+            {dailyUtilizationLabel}
+          </span>
+        )}
+        <span className="ml-auto text-2xs uppercase text-muted-foreground">
+          local and prepaid quota only
+        </span>
       </div>
 
       {/* Main Grid */}

@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.44.0-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.44.0)
+[![Version](https://img.shields.io/badge/version-2.46.0-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.46.0)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -20,12 +20,15 @@ subscription quota, with no automatic fallback to a paid API.
 </p>
 
 <p align="center">
-  <img src="assets/dashboard.png" width="49%" alt="Demo dashboard overview with paid API freeze banner, zero active jobs, and capacity posture" />
-  <img src="assets/expert-hub.png" width="49%" alt="Demo expert hub with persistent domain experts and health labels" />
+  <img src="assets/expert-hub.png" width="49%" alt="Expert roster: each expert leads with the name it chose, its own standpoint, and what it is glad to be asked" />
+  <img src="assets/dashboard.png" width="49%" alt="Overview: one line of live state, the paid-API freeze banner, and the job queue" />
 </p>
 
 <p align="center">
-  <em>Demo web UI only (fictional operator data). Regenerated with <code>python scripts/render_web_demo_screenshot.py</code>.</em>
+  <em>The optional web UI, captured from a real run against the local expert
+  fleet. Spend figures are a local sandbox and no metered work is dispatched.
+  Regenerated with <code>node src/deepr/web/frontend/screenshot-qa.mjs</code>
+  against <code>deepr web</code>.</em>
 </p>
 
 ## Capacity

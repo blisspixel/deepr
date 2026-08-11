@@ -30,7 +30,7 @@ import click
 from deepr.cli.colors import console, print_header, print_key_value, print_success, print_warning
 from deepr.cli.commands.semantic.experts import expert
 from deepr.experts.evidence_graph import build_graph, render_graph
-from deepr.experts.expert_layout import became_path, part_in
+from deepr.experts.expert_layout import became_path, evidence_graph_path, part_in
 from deepr.experts.paths import canonical_expert_dir
 from deepr.experts.perspective_graph import render_perspective
 from deepr.utils.atomic_io import atomic_write_json
@@ -38,7 +38,7 @@ from deepr.utils.atomic_io import atomic_write_json
 
 def canonical_graph_path(expert_name: str) -> Path:
     """Where the evidence graph lives, and where anything reading one looks."""
-    return canonical_expert_dir(expert_name) / "graph" / "evidence.json"
+    return evidence_graph_path(expert_name)
 
 
 def canonical_perspective_path(expert_name: str) -> Path:

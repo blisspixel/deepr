@@ -102,7 +102,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from deepr.experts.expert_layout import part_in
+from deepr.experts.expert_layout import evidence_graph_in, part_in
 
 HEALTH_SCHEMA_VERSION = "deepr-expert-health-v1"
 
@@ -602,7 +602,7 @@ def assess_expert(
         )
 
     health.model_tier = _weakest_model_tier(study, _load_json(part_in(expert_dir, "self")))
-    graph = _load_json(expert_dir / "graph" / "evidence.json")
+    graph = _load_json(evidence_graph_in(expert_dir))
     health.graph_is_formed = bool(((graph or {}).get("stats") or {}).get("is_formed"))
 
     profile = _load_json(part_in(expert_dir, "self"))

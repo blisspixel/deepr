@@ -1,7 +1,19 @@
-"""Render a fictional web dashboard screenshot for README polish.
+"""Superseded. The README now uses real screenshots of the real application.
 
-Demo data only. No live account, no real research content. Pure PIL mock so
-CI and Windows/Linux hosts do not need a browser or Playwright.
+This drew a dashboard rectangle by rectangle with Pillow, in a blue that was
+not the app's accent, in Segoe UI rather than the app's IBM Plex Sans, with no
+logo, and with the stat values as Python string literals. It was a *drawing of
+a dashboard*, and the README presented it as the product - which is most of
+why the UI read as generated.
+
+Screenshots are now captured from a running instance:
+
+    deepr web --port 5099 --allow-unauthenticated-loopback
+    QA_BASE=http://127.0.0.1:5099 QA_API=http://127.0.0.1:5099 QA_THEME=dark         node src/deepr/web/frontend/screenshot-qa.mjs
+
+Kept, unreferenced, only because the freeze-banner and capacity-posture layout
+it encodes is a useful reference for what that strip is supposed to say. It
+must not be used to produce README images again.
 """
 
 from __future__ import annotations
@@ -12,8 +24,7 @@ try:
     from PIL import Image, ImageDraw, ImageFont
 except ImportError as exc:  # pragma: no cover - developer tooling only
     raise SystemExit(
-        "Pillow is required to render README web screenshots. "
-        "Install with: uv pip install pillow"
+        "Pillow is required to render README web screenshots. Install with: uv pip install pillow"
     ) from exc
 
 ROOT = Path(__file__).resolve().parents[1]

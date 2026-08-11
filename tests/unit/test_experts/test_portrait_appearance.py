@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from deepr.experts import expert_layout
-from deepr.experts.portraits import _build_prompt, _self_chosen_appearance
+from deepr.experts.portraits import _build_prompt, self_chosen_appearance
 
 
 class TestTheExpertChoosesItsOwnFace:
@@ -57,22 +57,22 @@ class TestReadingTheChoiceFromDisk:
 
     def test_it_reads_what_the_expert_wrote(self) -> None:
         self._write_self("cairn", '{"appearance": "A surveyor at dusk."}')
-        assert _self_chosen_appearance("cairn") == "A surveyor at dusk."
+        assert self_chosen_appearance("cairn") == "A surveyor at dusk."
 
     def test_an_expert_with_no_self_account_has_not_chosen(self) -> None:
-        assert _self_chosen_appearance("nobody") == ""
+        assert self_chosen_appearance("nobody") == ""
 
     def test_unreadable_json_falls_back_rather_than_failing_the_run(self) -> None:
         self._write_self("cairn", "{ not json")
-        assert _self_chosen_appearance("cairn") == ""
+        assert self_chosen_appearance("cairn") == ""
 
     def test_a_self_account_predating_the_field_is_fine(self) -> None:
         self._write_self("cairn", '{"standpoint": "I read this as a systems problem."}')
-        assert _self_chosen_appearance("cairn") == ""
+        assert self_chosen_appearance("cairn") == ""
 
     def test_it_finds_the_choice_before_migration_too(self) -> None:
         """Reads fall back, so an unmigrated expert still gets its own face."""
         directory = self.root / "cairn"
         directory.mkdir(parents=True)
         (directory / "profile_card.json").write_text('{"appearance": "A surveyor at dusk."}', encoding="utf-8")
-        assert _self_chosen_appearance("cairn") == "A surveyor at dusk."
+        assert self_chosen_appearance("cairn") == "A surveyor at dusk."

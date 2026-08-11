@@ -127,3 +127,40 @@ class TestTheFaceItChose:
         prompt = build_profile_prompt("flooding", material="...")
         assert '"appearance"' in prompt
         assert "not illustrate your topic" in prompt or "rather than\n  illustrate your topic" in prompt
+
+
+class TestANameOnceAnsweredToIsKept:
+    """Re-reading a corpus is not an occasion to become someone else.
+
+    A re-profile pass replaced Keel and Cairn - two established, distinct
+    names - with Merritt and Marlow Chen, so anything that had cited them by
+    name pointed at nobody. Four experts profiled in one pass also converged on
+    Marlow, Marlow, Marlow Chen and Marlowe, which is why the prompt is now
+    shown the names already taken.
+    """
+
+    def test_a_prior_name_survives_a_reprofile(self) -> None:
+        prior = ExpertProfile(expert_name="e", chosen_name="Keel", standpoint="old")
+        profile = parse_profile(
+            {"chosen_name": "Merritt", "standpoint": "new"}, expert_name="e", at="2026-01-01T00:00:00+00:00", prior=prior
+        )
+        assert profile.chosen_name == "Keel"
+
+    def test_an_unnamed_expert_may_still_choose(self) -> None:
+        prior = ExpertProfile(expert_name="e", chosen_name="", standpoint="old")
+        profile = parse_profile(
+            {"chosen_name": "Cairn", "standpoint": "new"}, expert_name="e", at="2026-01-01T00:00:00+00:00", prior=prior
+        )
+        assert profile.chosen_name == "Cairn"
+
+    def test_a_first_profile_chooses_freely(self) -> None:
+        profile = parse_profile({"chosen_name": "Cairn"}, expert_name="e", at="2026-01-01T00:00:00+00:00")
+        assert profile.chosen_name == "Cairn"
+
+    def test_the_prompt_names_what_is_taken(self) -> None:
+        prompt = build_profile_prompt("e", material="m", taken_names=["Marlow", "Cairn", "Keel"])
+        assert "Cairn, Keel, Marlow" in prompt
+        assert "do not pick something that sounds like one" in prompt
+
+    def test_no_taken_names_leaves_the_prompt_alone(self) -> None:
+        assert "already answer to" not in build_profile_prompt("e", material="m")

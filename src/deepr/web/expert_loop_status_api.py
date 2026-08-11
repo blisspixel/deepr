@@ -13,6 +13,7 @@ from deepr.experts.dashboard_telemetry import build_expert_dashboard_telemetry
 from deepr.experts.loop_status_rollup import build_loop_status_rollup
 from deepr.experts.profile_store import ExpertStore
 from deepr.web.expert_handoff_api import register_expert_handoff_api
+from deepr.web.expert_v2_api import register_expert_v2_api
 
 
 def register_expert_loop_status_api(
@@ -61,3 +62,4 @@ def register_expert_read_apis(
     """Register read-only expert state API routes."""
     register_expert_loop_status_api(app, experts_dir, decode_expert_name, safe_int, max_query_limit, logger)
     register_expert_handoff_api(app, experts_dir, decode_expert_name, safe_int, max_query_limit, logger)
+    register_expert_v2_api(app, decode_expert_name, logger)

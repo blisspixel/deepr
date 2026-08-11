@@ -154,6 +154,15 @@ class ResearchPractice:
     pursuits: list[Pursuit] = field(default_factory=list)
     watches: list[Watch] = field(default_factory=list)
     interests: list[Interest] = field(default_factory=list)
+    dropped_watches: list[dict[str, Any]] = field(default_factory=list)
+    """Sources that were being watched and no longer are, with why.
+
+    Both ways a watch can leave are decisions worth seeing: three quiet rounds
+    means the expert judged a publisher to have stopped mattering, and falling
+    past the cap means it lost to twelve others. Dropping either silently
+    leaves a practice that looks deliberately chosen when part of it was
+    truncated, and "append-only where it matters" has to include the removals
+    or it is only a description of the happy path."""
 
     @property
     def live_pursuits(self) -> list[Pursuit]:
@@ -208,6 +217,7 @@ class ResearchPractice:
             "pursuits": [p.to_dict() for p in self.pursuits],
             "watches": [w.to_dict() for w in self.watches],
             "interests": [i.to_dict() for i in self.interests],
+            "dropped_watches": list(self.dropped_watches),
         }
 
     @classmethod
@@ -249,6 +259,7 @@ class ResearchPractice:
                         why=str(raw.get("why") or ""),
                     )
                 )
+        practice.dropped_watches = [d for d in (data.get("dropped_watches") or []) if isinstance(d, dict)]
         return practice
 
 
@@ -308,6 +319,10 @@ def update_watches(practice: ResearchPractice, load_bearing: list[tuple[str, int
     rather than being dropped immediately, because a publisher with a quiet
     quarter has not stopped mattering. Three quiet rounds and it goes, which is
     how a field moving on becomes visible instead of being carried forever.
+
+    Every departure is recorded in ``dropped_watches`` with its reason. A
+    practice that silently truncated to its cap reads as twelve deliberately
+    chosen sources whether or not it was ever asked to choose.
     """
     counts = {origin: n for origin, n in load_bearing if origin}
     existing = {w.origin: w for w in practice.watches}
@@ -325,9 +340,19 @@ def update_watches(practice: ResearchPractice, load_bearing: list[tuple[str, int
         if watch.origin not in counts:
             watch.quiet_rounds += 1
 
-    practice.watches = [w for w in practice.watches if not w.is_stale]
-    practice.watches.sort(key=lambda w: w.positions_resting_on_it, reverse=True)
-    del practice.watches[_MAX_WATCHES:]
+    kept = [w for w in practice.watches if not w.is_stale]
+    for watch in practice.watches:
+        if watch.is_stale:
+            practice.dropped_watches.append(
+                {"origin": watch.origin, "why": f"carried nothing for {watch.quiet_rounds} rounds", "at": at}
+            )
+
+    kept.sort(key=lambda w: w.positions_resting_on_it, reverse=True)
+    for watch in kept[_MAX_WATCHES:]:
+        practice.dropped_watches.append(
+            {"origin": watch.origin, "why": f"outranked; only {_MAX_WATCHES} watches are kept", "at": at}
+        )
+    practice.watches = kept[:_MAX_WATCHES]
 
 
 def set_interests(practice: ResearchPractice, interests: list[Interest]) -> None:

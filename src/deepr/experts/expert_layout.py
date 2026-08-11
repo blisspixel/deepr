@@ -57,8 +57,6 @@ def canonical_expert_dir(expert_name: str) -> Path:
     return _paths.canonical_expert_dir(expert_name)
 
 
-EXPERT_LAYOUT_SCHEMA_VERSION = "deepr-expert-layout-v2"
-
 DEAD_V1_DIRS = ("conversations", "documents")
 """Directories the v1 path created and never filled. Empty across the fleet.
 
@@ -181,26 +179,16 @@ def met_examination_path(expert_name: str) -> Path:
     return part(expert_name, "met_examination")
 
 
-def evidence_graph_path(expert_name: str) -> Path:
+def evidence_graph_in(expert_dir: Path) -> Path:
     """What rests on what. Stays under `graph/`; it is a derived structure."""
-    return canonical_expert_dir(expert_name) / "graph" / "evidence.json"
+    return expert_dir / "graph" / "evidence.json"
 
 
-def portrait_path(expert_name: str, *, suffix: str = ".png") -> Path:
-    """The face it chose for itself, beside the rest of its identity."""
-    return canonical_expert_dir(expert_name) / f"self{suffix}"
+def evidence_graph_path(expert_name: str) -> Path:
+    """What rests on what, by expert name."""
+    return evidence_graph_in(canonical_expert_dir(expert_name))
 
 
 #: Old name -> new name, derived from the same table the readers use so the
 #: migration cannot move a file somewhere a reader will not look for it.
 MOVES: tuple[tuple[str, str], ...] = tuple((old, new) for new, old in _PARTS.values())
-
-
-def is_migrated(expert_name: str) -> bool:
-    """Whether this expert already uses the new layout.
-
-    Keyed on `hold/`, because that is the rename that carries meaning: an
-    expert whose views live there has been through the migration, and one
-    whose views are still in `brief.json` has not.
-    """
-    return (canonical_expert_dir(expert_name) / "hold").is_dir()

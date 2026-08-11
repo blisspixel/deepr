@@ -32,7 +32,12 @@ def generate_expert_portrait_response(
 ) -> Any:
     """Generate or replace one expert portrait under no-surprise-cost gates."""
     try:
-        from deepr.experts.portraits import detect_provider, generate_portrait, portrait_cost
+        from deepr.experts.portraits import (
+            detect_provider,
+            generate_portrait,
+            portrait_cost,
+            self_chosen_appearance,
+        )
         from deepr.experts.profile_store import ExpertStore
 
         store = ExpertStore(str(experts_dir))
@@ -109,6 +114,11 @@ def generate_expert_portrait_response(
                     name=profile.name,
                     domain=getattr(profile, "domain", None),
                     description=getattr(profile, "description", None),
+                    # The expert's own account of how it wants to look wins
+                    # over anything inferred from its subject. Without this the
+                    # web path renders a picture of the topic while the CLI
+                    # path renders the expert.
+                    appearance=self_chosen_appearance(profile.name),
                     provider=cost_reservation.effective_provider,
                     output_dir=str(portraits_dir),
                 )

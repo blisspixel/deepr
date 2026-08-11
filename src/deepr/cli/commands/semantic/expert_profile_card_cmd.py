@@ -51,6 +51,32 @@ def canonical_profile_path(expert_name: str) -> Path:
     return self_path(expert_name)
 
 
+def _names_already_taken(excluding: str) -> list[str]:
+    """What the rest of the fleet answers to.
+
+    Read from disk each time rather than cached: profiling several experts in
+    one pass should let the second one see the name the first just chose.
+    """
+    import json
+
+    from deepr.experts.paths import canonical_expert_dir
+
+    taken: list[str] = []
+    root = canonical_expert_dir("probe").parent
+    if not root.is_dir():
+        return taken
+    for directory in sorted(root.iterdir()):
+        if not directory.is_dir() or directory.name == canonical_expert_dir(excluding).name:
+            continue
+        try:
+            account = json.loads(self_path(directory.name).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if name := str(account.get("chosen_name") or "").strip():
+            taken.append(name)
+    return taken
+
+
 def _load_profile(name: str) -> Any:
     from deepr.experts.profile import ExpertStore
 
@@ -219,7 +245,13 @@ def expert_profile_cmd(
             print_key_value("Prior standpoint", "shown, so a change of mind can be recorded as one")
 
     try:
-        raw = asyncio.run(backend.completion(build_profile_prompt(stored.name, material=material, prior=prior)))
+        raw = asyncio.run(
+            backend.completion(
+                build_profile_prompt(
+                    stored.name, material=material, prior=prior, taken_names=_names_already_taken(stored.name)
+                )
+            )
+        )
     except Exception as exc:
         click.echo(f"Error: the model call failed: {type(exc).__name__}: {exc}", err=True)
         sys.exit(2)

@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { formatCurrency, formatRelativeTime } from '@/lib/utils'
 import { expertsApi } from '@/api/experts'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -22,14 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  FileText,
-  Lightbulb,
-  MessageSquare,
-  Plus,
-  Search,
-  Users,
-} from 'lucide-react'
+import { Plus, Search, Users } from 'lucide-react'
 import { CardGridSkeleton } from '@/components/ui/skeleton'
 import { ExpertPortrait } from '@/components/expert-portrait'
 
@@ -38,7 +30,7 @@ export default function ExpertHub() {
   const queryClient = useQueryClient()
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [sortBy, setSortBy] = useState('name')
+  const [sortBy, setSortBy] = useState('formed')
   const [createOpen, setCreateOpen] = useState(false)
   const [newExpert, setNewExpert] = useState({ name: '', description: '', domain: '' })
 
@@ -89,10 +81,21 @@ export default function ExpertHub() {
     }
     filtered.sort((a, b) => {
       switch (sortBy) {
+        case 'positions': return (b.position_count ?? 0) - (a.position_count ?? 0)
         case 'docs': return b.document_count - a.document_count
-        case 'cost': return b.total_cost - a.total_cost
         case 'recent': return (b.last_active || '').localeCompare(a.last_active || '')
-        default: return a.name.localeCompare(b.name)
+        case 'name': return a.name.localeCompare(b.name)
+        default:
+          // An expert that has read something and landed somewhere leads.
+          // Alphabetical put "Agentic Development Loops" - which has never
+          // been studied - above every expert that actually holds a view, so
+          // the roster opened on its emptiest rows.
+          return (
+            (b.position_count ?? 0) - (a.position_count ?? 0) ||
+            (b.standpoint ? 1 : 0) - (a.standpoint ? 1 : 0) ||
+            b.finding_count - a.finding_count ||
+            a.name.localeCompare(b.name)
+          )
       }
     })
     return filtered
@@ -121,8 +124,11 @@ export default function ExpertHub() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Experts</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Domain experts and knowledge management</p>
+          <h1 className="text-xl font-semibold text-foreground">Experts</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {experts?.length ?? 0} experts &middot; {experts?.filter(e => e.standpoint).length ?? 0} have formed a
+            standpoint of their own
+          </p>
         </div>
         <Button onClick={handleCreateExpert}>
           <Plus className="w-4 h-4" />
@@ -149,10 +155,11 @@ export default function ExpertHub() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="formed">Most formed</SelectItem>
               <SelectItem value="name">Name</SelectItem>
-              <SelectItem value="docs">Most Documents</SelectItem>
-              <SelectItem value="cost">Highest Cost</SelectItem>
-              <SelectItem value="recent">Most Recent</SelectItem>
+              <SelectItem value="positions">Most positions</SelectItem>
+              <SelectItem value="docs">Most documents</SelectItem>
+              <SelectItem value="recent">Most recent</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -194,65 +201,52 @@ export default function ExpertHub() {
                     iconClassName="w-5 h-5"
                   />
                   <div className="min-w-0">
+                    {/* The name it chose leads; the subject it is filed under
+                        is the subtitle. An expert that named itself Marlowe is
+                        a someone to ask, and "Temporal Knowledge Graphs" is
+                        the shelf it sits on. */}
                     <h3 className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
-                      {expert.name}
+                      {expert.chosen_name || expert.name}
                     </h3>
-                    {expert.description && (
-                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{expert.description}</p>
-                    )}
+                    <p className="text-2xs uppercase text-muted-foreground mt-0.5 truncate">
+                      {expert.chosen_name ? expert.name : expert.description}
+                    </p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="text-center">
-                    <div className="flex items-center justify-center gap-1 text-muted-foreground mb-0.5">
-                      <FileText className="w-3 h-3" />
-                    </div>
-                    <p className="text-sm font-semibold text-foreground tabular-nums">{expert.document_count}</p>
-                    <p className="text-[10px] text-muted-foreground">Docs</p>
-                  </div>
-                  <div className="text-center">
-                    <div className="flex items-center justify-center gap-1 text-muted-foreground mb-0.5">
-                      <Lightbulb className="w-3 h-3" />
-                    </div>
-                    <p className="text-sm font-semibold text-foreground tabular-nums">{expert.finding_count}</p>
-                    <p className="text-[10px] text-muted-foreground">Findings</p>
-                  </div>
-                  <div className="text-center">
-                    <div className="flex items-center justify-center gap-1 text-muted-foreground mb-0.5">
-                      <Search className="w-3 h-3" />
-                    </div>
-                    <p className="text-sm font-semibold text-foreground tabular-nums">{expert.gap_count}</p>
-                    <p className="text-[10px] text-muted-foreground">Gaps</p>
-                  </div>
-                </div>
+                {/* How it reads its subject, in its own words. This is the
+                    field that makes forty experts distinguishable; the
+                    doc/finding/gap triple it replaces was identical almost
+                    everywhere and mostly zero. */}
+                {expert.standpoint ? (
+                  <p className="text-sm text-foreground/80 line-clamp-3">{expert.standpoint}</p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No standpoint yet. It can report what its sources say but has no reading of its own.
+                  </p>
+                )}
 
-                <div className="flex items-center justify-between pt-3 border-t text-xs text-muted-foreground">
-                  <span>{formatCurrency(expert.total_cost)} spent</span>
-                  <span>{expert.last_active ? formatRelativeTime(expert.last_active) : 'Never'}</span>
-                </div>
+                {expert.glad_to_be_asked_about?.[0] && (
+                  <div className="border-l-2 border-primary/40 pl-3">
+                    <p className="text-2xs uppercase text-muted-foreground">Glad to be asked</p>
+                    <p className="text-xs text-foreground/80 line-clamp-2 mt-0.5">
+                      {expert.glad_to_be_asked_about[0]}
+                    </p>
+                  </div>
+                )}
 
-                <div className="flex gap-2">
-                  <button
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-secondary text-secondary-foreground rounded-lg text-xs font-medium hover:bg-secondary/80 transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      navigate(`/experts/${encodeURIComponent(expert.name)}`)
-                    }}
-                  >
-                    <MessageSquare className="w-3 h-3" />
-                    Chat
-                  </button>
-                  <button
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-secondary text-secondary-foreground rounded-lg text-xs font-medium hover:bg-secondary/80 transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      navigate(`/experts/${encodeURIComponent(expert.name)}?tab=gaps`)
-                    }}
-                  >
-                    <Search className="w-3 h-3" />
-                    Gaps
-                  </button>
+                <div className="flex items-center gap-4 pt-3 border-t text-xs text-muted-foreground">
+                  <span>
+                    <span className="data-figure text-foreground">{expert.position_count ?? 0}</span> positions
+                  </span>
+                  <span>
+                    <span className="data-figure text-foreground">{expert.falsifiable_count ?? 0}</span> falsifiable
+                  </span>
+                  {(expert.mind_changes ?? 0) > 0 && (
+                    <span>
+                      <span className="data-figure text-foreground">{expert.mind_changes}</span> changed its mind
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
