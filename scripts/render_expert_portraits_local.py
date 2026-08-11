@@ -20,7 +20,6 @@ portrait of the person in it.
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -28,10 +27,9 @@ from pathlib import Path
 
 from deepr.experts.expert_layout import self_path
 from deepr.experts.paths import canonical_expert_dir, expert_slug
-from deepr.experts.portraits import _build_prompt
+from deepr.experts.portraits import _build_prompt, default_portraits_dir
 from deepr.experts.profile_store import ExpertStore
 
-PORTRAITS = Path("data/portraits")
 MODEL = "flux2-klein"
 
 
@@ -53,14 +51,18 @@ def _named_experts() -> list[tuple[str, str, str]]:
     return out
 
 
-def _render(prompt: str) -> Path | None:
-    """One image from the local model, or None if it produced nothing.
+def _render(prompt: str) -> bytes | None:
+    """The bytes of one image from the local model, or None if it produced none.
 
     Artomate writes `output/art-<hex>.png` relative to the working directory
     and never overwrites, so rendering into a fresh temporary directory makes
     "the file that appeared" unambiguous.
     """
-    with tempfile.TemporaryDirectory() as work:
+    # ignore_cleanup_errors, because Artomate leaves a lock file inside its
+    # own output directory and Windows refuses to remove a directory holding an
+    # open handle. Without it the render succeeds and the script dies clearing
+    # up after itself, losing the image it just spent five minutes on.
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as work:
         result = subprocess.run(
             ["artomate", "imagine", prompt, "model", MODEL, "ratio", "1:1"],
             cwd=work,
@@ -72,19 +74,30 @@ def _render(prompt: str) -> Path | None:
         if not produced:
             print(f"    no image: {(result.stderr or result.stdout or '').strip()[:160]}")
             return None
-        kept = Path(tempfile.mkdtemp()) / produced[0].name
-        shutil.copy2(produced[0], kept)
-        return kept
+        # Read the bytes out rather than copying to a second temporary
+        # directory: the previous form leaked one directory per render, since
+        # nothing ever removed it.
+        return produced[0].read_bytes()
 
 
 def main(argv: list[str]) -> int:
     wanted = {a.lower() for a in argv[1:]}
-    experts = [e for e in _named_experts() if not wanted or e[1].lower() in wanted]
+
+    # Matched on the whole name or any word in it, so a two-word name like
+    # "Marlow Chen" is selectable as `Marlow` rather than being unreachable.
+    def _selected(chosen: str) -> bool:
+        return not wanted or chosen.lower() in wanted or bool(wanted & set(chosen.lower().split()))
+
+    experts = [e for e in _named_experts() if _selected(e[1])]
     if not experts:
         print("No experts with both a chosen name and an appearance.")
         return 1
 
-    PORTRAITS.mkdir(parents=True, exist_ok=True)
+    # Where the running app serves portraits from, which relocates under
+    # DEEPR_DATA_DIR. A hardcoded `data/portraits` writes files the web server
+    # will not find on any install that configures a data directory.
+    portraits = default_portraits_dir()
+    portraits.mkdir(parents=True, exist_ok=True)
     store = ExpertStore()
     rendered = 0
 
@@ -95,8 +108,8 @@ def main(argv: list[str]) -> int:
         if image is None:
             continue
 
-        destination = PORTRAITS / f"{slug}.png"
-        shutil.copy2(image, destination)
+        destination = portraits / f"{slug}.png"
+        destination.write_bytes(image)
         rendered += 1
         print(f"    {destination}")
 
