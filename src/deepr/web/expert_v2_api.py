@@ -94,6 +94,13 @@ def roster_entry(expert_name: str) -> dict[str, Any]:
         account = _read_json(part_in(directory, "self")) or {}
         hold = _read_json(part_in(directory, "hold_current")) or {}
         positions = hold.get("positions") or []
+        # From the study rather than the v1 counter, which reports 0 for every
+        # expert built through the v2 loop: Keel has 98 findings and the
+        # roster showed "0 findings" beside "14 positions", which reads as an
+        # expert that invented its views.
+        noticed = _read_json(part_in(directory, "noticed")) or {}
+        totals = noticed.get("totals") or {}
+        independence = noticed.get("independence") or {}
         return {
             "chosen_name": str(account.get("chosen_name") or ""),
             "standpoint": str(account.get("standpoint") or ""),
@@ -102,6 +109,9 @@ def roster_entry(expert_name: str) -> dict[str, Any]:
             "position_count": len(positions),
             "falsifiable_count": sum(1 for p in positions if p.get("is_falsifiable")),
             "mind_changes": len(account.get("shifts") or []),
+            "studied_findings": int(totals.get("findings", 0) or 0),
+            "grounded_findings": int(totals.get("grounded_findings", 0) or 0),
+            "source_count": int(independence.get("source_count", 0) or 0),
         }
     except Exception:
         return {
@@ -112,6 +122,9 @@ def roster_entry(expert_name: str) -> dict[str, Any]:
             "position_count": 0,
             "falsifiable_count": 0,
             "mind_changes": 0,
+            "studied_findings": 0,
+            "grounded_findings": 0,
+            "source_count": 0,
         }
 
 
