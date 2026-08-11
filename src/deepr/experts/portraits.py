@@ -220,8 +220,9 @@ def detect_provider() -> str | None:
     """
     from deepr.experts.local_image_cli import is_available as local_cli_available
 
-    # Preferred over everything: a local binary rendering against a model file
-    # on this disk costs nothing and cannot reach a metered provider.
+    # Preferred when the operator has attested one. Deepr reads no key for this
+    # transport and makes no network call of its own; it cannot verify what an
+    # external binary does, so the env var is the attestation rather than proof.
     if local_cli_available():
         return "local_cli"
 
@@ -279,8 +280,10 @@ async def generate_portrait(
             "remain blocked until exact local-only capacity can be attested."
         )
     if provider == "local_cli":
-        # No metered gate: this transport has no credential to spend and no
-        # endpoint to reach. Gating it would block the one $0 path available.
+        # No metered gate: Deepr passes no credential to this transport and the
+        # operator has attested it runs locally. The gate exists to stop Deepr
+        # spending money it was not told it could; it cannot police a program
+        # it does not own, and applying it here would block the one $0 path.
         pass
     elif provider == "local":
         _local_image_base_url()

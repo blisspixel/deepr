@@ -1,22 +1,31 @@
-"""A local image generator that can actually prove it is local.
+"""A local image generator, on the operator's word rather than on proof.
 
 `DEEPR_LOCAL_IMAGE_URL` stays blocked, and correctly so: a loopback HTTP
 endpoint is not evidence of local execution, because a proxy listening on
 127.0.0.1 can hold cloud credentials and forward the request while looking
 exactly like a local server. There is no way to tell from the client side.
 
-A local *binary* is a different claim. There is no endpoint to impersonate: the
-process runs on this machine against a model file on this disk, the tool
-reports which model it resolved, and no request leaves the host. That is
-attestable in the way the HTTP path is not, which is why this exists as a
-separate transport rather than as another URL.
+A local *binary* is a different claim, but a weaker one than it first appears
+and worth stating precisely.
 
-Costs nothing per image beyond electricity. No API key is read, no network
-call is made, and nothing here can reach a metered provider even if one is
-configured.
+What Deepr can guarantee: it reads no API key for this transport, passes none
+to the subprocess, and makes no network call of its own. What Deepr **cannot**
+guarantee is the behaviour of a program it does not own. An external binary
+could hold its own credentials and call a paid API, and nothing here would
+know. The difference from the HTTP path is that a URL invites a proxy to sit in
+front of a cloud provider as its normal mode of use, whereas a pinned local
+model file is what this tool is for - but that is a difference of likelihood,
+not of proof.
 
-Opt in with `DEEPR_LOCAL_IMAGE_CLI=artomate`. Absent that, portrait generation
-behaves exactly as before.
+So this is an **operator attestation**, not a verification. Setting
+`DEEPR_LOCAL_IMAGE_CLI` is the operator asserting that the named tool runs
+locally and spends nothing; the exemption from the metered gate rests on that
+assertion. Absent the variable, nothing changes and portrait generation behaves
+exactly as before.
+
+The allowlist below matters for the same reason: this puts a model-authored
+string on a command line, so the executable must be one of a known few rather
+than anything the variable happens to name.
 """
 
 from __future__ import annotations

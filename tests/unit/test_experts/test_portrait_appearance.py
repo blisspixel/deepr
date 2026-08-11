@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from deepr.experts import expert_layout
-from deepr.experts.portraits import _build_prompt, self_chosen_appearance
+from deepr.experts import expert_layout, local_image_cli
+from deepr.experts.portraits import _build_prompt, detect_provider, portrait_cost, self_chosen_appearance
 
 
 class TestTheExpertChoosesItsOwnFace:
@@ -103,3 +103,45 @@ class TestReadingTheChoiceFromDisk:
         directory.mkdir(parents=True)
         (directory / "profile_card.json").write_text('{"appearance": "A surveyor at dusk."}', encoding="utf-8")
         assert self_chosen_appearance("cairn") == "A surveyor at dusk."
+
+
+class TestTheLocalTransport:
+    """A $0 transport that must never be mistaken for a metered one.
+
+    The exemption from the metered gate rests on an operator attestation, not
+    on verification: Deepr passes no credential to the subprocess and makes no
+    network call of its own, but it cannot police what a program it does not
+    own does. The env var is the assertion.
+    """
+
+    def test_it_is_off_unless_the_operator_asks(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("DEEPR_LOCAL_IMAGE_CLI", raising=False)
+        assert local_image_cli.configured_cli() == ""
+        assert local_image_cli.is_available() is False
+
+    def test_only_known_tools_are_accepted(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A model-authored prompt reaches a command line, so the executable
+        must be one of a known few rather than anything the variable names."""
+        monkeypatch.setenv("DEEPR_LOCAL_IMAGE_CLI", "curl")
+        assert local_image_cli.configured_cli() == ""
+
+    def test_rendering_without_configuration_refuses(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("DEEPR_LOCAL_IMAGE_CLI", raising=False)
+        with pytest.raises(RuntimeError, match="not set to a supported"):
+            local_image_cli.render("anything")
+
+    def test_a_configured_tool_that_is_absent_refuses(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DEEPR_LOCAL_IMAGE_CLI", "artomate")
+        monkeypatch.setattr(local_image_cli.shutil, "which", lambda _name: None)
+        assert local_image_cli.is_available() is False
+        with pytest.raises(RuntimeError, match="not on PATH"):
+            local_image_cli.render("anything")
+
+    def test_it_is_selected_first_and_costs_nothing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(local_image_cli, "is_available", lambda: True)
+        assert detect_provider() == "local_cli"
+        assert portrait_cost("local_cli") == 0.0
+
+    def test_a_metered_provider_still_costs(self) -> None:
+        """The exemption must not have flattened the estimate for real APIs."""
+        assert portrait_cost("openai") > 0.0

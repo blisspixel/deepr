@@ -33,6 +33,11 @@ from deepr.experts.profile_store import ExpertStore
 MODEL = "flux2-klein"
 
 
+def _slug(directory: str) -> str:
+    """The portrait filename stem for an expert directory."""
+    return expert_slug(directory).replace("_", "-")
+
+
 def _named_experts() -> list[tuple[str, str, str]]:
     """(directory name, chosen name, appearance) for everyone who has both."""
     root = canonical_expert_dir("probe").parent
@@ -112,7 +117,7 @@ def main(argv: list[str]) -> int:
     rendered = 0
 
     for directory, chosen, appearance in experts:
-        slug = expert_slug(directory).replace("_", "-")
+        slug = _slug(directory)
         print(f"{chosen} ({directory})")
         # Seeded on the directory name, which is what the app passes too. The
         # seed picks who is in the picture, so seeding the two paths differently
