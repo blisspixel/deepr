@@ -96,7 +96,9 @@ def test_quota_durability_failure_preserves_paired_cost_partial_status(
     ("backend_id", "auth_mode"),
     [
         ("opencode", AuthMode.UNKNOWN),
-        ("codex", AuthMode.PLAN),
+        # kiro rather than codex: codex is confined at dispatch now instead of
+        # execution-blocked, so it no longer exercises the disabled-adapter arm.
+        ("kiro", AuthMode.PLAN),
         ("claude", AuthMode.METERED),
     ],
 )

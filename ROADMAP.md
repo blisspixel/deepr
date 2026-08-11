@@ -364,7 +364,108 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.43.1)
+## Current Status (v2.45.0)
+
+**Shipped in v2.45.0 (see docs/CHANGELOG.md):** the v2 expert stack is now
+reachable from `consult`, an expert can source its own corpus, and several
+measurements that were quietly false have been corrected. Corpus independence
+is reported as effective origin count rather than document count; a
+hand-assembled three-page corpus scores 1.0 against a nominal 3, while an
+expert-sourced one reaches 18.5.
+
+**Where the honest gaps are.** The corpus accumulates; the understanding does
+not. Every `study` recomputes findings and every `brief` overwrites the last,
+so an expert that has existed for six months has read more than a new one but
+has not learned more. There is still no evaluation, so "better" remains an
+opinion: the one control-arm comparison run against a bare prompt was close on
+a well-known topic, and Deepr's demonstrated margin is checkability and
+specificity rather than knowledge.
+
+**Who this is for, which the roadmap had left implicit.** The bottleneck when a
+team moves from running a few agents to running many is context - what the
+agents do not know and cannot be told again on every task. That is what an
+expert is, and it is reached through the MCP surface rather than the terminal.
+The consequence for prioritisation is stated in
+[where-deepr-sits.md](docs/design/where-deepr-sits.md): work that improves what
+a consult returns to an agent outranks work that improves what it prints to a
+human, traceability is a feature rather than hygiene because nobody reviewing
+six streams of output can check claims by hand, and a silently stale expert is
+worse than none for exactly the same reason.
+
+**Since then**, the loop grew the parts that make it inspectable rather than
+merely runnable: an evidence graph joining claims to passages, a perspective
+graph recording what moved a standpoint, a research practice holding live
+questions and earned sources, a viva that examines an expert and returns a
+costed reading list, and `expert status`, which distinguishes a stage that
+*produced a file* from one that *produced a result*. Capacity now spreads
+across prepaid plans and retires one that runs out mid-run.
+
+Several of those existed already and were wired to nothing. Six modules this
+round were found built, tested and unreachable, which is a pattern worth
+naming: a module with tests is not a shipped feature.
+
+**Next, in dependency order.** Order is the claim here; nothing below is a
+calendar, and the sequence is derived from what blocks what rather than from
+what looks appetising.
+
+1. ~~**Durable identity for positions.**~~ **Done.** A position is keyed on its
+   question and keeps that identity across a re-brief.
+2. ~~**Stop destroying judgement on rebuild.**~~ **Done for positions.**
+   `hold/history.json` is an append-only ledger; `hold/current.json` remains the derived
+   current view. A revision closes its predecessor and opens a successor; a
+   position a re-brief did not reach is closed as *not restated* rather than
+   retired, because the expert did not decide to drop it.
+
+   Running it twice was what made it real. The same corpus briefed twice
+   produced seven differently-worded questions and restated none of the nine
+   already held, because `build_brief` took no prior and a model with no memory
+   legitimately rephrases. Showing the brief what it already holds took that
+   from *0 revised, 9 not restated* to *7 revised, 0 not restated*.
+
+   **Findings are still rebuilt wholesale.** Positions were the urgent half -
+   they carry the falsifiers - but a finding ledger is the same shape and is
+   what `study` needs before it can run unattended.
+3. **Freeze falsifiers as predictions.** Now unblocked, and next.
+   [Why](docs/design/the-feedback-signal.md) A resolution criterion and a
+   resolution date, immutable once written. This starts a clock that cannot be
+   started retroactively, so it is worth doing before the mechanism that reads
+   it exists.
+4. **Resolve them against later material, and record the discrepancy only.**
+   The signal is the gap between an ex ante position and a later grounded
+   outcome; see [the-feedback-signal.md](docs/design/the-feedback-signal.md).
+   Deliberately no controller in the first pass - adjusting confidence against
+   an unvalidated signal is how a system optimises the wrong thing quietly.
+5. **A point-in-time read.** `history_of(thread)` first, then `as_of(t)`, with
+   `current()` as the zero-argument default. Blocked on a real bug:
+   `get_current_confidence` decays against wall-clock, so a historical read
+   would return a past record carrying today's confidence.
+6. **Then, and only then, unattended operation** for the stages that already
+   pass the reversibility test - `source`, `study`, `graph`, `viva` - with a
+   quota preflight rather than a schedule. Two runs died mid-flight on quota
+   exhaustion in a single session; a loop that does not model remaining
+   capacity fails inside the most expensive step.
+
+**Refinements worth doing alongside, none of them blocking:**
+
+- **`stage_contract` enforced at the stage, not only in `expert status`.** It
+  reports correctly and does not yet gate anything.
+- **Consult failover.** `--plan a,b,c` fails over mid-call for study and brief,
+  and only picks a plan with headroom for consult, because a consult builds a
+  chat client rather than a completion callable.
+- **antigravity cannot launch on Windows** despite the fleet reporting it
+  installed and active, which silently costs a whole quota pool.
+- **One time module.** 64 duplicated `_utc_now()` definitions and four
+  hand-rolled UTC coercions guarantee closed-open intervals get implemented
+  three ways.
+- **The 38 D-grade experts.** Real belief stores with no retained corpus.
+  They are not consultable and will not become so by accident.
+
+Design: [docs/design/skills-as-learning-systems.md](docs/design/skills-as-learning-systems.md)
+evaluates the wider "skills as bi-temporal learning systems" frame, maps what
+Deepr already has against it, and is explicit about which parts are premature
+and why.
+
+## Superseded Status (v2.43.1)
 
 **Unreleased host-wiring polish (from live Claude Code validation):** coding
 hosts often fail because MCP tools never loaded (empty `mcpServers`, mid-session

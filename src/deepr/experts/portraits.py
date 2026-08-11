@@ -47,6 +47,9 @@ XAI_PORTRAIT_COST_ESTIMATE_USD = 0.02
 # migration, but it cannot authorize execution until a supported backend has a
 # stable identity and exact materialized-model attestation contract.
 LOCAL_IMAGE_URL_ENV = "DEEPR_LOCAL_IMAGE_URL"
+
+_MAX_APPEARANCE_CHARS = 600
+"""Long enough for a described scene, short enough that no image model truncates it."""
 METERED_IMAGE_AUTO_ENV = "DEEPR_ALLOW_METERED_IMAGE_AUTO"
 
 
@@ -104,14 +107,34 @@ def portrait_style(override: str | None = None) -> str:
     return env or DEFAULT_PORTRAIT_STYLE
 
 
-def _build_prompt(name: str, domain: str | None, description: str | None, *, style: str | None = None) -> str:
-    """Build an image generation prompt from expert metadata.
+def _build_prompt(
+    name: str,
+    domain: str | None,
+    description: str | None,
+    *,
+    style: str | None = None,
+    appearance: str | None = None,
+) -> str:
+    """Build an image generation prompt for one expert.
 
-    Uses a seeded rotation of gender, ethnicity, and age to ensure diverse
-    representation across generated portraits, while the *style* clause stays
-    constant across the library (``portrait_style``) for a coherent look.
+    An expert that has written its own ``appearance`` gets that, and nothing
+    else describing the subject. Everything below this branch is the fallback
+    for an expert with no self-account yet, and it produces a picture of the
+    *field* rather than of the one holding a view about it: two experts on one
+    domain come out identical apart from a hash-seeded demographic rotation,
+    which is backwards for the thing a portrait is for. The rotation exists so
+    the fallback is at least varied, not because varying it is the goal.
+
+    The style clause stays constant across the library either way, so a
+    self-chosen portrait still sits beside the others.
     """
     import hashlib
+
+    if chosen := " ".join((appearance or "").split()):
+        # Trailing punctuation is stripped because the expert writes a sentence
+        # and the style clause is appended as another one.
+        chosen = chosen[:_MAX_APPEARANCE_CHARS].rstrip(" .,;:")
+        return f"{chosen}. {portrait_style(style)}. No text or watermarks."
 
     # Deterministic diversity based on expert name. Non-crypto: md5 is used as a stable
     # seed for portrait diversity rotation only, not for security/passwords/signatures.
@@ -202,6 +225,7 @@ async def generate_portrait(
     provider: str | None = None,
     style: str | None = None,
     output_dir: str | Path | None = None,
+    appearance: str | None = None,
 ) -> str:
     """Generate a portrait image for an expert.
 
@@ -212,6 +236,10 @@ async def generate_portrait(
         provider: Force a specific provider (openai/google/xai).
                   Auto-detected if None.
         output_dir: Directory to save the portrait image.
+        appearance: How the expert says it wants to be depicted. When set, this
+                    is the whole subject of the prompt and domain/description
+                    are ignored, because the expert's own account of itself
+                    outranks anything inferred from its topic.
 
     Returns:
         Relative URL path to the saved portrait (e.g. ``/portraits/my-expert.png``).
@@ -237,7 +265,7 @@ async def generate_portrait(
             safe_alternative="no attested zero-dollar portrait backend is currently available",
         )
 
-    prompt = _build_prompt(name, domain, description, style=style)
+    prompt = _build_prompt(name, domain, description, style=style, appearance=appearance)
     logger.info("Generating portrait for '%s' via %s", name, provider)
 
     if provider == "local":
@@ -266,6 +294,28 @@ async def generate_portrait(
     return f"/portraits/{filename}"
 
 
+def _self_chosen_appearance(expert_name: str) -> str:
+    """How this expert says it wants to look, or "" if it has not said.
+
+    Read here rather than taken from the caller so every path that generates a
+    portrait honours it, including the batch command and anything that grows a
+    portrait call later. Failures are swallowed to "": an unreadable self.json
+    should fall back to the generic prompt, not stop a portrait run.
+    """
+    import json
+
+    try:
+        from deepr.experts.expert_layout import self_path
+
+        path = self_path(expert_name)
+        if not path.exists():
+            return ""
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, ImportError):
+        return ""
+    return str(data.get("appearance") or "") if isinstance(data, dict) else ""
+
+
 async def generate_and_save_portrait(
     profile: object,
     store: object,
@@ -283,6 +333,7 @@ async def generate_and_save_portrait(
     )
 
     expert_name = str(getattr(profile, "name", "expert"))
+    appearance = _self_chosen_appearance(expert_name)
     effective_provider = provider or detect_provider()
     if effective_provider == "local":
         _local_image_base_url()
@@ -315,6 +366,7 @@ async def generate_and_save_portrait(
             provider=effective_provider,
             style=style,
             output_dir=output_dir,
+            appearance=appearance,
         )
     except Exception:
         # Once generate_portrait starts, a remote provider may have accepted

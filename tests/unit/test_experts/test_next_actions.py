@@ -14,6 +14,7 @@ from deepr.experts.next_actions import (
     build_expert_next_actions,
 )
 from deepr.experts.profile import ExpertProfile
+from tests.expert_time_helpers import stale_cutoff as _stale_cutoff
 
 
 def _profile(**overrides):
@@ -110,7 +111,7 @@ def test_missing_blueprint_is_the_first_foundation_action():
 
 
 def test_failed_loop_and_stale_state_prioritize_recovery_before_gap_fill():
-    profile = _profile(knowledge_cutoff_date=datetime(2020, 1, 1, tzinfo=UTC))
+    profile = _profile(knowledge_cutoff_date=_stale_cutoff())
     manifest = ExpertManifest(
         expert_name=profile.name,
         domain=profile.domain,

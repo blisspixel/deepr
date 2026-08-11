@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import math
-from datetime import UTC, datetime
 
 import pytest
 
@@ -14,6 +13,7 @@ from deepr.experts.expert_semantic_recall import (
     coerce_query_embedding,
 )
 from deepr.experts.profile import ExpertProfile
+from tests.expert_time_helpers import recent_cutoff as _recent_cutoff
 
 
 def _profile() -> ExpertProfile:
@@ -21,7 +21,7 @@ def _profile() -> ExpertProfile:
         name="Recall Surface Expert",
         vector_store_id="vs-recall-surface",
         domain="ai infrastructure",
-        knowledge_cutoff_date=datetime(2026, 6, 29, tzinfo=UTC),
+        knowledge_cutoff_date=_recent_cutoff(),
     )
 
 

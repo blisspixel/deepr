@@ -43,6 +43,7 @@ from deepr.experts.research_reservation_store import ResearchReservationStore
 from deepr.experts.semantic_model_gate import _mark_zero_dollar_client
 from deepr.observability.cost_ledger import CostLedger
 from deepr.services.metered_call import MeteredCallAccountingError
+from tests.expert_time_helpers import recent_cutoff as _recent_cutoff
 
 
 def _profile() -> ExpertProfile:
@@ -50,7 +51,7 @@ def _profile() -> ExpertProfile:
         name="Consult Quality Expert",
         vector_store_id="vs-consult-quality",
         domain="agentic consult quality",
-        knowledge_cutoff_date=datetime(2026, 6, 27, tzinfo=UTC),
+        knowledge_cutoff_date=_recent_cutoff(),
     )
     manifest = ExpertManifest(
         expert_name=profile.name,

@@ -3314,24 +3314,7 @@ def run_skill_cmd(name: str, skill_name: str, tool_name: str, tool_args: str):
     )
 
 
-# Maintenance commands (absorb, sync) live in a sibling module so this file
-# stays under the size ceiling; importing it registers them on the `expert`
-# group (Phase Q3 decomposition).
-from deepr.cli.commands.semantic import expert_blueprint as _expert_blueprint  # noqa: F401
-from deepr.cli.commands.semantic import expert_cleanup as _expert_cleanup  # noqa: F401
-from deepr.cli.commands.semantic import expert_consult as _expert_consult  # noqa: F401
-from deepr.cli.commands.semantic import expert_consult_quality as _expert_consult_quality  # noqa: F401
-from deepr.cli.commands.semantic import expert_consult_traces as _expert_consult_traces  # noqa: F401
-from deepr.cli.commands.semantic import expert_freshness as _expert_freshness  # noqa: F401
-from deepr.cli.commands.semantic import expert_gap_routes as _expert_gap_routes  # noqa: F401
-from deepr.cli.commands.semantic import expert_learn_web as _expert_learn_web  # noqa: F401
-from deepr.cli.commands.semantic import expert_loop_status as _expert_loop_status  # noqa: F401
-from deepr.cli.commands.semantic import expert_maintenance as _expert_maintenance  # noqa: F401
-from deepr.cli.commands.semantic import expert_memory_card as _expert_memory_card  # noqa: F401
-from deepr.cli.commands.semantic import expert_okf as _expert_okf  # noqa: F401
-from deepr.cli.commands.semantic import expert_outcomes as _expert_outcomes  # noqa: F401
-from deepr.cli.commands.semantic import expert_portrait as _expert_portrait  # noqa: F401
-from deepr.cli.commands.semantic import expert_quality as _expert_quality  # noqa: F401
-from deepr.cli.commands.semantic import expert_self_model as _expert_self_model  # noqa: F401
-from deepr.cli.commands.semantic import expert_study as _expert_study  # noqa: F401
-from deepr.cli.commands.semantic import expert_validate_export as _expert_validate_export  # noqa: F401
+# Every command that lives in a sibling module registers itself on import.
+# The list is kept in expert_command_registry so adding a command does not grow
+# this file, which is grandfathered at a size cap it must not exceed.
+from deepr.cli.commands.semantic import expert_command_registry as _expert_command_registry  # noqa: F401

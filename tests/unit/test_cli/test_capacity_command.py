@@ -144,8 +144,13 @@ class TestAdmitPlan:
         assert r.exit_code == 0, r.output
 
     def test_admit_choice_restricted_to_auto_routable(self):
-        # ToS-gray / metered backends cannot be admitted for auto-routing.
-        for backend in ("codex", "opencode", "kiro", "grok", "antigravity", "copilot"):
+        """Only backends provable non-metered and read-confined can auto-route.
+
+        codex, grok and antigravity left this list once their tools could be
+        stripped at dispatch, which is the property the refusal existed to
+        protect rather than the refusal itself.
+        """
+        for backend in ("opencode", "kiro", "copilot"):
             r = CliRunner().invoke(capacity, ["admit-plan", backend])
             assert r.exit_code != 0, backend
 
@@ -421,12 +426,12 @@ class TestProbeFleet:
     def test_explicit_fanout_refuses_blocked_adapter(self, monkeypatch, tmp_path):
         monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
         _clean_env(monkeypatch)
-        _stub_path(monkeypatch, "claude", "agy")
+        _stub_path(monkeypatch, "claude", "opencode")
         _stub_probe(monkeypatch, ok=True, reply="OK", latency_ms=7)
 
         r = CliRunner().invoke(
             capacity,
-            ["probe-fleet", "--backend", "claude", "--backend", "antigravity", "--json"],
+            ["probe-fleet", "--backend", "claude", "--backend", "opencode", "--json"],
         )
 
         assert r.exit_code == 1, r.output
@@ -435,8 +440,8 @@ class TestProbeFleet:
         assert payload["probed_count"] == 2
         assert payload["ok_count"] == 1
         assert payload["failed_count"] == 1
-        assert [result["backend"] for result in payload["results"]] == ["claude", "antigravity"]
-        assert "transcript side effects" in payload["results"][1]["error"]
+        assert [result["backend"] for result in payload["results"]] == ["claude", "opencode"]
+        assert "cannot be proven prepaid or local before dispatch" in payload["results"][1]["error"]
         events = load_quota_events(tmp_path / "quota_ledger.jsonl")
         assert [event.backend_id for event in events] == ["claude"]
         assert all(event.event_type == QuotaEventType.USAGE_OBSERVED for event in events)
@@ -454,27 +459,25 @@ class TestProbeFleet:
         assert payload["results"][0]["backend"] == "claude"
 
     def test_explicit_unconfined_experimental_backend_is_refused(self, monkeypatch):
-        """antigravity stays refused: its tools cannot be stripped at dispatch.
+        """kiro stays refused: its read tools cannot be confined at dispatch.
 
-        grok is deliberately absent from this case. It carries the same class
-        of native tools and is now confined in its argv instead of blocked, so
-        asserting a refusal here would pin the block rather than the property
-        the block exists to protect.
+        codex, grok and antigravity are deliberately absent. They carry the
+        same class of native tools and are now confined in their argv instead
+        of blocked, so asserting a refusal for them would pin the block rather
+        than the property the block exists to protect.
         """
         _clean_env(monkeypatch)
-        _stub_path(monkeypatch, "agy")
+        _stub_path(monkeypatch, "kiro-cli")
         _stub_probe(monkeypatch, ok=True, reply="OK")
 
-        r = CliRunner().invoke(capacity, ["probe-fleet", "--backend", "antigravity", "--json"])
+        r = CliRunner().invoke(capacity, ["probe-fleet", "--backend", "kiro", "--json"])
 
         assert r.exit_code == 1, r.output
         payload = json.loads(r.output)
         assert payload["ok_count"] == 0
         assert payload["failed_count"] == 1
-        assert [result["backend"] for result in payload["results"]] == ["antigravity"]
-        assert all(result["experimental"] for result in payload["results"])
-        assert "native tool permissions" in payload["results"][0]["error"]
-        assert "transcript side effects" in payload["results"][0]["error"]
+        assert [result["backend"] for result in payload["results"]] == ["kiro"]
+        assert "confined" in payload["results"][0]["error"]
 
     def test_explicit_metered_backend_is_blocked_by_default(self, monkeypatch):
         _clean_env(monkeypatch)
@@ -551,7 +554,7 @@ class TestValidateFleet:
 
         monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
         _clean_env(monkeypatch)
-        _stub_path(monkeypatch, "claude", "agy")
+        _stub_path(monkeypatch, "claude", "opencode")
         _stub_probe(monkeypatch, ok=True, reply="OK", latency_ms=7)
         calls: list[tuple[str | None, float]] = []
 
@@ -576,7 +579,7 @@ class TestValidateFleet:
                 "--backend",
                 "claude",
                 "--backend",
-                "antigravity",
+                "opencode",
                 "--expert",
                 "AI Agent Harnesses",
                 "--json",

@@ -26,10 +26,12 @@ from deepr.cli.colors import console, print_header, print_key_value, print_succe
 from deepr.cli.commands.semantic.experts import expert
 from deepr.cli.commands.semantic.study_backend import StudyBackendError, build_study_backend
 from deepr.experts.corpus_store import CorpusStore
+from deepr.experts.expert_layout import hold_current_path, hold_history_path, hold_rendered_path, noticed_path
 from deepr.experts.notebook import NOTEBOOK_MARKER, build_notebook
 from deepr.experts.paths import canonical_expert_dir
 from deepr.experts.study import run_study
 from deepr.experts.study_lenses import DEFAULT_LENS_KEYS, LENSES, resolve_lenses
+from deepr.utils.atomic_io import atomic_write_json
 
 _MAX_SOURCE_CHARS = 400_000
 
@@ -40,12 +42,104 @@ def canonical_study_path(expert_name: str) -> Path:
     One function rather than a repeated literal: study wrote nowhere by default
     while brief read from here, so briefing a finished study meant rerunning it.
     """
-    return canonical_expert_dir(expert_name) / "study.json"
+    return noticed_path(expert_name)
 
 
 def canonical_brief_path(expert_name: str) -> Path:
     """Where the structured brief lives, for anything that wants to consult it."""
-    return canonical_expert_dir(expert_name) / "brief.json"
+    return hold_current_path(expert_name)
+
+
+def canonical_position_ledger_path(expert_name: str) -> Path:
+    """Where every version of every position this expert has held is kept."""
+    return hold_history_path(expert_name)
+
+
+def _live_positions(expert_name: str) -> list[Any]:
+    """Positions this expert currently holds, for the brief to restate or revise."""
+    from deepr.experts.position_ledger import load_ledger
+
+    try:
+        return list(load_ledger(canonical_position_ledger_path(expert_name), expert_name=expert_name).live)
+    except Exception:
+        return []
+
+
+def _record_positions(expert_name: str, brief: Any, result: Any) -> dict[str, int]:
+    """Fold this brief into the position ledger. Returns what changed.
+
+    Never fails the brief. A ledger write that goes wrong loses history, which
+    is bad; taking down a brief that a study just paid for is worse, and the
+    brief itself is still written either way.
+    """
+    from deepr.experts.position_ledger import load_ledger, record_brief
+    from deepr.experts.record_time import utc_now
+    from deepr.utils.atomic_io import atomic_write_json
+
+    path = canonical_position_ledger_path(expert_name)
+    try:
+        ledger = load_ledger(path, expert_name=expert_name)
+        # The corpus state this brief was formed over, so survival counts
+        # distinct material rather than distinct runs. Taken from the newest
+        # lens: all lenses in a completed pass share one fingerprint.
+        fingerprint = ""
+        for outcome in reversed(list(getattr(result, "outcomes", []) or [])):
+            if candidate := str(getattr(outcome, "corpus_fingerprint", "") or ""):
+                fingerprint = candidate
+                break
+
+        changed = record_brief(ledger, list(brief.positions), at=utc_now(), corpus_fingerprint=fingerprint)
+        atomic_write_json(path, ledger.to_dict(), fsync=True)
+        return changed
+    except Exception:
+        return {}
+
+
+def _checkpoint_study(expert_name: str):
+    """Persist the pass after every lens.
+
+    A study is tens of model calls over many minutes. Holding all of it in
+    memory until the end means one interruption throws away work that already
+    succeeded and was already paid for.
+    """
+
+    def _write(result: Any) -> None:
+        try:
+            # Atomic, because this is the write most likely to be interrupted:
+            # it rewrites the whole file after every lens across a run lasting
+            # hours. A bare write_text that dies partway leaves a truncated
+            # study.json, and the next stage reads it as the expert's findings.
+            atomic_write_json(canonical_study_path(expert_name), result.to_dict(), sort_keys=True, fsync=True)
+        except OSError:
+            # A failed checkpoint must not end a run that is otherwise fine.
+            pass
+
+    return _write
+
+
+def _resume_source(expert_name: str, *, rebuild: bool) -> list[Any] | None:
+    """Completed lenses to reuse, or None when the operator asked for a re-read."""
+    return None if rebuild else _resumable_outcomes(expert_name)
+
+
+def _resumable_outcomes(expert_name: str) -> list[Any]:
+    """Lens outcomes from an earlier pass, for `run_study` to filter.
+
+    Everything on disk is returned. Deciding what is still usable happens in
+    `run_study`, which fingerprints the corpus and discards any outcome formed
+    over different material, so a corpus that moved is re-read without anyone
+    passing `--rebuild`. That flag now means "re-read even though the corpus is
+    unchanged", not "re-read because it changed".
+    """
+    from deepr.experts.study_contracts import StudyResult
+
+    path = canonical_study_path(expert_name)
+    if not path.exists():
+        return []
+    try:
+        return StudyResult.from_dict(json.loads(path.read_text(encoding="utf-8"))).outcomes
+    except (json.JSONDecodeError, OSError, TypeError, ValueError):
+        return []
 
 
 def _echo_progress(note: str) -> None:
@@ -297,6 +391,11 @@ def expert_corpus(name: str, as_json: bool) -> None:
     is_flag=True,
     help="Leave the local model resident after the run (default: release VRAM)",
 )
+@click.option(
+    "--rebuild",
+    is_flag=True,
+    help="Re-read every lens instead of resuming ones an earlier pass completed",
+)
 @click.option("--json", "as_json", is_flag=True, help="Emit the study JSON to stdout")
 def expert_study(
     name: str,
@@ -310,6 +409,7 @@ def expert_study(
     out: str | None,
     write_notebook: bool,
     keep_warm: bool,
+    rebuild: bool,
     as_json: bool,
 ) -> None:
     """Read NAME's retained corpus through several lenses ($0 local or plan).
@@ -357,7 +457,10 @@ def expert_study(
                 max_corpus_chars=max_corpus_chars,
                 chunk_chars=backend.chunk_chars,
                 capacity_source=backend.capacity_source,
+                model=backend.model,
                 on_progress=None if as_json else _echo_progress,
+                checkpoint=_checkpoint_study(profile.name),
+                resume_from=_resume_source(profile.name, rebuild=rebuild),
             )
         finally:
             # Pin weights during the run, release at the end. Leaving a large
@@ -375,7 +478,7 @@ def expert_study(
     # Always persist to the canonical path, because that is where `expert
     # brief` and `expert notebook` look. Requiring --out meant a study that
     # cost real time to produce could not be briefed from without rerunning it.
-    canonical_study_path(profile.name).write_text(serialized, encoding="utf-8")
+    atomic_write_json(canonical_study_path(profile.name), payload, sort_keys=True, fsync=True)
     if out:
         Path(out).write_text(serialized, encoding="utf-8")
     if write_notebook:
@@ -488,7 +591,6 @@ def _render_study_summary(result: Any) -> None:
 
 
 def _write_notebook(profile: Any, result: Any, store: CorpusStore, *, quiet: bool) -> None:
-    from deepr.experts.paths import canonical_expert_dir
 
     path = canonical_expert_dir(profile.name) / "notebook.md"
     if path.exists() and NOTEBOOK_MARKER not in path.read_text(encoding="utf-8", errors="replace"):
@@ -558,6 +660,14 @@ def expert_brief(
         print_key_value("From findings", str(len(result.findings)))
         console.print("")
 
+    # Show the brief the questions this expert already takes a position on.
+    # Without it a re-brief is non-deterministic in phrasing, which silently
+    # destroys position identity: measured, the same corpus briefed twice
+    # produced seven differently-worded questions and restated none of the nine
+    # already held, so every thread closed and reopened and survival could
+    # never accumulate.
+    prior_positions = _live_positions(profile.name)
+
     brief = asyncio.run(
         build_brief(
             expert_name=profile.name,
@@ -565,24 +675,58 @@ def expert_brief(
             corpus=store,
             completion=backend.completion,
             domain=getattr(profile, "domain", "") or "",
+            prior_positions=prior_positions,
         )
     )
 
-    # Persist the structured form always, not only under --json. Rendering to
-    # markdown destroys every typed field - the likelihood band, the falsifier,
-    # what the position did not resolve - so a brief that only ever existed as
-    # prose could not be consulted, only read.
+    # Record what changed before writing the new brief. Every run used to
+    # discard the previous positions - likelihood bands, falsifiers, carried
+    # dissent - and derive fresh ones, so an expert that had existed six months
+    # had concluded nothing that outlived its last run. The ledger keeps the
+    # versions; brief.json stays the current view, because every reader in the
+    # system loads it and changing its shape to serve one new reader would
+    # break all of them.
+    changed = _record_positions(profile.name, brief, result)
+
     payload = json.dumps(brief.to_dict(), indent=2, sort_keys=True)
-    canonical_brief_path(profile.name).write_text(payload, encoding="utf-8")
+    atomic_write_json(canonical_brief_path(profile.name), brief.to_dict(), sort_keys=True, fsync=True)
 
     if as_json:
         click.echo(payload)
         return
 
     text = render_brief(brief)
-    target = Path(out) if out else canonical_expert_dir(profile.name) / "brief.md"
+    target = Path(out) if out else hold_rendered_path(profile.name)
+    target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(text, encoding="utf-8")
     console.print(text)
+
+    # A brief with no positions is a failed brief, whatever else went right.
+    # Measured: a synthesis call timed out, the empty brief was written with
+    # the failure recorded only as a limitation, and the command exited 0
+    # printing the path as though it had worked. `expert profile` then read it
+    # and produced a standpoint about the pipeline failing rather than about
+    # the subject. Exiting 2 stops that chain at the first link.
+    if not brief.positions:
+        reason = brief.limitations[0] if brief.limitations else "no positions were produced"
+        click.echo(f"Error: the brief holds no positions, so it is not consultable. {reason}", err=True)
+        sys.exit(2)
+
+    if changed and any(changed.values()):
+        # What moved is the interesting part of a re-brief, and it was
+        # previously invisible: the file was overwritten and nothing said
+        # whether the expert had changed its mind or merely restated itself.
+        console.print(
+            f"\n[dim]Positions: {changed.get('new', 0)} new, {changed.get('revised', 0)} revised, "
+            f"{changed.get('unchanged', 0)} unchanged, {changed.get('not_restated', 0)} not restated.[/dim]"
+        )
+        if changed.get("not_restated"):
+            print_warning(
+                f"{changed['not_restated']} position(s) this expert held were not restated by this brief. "
+                "They are closed in the ledger rather than deleted; check whether the corpus moved or the "
+                "reading did."
+            )
+
     print_success(f"Brief: {target}")
     for warning in brief.integrity_warnings():
         print_warning(warning)
@@ -622,7 +766,6 @@ def expert_notebook(name: str, from_study: str | None, out: str | None) -> None:
     this file is safe to delete.
     """
     profile = _load_profile(name)
-    from deepr.experts.paths import canonical_expert_dir
 
     result = _load_study_result(profile, from_study)
     store = CorpusStore(profile.name)

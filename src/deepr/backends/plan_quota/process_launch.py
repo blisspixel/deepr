@@ -19,7 +19,21 @@ from deepr.backends.plan_quota.process_control import (
 _WINDOWS = os.name == "nt"
 _WINDOWS_NATIVE_PACKAGE_EXECUTABLES = {
     "claude": Path("node_modules/@anthropic-ai/claude-code/bin/claude.exe"),
+    "codex": Path(
+        "node_modules/@openai/codex/node_modules/@openai/codex-win32-x64/vendor/x86_64-pc-windows-msvc/bin/codex.exe"
+    ),
 }
+"""Vendor binaries reachable without going through a .cmd shim.
+
+A batch shim is a shell script, so launching one hands argument parsing to
+cmd.exe and stops the argv Deepr built from being the argv that runs. The
+resolved path is required to sit under the shim's own directory and to be a
+real .exe, which is what keeps this an allowlist rather than a search.
+
+An installed CLI missing from this table is not blocked because it is unsafe;
+it is blocked because nobody has pointed at its native binary yet. Codex was
+in exactly that state - fully confined at dispatch, quota available, and
+unreachable."""
 
 
 @dataclass(frozen=True)

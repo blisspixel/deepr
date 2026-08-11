@@ -130,6 +130,10 @@ class AcquisitionPlan:
     topic: str
     queries: list[AcquisitionQuery] = field(default_factory=list)
     excluded_publishers: list[str] = field(default_factory=list)
+    search_key: str = ""
+    """The shortened noun phrase actually templated, when the topic was long."""
+    fallback_reason: str = ""
+    """Set when a proposed plan was refused and these templates were used."""
 
     def by_arm(self, arm: str) -> list[AcquisitionQuery]:
         return [q for q in self.queries if q.arm == arm]
@@ -153,11 +157,24 @@ class AcquisitionPlan:
             )
         if not self.by_arm(ARM_PRIMARY):
             notes.append("No primary-source queries, so the corpus may be entirely secondary retelling.")
+        if self.fallback_reason:
+            notes.append(
+                f"Queries are templated because {self.fallback_reason}. Templates do not know this "
+                "field's terminology, its critics, or where its primary work is published, so "
+                "coverage here is guaranteed in shape only."
+            )
+        if self.search_key and self.search_key != self.topic:
+            notes.append(
+                f"Queries were built from {self.search_key!r} rather than the full topic, which is too "
+                "long to template into a usable search. Check that the shortened form still names the "
+                "subject; if it does not, pass a shorter topic."
+            )
         return notes
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "topic": self.topic,
+            "search_key": self.search_key,
             "excluded_publishers": self.excluded_publishers,
             "arms_covered": sorted(self.arms_covered),
             "query_count": len(self.queries),
@@ -166,8 +183,31 @@ class AcquisitionPlan:
         }
 
 
+_MAX_TOPIC_WORDS = 6
+"""Above this, a templated query stops being a query.
+
+Found by using it: a topic given as a sentence produced
+"criticism of anti-slop practices for AI agent generated code and analysis",
+which no search engine handles. Templates need a noun phrase, so a long topic
+is shortened for templating and the shortening is reported rather than done
+quietly."""
+
+
 def _clean_topic(topic: str) -> str:
     return " ".join(str(topic or "").split())
+
+
+def search_key(topic: str) -> str:
+    """The short noun phrase the templates wrap.
+
+    Content words only, head-first, because a search engine weights the head of
+    a phrase and the tail of a description is usually qualifiers.
+    """
+    words = [w for w in _clean_topic(topic).split() if w.lower() not in _TOPIC_STOPWORDS]
+    return " ".join(words[:_MAX_TOPIC_WORDS])
+
+
+_TOPIC_STOPWORDS = frozenset("a an and are as at be by for from how in is of on or the to what when with".split())
 
 
 def _emit(templates: tuple[str, ...], topic: str, arm: str, rationale: str) -> list[AcquisitionQuery]:
@@ -222,6 +262,9 @@ def plan_queries(
     plan = AcquisitionPlan(topic=clean, excluded_publishers=[p for p in exclude_publishers if p.strip()])
     if not clean:
         return plan
+    key = search_key(clean)
+    plan.search_key = key
+    clean = key or clean
 
     plan.queries = [
         *_emit(_DESCRIPTIVE_TEMPLATES, clean, ARM_DESCRIPTIVE, "what the subject is, in its own terms"),

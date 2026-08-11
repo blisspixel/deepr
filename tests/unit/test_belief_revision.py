@@ -353,7 +353,7 @@ class TestConflictResolution:
             trust_class="tertiary",
         )
 
-        retained, change = store.add_belief(candidate)
+        retained, _change = store.add_belief(candidate)
 
         # Weaker effective confidence cannot rewrite claim or raise raw conf;
         # provenance may still merge for multi-source accounting.

@@ -19,6 +19,7 @@ from deepr.core.contracts import Claim, ExpertManifest
 from deepr.experts.consult_quality import build_consult_quality_review
 from deepr.experts.consult_traces import build_consult_trace, build_consult_trace_candidates, record_consult_trace
 from deepr.experts.profile import ExpertProfile
+from tests.expert_time_helpers import recent_cutoff as _recent_cutoff
 
 
 def _profile() -> ExpertProfile:
@@ -26,7 +27,7 @@ def _profile() -> ExpertProfile:
         name="Consult Quality Expert",
         vector_store_id="vs-consult-quality",
         domain="consult quality",
-        knowledge_cutoff_date=datetime(2026, 6, 27, tzinfo=UTC),
+        knowledge_cutoff_date=_recent_cutoff(),
     )
     manifest = ExpertManifest(
         expert_name=profile.name,

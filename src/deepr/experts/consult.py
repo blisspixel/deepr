@@ -87,6 +87,73 @@ def _sha256(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def _first_usable_plan(plan_backend: str) -> tuple[str | None, list[str]]:
+    """Pick the first named plan with headroom. Returns (choice, why-not).
+
+    ``--plan grok,codex,claude`` names an order of preference. Reading quota
+    headroom first is what stops a consult beginning on a plan that is already
+    exhausted, which costs a round-trip and a confusing error rather than a
+    result. A single name passes straight through, so nothing changes for
+    callers that name one plan.
+
+    Falls back to the first name when headroom is unreadable: an unavailable
+    quotabot must not turn into a refusal to consult at all.
+    """
+    names = [p.strip() for p in str(plan_backend or "").split(",") if p.strip()]
+    if len(names) <= 1:
+        return (names[0] if names else None), []
+
+    try:
+        from deepr.backends.quota_headroom import exhausted, order_by_headroom, read_headroom
+
+        headroom = read_headroom()
+    except Exception:
+        headroom = {}
+
+    if not headroom:
+        return names[0], []
+
+    spent = exhausted(names, headroom)
+    usable = [n for n in order_by_headroom(names, headroom) if n not in spent]
+    why_not = [headroom[n.lower()].describe() for n in spent if n.lower() in headroom]
+    return (usable[0] if usable else None), why_not
+
+
+def _plan_synthesis_backend(plan_backend: str, plan_model: str | None) -> ConsultSynthesisBackend:
+    """Resolve a consult onto prepaid plan capacity.
+
+    A list picks the first plan that both resolves and has headroom. Not the
+    same as the study path's pool, and deliberately not pretending to be: a
+    consult builds a chat *client* rather than a completion callable, so there
+    is nowhere to fail over mid-call without wrapping the client. What this
+    does buy is the larger half - not starting a consult on a plan that is
+    already at its cap, which is how these runs actually died.
+    """
+    from deepr.backends.plan_quota import PlanQuotaChatClient, get_adapter
+    from deepr.backends.waterfall import choose_plan_quota_backend
+
+    chosen, unusable = _first_usable_plan(plan_backend)
+    if chosen is None:
+        raise ConsultBackendError(f"No plan backend has capacity: {'; '.join(unusable)}")
+
+    choice = choose_plan_quota_backend(chosen)
+    if not choice.is_plan_quota:
+        raise ConsultBackendError(f"Plan backend {chosen!r} is not available for explicit plan use: {choice.reason}")
+
+    adapter = get_adapter(choice.plan_backend_id or chosen)
+    if adapter is None:
+        raise ConsultBackendError(f"Unknown plan-quota backend {chosen!r}.")
+
+    return ConsultSynthesisBackend(
+        client=PlanQuotaChatClient(adapter, model=plan_model, operation="plan_quota_consult_synthesis"),
+        model=plan_model or adapter.backend_id,
+        provider=f"plan_quota:{adapter.backend_id}",
+        allow_live_fallback=False,
+        note=f"{choice.reason}; live metered expert fallback disabled",
+        tos_note=adapter.tos_note,
+    )
+
+
 def build_synthesis_backend(
     *,
     use_local: bool = False,
@@ -117,25 +184,7 @@ def build_synthesis_backend(
         )
 
     if plan_backend:
-        from deepr.backends.plan_quota import PlanQuotaChatClient, get_adapter
-        from deepr.backends.waterfall import choose_plan_quota_backend
-
-        choice = choose_plan_quota_backend(plan_backend)
-        if not choice.is_plan_quota:
-            raise ConsultBackendError(
-                f"Plan backend {plan_backend!r} is not available for explicit plan use: {choice.reason}"
-            )
-        adapter = get_adapter(choice.plan_backend_id or plan_backend)
-        if adapter is None:
-            raise ConsultBackendError(f"Unknown plan-quota backend {plan_backend!r}.")
-        return ConsultSynthesisBackend(
-            client=PlanQuotaChatClient(adapter, model=plan_model, operation="plan_quota_consult_synthesis"),
-            model=plan_model or adapter.backend_id,
-            provider=f"plan_quota:{adapter.backend_id}",
-            allow_live_fallback=False,
-            note=f"{choice.reason}; live metered expert fallback disabled",
-            tos_note=adapter.tos_note,
-        )
+        return _plan_synthesis_backend(plan_backend, plan_model)
 
     provider = (api_provider or DEFAULT_API_SYNTHESIS_PROVIDER).strip().lower()
     if provider == "openai":

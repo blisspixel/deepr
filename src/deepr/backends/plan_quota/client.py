@@ -584,7 +584,18 @@ class PlanQuotaChatClient:
         )
         primary_error.__dict__["plan_quota_outcome"] = outcome
         primary_error.__dict__["error_code"] = outcome
-        primary_error.__dict__["retryable"] = error_type is PlanQuotaExhausted
+        # Exhaustion is NOT retryable, and marking it so was backwards. A plan
+        # quota resets on a weekly or multi-hour boundary, so every retry
+        # inside any sane backoff window fails identically - it behaves like an
+        # allocation quota, which does not refill on retry, rather than a rate
+        # limit that does. Nothing retries on this flag today; it would mislead
+        # the first caller that did, which is precisely the unattended loop
+        # this system is heading towards.
+        #
+        # The right response to exhaustion is to move to another plan (the
+        # backend pool retires it) or to stop and resume after the reset, never
+        # to try again now.
+        primary_error.__dict__["retryable"] = False
         primary_error.__dict__["no_metered_fallback"] = True
         primary_error.__dict__["vendor_dispatched"] = vendor_dispatched
         if accounting_error is not None:

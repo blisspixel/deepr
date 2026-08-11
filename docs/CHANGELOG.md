@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Expert directories are named from the expert's point of view**
+  (`deepr.experts.expert_layout`, `deepr.experts.expert_migration`,
+  `deepr expert migrate`). `study.json`, `brief.json`, `positions.json`,
+  `profile_card.json`, `practice.json` and `viva.json` were named after the
+  commands that wrote them, so a directory listing said which processes had run
+  rather than what the expert was. Two were worse than process-named:
+  `brief.json` and `positions.json` were the same subject stored twice with no
+  indication of which was current, and `profile.json` and `profile_card.json`
+  were different things sharing a word. Now `self.json`, `noticed/`,
+  `hold/current.json` and `hold/history.json`, `became/`, `attend/`, `met/`.
+  `corpus/` keeps its name, being already named from the expert's side.
+
+  Reads resolve the old path when only the old one exists, so the fleet
+  migrated without a flag day. Verified by computing health for all 57 experts
+  from a pre-migration backup and from the migrated fleet: **0 of 57 differ**,
+  with identical fleet totals (70 positions, 499 findings, 147 sources).
+
+  `beliefs/` and `knowledge/` were on the list of dead v1 directories until a
+  dry run over the real fleet found content in 38 and 35 experts respectively -
+  about 4MB of live belief ledgers, event logs and digests. They are untouched.
+  The migration reports a non-empty directory instead of deleting it, which is
+  the only reason that was caught.
+
+### Added
+
+- **Experts choose how they are depicted** (`appearance` in `self.json`). The
+  portrait prompt described the subject an expert studies, with a hash-seeded
+  demographic rotation for variety, so two experts on one domain with opposite
+  standpoints rendered nearly identically - backwards for the thing a portrait
+  is for. An expert that chooses its own name now chooses its own face, and the
+  old prompt remains the fallback for an expert with no self-account.
+
 ## [2.45.0] - 2026-08-07
 
 Experts stop reporting numbers that are not true. The v2 stack from 2.44.0 was

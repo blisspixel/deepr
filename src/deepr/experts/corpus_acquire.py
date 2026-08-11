@@ -104,19 +104,20 @@ def _origin_key_for(url: str) -> str:
 def _as_source_text(page: Any, url: str) -> str:
     """Render fetched content as the markdown the corpus retains.
 
-    Nothing that varies between two fetches of an unchanged page may appear
-    here, because this text is what gets content-hashed. A ``fetched_at`` date
-    in the body made every refresh a new sha, so one page refreshed daily read
-    as seven independent sources by the end of a week, and every corroboration
-    count downstream inflated with it. Retrieval time is per-entry metadata and
-    lives on ``CorpusEntry``, where it does not change identity.
+    Only the body is hashed. Anything that varies between two fetches of the
+    same document must stay out, because this text is what decides identity.
+
+    A ``fetched_at`` date in the body made every refresh a new sha, so one page
+    refreshed daily read as seven independent sources by the end of a week. The
+    URL was the same bug half-fixed: the identical document mirrored at two
+    addresses hashed differently, counted as two entries, and therefore as two
+    independent origins - which is exactly the inflation the independence
+    measurement exists to catch, defeated before it ever runs.
+
+    URL and title are per-entry metadata on ``CorpusEntry``, where they are
+    kept and do not change identity.
     """
-    title = (getattr(page, "title", "") or "").strip()
-    text = (getattr(page, "text", "") or "").strip()
-    header = ["---", f"url: {url}", f"title: {title}", "---", ""]
-    if title:
-        header.extend([f"# {title}", ""])
-    return "\n".join(header) + text
+    return (getattr(page, "text", "") or "").strip()
 
 
 async def acquire_sources(

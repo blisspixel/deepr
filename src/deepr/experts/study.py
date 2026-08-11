@@ -37,6 +37,7 @@ from typing import Any
 
 from deepr.experts.corpus_independence import measure_independence
 from deepr.experts.corpus_store import CorpusEntry, CorpusStore
+from deepr.experts.record_identity import finding_thread_id
 from deepr.experts.study_contracts import LensOutcome, StudyFinding, StudyResult
 from deepr.experts.study_coverage import build_coverage_report
 from deepr.experts.study_lenses import StudyLens, resolve_lenses
@@ -47,6 +48,85 @@ StudyCompletion = Callable[[str], Awaitable[str]]
 
 ProgressCallback = Callable[[str], None]
 """Called before each model call, so a long run is not a silent one."""
+
+CheckpointCallback = Callable[[StudyResult], None]
+"""Called after each lens, so work already paid for survives an interruption."""
+
+
+_CAPACITY_MARKERS = (
+    "quota",
+    "usage balance exhausted",
+    "payment required",
+    "402",
+    "insufficient credit",
+    "rate limit",
+    "429",
+)
+"""Text that means the backend cannot be asked, rather than would not answer.
+
+A string check because the completion callable is injected and the study pass
+deliberately owns no provider - it cannot import a backend exception type
+without acquiring the dependency the injection exists to avoid. The typed check
+below is the real one; this catches the same condition arriving as a wrapped or
+stringified error from a plan CLI's stderr.
+"""
+
+
+def _note_capacity_stop(
+    result: StudyResult,
+    exc: BaseException,
+    *,
+    lens: StudyLens,
+    index: int,
+    total: int,
+    on_progress: ProgressCallback | None,
+) -> None:
+    """Record that the pass stopped short, and why, where a machine can see it.
+
+    The outcomes already gathered are real - they were read before capacity ran
+    out. What must not happen is the result reading as though the remaining
+    lenses were asked and found nothing.
+    """
+    remaining = total - index + 1
+    result.limitations.append(
+        f"Capacity ran out during lens {index}/{total} ({lens.key}): {str(exc)[:160]}. "
+        f"{remaining} lens(es) were never read, so this study is incomplete rather than thin. "
+        "Resume once capacity returns; completed lenses will be reused."
+    )
+    if on_progress:
+        on_progress(f"lens {index}/{total} {lens.key}: capacity exhausted, stopping")
+
+
+def _is_capacity_failure(exc: BaseException) -> bool:
+    """Whether this failure means the backend is unavailable, not unhelpful.
+
+    The distinction decides whether a pass may continue. A model that answered
+    in prose produced a genuinely partial result and the pass should carry on;
+    a backend that has run out of quota will fail identically for every
+    remaining call, and continuing only buys a thinner artifact that looks
+    complete.
+    """
+    try:
+        from deepr.backends.plan_quota.errors import PlanQuotaError
+
+        if isinstance(exc, PlanQuotaError):
+            return True
+    except ImportError:
+        pass
+    text = str(exc).lower()
+    return any(marker in text for marker in _CAPACITY_MARKERS)
+
+
+def corpus_fingerprint(material: list[tuple[CorpusEntry, str]]) -> str:
+    """A stable id for exactly the sources a pass read.
+
+    Sorted shas, hashed. Adding a source changes it, so a lens outcome from
+    before that source arrived can be recognized as stale rather than reused.
+    """
+    import hashlib
+
+    shas = sorted(entry.sha256 for entry, _ in material)
+    return hashlib.sha256("|".join(shas).encode("utf-8")).hexdigest()[:16]
 
 
 def _lens_progress(
@@ -257,18 +337,43 @@ def _ground_anchors(anchors: list[str], haystacks: list[tuple[str, str]]) -> tup
     return grounded, ungrounded, shas
 
 
+def _absorb(findings: list[StudyFinding], fresh: list[StudyFinding]) -> None:
+    """Add each fresh finding, merging it into an existing one of the same id.
+
+    Content-derived ids make a re-sighting recognisable, which positional ids
+    could not: the same finding surfacing in two chunks used to become two
+    findings with two ordinals. Now it is one finding corroborated by two
+    passages, and its ``corpus_shas`` accumulate.
+
+    That accumulation is the point. A finding anchored in one source and a
+    finding anchored in two are different evidential claims, and the second is
+    what a lens genuinely comparing sources produces. Appending a duplicate
+    would also put two records with one id in the same list, which every
+    downstream lookup keyed by ``finding_id`` would then resolve arbitrarily.
+    """
+    by_id = {f.finding_id: f for f in findings}
+    for candidate in fresh:
+        existing = by_id.get(candidate.finding_id)
+        if existing is None:
+            findings.append(candidate)
+            by_id[candidate.finding_id] = candidate
+            continue
+        for sha in candidate.corpus_shas:
+            if sha not in existing.corpus_shas:
+                existing.corpus_shas.append(sha)
+        for anchor in candidate.anchors:
+            if anchor not in existing.anchors:
+                existing.anchors.append(anchor)
+        existing.grounded_anchor_count += candidate.grounded_anchor_count
+        existing.ungrounded_anchor_count += candidate.ungrounded_anchor_count
+
+
 def build_findings(
     lens: StudyLens,
     parsed: dict[str, Any],
     material: list[tuple[CorpusEntry, str]],
-    *,
-    start_index: int = 1,
 ) -> list[StudyFinding]:
-    """Turn one lens's parsed output into anchored findings.
-
-    ``start_index`` continues numbering across chunks so ids stay unique for
-    the whole lens rather than restarting at every call.
-    """
+    """Turn one lens's parsed output into anchored findings."""
     haystacks = [(entry.sha256, _normalize(text)) for entry, text in material]
     findings: list[StudyFinding] = []
     for item in _lens_items(lens, parsed):
@@ -276,13 +381,19 @@ def build_findings(
             continue
         anchors = _read_anchors(item)
         grounded, ungrounded, shas = _ground_anchors(anchors, haystacks)
+        title = _title_for(item, lens, shas)
         findings.append(
             StudyFinding(
                 lens=lens.key,
                 axis=lens.axis,
                 kind=lens.output_field,
-                finding_id=f"{lens.key}-{start_index + len(findings)}",
-                title=_title_for(item, lens, shas),
+                # Derived from content, not from position in this list. The
+                # positional form renumbered whenever a partial resume re-ran
+                # one lens, so a brief citing `failure-30` silently repointed at
+                # a different finding - and the citation still validated against
+                # the id set, which is worse than failing.
+                finding_id=finding_thread_id(lens=lens.key, title=title, anchors=anchors),
+                title=title,
                 payload={k: v for k, v in item.items() if k != "anchors"},
                 anchors=anchors,
                 grounded_anchor_count=grounded,
@@ -291,6 +402,77 @@ def build_findings(
             )
         )
     return findings
+
+
+async def _run_lenses(
+    result: StudyResult,
+    *,
+    lenses: Any,
+    chunks: list[list[tuple[CorpusEntry, str]]],
+    material: list[tuple[CorpusEntry, str]],
+    completion: StudyCompletion,
+    resume_from: list[LensOutcome] | None,
+    on_progress: ProgressCallback | None,
+    checkpoint: CheckpointCallback | None,
+) -> None:
+    """Run each lens, reusing any an earlier pass already completed.
+
+    Only ``ok`` and ``partial`` outcomes are reused. Reusing a parse failure
+    would make one bad interruption permanent, which is the opposite of what
+    resuming is for.
+    """
+    fingerprint = corpus_fingerprint(material)
+    reusable = [o for o in (resume_from or []) if o.status in {"ok", "partial"}]
+    # Fail closed. An outcome that cannot say which corpus it read is stale by
+    # definition: trusting it was the fail-open branch of this guard, and it
+    # defeated exactly what the fingerprint exists for. Measured on a live
+    # expert - every outcome on disk carried an empty fingerprint, so every
+    # lens was reused unconditionally however much the corpus had grown.
+    stale = [o for o in reusable if o.corpus_fingerprint != fingerprint]
+    done = {o.lens: o for o in reusable if o.corpus_fingerprint == fingerprint}
+    if done:
+        result.limitations.append(f"Resumed: {len(done)} lens(es) reused from an earlier run and not re-read.")
+    if stale:
+        result.limitations.append(
+            f"{len(stale)} lens(es) from an earlier run were re-read because they could not be "
+            "shown to have read this corpus. Reusing them would have carried findings that never "
+            "saw the new sources."
+        )
+
+    for index, lens in enumerate(lenses, 1):
+        if (earlier := done.get(lens.key)) is not None:
+            result.outcomes.append(earlier)
+            if on_progress:
+                on_progress(f"lens {index}/{len(lenses)} {lens.key}: reused from an earlier run")
+            continue
+
+        started = time.monotonic()
+        try:
+            outcome = await _run_lens_over_chunks(
+                lens,
+                chunks,
+                material,
+                completion,
+                on_progress=_lens_progress(on_progress, lens.key, index, len(lenses)),
+            )
+        except Exception as exc:
+            if not _is_capacity_failure(exc):
+                raise
+            _note_capacity_stop(result, exc, lens=lens, index=index, total=len(lenses), on_progress=on_progress)
+            break
+        outcome.elapsed_s = time.monotonic() - started
+        outcome.corpus_fingerprint = fingerprint
+        result.outcomes.append(outcome)
+        if on_progress:
+            grounded = sum(1 for f in outcome.findings if f.is_grounded)
+            on_progress(
+                f"lens {index}/{len(lenses)} {lens.key}: {len(outcome.findings)} finding(s), "
+                f"{grounded} anchored, {outcome.elapsed_s:.0f}s"
+            )
+        if checkpoint is not None:
+            # Per lens rather than at the end, so an interruption costs one
+            # lens instead of the whole pass.
+            checkpoint(result)
 
 
 async def run_study(
@@ -302,12 +484,21 @@ async def run_study(
     max_corpus_chars: int = _DEFAULT_MAX_CORPUS_CHARS,
     chunk_chars: int = _DEFAULT_CHUNK_CHARS,
     capacity_source: str = "",
+    model: str = "",
     on_progress: ProgressCallback | None = None,
+    checkpoint: CheckpointCallback | None = None,
+    resume_from: list[LensOutcome] | None = None,
 ) -> StudyResult:
     """Run every requested lens over the retained corpus.
 
     A lens that fails is recorded and the pass continues: one bad parse should
     not discard the work of five other lenses.
+
+    Recovery is structural, not conversational. ``checkpoint`` is called after
+    each lens with the result so far, and ``resume_from`` carries completed
+    lenses back in, so a pass killed at lens seven of eight resumes rather than
+    restarting. Without it every interruption costs the whole run again, which
+    on a real corpus is tens of model calls that already succeeded.
 
     ``on_progress`` is called before each model call. A chunked study over a
     real corpus is tens of calls and runs for many minutes; without it the run
@@ -324,6 +515,7 @@ async def run_study(
         corpus_origins=stats.distinct_origins,
         corpus_chars=sum(len(text) for _, text in material),
         capacity_source=capacity_source,
+        model=model,
         started_at=_utc_now_iso(),
     )
 
@@ -357,23 +549,16 @@ async def run_study(
             "Each lens saw one chunk at a time, so cross-chunk connections may be missed."
         )
 
-    for index, lens in enumerate(lenses, 1):
-        lens_started = time.monotonic()
-        outcome = await _run_lens_over_chunks(
-            lens,
-            chunks,
-            material,
-            completion,
-            on_progress=_lens_progress(on_progress, lens.key, index, len(lenses)),
-        )
-        outcome.elapsed_s = time.monotonic() - lens_started
-        result.outcomes.append(outcome)
-        if on_progress:
-            grounded = sum(1 for f in outcome.findings if f.is_grounded)
-            on_progress(
-                f"lens {index}/{len(lenses)} {lens.key}: {len(outcome.findings)} finding(s), "
-                f"{grounded} anchored, {outcome.elapsed_s:.0f}s"
-            )
+    await _run_lenses(
+        result,
+        lenses=lenses,
+        chunks=chunks,
+        material=material,
+        completion=completion,
+        resume_from=resume_from,
+        on_progress=on_progress,
+        checkpoint=checkpoint,
+    )
 
     result.elapsed_s = time.monotonic() - started
     ungrounded = sum(f.ungrounded_anchor_count for f in result.findings)
@@ -434,6 +619,21 @@ async def _run_lens_over_chunks(
         try:
             raw = await completion(prompt)
         except Exception as exc:
+            if _is_capacity_failure(exc):
+                # Stop the whole pass. Catching this as a per-chunk failure kept
+                # calling a dead backend for every remaining chunk and lens and
+                # then wrote a complete-looking study.json whose findings were
+                # thin, with the reason recorded only as prose in `limitations`
+                # that no downstream code reads. `brief` then read it as truth.
+                #
+                # Measured: a study "completed" with 44 findings from two of
+                # eight lenses after the backend exhausted mid-run, and nothing
+                # in the artifact said so in a way a machine could act on.
+                #
+                # "The corpus had nothing to say" and "I could not ask" are
+                # different results, and the difference has to survive into the
+                # artifact rather than being flattened into a failure count.
+                raise
             failures.append(f"chunk {index}: {str(exc)[:160]}")
             continue
 
@@ -453,7 +653,7 @@ async def _run_lens_over_chunks(
         # a finding could be credited to a document the lens never read. Shared
         # boilerplate makes that the common case, not an edge case, and the
         # coverage report then reports the true source as untouched.
-        findings.extend(build_findings(lens, parsed, chunk, start_index=len(findings) + 1))
+        _absorb(findings, build_findings(lens, parsed, chunk))
 
     if findings or not failures:
         detail = f"{len(failures)} of {len(chunks)} chunk(s) failed: " + "; ".join(failures[:2]) if failures else ""

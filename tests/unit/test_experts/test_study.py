@@ -11,6 +11,7 @@ from deepr.experts.study import (
     extract_json_object,
     run_study,
 )
+from deepr.experts.study_contracts import LensOutcome
 from deepr.experts.study_lenses import LENSES
 
 CORPUS_TEXT = (
@@ -196,15 +197,100 @@ class TestProvenanceHonesty:
 
         assert findings[0].corpus_shas == [zulu[0][0].sha256]
 
-    def test_findings_get_unique_ids_across_chunks(self, corpus):
+    def test_distinct_findings_get_distinct_ids(self, corpus):
         parsed = {"fail_patterns": [{"name": "a", "anchors": ["x"]}, {"name": "b", "anchors": ["y"]}]}
-        material = corpus.load_study_material()
-        first = build_findings(LENSES["failure"], parsed, material, start_index=1)
-        second = build_findings(LENSES["failure"], parsed, material, start_index=len(first) + 1)
+        findings = build_findings(LENSES["failure"], parsed, corpus.load_study_material())
 
-        ids = [f.finding_id for f in first + second]
-        assert ids == ["failure-1", "failure-2", "failure-3", "failure-4"]
-        assert len(set(ids)) == len(ids)
+        ids = [f.finding_id for f in findings]
+        assert len(set(ids)) == len(ids) == 2
+
+    def test_the_same_finding_seen_twice_gets_the_same_id(self, corpus):
+        """Positional ids could not recognise a re-sighting; content-derived ids can.
+
+        The same finding surfacing in two chunks used to become two findings
+        with two ordinals. It is one finding corroborated twice.
+        """
+        parsed = {"fail_patterns": [{"name": "a", "anchors": ["x"]}]}
+        material = corpus.load_study_material()
+
+        first = build_findings(LENSES["failure"], parsed, material)
+        second = build_findings(LENSES["failure"], parsed, material)
+
+        assert first[0].finding_id == second[0].finding_id
+
+    def test_an_id_does_not_shift_when_an_earlier_finding_disappears(self, corpus):
+        """The bug: a partial resume re-ran one lens, everything renumbered, and
+        a brief citing `failure-30` silently repointed at a different finding.
+        The citation still validated, which is worse than failing."""
+        material = corpus.load_study_material()
+        both = build_findings(
+            LENSES["failure"],
+            {"fail_patterns": [{"name": "a", "anchors": ["x"]}, {"name": "b", "anchors": ["y"]}]},
+            material,
+        )
+        second_only = build_findings(LENSES["failure"], {"fail_patterns": [{"name": "b", "anchors": ["y"]}]}, material)
+
+        assert both[1].finding_id == second_only[0].finding_id
+
+
+class TestReSightingsMergeRatherThanDuplicate:
+    """A finding found again is corroborated, not duplicated.
+
+    Two records sharing one id in the same list would make every downstream
+    lookup keyed by finding_id resolve arbitrarily, so this is a correctness
+    requirement of content-derived ids and not only a nicety.
+    """
+
+    def _finding(self, shas, anchors=("x",)):
+        from deepr.experts.record_identity import finding_thread_id
+        from deepr.experts.study_contracts import StudyFinding
+
+        return StudyFinding(
+            lens="failure",
+            axis="interrogation",
+            kind="fail_patterns",
+            finding_id=finding_thread_id(lens="failure", title="t", anchors=list(anchors)),
+            title="t",
+            anchors=list(anchors),
+            corpus_shas=list(shas),
+            grounded_anchor_count=1,
+        )
+
+    def test_sources_accumulate_across_sightings(self):
+        from deepr.experts.study import _absorb
+
+        findings = [self._finding(["sha-a"])]
+        _absorb(findings, [self._finding(["sha-b"])])
+
+        assert len(findings) == 1
+        assert findings[0].corpus_shas == ["sha-a", "sha-b"]
+
+    def test_a_repeated_source_is_not_counted_twice(self):
+        from deepr.experts.study import _absorb
+
+        findings = [self._finding(["sha-a"])]
+        _absorb(findings, [self._finding(["sha-a"])])
+
+        assert findings[0].corpus_shas == ["sha-a"]
+
+    def test_a_genuinely_different_finding_is_appended(self):
+        from deepr.experts.study import _absorb
+
+        findings = [self._finding(["sha-a"], anchors=("x",))]
+        _absorb(findings, [self._finding(["sha-b"], anchors=("completely other",))])
+
+        assert len(findings) == 2
+
+    def test_a_one_source_finding_becoming_cross_source_is_visible(self):
+        """The evidential claim genuinely changed, and that is the point."""
+        from deepr.experts.study import _absorb
+
+        findings = [self._finding(["sha-a"])]
+        assert len(set(findings[0].corpus_shas)) == 1
+
+        _absorb(findings, [self._finding(["sha-b"])])
+
+        assert len(set(findings[0].corpus_shas)) == 2
 
 
 class TestPrompt:
@@ -355,3 +441,135 @@ class TestRunStudy:
         coverage = result.axis_coverage()
         assert coverage["interrogation"] >= 2
         assert coverage["perspective"] >= 2
+
+
+class TestReentrancy:
+    """Recovery is structural, not conversational.
+
+    A study is tens of model calls over many minutes. Holding it all in memory
+    until the end means one interruption discards work that already succeeded
+    and was already paid for.
+    """
+
+    @pytest.mark.asyncio
+    async def test_the_pass_is_checkpointed_after_every_lens(self, corpus):
+        seen: list[int] = []
+        result = await run_study(
+            expert_name="E",
+            corpus=corpus,
+            completion=_completion_returning({"fail_patterns": [{"name": "x", "anchors": [CORPUS_TEXT[:60]]}]}),
+            lens_keys=["failure", "mechanism"],
+            checkpoint=lambda r: seen.append(len(r.outcomes)),
+        )
+        assert seen == [1, 2]
+        assert len(result.outcomes) == 2
+
+    @pytest.mark.asyncio
+    async def test_a_completed_lens_is_reused_rather_than_re_read(self, corpus):
+        calls: list[str] = []
+
+        async def _completion(prompt):
+            calls.append(prompt)
+            return json.dumps({"fail_patterns": [{"name": "x", "anchors": [CORPUS_TEXT[:60]]}]})
+
+        first = await run_study(expert_name="E", corpus=corpus, completion=_completion, lens_keys=["failure"])
+        after_first = len(calls)
+
+        second = await run_study(
+            expert_name="E",
+            corpus=corpus,
+            completion=_completion,
+            lens_keys=["failure", "mechanism"],
+            resume_from=first.outcomes,
+        )
+
+        assert len(calls) > after_first, "the new lens must still run"
+        assert len(second.outcomes) == 2
+        assert any("Resumed" in limit for limit in second.limitations)
+
+    @pytest.mark.asyncio
+    async def test_a_failed_lens_is_retried_rather_than_reused(self, corpus):
+        """Reusing a parse failure would make the interruption permanent."""
+        failed = LensOutcome(lens="failure", axis="interrogation", status="parse_failed")
+        calls: list[str] = []
+
+        async def _completion(prompt):
+            calls.append(prompt)
+            return json.dumps({"fail_patterns": [{"name": "x", "anchors": [CORPUS_TEXT[:60]]}]})
+
+        result = await run_study(
+            expert_name="E",
+            corpus=corpus,
+            completion=_completion,
+            lens_keys=["failure"],
+            resume_from=[failed],
+        )
+
+        assert calls, "a failed lens must be re-read"
+        assert result.outcomes[0].status == "ok"
+
+
+class TestResumeIsCorpusAware:
+    """An expert accumulates sources; resume must not outrun that.
+
+    Keyed on lens name alone, adding a source and re-running reuses findings
+    that never saw the new material - an expert that silently stops learning
+    from what it retained.
+    """
+
+    @pytest.mark.asyncio
+    async def test_a_lens_is_re_read_when_the_corpus_grew(self, corpus, tmp_path):
+        completion = _completion_returning({"fail_patterns": [{"name": "x", "anchors": [CORPUS_TEXT[:60]]}]})
+        first = await run_study(expert_name="E", corpus=corpus, completion=completion, lens_keys=["failure"])
+        assert first.outcomes[0].corpus_fingerprint
+
+        corpus.add("A third source arriving after the first pass.", origin_key="url:three.example")
+        second = await run_study(
+            expert_name="E",
+            corpus=corpus,
+            completion=completion,
+            lens_keys=["failure"],
+            resume_from=first.outcomes,
+        )
+
+        assert not any("Resumed" in limit for limit in second.limitations)
+        assert any("could not be shown to have read this corpus" in limit for limit in second.limitations)
+
+    @pytest.mark.asyncio
+    async def test_an_unchanged_corpus_still_resumes(self, corpus):
+        completion = _completion_returning({"fail_patterns": [{"name": "x", "anchors": [CORPUS_TEXT[:60]]}]})
+        first = await run_study(expert_name="E", corpus=corpus, completion=completion, lens_keys=["failure"])
+
+        second = await run_study(
+            expert_name="E",
+            corpus=corpus,
+            completion=completion,
+            lens_keys=["failure"],
+            resume_from=first.outcomes,
+        )
+
+        assert any("Resumed" in limit for limit in second.limitations)
+
+    @pytest.mark.asyncio
+    async def test_an_outcome_that_cannot_prove_what_it_read_is_re_read(self, corpus):
+        """The guard fails closed, and the earlier fail-open version was wrong.
+
+        It was written to spare legacy studies a re-read. Measured on a live
+        expert, every outcome on disk carried an empty fingerprint - so the
+        exception was the rule, and every lens was reused unconditionally
+        however much the corpus had grown. That is the exact failure the
+        fingerprint exists to prevent.
+
+        The trade is one re-read per lens, once, against an expert that
+        silently stops learning from everything it acquires afterwards.
+        """
+        legacy = LensOutcome(lens="failure", axis="interrogation", status="ok")
+        result = await run_study(
+            expert_name="E",
+            corpus=corpus,
+            completion=_completion_returning({"fail_patterns": []}),
+            lens_keys=["failure"],
+            resume_from=[legacy],
+        )
+        assert not any("Resumed" in limit for limit in result.limitations)
+        assert any("could not be shown to have read this corpus" in limit for limit in result.limitations)

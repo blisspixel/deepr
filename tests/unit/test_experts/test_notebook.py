@@ -1,7 +1,5 @@
 """Notebook render: readable, honest about gaps, byte-stable."""
 
-import pytest
-
 from deepr.experts.corpus_store import CorpusStore
 from deepr.experts.notebook import NOTEBOOK_MARKER, build_notebook
 from deepr.experts.study_contracts import LensOutcome, StudyFinding, StudyResult
@@ -116,7 +114,7 @@ class TestHonesty:
 class TestCoverage:
     def test_coverage_section_reports_what_was_skipped(self, tmp_path):
         store = CorpusStore("Notebook Expert", storage_dir=tmp_path / "corpus")
-        a, _ = store.add("alpha body text", origin_key="url:a.org", publisher="a.org")
+        _a, _ = store.add("alpha body text", origin_key="url:a.org", publisher="a.org")
         store.add("beta body text", origin_key="url:b.org", publisher="b.org")
 
         result = _result([_finding()])

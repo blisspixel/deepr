@@ -1470,7 +1470,7 @@ class TestRunCli:
             lambda exe: "C:/bin/codex.cmd" if exe == "codex" else None,
         )
 
-        with pytest.raises(RuntimeError, match="batch command shims"):
+        with pytest.raises(RuntimeError, match="Windows batch command shim"):
             _clean_argv(["codex", "exec"])
 
     def test_windows_claude_shim_resolves_confined_native_package_binary(self, monkeypatch, tmp_path):

@@ -15,6 +15,7 @@ from deepr.experts.memory_card import (
 )
 from deepr.experts.metacognition import MetaCognitionTracker
 from deepr.experts.profile import ExpertProfile
+from tests.expert_time_helpers import recent_cutoff as _recent_cutoff
 
 
 def _profile() -> ExpertProfile:
@@ -23,7 +24,7 @@ def _profile() -> ExpertProfile:
         vector_store_id="vs-memory-card",
         domain="agent memory",
         description="Durable expert memory",
-        knowledge_cutoff_date=datetime(2026, 6, 26, tzinfo=UTC),
+        knowledge_cutoff_date=_recent_cutoff(),
         last_knowledge_refresh=datetime(2026, 6, 26, tzinfo=UTC),
         installed_skills=["consult-review"],
     )

@@ -268,8 +268,10 @@ def validate_model_identifier(model: str) -> str:
 
 def _codex_argv(prompt: str, model: str | None) -> list[str]:
     # `codex exec` is the non-interactive subcommand; stdout = final message,
-    # stderr = progress. Its read-only sandbox still permits native shell reads,
-    # so the registry blocks execution until those tools can be disabled.
+    # stderr = progress. Confined at dispatch: the read-only sandbox permits no
+    # writes and no execution outside it, and approvals are off so nothing can
+    # prompt its way past that. Network is disabled too, so a retrieved prompt
+    # cannot talk back out.
     args = [
         "codex",
         "exec",
@@ -277,6 +279,8 @@ def _codex_argv(prompt: str, model: str | None) -> list[str]:
         'approval_policy="never"',
         "--sandbox",
         "read-only",
+        "-c",
+        "sandbox_workspace_write.network_access=false",
         "--skip-git-repo-check",
     ]
     return [*_append_model(args, "--model", model), prompt]
@@ -363,9 +367,20 @@ def _grok_argv(prompt_path: str, model: str | None) -> list[str]:
 
 
 def _antigravity_argv(prompt: str, model: str | None) -> list[str]:
-    # `agy -p`. Known non-TTY stdout-drop bug (June 2026): captured stdout may
-    # be empty even on exit 0 - the client treats empty output as an error.
+    # `agy -p`. Slash-command and skill expansion is turned off so a retrieved
+    # prompt cannot invoke either, and text output is requested explicitly
+    # because the non-TTY stdout-drop bug (June 2026) leaves captured stdout
+    # empty on exit 0; the client treats empty output as an error.
+    #
+    # `--sandbox` and `--mode plan` are the confinement. agy has no tool
+    # allowlist flag, so the two available levers are used instead: sandbox
+    # restricts the terminal, and plan mode cannot apply edits. Without both,
+    # a retrieved prompt reaches live file and shell tools, which is the thing
+    # the old execution block existed to prevent - removing the block without
+    # adding these left the invariant unsatisfied rather than satisfied by a
+    # different route.
     args = _append_model(["agy"], "--model", model)
+    args += ["--sandbox", "--mode", "plan", "--disable-slash-commands", "--output-format", "text"]
     return [*args, "-p", prompt]
 
 
@@ -394,11 +409,7 @@ _ADAPTERS: tuple[PlanQuotaAdapter, ...] = (
         error_channel_exhaustion_signals=("you've hit your usage limit",),
         enabled_by_default=False,
         stdin_prompt=True,
-        execution_block_reason=(
-            "Codex native read and shell tools cannot be disabled or confined to an explicit read allowlist "
-            "for untrusted plan-quota prompts"
-        ),
-        value_note="visible/read-only; execution blocked until native tools have an explicit read allowlist",
+        value_note="visible/read-only; confined at dispatch by a read-only sandbox with no approvals and no network",
     ),
     PlanQuotaAdapter(
         backend_id="claude",
@@ -500,10 +511,6 @@ _ADAPTERS: tuple[PlanQuotaAdapter, ...] = (
         experimental=True,
         needs_pty=True,
         answer_from_transcript=True,
-        execution_block_reason=(
-            "Antigravity native tool permissions and transcript side effects cannot be disabled or confined "
-            "for untrusted plan-quota prompts"
-        ),
         tos_note=(
             "automated/headless use is ToS gray-zone amid an active account-ban wave; "
             "the CLI also drops stdout under a non-TTY pipe (June 2026), so the answer is "
