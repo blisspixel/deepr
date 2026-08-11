@@ -11,8 +11,7 @@ try:
     from PIL import Image, ImageDraw, ImageFont
 except ImportError as exc:  # pragma: no cover - developer tooling only
     raise SystemExit(
-        "Pillow is required to render README CLI screenshots. "
-        "Install with: uv pip install pillow"
+        "Pillow is required to render README CLI screenshots. Install with: uv pip install pillow"
     ) from exc
 
 ROOT = Path(__file__).resolve().parents[1]
