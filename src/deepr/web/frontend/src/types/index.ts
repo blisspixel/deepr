@@ -186,6 +186,9 @@ export interface Expert {
   position_count?: number
   falsifiable_count?: number
   mind_changes?: number
+  studied_findings?: number
+  grounded_findings?: number
+  source_count?: number
 }
 
 export type ExpertLoopRunStatus = 'pending' | 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled'

@@ -185,19 +185,19 @@ export default function ExpertHub() {
           <p className="text-sm text-muted-foreground">No experts match "{debouncedSearch}".</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
           {filteredExperts.map((expert) => (
             <div
               key={expert.name}
               className="rounded-lg border bg-card hover:border-primary/20 hover:shadow-md transition-all cursor-pointer group"
               onClick={() => navigate(`/experts/${encodeURIComponent(expert.name)}`)}
             >
-              <div className="p-5 space-y-4">
+              <div className="p-4 space-y-3">
                 <div className="flex items-start gap-3">
                   <ExpertPortrait
                     name={expert.name}
                     portraitUrl={expert.portrait_url}
-                    className="w-10 h-10 rounded-lg shrink-0"
+                    className="w-11 h-11 rounded-md shrink-0"
                     iconClassName="w-5 h-5"
                   />
                   <div className="min-w-0">
@@ -214,39 +214,36 @@ export default function ExpertHub() {
                   </div>
                 </div>
 
-                {/* How it reads its subject, in its own words. This is the
-                    field that makes forty experts distinguishable; the
-                    doc/finding/gap triple it replaces was identical almost
-                    everywhere and mostly zero. */}
-                {expert.standpoint ? (
-                  <p className="text-sm text-foreground/80 line-clamp-3">{expert.standpoint}</p>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No standpoint yet. It can report what its sources say but has no reading of its own.
-                  </p>
-                )}
+                {/*
+                  A tile answers "expert on what, and how formed" - nothing
+                  more. The standpoint and what it is glad to be asked live on
+                  the expert's own page, one click away.
 
-                {expert.glad_to_be_asked_about?.[0] && (
-                  <div className="border-l-2 border-primary/40 pl-3">
-                    <p className="text-2xs uppercase text-muted-foreground">Glad to be asked</p>
-                    <p className="text-xs text-foreground/80 line-clamp-2 mt-0.5">
-                      {expert.glad_to_be_asked_about[0]}
-                    </p>
-                  </div>
-                )}
-
-                <div className="flex items-center gap-4 pt-3 border-t text-xs text-muted-foreground">
-                  <span>
+                  They were on the tile, and a quoted block with a coloured
+                  left rule repeated down a grid reads as decoration however
+                  good the sentence inside it is.
+                */}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  <span title="Positions held, each stating what would overturn it">
                     <span className="data-figure text-foreground">{expert.position_count ?? 0}</span> positions
                   </span>
-                  <span>
-                    <span className="data-figure text-foreground">{expert.falsifiable_count ?? 0}</span> falsifiable
+                  <span title="Findings from its own study of the retained corpus">
+                    <span className="data-figure text-foreground">
+                      {expert.studied_findings || expert.finding_count}
+                    </span>{' '}
+                    findings
                   </span>
-                  {(expert.mind_changes ?? 0) > 0 && (
-                    <span>
-                      <span className="data-figure text-foreground">{expert.mind_changes}</span> changed its mind
+                  {(expert.source_count ?? 0) > 0 && (
+                    <span title="Independent sources retained">
+                      <span className="data-figure text-foreground">{expert.source_count}</span> sources
                     </span>
                   )}
+                  {(expert.mind_changes ?? 0) > 0 && (
+                    <span title="Recorded changes of mind, with what moved each one">
+                      <span className="data-figure text-foreground">{expert.mind_changes}</span> shifts
+                    </span>
+                  )}
+                  {!expert.standpoint && <span className="text-warning">no standpoint yet</span>}
                 </div>
               </div>
             </div>

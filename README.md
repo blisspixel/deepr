@@ -26,8 +26,9 @@ subscription quota, with no automatic fallback to a paid API.
 
 <p align="center">
   <em>The optional web UI, captured from a real run against the local expert
-  fleet. Spend figures are a local sandbox and no metered work is dispatched.
-  Regenerated with <code>node src/deepr/web/frontend/screenshot-qa.mjs</code>
+  fleet. Position, finding and source counts are that fleet&#39;s real numbers;
+  spend is a local sandbox and no metered work is dispatched. Regenerated with
+  <code>QA_THEME=light node src/deepr/web/frontend/screenshot-qa.mjs</code>
   against <code>deepr web</code>.</em>
 </p>
 
