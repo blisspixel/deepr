@@ -7,6 +7,91 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.46.0] - 2026-08-11
+
+An expert stops being a list of retrieved claims and becomes something that
+holds a view, can say how it came to it, and can be examined on it.
+
+2.45.0 made an expert's measurements honest. This release gives it something to
+be honest about: a standpoint of its own, a record of every view it has held
+and what moved each one, and an examination that separates what it can answer
+from what nobody can.
+
+### Added
+
+- **A position ledger** (`deepr.experts.position_ledger`,
+  `hold/history.json`). Every view an expert has held, appended with what moved
+  it and the corpus it was formed over. Positions carry a durable identity
+  (`deepr.experts.record_identity`) so a falsifier registered today still
+  refers to the same question after a re-brief.
+
+  Identity alone was not enough. A brief with no memory of its own prior
+  questions rephrases them, and a content-derived id then matches nothing:
+  the same corpus briefed twice produced 7 different questions and restated 0
+  of 9. Showing the brief its prior positions fixed it - 7 revised, 0 dropped.
+  A falsifier clock started before that would have reset itself every run
+  while appearing to work.
+
+- **A viva** (`deepr.experts.viva`, `viva_session`, `deepr expert viva`).
+  Examiners holding other standpoints put questions to the expert. The valuable
+  output is not a score: it is the split between what is answerable from
+  material the expert has not read yet - a reading list - and what nobody
+  currently knows, which is a research frontier.
+
+- **A perspective graph** (`deepr.experts.perspective_graph`, `became/`). The
+  biography of a viewpoint: standpoints, shifts, encounters, commitments and
+  pursuits. Distinct from the evidence graph
+  (`deepr.experts.evidence_graph`), which answers "why do you think that";
+  this answers "who are you and what moved you". Having a history is what
+  distinguishes an experienced expert from a new one.
+
+- **A research practice** (`deepr.experts.research_practice`, `attend/`).
+  Pursuits an expert is chasing, watches on sources worth staying current with,
+  and standing interests. Watches are earned from evidence rather than ranked
+  by a model.
+
+- **A self-account** (`deepr.experts.expert_profile_card`, `self.json`). The
+  expert's own name, standpoint, preferred lens, open questions, known
+  weaknesses, voice, what it would be glad to be asked, and how it wants to be
+  depicted. Shifts are appended, never rewritten.
+
+- **A stage contract** (`deepr.experts.stage_contract`, `deepr expert status`).
+  Presence is not validity. A synthesis that timed out still wrote a brief
+  holding zero positions and exited 0; the next stage read it, found it
+  parseable, and produced a standpoint about the pipeline failing rather than
+  about the subject. Stages now report `failed` - the artifact exists and
+  carries nothing - separately from `blocked` and `ready`.
+
+- **Key quarantine** (`deepr.security.key_quarantine`). Metered API keys are
+  moved out of `os.environ` into a `DEEPR_QUARANTINED_` prefix at startup, so
+  no client library can pick one up. Checking for keys is a policy; removing
+  them is a property.
+
+- **Model provenance** (`deepr.experts.model_provenance`). Work is ranked by
+  the *weakest* model in its chain, and an unknown model never satisfies a
+  floor.
+
+- **Adaptive plan capacity** (`deepr.experts.backend_pool`,
+  `deepr.backends.quota_headroom`). An exhausted plan is dropped from rotation
+  for the rest of a run and never persisted, since quota returns. Capacity
+  exhaustion is recorded as itself: "the corpus had nothing to say" and "I
+  could not ask" are different outcomes and now survive into the artifact.
+
+- **Source discovery** (`deepr.experts.corpus_search`,
+  `deepr.experts.query_proposal`). An expert can find candidate sources rather
+  than waiting for someone to name URLs.
+
+- **`deepr expert migrate`**, which moves experts to the current layout. Dry
+  run by default; never overwrites; reports a non-empty directory instead of
+  deleting it.
+
+- **Experts choose how they are depicted** (`appearance` in `self.json`). The
+  portrait prompt described the subject an expert studies, with a hash-seeded
+  demographic rotation for variety, so two experts on one domain with opposite
+  standpoints rendered nearly identically - backwards for the thing a portrait
+  is for. An expert that chooses its own name now chooses its own face, and the
+  old prompt remains the fallback for an expert with no self-account.
+
 ### Changed
 
 - **Expert directories are named from the expert's point of view**
@@ -32,14 +117,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The migration reports a non-empty directory instead of deleting it, which is
   the only reason that was caught.
 
-### Added
+### Fixed
 
-- **Experts choose how they are depicted** (`appearance` in `self.json`). The
-  portrait prompt described the subject an expert studies, with a hash-seeded
-  demographic rotation for variety, so two experts on one domain with opposite
-  standpoints rendered nearly identically - backwards for the thing a portrait
-  is for. An expert that chooses its own name now chooses its own face, and the
-  old prompt remains the fallback for an expert with no self-account.
+- **Early stopping could skip a search arm.** `every_arm_tried` compared
+  against a hardcoded 5 while `ARMS` held 6, so a plan carrying all six could
+  satisfy the gate with one arm never run, and which arm got dropped was
+  whatever the interleave left last. Comparing against `len(ARMS)` would have
+  been worse: `plan_queries` emits no terminology queries for many subjects, so
+  the gate would never open and every query would run - the roughly
+  120-request burst that got three builds rate-limited. Coverage is now judged
+  against the arms the plan actually contains.
+
+- **Fleet health sorted backwards** against its own heading, so within a grade
+  the experts most in need of sources sat at the bottom of a list whose purpose
+  is showing what needs attention.
+
+- **Sixteen tests had an expiry date.** Freshness is `now - knowledge_cutoff`
+  checked against thresholds that are fractions of domain velocity, and those
+  tests hardcoded a fixed date - which pins a date, not a band. It read as
+  fresh when written, crossed into aging at 45 days of real elapsed time, and
+  four tests that index into `proposals[0]` began asserting against a
+  different proposal. Nothing in the suite had changed. Cutoffs are now
+  expressed as an age with the intended band named (`tests/expert_time_helpers`).
+
+- **Capacity exhaustion no longer silently degrades a study.** A run that could
+  not ask now says so instead of reporting a thin result.
 
 ## [2.45.0] - 2026-08-07
 

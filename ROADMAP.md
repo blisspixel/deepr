@@ -364,9 +364,19 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.45.0)
+## Current Status (v2.46.0)
 
-**Shipped in v2.45.0 (see docs/CHANGELOG.md):** the v2 expert stack is now
+**Shipped in v2.46.0 (see docs/CHANGELOG.md):** an expert now holds a view
+rather than a list of claims. A position ledger keeps every view it has held
+with what moved each one; a viva examines it and returns a reading list
+separated from a genuine frontier; a perspective graph records the biography of
+the standpoint. Expert directories are named from the expert's point of view -
+`self.json`, `noticed/`, `hold/`, `became/`, `attend/`, `met/` - and all 57
+experts migrated, verified field by field against a pre-migration backup with
+zero differences. Metered API keys are moved out of the process environment at
+startup rather than merely checked for.
+
+**Shipped in v2.45.0:** the v2 expert stack is now
 reachable from `consult`, an expert can source its own corpus, and several
 measurements that were quietly false have been corrected. Corpus independence
 is reported as effective origin count rather than document count; a
