@@ -383,6 +383,12 @@ is reported as effective origin count rather than document count; a
 hand-assembled three-page corpus scores 1.0 against a nominal 3, while an
 expert-sourced one reaches 18.5.
 
+**The web UI is now built on the v2 layer**, which it previously could not
+reach at all: twelve read-only routes expose the self-account, positions,
+evidence chain and retained source text, and the roster shows what an expert
+says it is rather than three counters that were the same everywhere. Portraits
+are rendered locally from each expert's own account of how it wants to look.
+
 **Where the honest gaps are.** The corpus accumulates; the understanding does
 not. Every `study` recomputes findings and every `brief` overwrites the last,
 so an expert that has existed for six months has read more than a new one but
@@ -435,7 +441,12 @@ what looks appetising.
    **Findings are still rebuilt wholesale.** Positions were the urgent half -
    they carry the falsifiers - but a finding ledger is the same shape and is
    what `study` needs before it can run unattended.
-3. **Freeze falsifiers as predictions.** Now unblocked, and next.
+3. **Freeze falsifiers as predictions.** Now unblocked, and next. This is also
+   the consolidation pass a sibling project already runs nightly - see
+   [what-ai-proxy-teaches-deepr.md](docs/design/what-ai-proxy-teaches-deepr.md),
+   which argues the safe version consolidates *questions and falsifier
+   outcomes* rather than conversation content, because a pass that promotes
+   what came up in chat would manufacture claims with no source behind them.
    [Why](docs/design/the-feedback-signal.md) A resolution criterion and a
    resolution date, immutable once written. This starts a clock that cannot be
    started retroactively, so it is worth doing before the mechanism that reads

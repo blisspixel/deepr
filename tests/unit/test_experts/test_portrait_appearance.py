@@ -13,15 +13,42 @@ from pathlib import Path
 
 import pytest
 
-from deepr.experts import expert_layout
-from deepr.experts.portraits import _build_prompt, self_chosen_appearance
+from deepr.experts import expert_layout, local_image_cli
+from deepr.experts.portraits import _build_prompt, detect_provider, portrait_cost, self_chosen_appearance
 
 
 class TestTheExpertChoosesItsOwnFace:
-    def test_a_written_appearance_is_the_whole_subject(self) -> None:
+    def test_a_written_appearance_is_the_scene(self) -> None:
         prompt = _build_prompt("tkg", "temporal knowledge graphs", None, appearance="A surveyor at dusk.")
-        assert prompt.startswith("A surveyor at dusk.")
+        assert "A surveyor at dusk." in prompt
         assert "temporal knowledge graphs" not in prompt
+
+    def test_who_is_in_the_scene_is_stated_rather_than_left_to_the_model(self) -> None:
+        """An appearance describes a situation and rarely says who is in it.
+
+        Left unstated, the model supplies its own default, and eight experts
+        whose scenes were a loading dock, a card index and a survey field all
+        came back as the same man in a blazer.
+        """
+        assert _build_prompt("tkg", None, None, appearance="A surveyor at dusk.").startswith("Portrait of a ")
+
+    def test_the_same_expert_looks_like_itself_every_time(self) -> None:
+        first = _build_prompt("tkg", None, None, appearance="A surveyor at dusk.")
+        assert first == _build_prompt("tkg", None, None, appearance="A surveyor at dusk.")
+
+    def test_different_experts_are_different_people(self) -> None:
+        subjects = {
+            _build_prompt(n, None, None, appearance="At a desk.").split(".")[0]
+            for n in ("tkg", "anti-slop", "evaluation", "provenance", "retrieval", "mycorrhizal")
+        }
+        assert len(subjects) > 1, "the roster would be one person repeated"
+
+    def test_the_style_does_not_force_a_boardroom(self) -> None:
+        """The style used to say "high-end SaaS avatar" and "ultra-professional",
+        which overwhelmed every scene an expert described."""
+        prompt = _build_prompt("tkg", None, None, appearance="A surveyor at dusk.")
+        assert "no suit or blazer" in prompt
+        assert "Not a studio headshot" in prompt
 
     def test_the_field_is_used_only_when_nothing_was_chosen(self) -> None:
         assert "temporal knowledge graphs" in _build_prompt("tkg", "temporal knowledge graphs", None)
@@ -76,3 +103,45 @@ class TestReadingTheChoiceFromDisk:
         directory.mkdir(parents=True)
         (directory / "profile_card.json").write_text('{"appearance": "A surveyor at dusk."}', encoding="utf-8")
         assert self_chosen_appearance("cairn") == "A surveyor at dusk."
+
+
+class TestTheLocalTransport:
+    """A $0 transport that must never be mistaken for a metered one.
+
+    The exemption from the metered gate rests on an operator attestation, not
+    on verification: Deepr passes no credential to the subprocess and makes no
+    network call of its own, but it cannot police what a program it does not
+    own does. The env var is the assertion.
+    """
+
+    def test_it_is_off_unless_the_operator_asks(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("DEEPR_LOCAL_IMAGE_CLI", raising=False)
+        assert local_image_cli.configured_cli() == ""
+        assert local_image_cli.is_available() is False
+
+    def test_only_known_tools_are_accepted(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A model-authored prompt reaches a command line, so the executable
+        must be one of a known few rather than anything the variable names."""
+        monkeypatch.setenv("DEEPR_LOCAL_IMAGE_CLI", "curl")
+        assert local_image_cli.configured_cli() == ""
+
+    def test_rendering_without_configuration_refuses(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("DEEPR_LOCAL_IMAGE_CLI", raising=False)
+        with pytest.raises(RuntimeError, match="not set to a supported"):
+            local_image_cli.render("anything")
+
+    def test_a_configured_tool_that_is_absent_refuses(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DEEPR_LOCAL_IMAGE_CLI", "artomate")
+        monkeypatch.setattr(local_image_cli.shutil, "which", lambda _name: None)
+        assert local_image_cli.is_available() is False
+        with pytest.raises(RuntimeError, match="not on PATH"):
+            local_image_cli.render("anything")
+
+    def test_it_is_selected_first_and_costs_nothing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(local_image_cli, "is_available", lambda: True)
+        assert detect_provider() == "local_cli"
+        assert portrait_cost("local_cli") == 0.0
+
+    def test_a_metered_provider_still_costs(self) -> None:
+        """The exemption must not have flattened the estimate for real APIs."""
+        assert portrait_cost("openai") > 0.0

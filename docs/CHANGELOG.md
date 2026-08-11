@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The v2 expert layer is reachable over HTTP** (`deepr.web.expert_v2_api`).
+  Twelve read-only routes: the self-account, positions, position history,
+  findings, perspective, practice, examination, evidence graph, corpus, stage
+  contract, fleet health, and the retained text of a source by sha - the one
+  that lets a claim reach the sentence it rests on. A source is addressed by
+  sha256 and nothing else, checked before it reaches a path. Absent is 404 and
+  empty is 200, because "this expert holds no views" is a claim about the
+  expert rather than about the pipeline.
+
+- **Experts choose how they are depicted, and it is rendered locally**
+  (`scripts/render_expert_portraits_local.py`). A portrait comes from the
+  expert's own `appearance` through a fully local model: $0, offline, no
+  metered image API. The prompt goes through `_build_prompt` rather than using
+  the bare appearance, because the appearance describes a situation - passing
+  it raw produced a correct, beautiful, unusable image with no face in it.
+
+- **Portraits render automatically, locally, for any new expert**
+  (`deepr.experts.local_image_cli`). `DEEPR_LOCAL_IMAGE_CLI=artomate` makes a
+  local image binary a first-class $0 provider, and `expert profile` renders a
+  portrait as soon as an expert has described how it wants to look. A local
+  binary is attestable in a way a loopback HTTP endpoint is not - there is no
+  endpoint to impersonate and no credential to forward - so it is exempt from
+  the metered gate that keeps `DEEPR_LOCAL_IMAGE_URL` blocked.
+
+- **Notes on a sibling project**
+  ([what-ai-proxy-teaches-deepr.md](design/what-ai-proxy-teaches-deepr.md)).
+  Two independently built systems converged on temporal validity and
+  provenance-per-claim; the thing the other has and Deepr does not is a
+  consolidation pass that learns from being used rather than only from reading.
+
+### Changed
+
+- **The web UI shows what an expert is.** It rendered every expert as
+  `document_count`, `finding_count`, `gap_count` and `$0.00 spent`, because
+  those were the only fields the API served, so forty-nine experts looked
+  identical. The roster now leads with the name the expert chose and its
+  subject, carries the study's real counts, and sorts so an expert that has
+  read something and landed somewhere comes first rather than alphabetically.
+  Tiles stay at that level deliberately; the standpoint is one click away,
+  where there is room to read it.
+
+- **Design tokens.** A 13px interface type scale, where 87% of the app was two
+  sizes with 76 arbitrary `[10px]`/`[11px]` escapes below them; dark surfaces
+  lighter than the background instead of identical to it; tabular figures
+  scoped to machine data rather than applied to prose. This is the Phase 2 pass
+  `docs/design/web-ui-refinement.md` scoped and never built.
+
+- **README screenshots are screenshots.** They were drawn rectangle by
+  rectangle with Pillow by `scripts/render_web_demo_screenshot.py` - wrong
+  accent, wrong font, no logo, stat values as Python string literals - and
+  presented as the product. Captured from a running instance now, in light
+  mode, against the real fleet.
+
 ### Fixed
 
 - **Position survival was stuck at 1** (`deepr.experts.position_ledger`).
@@ -42,6 +97,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   iterated `changed or attention`, which picks the first truthy list rather
   than the union, so an expert that only had conflicts was counted in the
   summary and never printed.
+
+- **A re-profile renamed an expert that already had a name**, and four experts
+  profiled in one pass converged on Marlow, Marlow, Marlow Chen and Marlowe. A
+  council in which two members share a name cannot attribute a disagreement,
+  and anything citing Keel or Cairn by name pointed at nobody after the pass
+  that replaced them. The profile prompt is now shown the names its colleagues
+  already answer to, and a name once answered to is kept.
+
+- **Every portrait was the same man in a blazer.** The subject clause only ran
+  in the fallback branch, so an expert that had described a scene - a loading
+  dock at dusk, a desk of card indexes, a field of survey stakes - left who was
+  standing in it unstated, and the model supplied its own default eight times
+  running. The house style made it worse by specifying "high-end SaaS avatar"
+  and "ultra-professional and trustworthy", which overwhelmed the scene
+  entirely. The style now carries framing, light and palette only, with
+  explicit negatives, and the subject is stated from a name-seeded rotation so
+  an expert looks like itself on every re-render.
+
+- **The roster reported 0 findings for every v2 expert**, because
+  `finding_count` is the v1 counter. Keel read "14 positions, 0 findings" - an
+  expert that appeared to have invented its views. It has 98.
 
 ### Removed
 
