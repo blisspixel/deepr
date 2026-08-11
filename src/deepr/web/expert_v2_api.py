@@ -191,9 +191,12 @@ def _register_evidence_route(app: Flask, resolve: Resolver, logger: logging.Logg
 
 
 def _corpus_records(index: Path) -> list[dict[str, Any]]:
-    """Every source line in the index, skipping the header and unreadable lines.
+    """Every line in the index that describes a source.
 
-    One malformed line must not hide the rest of the corpus.
+    Keyed on the presence of `sha256` rather than on position, so the schema
+    header is excluded by not being a source rather than by being first, and a
+    second header line or a reordered file changes nothing. One malformed line
+    is skipped rather than hiding the rest of the corpus.
     """
     records: list[dict[str, Any]] = []
     for line in index.read_text(encoding="utf-8").splitlines():
@@ -238,8 +241,16 @@ def _register_corpus_route(app: Flask, resolve: Resolver, logger: logging.Logger
 
 
 def _source_payload(store: Any, sha: str, decoded: str, text: str) -> dict[str, Any]:
-    """One retained source with the index metadata that describes it."""
-    entry = next((e for e in store.active_entries() if getattr(e, "sha256", "") == sha), None)
+    """One retained source with the index metadata that describes it.
+
+    Looked up in every entry rather than only the active ones. A superseded
+    source is still readable by sha - that is the point of addressing by
+    content - and reading it back with a blank title and publisher would make
+    the older of two versions look like an unattributed fragment.
+    """
+    entry = store.entries.get(sha) if isinstance(getattr(store, "entries", None), dict) else None
+    if entry is None:
+        entry = next((e for e in store.active_entries() if getattr(e, "sha256", "") == sha), None)
     return {
         "source": {
             "sha256": sha,
@@ -268,14 +279,18 @@ def _register_source_route(app: Flask, resolve: Resolver, logger: logging.Logger
         try:
             if not _SHA256_RE.match(sha or ""):
                 return jsonify({"error": "A source is addressed by its sha256."}), 400
-            decoded, _directory, err = resolve(name)
+            decoded, directory, err = resolve(name)
             if err:
                 return err
 
             from deepr.experts.corpus_store import CorpusStore
 
             try:
-                store = CorpusStore(decoded)
+                # Anchored to the directory resolve() returned. CorpusStore
+                # otherwise derives its own root through a binding this module
+                # deliberately routes around, so a patched or custom expert
+                # root would read the wrong corpus.
+                store = CorpusStore(decoded, storage_dir=directory / "corpus")
             except Exception:
                 return jsonify({"error": "This expert has retained no sources.", "expert": decoded}), 404
 
@@ -377,14 +392,25 @@ def _register_fleet_health_route(app: Flask, logger: logging.Logger) -> None:
 
 def register_expert_v2_api(
     app: Flask,
-    experts_dir: Path,
     decode_expert_name: Callable[[str], tuple[str, Any]],
     logger: logging.Logger,
 ) -> None:
     """Register the read-only v2 expert routes."""
 
     def resolve(name: str) -> tuple[str, Path, Any]:
-        """Decoded name and directory, or an error response to return."""
+        """Decoded name and directory, or an error response to return.
+
+        Resolved through `canonical_expert_dir`, which is the same function
+        every other reader of the v2 layout uses, so these routes and the CLI
+        can never disagree about where an expert lives.
+
+        Deliberately not parameterised on an `experts_dir`: this module took
+        one and ignored it, which is a signature that lies. The layout helpers
+        look the root up on the module at call time, so redirecting the fleet
+        is done by pointing `deepr.experts.paths` somewhere else and every
+        reader follows - rather than by threading a directory through each
+        route and hoping they all use it.
+        """
         decoded, err = decode_expert_name(name)
         if err:
             return "", Path(), err

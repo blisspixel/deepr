@@ -62,4 +62,4 @@ def register_expert_read_apis(
     """Register read-only expert state API routes."""
     register_expert_loop_status_api(app, experts_dir, decode_expert_name, safe_int, max_query_limit, logger)
     register_expert_handoff_api(app, experts_dir, decode_expert_name, safe_int, max_query_limit, logger)
-    register_expert_v2_api(app, experts_dir, decode_expert_name, logger)
+    register_expert_v2_api(app, decode_expert_name, logger)
