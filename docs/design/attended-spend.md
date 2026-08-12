@@ -1,6 +1,6 @@
 # Attended spend: being usable and having no surprise bills
 
-Status: proposed, 2026-08-12. Not built.
+Status: built, 2026-08-12. `deepr budget allow` / `deepr budget revoke`.
 
 ## The problem, stated plainly
 
@@ -91,6 +91,14 @@ reservation and settlement path, so `audit_spend_integrity` and orphaned-spend
 detection keep working exactly as they do now. A grant is authority, not
 accounting.
 
+**One switch, not two.** A live grant also releases the metered keys that
+`key_quarantine` moves out of the environment at startup, for exactly the
+grant's lifetime. Without this an operator who authorized $2 would find every
+call failing on a missing key and would reach for a global
+`DEEPR_ALLOW_METERED_KEYS=1` - a permanent, unexpiring hole opened to solve a
+bounded, expiring problem. When the grant expires or is revoked, the next
+process quarantines the keys again.
+
 **Unattended work cannot use one.** Anything reached through MCP, a schedule,
 or a loop runner is refused regardless of an active grant. That path keeps
 requiring provider evidence, because nobody is watching it. This is the whole
@@ -98,6 +106,23 @@ point of the split and it must be enforced at the call site, not by convention.
 
 **Every grant is recorded.** Issued, consumed, expired, and by whom, in the
 append-only ledger. "How did that get spent" must remain answerable.
+
+## What shipped
+
+`deepr budget allow --amount 2.00 --minutes 30` prints current exposure and
+unresolved holds, requires the amount typed back, and writes a grant bound to
+the current cost-state id. `deepr budget revoke` ends it immediately.
+
+Verified end to end on a frozen install: `frozen=True` before, `frozen=False`
+with `monthly=$2.00` during - the grant's ceiling, not the configured monthly
+limit - still frozen for a provider the grant was not scoped to, and
+`frozen=True` again after revoking. Keys follow the same lifetime: `doctor`
+reports the OpenAI key "Not configured" with no grant and "Configured" with
+one.
+
+Not yet done: the unattended refusal is specified above but not enforced at the
+MCP and scheduler call sites. Until it is, a grant is only as attended as the
+operator who issued it, which is why grants are minutes rather than hours.
 
 ## What this does not do
 
