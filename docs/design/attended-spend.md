@@ -38,10 +38,20 @@ Provider-side cryptographic proof is the right bar for the right column. It is
 absurd for the left one, where the honest control is "you said $2, you typed
 $2 to confirm, and the ledger stops you at $2."
 
-The codebase already has the left-hand control. `confirm_metered_cost` appears
-in 54 places: an estimate is shown and the operator approves that specific
-spend. It is simply unreachable, because budget authority sits above it and
-fails closed for everyone.
+The codebase already has most of the left-hand control. Metered commands take
+an explicit consent pair - `allow_metered_api` plus `confirm_metered_cost` -
+declared as `--confirm-metered-cost` on 15 commands, and the CLI separately
+uses interactive confirmation in about 50 places. So an operator saying "yes,
+this specific spend, knowingly" is already expressible.
+
+It is unreachable. Budget authority sits above consent and fails closed for
+everyone, so the acknowledgement never gets a chance to mean anything.
+
+Note what this control is and is not: a consent acknowledgement is a claim by
+the caller, not proof a human saw a number. That is fine for the attended case
+and exactly why it is not enough for the unattended one - a loop can pass the
+same flag. The grant below is what supplies the ceiling and the expiry that
+a boolean cannot.
 
 ## What to build
 
@@ -71,9 +81,10 @@ reduced authorization is its own surprise.
 standing permission, which is precisely how an attended control decays into an
 unattended one.
 
-**The per-call prompt still runs.** A grant raises the ceiling; it does not
-skip `confirm_metered_cost`. Two independent things must both agree before
-money moves.
+**Per-call consent still applies.** A grant raises the ceiling; it does not
+imply `confirm_metered_cost` for any call. Two independent things must agree
+before money moves: the operator authorised this much, and this specific call
+was acknowledged.
 
 **Settlement is unchanged.** Grants are consumed by the existing durable
 reservation and settlement path, so `audit_spend_integrity` and orphaned-spend

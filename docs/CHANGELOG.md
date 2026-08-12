@@ -39,7 +39,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   account-control evidence and no adapter produces it, so the operator can
   neither spend nor learn why not. The design separates attended spend - a
   person, a small ceiling, a typed confirmation - from unattended spend, which
-  keeps requiring provider proof. Now roadmap item 0.
+  keeps requiring provider proof, and notes that the existing
+  `confirm_metered_cost` consent flag is a claim by the caller rather than
+  evidence a human saw a number. Now roadmap item 0.
 
 - **Notes on a sibling project**
   ([what-ai-proxy-teaches-deepr.md](design/what-ai-proxy-teaches-deepr.md)).

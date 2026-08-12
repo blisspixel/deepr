@@ -431,11 +431,12 @@ what looks appetising.
    adapter produces it. The operator can neither spend nor find out why not.
 
    The mistake is one control for two risk profiles. A person typing a command
-   with a $2 ceiling is safe when they set a cap and answer a prompt - and the
-   prompt already exists, in 54 call sites, unreachable because budget
-   authority fails closed above it. Cryptographic proof from the provider is
-   the right bar for an agent loop spending unattended for hours, not for the
-   attended case.
+   with a $2 ceiling is safe when they set a cap and knowingly acknowledge the
+   spend - and that acknowledgement already exists, as the
+   `allow_metered_api` / `confirm_metered_cost` consent pair on 15 commands. It
+   is unreachable, because budget authority fails closed above it.
+   Cryptographic proof from the provider is the right bar for an agent loop
+   spending unattended for hours, not for the attended case.
 
    Add an attended grant between "frozen" and "provider-verified": a bounded,
    expiring, typed-confirmation authorization that raises the ceiling without
