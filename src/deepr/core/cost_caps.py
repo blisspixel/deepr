@@ -113,6 +113,10 @@ class OperatorBudget:
     authorization_hard_monthly_limit: float = 0.0
     authorization_recovered_freeze_id: str = ""
     authorization_recovered_frozen_at: datetime | None = None
+    attended_grant_id: str = ""
+    """Set when authority came from an attended grant rather than provider
+    evidence, so every surface can say which of the two allowed the spend."""
+    attended_grant_expires_at: str = ""
     authorization_cost_state_id: str = ""
     _verified_marker: object | None = field(default=None, repr=False, compare=False)
 
@@ -217,6 +221,50 @@ def _active_cost_state_id() -> str:
         raise SpendCapConfigurationError("cost-state identity is unavailable") from exc
 
 
+def _with_attended_grant(operator: OperatorBudget, *, provider: str | None) -> OperatorBudget:
+    """Let a live attended grant authorize spend up to its own ceiling.
+
+    The only way a frozen budget becomes usable without provider-signed
+    evidence, and it stays narrow: the authority is the grant's amount, not the
+    operator's monthly limit, so a $2 grant against a $0 configured budget
+    authorizes $2 and nothing else.
+
+    Fails closed on every uncertainty. A grant that cannot be read, cannot be
+    bound to the current cost state, or is for another provider leaves the
+    freeze exactly as it was.
+    """
+    from deepr.core.attended_grant import active_grant
+
+    try:
+        cost_state_id = _active_cost_state_id()
+    except Exception:
+        return operator
+
+    try:
+        grant = active_grant(cost_state_id=cost_state_id)
+    except Exception:
+        return operator
+    if grant is None:
+        return operator
+
+    requested = (provider or _PAID_API_PROVIDER.get() or "").strip().lower()
+    if grant.provider and grant.provider != requested:
+        # Including when the requested provider is unknown. A grant scoped to
+        # one provider must not authorize a call that cannot say which provider
+        # it is for; "unknown" is not "the one you meant".
+        return operator
+
+    return replace(
+        operator,
+        monthly_limit=grant.amount_usd,
+        frozen=False,
+        freeze_reason="",
+        freeze_kind="",
+        attended_grant_id=grant.grant_id,
+        attended_grant_expires_at=grant.expires_at,
+    )
+
+
 def read_operator_budget(path: Path | None = None, *, provider: str | None = None) -> OperatorBudget:
     """Strictly read the operator's persisted monthly authority.
 
@@ -238,7 +286,7 @@ def read_operator_budget(path: Path | None = None, *, provider: str | None = Non
         raise SpendCapConfigurationError(f"operator budget is unreadable: {target}") from exc
     operator = parse_operator_budget(document)
     if document.get("paid_api_frozen", False) is True or operator.monthly_limit <= 0:
-        return operator
+        return _with_attended_grant(operator, provider=provider)
     reference = _authorization_fields(document)
     requested_provider = provider or _PAID_API_PROVIDER.get()
     if requested_provider is None:

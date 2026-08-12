@@ -377,9 +377,26 @@ def main():
     # looks like removing it - measured here, three keys survived that edit
     # because Windows was their real source. Not being set beats being checked:
     # a guard has to be reached, an absent variable cannot be read at all.
-    from deepr.security.key_quarantine import quarantine_metered_keys
+    from deepr.security.key_quarantine import quarantine_metered_keys, release_quarantined_keys
 
     quarantine_metered_keys()
+    # One switch, not two. A live attended grant restores the keys it needs for
+    # exactly as long as it lasts; when it expires or is revoked, the next
+    # process quarantines them again. Failing closed here matters more than
+    # convenience: any error leaves the keys quarantined.
+    try:
+        from deepr.core.attended_grant import active_grant
+        from deepr.observability.cost_ledger import current_cost_state_id
+
+        if active_grant(cost_state_id=current_cost_state_id()) is not None:
+            release_quarantined_keys()
+    except Exception as exc:
+        # Logged rather than swallowed: keys staying quarantined is the safe
+        # outcome, but an operator whose grant silently did nothing needs to
+        # be able to find out why rather than debug a missing key.
+        import logging
+
+        logging.getLogger(__name__).debug("Attended grant not applied to key quarantine: %s", exc)
 
     if "NO_COLOR" in os.environ:
         apply_no_color()

@@ -9,7 +9,7 @@ from typing import Any
 
 import click
 
-from deepr.cli.colors import print_header
+from deepr.cli.colors import print_header, print_success
 from deepr.core.cost_caps import (
     OperatorBudget,
     _with_verified_authorization,
@@ -556,3 +556,89 @@ def safety():
         console.print(f"[bold]Active Sessions:[/bold] {summary['active_sessions']}")
 
     console.print("[dim]These limits protect against runaway costs from autonomous agents.[/dim]")
+
+
+@budget.command("allow")
+@click.option("--amount", type=float, required=True, help="Hard ceiling in USD for this grant.")
+@click.option("--minutes", type=int, default=30, show_default=True, help="How long the grant lives.")
+@click.option("--reason", default="", help="What this spend is for, recorded with the grant.")
+@click.option("--provider", default="", help="Narrow the grant to one provider.")
+def allow(amount: float, minutes: int, reason: str, provider: str) -> None:
+    """Authorize bounded paid spend that you are present for.
+
+    The middle authority between frozen and provider-verified. A person naming
+    a small ceiling and confirming it is proportionate protection for work they
+    are watching; provider-signed evidence remains required for anything
+    unattended, which spends for hours with nobody looking.
+
+    The grant expires, refuses amounts above the attended ceiling rather than
+    clamping them, and does not imply per-call consent - `--confirm-metered-cost`
+    still applies to each call underneath it.
+    """
+    from deepr.core.attended_grant import (
+        MAX_GRANT_USD,
+        AttendedGrantError,
+        active_grant,
+        issue_grant,
+        save_grant,
+    )
+    from deepr.observability.cost_ledger import current_cost_state_id
+
+    print_header("Attended spend grant")
+
+    try:
+        cost_state_id = current_cost_state_id()
+    except Exception as exc:
+        raise click.ClickException(f"Canonical money state is unreadable; no grant issued: {exc}") from exc
+
+    # Show what is already true before asking for more authority. An operator
+    # approving a ceiling should see the exposure it sits on top of.
+    try:
+        from deepr.web.spend_truth import cost_exposure_snapshot
+
+        snapshot = cost_exposure_snapshot()
+        click.echo(f"  Month exposure    : ${float(snapshot.get('exposure', {}).get('monthly', 0.0)):.2f}")
+        click.echo(f"  Unresolved holds  : {snapshot.get('unresolved_holds', 0)}")
+    except Exception:
+        click.echo("  Month exposure    : unreadable")
+
+    if existing := active_grant(cost_state_id=cost_state_id):
+        click.echo(f"  Existing grant    : ${existing.amount_usd:.2f}, expires {existing.expires_at}")
+        click.echo("  Issuing a new grant replaces it.")
+
+    click.echo(f"\n  Requested ceiling : ${amount:.2f} for {minutes} minute(s)")
+    click.echo(f"  Attended maximum  : ${MAX_GRANT_USD:.2f}")
+    click.echo("\nThis authorizes real money up to that ceiling until it expires.")
+
+    # Typed back rather than a yes/no flag: the confirmation is the authority,
+    # and typing the number is what makes a mistyped amount visible.
+    typed = click.prompt(f"Type {amount:.2f} to confirm", default="", show_default=False)
+    if typed.strip() not in {f"{amount:.2f}", str(amount)}:
+        raise click.ClickException("Amount not confirmed; no grant issued.")
+
+    try:
+        grant = issue_grant(
+            amount_usd=amount,
+            minutes=minutes,
+            cost_state_id=cost_state_id,
+            reason=reason,
+            provider=provider,
+        )
+    except AttendedGrantError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    save_grant(grant)
+    print_success(f"Granted ${grant.amount_usd:.2f} until {grant.expires_at} (id {grant.grant_id[:12]})")
+    click.echo("  Revoke early with: deepr budget revoke")
+
+
+@budget.command("revoke")
+def revoke() -> None:
+    """Revoke the attended spend grant immediately."""
+    from deepr.core.attended_grant import revoke_grant
+
+    print_header("Revoke attended grant")
+    if revoke_grant():
+        print_success("Grant revoked. Paid dispatch is frozen again.")
+    else:
+        click.echo("No attended grant was active.")

@@ -75,6 +75,30 @@ def _opted_out(env: MutableMapping[str, str]) -> bool:
     return str(env.get(OPT_OUT_VAR, "")).strip().lower() in _TRUTHY
 
 
+def release_quarantined_keys(env: MutableMapping[str, str] | None = None) -> list[str]:
+    """Put quarantined keys back, for the lifetime of an attended grant.
+
+    The counterpart to quarantining, and the reason a grant is one switch
+    rather than two. Without this, an operator who authorized $2 would find
+    every call failing for a missing key and would reach for a global
+    `DEEPR_ALLOW_METERED_KEYS=1` - a permanent, unexpiring hole opened to solve
+    a bounded, expiring problem.
+
+    Returns the names restored.
+    """
+    target = os.environ if env is None else env
+    restored: list[str] = []
+    for name in METERED_KEY_NAMES:
+        quarantined = QUARANTINE_PREFIX + name
+        value = target.get(quarantined)
+        if not value or not value.strip():
+            continue
+        target[name] = value
+        del target[quarantined]
+        restored.append(name)
+    return restored
+
+
 def quarantine_metered_keys(env: MutableMapping[str, str] | None = None) -> list[str]:
     """Move metered keys out of the environment. Returns the names moved.
 

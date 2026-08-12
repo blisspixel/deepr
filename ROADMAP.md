@@ -424,7 +424,7 @@ naming: a module with tests is not a shipped feature.
 calendar, and the sequence is derived from what blocks what rather than from
 what looks appetising.
 
-0. **Make paid dispatch usable without making it surprising.** First, because
+0. ~~**Make paid dispatch usable without making it surprising.**~~ **Mostly done** - `budget allow` / `budget revoke` ship the attended grant; enforcing the unattended refusal at the MCP and scheduler call sites remains. First, because
    it is the one item where the current state is not "unfinished" but "broken
    in a way that looks finished". Paid dispatch cannot be enabled by anyone:
    `budget unfreeze` requires provider-signed account-control evidence, and no
