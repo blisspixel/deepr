@@ -490,9 +490,8 @@ what looks appetising.
 
 0c. **Ship Deepr as an Agent Plugin.** [agent-plugins.org](https://agent-plugins.org)
    is a vendor-neutral standard for packaging Agent Skills and MCP servers into
-   a portable directory, and Deepr already has both halves: a 36-tool MCP
-   server and seven skills, with `SKILL.md` export machinery already in the
-   packager.
+   a portable directory, and Deepr already has both halves: an MCP server and a set of skills, with `SKILL.md` export machinery already
+   in the packager.
 
    What is missing is a manifest layer, not capability: `plugin.json`,
    `mcp.json` describing the stdio server, and a directory-shape adapter from
