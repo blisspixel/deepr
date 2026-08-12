@@ -33,6 +33,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   endpoint to impersonate and no credential to forward - so it is exempt from
   the metered gate that keeps `DEEPR_LOCAL_IMAGE_URL` blocked.
 
+- **A plan for making paid dispatch usable**
+  ([attended-spend.md](design/attended-spend.md)). Paid dispatch cannot be
+  enabled by anyone today: `budget unfreeze` requires provider-signed
+  account-control evidence and no adapter produces it, so the operator can
+  neither spend nor learn why not. The design separates attended spend - a
+  person, a small ceiling, a typed confirmation - from unattended spend, which
+  keeps requiring provider proof. Now roadmap item 0.
+
 - **Notes on a sibling project**
   ([what-ai-proxy-teaches-deepr.md](design/what-ai-proxy-teaches-deepr.md)).
   Two independently built systems converged on temporal validity and

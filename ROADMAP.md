@@ -424,6 +424,30 @@ naming: a module with tests is not a shipped feature.
 calendar, and the sequence is derived from what blocks what rather than from
 what looks appetising.
 
+0. **Make paid dispatch usable without making it surprising.** First, because
+   it is the one item where the current state is not "unfinished" but "broken
+   in a way that looks finished". Paid dispatch cannot be enabled by anyone:
+   `budget unfreeze` requires provider-signed account-control evidence, and no
+   adapter produces it. The operator can neither spend nor find out why not.
+
+   The mistake is one control for two risk profiles. A person typing a command
+   with a $2 ceiling is safe when they set a cap and answer a prompt - and the
+   prompt already exists, in 54 call sites, unreachable because budget
+   authority fails closed above it. Cryptographic proof from the provider is
+   the right bar for an agent loop spending unattended for hours, not for the
+   attended case.
+
+   Add an attended grant between "frozen" and "provider-verified": a bounded,
+   expiring, typed-confirmation authorization that raises the ceiling without
+   skipping the per-call prompt, is refused to anything unattended, and settles
+   through the existing ledger. Keep the strict path for unattended work.
+
+   [Design](docs/design/attended-spend.md). The argument for doing it before
+   the adapter is that a control which cannot be satisfied is not a control, it
+   is a wall - and a wall gets routed around by exporting a key and calling the
+   provider directly, outside the ledger, where none of the accounting this
+   project has built can see it.
+
 1. ~~**Durable identity for positions.**~~ **Done.** A position is keyed on its
    question and keeps that identity across a re-brief.
 2. ~~**Stop destroying judgement on rebuild.**~~ **Done for positions.**
