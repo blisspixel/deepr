@@ -143,3 +143,57 @@ class TestItSurvivesTheRoundTrip:
         assert restored.reason == "validate the paid path"
         assert restored.provider == "openai"
         assert restored.schema_version == GRANT_SCHEMA_VERSION
+
+
+class TestTheFailOpenHoles:
+    """Five ways a grant could have authorized spend it should not have.
+
+    Every one was a fail-open: the check existed but let the bad case through,
+    which on the money path is worse than no check, because the presence of the
+    check is what stops anyone looking again.
+    """
+
+    def test_a_grant_with_no_cost_state_binding_authorizes_nothing(self, grant_path: Path) -> None:
+        """Empty was treated as "matches any", so stripping the binding from a
+        grant file made it valid against every ledger."""
+        payload = _issue().to_dict()
+        payload["cost_state_id"] = ""
+        grant_path.write_text(json.dumps(payload), encoding="utf-8")
+        assert active_grant(cost_state_id="cs1", path=grant_path) is None
+
+    def test_an_unknown_current_cost_state_authorizes_nothing(self, grant_path: Path) -> None:
+        save_grant(_issue(), grant_path)
+        assert active_grant(cost_state_id="", path=grant_path) is None
+
+    def test_a_nan_amount_is_refused_at_issue(self) -> None:
+        """NaN compares False against both < and >, so it passed the floor and
+        the ceiling and would have been written as an authorized amount."""
+        with pytest.raises(AttendedGrantError, match="finite"):
+            _issue(amount_usd=float("nan"))
+
+    @pytest.mark.parametrize("amount", [float("inf"), float("-inf")])
+    def test_an_infinite_amount_is_refused_at_issue(self, amount: float) -> None:
+        with pytest.raises(AttendedGrantError, match="finite"):
+            _issue(amount_usd=amount)
+
+    def test_a_nan_amount_on_disk_authorizes_nothing(self, grant_path: Path) -> None:
+        payload = _issue().to_dict()
+        payload["amount_usd"] = float("nan")
+        grant_path.write_text(json.dumps(payload), encoding="utf-8")
+        assert active_grant(cost_state_id="cs1", path=grant_path) is None
+
+    def test_an_amount_above_the_ceiling_on_disk_authorizes_nothing(self, grant_path: Path) -> None:
+        """Editing the file must not get past what issuing refuses."""
+        payload = _issue().to_dict()
+        payload["amount_usd"] = 10_000.0
+        grant_path.write_text(json.dumps(payload), encoding="utf-8")
+        assert active_grant(cost_state_id="cs1", path=grant_path) is None
+
+    def test_an_unparseable_amount_reads_as_no_grant(self, grant_path: Path) -> None:
+        """`from_dict` raised on a non-numeric amount, which would have bubbled
+        out of a function documented as returning None."""
+        payload = _issue().to_dict()
+        payload["amount_usd"] = "two dollars"
+        grant_path.write_text(json.dumps(payload), encoding="utf-8")
+        assert load_grant(grant_path) is None
+        assert active_grant(cost_state_id="cs1", path=grant_path) is None

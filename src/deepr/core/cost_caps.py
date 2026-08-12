@@ -248,7 +248,10 @@ def _with_attended_grant(operator: OperatorBudget, *, provider: str | None) -> O
         return operator
 
     requested = (provider or _PAID_API_PROVIDER.get() or "").strip().lower()
-    if grant.provider and requested and grant.provider != requested:
+    if grant.provider and grant.provider != requested:
+        # Including when the requested provider is unknown. A grant scoped to
+        # one provider must not authorize a call that cannot say which provider
+        # it is for; "unknown" is not "the one you meant".
         return operator
 
     return replace(

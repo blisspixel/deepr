@@ -43,6 +43,7 @@ much, and this specific call was acknowledged.
 from __future__ import annotations
 
 import json
+import math
 import uuid
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
@@ -114,9 +115,14 @@ class AttendedGrant:
         """
         if self.schema_version != GRANT_SCHEMA_VERSION:
             return False
-        if not self.grant_id or self.amount_usd < _MIN_GRANT_USD:
+        if not self.grant_id:
             return False
-        if self.cost_state_id and self.cost_state_id != cost_state_id:
+        if not math.isfinite(self.amount_usd) or not _MIN_GRANT_USD <= self.amount_usd <= MAX_GRANT_USD:
+            return False
+        # An absent binding is not a wildcard. Treating empty as "matches any"
+        # meant a grant with its cost_state_id stripped would authorize spend
+        # against any ledger, which is the opposite of what the binding is for.
+        if not self.cost_state_id or not cost_state_id or self.cost_state_id != cost_state_id:
             return False
         return self.remaining_seconds(now=now) > 0
 
@@ -158,6 +164,10 @@ def issue_grant(
     """
     if not cost_state_id:
         raise AttendedGrantError("a grant must be bound to a known cost state")
+    if not math.isfinite(amount_usd):
+        # NaN compares False against both < and >, so it would pass the floor
+        # and the ceiling and be written as an authorized amount.
+        raise AttendedGrantError("a grant amount must be a finite number of dollars")
     if amount_usd < _MIN_GRANT_USD:
         raise AttendedGrantError(f"a grant must authorize at least ${_MIN_GRANT_USD:.2f}")
     if amount_usd > MAX_GRANT_USD:
@@ -205,7 +215,12 @@ def load_grant(path: Path | None = None) -> AttendedGrant | None:
         return None
     if not isinstance(data, dict):
         return None
-    return AttendedGrant.from_dict(data)
+    try:
+        return AttendedGrant.from_dict(data)
+    except (TypeError, ValueError):
+        # A grant whose fields will not parse is no more usable than a missing
+        # one, and raising here would break fail-closed for every caller.
+        return None
 
 
 def revoke_grant(path: Path | None = None) -> bool:
