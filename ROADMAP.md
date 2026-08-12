@@ -449,6 +449,62 @@ what looks appetising.
    provider directly, outside the ledger, where none of the accounting this
    project has built can see it.
 
+0b. **Finish attended spend, then prove it with real money.** The grant ships
+   and draws down correctly - a $2 grant caps per-job, daily, weekly and
+   monthly at $2, and revoking restores the freeze - but three things remain
+   before it can be called done.
+
+   **Measure the draw-down from issue time, not month-to-date.** Monthly
+   exposure is cumulative for the calendar month, so a $2 grant issued after
+   $10 of prior spend sets the monthly cap to $2 against $10 already spent and
+   blocks immediately. Conservative rather than wrong, and still a surprise. A
+   grant should draw down against itself.
+
+   **Enforce the unattended refusal.** The design says a grant must be refused
+   to MCP calls, schedules and loop runners, because those are the profile that
+   needs provider-verified authority. It is specified and not yet wired at
+   those call sites, which is why grants are currently minutes rather than
+   hours and capped at $25.
+
+   **Fix the reporting disagreement, first.** A live grant unfreezes the
+   authority path - `read_operator_budget()` returns `frozen=False` and
+   `resolve_spend_caps()` returns the grant's ceiling - while the web cost
+   summary continues to report `paid_api_frozen: true` and a $0 monthly cap,
+   in a fresh process, from a function that calls the same
+   `read_operator_budget()`. Found while trying to screenshot an authorized
+   state for the README.
+
+   The disagreement leans safe - the display is more conservative than the
+   authority - but it is the wrong kind of safe. A cost display that can be
+   wrong about whether spending is possible is a display nobody should trust,
+   and this project's whole argument about money is that the numbers are true.
+   Diagnose before spending anything real through the path.
+
+   **Spend the $2.** Nothing has actually been dispatched through the paid path
+   since the freeze, so "it works" is still a claim about code rather than an
+   observation. Issue a grant, improve one expert - the evaluation expert is
+   the honest choice, since this roadmap's own biggest gap is that "better"
+   remains an opinion - and confirm the ledger caught every cent.
+
+   [Design](docs/design/attended-spend.md).
+
+0c. **Ship Deepr as an Agent Plugin.** [agent-plugins.org](https://agent-plugins.org)
+   is a vendor-neutral standard for packaging Agent Skills and MCP servers into
+   a portable directory, and Deepr already has both halves: a 36-tool MCP
+   server and seven skills, with `SKILL.md` export machinery already in the
+   packager.
+
+   What is missing is a manifest layer, not capability: `plugin.json`,
+   `mcp.json` describing the stdio server, and a directory-shape adapter from
+   the current `skill.yaml` + `prompt.md` + `tools/` to the spec's `SKILL.md` +
+   `scripts/` + `references/`. Validate against the canonical schemas rather
+   than by eye.
+
+   Worth doing because it makes Deepr installable in any compliant client
+   instead of only where someone hand-wires an MCP config, and
+   [where-deepr-sits.md](docs/design/where-deepr-sits.md) already argues the
+   MCP surface is the product surface.
+
 1. ~~**Durable identity for positions.**~~ **Done.** A position is keyed on its
    question and keeps that identity across a re-brief.
 2. ~~**Stop destroying judgement on rebuild.**~~ **Done for positions.**
