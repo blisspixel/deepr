@@ -112,6 +112,12 @@ verified prepaid-plan work remains $0 at the margin.
 
 ### Fixed
 
+- **Attended credential identities use a keyed fingerprint.** The exact-client
+  binding now derives its in-process credential identity with HMAC-SHA-256 and
+  an ephemeral authority key instead of applying raw SHA-256 to the API key.
+  Exact change detection remains intact without retaining the key or its raw
+  digest in the attestation.
+
 - **`costs doctor` now understands paid expert-absorb artifacts.** The live
   attended run settled all six calls correctly but the diagnostic labeled the
   $0.011031 unexplained because expert absorption persists expert state rather

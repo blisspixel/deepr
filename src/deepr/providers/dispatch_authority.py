@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import os
 import re
+import secrets
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -22,6 +24,7 @@ class PaidDispatchAuthorityError(RuntimeError):
 _GRANT_SEAL = object()
 _ATTENDED_CLIENT_SEAL = object()
 _ATTENDED_CLIENT_ATTRIBUTE = "_deepr_attended_paid_client_attestation"
+_ATTENDED_CREDENTIAL_HMAC_KEY = secrets.token_bytes(32)
 
 
 @dataclass
@@ -259,7 +262,11 @@ def _paid_client_credential_fingerprint(client: object) -> str:
     credential = getattr(client, "api_key", None)
     if not isinstance(credential, str) or not credential:
         raise PaidDispatchAuthorityError("Paid provider client has no bindable credential identity")
-    return hashlib.sha256(credential.encode("utf-8")).hexdigest()
+    return hmac.new(
+        _ATTENDED_CREDENTIAL_HMAC_KEY,
+        credential.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
 
 
 def _require_attended_client_transport(client: object) -> None:

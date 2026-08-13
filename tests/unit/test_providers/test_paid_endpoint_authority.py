@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -150,6 +151,9 @@ async def test_deepr_minted_attended_client_binds_grant_model_and_transport() ->
     )
     try:
         assert _mint_attended_paid_client_attestation(client, "openai", "gpt-5-mini") == default_paid_endpoint("openai")
+        attestation = vars(client)["_deepr_attended_paid_client_attestation"]
+        assert attestation.credential_fingerprint != hashlib.sha256(b"test-key").hexdigest()
+        assert "test-key" not in repr(attestation)
         assert require_official_paid_client(client, "openai", "gpt-5-mini") == default_paid_endpoint("openai")
         with pytest.raises(PaidDispatchAuthorityError, match="model changed"):
             require_official_paid_client(client, "openai", "gpt-5")
