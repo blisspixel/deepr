@@ -157,11 +157,11 @@ def check_budget_approval(estimated_cost: float) -> bool:
         return False
 
     operator = read_operator_budget()
-    if operator.attended_grant_id:
-        settled_since_grant = exposure.total_settled_cost - operator.attended_grant_settled_baseline_usd
-        if settled_since_grant < 0:
+    if operator.spend_wallet_id:
+        settled_since_wallet = exposure.total_settled_cost - operator.spend_wallet_settled_baseline_usd
+        if settled_since_wallet < 0:
             return False
-        current_spending = settled_since_grant + exposure.active_cost
+        current_spending = settled_since_wallet + exposure.active_cost
     else:
         # Spend = max(side counter, canonical ledger) so spend recorded by
         # other entry points counts against the month even if record_spending
@@ -207,7 +207,7 @@ def _budget_threshold_notice(percentage: float) -> str | None:
 
 @click.group()
 def budget():
-    """Manage monthly research budget."""
+    """Manage metered-spend authority and provider-verified budgets."""
     pass
 
 
@@ -266,31 +266,53 @@ def set(amount: float):
         click.echo(f"Resets: {_next_month_start().strftime('%B %d, %Y')} UTC")
 
 
-def _render_attended_status(operator: Any, exposure: Any | None, effective_monthly: float) -> bool:
-    """Render one total grant drawdown when attended authority is active."""
-    if not operator.attended_grant_id or exposure is None:
+def _render_wallet_status(
+    operator: Any,
+    exposure: Any | None,
+    effective_total: float,
+    *,
+    monthly_is_calendar_window: bool,
+) -> bool:
+    """Render the cumulative wallet drawdown when attended authority is active."""
+    if not operator.spend_wallet_id or exposure is None:
         return False
-    settled_since_grant = exposure.total_settled_cost - operator.attended_grant_settled_baseline_usd
+    settled_since_wallet = exposure.total_settled_cost - operator.spend_wallet_settled_baseline_usd
     active_cost = exposure.active_cost
-    grant_exposure = max(0.0, settled_since_grant) + active_cost
-    click.echo(f"\nSettled since grant: ${max(0.0, settled_since_grant):.2f}")
-    click.echo(f"Active durable holds: ${active_cost:.2f}")
-    if settled_since_grant < 0:
+    wallet_exposure = max(0.0, settled_since_wallet) + active_cost
+    wallet_available = max(0.0, operator.spend_wallet_authorized_usd - wallet_exposure)
+    click.echo(f"\nAuthorized credits: ${operator.spend_wallet_authorized_usd:.2f}")
+    click.echo(f"Settled from wallet: ${max(0.0, settled_since_wallet):.2f}")
+    click.echo(f"Reserved by active jobs: ${active_cost:.2f}")
+    provider_boundary_verified = operator.authorization_valid and not operator.frozen
+    click.echo(
+        "Provider hard boundary: "
+        + ("verified" if provider_boundary_verified else "not verified; paid API remains blocked")
+    )
+    if settled_since_wallet < 0:
         click.echo("Mode: Paid API blocked (canonical money state is unreadable)")
-        click.echo(f"API grant: UNKNOWN / ${effective_monthly:.2f}")
-        click.echo("Remaining: $0.00 (fail closed)")
-    elif effective_monthly <= 0:
+        click.echo(f"Wallet drawdown: UNKNOWN / ${operator.spend_wallet_authorized_usd:.2f}")
+        click.echo("Wallet available: $0.00 (fail closed)")
+    elif effective_total <= 0:
         click.echo("Mode: Paid API blocked (a binding spend cap is $0)")
-        click.echo("API grant: $0.00 / $0.00")
-        click.echo("Remaining: $0.00")
+        click.echo(f"Wallet drawdown: ${wallet_exposure:.2f} / ${operator.spend_wallet_authorized_usd:.2f}")
+        click.echo(f"Wallet available: ${wallet_available:.2f}")
+        click.echo("Effective monthly ceiling: $0.00")
     else:
-        percentage = grant_exposure / effective_monthly * 100
-        remaining = max(0.0, effective_monthly - grant_exposure)
-        click.echo("Mode: Attended paid API grant")
-        click.echo(f"API grant: ${grant_exposure:.2f} / ${effective_monthly:.2f} ({percentage:.0f}%)")
-        click.echo(f"Remaining: ${remaining:.2f}")
-        click.echo(f"Expires: {operator.attended_grant_expires_at}")
-        click.echo("Local and verified prepaid-plan work records $0 and does not draw down this grant.")
+        percentage = wallet_exposure / operator.spend_wallet_authorized_usd * 100
+        monthly_exposure = (
+            exposure.monthly_settled_cost + active_cost if monthly_is_calendar_window else wallet_exposure
+        )
+        monthly_remaining = max(0.0, effective_total - monthly_exposure)
+        click.echo("Mode: Attended metered-spend wallet")
+        click.echo(
+            f"Wallet drawdown: ${wallet_exposure:.2f} / ${operator.spend_wallet_authorized_usd:.2f} ({percentage:.0f}%)"
+        )
+        click.echo(f"Wallet available: ${wallet_available:.2f}")
+        click.echo(f"Effective monthly ceiling: ${effective_total:.2f}")
+        click.echo(f"Monthly exposure with holds: ${monthly_exposure:.2f}")
+        click.echo(f"Monthly headroom: ${monthly_remaining:.2f}")
+        click.echo("Local and verified prepaid-plan work records $0 and does not draw down this wallet.")
+        click.echo("Provider prepaid or hard-stop evidence is current and independently binding.")
         threshold_notice = _budget_threshold_notice(percentage)
         if threshold_notice is not None:
             click.echo(f"\n{threshold_notice}")
@@ -305,7 +327,10 @@ def status():
     config = load_budget_config()
     configured_monthly = float(config.get("monthly_limit", 0) or 0)
     operator = read_operator_budget_for_status()
-    effective_monthly = resolve_spend_caps(provider=operator.attended_grant_provider or None)["monthly"]
+    from deepr.core.cost_caps import resolve_spend_policy
+
+    policy = resolve_spend_policy()
+    effective_monthly = resolve_spend_caps()["monthly"]
     # The approval gate spends against max(session counter, canonical ledger),
     # so the status display must show that same reconciled number. Showing only
     # the session counter once reported $0.00 while the ledger held $37.99 of
@@ -322,7 +347,12 @@ def status():
     current_exposure = settled_spending + active_cost
     current_month = config.get("current_month", datetime.now(UTC).strftime("%Y-%m"))
 
-    if _render_attended_status(operator, exposure, effective_monthly):
+    if _render_wallet_status(
+        operator,
+        exposure,
+        effective_monthly,
+        monthly_is_calendar_window="monthly" in policy.calendar_periods,
+    ):
         return
 
     click.echo(f"\nSettled this month: ${settled_spending:.2f}")
@@ -523,7 +553,7 @@ def safety():
     from autonomous expert operations.
     """
     from deepr.cli.colors import console, print_key_value
-    from deepr.experts.cost_safety import CostSafetyManager, get_cost_safety_manager
+    from deepr.experts.cost_safety import get_cost_safety_manager
 
     print_header("Cost Safety Status")
 
@@ -587,12 +617,10 @@ def safety():
     print_key_value("Monthly", f"${limits['monthly']:.2f}")
     console.print()
 
-    # Hard limits (cannot be overridden)
-    console.print("[bold]Hard Safety Limits[/bold] [dim](cannot be overridden)[/dim]")
-    print_key_value("Max Per Operation", f"${CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION:.2f}")
-    print_key_value("Max Daily", f"${CostSafetyManager.ABSOLUTE_MAX_DAILY:.2f}")
-    print_key_value("Max Weekly", f"${CostSafetyManager.ABSOLUTE_MAX_WEEKLY:.2f}")
-    print_key_value("Max Monthly", f"${CostSafetyManager.ABSOLUTE_MAX_MONTHLY:.2f}")
+    console.print("[bold]Binding Safety Layers[/bold]")
+    print_key_value("Provider Hard Stop", "required for unattended metered work")
+    print_key_value("Deepr Wallet", "cumulative, no overdraft or automatic refill")
+    print_key_value("Job Ceiling", "finite durable reservation before provider work")
     console.print()
 
     # Active sessions
@@ -602,64 +630,62 @@ def safety():
     console.print("[dim]These limits protect against runaway costs from autonomous agents.[/dim]")
 
 
-@budget.command("allow")
-@click.option("--amount", type=float, required=True, help="Hard ceiling in USD for this grant.")
-@click.option("--minutes", type=int, default=30, show_default=True, help="How long the grant lives.")
-@click.option("--reason", default="", help="What this spend is for, recorded with the grant.")
-@click.option("--provider", default="", help="Narrow the grant to one provider.")
-def allow(amount: float, minutes: int, reason: str, provider: str) -> None:
-    """Authorize bounded paid spend that you are present for.
-
-    The middle authority between frozen and provider-verified. A person naming
-    a small ceiling and confirming it is proportionate protection for work they
-    are watching; provider-signed evidence remains required for anything
-    unattended, which spends for hours with nobody looking.
-
-    The grant expires, refuses amounts above the attended ceiling rather than
-    clamping them, and does not imply per-call consent - `--confirm-metered-cost`
-    still applies to each call underneath it.
-    """
-    from deepr.core.attended_grant import (
-        MAX_GRANT_USD,
-        AttendedGrantError,
-        active_grant,
-        issue_grant,
-        save_grant,
-    )
+def _add_wallet_credits(*, amount: float, reason: str) -> None:
+    """Confirm and add one explicit amount to the local spend wallet."""
     from deepr.core.cost_caps import spend_policy_lock
+    from deepr.core.spend_wallet import (
+        SpendWalletError,
+        active_wallet,
+        add_credits,
+        create_wallet,
+        load_wallet,
+        save_wallet,
+        wallet_file_path,
+    )
     from deepr.observability.cost_ledger import current_cost_state_id
 
-    print_header("Attended spend grant")
+    print_header("Add metered API credits")
 
     try:
         cost_state_id = current_cost_state_id()
     except Exception as exc:
-        raise click.ClickException(f"Canonical money state is unreadable; no grant issued: {exc}") from exc
+        raise click.ClickException(f"Canonical money state is unreadable; no credits added: {exc}") from exc
+    try:
+        create_wallet(
+            amount_usd=amount,
+            cost_state_id=cost_state_id,
+            settled_cost_baseline_usd=0.0,
+            reason=reason,
+        )
+    except SpendWalletError as exc:
+        raise click.ClickException(str(exc)) from exc
 
-    # Show what is already true before asking for more authority. An operator
-    # approving a ceiling should see the exposure it sits on top of.
     try:
         from deepr.web.spend_truth import cost_exposure_snapshot
 
         snapshot = cost_exposure_snapshot()
-        click.echo(f"  Month exposure    : ${float(snapshot.get('exposure', {}).get('monthly', 0.0)):.2f}")
-        click.echo(f"  Unresolved holds  : {snapshot.get('unresolved_holds', 0)}")
+        settled = snapshot.get("settled", {})
+        click.echo(f"  All-time settled  : ${float(settled.get('total', 0.0)):.2f}")
+        click.echo(f"  Active holds      : ${float(snapshot.get('active_holds', 0.0)):.2f}")
+        click.echo(f"  Unresolved holds  : {int(snapshot.get('unresolved_holds', 0))}")
     except Exception:
-        click.echo("  Month exposure    : unreadable")
+        click.echo("  Canonical exposure: unreadable")
 
-    if existing := active_grant(cost_state_id=cost_state_id):
-        click.echo(f"  Existing grant    : ${existing.amount_usd:.2f}, expires {existing.expires_at}")
-        raise click.ClickException("Revoke the existing grant before issuing another one.")
+    existing = active_wallet(cost_state_id=cost_state_id)
+    if existing is not None:
+        click.echo(f"  Current authorized: ${existing.authorized_usd:.2f}")
 
-    click.echo(f"\n  Requested ceiling : ${amount:.2f} for {minutes} minute(s)")
-    click.echo(f"  Attended maximum  : ${MAX_GRANT_USD:.2f}")
-    click.echo("\nThis authorizes real money up to that ceiling until it expires.")
+    resulting = amount + (existing.authorized_usd if existing is not None else 0.0)
+    click.echo(f"\n  Credit addition   : ${amount:.2f}")
+    click.echo(f"  Resulting ceiling : ${resulting:.2f}")
+    click.echo("\nThis is local Deepr authorization. It does not buy or verify provider credits.")
+    click.echo("Provider-side prepaid credits or a hard stop with overage disabled must also be verified.")
+    click.echo("An open postpaid provider account remains blocked even with this Deepr wallet.")
+    click.echo("Every paid job still requires its own finite ceiling and explicit confirmation.")
 
-    # Typed back rather than a yes/no flag: the confirmation is the authority,
-    # and typing the number is what makes a mistyped amount visible.
     typed = click.prompt(f"Type {amount:.2f} to confirm", default="", show_default=False)
-    if typed.strip() not in {f"{amount:.2f}", str(amount)}:
-        raise click.ClickException("Amount not confirmed; no grant issued.")
+    if typed.strip() != f"{amount:.2f}":
+        raise click.ClickException("Amount not confirmed; no credits added.")
 
     try:
         from deepr.experts.research_reservation_store import ResearchReservationStore
@@ -667,36 +693,87 @@ def allow(amount: float, minutes: int, reason: str, provider: str) -> None:
         with spend_policy_lock():
             exposure = ResearchReservationStore().exposure_snapshot()
             if exposure.unresolved_count:
-                raise click.ClickException("Unresolved post-dispatch holds must be reconciled before issuing a grant.")
-            if exposure.active_cost > 0:
                 raise click.ClickException(
-                    "Active durable paid holds must be settled or refunded before issuing a grant."
+                    "Unresolved post-dispatch holds must be reconciled before adding spend authority."
                 )
-            grant = issue_grant(
-                amount_usd=amount,
-                minutes=minutes,
-                cost_state_id=current_cost_state_id(),
-                settled_cost_baseline_usd=exposure.total_settled_cost,
-                reason=reason,
-                provider=provider,
-            )
-            save_grant(grant)
-    except AttendedGrantError as exc:
+            current_state_id = current_cost_state_id()
+            stored = load_wallet()
+            if wallet_file_path().exists() and stored is None:
+                raise click.ClickException("The existing wallet is unreadable; no credits were added.")
+            if stored is None:
+                wallet = create_wallet(
+                    amount_usd=amount,
+                    cost_state_id=current_state_id,
+                    settled_cost_baseline_usd=exposure.total_settled_cost,
+                    reason=reason,
+                )
+            else:
+                wallet = add_credits(
+                    stored,
+                    amount_usd=amount,
+                    cost_state_id=current_state_id,
+                    reason=reason,
+                )
+            save_wallet(wallet)
+    except SpendWalletError as exc:
         raise click.ClickException(str(exc)) from exc
-    print_success(f"Granted ${grant.amount_usd:.2f} until {grant.expires_at} (id {grant.grant_id[:12]})")
-    click.echo("  Revoke early with: deepr budget revoke")
+    available = wallet.available_usd(
+        total_settled_cost_usd=exposure.total_settled_cost,
+        active_holds_usd=exposure.active_cost,
+    )
+    print_success(f"Added ${amount:.2f}; wallet now authorizes ${wallet.authorized_usd:.2f} total.")
+    click.echo(f"  Available after active holds: ${available:.2f}")
+    click.echo("  Automatic refill: disabled")
+    click.echo("  Provider dispatch: still blocked until the external hard boundary is verified")
+    click.echo("  Stop new paid jobs with: deepr budget credits clear")
 
 
-@budget.command("revoke")
-def revoke() -> None:
-    """Revoke the attended spend grant immediately."""
-    from deepr.core.attended_grant import revoke_grant
+@budget.group("credits")
+def credits() -> None:
+    """Manage the cumulative local metered-spend wallet."""
+
+
+@credits.command("add")
+@click.option("--amount", type=click.FloatRange(min=0.01), required=True, help="Credits to authorize in USD.")
+@click.option("--reason", default="", help="Why this authorization was added.")
+def add_credits_command(amount: float, reason: str) -> None:
+    """Add confirmed credits without enabling automatic refill."""
+    _add_wallet_credits(amount=amount, reason=reason)
+
+
+@budget.command("fund")
+@click.option("--amount", type=click.FloatRange(min=0.01), required=True, help="Credits to authorize in USD.")
+@click.option("--reason", default="", help="Why this authorization was added.")
+def fund(amount: float, reason: str) -> None:
+    """Alias for ``budget credits add``."""
+    _add_wallet_credits(amount=amount, reason=reason)
+
+
+def _clear_wallet_authority() -> None:
+    """Clear local wallet authority while preserving ledger history."""
     from deepr.core.cost_caps import spend_policy_lock
+    from deepr.core.spend_wallet import SpendWalletError, clear_wallet
 
-    print_header("Revoke attended grant")
-    with spend_policy_lock():
-        revoked = revoke_grant()
-    if revoked:
-        print_success("Grant revoked. Paid dispatch is frozen again.")
+    print_header("Clear metered API credits")
+    try:
+        with spend_policy_lock():
+            cleared = clear_wallet()
+    except SpendWalletError as exc:
+        raise click.ClickException(str(exc)) from exc
+    if cleared:
+        print_success("Wallet cleared. New attended paid reservations are blocked.")
+        click.echo("Canonical spend history and existing reservation records were preserved.")
     else:
-        click.echo("No attended grant was active.")
+        click.echo("No metered-spend wallet was active.")
+
+
+@credits.command("clear")
+def clear_credits() -> None:
+    """Block new attended paid reservations without deleting accounting."""
+    _clear_wallet_authority()
+
+
+@budget.command("revoke", hidden=True)
+def revoke() -> None:
+    """Compatibility alias for ``budget credits clear``."""
+    _clear_wallet_authority()

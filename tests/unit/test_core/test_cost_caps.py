@@ -264,31 +264,25 @@ def test_manual_freeze_collapses_every_window(tmp_path) -> None:
     }
 
 
-def test_attended_grant_authorizes_its_own_total_and_unattended_scope_refuses_it() -> None:
-    from deepr.core.attended_grant import issue_grant, save_grant
+def test_wallet_and_verified_provider_authority_compose_and_unattended_ignores_wallet() -> None:
+    from deepr.core.spend_wallet import create_wallet, save_wallet
     from deepr.observability.cost_ledger import current_cost_state_id
 
-    budget = Path(os.environ["DEEPR_BUDGET_FILE"])
-    budget.write_text(
-        json.dumps({"monthly_limit": 50.0, "paid_api_frozen": True, "freeze_reason": "default freeze"}),
-        encoding="utf-8",
-    )
-    save_grant(
-        issue_grant(
-            amount_usd=2.0,
-            minutes=30,
+    save_wallet(
+        create_wallet(
+            amount_usd=50.0,
             cost_state_id=current_cost_state_id(),
             settled_cost_baseline_usd=41.16,
         )
     )
 
-    assert resolve_spend_caps() == {"per_job": 1.0, "daily": 2.0, "weekly": 2.0, "monthly": 2.0}
+    assert resolve_spend_caps() == {"per_job": 5.0, "daily": 5.0, "weekly": 5.0, "monthly": 5.0}
     with unattended_paid_api_scope():
-        assert resolve_spend_caps() == {"per_job": 0.0, "daily": 0.0, "weekly": 0.0, "monthly": 0.0}
+        assert resolve_spend_caps() == {"per_job": 1.0, "daily": 2.0, "weekly": 5.0, "monthly": 5.0}
 
 
-def test_status_surfaces_show_provider_scoped_attended_grant() -> None:
-    from deepr.core.attended_grant import issue_grant, save_grant
+def test_unverified_provider_stays_blocked_while_status_shows_provider_neutral_wallet() -> None:
+    from deepr.core.spend_wallet import create_wallet, save_wallet
     from deepr.observability.cost_ledger import current_cost_state_id
 
     budget = Path(os.environ["DEEPR_BUDGET_FILE"])
@@ -296,20 +290,147 @@ def test_status_surfaces_show_provider_scoped_attended_grant() -> None:
         json.dumps({"monthly_limit": 0.0, "paid_api_frozen": True, "freeze_reason": "default freeze"}),
         encoding="utf-8",
     )
-    save_grant(
-        issue_grant(
-            amount_usd=2.0,
-            minutes=30,
+    save_wallet(
+        create_wallet(
+            amount_usd=200.0,
             cost_state_id=current_cost_state_id(),
             settled_cost_baseline_usd=0.0,
-            provider="anthropic",
         )
     )
 
-    assert resolve_spend_caps()["monthly"] == 0.0
-    assert read_operator_budget_for_status().attended_grant_amount_usd == 2.0
+    assert resolve_spend_caps(provider="anthropic")["monthly"] == 0.0
+    assert resolve_spend_caps(provider="openai")["monthly"] == 0.0
+    assert read_operator_budget_for_status().spend_wallet_authorized_usd == 200.0
     with unattended_paid_api_scope():
         assert read_operator_budget_for_status().frozen is True
+
+
+def test_explicit_environment_cap_can_narrow_wallet_and_job_authority(monkeypatch: pytest.MonkeyPatch) -> None:
+    from deepr.core.spend_wallet import create_wallet, save_wallet
+    from deepr.observability.cost_ledger import current_cost_state_id
+
+    save_wallet(
+        create_wallet(
+            amount_usd=50.0,
+            cost_state_id=current_cost_state_id(),
+            settled_cost_baseline_usd=0.0,
+        )
+    )
+    monkeypatch.setenv("DEEPR_MAX_COST_PER_JOB", "0.75")
+
+    caps = resolve_spend_caps()
+    assert caps["per_job"] == 0.75
+    assert caps["per_job"] <= caps["daily"] <= caps["weekly"] <= caps["monthly"] <= 50.0
+
+
+def test_wallet_policy_distinguishes_cumulative_pool_from_calendar_caps(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from deepr.core.cost_caps import resolve_spend_policy
+    from deepr.core.spend_wallet import create_wallet, save_wallet
+    from deepr.observability import cost_ledger
+    from deepr.observability.cost_ledger import current_cost_state_id
+
+    save_wallet(
+        create_wallet(
+            amount_usd=200.0,
+            cost_state_id=current_cost_state_id(),
+            settled_cost_baseline_usd=0.0,
+        )
+    )
+    monkeypatch.setattr(cost_ledger, "well_known_spend_cap_env_paths", lambda: ())
+
+    assert resolve_spend_policy().calendar_periods == frozenset(("daily", "weekly", "monthly"))
+    monkeypatch.setenv("DEEPR_MAX_COST_PER_MONTH", "5.00")
+    policy = resolve_spend_policy()
+    assert policy.caps["monthly"] == 5.0
+    assert policy.calendar_periods == frozenset(("daily", "weekly", "monthly"))
+
+
+def test_verified_provider_hard_stop_and_wallet_both_apply() -> None:
+    from deepr.core.cost_caps import resolve_spend_policy
+    from deepr.core.spend_wallet import create_wallet, save_wallet
+    from deepr.observability.cost_ledger import current_cost_state_id
+
+    save_wallet(
+        create_wallet(
+            amount_usd=200.0,
+            cost_state_id=current_cost_state_id(),
+            settled_cost_baseline_usd=0.0,
+        )
+    )
+
+    operator = read_operator_budget_for_status()
+    assert operator.spend_wallet_authorized_usd == 200.0
+    assert operator.authorization_hard_monthly_limit == 5.0
+    policy = resolve_spend_policy()
+    assert policy.caps["monthly"] == 5.0
+    assert policy.calendar_periods == frozenset(("daily", "weekly", "monthly"))
+
+
+def test_wallet_never_turns_unverified_numeric_provider_budget_into_authority() -> None:
+    from deepr.core.cost_caps import read_operator_budget
+    from deepr.core.spend_wallet import create_wallet, save_wallet
+    from deepr.observability.cost_ledger import current_cost_state_id
+
+    Path(os.environ["DEEPR_BUDGET_FILE"]).write_text(
+        json.dumps({"monthly_limit": 50.0}),
+        encoding="utf-8",
+    )
+    save_wallet(
+        create_wallet(
+            amount_usd=20.0,
+            cost_state_id=current_cost_state_id(),
+            settled_cost_baseline_usd=0.0,
+        )
+    )
+
+    operator = read_operator_budget(provider="openai")
+    assert operator.spend_wallet_authorized_usd == 20.0
+    assert operator.authorization_valid is False
+    assert operator.frozen is True
+    assert resolve_spend_caps(provider="openai")["monthly"] == 0.0
+
+
+def test_manual_freeze_after_funding_cannot_be_cleared_by_wallet_top_up() -> None:
+    from deepr.core.cost_caps import freeze_paid_api
+    from deepr.core.spend_wallet import add_credits, create_wallet, load_wallet, save_wallet
+    from deepr.observability.cost_ledger import current_cost_state_id
+
+    save_wallet(
+        create_wallet(
+            amount_usd=50.0,
+            cost_state_id=current_cost_state_id(),
+            settled_cost_baseline_usd=0.0,
+        )
+    )
+    freeze_paid_api("operator stop", kind="manual")
+    assert resolve_spend_caps()["monthly"] == 0.0
+
+    wallet = load_wallet()
+    assert wallet is not None
+    save_wallet(add_credits(wallet, amount_usd=1.0, cost_state_id=current_cost_state_id()))
+    assert resolve_spend_caps()["monthly"] == 0.0
+
+
+def test_billing_divergence_freeze_cannot_be_bypassed_by_wallet_top_up() -> None:
+    from deepr.core.cost_caps import freeze_paid_api
+    from deepr.core.spend_wallet import add_credits, create_wallet, load_wallet, save_wallet
+    from deepr.observability.cost_ledger import current_cost_state_id
+
+    save_wallet(
+        create_wallet(
+            amount_usd=50.0,
+            cost_state_id=current_cost_state_id(),
+            settled_cost_baseline_usd=0.0,
+        )
+    )
+    freeze_paid_api("billing does not reconcile", kind="billing_divergence")
+    wallet = load_wallet()
+    assert wallet is not None
+    save_wallet(add_credits(wallet, amount_usd=50.0, cost_state_id=current_cost_state_id()))
+
+    assert resolve_spend_caps() == {"per_job": 0.0, "daily": 0.0, "weekly": 0.0, "monthly": 0.0}
 
 
 def test_missing_monthly_authority_is_default_off(tmp_path) -> None:

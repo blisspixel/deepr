@@ -39,11 +39,12 @@ def _current_cost_authority(
     monthly_display_limit: float | None = None,
 ) -> dict[str, Any]:
     """Return strict settled spend, active holds, and effective authority."""
-    from deepr.core.cost_caps import read_operator_budget_for_status, resolve_spend_caps
+    from deepr.core.cost_caps import read_operator_budget_for_status, resolve_spend_caps, resolve_spend_policy
     from deepr.experts.research_reservation_store import ResearchReservationStore
 
     operator = read_operator_budget_for_status()
-    caps = resolve_spend_caps(provider=operator.attended_grant_provider or None)
+    policy = resolve_spend_policy()
+    caps = resolve_spend_caps()
     daily_limit = float(caps["daily"])
     weekly_limit = float(caps["weekly"])
     monthly_limit = float(caps["monthly"])
@@ -54,20 +55,29 @@ def _current_cost_authority(
 
     exposure = ResearchReservationStore().exposure_snapshot()
     active_holds = exposure.active_cost
-    if operator.attended_grant_id:
-        settled_since_grant = exposure.total_settled_cost - operator.attended_grant_settled_baseline_usd
-        if settled_since_grant < 0:
-            raise ValueError("canonical settled cost is below the attended grant baseline")
-        daily_settled = settled_since_grant
-        weekly_settled = settled_since_grant
-        monthly_settled = settled_since_grant
-    else:
-        daily_settled = exposure.daily_settled_cost
-        weekly_settled = exposure.weekly_settled_cost
-        monthly_settled = exposure.monthly_settled_cost
+    settled_since_wallet = 0.0
+    if operator.spend_wallet_id:
+        settled_since_wallet = exposure.total_settled_cost - operator.spend_wallet_settled_baseline_usd
+        if settled_since_wallet < 0:
+            raise ValueError("canonical settled cost is below the spend wallet baseline")
+    daily_settled = exposure.daily_settled_cost
+    weekly_settled = exposure.weekly_settled_cost
+    monthly_settled = exposure.monthly_settled_cost
+    if operator.spend_wallet_id:
+        if "daily" not in policy.calendar_periods:
+            daily_settled = settled_since_wallet
+        if "weekly" not in policy.calendar_periods:
+            weekly_settled = settled_since_wallet
+        if "monthly" not in policy.calendar_periods:
+            monthly_settled = settled_since_wallet
     daily_exposure = daily_settled + active_holds
     weekly_exposure = weekly_settled + active_holds
     monthly_exposure = monthly_settled + active_holds
+    wallet_available = (
+        max(0.0, operator.spend_wallet_authorized_usd - settled_since_wallet - active_holds)
+        if operator.spend_wallet_id
+        else float(caps["per_job"])
+    )
     authorizable_headroom = max(
         0.0,
         min(
@@ -75,6 +85,7 @@ def _current_cost_authority(
             daily_limit - daily_exposure,
             weekly_limit - weekly_exposure,
             monthly_limit - monthly_exposure,
+            wallet_available,
         ),
     )
     return {
@@ -92,8 +103,11 @@ def _current_cost_authority(
         "weekly_exposure": weekly_exposure,
         "monthly_exposure": monthly_exposure,
         "authorizable_headroom": authorizable_headroom,
-        "authority_mode": "attended_grant" if operator.attended_grant_id else "provider_verified",
-        "attended_grant_expires_at": operator.attended_grant_expires_at,
+        "authority_mode": "spend_wallet" if operator.spend_wallet_id else "provider_verified",
+        "provider_hard_boundary_verified": operator.authorization_valid and not operator.frozen,
+        "spend_wallet_authorized": operator.spend_wallet_authorized_usd,
+        "spend_wallet_spent": settled_since_wallet,
+        "spend_wallet_available": wallet_available if operator.spend_wallet_id else 0.0,
     }
 
 
@@ -190,31 +204,39 @@ def show(daily_limit: float | None, monthly_limit: float | None):
     except Exception as exc:
         raise click.ClickException("Canonical money state is unreadable; cost summary is unavailable.") from exc
 
-    if summary.get("authority_mode") == "attended_grant":
-        utilization, color = _utilization_display(summary["monthly_exposure"], summary["monthly_limit"])
-        remaining = max(0.0, summary["monthly_limit"] - summary["monthly_exposure"])
+    if summary.get("authority_mode") == "spend_wallet":
+        wallet_exposure = summary["spend_wallet_spent"] + summary["active_holds"]
+        utilization, color = _utilization_display(wallet_exposure, summary["spend_wallet_authorized"])
+        monthly_remaining = max(0.0, summary["monthly_limit"] - summary["monthly_exposure"])
         console.print(
             Panel(
-                f"[bold]Attended paid API grant[/bold]\n"
-                f"Settled since grant: [bold]${summary['monthly_settled']:.2f}[/bold]\n"
+                f"[bold]Deepr metered-spend wallet[/bold]\n"
+                f"Authorized credits: [bold]${summary['spend_wallet_authorized']:.2f}[/bold]\n"
+                f"Settled from wallet: [bold]${summary['spend_wallet_spent']:.2f}[/bold]\n"
                 f"Active holds: ${summary['active_holds']:.2f}\n"
                 f"Unresolved post-dispatch holds: {int(summary['unresolved_holds'])} "
                 f"(${summary['unresolved_exposure']:.2f})\n"
-                f"Total drawdown: [bold]${summary['monthly_exposure']:.2f}[/bold] / "
+                f"Wallet drawdown: [bold]${wallet_exposure:.2f}[/bold] / "
+                f"${summary['spend_wallet_authorized']:.2f}\n"
+                f"Wallet available: ${summary['spend_wallet_available']:.2f}\n"
+                f"Wallet utilization: [{color}]{utilization}[/{color}]\n"
+                f"Effective monthly exposure: ${summary['monthly_exposure']:.2f} / "
                 f"${summary['monthly_limit']:.2f}\n"
-                f"Remaining: ${remaining:.2f}\n"
-                f"Utilization: [{color}]{utilization}[/{color}]\n"
-                f"Expires: {summary['attended_grant_expires_at']}\n\n"
-                "Local and verified prepaid-plan work records $0 and does not draw down this grant.",
-                title="API Grant Costs",
+                f"Monthly headroom: ${monthly_remaining:.2f}\n"
+                f"Maximum new paid call: ${summary['authorizable_headroom']:.2f}\n"
+                f"Provider hard boundary: "
+                f"{'verified' if summary['provider_hard_boundary_verified'] else 'not verified; paid API blocked'}\n"
+                "\nLocal and verified plan-quota work records $0 and does not draw down this wallet. "
+                "The wallet cannot replace provider prepaid-no-overage or a hard provider ceiling.",
+                title="API Wallet Costs",
             )
         )
         console.print(
             f"[bold]Maximum currently authorizable new paid call:[/bold] ${summary['authorizable_headroom']:.2f}"
         )
-        label = _threshold_label(summary["monthly_exposure"], summary["monthly_limit"])
+        label = _threshold_label(wallet_exposure, summary["spend_wallet_authorized"])
         if label is not None:
-            console.print(f"[bold red]Grant alert:[/bold red] {label}")
+            console.print(f"[bold red]Wallet alert:[/bold red] {label}")
         return
 
     # Daily summary

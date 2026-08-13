@@ -82,7 +82,7 @@ per [SUPPORTED_SURFACE.md](SUPPORTED_SURFACE.md), the approach claims:
 | Durable expert state | Domain experts can persist structured knowledge with provenance and revision-friendly records. |
 | Local-first work | Expert setup, maintenance, evaluation, and consult paths can run on owned local models after endpoint ownership is proven. |
 | Plan-quota honesty | Subscription/plan adapters execute only when auth, confinement, remaining quota, and paid-overage posture can be proven. Today only safety-eligible adapters run; others may be visible and blocked. |
-| Fail-closed paid paths | Attended metered dispatch requires a typed, expiring $2-or-less total grant plus complete pricing, reservation, exact client, credential, endpoint, model, and transport binding. Unattended dispatch still requires provider account-control evidence. |
+| Fail-closed paid paths | Any metered dispatch requires verified provider prepaid-no-overage or a hard provider ceiling. The attended path additionally requires explicit cumulative wallet credits, a separate finite job ceiling, complete pricing, reservation, exact client, credential, endpoint, model, and transport binding. The wallet has no overdraft or automatic refill and is local authority, not provider credit. |
 | Append-only spend memory | Settled cost events are not silently rewritten; reconciliation uses dispositions and offline billing evidence without inventing authority. |
 | Handoff-ready outputs | Experts can emit structured artifacts (reports, beliefs, gaps, consult packets, loop status) suitable for hosts and other tools. |
 | MCP as composition | Deepr can act as a tool/server role under MCP, including dual-era protocol support as documented for the release. |
@@ -126,12 +126,13 @@ Three classes. Execution always requires class-specific proof.
    confinement, remaining-quota evidence where required, and live proof that
    paid extra usage is off for that dispatch.
 3. **Metered API** - preview, accounting, and offline reconciliation are
-   available. A narrow attended CLI surface may dispatch only under a typed,
-   expiring $2-or-less total grant, complete durable reservation, explicit
-   per-call consent, and an exact Deepr-owned client binding. MCP, schedules,
-   loops, automatic fallback, and other unattended work stay blocked until
-   authenticated account-control and credential-identity proofs bind to the
-   exact request.
+   available. A narrow attended CLI surface may dispatch only under an
+   authenticated provider prepaid-no-overage or hard-stop proof, an explicitly
+   funded cumulative local wallet, a separately confirmed finite job ceiling,
+   complete durable reservation, explicit per-call consent, and an exact
+   Deepr-owned client binding. MCP, schedules, loops, automatic fallback, and
+   other unattended work stay blocked until their additional execution
+   envelope binds to the exact request.
 
 Unknown, partial, or conflicting evidence **blocks**. Clean billing
 reconciliation does not, by itself, unfreeze paid capacity.

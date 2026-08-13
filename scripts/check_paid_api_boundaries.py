@@ -226,9 +226,18 @@ _REQUIRED_SAFETY_FRAGMENTS = {
     "src/deepr/mcp/client/profile.py": ("0 permits only $0 calls",),
     "src/deepr/mcp/client/budget_propagator.py": ("Zero never means unlimited",),
     "src/deepr/experts/cost_safety.py": (
-        "_ABSOLUTE_TOTAL_SPEND_USD = 5.0",
-        "ABSOLUTE_MAX_PER_OPERATION: float = _ABSOLUTE_TOTAL_SPEND_USD",
-        "ABSOLUTE_MAX_MONTHLY: float = _ABSOLUTE_TOTAL_SPEND_USD",
+        "from deepr.core.spend_wallet import MAX_EXACT_CENTS_USD",
+        "ABSOLUTE_MAX_PER_OPERATION: float = MAX_EXACT_CENTS_USD",
+        "ABSOLUTE_MAX_MONTHLY: float = MAX_EXACT_CENTS_USD",
+    ),
+    "src/deepr/core/spend_wallet.py": (
+        "MAX_EXACT_CENTS = 2**53 - 1",
+        "resulting wallet authorization exceeds the exact-cent storage boundary",
+        "canonical settled cost is below the wallet baseline",
+    ),
+    "src/deepr/experts/research_reservation_store.py": (
+        "windows.wallet_consumed + active + reserved_cost > operator.spend_wallet_authorized_usd",
+        'str(row[7] or "") != wallet_id',
     ),
     "src/deepr/core/cost_caps.py": (
         '"per_job": 5.0',

@@ -114,15 +114,22 @@ class OperatorBudget:
     authorization_hard_monthly_limit: float = 0.0
     authorization_recovered_freeze_id: str = ""
     authorization_recovered_frozen_at: datetime | None = None
-    attended_grant_id: str = ""
-    """Set when authority came from an attended grant rather than provider
-    evidence, so every surface can say which of the two allowed the spend."""
-    attended_grant_expires_at: str = ""
-    attended_grant_amount_usd: float = 0.0
-    attended_grant_settled_baseline_usd: float = 0.0
-    attended_grant_provider: str = ""
+    spend_wallet_id: str = ""
+    """Set when attended authority came from the cumulative local wallet."""
+    spend_wallet_authorized_usd: float = 0.0
+    spend_wallet_settled_baseline_usd: float = 0.0
+    spend_wallet_created_at: str = ""
+    spend_wallet_updated_at: str = ""
     authorization_cost_state_id: str = ""
     _verified_marker: object | None = field(default=None, repr=False, compare=False)
+
+
+@dataclass(frozen=True)
+class ResolvedSpendPolicy:
+    """Effective numeric caps plus independently configured calendar windows."""
+
+    caps: dict[str, float]
+    calendar_periods: frozenset[str]
 
 
 @dataclass(frozen=True)
@@ -235,22 +242,18 @@ def _active_cost_state_id() -> str:
         raise SpendCapConfigurationError("cost-state identity is unavailable") from exc
 
 
-def _with_attended_grant(operator: OperatorBudget, *, provider: str | None) -> OperatorBudget:
-    """Let a live attended grant authorize spend up to its own ceiling.
+def _with_spend_wallet(operator: OperatorBudget) -> OperatorBudget:
+    """Attach the local wallet without treating it as provider authority.
 
-    The only way a frozen budget becomes usable without provider-signed
-    evidence, and it stays narrow: the authority is the grant's amount, not the
-    operator's monthly limit, so a $2 grant against a $0 configured budget
-    authorizes $2 and nothing else.
-
-    Fails closed on every uncertainty. A grant that cannot be read, cannot be
-    bound to the current cost state, or is for another provider leaves the
-    freeze exactly as it was.
+    Provider selection does not divide the balance. Every metered provider
+    draws down the same wallet, while the unattended context ignores it. The
+    wallet can narrow verified provider authority, but cannot clear a provider
+    account-control freeze on its own.
     """
     if _UNATTENDED_PAID_API.get():
         return operator
 
-    from deepr.core.attended_grant import active_grant
+    from deepr.core.spend_wallet import active_wallet
 
     try:
         cost_state_id = _active_cost_state_id()
@@ -258,31 +261,25 @@ def _with_attended_grant(operator: OperatorBudget, *, provider: str | None) -> O
         return operator
 
     try:
-        grant = active_grant(cost_state_id=cost_state_id)
+        wallet = active_wallet(cost_state_id=cost_state_id)
     except Exception:
         return operator
-    if grant is None:
+    if wallet is None:
         return operator
 
-    requested = (provider or _PAID_API_PROVIDER.get() or "").strip().lower()
-    if grant.provider and grant.provider != requested:
-        # Including when the requested provider is unknown. A grant scoped to
-        # one provider must not authorize a call that cannot say which provider
-        # it is for; "unknown" is not "the one you meant".
-        return operator
+    effective_limit = operator.monthly_limit
+    if operator._verified_marker is _VERIFIED_AUTHORITY_MARKER and operator.authorization_valid:
+        provider_limit = operator.authorization_hard_monthly_limit or operator.monthly_limit
+        effective_limit = min(wallet.authorized_usd, provider_limit)
 
     return replace(
         operator,
-        configured=True,
-        monthly_limit=grant.amount_usd,
-        frozen=False,
-        freeze_reason="",
-        freeze_kind="",
-        attended_grant_id=grant.grant_id,
-        attended_grant_expires_at=grant.expires_at,
-        attended_grant_amount_usd=grant.amount_usd,
-        attended_grant_settled_baseline_usd=grant.settled_cost_baseline_usd,
-        attended_grant_provider=grant.provider,
+        monthly_limit=effective_limit,
+        spend_wallet_id=wallet.wallet_id,
+        spend_wallet_authorized_usd=wallet.authorized_usd,
+        spend_wallet_settled_baseline_usd=wallet.settled_cost_baseline_usd,
+        spend_wallet_created_at=wallet.created_at,
+        spend_wallet_updated_at=wallet.updated_at,
     )
 
 
@@ -294,7 +291,7 @@ def read_operator_budget(path: Path | None = None, *, provider: str | None = Non
     """
     target = path or budget_file_path()
     if not target.exists():
-        return _with_attended_grant(
+        return _with_spend_wallet(
             OperatorBudget(
                 configured=False,
                 monthly_limit=0.0,
@@ -302,7 +299,6 @@ def read_operator_budget(path: Path | None = None, *, provider: str | None = Non
                 freeze_reason="paid API account controls are not configured",
                 freeze_kind="unconfigured",
             ),
-            provider=provider,
         )
     try:
         document = _loads_operator_budget(target.read_text(encoding="utf-8"))
@@ -310,25 +306,29 @@ def read_operator_budget(path: Path | None = None, *, provider: str | None = Non
         raise SpendCapConfigurationError(f"operator budget is unreadable: {target}") from exc
     operator = parse_operator_budget(document)
     if document.get("paid_api_frozen", False) is True or operator.monthly_limit <= 0:
-        return _with_attended_grant(operator, provider=provider)
+        return _with_spend_wallet(operator)
     reference = _authorization_fields(document)
     requested_provider = provider or _PAID_API_PROVIDER.get()
     if requested_provider is None:
-        return replace(
-            operator,
-            frozen=True,
-            freeze_reason="paid API provider binding is required",
-            freeze_kind="account_identity_mismatch",
+        return _with_spend_wallet(
+            replace(
+                operator,
+                frozen=True,
+                freeze_reason="paid API provider binding is required",
+                freeze_kind="account_identity_mismatch",
+            )
         )
     requested_provider = _normalized_provider(requested_provider)
     if reference is None or not reference.recovered_freeze_id or reference.recovered_frozen_at is None:
-        return operator
+        return _with_spend_wallet(operator)
     if reference.cost_state_id != _active_cost_state_id():
-        return replace(
-            operator,
-            frozen=True,
-            freeze_reason="paid API authorization belongs to another cost state",
-            freeze_kind="account_identity_mismatch",
+        return _with_spend_wallet(
+            replace(
+                operator,
+                frozen=True,
+                freeze_reason="paid API authorization belongs to another cost state",
+                freeze_kind="account_identity_mismatch",
+            )
         )
     try:
         from deepr.observability.provider_account_controls import (
@@ -346,45 +346,35 @@ def read_operator_budget(path: Path | None = None, *, provider: str | None = Non
             )
         except ProviderAccountControlError as exc:
             kind = "account_control_expired" if "expired" in str(exc).casefold() else "account_identity_mismatch"
-            return replace(
-                operator,
-                frozen=True,
-                freeze_reason=f"paid API account-control evidence is invalid: {exc}",
-                freeze_kind=kind,
+            return _with_spend_wallet(
+                replace(
+                    operator,
+                    frozen=True,
+                    freeze_reason=f"paid API account-control evidence is invalid: {exc}",
+                    freeze_kind=kind,
+                )
             )
     except ImportError as exc:  # pragma: no cover - installed package invariant
         raise SpendCapConfigurationError("paid API evidence verifier is unavailable") from exc
     if reference.valid_until != authorization.valid_until:
-        return replace(
-            operator,
-            frozen=True,
-            freeze_reason="paid API authorization expiration does not match immutable evidence",
-            freeze_kind="account_identity_mismatch",
+        return _with_spend_wallet(
+            replace(
+                operator,
+                frozen=True,
+                freeze_reason="paid API authorization expiration does not match immutable evidence",
+                freeze_kind="account_identity_mismatch",
+            )
         )
-    return _with_verified_authorization(operator, authorization)
+    return _with_spend_wallet(_with_verified_authorization(operator, authorization))
 
 
 def read_operator_budget_for_status(path: Path | None = None) -> OperatorBudget:
     """Read authority for a human-facing status surface.
 
-    A provider-scoped attended grant should still be visible on dashboards and
-    in ``budget status`` even though those read-only surfaces are not inside a
-    provider dispatch scope. The unattended context guard remains authoritative
-    because both reads below pass through ``_with_attended_grant``.
+    The wallet is provider-neutral, so the ordinary authority read is enough.
+    The unattended context guard remains authoritative.
     """
-    operator = read_operator_budget(path)
-    if operator.attended_grant_id or _UNATTENDED_PAID_API.get():
-        return operator
-
-    from deepr.core.attended_grant import active_grant
-
-    try:
-        grant = active_grant(cost_state_id=_active_cost_state_id())
-    except Exception:
-        return operator
-    if grant is None or not grant.provider:
-        return operator
-    return read_operator_budget(path, provider=grant.provider)
+    return read_operator_budget(path)
 
 
 def _aware_datetime(value: object, *, source: str) -> datetime:
@@ -623,12 +613,54 @@ def _environment_limit(key: str, trusted_values: tuple[float, ...] = ()) -> floa
     return min(values) if values else None
 
 
-def resolve_spend_caps(
+def _calendar_cap_periods(*, daily: float | None, weekly: float | None, monthly: float | None) -> set[str]:
+    """Periods that have an independent calendar ceiling."""
+    periods: set[str] = set()
+    if monthly is not None:
+        periods.update(("daily", "weekly", "monthly"))
+    if weekly is not None:
+        periods.update(("daily", "weekly"))
+    if daily is not None:
+        periods.add("daily")
+    return periods
+
+
+def _wallet_spend_policy(
+    operator: OperatorBudget,
+    *,
+    per_job: float | None,
+    daily: float | None,
+    weekly: float | None,
+    monthly: float | None,
+    calendar_periods: set[str],
+) -> ResolvedSpendPolicy:
+    """Resolve cumulative wallet authority beside independent calendar caps."""
+    provider_authority_verified = (
+        operator._verified_marker is _VERIFIED_AUTHORITY_MARKER and operator.authorization_valid
+    )
+    if provider_authority_verified:
+        calendar_periods.update(("daily", "weekly", "monthly"))
+    # The wallet is a non-renewing cumulative pool, not a calendar window.
+    # Environment values still narrow it when explicitly configured, but the
+    # request supplies the independently named job ceiling.
+    monthly = operator.monthly_limit if monthly is None else min(monthly, operator.monthly_limit)
+    if operator.frozen or not provider_authority_verified:
+        monthly = 0.0
+    weekly = monthly if weekly is None else min(weekly, monthly)
+    daily = weekly if daily is None else min(daily, weekly)
+    per_job = daily if per_job is None else min(per_job, daily)
+    return ResolvedSpendPolicy(
+        caps={"per_job": per_job, "daily": daily, "weekly": weekly, "monthly": monthly},
+        calendar_periods=frozenset(calendar_periods),
+    )
+
+
+def resolve_spend_policy(
     *,
     budget_path: Path | None = None,
     operator_budget: OperatorBudget | None = None,
     provider: str | None = None,
-) -> dict[str, float]:
+) -> ResolvedSpendPolicy:
     """Resolve per-job, UTC day/week/month caps in USD.
 
     Paid work is default-off until either an operator budget file or an explicit
@@ -641,11 +673,15 @@ def resolve_spend_caps(
     if requested_provider is not None:
         requested_provider = _normalized_provider(requested_provider)
     operator = operator_budget or read_operator_budget(budget_path, provider=requested_provider)
-    if operator_budget is not None and (
-        requested_provider is None
-        or operator._verified_marker is not _VERIFIED_AUTHORITY_MARKER
-        or not operator.authorization_valid
-        or requested_provider not in operator.authorization_providers
+    if (
+        operator_budget is not None
+        and not operator.spend_wallet_id
+        and (
+            requested_provider is None
+            or operator._verified_marker is not _VERIFIED_AUTHORITY_MARKER
+            or not operator.authorization_valid
+            or requested_provider not in operator.authorization_providers
+        )
     ):
         operator = replace(
             operator,
@@ -658,6 +694,17 @@ def resolve_spend_caps(
     daily = _environment_limit("daily", trusted_limits["daily"])
     weekly = _environment_limit("weekly", trusted_limits["weekly"])
     monthly = _environment_limit("monthly", trusted_limits["monthly"])
+    calendar_periods = _calendar_cap_periods(daily=daily, weekly=weekly, monthly=monthly)
+
+    if operator.spend_wallet_id:
+        return _wallet_spend_policy(
+            operator,
+            per_job=per_job,
+            daily=daily,
+            weekly=weekly,
+            monthly=monthly,
+            calendar_periods=calendar_periods,
+        )
 
     per_job = _DEFAULTS["per_job"] if per_job is None else per_job
     daily = _DEFAULTS["daily"] if daily is None else daily
@@ -676,12 +723,31 @@ def resolve_spend_caps(
     weekly = min(weekly, _ABSOLUTE_CEILINGS["weekly"])
     daily = min(daily, weekly, _ABSOLUTE_CEILINGS["daily"])
     per_job = min(per_job, daily, _ABSOLUTE_CEILINGS["per_job"])
-    return {
-        "per_job": per_job,
-        "daily": daily,
-        "weekly": weekly,
-        "monthly": monthly,
-    }
+    return ResolvedSpendPolicy(
+        caps={
+            "per_job": per_job,
+            "daily": daily,
+            "weekly": weekly,
+            "monthly": monthly,
+        },
+        calendar_periods=frozenset(("daily", "weekly", "monthly")),
+    )
+
+
+def resolve_spend_caps(
+    *,
+    budget_path: Path | None = None,
+    operator_budget: OperatorBudget | None = None,
+    provider: str | None = None,
+) -> dict[str, float]:
+    """Resolve effective numeric caps while preserving the legacy return shape."""
+    return dict(
+        resolve_spend_policy(
+            budget_path=budget_path,
+            operator_budget=operator_budget,
+            provider=provider,
+        ).caps
+    )
 
 
 def clamp_spend_authority(settings: MutableSpendLimits) -> None:

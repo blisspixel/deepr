@@ -510,9 +510,7 @@ def route_gaps(
     if execute_fills:
         try:
             if scheduled and api:
-                raise ValueError(
-                    "--scheduled cannot use --api; attended grants are only for work a person is watching."
-                )
+                raise ValueError("--scheduled cannot use --api; local wallet credits are only for attended work.")
             _validate_gap_fill_backend_flags(local=local, api=api, plan=plan, plan_model=plan_model)
         except ValueError as exc:
             print_error(str(exc))

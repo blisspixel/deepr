@@ -126,20 +126,16 @@ async def test_recognized_sdk_endpoint_can_be_inspected_but_generic_paid_client_
 
 
 @pytest.mark.asyncio
-async def test_deepr_minted_attended_client_binds_grant_model_and_transport() -> None:
-    from deepr.core.attended_grant import issue_grant, save_grant
-    from deepr.core.cost_caps import freeze_paid_api
+async def test_deepr_minted_attended_client_binds_wallet_model_and_transport() -> None:
+    from deepr.core.spend_wallet import create_wallet, save_wallet
     from deepr.experts.research_reservation_store import ResearchReservationStore
     from deepr.observability.cost_ledger import current_cost_state_id
 
-    freeze_paid_api("attended client test")
-    save_grant(
-        issue_grant(
-            amount_usd=2.0,
-            minutes=30,
+    save_wallet(
+        create_wallet(
+            amount_usd=50.0,
             cost_state_id=current_cost_state_id(),
             settled_cost_baseline_usd=ResearchReservationStore().exposure_snapshot().total_settled_cost,
-            provider="openai",
         )
     )
     transport = httpx.AsyncClient(trust_env=False, follow_redirects=False)

@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.48.0-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.48.0)
+[![Version](https://img.shields.io/badge/version-2.49.0-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.49.0)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -12,32 +12,39 @@ citations, provenance, and outcomes. It prefers owned local models, then proven
 subscription quota, with no automatic fallback to a paid API.
 
 <p align="center">
-  <img src="assets/cli-demo.png" width="92%" alt="Bounded attended API run: one $2 total grant, exact ledger settlement, expert improvement, and immediate revocation" />
-</p>
-
-<p align="center">
-  <img src="assets/expert-hub.png" width="70%" alt="Live roster of 49 experts with the improved cost expert at 173 findings and API grant exposure of $0.01 against one $2 total limit" />
+  <img src="assets/cli-demo.png" width="92%" alt="A $200 cumulative Deepr wallet with a separate $4 job ceiling, exact drawdown, no automatic refill, and provider hard-stop status shown separately" />
 </p>
 
 ## Capacity
 
 | Class | Current posture |
 | --- | --- |
-| Local Ollama | Preferred for expert setup, maintenance, evaluation, and consultation after endpoint ownership is proven. Records $0 and does not consume an API grant. |
-| Prepaid plan quota | Runs only when authentication, tool confinement, remaining quota, and disabled paid overage are proven. Claude Code is the current executable adapter. Successful work records $0 and does not consume an API grant. |
-| Metered API | No automatic fallback. Attended `expert absorb --api` can run only under a typed, expiring grant with a hard $2 total maximum. Other metered surfaces remain gated. |
+| Local Ollama | Preferred for expert setup, maintenance, evaluation, and consultation after endpoint ownership is proven. Records $0 and does not consume wallet capacity. |
+| Plan quota | Uses an existing subscription only when authentication, tool confinement, remaining quota, and disabled paid overage are proven. Claude Code is the current executable adapter. Successful work records $0 at the margin. |
+| Metered API | No automatic fallback. The attended absorb path requires verified provider prepaid-no-overage or a hard provider ceiling, plus a cumulative Deepr wallet, a separate finite job ceiling, explicit confirmation, and a durable reservation. Other metered surfaces remain gated. |
 
-A grant is one total drawdown, not $2 per call. Every settled API dollar and
-every active paid hold consumes the same grant across provider calls and time
-windows. Each call still needs its own finite reservation and explicit consent.
-MCP, schedules, loops, and automatic fallback cannot use attended authority.
+A wallet is one cumulative drawdown across provider calls and time windows, not
+a per-request allowance. The operator chooses its size, whether `$2`, `$50`, or
+`$200`, and every settled API dollar plus every active paid hold consumes it.
+There is no overdraft, automatic refill, or universal `$2` job maximum. Every
+job still needs its own narrower confirmed ceiling.
+
+Wallet funding is local Deepr authorization. It does not buy or verify provider
+credits. Provider-side prepaid credits or a provider-enforced hard stop with
+paid overage disabled are also mandatory for dispatch. Deepr verifies both
+layers and applies the tighter boundary. A soft budget alert on an open
+postpaid account is not a hard stop and remains execution-blocked. MCP, schedules,
+loops, consultation, and automatic routing cannot use wallet authority.
 
 ```bash
-deepr budget allow --amount 2.00 --minutes 60 --provider openai
-deepr expert absorb "My Domain Expert" --file report.md --api --budget 0.30
+# Keep the active example's independent calendar ceiling conservative.
+# In .env: DEEPR_MAX_COST_PER_MONTH=5.00
+deepr budget credits add --amount 200.00 --reason "Bound this API campaign"
+deepr expert absorb "My Domain Expert" --file report.md --api --budget 4.00
+deepr budget status
 deepr costs show
 deepr costs doctor
-deepr budget revoke
+deepr budget credits clear
 ```
 
 See [Capacity and Cost](docs/CAPACITY.md) for billing reconciliation and the
@@ -78,6 +85,15 @@ protocol revision (stateless per-request negotiation, `server/discover`,
 still serving legacy `initialize`-era clients on both transports. Operators can
 prove the offline host-interop posture with `deepr mcp conformance` (`$0`, no
 network, no model).
+
+The portability roadmap follows the current [Agent Plugins 1.0.0 working-draft
+specification](https://agent-plugins.org/specification) and containment
+contract. OKF export remains a derived view over Deepr's canonical belief and
+provenance stores; the migration target is the current [Open Knowledge Format
+0.2 repository](https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf),
+which follows the original [Google Cloud introduction](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing/).
+Current OKF 0.2 conformance and Agent Plugin packaging are planned surfaces, not shipped claims; see
+[Supported Surface](docs/SUPPORTED_SURFACE.md) and [Roadmap](ROADMAP.md).
 
 ## Documentation
 

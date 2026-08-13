@@ -62,8 +62,7 @@ def test_scheduled_sync_all_rejects_metered_api_before_roster_access(monkeypatch
 
     assert result.exit_code == 2
     assert "--scheduled cannot use --api" in result.output
-    assert "work a person is" in result.output
-    assert "watching" in result.output
+    assert "only for attended work" in result.output
 
 
 def _assert_heartbeat_evidence(

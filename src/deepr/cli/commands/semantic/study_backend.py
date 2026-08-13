@@ -66,24 +66,9 @@ class StudyBackend:
     largest determinant of what a study pass finds, and previously discarded."""
 
 
-def _completion_from_chat_client(
-    client: Any, model: str, *, max_tokens: int, context_tokens: int = 0
-) -> StudyCompletion:
-    """Adapt an OpenAI-style chat client to the study pass's callable.
-
-    ``context_tokens`` is offered to Ollama as ``num_ctx``, best effort. The
-    intent is that without it the server allocates KV cache for the model's own
-    configured context - commonly 32K - regardless of how much is needed, which
-    invalidates any VRAM sizing done beforehand and pushes the model onto CPU.
-
-    Best effort is the honest wording: the field rides in ``extra_body`` and
-    Ollama's OpenAI-compatible endpoint has been observed ignoring it, so a
-    sizing decision made upstream may not be the one the server enacts. Plan
-    quota clients share this adapter and ignore the field entirely.
-    """
+def _completion_from_chat_client(client: Any, model: str, *, max_tokens: int) -> StudyCompletion:
+    """Adapt an OpenAI-style plan client to the study pass callable."""
     extra_body: dict[str, Any] = {"keep_alive": "10m"}
-    if context_tokens > 0:
-        extra_body["num_ctx"] = context_tokens
 
     async def _completion(prompt: str) -> str:
         response = await client.chat.completions.create(
@@ -107,6 +92,47 @@ def _completion_from_chat_client(
                 "report on, or run fewer lenses per pass."
             )
         return text
+
+    return _completion
+
+
+def _completion_from_native_ollama(
+    backend: Any,
+    model: str,
+    *,
+    max_tokens: int,
+    context_tokens: int,
+) -> StudyCompletion:
+    """Adapt the native local backend while binding the real context window.
+
+    Ollama's OpenAI-compatible endpoint does not accept ``num_ctx``. Passing
+    the field through ``extra_body`` is silently ignored and can materialize a
+    model's full advertised context, pushing an otherwise fitting model onto
+    CPU. The native endpoint accepts ``options.num_ctx`` and the backend also
+    proves cloud execution is disabled and the exact model exists locally.
+    """
+    from deepr.experts.chat_backends import ExpertChatRequest
+
+    async def _completion(prompt: str) -> str:
+        result = await backend.complete(
+            ExpertChatRequest(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                extra={
+                    "max_tokens": max_tokens,
+                    "num_ctx": context_tokens,
+                    "response_format": {"type": "json_object"},
+                    "temperature": 0.2,
+                },
+            )
+        )
+        if result.stop_reason == "length":
+            raise StudyBackendError(
+                f"response hit the {max_tokens}-token output limit and was cut off "
+                "mid-structure. Lower --max-corpus-chars so each call has less to "
+                "report on, or run fewer lenses per pass."
+            )
+        return result.text
 
     return _completion
 
@@ -213,7 +239,8 @@ def _preferred_plan_backends() -> list[str]:
 def _build_local_backend(
     *, profile: Any, model: str | None, max_tokens: int, context_tokens: int = 16384
 ) -> StudyBackend:
-    from deepr.backends.local import ollama_chat_client, resolve_local_maintenance_model
+    from deepr.backends.local import resolve_local_maintenance_model
+    from deepr.experts.investigation.ollama_backend import NativeOllamaInvestigationBackend
 
     local_model = resolve_local_maintenance_model(profile, explicit_model=model)
     fit_note = ""
@@ -226,10 +253,13 @@ def _build_local_backend(
             local_model = fitted
     if not local_model:
         raise StudyBackendError("No local model available. Is Ollama running? Check: deepr capacity --probe")
-    client = ollama_chat_client()
+    backend = NativeOllamaInvestigationBackend(model=local_model, keep_alive="10m")
     return StudyBackend(
-        completion=_completion_from_chat_client(
-            client, local_model, max_tokens=max_tokens, context_tokens=context_tokens
+        completion=_completion_from_native_ollama(
+            backend,
+            local_model,
+            max_tokens=max_tokens,
+            context_tokens=context_tokens,
         ),
         capacity_source=f"local:{local_model}",
         model=local_model,

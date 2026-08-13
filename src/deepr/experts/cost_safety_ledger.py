@@ -131,6 +131,7 @@ __all__ = [
     "DurableCostReservationError",
     "append_cost_event",
     "append_cost_record",
+    "initial_spend_authority",
     "seed_window_costs",
 ]
 
@@ -138,7 +139,8 @@ __all__ = [
 def seed_window_costs(
     ledger: CostLedger,
     *,
-    settled_cost_baseline_usd: float | None = None,
+    wallet_settled_baseline_usd: float | None = None,
+    calendar_periods: frozenset[str] = frozenset(("daily", "weekly", "monthly")),
 ) -> tuple[float, float, float]:
     """Current (daily, weekly, monthly) canonical spend.
 
@@ -153,16 +155,35 @@ def seed_window_costs(
     week_start = day_start - timedelta(days=day_start.weekday())
 
     def totals(events: list[Any]) -> tuple[float, float, float]:
-        if settled_cost_baseline_usd is not None:
-            total = float(sum(event.cost_usd for event in events))
-            if total < settled_cost_baseline_usd:
-                raise ValueError("canonical settled cost is below the attended grant baseline")
-            consumed = total - settled_cost_baseline_usd
-            return consumed, consumed, consumed
-        return (
+        calendar = (
             float(sum(event.cost_usd for event in events if event.timestamp >= day_start)),
             float(sum(event.cost_usd for event in events if event.timestamp >= week_start)),
             float(sum(event.cost_usd for event in events if event.timestamp >= month_start)),
         )
+        if wallet_settled_baseline_usd is None:
+            return calendar
+        total = float(sum(event.cost_usd for event in events))
+        if total < wallet_settled_baseline_usd:
+            raise ValueError("canonical settled cost is below the spend wallet baseline")
+        wallet_consumed = total - wallet_settled_baseline_usd
+        return tuple(
+            calendar[index] if period in calendar_periods else wallet_consumed
+            for index, period in enumerate(("daily", "weekly", "monthly"))
+        )
 
     return ledger.with_locked_accounting_events(totals)
+
+
+def initial_spend_authority(ledger: CostLedger) -> tuple[tuple[float, float, float], dict[str, float]]:
+    """Resolve canonical spend seeds and the caps that give them meaning."""
+    from deepr.core.cost_caps import read_operator_budget, resolve_spend_policy
+
+    operator = read_operator_budget()
+    policy = resolve_spend_policy()
+    baseline = operator.spend_wallet_settled_baseline_usd if operator.spend_wallet_id else None
+    seeded = seed_window_costs(
+        ledger,
+        wallet_settled_baseline_usd=baseline,
+        calendar_periods=policy.calendar_periods,
+    )
+    return seeded, dict(policy.caps)

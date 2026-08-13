@@ -887,7 +887,11 @@ class TestExpertAbsorbCommand:
             inst.absorb = AsyncMock(return_value=self._stub_result(dry_run=True))
             mock_absorber.return_value = inst
 
-            result = runner.invoke(cli, ["expert", "absorb", "Test Expert", "rep1", "--api", "--dry-run", "--yes"])
+            with patch(
+                "deepr.cli.commands.semantic.expert_maintenance.build_absorb_backend",
+                return_value=SimpleNamespace(absorber=inst, cost_note="~$0.05"),
+            ):
+                result = runner.invoke(cli, ["expert", "absorb", "Test Expert", "rep1", "--api", "--dry-run", "--yes"])
 
             assert result.exit_code == 0
             assert "DRY RUN" in result.output
@@ -913,8 +917,11 @@ class TestExpertAbsorbCommand:
             inst = MagicMock()
             inst.absorb = AsyncMock(return_value=self._stub_result(dry_run=False))
             mock_absorber.return_value = inst
-
-            result = runner.invoke(cli, ["expert", "absorb", "Test Expert", "rep1", "--api", "--yes", "--json"])
+            with patch(
+                "deepr.cli.commands.semantic.expert_maintenance.build_absorb_backend",
+                return_value=SimpleNamespace(absorber=inst, cost_note="~$0.05"),
+            ):
+                result = runner.invoke(cli, ["expert", "absorb", "Test Expert", "rep1", "--api", "--yes", "--json"])
 
             assert result.exit_code == 0
             import json
@@ -943,9 +950,15 @@ class TestExpertAbsorbCommand:
 
             # The terminal gate is covered separately; this exercises the
             # command's genuine interactive-decline branch.
-            with patch(
-                "deepr.cli.commands.semantic.expert_maintenance.confirm_interactively",
-                return_value=False,
+            with (
+                patch(
+                    "deepr.cli.commands.semantic.expert_maintenance.build_absorb_backend",
+                    return_value=SimpleNamespace(absorber=MagicMock(), cost_note="~$0.05"),
+                ),
+                patch(
+                    "deepr.cli.commands.semantic.expert_maintenance.confirm_interactively",
+                    return_value=False,
+                ),
             ):
                 result = runner.invoke(cli, ["expert", "absorb", "Test Expert", "rep1", "--api"])
 
@@ -1620,8 +1633,7 @@ class TestExpertRouteGapsCommand:
 
         assert result.exit_code == 2
         assert "--scheduled cannot use --api" in result.output
-        assert "work a person is" in result.output
-        assert "watching" in result.output
+        assert "only for attended work" in result.output
         mock_store_class.assert_not_called()
 
     def test_json_output(self, runner):

@@ -128,6 +128,26 @@ def roster_entry(expert_name: str) -> dict[str, Any]:
         }
 
 
+def roster_readiness(entry: dict[str, Any], *, portrait_url: object) -> dict[str, Any]:
+    """Report missing presentation structure without judging semantic quality.
+
+    These checks guard observable form only. They do not conclude that a
+    standpoint is correct, findings are important, or the expert is good.
+    """
+    missing: list[str] = []
+    if not str(entry.get("standpoint") or "").strip():
+        missing.append("standpoint")
+    if int(entry.get("position_count", 0) or 0) <= 0:
+        missing.append("positions")
+    if int(entry.get("studied_findings", 0) or 0) <= 0:
+        missing.append("studied findings")
+    if int(entry.get("source_count", 0) or 0) <= 0:
+        missing.append("retained sources")
+    if not isinstance(portrait_url, str) or not portrait_url.strip():
+        missing.append("portrait")
+    return {"roster_ready": not missing, "roster_missing": missing}
+
+
 def _enrich_self(payload: dict[str, Any], name: str) -> dict[str, Any]:
     """Derive what the UI branches on rather than trusting the stored file.
 

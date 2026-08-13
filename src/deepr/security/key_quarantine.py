@@ -35,7 +35,9 @@ than adjusted.
 from __future__ import annotations
 
 import os
-from collections.abc import MutableMapping
+import threading
+from collections.abc import Iterable, Iterator, MutableMapping
+from contextlib import contextmanager
 
 QUARANTINE_PREFIX = "DEEPR_QUARANTINED_"
 
@@ -69,26 +71,32 @@ where any client library that happens to be importable could pick one up.
 """
 
 _TRUTHY = {"1", "true", "yes", "on"}
+_RELEASE_LOCK = threading.RLock()
 
 
 def _opted_out(env: MutableMapping[str, str]) -> bool:
     return str(env.get(OPT_OUT_VAR, "")).strip().lower() in _TRUTHY
 
 
-def release_quarantined_keys(env: MutableMapping[str, str] | None = None) -> list[str]:
-    """Put quarantined keys back, for the lifetime of an attended grant.
+def release_quarantined_keys(
+    env: MutableMapping[str, str] | None = None,
+    *,
+    key_names: Iterable[str] = METERED_KEY_NAMES,
+) -> list[str]:
+    """Put quarantined keys back for a tightly scoped client construction.
 
-    The counterpart to quarantining, and the reason a grant is one switch
-    rather than two. Without this, an operator who authorized $2 would find
-    every call failing for a missing key and would reach for a global
-    `DEEPR_ALLOW_METERED_KEYS=1` - a permanent, unexpiring hole opened to solve
-    a bounded, expiring problem.
+    Callers must restore quarantine immediately after the exact paid client has
+    copied its credential. A wallet must never release keys for an unrelated
+    command or for the full lifetime of the CLI process.
 
     Returns the names restored.
     """
     target = os.environ if env is None else env
     restored: list[str] = []
-    for name in METERED_KEY_NAMES:
+    requested = tuple(key_names)
+    if any(name not in METERED_KEY_NAMES for name in requested):
+        raise ValueError("only known metered key names may be released")
+    for name in requested:
         quarantined = QUARANTINE_PREFIX + name
         value = target.get(quarantined)
         if not value or not value.strip():
@@ -97,6 +105,22 @@ def release_quarantined_keys(env: MutableMapping[str, str] | None = None) -> lis
         del target[quarantined]
         restored.append(name)
     return restored
+
+
+@contextmanager
+def temporarily_released_metered_keys(
+    env: MutableMapping[str, str] | None = None,
+    *,
+    key_names: Iterable[str] = METERED_KEY_NAMES,
+) -> Iterator[list[str]]:
+    """Release selected keys for one construction block, then requarantine."""
+    target = os.environ if env is None else env
+    with _RELEASE_LOCK:
+        restored = release_quarantined_keys(target, key_names=key_names)
+        try:
+            yield restored
+        finally:
+            quarantine_metered_keys(target)
 
 
 def quarantine_metered_keys(env: MutableMapping[str, str] | None = None) -> list[str]:

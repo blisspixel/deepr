@@ -1,9 +1,12 @@
 """Render expert portraits locally, from what each expert said it looks like.
 
-$0 and offline. Uses Artomate, which is a fully local image generator, so no
-metered image API is ever contacted. Deepr's own portrait path stays blocked
-for local execution pending a capacity attestation; this is an operator tool
-run by hand, not something the app can trigger.
+$0 and offline under the operator's local-tool attestation. Uses Artomate, so
+this script reads and forwards no provider credential. The same allowlisted
+binary can be selected for `expert profile` with
+`DEEPR_LOCAL_IMAGE_CLI=artomate`; neither path claims to verify the behavior of
+an external executable. Set `DEEPR_LOCAL_IMAGE_CLI_MANIFEST` to an absolute,
+reviewed, hash-pinned SDXL asset manifest when a friendly model alias is not a
+stable recipe.
 
 The prompt is built by `deepr.experts.portraits._build_prompt`, so a portrait
 generated here is the same prompt the application would use: the expert's own
@@ -20,17 +23,14 @@ portrait of the person in it.
 from __future__ import annotations
 
 import json
-import subprocess
+import os
 import sys
-import tempfile
-from pathlib import Path
 
 from deepr.experts.expert_layout import self_path
+from deepr.experts.local_image_cli import render as render_local_image
 from deepr.experts.paths import canonical_expert_dir, expert_slug
 from deepr.experts.portraits import _build_prompt, default_portraits_dir
 from deepr.experts.profile_store import ExpertStore
-
-MODEL = "flux2-klein"
 
 
 def _slug(directory: str) -> str:
@@ -57,35 +57,19 @@ def _named_experts() -> list[tuple[str, str, str]]:
 
 
 def _render(prompt: str) -> bytes | None:
-    """The bytes of one image from the local model, or None if it produced none.
-
-    Artomate writes `output/art-<hex>.png` relative to the working directory
-    and never overwrites, so rendering into a fresh temporary directory makes
-    "the file that appeared" unambiguous.
-    """
-    # ignore_cleanup_errors, because Artomate leaves a lock file inside its
-    # own output directory and Windows refuses to remove a directory holding an
-    # open handle. Without it the render succeeds and the script dies clearing
-    # up after itself, losing the image it just spent five minutes on.
-    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as work:
-        result = subprocess.run(
-            ["artomate", "imagine", prompt, "model", MODEL, "ratio", "1:1"],
-            cwd=work,
-            capture_output=True,
-            text=True,
-            timeout=1800,
-        )
-        produced = sorted((Path(work) / "output").glob("*.png")) if (Path(work) / "output").is_dir() else []
-        if not produced:
-            print(f"    no image: {(result.stderr or result.stdout or '').strip()[:160]}")
-            return None
-        # Read the bytes out rather than copying to a second temporary
-        # directory: the previous form leaked one directory per render, since
-        # nothing ever removed it.
-        return produced[0].read_bytes()
+    """The bytes of one image from the configured local adapter, if successful."""
+    try:
+        return render_local_image(prompt)
+    except RuntimeError as exc:
+        print(f"    no image: {str(exc)[:160]}")
+        return None
 
 
 def main(argv: list[str]) -> int:
+    # Invoking this explicitly named local-rendering script is the operator's
+    # attestation. Preserve its historical zero-configuration Artomate default
+    # while sharing the exact adapter used by ``expert profile``.
+    os.environ.setdefault("DEEPR_LOCAL_IMAGE_CLI", "artomate")
     skip_existing = "--force" not in argv
     wanted = {a.lower() for a in argv[1:] if a != "--force"}
 

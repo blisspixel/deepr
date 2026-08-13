@@ -261,13 +261,36 @@ def _build_plan_absorber(
 
 
 def _build_metered_absorber(*, profile: Any, model: str | None, grounding: GroundingFlags) -> AbsorbBackend:
-    from deepr.experts.report_absorber import ESTIMATED_EXTRACTION_COST, ReportAbsorber
+    from deepr.core.cost_caps import read_operator_budget
+    from deepr.experts.report_absorber import (
+        ESTIMATED_EXTRACTION_COST,
+        ReportAbsorber,
+        build_attended_openai_client,
+    )
+    from deepr.security.key_quarantine import temporarily_released_metered_keys
 
     checker, escalator = _grounding_pair(grounding, maker_vendor="api_metered")
-    absorber = ReportAbsorber(
-        profile,
-        **absorber_kwargs(model=model or "gpt-5-mini", grounding_checker=checker, grounding_escalator=escalator),
-    )
+    operator = read_operator_budget(provider="openai")
+    if not operator.spend_wallet_id:
+        raise AbsorbBackendError(
+            "Metered absorb requires local wallet credits. Add them with `deepr budget credits add --amount AMOUNT`."
+        )
+    if operator.frozen or not operator.authorization_valid:
+        raise AbsorbBackendError(
+            "Metered absorb requires current provider prepaid or hard-stop evidence with paid overage disabled."
+        )
+    selected_model = model or "gpt-5-mini"
+    with temporarily_released_metered_keys(key_names=("OPENAI_API_KEY",)):
+        client = build_attended_openai_client(model=selected_model)
+        absorber = ReportAbsorber(
+            profile,
+            **absorber_kwargs(
+                client=client,
+                model=selected_model,
+                grounding_checker=checker,
+                grounding_escalator=escalator,
+            ),
+        )
     return AbsorbBackend(absorber, f"~${ESTIMATED_EXTRACTION_COST:.2f}")
 
 

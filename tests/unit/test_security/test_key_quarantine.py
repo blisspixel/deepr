@@ -7,12 +7,15 @@ never their only source. Editing `.env` looks like disarming something and is
 not.
 """
 
+import pytest
+
 from deepr.security.key_quarantine import (
     OPT_OUT_VAR,
     QUARANTINE_PREFIX,
     live_metered_names,
     quarantine_metered_keys,
     quarantined_names,
+    temporarily_released_metered_keys,
 )
 
 
@@ -91,3 +94,46 @@ class TestReporting:
         quarantine_metered_keys(env)
         assert quarantine_metered_keys(env) == []
         assert env[QUARANTINE_PREFIX + "OPENAI_API_KEY"] == "a"
+
+
+class TestScopedRelease:
+    def test_key_is_live_only_inside_client_construction_scope(self):
+        env = {"OPENAI_API_KEY": "a"}
+        quarantine_metered_keys(env)
+
+        with temporarily_released_metered_keys(env) as restored:
+            assert restored == ["OPENAI_API_KEY"]
+            assert env["OPENAI_API_KEY"] == "a"
+            assert QUARANTINE_PREFIX + "OPENAI_API_KEY" not in env
+
+        assert "OPENAI_API_KEY" not in env
+        assert env[QUARANTINE_PREFIX + "OPENAI_API_KEY"] == "a"
+
+    def test_only_requested_provider_key_is_released(self):
+        env = {"OPENAI_API_KEY": "a", "XAI_API_KEY": "x"}
+        quarantine_metered_keys(env)
+
+        with temporarily_released_metered_keys(env, key_names=("OPENAI_API_KEY",)):
+            assert env["OPENAI_API_KEY"] == "a"
+            assert "XAI_API_KEY" not in env
+            assert env[QUARANTINE_PREFIX + "XAI_API_KEY"] == "x"
+
+        assert live_metered_names(env) == []
+
+    def test_unknown_key_name_cannot_be_released(self):
+        with pytest.raises(ValueError, match="known metered key"):
+            with temporarily_released_metered_keys({}, key_names=("UNRELATED_SECRET",)):
+                pass
+
+    def test_exception_still_restores_quarantine(self):
+        env = {"XAI_API_KEY": "x"}
+        quarantine_metered_keys(env)
+
+        try:
+            with temporarily_released_metered_keys(env):
+                raise RuntimeError("construction failed")
+        except RuntimeError:
+            pass
+
+        assert live_metered_names(env) == []
+        assert env[QUARANTINE_PREFIX + "XAI_API_KEY"] == "x"

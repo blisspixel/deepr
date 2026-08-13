@@ -1,6 +1,10 @@
 # Attended spend: being usable and having no surprise bills
 
-Status: built, 2026-08-12. `deepr budget allow` / `deepr budget revoke`.
+Status: historical v2.47 design, 2026-08-12. Its expiring grant commands and
+fixed `$2` maximum were superseded in v2.49 by
+[spend-wallet-and-job-ceilings.md](spend-wallet-and-job-ceilings.md). The file
+is retained as the decision history for the original attended dispatch path,
+not as current operator guidance.
 
 ## The original problem, stated plainly
 

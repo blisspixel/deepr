@@ -63,23 +63,23 @@ def test_budget_status_no_divergence_note_when_counter_current() -> None:
     assert "never hit the session counter" not in result.output
 
 
-def test_attended_auto_approval_ignores_spend_before_grant() -> None:
+def test_wallet_auto_approval_ignores_spend_before_wallet() -> None:
     operator = OperatorBudget(
         configured=True,
-        monthly_limit=2.0,
+        monthly_limit=50.0,
         frozen=False,
-        attended_grant_id="grant-test",
-        attended_grant_amount_usd=2.0,
-        attended_grant_settled_baseline_usd=40.0,
+        spend_wallet_id="wallet-test",
+        spend_wallet_authorized_usd=50.0,
+        spend_wallet_settled_baseline_usd=40.0,
     )
     with (
         patch.object(budget_module, "load_budget_config", return_value={"monthly_spending": 38.0}),
-        patch.object(budget_module, "resolve_spend_caps", return_value={"monthly": 2.0}),
+        patch.object(budget_module, "resolve_spend_caps", return_value={"monthly": 50.0}),
         patch.object(budget_module, "read_operator_budget", return_value=operator),
         patch.object(budget_module, "_atomic_monthly_exposure", return_value=_monthly_exposure(40.25)),
     ):
         assert budget_module.check_budget_approval(0.5) is True
-        assert budget_module.check_budget_approval(1.5) is False
+        assert budget_module.check_budget_approval(40.0) is False
 
 
 def test_doctor_flags_over_budget_from_ledger() -> None:

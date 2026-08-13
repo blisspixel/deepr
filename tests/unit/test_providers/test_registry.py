@@ -104,8 +104,8 @@ class TestModelCapabilities:
         """Test OpenAI model capabilities."""
         expected_56 = {
             "gpt-5.6-sol": (5.00, 0.50, 30.00),
-            "gpt-5.6-terra": (2.00, 0.20, 12.00),
-            "gpt-5.6-luna": (0.20, 0.02, 1.20),
+            "gpt-5.6-terra": (2.50, 0.25, 15.00),
+            "gpt-5.6-luna": (1.00, 0.10, 6.00),
         }
         for model, (input_rate, cached_rate, output_rate) in expected_56.items():
             capability = get_model_capability("openai", model)

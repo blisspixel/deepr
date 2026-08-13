@@ -13,6 +13,7 @@ from math import isfinite
 from typing import Any
 
 from deepr.core.cost_caps import resolve_spend_caps
+from deepr.core.spend_wallet import MAX_EXACT_CENTS_USD
 from deepr.experts.cost_circuit_breaker import (
     CircuitBreakerState as CircuitBreakerState,
 )
@@ -31,7 +32,7 @@ from deepr.experts.cost_safety_ledger import (
     CostRecord,
     DurableCostReservationError,
     append_cost_record,
-    seed_window_costs,
+    initial_spend_authority,
 )
 from deepr.experts.cost_safety_messages import (
     estimate_curriculum_cost as estimate_curriculum_cost,
@@ -51,8 +52,6 @@ from deepr.experts.research_reservation_store import (
     ResearchReservationStore,
 )
 from deepr.observability.cost_ledger import CostLedger, CostLedgerDurabilityError
-
-_ABSOLUTE_TOTAL_SPEND_USD = 5.0
 
 
 def _validated_money(value: object, *, field_name: str) -> float:
@@ -137,7 +136,7 @@ class CostSession:
         self.session_type = session_type
         self.budget_limit = min(
             _validated_money(budget_limit, field_name="budget_limit"),
-            _ABSOLUTE_TOTAL_SPEND_USD,
+            MAX_EXACT_CENTS_USD,
         )
         self.warning_threshold = warning_threshold
         self.critical_threshold = critical_threshold
@@ -322,11 +321,11 @@ def create_default_circuit_breaker() -> CostCircuitBreaker:
         CostCircuitBreaker configured for typical research usage
     """
     return CostCircuitBreaker(
-        cost_threshold=5.0,  # $5 per 5 minutes
+        cost_threshold=MAX_EXACT_CENTS_USD,
         window_seconds=300.0,  # 5 minute window
         event_threshold=50,  # Max 50 API calls per window
         cooldown_seconds=60.0,  # 1 minute cooldown
-        max_single_cost=5.0,  # Max $5 per operation
+        max_single_cost=MAX_EXACT_CENTS_USD,
     )
 
 
@@ -347,10 +346,10 @@ class CostSafetyManager:
     # MCP/CLI surfaces that accept user-controlled budget values.
     # Kept as class attributes so callers (mcp/server.py, cli/commands/
     # budget.py) can reference them without instantiating a manager.
-    ABSOLUTE_MAX_PER_OPERATION: float = _ABSOLUTE_TOTAL_SPEND_USD
-    ABSOLUTE_MAX_DAILY: float = _ABSOLUTE_TOTAL_SPEND_USD
-    ABSOLUTE_MAX_WEEKLY: float = _ABSOLUTE_TOTAL_SPEND_USD
-    ABSOLUTE_MAX_MONTHLY: float = _ABSOLUTE_TOTAL_SPEND_USD
+    ABSOLUTE_MAX_PER_OPERATION: float = MAX_EXACT_CENTS_USD
+    ABSOLUTE_MAX_DAILY: float = MAX_EXACT_CENTS_USD
+    ABSOLUTE_MAX_WEEKLY: float = MAX_EXACT_CENTS_USD
+    ABSOLUTE_MAX_MONTHLY: float = MAX_EXACT_CENTS_USD
 
     # A reservation is presumed leaked (caller crashed between reserve and
     # settle) once it outlives this, and is swept so it stops shrinking the pool.
@@ -368,14 +367,8 @@ class CostSafetyManager:
         self._session_costs: dict[str, float] = {}
         self._sessions: dict[str, CostSession] = {}
         self._ledger = CostLedger(lock_timeout_seconds=5.0)
-        # Seed every secondary metered call from strict canonical accounting.
-        from deepr.core.cost_caps import read_operator_budget
-
-        operator = read_operator_budget()
-        baseline = operator.attended_grant_settled_baseline_usd if operator.attended_grant_id else None
-        seeded = seed_window_costs(self._ledger, settled_cost_baseline_usd=baseline)
+        seeded, caps = initial_spend_authority(self._ledger)
         self.daily_cost, self.weekly_cost, self.monthly_cost = seeded
-        caps = resolve_spend_caps()
         self.max_per_operation = min(caps["per_job"], self.ABSOLUTE_MAX_PER_OPERATION)
         self.max_daily = min(caps["daily"], self.ABSOLUTE_MAX_DAILY)
         self.max_weekly = min(caps["weekly"], self.ABSOLUTE_MAX_WEEKLY)

@@ -7,6 +7,7 @@ import os
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Barrier, Event
 from unittest.mock import MagicMock, patch
@@ -32,8 +33,10 @@ from deepr.experts.research_reservation_store import (
     ResearchReservationLimitExceeded,
     ResearchReservationStore,
     ResearchReservationStoreError,
+    _settled_spend_windows,
+    _wallet_consumed,
 )
-from deepr.observability.cost_ledger import CostLedger
+from deepr.observability.cost_ledger import CostLedger, CostLedgerEvent
 from deepr.providers.base import ResearchRequest
 
 
@@ -678,68 +681,106 @@ def test_exposure_snapshot_returns_settled_active_and_unresolved_together() -> N
     assert exposure.unresolved_count == 1
 
 
-def _activate_attended_grant(amount_usd: float, *, baseline_usd: float) -> str:
-    from deepr.core.attended_grant import issue_grant, save_grant
+def _activate_spend_wallet(amount_usd: float, *, baseline_usd: float) -> str:
+    from deepr.core.spend_wallet import create_wallet, save_wallet
     from deepr.observability.cost_ledger import current_cost_state_id
 
-    budget_path = Path(os.environ["DEEPR_BUDGET_FILE"])
-    budget_path.write_text(
-        json.dumps({"monthly_limit": 50.0, "paid_api_frozen": True, "freeze_reason": "default freeze"}),
-        encoding="utf-8",
-    )
-    grant = issue_grant(
+    wallet = create_wallet(
         amount_usd=amount_usd,
-        minutes=30,
         cost_state_id=current_cost_state_id(),
         settled_cost_baseline_usd=baseline_usd,
     )
-    save_grant(grant)
-    return grant.grant_id
+    save_wallet(wallet)
+    return wallet.wallet_id
 
 
-def test_attended_grant_ignores_prior_calendar_spend_and_caps_total_drawdown() -> None:
-    ledger = CostLedger()
-    ledger.record_event(
-        operation="prior_paid_work",
-        provider="openai",
-        cost_usd=4.50,
-        idempotency_key="attended-prior-spend",
-    )
-    _activate_attended_grant(2.0, baseline_usd=4.50)
+def test_wallet_caps_total_drawdown_beside_provider_boundary() -> None:
+    _activate_spend_wallet(5.0, baseline_usd=0.0)
     store = ResearchReservationStore()
 
     store.reserve(
-        reservation_id="grant-first",
-        job_id="grant-first-job",
-        reserved_cost=1.0,
+        reservation_id="wallet-first",
+        job_id="wallet-first-job",
+        reserved_cost=2.0,
         max_daily_cost=100.0,
         max_weekly_cost=100.0,
         max_monthly_cost=100.0,
     )
     with pytest.raises(ResearchReservationLimitExceeded, match="limit"):
         store.reserve(
-            reservation_id="grant-over",
-            job_id="grant-over-job",
-            reserved_cost=1.01,
+            reservation_id="wallet-over",
+            job_id="wallet-over-job",
+            reserved_cost=3.01,
             max_daily_cost=100.0,
             max_weekly_cost=100.0,
             max_monthly_cost=100.0,
         )
 
 
-def test_every_later_metered_ledger_dollar_draws_down_attended_grant() -> None:
-    _activate_attended_grant(2.0, baseline_usd=0.0)
+def test_calendar_windows_reset_independently_of_cumulative_wallet() -> None:
+    now = datetime.now(UTC)
+    old = CostLedgerEvent(
+        operation="old_paid_work",
+        provider="openai",
+        cost_usd=4.0,
+        timestamp=now - timedelta(days=40),
+    )
+    current = CostLedgerEvent(
+        operation="current_paid_work",
+        provider="openai",
+        cost_usd=1.0,
+        timestamp=now,
+    )
+
+    assert _settled_spend_windows([old, current], now=now) == pytest.approx((1.0, 1.0, 1.0))
+    # The wallet check remains cumulative even though the monthly window reset.
+    assert _wallet_consumed([old, current], baseline_usd=0.0) == pytest.approx(5.0)
+
+
+def test_wallet_refuses_canonical_ledger_rollback() -> None:
+    event = CostLedgerEvent(operation="settled", provider="openai", cost_usd=1.0)
+
+    with pytest.raises(ResearchReservationStoreError, match="below the spend wallet baseline"):
+        _wallet_consumed([event], baseline_usd=2.0)
+
+
+def test_explicit_monthly_cap_still_counts_pre_wallet_month_spend(monkeypatch) -> None:
+    from deepr.observability import cost_ledger
+
+    monkeypatch.setattr(cost_ledger, "well_known_spend_cap_env_paths", lambda: ())
+    CostLedger().record_event(
+        operation="current_month_before_wallet",
+        provider="openai",
+        cost_usd=4.50,
+        idempotency_key="pre-wallet-current-month",
+    )
+    _activate_spend_wallet(200.0, baseline_usd=4.50)
+    monkeypatch.setenv("DEEPR_MAX_COST_PER_MONTH", "5.00")
+
+    with pytest.raises(ResearchReservationLimitExceeded, match=r"limit \$5\.00"):
+        ResearchReservationStore().reserve(
+            reservation_id="monthly-window-independent",
+            job_id="monthly-window-independent-job",
+            reserved_cost=0.51,
+            max_daily_cost=200.0,
+            max_weekly_cost=200.0,
+            max_monthly_cost=200.0,
+        )
+
+
+def test_every_later_metered_ledger_dollar_draws_down_wallet() -> None:
+    _activate_spend_wallet(4.0, baseline_usd=0.0)
     CostLedger().record_event(
         operation="other_api_usage",
         provider="xai",
-        cost_usd=1.25,
-        idempotency_key="attended-cross-provider-spend",
+        cost_usd=3.25,
+        idempotency_key="wallet-cross-provider-spend",
     )
 
     with pytest.raises(ResearchReservationLimitExceeded, match="limit"):
         ResearchReservationStore().reserve(
-            reservation_id="grant-after-ledger-spend",
-            job_id="grant-after-ledger-spend-job",
+            reservation_id="wallet-after-ledger-spend",
+            job_id="wallet-after-ledger-spend-job",
             reserved_cost=0.76,
             max_daily_cost=100.0,
             max_weekly_cost=100.0,
@@ -747,41 +788,41 @@ def test_every_later_metered_ledger_dollar_draws_down_attended_grant() -> None:
         )
 
 
-def test_zero_dollar_plan_records_do_not_draw_down_attended_grant() -> None:
-    _activate_attended_grant(2.0, baseline_usd=0.0)
+def test_zero_dollar_plan_records_do_not_draw_down_wallet() -> None:
+    _activate_spend_wallet(50.0, baseline_usd=0.0)
     CostLedger().record_event(
         operation="plan_quota_completion",
         provider="claude",
         cost_usd=0.0,
-        idempotency_key="attended-plan-zero",
+        idempotency_key="wallet-plan-zero",
     )
 
     ResearchReservationStore().reserve(
-        reservation_id="grant-after-plan",
-        job_id="grant-after-plan-job",
-        reserved_cost=1.0,
+        reservation_id="wallet-after-plan",
+        job_id="wallet-after-plan-job",
+        reserved_cost=2.0,
         max_daily_cost=100.0,
         max_weekly_cost=100.0,
         max_monthly_cost=100.0,
     )
 
 
-def test_dispatch_mark_refuses_a_reservation_from_another_attended_grant() -> None:
-    first_id = _activate_attended_grant(2.0, baseline_usd=0.0)
+def test_dispatch_mark_refuses_a_reservation_from_another_wallet() -> None:
+    first_id = _activate_spend_wallet(50.0, baseline_usd=0.0)
     store = ResearchReservationStore()
     store.reserve(
-        reservation_id="first-grant-hold",
-        job_id="first-grant-job",
+        reservation_id="first-wallet-hold",
+        job_id="first-wallet-job",
         reserved_cost=0.5,
         max_daily_cost=100.0,
         max_weekly_cost=100.0,
         max_monthly_cost=100.0,
     )
-    second_id = _activate_attended_grant(2.0, baseline_usd=0.0)
+    second_id = _activate_spend_wallet(50.0, baseline_usd=0.0)
     assert first_id != second_id
 
     with pytest.raises(ResearchReservationLimitExceeded, match="authority changed"):
-        store.mark_provider_work_may_have_run("first-grant-hold")
+        store.mark_provider_work_may_have_run("first-wallet-hold")
 
 
 def test_freeze_cannot_finish_between_authority_read_and_reservation_commit(monkeypatch) -> None:
@@ -793,15 +834,15 @@ def test_freeze_cannot_finish_between_authority_read_and_reservation_commit(monk
     release_reservation = Event()
     freeze_started = Event()
     freeze_finished = Event()
-    original_resolve = cost_caps.resolve_spend_caps
+    original_resolve = cost_caps.resolve_spend_policy
 
     def paused_resolve(*args, **kwargs):
-        caps = original_resolve(*args, **kwargs)
+        policy = original_resolve(*args, **kwargs)
         authority_read.set()
         assert release_reservation.wait(timeout=2)
-        return caps
+        return policy
 
-    monkeypatch.setattr(cost_caps, "resolve_spend_caps", paused_resolve)
+    monkeypatch.setattr(cost_caps, "resolve_spend_policy", paused_resolve)
 
     def reserve() -> None:
         from deepr.core.cost_caps import paid_api_provider_scope

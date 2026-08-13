@@ -16,11 +16,11 @@ def current_cost_status() -> tuple[str, dict[str, Any]]:
 
         exposure = ResearchReservationStore().exposure_snapshot()
         operator = read_operator_budget_for_status()
-        caps = resolve_spend_caps(provider=operator.attended_grant_provider or None)
-        if operator.attended_grant_id:
-            settled_exposure = exposure.total_settled_cost - operator.attended_grant_settled_baseline_usd
+        caps = resolve_spend_caps()
+        if operator.spend_wallet_id:
+            settled_exposure = exposure.total_settled_cost - operator.spend_wallet_settled_baseline_usd
             if settled_exposure < 0:
-                raise ValueError("canonical settled cost is below the attended grant baseline")
+                raise ValueError("canonical settled cost is below the spend wallet baseline")
             daily_exposure = settled_exposure + exposure.active_cost
             monthly_exposure = daily_exposure
         else:
@@ -38,7 +38,16 @@ def current_cost_status() -> tuple[str, dict[str, Any]]:
             "monthly_remaining": max(0.0, caps["monthly"] - monthly_exposure),
             "paid_api_blocked": operator.frozen or caps["monthly"] <= 0,
             "freeze_reason": operator.freeze_reason,
-            "authority_mode": "attended_grant" if operator.attended_grant_id else "provider_verified",
+            "authority_mode": "spend_wallet" if operator.spend_wallet_id else "provider_verified",
+            "provider_hard_boundary_verified": operator.authorization_valid and not operator.frozen,
+            "spend_wallet_authorized": operator.spend_wallet_authorized_usd,
+            "spend_wallet_spent": settled_exposure if operator.spend_wallet_id else 0.0,
+            "spend_wallet_reserved": exposure.active_cost if operator.spend_wallet_id else 0.0,
+            "spend_wallet_available": (
+                max(0.0, operator.spend_wallet_authorized_usd - settled_exposure - exposure.active_cost)
+                if operator.spend_wallet_id
+                else 0.0
+            ),
         }
         return "healthy", summary
     except Exception:

@@ -7,6 +7,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.49.0] - 2026-08-13
+
+### Added
+
+- Added an attended metered-spend wallet with exact-cent, additive funding via
+  `deepr budget credits add` and its `budget fund` alias. The operator chooses
+  the cumulative amount, every later settled metered dollar and active hold
+  draws down the same cross-provider balance, and there is no overdraft,
+  automatic refill, or calendar reset. Each paid job still requires its own
+  finite confirmed ceiling and durable reservation.
+- Added explicit `flagship` and `standard` expert roster tiers plus
+  `deepr expert roster feature`, `unfeature`, and `list`. The Expert Hub opens
+  on the 25-expert flagship roster and can reveal the complete standard roster.
+  Cards expose standpoint, positions, studied findings, retained sources, and
+  portrait readiness from durable state without making a semantic quality
+  verdict.
+- Added an accepted design and ADR separating cumulative wallet authority,
+  provider-side account controls, calendar ceilings, and per-job reservations.
+
+### Changed
+
+- Removed the universal `$2` attended-grant maximum. Existing expiring grant
+  files do not migrate into persistent wallet authority; the operator must
+  fund the wallet explicitly after upgrading.
+- Cost status surfaces now show wallet authorization, cumulative drawdown,
+  active holds, availability, independent calendar exposure, and the maximum
+  currently authorizable new paid call. Provider prepaid or hard-stop state is
+  labeled separately because local wallet funding does not buy or verify
+  provider credits.
+- Verified provider-side hard limits and the Deepr wallet now apply together.
+  Neither can widen or replace the other, open postpaid accounts remain
+  blocked, and the tighter effective boundary wins while wallet drawdown
+  remains cumulative across provider calendar rollovers.
+- The reference fleet now has an explicit 25-expert flagship set. Sparse
+  flagship experts were sourced and studied with confined local Ollama
+  capacity, then briefed, profiled, graphed, and given local portraits without
+  metered model calls.
+- Refreshed the README CLI screenshot around a `$200` wallet, a separate `$4`
+  job ceiling, a `$5` independent monthly ceiling, disabled automatic refill,
+  and explicit provider-hard-stop status. Removed the earlier Expert Hub image
+  from the README because it no longer represented the current flagship roster.
+- Kept Agent Plugin packaging aligned to the current 1.0.0 working draft and
+  the knowledge-export migration targeted at OKF 0.2. Both remain planned
+  surfaces rather than shipped conformance claims.
+
+### Fixed
+
+- Metered report absorption now releases only the selected provider credential
+  and constructs the exact owned client while that scoped release is active.
+  Lazy client construction can no longer happen after the key is quarantined,
+  and every exit path restores quarantine.
+- Local expert study now uses the native Ollama investigation backend with a
+  bounded `num_ctx` option, native JSON response mode, and an exact local-only
+  attestation. OpenAI-compatible parameter translation can no longer silently
+  expand a local context window into an excessive memory allocation, and a
+  valid local run no longer depends on prose-only JSON compliance.
+- Reservation admission now reads one locked spend-policy snapshot, binds the
+  wallet identity into each hold, checks cumulative wallet consumption
+  independently from UTC day, week, and month windows, and refuses ledger
+  rollback below the wallet baseline.
+- Corrected GPT-5.6 Terra and Luna from preview-era token rates to the current
+  official GA rates: Terra is `$2.50/$0.25/$15` and Luna is
+  `$1/$0.10/$6` per MTok in input, cached-input, and output order.
+
 ## [2.48.0] - 2026-08-13
 
 ### Added

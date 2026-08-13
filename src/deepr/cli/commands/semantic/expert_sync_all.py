@@ -526,7 +526,7 @@ def _validate_sync_all_flags(
     if sum(bool(x) for x in (local, api, plan)) > 1:
         raise ValueError("Use only one of --local, --api, or --plan.")
     if scheduled and api:
-        raise ValueError("--scheduled cannot use --api; attended grants are only for work a person is watching.")
+        raise ValueError("--scheduled cannot use --api; local wallet credits are only for attended work.")
     if plan_model and not plan:
         raise ValueError("Use --plan-model only with --plan.")
 

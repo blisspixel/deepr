@@ -112,6 +112,7 @@ __all__ = [
     "ReportAbsorberError",
     "absorber_estimated_cost",
     "absorption_result_cost",
+    "build_attended_openai_client",
 ]
 
 # (claim, evidence) -> verdict. Injected so the absorber stays provider-agnostic
@@ -145,6 +146,34 @@ SOURCE_TYPE = "absorbed_report"
 # same claim), so it merges without a model verdict; only the uncertain band
 # (0.7, this] is verified, which bounds the dedup-verification cost.
 _DEDUP_VERIFY_CEILING = 0.92
+
+
+def build_attended_openai_client(*, model: str) -> Any:
+    """Construct and attest the one supported attended metered client.
+
+    The caller owns the tightly scoped credential release. Keeping client
+    construction in one helper prevents the CLI and the lazy fallback from
+    drifting on endpoint pinning, retry policy, or dispatch attestation.
+    """
+    import httpx
+    from openai import AsyncOpenAI
+
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise ReportAbsorberError("OPENAI_API_KEY is not set. Pass a client explicitly or set the env var.")
+    from deepr.providers.dispatch_authority import (
+        _mint_attended_paid_client_attestation,
+        default_paid_endpoint,
+    )
+
+    client = AsyncOpenAI(
+        api_key=api_key,
+        base_url=default_paid_endpoint("openai"),
+        max_retries=0,
+        http_client=httpx.AsyncClient(trust_env=False, follow_redirects=False),
+    )
+    _mint_attended_paid_client_attestation(client, "openai", model)
+    return client
 
 
 class ReportAbsorber:
@@ -202,27 +231,7 @@ class ReportAbsorber:
 
     def _get_client(self) -> Any:
         if self._client is None:
-            import httpx
-            from openai import AsyncOpenAI
-
-            api_key = os.getenv("OPENAI_API_KEY")
-            if not api_key:
-                raise ReportAbsorberError("OPENAI_API_KEY is not set. Pass a client explicitly or set the env var.")
-            # This endpoint has no supported application idempotency key. Keep
-            # one provider POST behind each durable reservation outcome instead
-            # of letting SDK retries hide duplicate paid attempts.
-            from deepr.providers.dispatch_authority import (
-                _mint_attended_paid_client_attestation,
-                default_paid_endpoint,
-            )
-
-            self._client = AsyncOpenAI(
-                api_key=api_key,
-                base_url=default_paid_endpoint("openai"),
-                max_retries=0,
-                http_client=httpx.AsyncClient(trust_env=False, follow_redirects=False),
-            )
-            _mint_attended_paid_client_attestation(self._client, "openai", self.model)
+            self._client = build_attended_openai_client(model=self.model)
         return self._client
 
     async def _create_completion(self, operation: str, **kwargs: Any) -> Any:

@@ -30,6 +30,7 @@ os.environ.setdefault("OPENAI_API_KEY", "sk-test-dummy-key")
 
 from deepr.experts import expert_layout
 from deepr.web.app import app
+from deepr.web.expert_v2_api import roster_readiness
 
 
 @pytest.fixture
@@ -88,6 +89,36 @@ class TestTheSelfAccount:
 
     def test_every_response_states_it_cost_nothing(self, client, fleet) -> None:
         assert client.get("/api/experts/flooding/hold").get_json()["cost_usd"] == 0.0
+
+
+class TestRosterReadinessIsStructural:
+    def test_complete_presentation_structure_is_ready(self) -> None:
+        result = roster_readiness(
+            {
+                "standpoint": "A view",
+                "position_count": 1,
+                "studied_findings": 1,
+                "source_count": 1,
+            },
+            portrait_url="/portraits/expert.png",
+        )
+
+        assert result == {"roster_ready": True, "roster_missing": []}
+
+    def test_missing_structure_is_named_without_a_quality_verdict(self) -> None:
+        result = roster_readiness(
+            {"standpoint": "", "position_count": 0, "studied_findings": 0, "source_count": 0},
+            portrait_url=None,
+        )
+
+        assert result["roster_ready"] is False
+        assert result["roster_missing"] == [
+            "standpoint",
+            "positions",
+            "studied findings",
+            "retained sources",
+            "portrait",
+        ]
 
 
 class TestAbsentIsNotEmpty:

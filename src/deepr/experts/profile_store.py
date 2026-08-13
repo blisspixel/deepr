@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Current schema version - increment when profile structure changes
-PROFILE_SCHEMA_VERSION = 4
+PROFILE_SCHEMA_VERSION = 5
 
 # Migration registry: maps (from_version, to_version) -> migration function
 _MIGRATIONS: dict[tuple, Callable[[dict[str, Any]], dict[str, Any]]] = {}
@@ -113,6 +113,14 @@ def migrate_v3_to_v4(data: dict[str, Any]) -> dict[str, Any]:
     """
     data["schema_version"] = 4
     data.setdefault("portrait_url", None)
+    return data
+
+
+@migration(4, 5)
+def migrate_v4_to_v5(data: dict[str, Any]) -> dict[str, Any]:
+    """Add explicit operator-curated roster placement."""
+    data["schema_version"] = 5
+    data.setdefault("roster_tier", "standard")
     return data
 
 

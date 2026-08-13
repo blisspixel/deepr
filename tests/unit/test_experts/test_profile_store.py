@@ -52,6 +52,7 @@ class TestMigrations:
         assert "provider" in migrated
         assert "model" in migrated
         assert "refresh_history" in migrated
+        assert migrated["roster_tier"] == "standard"
 
     def test_migrate_already_current(self):
         """Test migration skips if already at current version."""
@@ -93,6 +94,19 @@ class TestExpertStore:
         assert loaded.vector_store_id == "vs_test_123"
         assert loaded.description == "Test expert for unit tests"
         assert loaded.schema_version == PROFILE_SCHEMA_VERSION
+        assert loaded.roster_tier == "standard"
+
+    def test_flagship_roster_tier_round_trips(self, store, sample_profile):
+        sample_profile.roster_tier = "flagship"
+        store.save(sample_profile)
+
+        loaded = store.load(sample_profile.name)
+        assert loaded is not None
+        assert loaded.roster_tier == "flagship"
+
+    def test_invalid_roster_tier_fails_closed(self):
+        with pytest.raises(ValueError, match="roster_tier"):
+            ExpertProfile(name="test", vector_store_id="vs", roster_tier="best according to model")
 
     def test_find_existing_dir_returns_validated_directory(self, store, sample_profile):
         store.save(sample_profile)
