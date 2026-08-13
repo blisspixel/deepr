@@ -122,8 +122,8 @@ def test_cost_summary_reads_freeze_and_zero_caps_without_restart() -> None:
     assert summary["over_budget"] is False
 
 
-def test_cost_summary_reports_attended_grant_drawdown_from_issue_time() -> None:
-    from deepr.core.attended_grant import issue_grant, save_grant
+def test_cost_summary_reports_wallet_drawdown_from_creation_time() -> None:
+    from deepr.core.spend_wallet import create_wallet, save_wallet
     from deepr.observability.cost_ledger import current_cost_state_id
 
     ledger = CostLedger()
@@ -131,41 +131,37 @@ def test_cost_summary_reports_attended_grant_drawdown_from_issue_time() -> None:
         operation="prior_paid_work",
         provider="openai",
         cost_usd=4.50,
-        idempotency_key="web-grant-prior",
+        idempotency_key="web-wallet-prior",
     )
     budget_path = budget_file_path()
     budget_path.write_text(
         json.dumps({"monthly_limit": 50.0, "paid_api_frozen": True, "freeze_reason": "default freeze"}),
         encoding="utf-8",
     )
-    save_grant(
-        issue_grant(
-            amount_usd=2.0,
-            minutes=30,
+    save_wallet(
+        create_wallet(
+            amount_usd=50.0,
             cost_state_id=current_cost_state_id(),
             settled_cost_baseline_usd=4.50,
-            provider="anthropic",
         )
     )
     ledger.record_event(
-        operation="grant_paid_work",
+        operation="wallet_paid_work",
         provider="openai",
         cost_usd=0.25,
-        idempotency_key="web-grant-spend",
+        idempotency_key="web-wallet-spend",
     )
 
     response = web_app.app.test_client().get("/api/cost/summary")
 
     assert response.status_code == 200
     summary = response.get_json()["summary"]
-    assert summary["paid_api_frozen"] is False
-    assert summary["authority_mode"] == "attended_grant"
-    assert summary["effective_caps"] == {
-        "per_job": 1.0,
-        "daily": 2.0,
-        "weekly": 2.0,
-        "monthly": 2.0,
-    }
+    assert summary["paid_api_frozen"] is True
+    assert summary["authority_mode"] == "spend_wallet"
+    assert summary["effective_caps"] == {"per_job": 0.0, "daily": 0.0, "weekly": 0.0, "monthly": 0.0}
     assert summary["exposure"]["monthly"] == pytest.approx(0.25)
-    assert summary["attended_grant_spent"] == pytest.approx(0.25)
-    assert summary["attended_grant_remaining"] == pytest.approx(1.75)
+    assert summary["spend_wallet_spent"] == pytest.approx(0.25)
+    assert summary["spend_wallet_available"] == pytest.approx(49.75)
+    assert summary["spend_wallet_protection"] == "local_only"
+    assert summary["provider_hard_boundary_verified"] is False
+    assert summary["provider_prepaid_verified"] is False

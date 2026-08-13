@@ -37,6 +37,7 @@ from deepr.cli.commands.semantic import expert_portrait as _expert_portrait  # n
 from deepr.cli.commands.semantic import expert_practice as _expert_practice  # noqa: F401
 from deepr.cli.commands.semantic import expert_profile_card_cmd as _expert_profile_card_cmd  # noqa: F401
 from deepr.cli.commands.semantic import expert_quality as _expert_quality  # noqa: F401
+from deepr.cli.commands.semantic import expert_roster as _expert_roster  # noqa: F401
 from deepr.cli.commands.semantic import expert_self_model as _expert_self_model  # noqa: F401
 from deepr.cli.commands.semantic import expert_source as _expert_source  # noqa: F401
 from deepr.cli.commands.semantic import expert_status as _expert_status  # noqa: F401

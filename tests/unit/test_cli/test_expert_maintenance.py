@@ -1350,8 +1350,7 @@ class TestBackendFlagGuard:
 
         assert r.exit_code == 2
         assert "--scheduled cannot use --api" in r.output
-        assert "work a person is" in r.output
-        assert "watching" in r.output
+        assert "only for attended work" in r.output
         assert captured == {}
 
     def test_sync_deep_context_rejects_api(self):
@@ -2266,6 +2265,11 @@ class TestAbsorbFromFile:
         monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
         monkeypatch.setattr("deepr.services.context_index.ContextIndex", FakeIndex)
         monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", FakeReportAbsorber)
+        absorber = FakeReportAbsorber(profile, model="gpt-5-mini")
+        monkeypatch.setattr(
+            "deepr.cli.commands.semantic.expert_maintenance.build_absorb_backend",
+            lambda **_kwargs: SimpleNamespace(absorber=absorber, cost_note="~$0.05"),
+        )
 
         r = CliRunner().invoke(
             expert,

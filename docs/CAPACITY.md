@@ -23,6 +23,13 @@ forces local regeneration. Generated portraits live under the configured
 runtime data root, and forced regeneration archives the previous image before
 replacement.
 
+For reproducible local Artomate SDXL portraits, set
+`DEEPR_LOCAL_IMAGE_CLI=artomate` and optionally point
+`DEEPR_LOCAL_IMAGE_CLI_MANIFEST` at an absolute, reviewed, hash-pinned JSON
+asset manifest. An explicit manifest wins over a friendly model alias that may
+drift between Artomate releases. This is still an operator attestation about an
+external executable, not proof that the executable cannot reach a paid service.
+
 API-backed expert profile setup is gated in v2.40 because hosted storage and
 nested learning calls do not yet share one durable parent reservation. Local
 profile creation through `deepr expert make --local` stays provider-free.
@@ -32,7 +39,7 @@ profile creation through `deepr expert make --local` stays provider-free.
 | Source | Works now | Guardrail |
 |---|---|---|
 | Local Ollama | `expert make --local`, `expert absorb --local`, `expert sync --local`, `expert sync --local --fresh-context`, `expert sync --local --deep-context`, experimental `expert investigate`, `eval local`, `eval local-context`, and scored admission | No provider API key required; investigation pins native per-request context, requires exact `$0`, and has no fallback; automatic routing requires measured local quality evidence |
-| Provider APIs | Write-free request preview, offline billing reconciliation, and attended `expert absorb --api` under one typed, expiring grant | The attended grant has a non-configurable $2 total maximum and still requires per-call consent, a narrower call budget, durable reservation, exact settlement, and a Deepr-owned client binding. MCP, schedules, loops, automatic fallback, hosted storage, standalone metered chat, and unsafe lifecycle dispatch remain blocked. |
+| Provider APIs | Write-free request preview and offline billing reconciliation. The attended `expert absorb --api` transaction is complete but executes only when authenticated evidence also proves provider prepaid-no-overage or a hard provider ceiling. | Wallet funding is local Deepr authorization, not provider credit. Every call also requires verified provider controls, explicit consent, a finite job budget, durable reservation, exact settlement, and a Deepr-owned client binding. The wallet has no overdraft or automatic refill. Open postpaid accounts, MCP, schedules, loops, automatic fallback, hosted storage, standalone metered chat, and unsafe lifecycle dispatch remain blocked. |
 | Plan-quota CLIs | Explicit `expert sync --plan <id>`, `expert sync-all --plan <id>`, `expert route-gaps --execute --plan <id>`, `expert absorb --plan <id>`, `expert learn --plan <id>`, `expert learn-web --plan <id>`, `expert consult --plan <id>`, and `capacity probe-plan <id>` for safety-eligible non-metered adapters | Claude Code is currently executable only after a live provider proof that paid extra usage is disabled. Codex, OpenCode, Kiro, Grok, Antigravity, and Copilot remain visible but execution-blocked for the reasons below. API-key env vars are stripped, auth, tool, and overage posture are checked, and automatic routing also requires trusted remaining-quota evidence. |
 | CLI judges | Local-eval CLI judge flags remain visible for compatibility; consult-quality judging still has separate explicit local Ollama or safety-eligible `--plan <id>` paths | `--judge-cli`, `--judge-command`, and legacy `--allow-cli-judge` never start a local-eval vendor process because Deepr cannot prove its billing source, paid-overage posture, or total cost. The allow flag is not spend authority. API consult-quality judging shares the blocked provider-account authority gate. |
 
@@ -105,20 +112,26 @@ deepr costs alerts
 deepr costs limits
 deepr costs doctor --json
 
-# One attended API drawdown. The grant maximum is $2 total, not per call.
-deepr budget allow --amount 2.00 --minutes 60 --provider openai
+# One attended API drawdown. Wallet credits and the job ceiling are separate.
+deepr budget credits add --amount 5.00 --reason "bounded document absorption"
 deepr expert absorb "Platform Team Expert" --file report.md --api --budget 0.30
 deepr costs show
-deepr budget revoke
+deepr budget credits clear
 ```
 
-An attended grant is authority for a person at the CLI, not a second monthly
-wallet. It records the canonical settled total at issuance. Every later API
-dollar and every active paid hold consumes the same grant across providers and
-UTC window boundaries. Earlier spend does not consume a new grant. Successful
-local and admitted plan-quota work records $0, so it remains visible without
-drawing down the grant. MCP, schedules, loops, and automatic fallback ignore or
-refuse attended authority.
+A metered-spend wallet is cumulative authority chosen by a person at the CLI,
+not a provider balance or a monthly renewal. It records the canonical settled
+total when first funded. Every later API dollar and every active paid hold
+consumes the same wallet across providers and UTC window boundaries. Top-ups
+are explicit and preserve that baseline. Earlier spend does not consume a new
+wallet. Successful local and admitted plan-quota work records $0, so it remains
+visible without drawing down the wallet. MCP, schedules, loops, and automatic
+fallback ignore or refuse local wallet authority.
+
+Provider-side prepaid credits or a provider-enforced hard cap with overage
+disabled are required in addition to the wallet. Deepr reports that external
+control separately, refuses open postpaid execution, and never implies that
+`credits add` moved money to a provider.
 
 The OneDrive example relocates expert, report, and `DEEPR_DATA_DIR` runtime
 state for sequential device use. It does not enable concurrent writers: stop
@@ -407,32 +420,34 @@ API work in scheduled mode. `sync-all --plan <id>` and
 
 ## Cost Accounting Rules
 
-- `deepr budget set N` is the shared UTC-month provider-verified wallet for
+- `deepr budget set N` is the shared UTC-month provider-verified ceiling for
   unattended API work across CLI, web, REST, MCP, scripts, workers, and
-  unrelated commands. A command budget is a narrower child envelope, never a
-  separate wallet or permission to exceed N.
-- `deepr budget allow --amount N --minutes M` creates separate attended CLI
-  authority. `N` may never exceed $2 total. The amount typed back at the prompt
-  must match exactly. It cannot replace a live grant or issue while active or
-  unresolved paid holds exist.
-- An attended grant draws down from the canonical total settled at issuance.
-  All later metered settlement and active paid holds consume the same amount,
-  regardless of provider or day, week, and month rollover. Revocation, expiry,
-  or exhaustion restores the freeze.
+  unrelated commands. A command budget is a narrower child envelope, never
+  permission to exceed N.
+- `deepr budget credits add --amount N` adds exact integer-cent authorization
+  to the attended CLI wallet after the operator types the amount back. It does
+  not transfer provider funds, enable automatic refill, or erase prior wallet
+  drawdown. Unresolved provider exposure blocks a top-up.
+- The wallet draws down from the canonical total settled at first funding. All
+  later metered settlement and active paid holds consume it, regardless of
+  provider or day, week, and month rollover. Clearing or exhaustion blocks new
+  paid reservations. Each job also names and durably reserves a separate finite
+  ceiling, which may be above $2 when all binding caps permit it.
 - `deepr budget set 0` and `deepr budget freeze --reason TEXT` block new paid
   dispatch. `deepr budget unfreeze` requires fresh content-addressed evidence
   for the current typed freeze and cannot restore exhausted headroom. Evidence
   is authoritative only after a provider-specific authenticated source verifier
   and current account, scope, and credential resolver both succeed.
 - Effective per-job, UTC-day, UTC-week, and UTC-month limits are the tightest of
-  the operator wallet, `DEEPR_MAX_COST_PER_*`, legacy compatibility caps,
+  the cumulative local wallet and provider-verified authority,
+  `DEEPR_MAX_COST_PER_*`, legacy compatibility caps,
   caller envelopes, and compiled safety ceilings. Missing monthly authority,
   malformed policy, or unreadable cost state fails closed.
 - Admission and the immediate pre-dispatch mark both count canonical settled
   spend plus every active durable hold. Lowering a positive cap therefore stops
   old reservations that no longer fit.
 - Local Ollama and successful safety-eligible plan-quota services report `$0`
-  Deepr dollar cost and do not draw down an attended API grant.
+  Deepr dollar cost and do not draw down the metered-spend wallet.
 - Every enabled provider API call reserves a complete finite maximum before dispatch.
 - Enabled provider API completions settle from provider-reported usage or the
   conservative held maximum when usage is absent or invalid.
@@ -497,16 +512,16 @@ events. A clean result never unfreezes paid work.
 
 Provider-specific authenticated hard-limit verification is not shipped.
 Locally constructed account-control JSON, a posture label, and a local hash are
-not proof. Unattended paid dispatch therefore remains blocked until an
+not proof. All paid dispatch therefore remains blocked until an
 authenticated provider adapter can verify the source and bind the exact active
 account, scope, credential fingerprint, owned client, official endpoint, and
-canonical outbound model. The attended absorb exception binds the credential,
-client, endpoint, model, transport, grant, reservation, and explicit consent,
-but it does not claim provider-side account-control proof. The provider hard
-no-overage ceiling must be no higher than the operator ceiling and must be
-observed live for each unattended one-use dispatch. Keep provider-side controls
-active and reconcile any unexplained
-charge before enabling such an adapter.
+canonical outbound model. The attended absorb transaction already binds the
+credential, client, endpoint, model, transport, cumulative wallet, job
+reservation, and explicit consent, but cannot execute until the provider proof
+also passes. The provider hard no-overage ceiling must be no higher than the
+operator ceiling and must be observed live for each one-use dispatch. Keep
+provider-side controls active and reconcile any unexplained charge before
+enabling such an adapter.
 
 ## Costing Deep Dive
 

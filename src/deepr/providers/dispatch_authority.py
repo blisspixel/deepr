@@ -52,7 +52,7 @@ class _AttendedPaidClientAttestation:
     model: str
     endpoint: str
     credential_fingerprint: str
-    grant_id: str
+    wallet_id: str
     client_identity: int
     seal: object = field(repr=False)
 
@@ -287,13 +287,12 @@ def _require_attended_client_transport(client: object) -> None:
 
 
 def _mint_attended_paid_client_attestation(client: object, provider: str, model: str) -> str:
-    """Bind a Deepr-constructed SDK client to the current attended grant.
+    """Bind a Deepr-constructed SDK client to the current spend wallet.
 
-    This does not claim a provider-side hard limit or authenticated account
-    identity. Those remain mandatory for unattended work. It proves the
-    narrower attended contract: one exact credential, official endpoint,
-    priced model, no hidden retries, no redirects, no ambient proxy, and the
-    currently active provider-scoped total grant.
+    The current provider-side prepaid or hard-stop evidence remains mandatory.
+    This proves the rest of the attended contract: one exact credential,
+    official endpoint, priced model, no hidden retries, no redirects, no
+    ambient proxy, and the currently active cumulative wallet.
     """
     require_unproxied_paid_transport()
     canonical = canonical_provider_key(provider)
@@ -302,8 +301,10 @@ def _mint_attended_paid_client_attestation(client: object, provider: str, model:
     from deepr.core.cost_caps import read_operator_budget
 
     operator = read_operator_budget(provider=canonical)
-    if not operator.attended_grant_id:
-        raise PaidDispatchAuthorityError("Attended paid client requires a live provider-matching spend grant")
+    if not operator.spend_wallet_id:
+        raise PaidDispatchAuthorityError("Attended paid client requires a live Deepr spend wallet")
+    if operator.frozen or not operator.authorization_valid:
+        raise PaidDispatchAuthorityError("Attended paid client requires current provider prepaid or hard-stop evidence")
     endpoint = paid_client_endpoint(client, canonical)
     _require_attended_client_transport(client)
     attestation = _AttendedPaidClientAttestation(
@@ -311,7 +312,7 @@ def _mint_attended_paid_client_attestation(client: object, provider: str, model:
         model=model,
         endpoint=endpoint,
         credential_fingerprint=_paid_client_credential_fingerprint(client),
-        grant_id=operator.attended_grant_id,
+        wallet_id=operator.spend_wallet_id,
         client_identity=id(client),
         seal=_ATTENDED_CLIENT_SEAL,
     )
@@ -333,14 +334,16 @@ def require_official_paid_client(client: object, provider: str, model: str | Non
     ):
         raise PaidDispatchAuthorityError(
             "Generic or injected paid SDK clients are disabled until an opaque Deepr-minted attestation binds "
-            "the attended grant, client identity, endpoint, retries, redirects, proxy policy, provider model, "
+            "the spend wallet, client identity, endpoint, retries, redirects, proxy policy, provider model, "
             "and credential"
         )
     from deepr.core.cost_caps import read_operator_budget
 
     operator = read_operator_budget(provider=canonical)
-    if not operator.attended_grant_id or operator.attended_grant_id != attestation.grant_id:
+    if not operator.spend_wallet_id or operator.spend_wallet_id != attestation.wallet_id:
         raise PaidDispatchAuthorityError("Attended paid client attestation is no longer bound to live spend authority")
+    if operator.frozen or not operator.authorization_valid:
+        raise PaidDispatchAuthorityError("Attended paid client requires current provider prepaid or hard-stop evidence")
     if model is not None and model != attestation.model:
         raise PaidDispatchAuthorityError("Paid request model changed after client attestation")
     if endpoint != attestation.endpoint:

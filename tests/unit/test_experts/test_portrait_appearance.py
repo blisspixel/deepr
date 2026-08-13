@@ -10,6 +10,7 @@ the old behaviour rather than failing a portrait run.
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -137,10 +138,72 @@ class TestTheLocalTransport:
         with pytest.raises(RuntimeError, match="not on PATH"):
             local_image_cli.render("anything")
 
+    @pytest.mark.parametrize(
+        ("model", "expected_ratio"),
+        [("flux2-klein", "1:1"), ("epicrealism", "3:4"), ("auto", "3:4")],
+    )
+    def test_render_uses_the_registered_models_audited_ratio(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        model: str,
+        expected_ratio: str,
+    ) -> None:
+        calls: list[list[str]] = []
+
+        def run(command: list[str], **kwargs: object) -> object:
+            calls.append(command)
+            output = Path(str(kwargs["cwd"])) / "output"
+            output.mkdir()
+            (output / "art-000000000001.png").write_bytes(b"local image")
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        monkeypatch.setenv("DEEPR_LOCAL_IMAGE_CLI", "artomate")
+        monkeypatch.setenv("DEEPR_LOCAL_IMAGE_CLI_MODEL", model)
+        monkeypatch.setattr(local_image_cli.shutil, "which", lambda _name: "C:/tools/artomate.exe")
+        monkeypatch.setattr(local_image_cli.subprocess, "run", run)
+
+        assert local_image_cli.render("private prompt") == b"local image"
+        assert calls == [
+            ["C:/tools/artomate.exe", "imagine", "private prompt", "model", model, "ratio", expected_ratio]
+        ]
+
     def test_it_is_selected_first_and_costs_nothing(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(local_image_cli, "is_available", lambda: True)
         assert detect_provider() == "local_cli"
         assert portrait_cost("local_cli") == 0.0
+
+    def test_explicit_manifest_uses_the_hash_pinned_sdxl_path(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        manifest = tmp_path / "portrait.local.json"
+        manifest.write_text("{}", encoding="utf-8")
+        calls: list[tuple[list[str], object]] = []
+
+        def run(command: list[str], **kwargs: object) -> object:
+            calls.append((command, kwargs.get("input")))
+            output = Path(command[command.index("--output") + 1])
+            output.write_bytes(b"manifest image")
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        monkeypatch.setenv("DEEPR_LOCAL_IMAGE_CLI", "artomate")
+        monkeypatch.setenv("DEEPR_LOCAL_IMAGE_CLI_MANIFEST", str(manifest))
+        monkeypatch.setattr(local_image_cli.shutil, "which", lambda _name: "C:/tools/artomate.exe")
+        monkeypatch.setattr(local_image_cli.subprocess, "run", run)
+
+        assert local_image_cli.render("private prompt") == b"manifest image"
+        command, private_input = calls[0]
+        assert command[:4] == ["C:/tools/artomate.exe", "create-sdxl", "--assets", str(manifest)]
+        assert private_input == "private prompt"
+
+    def test_explicit_manifest_must_be_absolute(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DEEPR_LOCAL_IMAGE_CLI", "artomate")
+        monkeypatch.setenv("DEEPR_LOCAL_IMAGE_CLI_MANIFEST", "relative.json")
+        monkeypatch.setattr(local_image_cli.shutil, "which", lambda _name: "C:/tools/artomate.exe")
+
+        with pytest.raises(RuntimeError, match="absolute JSON file path"):
+            local_image_cli.render("private prompt")
 
     def test_a_metered_provider_still_costs(self) -> None:
         """The exemption must not have flattened the estimate for real APIs."""

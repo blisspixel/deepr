@@ -69,6 +69,7 @@ export interface CostSummary {
     weekly: number
     monthly: number
   }
+  calendar_cap_periods: Array<'daily' | 'weekly' | 'monthly'>
   remaining: {
     daily: number
     weekly: number
@@ -84,12 +85,15 @@ export interface CostSummary {
   weekly_exposure: number
   monthly_exposure: number
   budget_monthly_limit: number
-  authority_mode: 'attended_grant' | 'provider_verified'
-  attended_grant_id: string
-  attended_grant_expires_at: string
-  attended_grant_amount: number
-  attended_grant_spent: number
-  attended_grant_remaining: number
+  authority_mode: 'spend_wallet' | 'provider_verified'
+  spend_wallet_id: string
+  spend_wallet_authorized: number
+  spend_wallet_spent: number
+  spend_wallet_reserved: number
+  spend_wallet_available: number
+  spend_wallet_protection: 'local_only' | 'provider_verified'
+  provider_hard_boundary_verified: boolean
+  provider_prepaid_verified: boolean
   effective_per_job_limit: number
   effective_daily_limit: number
   effective_weekly_limit: number
@@ -177,6 +181,9 @@ export interface Expert {
   last_active: string
   created_at: string
   portrait_url?: string | null
+  roster_tier?: 'standard' | 'flagship'
+  roster_ready?: boolean
+  roster_missing?: string[]
   /**
    * The expert's own account of itself, from `self.json`.
    *

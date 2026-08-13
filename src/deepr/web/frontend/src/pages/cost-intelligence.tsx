@@ -99,6 +99,17 @@ export default function CostIntelligence() {
     : summary.effective_caps.monthly > 0
       ? (summary.exposure.monthly / summary.effective_caps.monthly) * 100
       : summary.exposure.monthly > 0 ? Number.POSITIVE_INFINITY : 0
+  const authorityExposure = moneyKnown && summary.authority_mode === 'spend_wallet'
+    ? summary.spend_wallet_spent + summary.spend_wallet_reserved
+    : summary?.exposure.monthly
+  const authorityLimit = moneyKnown && summary.authority_mode === 'spend_wallet'
+    ? summary.spend_wallet_authorized
+    : summary?.effective_caps.monthly
+  const authorityUtilization = !moneyKnown || authorityExposure === undefined || authorityLimit === undefined
+    ? null
+    : authorityLimit > 0
+      ? (authorityExposure / authorityLimit) * 100
+      : authorityExposure > 0 ? Number.POSITIVE_INFINITY : 0
   const utilizationLabel = (value: number | null) =>
     value === null ? 'UNKNOWN' : Number.isFinite(value) ? `${value.toFixed(0)}%` : 'OVER $0 CEILING'
 
@@ -184,13 +195,15 @@ export default function CostIntelligence() {
           </div>
         </div>
       )}
-      {moneyKnown && summary.authority_mode === 'attended_grant' && (
+      {moneyKnown && summary.authority_mode === 'spend_wallet' && (
         <div className="rounded-lg border border-success/40 bg-success/5 p-4 flex items-start gap-3">
           <div>
-            <p className="text-sm font-medium text-foreground">Attended API grant is active</p>
+            <p className="text-sm font-medium text-foreground">Metered API wallet is funded</p>
             <p className="text-sm text-muted-foreground mt-0.5">
-              {formatCurrency(summary.attended_grant_remaining)} of {formatCurrency(summary.attended_grant_amount)} remains.
-              Every positive-cost API ledger event and active hold draws down this total. Local and verified prepaid-plan work does not.
+              {formatCurrency(summary.spend_wallet_available)} of {formatCurrency(summary.spend_wallet_authorized)} is available.
+              Every positive-cost API ledger event and active hold draws down this total. This is a local Deepr ceiling,
+              not provider prepaid credit. Provider prepaid-no-overage or a hard provider ceiling must also be verified
+              before dispatch. Local and verified plan-quota work does not draw it down.
             </p>
           </div>
         </div>
@@ -213,18 +226,18 @@ export default function CostIntelligence() {
         {/* Governing paid-spend authority */}
         <div className="rounded-lg border bg-card p-5 space-y-2">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            {summary?.authority_mode === 'attended_grant' ? 'API Grant Exposure' : 'Monthly Exposure'}
+            {summary?.authority_mode === 'spend_wallet' ? 'API Wallet Exposure' : 'Monthly Exposure'}
           </p>
-          <p className="text-2xl font-semibold text-foreground tabular-nums">{moneyLabel(summary?.exposure.monthly)}</p>
+          <p className="text-2xl font-semibold text-foreground tabular-nums">{moneyLabel(authorityExposure)}</p>
           <div className="space-y-1">
             <div className="flex justify-between text-xs text-muted-foreground">
-              <span>{moneyLabel(summary?.effective_caps.monthly)} limit</span>
-              <span>{utilizationLabel(monthlyUtilization)}</span>
+              <span>{moneyLabel(authorityLimit)} limit</span>
+              <span>{utilizationLabel(authorityUtilization)}</span>
             </div>
             <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
               <div
-                className={cn('h-full rounded-full transition-all', monthlyUtilization === null || monthlyUtilization > 90 ? 'bg-destructive' : monthlyUtilization > 70 ? 'bg-warning' : 'bg-success')}
-                style={{ width: `${monthlyUtilization === null ? 100 : Math.min(monthlyUtilization, 100)}%` }}
+                className={cn('h-full rounded-full transition-all', authorityUtilization === null || authorityUtilization > 90 ? 'bg-destructive' : authorityUtilization > 70 ? 'bg-warning' : 'bg-success')}
+                style={{ width: `${authorityUtilization === null ? 100 : Math.min(authorityUtilization, 100)}%` }}
               />
             </div>
           </div>

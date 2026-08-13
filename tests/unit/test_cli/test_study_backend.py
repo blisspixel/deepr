@@ -7,9 +7,11 @@ import pytest
 from deepr.cli.commands.semantic import study_backend
 from deepr.cli.commands.semantic.study_backend import (
     StudyBackendError,
+    _completion_from_native_ollama,
     _preferred_plan_backends,
     build_study_backend,
 )
+from deepr.experts.chat_backends import ExpertChatResult
 
 
 @pytest.fixture
@@ -110,3 +112,47 @@ class TestNoMeteredPath:
 
         signature = inspect.signature(build_study_backend)
         assert "api" not in signature.parameters
+
+
+@pytest.mark.asyncio
+async def test_native_local_completion_binds_context_and_output_limit():
+    requests = []
+
+    class Backend:
+        async def complete(self, request):
+            requests.append(request)
+            return ExpertChatResult(message=SimpleNamespace(content='{"findings": []}'), stop_reason="stop")
+
+    completion = _completion_from_native_ollama(
+        Backend(),
+        "qwen3:30b",
+        max_tokens=4096,
+        context_tokens=16_384,
+    )
+
+    assert await completion("Study this corpus") == '{"findings": []}'
+    assert requests[0].model == "qwen3:30b"
+    assert requests[0].messages == [{"role": "user", "content": "Study this corpus"}]
+    assert requests[0].extra == {
+        "max_tokens": 4096,
+        "num_ctx": 16_384,
+        "response_format": {"type": "json_object"},
+        "temperature": 0.2,
+    }
+
+
+@pytest.mark.asyncio
+async def test_native_local_completion_reports_truncation():
+    class Backend:
+        async def complete(self, _request):
+            return ExpertChatResult(message=SimpleNamespace(content="{"), stop_reason="length")
+
+    completion = _completion_from_native_ollama(
+        Backend(),
+        "qwen3:30b",
+        max_tokens=2048,
+        context_tokens=8192,
+    )
+
+    with pytest.raises(StudyBackendError, match="2048-token output limit"):
+        await completion("Study this corpus")

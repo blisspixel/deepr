@@ -364,7 +364,23 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.48.0)
+## Current Status (v2.49.0)
+
+**Shipped in v2.49.0 (see docs/CHANGELOG.md):** attended metered authority is
+now a persistent cumulative wallet chosen by the operator, with a separate
+finite ceiling and durable reservation for each job. The wallet never
+overdrafts, refills, or claims to be provider credit. Verified provider-side
+prepaid or hard-stop controls are independently mandatory for dispatch, and
+calendar ceilings apply at the same time, with the tightest boundary winning. Unattended work and expert
+consultation still cannot use wallet authority.
+
+The Expert Hub now leads with an explicit 25-expert flagship roster while
+preserving the complete standard roster. Cards report presentation structure
+from durable expert state: portraits, standpoints, positions, studied
+findings, and retained sources. The readiness label checks only those
+structural facts and does not pretend to judge whether an expert is correct or
+good. Sparse flagship experts were enriched through owned local models and
+retained public source packs at `$0` model-provider cost.
 
 **Shipped in v2.48.0 (see docs/CHANGELOG.md):** expert consultation is now
 local Ollama by default or an explicit safety-eligible prepaid plan. Metered
@@ -374,7 +390,7 @@ OpenAI, Anthropic, xAI, Gemini, and Azure posture, including GPT-5.6 Sol,
 Terra, and Luna, Grok 4.6, Grok Build 0.1, and Claude 5 pricing corrections.
 The paid-client ratchet dropped by one constructor site.
 
-**Shipped in v2.47.0 (see docs/CHANGELOG.md):** attended API spend now has
+**Historical v2.47.0 behavior, superseded in v2.49.0:** attended API spend had
 one non-configurable $2 total maximum rather than a per-call or calendar-window
 allowance. Each settled API dollar and durable hold draws down the grant from
 its issue-time baseline. Local and admitted prepaid-plan work records $0 and
@@ -944,34 +960,38 @@ the gate for that version is proven.
 
 | Target | Focus | Why this order | Gate to call it done |
 | --- | --- | --- | --- |
-| **v2.43.x** (shipped) | Dual-era MCP, offline `mcp conformance`, doctor preflight, approach contract | Host interop must be provable offline before more remote surface | Offline conformance green; doctor MCP category OK; paid still frozen |
-| **v2.44** | Flagship longitudinal expert-value pilot (TKG first) at `$0` | Differentiator is measured decision value, not more tools | One blueprint-bound workbook + artifact-root report published; no default policy change from the report alone |
-| **v2.45** | Recall and memory quality evidence (lexical-first default; vector only with vetted report) | Compiled experts need honest candidate recall before self-improvement | Operator-labeled recall libraries; no silent scheduler default flip |
-| **v2.46** | Threshold alerts that reach operators (dispatch + dashboard + durable outbox substrate) | Caps that nobody sees mid-run are incomplete | 50/80/95/100% visible at submit surfaces; 100% remains hard block |
-| **v2.47** | Parent graph budget before any paid fan-out; finish incomplete pricing envelopes | Paid multi-call without one parent ceiling recreates surprise bills | Nested child envelopes reserved and settled under one parent; fan-out still gated until proof |
-| **v2.48** | Provider-authoritative account-control + credential-identity adapters | Paid authority stays `$0` until external bill truth is proven | Authenticated account-control verifier + current credential identity per provider |
-| **v2.49** | Metered lifecycle re-enable only on shared durable parent transaction + maximum-charge contract | Partial unfreeze is how silent spend returns | Every gated metered lifecycle surface shares one reservation/settlement path |
-| **v2.50** | Protocol-native remote expert conversations (MCP first; A2A after 1.0 honesty) | Collaboration after local value and spend truth, not before | Durable conversation handles; no A2A 1.0 claim without live conformance client |
+| **v2.43.x** (shipped) | Approach contract and offline dual-era MCP conformance | Host interop must be provable offline before more remote surface | `mcp conformance` and doctor preflight shipped; paid remained frozen |
+| **v2.44** (shipped) | Retained expert corpus, study lenses, anchored findings, coverage, and notebook views | Experts needed re-readable evidence before they could hold an inspectable view | Content-addressed corpus and `$0` study proposal path shipped |
+| **v2.45** (shipped) | Honest corpus measurements, source cards, acquisition planning, and consult context | Retrieval counts and source repetition could not stand in for evidence quality | Independence, grounding, comparison, and scheduler failure states became observable |
+| **v2.46** (shipped) | Durable positions, self-account, viva, perspective graph, stage contracts, and key quarantine | An expert needed a standpoint and history before broader presentation or authority | Position and perspective state shipped; metered keys became absent by default |
+| **v2.47** (shipped, grant superseded) | Expert v2 web surface, local portraits, and the original attended `$2` grant | The new expert state needed a real interface; attended spend needed a first narrow proof | Twelve read-only v2 routes and local portrait path shipped; the grant was replaced in v2.49 |
+| **v2.48** (shipped) | Local-first consult plus the 2026-08-13 provider model and pricing refresh | Consultation must not inherit metered authority; estimates must follow current official catalogs | Consult blocks API paths; GPT-5.6, Grok 4.6, Claude 5, and current Gemini posture registered |
+| **v2.49** (shipped) | Persistent metered-spend wallet, independent job ceilings, and a curated flagship expert roster | Operators need chosen total exposure without a universal $2 research limit; the main roster must show developed experts | Wallet and verified provider boundaries both apply; no refill or overdraft; 25 explicit flagship experts have inspectable structure |
+| **v2.50** | Agent Plugin 1.0.0 packaging and OKF 0.2 derived-export migration | Portable execution packaging and portable knowledge are separate contracts that should land before widening runtime authority | Canonical schemas pinned locally; package containment proven; no secrets; OKF export remains derived and verification-gated |
+| **v2.51** | Metered lifecycle re-enable only on shared durable parent transaction + maximum-charge contract | Partial unfreeze is how silent spend returns | Every gated metered lifecycle surface shares one reservation/settlement path |
+| **v2.52** | Protocol-native remote expert conversations (MCP first; A2A after 1.0 honesty) | Collaboration after local value and spend truth, not before | Durable conversation handles; no A2A 1.0 claim without live conformance client |
 | **v3.0** | Portable, evidence-gated expert maturity (Level 5/6 gates, multi-device continuity, honest Supported Surface) | 3.0 is a contract freeze, not a feature dump | Approach + Supported Surface + capacity classes stable; paid path either proven safe or still honestly frozen |
 | **3.x+** | Polyglot extraction, broader plan adapters, hosted MCP only after evidence | Widen only after quality, cost, and security evidence | Per-item gates in design notes; no global cheapest-first metered fallback |
 
 **Invariant across every version:** No Surprise Bills outranks features. Local
 `$0` and safety-eligible plan quota stay preferred. Effective paid authority
-remains `$0.00` until v2.48/v2.49 gates land. Historical July 2026 ledger
+remains `$0.00` unless both the attended v2.49 wallet path and provider-proof gates apply. Historical July 2026 ledger
 overshoot is the design standard, not a closed story.
 
 0. **No Surprise Bills: spend caps that cannot be overshot (governing money
-   invariant, outranks every feature; spans v2.44-v2.49).** The July 2026
+   invariant, outranks every feature; spans v2.44-v2.51).** The July 2026
    incident is the standard to design against: it was initially detected at
    $37.99, and the canonical July ledger now shows $38.52 settled against a
    $10/month budget. The budget display had shown $0.00 and no paid artifact for
    that campaign survived. Exposure reached 385% of the ceiling, or 285% over
    it, without surfacing for 24 days.
-   The active v2.40+ operator ceiling is `$5.00` per month. Historical July
-   settled spend already exceeds it, so effective paid authority is `$0.00`
-   and remains frozen. Local owned-model work is marginal `$0`; plan capacity
-   is admitted only when paid overage is proven disabled; every other opaque or
-   untracked external path blocks before dispatch.
+   Active documentation examples retain an independent calendar ceiling of
+   `$5.00` or less. The v2.49 wallet is instead an operator-chosen cumulative
+   drawdown that never refills on a calendar boundary; every job also names a
+   finite ceiling. Historical July spend remains a warning, not authority for
+   a new run. Local owned-model work is marginal `$0`; plan capacity is admitted
+   only when paid overage is proven disabled; every other opaque or untracked
+   external path blocks before dispatch.
    That is an extreme, unacceptable failure class; a cap that can be exceeded
    is not a cap. Closed 2026-07-25/26 (143-agent adversarial audit, 25
    confirmed cost bugs, all criticals and highs fixed): ledger-anchored
@@ -1086,7 +1106,7 @@ overshoot is the design standard, not a closed story.
    operator-accepted, current, reusable state measurably helps over time.
 3. **Temporal knowledge graph completion and memory quality (target v2.45)** - first-class temporal edge qualifiers now surface in read-side perspective deltas, belief explanations, expert-memory quality checks, the host-agent `deepr_temporal_edges` filter surface, regenerated expert digests, and `deepr eval continuity` generated-view checks after default compiled sync applies verified graph commits and persists verifier-supplied temporal edge context. Semantic recall now has a first-class local `$0` construction path: `deepr expert refresh-semantic-recall --local-embedding-model` embeds missing or stale belief claims through a local Ollama embedding model on the existing local client seam, and `deepr expert semantic-recall --local-embedding-model` computes the query embedding locally so indexed vector recall works without any caller-side embedding pipeline; both paths are explicit, no-metered-fallback, and stay `candidate_only`. Compiled-sync claim verification can now use that index: `deepr expert sync --compile-claims --recall-embedding-model MODEL` embeds ready claim statements through the local `$0` embedder and routes verifier recall context through indexed belief vectors, degrading to lexical routing instead of blocking the gated verification call when the local embedder fails, and the persisted claim-verification sidecar records the exact recall packets the verifier prompt used so the per-candidate `method` field stays honest on the durable artifact. `deepr eval recall NAME --cases PATH` now provides that `$0` evidence surface: it compares lexical and indexed-vector routing on operator-labeled cases (local or precomputed query embeddings) and reports hit rate, mean reciprocal rank, and per-metric winners as routing evidence only. `deepr eval recall NAME --cases PATH --record-cases` now accumulates those operator-labeled cases in a runtime-local `deepr-recall-eval-case-library-v1` library, `deepr eval recall NAME --query TEXT --relevant-belief-id ID --record-cases` captures one reviewed case without a scratch JSON file, and `deepr eval recall NAME` can rerun against that accumulated set without touching graph state, beliefs, or vectors. Consult traces now preserve selected stored-belief ids and trace mining emits review-required `deepr-recall-eval-case-candidate-v1` drafts when a failed-check, low-context, or middle-context candidate has selected belief context; they are not auto-recorded as labels. Claim-verification decisions now use the same candidate contract for duplicate, contradiction, or temporal-scope memory blocks that had recall context, preserving candidate belief ids for operator review without asserting relevance. Recall eval reports now include a conservative scheduler-preference eligibility block: vector routing is eligible only after enough labeled cases, required vector metric wins, and complete current vectors for the requested model. Claim verification can now consume an explicit recall route preference block and try vector-only recall first while preserving lexical fallback when the preference is absent, ineligible, or produces no vector hits, and `deepr expert sync --compile-claims --recall-embedding-model MODEL --recall-preference-report PATH` validates a local recall eval report for the same expert and model before threading only its scheduler-preference block into the verifier prompt. A `$0` regression now validates that an accumulated recall case library can generate an eligible report before sync accepts only its scheduler-preference block, and sync now revalidates eligible reports for case count, required vector metric wins, an evaluated vector route, no ineligible reasons, and complete current vector coverage instead of trusting a hand-edited `eligible: true` flag. Next: keep default lexical-first routing unless an operator supplies a vetted report, and run live/operator validation on accumulated libraries before considering any scheduler default. Compiler claim verification can carry caller-supplied or store-backed recall context, and sync can run the budget-gated verifier, persist compiler and apply sidecars, and use `--stage-compiled-claims` for no-write envelope staging, but recall stays subordinate to the graph: recall finds candidates; the belief graph and verifier decide. Why: the expert should answer "what changed," "why do you believe it," "what is your current take," "what is contested," "what are you watching," and "what would change your mind," which no chunk store can answer.
    Cycle 103 update (2026-07-09): recall eval reports now carry `deepr-recall-operator-validation-v1`, an additive operator-facing block that says whether an accumulated-library run is ready for explicit sync preference and records that default routing remains lexical-first until an operator supplies a vetted saved report. Cycle 104 update (2026-07-09): `deepr eval recall-libraries` now emits `deepr-recall-library-inventory-v1`, a read-only inventory of accumulated recall libraries that flags invalid files and identifies which experts have enough operator-labeled cases for route-evidence evals before any explicit sync preference report is considered. Cycle 105 update (2026-07-09): `deepr eval recall-libraries --validation-plan --local-embedding-model MODEL` now emits `deepr-recall-library-validation-plan-v1`, a read-only command plan for ready accumulated libraries that does not execute retrieval, write state, or authorize default routing. Cycle 106 update (2026-07-09): `deepr-recall-eval-report-v2` replaces the three-case point-estimate eligibility gate with standard IR metrics, a 30-case operating floor, deterministic 95 percent paired bootstrap intervals, sync-side recomputation, a live model-specific belief/vector state-digest check, and exact top-k, expert-domain, and minimum-score binding for every eligible preference artifact. Default routing remains lexical-first. Design: [semantic-recall-evidence.md](docs/design/semantic-recall-evidence.md).
-4. **Protocol-native expert collaboration over MCP and A2A (target v2.50; after v2.44-v2.49)** - design:
+4. **Protocol-native expert collaboration over MCP and A2A (target v2.52; after v2.44-v2.51)** - design:
    [remote-expert-conversations.md](docs/design/remote-expert-conversations.md),
    [bounded-expert-deliberation.md](docs/design/bounded-expert-deliberation.md),
    and [ADR 0005](docs/decisions/0005-protocol-neutral-expert-conversation-handles.md).

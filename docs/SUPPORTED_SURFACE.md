@@ -1,10 +1,11 @@
 # Supported Surface
 
-Status: v2.48.0 current main, 2026-08-13. This document defines what users and host
+Status: v2.49.0 current main, 2026-08-13. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
-frozen until provider account-control adapters land. A narrow attended absorb
-path is the only metered execution exception.
+frozen until provider account-control adapters land. The narrow attended absorb
+path is structurally complete but remains execution-blocked without verified
+provider prepaid-no-overage or hard-stop evidence.
 
 **v2.48.0 makes expert consultation local or plan-only.** CLI consultation
 uses confined local Ollama by default. An explicit plan may execute only after
@@ -12,13 +13,29 @@ the existing no-surprise-bills gate proves it safe. CLI, MCP, and A2A requests
 for metered consult synthesis are blocked before transaction and paid-client
 construction; budget and legacy consent flags cannot enable them.
 
-**v2.47.0 adds attended API authority.** A person at the CLI may issue a typed,
+**v2.49.0 separates cumulative credits from each paid job ceiling.** A person
+at the CLI may explicitly add any exact-cent amount to one persistent local
+metered-spend wallet. Every later settled API dollar and active hold draws down
+that pool across providers, while every paid job still requires a separate
+finite confirmed ceiling and durable reservation. There is no overdraft,
+automatic refill, or metered fallback. Wallet funding does not transfer or
+verify provider funds. Provider-side prepaid credits or a provider-enforced
+hard stop with overage disabled are also mandatory for dispatch. An open
+postpaid account remains blocked even with wallet credits. MCP,
+schedules, loops, and automatic fallback ignore the local wallet.
+
+The Expert Hub has an explicit 25-expert flagship tier and a complete standard
+tier. Its readiness field reports only whether durable presentation structure
+exists: a portrait, standpoint, position, studied finding, and retained
+source. It does not certify correctness, importance, or expert quality.
+
+**Historical v2.47.0 attended authority is superseded by the v2.49.0 wallet.** A person at the CLI could issue a typed,
 expiring grant with a non-configurable $2 total maximum, then run the supported
 API-backed absorb path under its own narrower call reservation and consent.
 Settled API cost and active holds share one drawdown from grant issuance. Local
 and admitted prepaid-plan work records $0 and does not consume it. MCP,
 schedules, loops, automatic fallback, and other metered surfaces cannot use the
-grant.
+grant. Existing grant files do not migrate into wallet authority.
 
 **v2.46.0 renames the files inside an expert directory.** They were named
 after the commands that wrote them; they are now named for what they are:
@@ -68,8 +85,8 @@ must not be described as usable capacity.
   Strict CLI and web views expose settled spend, active and unresolved holds,
   effective authority, and maximum new-call headroom. Offline provider-billing
   preview and explicit fail-closed apply are stable. Attended status reports a
-  single total grant drawdown rather than misleading day, week, or month
-  balances.
+  single cumulative wallet drawdown rather than misleading day, week, or month
+  balances. Provider hard-stop status is reported separately.
 - Explicit local and safety-eligible plan selection. Automatic cross-provider
   metered fallback is disabled.
 - Local report storage under the configured reports root.
@@ -109,12 +126,12 @@ must not be described as usable capacity.
 
 - Web dashboard and dashboard APIs.
 - Attended OpenAI report absorption through `deepr expert absorb --api`. It
-  requires `deepr budget allow`, a typed amount confirmation, a grant no larger
-  than $2 total, explicit per-call consent, a narrower caller budget, durable
+  requires `deepr budget credits add`, a typed amount confirmation, explicit
+  per-call consent, a separate finite caller budget, durable
   reserve and settlement, and an exact Deepr-owned client binding. The client
   uses the official endpoint with zero hidden retries, no redirects, no ambient
   proxy configuration, and an exact credential fingerprint and priced model.
-  The grant is ignored by MCP and refused by scheduled or loop execution.
+  The local wallet is ignored by MCP and refused by scheduled or loop execution.
 - Expert councils, task planning contracts, and approval flows. Standalone
   metered expert chat is gated as described under Visible Or Planned Only.
 - `deepr eval consult --structured-local` is an eval-only owned-local graph. It

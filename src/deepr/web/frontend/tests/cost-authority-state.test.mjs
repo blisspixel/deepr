@@ -8,14 +8,16 @@ const statusBar = readFileSync(new URL('../src/components/layout/status-bar.tsx'
 const settings = readFileSync(new URL('../src/pages/settings.tsx', import.meta.url), 'utf8')
 
 test('cost surfaces render active exposure and an explicit paid API freeze', () => {
-  assert.match(costs, /moneyLabel\(summary\?\.exposure\.monthly\)/)
+  assert.match(costs, /moneyLabel\(authorityExposure\)/)
   assert.match(costs, /moneyLabel\(summary\?\.active_holds\)/)
   assert.match(costs, /Paid API dispatch is frozen/)
-  assert.match(overview, /moneyLabel\(costSummary\?\.exposure\.monthly\)/)
-  assert.match(statusBar, /PAID API FROZEN/)
-  assert.match(statusBar, /attendedGrant \? 'API grant' : 'Month exposure'/)
-  assert.match(overview, /Attended API grant:/)
-  assert.match(costs, /Attended API grant is active/)
+  assert.match(overview, /moneyLabel\(authorityExposure\)/)
+  assert.match(statusBar, /PAID API BLOCKED/)
+  assert.match(statusBar, /spendWallet \? 'API wallet' : 'Month exposure'/)
+  assert.match(statusBar, /formatCurrency\(walletExposure\).*formatCurrency\(walletCap\).*Month/)
+  assert.match(overview, /Metered API wallet:/)
+  assert.match(costs, /Metered API wallet is funded/)
+  assert.match(costs, /Provider prepaid-no-overage or a hard provider ceiling must also be verified/)
 })
 
 test('unknown canonical money state is blocked and never rendered as zero', () => {
@@ -36,7 +38,7 @@ test('zero cost limits are preserved instead of replaced with display defaults',
     assert.doesNotMatch(source, /(daily_limit|monthly_limit|effective_monthly_limit)[^\n]*\|\|/)
   }
   assert.match(statusBar, /'Month exposure'/)
-  assert.match(statusBar, /formatCurrency\(costSummary\.effective_monthly_limit\)/)
+  assert.match(statusBar, /formatCurrency\(monthlyCap\)/)
   assert.match(costs, /OVER \$0 CEILING/)
   assert.match(overview, /OVER \$0 CEILING/)
 })

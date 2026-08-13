@@ -10,6 +10,7 @@ import deepr.backends.local as local_mod
 import deepr.backends.plan_quota as plan_quota_mod
 import deepr.backends.waterfall as waterfall_mod
 import deepr.cli.commands.semantic.expert_absorb_support as absorb_support_mod
+import deepr.core.cost_caps as cost_caps_mod
 import deepr.experts.report_absorber as report_absorber_mod
 from deepr.cli.commands.semantic.expert_absorb_support import (
     AbsorbBackend,
@@ -35,6 +36,19 @@ def _use_fake_absorber(monkeypatch):
 
 def test_metered_backend_builds_absorber_with_estimate(monkeypatch):
     _use_fake_absorber(monkeypatch)
+    sentinel_client = object()
+    monkeypatch.setattr(report_absorber_mod, "build_attended_openai_client", lambda **_kwargs: sentinel_client)
+    monkeypatch.setattr(
+        cost_caps_mod,
+        "read_operator_budget",
+        lambda **_kwargs: cost_caps_mod.OperatorBudget(
+            configured=True,
+            monthly_limit=50.0,
+            frozen=False,
+            authorization_valid=True,
+            spend_wallet_id="wallet-test",
+        ),
+    )
     profile = SimpleNamespace(name="Expert")
 
     backend = build_absorb_backend(
@@ -55,9 +69,65 @@ def test_metered_backend_builds_absorber_with_estimate(monkeypatch):
     assert isinstance(backend, AbsorbBackend)
     assert backend.cost_note == "~$0.05"
     assert isinstance(backend.absorber, _FakeAbsorber)
+    assert backend.absorber.kwargs["client"] is sentinel_client
     # No grounding requested, so neither a checker nor an escalator is attached.
     assert "grounding_checker" not in backend.absorber.kwargs
     assert "grounding_escalator" not in backend.absorber.kwargs
+
+
+def test_metered_backend_refuses_client_construction_without_wallet(monkeypatch):
+    _use_fake_absorber(monkeypatch)
+    monkeypatch.setattr(
+        cost_caps_mod,
+        "read_operator_budget",
+        lambda **_kwargs: cost_caps_mod.OperatorBudget(configured=False, monthly_limit=0.0, frozen=True),
+    )
+
+    with pytest.raises(AbsorbBackendError, match="budget credits add"):
+        build_absorb_backend(
+            profile=SimpleNamespace(name="Expert"),
+            local=False,
+            api=True,
+            plan=None,
+            plan_model=None,
+            model="gpt-5-mini",
+            run_grounding_checks=False,
+            checker_plan=None,
+            checker_plan_model=None,
+            second_checker_plan=None,
+            second_checker_plan_model=None,
+            json_output=True,
+        )
+
+
+def test_metered_backend_refuses_unverified_provider_even_with_wallet(monkeypatch):
+    _use_fake_absorber(monkeypatch)
+    monkeypatch.setattr(
+        cost_caps_mod,
+        "read_operator_budget",
+        lambda **_kwargs: cost_caps_mod.OperatorBudget(
+            configured=True,
+            monthly_limit=50.0,
+            frozen=True,
+            spend_wallet_id="wallet-test",
+        ),
+    )
+
+    with pytest.raises(AbsorbBackendError, match="provider prepaid or hard-stop evidence"):
+        build_absorb_backend(
+            profile=SimpleNamespace(name="Expert"),
+            local=False,
+            api=True,
+            plan=None,
+            plan_model=None,
+            model="gpt-5-mini",
+            run_grounding_checks=False,
+            checker_plan=None,
+            checker_plan_model=None,
+            second_checker_plan=None,
+            second_checker_plan_model=None,
+            json_output=True,
+        )
 
 
 def test_local_backend_without_model_raises_setup_error(monkeypatch):

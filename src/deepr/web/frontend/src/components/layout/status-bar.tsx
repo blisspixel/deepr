@@ -38,23 +38,30 @@ export default function StatusBar() {
   const moneyKnown = costOk && !costError && costSummary !== undefined
   const overBudget = moneyKnown && costSummary.over_budget
   const paidApiFrozen = moneyKnown && costSummary.paid_api_frozen
-  const attendedGrant = moneyKnown && costSummary.authority_mode === 'attended_grant'
+  const spendWallet = moneyKnown && costSummary.authority_mode === 'spend_wallet'
   const paidApiBlocked = !moneyKnown || paidApiFrozen
   const unresolvedHolds = moneyKnown ? costSummary.unresolved_holds : 0
   const monthlyCap = moneyKnown ? costSummary.effective_monthly_limit : 0
   const monthlyExposure = moneyKnown ? costSummary.exposure.monthly : 0
+  const walletExposure = spendWallet
+    ? costSummary.spend_wallet_spent + costSummary.spend_wallet_reserved
+    : 0
+  const walletCap = spendWallet ? costSummary.spend_wallet_authorized : 0
   const monthlyUtilization =
     moneyKnown && monthlyCap > 0 ? (monthlyExposure / monthlyCap) * 100 : null
+  const walletUtilization =
+    spendWallet && walletCap > 0 ? (walletExposure / walletCap) * 100 : null
+  const authorityUtilization = Math.max(monthlyUtilization ?? 0, walletUtilization ?? 0)
   const thresholdLabel =
-    monthlyUtilization === null
+    !moneyKnown
       ? null
-      : monthlyUtilization >= 100
+      : authorityUtilization >= 100
         ? '100%'
-        : monthlyUtilization >= 95
+        : authorityUtilization >= 95
           ? '95%'
-          : monthlyUtilization >= 80
+          : authorityUtilization >= 80
             ? '80%'
-            : monthlyUtilization >= 50
+            : authorityUtilization >= 50
               ? '50%'
               : null
   const connectionLabel = wsConnected
@@ -90,13 +97,13 @@ export default function StatusBar() {
             <span
               className={cn(
                 'rounded px-1 font-medium',
-                monthlyUtilization !== null && monthlyUtilization >= 95
+                authorityUtilization >= 95
                   ? 'text-destructive'
                   : 'text-warning'
               )}
-              title={`${attendedGrant ? 'Grant' : 'Monthly'} exposure at the ${thresholdLabel} threshold of the effective ceiling`}
+              title={`Paid authority reached the ${thresholdLabel} threshold of an effective ceiling`}
             >
-              {thresholdLabel} {attendedGrant ? 'grant' : 'month'}
+              {thresholdLabel} authority
             </span>
           )}
         </div>
@@ -114,22 +121,24 @@ export default function StatusBar() {
             !moneyKnown
               ? 'Canonical money state is unavailable; paid API dispatch must remain blocked'
               : overBudget
-              ? `${attendedGrant ? 'Grant' : 'Monthly'} exposure exceeds the effective ceiling`
+              ? `${spendWallet ? 'Wallet' : 'Monthly'} exposure exceeds the effective ceiling`
               : paidApiFrozen
                 ? costSummary.freeze_reason || 'Paid API dispatch is frozen'
-                : attendedGrant
-                  ? `Attended grant expires ${costSummary.attended_grant_expires_at}; includes ${formatCurrency(costSummary.active_holds)} in active holds`
+                : spendWallet
+                  ? `Local wallet includes ${formatCurrency(costSummary.active_holds)} in active holds; provider prepaid status is separate`
                   : `Includes ${formatCurrency(costSummary.active_holds)} in active holds`
           }
         >
           {(overBudget || paidApiBlocked || unresolvedHolds > 0) && <AlertTriangle className="h-3 w-3" />}
           <span>
-            {attendedGrant ? 'API grant' : 'Month exposure'}:{' '}
-            {moneyKnown
-              ? `${formatCurrency(costSummary.exposure.monthly)} / ${formatCurrency(costSummary.effective_monthly_limit)}`
-              : 'UNKNOWN / UNKNOWN'}
+            {spendWallet ? 'API wallet' : 'Month exposure'}:{' '}
+            {moneyKnown && spendWallet
+              ? `${formatCurrency(walletExposure)} / ${formatCurrency(walletCap)} | Month ${formatCurrency(monthlyExposure)} / ${formatCurrency(monthlyCap)}`
+              : moneyKnown
+                ? `${formatCurrency(monthlyExposure)} / ${formatCurrency(monthlyCap)}`
+                : 'UNKNOWN / UNKNOWN'}
             {!moneyKnown && ' PAID API BLOCKED'}
-            {paidApiFrozen && ' PAID API FROZEN'}
+            {paidApiFrozen && ' PAID API BLOCKED'}
             {unresolvedHolds > 0 && ` ${unresolvedHolds} UNRESOLVED HOLD${unresolvedHolds === 1 ? '' : 'S'}`}
             {overBudget && ' OVER BUDGET'}
           </span>

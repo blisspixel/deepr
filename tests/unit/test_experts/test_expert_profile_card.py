@@ -142,7 +142,10 @@ class TestANameOnceAnsweredToIsKept:
     def test_a_prior_name_survives_a_reprofile(self) -> None:
         prior = ExpertProfile(expert_name="e", chosen_name="Keel", standpoint="old")
         profile = parse_profile(
-            {"chosen_name": "Merritt", "standpoint": "new"}, expert_name="e", at="2026-01-01T00:00:00+00:00", prior=prior
+            {"chosen_name": "Merritt", "standpoint": "new"},
+            expert_name="e",
+            at="2026-01-01T00:00:00+00:00",
+            prior=prior,
         )
         assert profile.chosen_name == "Keel"
 

@@ -89,6 +89,12 @@ export default function Overview() {
   const dailyUtilizationLabel = dailyUtilization === null
     ? 'UNKNOWN'
     : Number.isFinite(dailyUtilization) ? `${dailyUtilization.toFixed(0)}%` : 'OVER $0 CEILING'
+  const authorityExposure = moneyKnown && costSummary.authority_mode === 'spend_wallet'
+    ? costSummary.spend_wallet_spent + costSummary.spend_wallet_reserved
+    : costSummary?.exposure.monthly
+  const authorityLimit = moneyKnown && costSummary.authority_mode === 'spend_wallet'
+    ? costSummary.spend_wallet_authorized
+    : costSummary?.effective_caps.monthly
 
   const trendData = trends?.daily?.map((t: { cost: number }) => ({ value: t.cost })) || []
 
@@ -157,14 +163,15 @@ export default function Overview() {
           </p>
         </div>
       )}
-      {moneyKnown && costSummary.authority_mode === 'attended_grant' && (
+      {moneyKnown && costSummary.authority_mode === 'spend_wallet' && (
         <div className="rounded-lg border border-success/40 bg-success/5 px-4 py-3 flex items-center gap-3">
           <DollarSign className="w-4 h-4 text-success shrink-0" />
           <p className="text-sm text-foreground">
-            <span className="font-semibold text-success">Attended API grant:</span>{' '}
-            {formatCurrency(costSummary.attended_grant_remaining)} of{' '}
-            {formatCurrency(costSummary.attended_grant_amount)} remains. Local and verified prepaid-plan work is $0 at the
-            margin and does not draw down this limit.
+            <span className="font-semibold text-success">Metered API wallet:</span>{' '}
+            {formatCurrency(costSummary.spend_wallet_available)} of{' '}
+            {formatCurrency(costSummary.spend_wallet_authorized)} is available after settled spend and active holds.
+            This is a local Deepr ceiling, not provider prepaid credit. A verified provider hard boundary is also required.
+            Local and verified plan-quota work is $0 at the margin and does not draw it down.
           </p>
         </div>
       )}
@@ -478,16 +485,16 @@ export default function Overview() {
           {/* Governing paid-spend authority */}
           <div className="rounded-lg border bg-card p-5 space-y-3">
             <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">
-              {costSummary?.authority_mode === 'attended_grant' ? 'API Grant' : 'Monthly'}
+              {costSummary?.authority_mode === 'spend_wallet' ? 'API Wallet' : 'Monthly'}
             </h2>
             <div className="space-y-3">
               <div className="flex justify-between items-baseline">
                 <span className="text-sm text-muted-foreground">Exposure</span>
-                <span className="text-lg font-semibold tabular-nums">{moneyLabel(costSummary?.exposure.monthly)}</span>
+                <span className="text-lg font-semibold tabular-nums">{moneyLabel(authorityExposure)}</span>
               </div>
               <div className="flex justify-between items-baseline">
                 <span className="text-sm text-muted-foreground">Limit</span>
-                <span className="text-sm text-muted-foreground tabular-nums">{moneyLabel(costSummary?.effective_caps.monthly)}</span>
+                <span className="text-sm text-muted-foreground tabular-nums">{moneyLabel(authorityLimit)}</span>
               </div>
               <div className="flex justify-between items-baseline">
                 <span className="text-sm text-muted-foreground">Active holds</span>

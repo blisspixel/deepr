@@ -110,6 +110,10 @@ class ExpertProfile:
     # AI-generated portrait image
     portrait_url: str | None = None
 
+    # Operator-curated presentation tier. This is editorial host metadata,
+    # never a semantic quality verdict derived from the expert's wording.
+    roster_tier: str = "standard"
+
     # Composed components (not serialized directly)
     _temporal_state: TemporalState | None = field(default=None, repr=False)
     _freshness_checker: FreshnessChecker | None = field(default=None, repr=False)
@@ -118,6 +122,8 @@ class ExpertProfile:
 
     def __post_init__(self):
         """Initialize composed components."""
+        if self.roster_tier not in {"standard", "flagship"}:
+            raise ValueError("roster_tier must be 'standard' or 'flagship'")
         self._init_components()
 
     def _init_components(self):

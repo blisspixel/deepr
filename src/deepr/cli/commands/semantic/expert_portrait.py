@@ -86,10 +86,11 @@ async def _run_portrait_batch(store: Any, targets: list[str], *, provider: str |
     help="Allow --yes with a metered image provider after reviewing the displayed estimate.",
 )
 def expert_portrait(name, all_experts, missing_only, force, style, provider, yes, confirm_metered_cost):
-    """Generate a consistent-style AI portrait for one expert or the whole library.
+    """Generate a consistent-style portrait for one expert or the whole library.
 
     Every portrait shares one house art style (set ``DEEPR_PORTRAIT_STYLE`` or pass
-    ``--style``) so a roster reads as a coherent set. ~$0.04 per image.
+    ``--style``) so a roster reads as a coherent set. The attested local CLI is
+    $0; explicitly selected API image providers are metered.
 
     EXAMPLES:
       deepr expert portrait "Coffee Brewing Methods"

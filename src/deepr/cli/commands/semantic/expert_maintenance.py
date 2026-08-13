@@ -572,7 +572,7 @@ def sync_cmd(
         print_error("Use only one of --local, --api, or --plan.")
         sys.exit(2)
     if scheduled and api:
-        print_error("--scheduled cannot use --api; attended grants are only for work a person is watching.")
+        print_error("--scheduled cannot use --api; local wallet credits are only for attended work.")
         sys.exit(2)
     try:
         validate_grounding_flags(

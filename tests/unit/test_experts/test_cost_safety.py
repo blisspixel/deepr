@@ -282,11 +282,11 @@ class TestCreateDefaultCircuitBreaker:
         """Test that default breaker has sensible values."""
         breaker = create_default_circuit_breaker()
 
-        assert breaker.cost_threshold == 5.0
+        assert breaker.cost_threshold == CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION
         assert breaker.window_seconds == 300.0
         assert breaker.event_threshold == 50
         assert breaker.cooldown_seconds == 60.0
-        assert breaker.max_single_cost == 5.0
+        assert breaker.max_single_cost == CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION
 
 
 class TestPropertyBasedCircuitBreaker:
@@ -380,7 +380,7 @@ class TestCostSafetyManager:
         manager = CostSafetyManager()
 
         assert manager.circuit_breaker is not None
-        assert manager.circuit_breaker.cost_threshold == 5.0
+        assert manager.circuit_breaker.cost_threshold == CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION
 
     def test_init_custom_circuit_breaker(self):
         """Test initialization with custom circuit breaker."""
@@ -868,11 +868,10 @@ class TestResetCostSafetyManager:
 
 
 class TestCostSessionHardCeiling:
-    """CostSession.can_proceed must enforce the absolute per-op ceiling.
+    """CostSession.can_proceed must enforce the exact-money boundary.
 
-    Previously only CostSafetyManager.check_and_reserve enforced the outer
-    ceiling; legacy callers using CostSession directly could approve a
-    single operation above it as long as the session budget allowed.
+    Operator policy owns practical limits. This final guard only rejects
+    values that cannot be represented exactly as integer cents.
     """
 
     def test_rejects_above_absolute_ceiling(self):
@@ -881,10 +880,10 @@ class TestCostSessionHardCeiling:
         session = CostSession(
             session_id="test_ceiling",
             session_type="chat",
-            budget_limit=100.0,  # plenty of session budget
+            budget_limit=CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION + 100.0,
         )
-        assert session.budget_limit == 5.0
-        over = CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION + 0.50
+        assert session.budget_limit == CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION
+        over = CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION + 1.0
         ok, reason = session.can_proceed(over)
         assert ok is False
         assert "ceiling" in reason.lower()

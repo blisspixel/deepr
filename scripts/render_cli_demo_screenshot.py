@@ -1,4 +1,4 @@
-"""Render the README CLI walkthrough from the verified bounded-spend run."""
+"""Render the README CLI walkthrough for a cumulative spend wallet."""
 
 from __future__ import annotations
 
@@ -27,9 +27,7 @@ DIM = (140, 140, 148)
 CYAN = (100, 200, 220)
 GREEN = (110, 200, 140)
 YELLOW = (220, 190, 100)
-RED = (230, 120, 120)
 BLUE = (140, 170, 240)
-MUTED = (100, 100, 110)
 
 
 def _font(name: str, size: int) -> ImageFont.ImageFont:
@@ -55,50 +53,50 @@ def main() -> None:
     font = _font("consola.ttf", 14)
     font_bold = _font("consolab.ttf", 14)
 
-    title = "deepr  -  bounded spend and expert improvement"
+    title = "deepr  -  prepaid-style local wallet and hard job ceiling"
     draw.text((W // 2 - 180, 14), title, fill=DIM, font=font_title)
 
     lines: list[tuple[str, tuple[int, int, int], bool]] = [
-        ("PS C:\\GitHub\\deepr> deepr budget allow --amount 2.00 --minutes 60 --provider openai", FG, False),
-        ("", FG, False),
-        ("  Month exposure    : $0.00", DIM, False),
-        ("  Unresolved holds  : 0", DIM, False),
-        ("  Requested ceiling : $2.00 for 60 minute(s)", FG, False),
-        ("  Type 2.00 to confirm: 2.00", YELLOW, False),
-        ("  Granted $2.00. This is one total drawdown, not $2 per call.", GREEN, True),
-        ("", FG, False),
-        ("PS C:\\GitHub\\deepr> deepr costs show", FG, False),
-        ("", FG, False),
-        ("  API Grant Costs", CYAN, True),
-        ("  Attended paid API grant", FG, True),
-        ("  Settled since grant: $0.01", FG, False),
-        ("  Active holds: $0.00", GREEN, False),
-        ("  Unresolved post-dispatch holds: 0 ($0.00)", GREEN, False),
-        ("  Total drawdown: $0.01 / $2.00", BLUE, True),
-        ("  Remaining: $1.99", GREEN, True),
-        ("  Local and verified prepaid-plan work records $0 and does not draw down the grant.", DIM, False),
-        ("", FG, False),
         (
-            'PS C:\\GitHub\\deepr> deepr expert absorb "Knowledge System Evaluation" '
-            '--file docs/design/expert-purpose-and-value-loop.md --api --budget 0.30 -y',
+            'PS C:\\GitHub\\deepr> deepr budget credits add --amount 200.00 --reason "Bound this API campaign"',
             FG,
             False,
         ),
         ("", FG, False),
-        ("  Run ceiling       $0.30", DIM, False),
-        ("  Provider / model  OpenAI / gpt-5-mini", DIM, False),
-        ("  Paid calls         1 extraction + 5 short semantic checks", DIM, False),
-        ("  Exact settled      $0.011031", GREEN, True),
-        ("  Durable holds      0 active, 0 unresolved", GREEN, False),
+        ("  All-time settled  : $0.00", DIM, False),
+        ("  Active holds      : $0.00", DIM, False),
+        ("  Credit addition   : $200.00", FG, False),
+        ("  Resulting ceiling : $200.00", FG, False),
         ("", FG, False),
-        ("  Knowledge System Evaluation", BLUE, True),
-        ("  Before             0 canonical claims / foundation", RED, False),
-        ("  After              20 canonical claims / learning", GREEN, True),
-        ("  Average confidence 0.942", GREEN, False),
+        ("  This is local Deepr authorization. It does not buy or verify provider credits.", YELLOW, False),
+        ("  Provider prepaid credits or a hard stop with overage disabled must also be verified.", YELLOW, False),
+        ("  An open postpaid account remains blocked even with this Deepr wallet.", YELLOW, True),
+        ("  Type 200.00 to confirm: 200.00", YELLOW, False),
+        ("  Added $200.00; wallet now authorizes $200.00 total.", GREEN, True),
+        ("  Available after active holds: $200.00", GREEN, False),
+        ("  Automatic refill: disabled", GREEN, True),
         ("", FG, False),
-        ("PS C:\\GitHub\\deepr> deepr budget revoke", FG, False),
+        ("PS C:\\GitHub\\deepr> deepr budget status", FG, False),
         ("", FG, False),
-        ("  Grant revoked. Paid dispatch is frozen again.", GREEN, True),
+        ("  Mode: Wallet funded; provider hard boundary required", CYAN, True),
+        ("  Wallet drawdown: $0.00 / $200.00 (0%)", BLUE, True),
+        ("  Wallet available: $200.00", GREEN, True),
+        ("  Configured independent monthly ceiling: $5.00", FG, True),
+        ("  Monthly exposure with holds: $0.00", FG, False),
+        ("  Monthly headroom: $5.00", GREEN, False),
+        ("  Provider hard boundary: not verified; paid API remains blocked", YELLOW, True),
+        ("", FG, False),
+        ("PS C:\\GitHub\\deepr> deepr costs show", FG, False),
+        ("", FG, False),
+        ("  Deepr metered-spend wallet", CYAN, True),
+        ("  Authorized credits: $200.00", FG, False),
+        ("  Settled from wallet: $0.00", FG, False),
+        ("  Active / unresolved holds: $0.00 / 0", GREEN, False),
+        ("  Wallet available: $200.00", GREEN, True),
+        ("  Effective monthly exposure: $0.00 / $5.00", FG, False),
+        ("  Configured per-job ceiling: $4.00", BLUE, True),
+        ("  Maximum new paid call now: $0.00 until provider verification", YELLOW, True),
+        ("  Local and verified plan-quota work records $0 and does not draw down this wallet.", DIM, False),
         ("", FG, False),
         ("PS C:\\GitHub\\deepr> _", FG, False),
     ]

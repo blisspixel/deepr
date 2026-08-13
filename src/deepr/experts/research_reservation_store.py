@@ -12,6 +12,7 @@ from math import isfinite
 from pathlib import Path
 from typing import Any
 
+from deepr.experts import cost_safety_windows
 from deepr.observability.cost_ledger import (
     CostLedger,
     CostLedgerDurabilityError,
@@ -25,6 +26,10 @@ from deepr.observability.cost_ledger import (
     uses_canonical_home_cost_data_dir,
     well_known_cost_data_dirs,
 )
+
+_PolicySpendWindows = cost_safety_windows.PolicySpendWindows
+_resolved_policy_spend_windows = cost_safety_windows.policy_spend_windows
+_settled_spend_windows = cost_safety_windows.settled_spend_windows
 
 
 class ResearchReservationLimitExceeded(ValueError):
@@ -74,36 +79,43 @@ def _validated_identity_text(value: object, *, field_name: str) -> str:
     return value
 
 
-def _settled_spend_windows(
+def _wallet_consumed(events: list[CostLedgerEvent], *, baseline_usd: float) -> float:
+    """Return all-time wallet drawdown, refusing canonical ledger rollback."""
+    total_settled = float(sum(event.cost_usd for event in events))
+    if total_settled < baseline_usd:
+        raise ResearchReservationStoreError("canonical settled cost is below the spend wallet baseline")
+    return total_settled - baseline_usd
+
+
+def _policy_spend_windows(
     events: list[CostLedgerEvent],
     *,
     now: datetime,
-    attended_baseline_usd: float | None,
-) -> tuple[float, float, float]:
-    """Spend relevant to the current authority, in daily/weekly/monthly order."""
-    if attended_baseline_usd is not None:
-        total = float(sum(event.cost_usd for event in events))
-        if total < attended_baseline_usd:
-            raise ResearchReservationStoreError("canonical settled cost is below the attended grant baseline")
-        consumed = total - attended_baseline_usd
-        return consumed, consumed, consumed
-    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    week_start = day_start - timedelta(days=day_start.weekday())
-    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    return (
-        float(sum(event.cost_usd for event in events if event.timestamp >= day_start)),
-        float(sum(event.cost_usd for event in events if event.timestamp >= week_start)),
-        float(sum(event.cost_usd for event in events if event.timestamp >= month_start)),
-    )
+    operator: Any,
+    calendar_periods: frozenset[str],
+) -> _PolicySpendWindows:
+    """Keep calendar settlement distinct from cumulative wallet drawdown."""
+    wallet_baseline = operator.spend_wallet_settled_baseline_usd if operator.spend_wallet_id else None
+    try:
+        return _resolved_policy_spend_windows(
+            events,
+            now=now,
+            wallet_baseline_usd=wallet_baseline,
+            calendar_periods=calendar_periods,
+        )
+    except ValueError as error:
+        raise ResearchReservationStoreError(str(error)) from error
 
 
-def _read_spend_authority(provider: str | None) -> tuple[dict[str, float], Any]:
+def _read_spend_authority(provider: str | None) -> tuple[dict[str, float], Any, frozenset[str]]:
     """Bind real providers exactly while preserving the caller's scoped authority."""
-    from deepr.core.cost_caps import read_operator_budget, resolve_spend_caps
+    from deepr.core.cost_caps import read_operator_budget, resolve_spend_policy
 
     if not provider or provider == "deepr-internal":
-        return resolve_spend_caps(), read_operator_budget()
-    return resolve_spend_caps(provider=provider), read_operator_budget(provider=provider)
+        policy = resolve_spend_policy()
+        return dict(policy.caps), read_operator_budget(), policy.calendar_periods
+    policy = resolve_spend_policy(provider=provider)
+    return dict(policy.caps), read_operator_budget(provider=provider), policy.calendar_periods
 
 
 def _validated_hex_token(value: object, *, field_name: str) -> str:
@@ -339,7 +351,7 @@ class ResearchReservationStore:
                     model TEXT,
                     dispatch_binding_id TEXT,
                     request_envelope_sha256 TEXT,
-                    attended_grant_id TEXT
+                    spend_wallet_id TEXT
                 )
                 """
             )
@@ -357,7 +369,7 @@ class ResearchReservationStore:
             "model": "TEXT",
             "dispatch_binding_id": "TEXT",
             "request_envelope_sha256": "TEXT",
-            "attended_grant_id": "TEXT",
+            "spend_wallet_id": "TEXT",
         }
         for column, declaration in migrations.items():
             if column not in columns:
@@ -398,9 +410,8 @@ class ResearchReservationStore:
             )
         )
         with spend_policy_lock():
-            authority, operator = _read_spend_authority(provider)
-            attended_grant_id = operator.attended_grant_id
-            attended_baseline = operator.attended_grant_settled_baseline_usd if attended_grant_id else None
+            authority, operator, calendar_periods = _read_spend_authority(provider)
+            wallet_id = operator.spend_wallet_id
             max_daily_cost = min(max_daily_cost, authority["daily"])
             max_weekly_cost = min(caller_weekly, authority["weekly"])
             max_monthly_cost = min(max_monthly_cost, authority["monthly"])
@@ -430,32 +441,41 @@ class ResearchReservationStore:
                         )
                     )
                     active = primary_active + sibling_active
-                    daily, weekly, monthly = _settled_spend_windows(
+                    windows = _policy_spend_windows(
                         events,
                         now=now,
-                        attended_baseline_usd=attended_baseline,
+                        operator=operator,
+                        calendar_periods=calendar_periods,
                     )
-                    if daily + active + reserved_cost > max_daily_cost:
+                    if (
+                        windows.wallet_consumed is not None
+                        and windows.wallet_consumed + active + reserved_cost > operator.spend_wallet_authorized_usd
+                    ):
+                        raise ResearchReservationLimitExceeded(
+                            f"Wallet limit ${operator.spend_wallet_authorized_usd:.2f} would be exceeded "
+                            f"(spent ${windows.wallet_consumed:.2f}, reserved ${active:.2f}, +${reserved_cost:.2f})"
+                        )
+                    if windows.daily + active + reserved_cost > max_daily_cost:
                         raise ResearchReservationLimitExceeded(
                             f"Daily limit ${max_daily_cost:.2f} would be exceeded "
-                            f"(spent ${daily:.2f}, reserved ${active:.2f}, +${reserved_cost:.2f})"
+                            f"(spent ${windows.daily:.2f}, reserved ${active:.2f}, +${reserved_cost:.2f})"
                         )
-                    if weekly + active + reserved_cost > max_weekly_cost:
+                    if windows.weekly + active + reserved_cost > max_weekly_cost:
                         raise ResearchReservationLimitExceeded(
                             f"Weekly limit ${max_weekly_cost:.2f} would be exceeded "
-                            f"(spent ${weekly:.2f}, reserved ${active:.2f}, +${reserved_cost:.2f})"
+                            f"(spent ${windows.weekly:.2f}, reserved ${active:.2f}, +${reserved_cost:.2f})"
                         )
-                    if monthly + active + reserved_cost > max_monthly_cost:
+                    if windows.monthly + active + reserved_cost > max_monthly_cost:
                         raise ResearchReservationLimitExceeded(
                             f"Monthly limit ${max_monthly_cost:.2f} would be exceeded "
-                            f"(spent ${monthly:.2f}, reserved ${active:.2f}, +${reserved_cost:.2f})"
+                            f"(spent ${windows.monthly:.2f}, reserved ${active:.2f}, +${reserved_cost:.2f})"
                         )
                     connection.execute(
                         """
                         INSERT INTO research_cost_reservations
                             (reservation_id, job_id, reserved_cost, state, created_at,
                              provider, model, dispatch_binding_id, request_envelope_sha256,
-                             attended_grant_id)
+                             spend_wallet_id)
                         VALUES (?, ?, ?, 'active', ?, ?, ?, ?, ?, ?)
                         """,
                         (
@@ -467,7 +487,7 @@ class ResearchReservationStore:
                             model,
                             dispatch_binding_id,
                             request_envelope_sha256,
-                            attended_grant_id or None,
+                            wallet_id or None,
                         ),
                     )
                     connection.commit()
@@ -567,9 +587,8 @@ class ResearchReservationStore:
                 )
             )
         with spend_policy_lock():
-            authority, operator = _read_spend_authority(provider)
-            attended_grant_id = operator.attended_grant_id
-            attended_baseline = operator.attended_grant_settled_baseline_usd if attended_grant_id else None
+            authority, operator, calendar_periods = _read_spend_authority(provider)
+            wallet_id = operator.spend_wallet_id
             now = datetime.now(UTC)
             ledger = CostLedger()
             paths, reservation_locations, _job_locations = self._validated_identity_state()
@@ -584,7 +603,7 @@ class ResearchReservationStore:
                     self._expire_stale_council_predispatch_rows(connection, now)
                     row = connection.execute(
                         "SELECT job_id, reserved_cost, provider, model, dispatch_binding_id, "
-                        "request_envelope_sha256, provider_work_may_have_run, attended_grant_id "
+                        "request_envelope_sha256, provider_work_may_have_run, spend_wallet_id "
                         "FROM research_cost_reservations "
                         "WHERE reservation_id = ? AND state = 'active'",
                         (reservation_id,),
@@ -627,17 +646,23 @@ class ResearchReservationStore:
                         )
                     )
                     active = target_active + other_active
-                    daily, weekly, monthly = _settled_spend_windows(
+                    windows = _policy_spend_windows(
                         events,
                         now=now,
-                        attended_baseline_usd=attended_baseline,
+                        operator=operator,
+                        calendar_periods=calendar_periods,
+                    )
+                    wallet_changed = (
+                        windows.wallet_consumed is not None
+                        and windows.wallet_consumed + active > operator.spend_wallet_authorized_usd
                     )
                     changed = (
                         row_reserved_cost > authority["per_job"]
-                        or daily + active > authority["daily"]
-                        or weekly + active > authority["weekly"]
-                        or monthly + active > authority["monthly"]
-                        or str(row[7] or "") != attended_grant_id
+                        or windows.daily + active > authority["daily"]
+                        or windows.weekly + active > authority["weekly"]
+                        or windows.monthly + active > authority["monthly"]
+                        or wallet_changed
+                        or str(row[7] or "") != wallet_id
                     )
                     if changed:
                         raise ResearchReservationLimitExceeded(

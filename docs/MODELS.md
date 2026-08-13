@@ -1,6 +1,6 @@
 # Model Selection Guide
 
-Status: current with Deepr v2.48.0. Last reviewed: 2026-08-13.
+Status: current with Deepr v2.49.0. Last reviewed: 2026-08-13.
 
 The source of truth for model IDs, pricing estimates, context windows, and
 routing metadata is [src/deepr/providers/registry.py](../src/deepr/providers/registry.py).
@@ -79,6 +79,9 @@ explicitly updated.
 
 Pricing notes:
 
+- GPT-5.6 standard rates per MTok are `$5/$0.50/$30` for Sol,
+  `$2.50/$0.25/$15` for Terra, and `$1/$0.10/$6` for Luna, in
+  input/cached-input/output order.
 - GPT-5.6 prompts above 272K input tokens use 2x input and cached-input rates
   plus 1.5x output rates for the full request. Deepr applies this boundary in
   both preflight and settlement pricing.

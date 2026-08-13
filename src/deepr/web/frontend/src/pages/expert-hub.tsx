@@ -31,6 +31,7 @@ export default function ExpertHub() {
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [sortBy, setSortBy] = useState('formed')
+  const [rosterView, setRosterView] = useState<'flagship' | 'all' | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [newExpert, setNewExpert] = useState({ name: '', description: '', domain: '' })
 
@@ -69,9 +70,17 @@ export default function ExpertHub() {
     })
   }
 
+  const flagshipCount = experts?.filter(e => e.roster_tier === 'flagship').length ?? 0
+  const flagshipReadyCount =
+    experts?.filter(e => e.roster_tier === 'flagship' && e.roster_ready).length ?? 0
+  const allReadyCount = experts?.filter(e => e.roster_ready).length ?? 0
+  const effectiveRosterView = rosterView ?? (flagshipCount > 0 ? 'flagship' : 'all')
+
   const filteredExperts = useMemo(() => {
     if (!experts) return []
-    let filtered = [...experts]
+    let filtered = effectiveRosterView === 'flagship'
+      ? experts.filter(e => e.roster_tier === 'flagship')
+      : [...experts]
     if (debouncedSearch) {
       const q = debouncedSearch.toLowerCase()
       filtered = filtered.filter(e =>
@@ -91,15 +100,16 @@ export default function ExpertHub() {
           // been studied - above every expert that actually holds a view, so
           // the roster opened on its emptiest rows.
           return (
+            (b.roster_ready ? 1 : 0) - (a.roster_ready ? 1 : 0) ||
             (b.position_count ?? 0) - (a.position_count ?? 0) ||
             (b.standpoint ? 1 : 0) - (a.standpoint ? 1 : 0) ||
-            b.finding_count - a.finding_count ||
+            (b.studied_findings ?? b.finding_count) - (a.studied_findings ?? a.finding_count) ||
             a.name.localeCompare(b.name)
           )
       }
     })
     return filtered
-  }, [experts, debouncedSearch, sortBy])
+  }, [experts, debouncedSearch, effectiveRosterView, sortBy])
 
   if (isLoading) return <CardGridSkeleton />
 
@@ -126,8 +136,10 @@ export default function ExpertHub() {
         <div>
           <h1 className="text-xl font-semibold text-foreground">Experts</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {experts?.length ?? 0} experts &middot; {experts?.filter(e => e.standpoint).length ?? 0} have formed a
-            standpoint of their own
+            {flagshipCount} flagship &middot; {experts?.length ?? 0} total &middot;{' '}
+            {effectiveRosterView === 'flagship'
+              ? `${flagshipReadyCount} of ${flagshipCount} flagship ready`
+              : `${allReadyCount} presentation-ready`}
           </p>
         </div>
         <Button onClick={handleCreateExpert}>
@@ -162,6 +174,18 @@ export default function ExpertHub() {
               <SelectItem value="recent">Most recent</SelectItem>
             </SelectContent>
           </Select>
+          <Select
+            value={effectiveRosterView}
+            onValueChange={(value) => setRosterView(value as 'flagship' | 'all')}
+          >
+            <SelectTrigger className="w-[170px]" aria-label="Roster view">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="flagship">Flagship roster</SelectItem>
+              <SelectItem value="all">All experts</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       )}
 
@@ -181,8 +205,14 @@ export default function ExpertHub() {
       ) : filteredExperts.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <Search className="w-10 h-10 text-muted-foreground/40 mb-3" />
-          <h3 className="text-base font-medium text-foreground mb-1">No matches</h3>
-          <p className="text-sm text-muted-foreground">No experts match "{debouncedSearch}".</p>
+          <h3 className="text-base font-medium text-foreground mb-1">
+            {effectiveRosterView === 'flagship' && !debouncedSearch ? 'No flagship experts yet' : 'No matches'}
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            {effectiveRosterView === 'flagship' && !debouncedSearch
+              ? 'Feature experts explicitly, or switch to the complete roster.'
+              : `No experts match "${debouncedSearch}".`}
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">

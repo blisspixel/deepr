@@ -222,7 +222,7 @@ class TestBudgetStatusCommand:
         assert "Budget: $2.50 / $10.00" in result.output
         assert "Remaining: $7.50" in result.output
 
-    def test_budget_status_shows_total_attended_grant_drawdown(self, runner):
+    def test_budget_status_shows_total_wallet_drawdown(self, runner):
         from deepr.core.cost_caps import OperatorBudget
 
         with (
@@ -230,17 +230,16 @@ class TestBudgetStatusCommand:
                 "deepr.cli.commands.budget.load_budget_config",
                 return_value={"monthly_limit": 50.0, "monthly_spending": 19.0, "current_month": "2026-08"},
             ),
-            patch("deepr.cli.commands.budget.resolve_spend_caps", return_value={"monthly": 2.0}),
+            patch("deepr.cli.commands.budget.resolve_spend_caps", return_value={"monthly": 50.0}),
             patch(
                 "deepr.cli.commands.budget.read_operator_budget_for_status",
                 return_value=OperatorBudget(
                     configured=True,
-                    monthly_limit=2.0,
+                    monthly_limit=50.0,
                     frozen=False,
-                    attended_grant_id="grant-test",
-                    attended_grant_expires_at="2026-08-12T12:30:00+00:00",
-                    attended_grant_amount_usd=2.0,
-                    attended_grant_settled_baseline_usd=41.0,
+                    spend_wallet_id="wallet-test",
+                    spend_wallet_authorized_usd=50.0,
+                    spend_wallet_settled_baseline_usd=41.0,
                 ),
             ),
             patch(
@@ -255,11 +254,12 @@ class TestBudgetStatusCommand:
             result = runner.invoke(cli, ["budget", "status"])
 
         assert result.exit_code == 0
-        assert "Mode: Attended paid API grant" in result.output
-        assert "Settled since grant: $0.25" in result.output
-        assert "API grant: $0.75 / $2.00" in result.output
-        assert "Remaining: $1.25" in result.output
-        assert "does not draw down this grant" in result.output
+        assert "Mode: Attended metered-spend wallet" in result.output
+        assert "Authorized credits: $50.00" in result.output
+        assert "Settled from wallet: $0.25" in result.output
+        assert "Wallet drawdown: $0.75 / $50.00" in result.output
+        assert "Wallet available: $49.25" in result.output
+        assert "Provider hard boundary: not verified; paid API remains blocked" in result.output
 
     def test_budget_status_fails_closed_when_holds_are_unreadable(self, runner):
         with (
@@ -281,6 +281,80 @@ class TestBudgetStatusCommand:
         assert "Active durable holds: UNKNOWN" in result.output
         assert "Paid API blocked" in result.output
         assert "Remaining: $0.00 (fail closed)" in result.output
+
+
+class TestSpendWalletCommands:
+    @pytest.fixture
+    def runner(self):
+        return CliRunner()
+
+    def test_adds_fifty_then_tops_up_to_two_hundred_without_auto_refill(self, runner):
+        from deepr.core.spend_wallet import load_wallet
+
+        first = runner.invoke(
+            cli,
+            ["budget", "credits", "add", "--amount", "50", "--reason", "bounded research"],
+            input="50.00\n",
+        )
+        assert first.exit_code == 0
+        assert "local Deepr authorization" in first.output
+        assert "does not buy or verify provider credits" in first.output
+        assert "open postpaid provider account remains blocked" in first.output
+        assert "Provider dispatch: still blocked" in first.output
+        assert "Automatic refill: disabled" in first.output
+
+        second = runner.invoke(cli, ["budget", "credits", "add", "--amount", "150"], input="150.00\n")
+        assert second.exit_code == 0
+        wallet = load_wallet()
+        assert wallet is not None
+        assert wallet.authorized_usd == 200.0
+        assert "wallet now authorizes $200.00 total" in second.output
+
+    def test_wrong_typed_confirmation_adds_nothing(self, runner):
+        from deepr.core.spend_wallet import load_wallet
+
+        result = runner.invoke(cli, ["budget", "fund", "--amount", "50"], input="500.00\n")
+
+        assert result.exit_code == 1
+        assert "no credits added" in result.output
+        assert load_wallet() is None
+
+    def test_subcent_amount_is_refused_before_prompt(self, runner):
+        result = runner.invoke(cli, ["budget", "credits", "add", "--amount", "0.015"])
+
+        assert result.exit_code == 1
+        assert "exact cents" in result.output
+        assert "Type 0.01" not in result.output
+
+    def test_unresolved_provider_exposure_blocks_top_up(self, runner):
+        exposure = ReconciledResearchExposure(
+            daily_settled_cost=0.0,
+            weekly_settled_cost=0.0,
+            monthly_settled_cost=0.0,
+            total_settled_cost=0.0,
+            active_cost=1.0,
+            unresolved_cost=1.0,
+            unresolved_count=1,
+        )
+        with patch(
+            "deepr.experts.research_reservation_store.ResearchReservationStore.exposure_snapshot",
+            return_value=exposure,
+        ):
+            result = runner.invoke(cli, ["budget", "credits", "add", "--amount", "50"], input="50.00\n")
+
+        assert result.exit_code == 1
+        assert "must be reconciled" in result.output
+
+    def test_clear_blocks_new_wallet_authority_but_preserves_accounting(self, runner):
+        from deepr.core.spend_wallet import load_wallet
+
+        added = runner.invoke(cli, ["budget", "credits", "add", "--amount", "5"], input="5.00\n")
+        assert added.exit_code == 0
+
+        cleared = runner.invoke(cli, ["budget", "credits", "clear"])
+        assert cleared.exit_code == 0
+        assert "spend history and existing reservation records were preserved" in cleared.output
+        assert load_wallet() is None
 
 
 class TestBudgetHistoryCommand:
