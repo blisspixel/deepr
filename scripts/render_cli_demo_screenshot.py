@@ -1,7 +1,4 @@
-"""Render a fictional CLI demo screenshot for README polish.
-
-Demo data only. No live account, no real research content.
-"""
+"""Render the README CLI walkthrough from the verified bounded-spend run."""
 
 from __future__ import annotations
 
@@ -58,63 +55,52 @@ def main() -> None:
     font = _font("consola.ttf", 14)
     font_bold = _font("consolab.ttf", 14)
 
-    title = "deepr  -  demo session (fictional)"
-    draw.text((W // 2 - 120, 14), title, fill=DIM, font=font_title)
+    title = "deepr  -  bounded spend and expert improvement"
+    draw.text((W // 2 - 180, 14), title, fill=DIM, font=font_title)
 
     lines: list[tuple[str, tuple[int, int, int], bool]] = [
-        ("PS C:\\demo\\deepr> deepr doctor --skip-connectivity", FG, False),
+        ("PS C:\\GitHub\\deepr> deepr budget allow --amount 2.00 --minutes 60 --provider openai", FG, False),
         ("", FG, False),
-        ("  MCP", CYAN, True),
-        ("  OK MCP offline conformance: ok (6 checks; modern 2026-07-28)", GREEN, False),
-        ("      Run: deepr mcp conformance --json", DIM, False),
-        ("  Spend", CYAN, True),
-        ("  OK Monthly spend vs budget: $0.00 of $5.00", GREEN, False),
-        ("  OK Paid artifacts: no unexplained spend", GREEN, False),
-        ("  Summary: 15/19 checks passed (advisory only)", DIM, False),
+        ("  Month exposure    : $0.00", DIM, False),
+        ("  Unresolved holds  : 0", DIM, False),
+        ("  Requested ceiling : $2.00 for 60 minute(s)", FG, False),
+        ("  Type 2.00 to confirm: 2.00", YELLOW, False),
+        ("  Granted $2.00. This is one total drawdown, not $2 per call.", GREEN, True),
         ("", FG, False),
-        ("PS C:\\demo\\deepr> deepr capacity", FG, False),
+        ("PS C:\\GitHub\\deepr> deepr costs show", FG, False),
         ("", FG, False),
-        ("  Class            Status        Notes", DIM, False),
-        ("  --------------   -----------   -----------------------------------------", MUTED, False),
-        ("  local ollama     executable    endpoint owned; $0 model margin", GREEN, False),
-        ("  plan quota       visible       claude code after overage-off proof", YELLOW, False),
-        ("  metered api      blocked       account-control verifier not installed", RED, False),
+        ("  API Grant Costs", CYAN, True),
+        ("  Attended paid API grant", FG, True),
+        ("  Settled since grant: $0.01", FG, False),
+        ("  Active holds: $0.00", GREEN, False),
+        ("  Unresolved post-dispatch holds: 0 ($0.00)", GREEN, False),
+        ("  Total drawdown: $0.01 / $2.00", BLUE, True),
+        ("  Remaining: $1.99", GREEN, True),
+        ("  Local and verified prepaid-plan work records $0 and does not draw down the grant.", DIM, False),
         ("", FG, False),
         (
-            'PS C:\\demo\\deepr> deepr expert consult "What should we decide next?" '
-            '--expert "Aurora Harbor Pilotage" --local',
+            'PS C:\\GitHub\\deepr> deepr expert absorb "Knowledge System Evaluation" '
+            '--file docs/design/expert-purpose-and-value-loop.md --api --budget 0.30 -y',
             FG,
             False,
         ),
         ("", FG, False),
-        ("  Expert   Aurora Harbor Pilotage  (demo)", CYAN, True),
-        ("  Mode     local ollama / $0 margin", DIM, False),
-        ("  Budget   parent ceiling $0.00 (owned local)", DIM, False),
+        ("  Run ceiling       $0.30", DIM, False),
+        ("  Provider / model  OpenAI / gpt-5-mini", DIM, False),
+        ("  Paid calls         1 extraction + 5 short semantic checks", DIM, False),
+        ("  Exact settled      $0.011031", GREEN, True),
+        ("  Durable holds      0 active, 0 unresolved", GREEN, False),
         ("", FG, False),
-        ("  Position", BLUE, True),
-        ("  Prioritize channel-depth survey before expanding night traffic.", FG, False),
-        ("  Evidence favors staged pilot rotations over permanent second boat.", FG, False),
+        ("  Knowledge System Evaluation", BLUE, True),
+        ("  Before             0 canonical claims / foundation", RED, False),
+        ("  After              20 canonical claims / learning", GREEN, True),
+        ("  Average confidence 0.942", GREEN, False),
         ("", FG, False),
-        ("  Beliefs (sample)", BLUE, True),
-        ("  +  Tide windows under 0.4 m residual reduce grounding risk   conf 0.78", GREEN, False),
-        ("  +  Dual-pilot nights cut delay variance in fog               conf 0.71", GREEN, False),
-        ("  ~  Second launch ROI depends on peak-season utilization      conf 0.44", YELLOW, False),
+        ("PS C:\\GitHub\\deepr> deepr budget revoke", FG, False),
         ("", FG, False),
-        ("  Gaps", BLUE, True),
-        ("  -  Missing 12-month fog delay ledger for eastern approach", YELLOW, False),
-        ("  -  No calibrated cost model for standby pilot hours", YELLOW, False),
+        ("  Grant revoked. Paid dispatch is frozen again.", GREEN, True),
         ("", FG, False),
-        ("  Uncertainty", BLUE, True),
-        ("  Would revise if peak-season utilization exceeds 62% for two seasons.", DIM, False),
-        ("", FG, False),
-        ("PS C:\\demo\\deepr> deepr costs doctor --json", FG, False),
-        (
-            '  {"matched_spend_usd": 0.0, "disposed_spend_usd": 0.0, "unexplained_spend_usd": 0.0}',
-            DIM,
-            False,
-        ),
-        ("", FG, False),
-        ("PS C:\\demo\\deepr> _", FG, False),
+        ("PS C:\\GitHub\\deepr> _", FG, False),
     ]
 
     y = 8 + TITLEBAR_H + PAD_Y

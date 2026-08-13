@@ -13,6 +13,9 @@ test('cost surfaces render active exposure and an explicit paid API freeze', () 
   assert.match(costs, /Paid API dispatch is frozen/)
   assert.match(overview, /moneyLabel\(costSummary\?\.exposure\.monthly\)/)
   assert.match(statusBar, /PAID API FROZEN/)
+  assert.match(statusBar, /attendedGrant \? 'API grant' : 'Month exposure'/)
+  assert.match(overview, /Attended API grant:/)
+  assert.match(costs, /Attended API grant is active/)
 })
 
 test('unknown canonical money state is blocked and never rendered as zero', () => {
@@ -32,7 +35,7 @@ test('zero cost limits are preserved instead of replaced with display defaults',
   for (const source of [costs, overview, statusBar, settings]) {
     assert.doesNotMatch(source, /(daily_limit|monthly_limit|effective_monthly_limit)[^\n]*\|\|/)
   }
-  assert.match(statusBar, /Month exposure:/)
+  assert.match(statusBar, /'Month exposure'/)
   assert.match(statusBar, /formatCurrency\(costSummary\.effective_monthly_limit\)/)
   assert.match(costs, /OVER \$0 CEILING/)
   assert.match(overview, /OVER \$0 CEILING/)

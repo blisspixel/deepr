@@ -1,9 +1,18 @@
 # Supported Surface
 
-Status: v2.46.0 current main, 2026-08-11. This document defines what users and host
+Status: v2.47.0 current main, 2026-08-12. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
-data remains portable if development stops. Production metered dispatch remains
-frozen since v2.40 until provider account-control adapters land.
+data remains portable if development stops. Unattended metered dispatch remains
+frozen until provider account-control adapters land. A narrow attended absorb
+path is the only metered execution exception.
+
+**v2.47.0 adds attended API authority.** A person at the CLI may issue a typed,
+expiring grant with a non-configurable $2 total maximum, then run the supported
+API-backed absorb path under its own narrower call reservation and consent.
+Settled API cost and active holds share one drawdown from grant issuance. Local
+and admitted prepaid-plan work records $0 and does not consume it. MCP,
+schedules, loops, automatic fallback, and other metered surfaces cannot use the
+grant.
 
 **v2.46.0 renames the files inside an expert directory.** They were named
 after the commands that wrote them; they are now named for what they are:
@@ -44,15 +53,17 @@ must not be described as usable capacity.
 
 - Write-free bounded research preview through `deepr research --preview` for
   provider/model/tool combinations with a complete finite cost envelope.
-  Production metered dispatch remains blocked until authenticated provider
+  Unattended metered dispatch remains blocked until authenticated provider
   account-control and current credential-identity adapters are installed.
 - Budget ceilings, cost estimates, and the canonical append-only cost ledger.
-  The dormant metered transaction substrate uses cross-process maximum-cost
+  The metered transaction substrate uses cross-process maximum-cost
   reservations, conservative ambiguous-outcome settlement, terminal-state
   reconciliation, disabled hidden SDK retries, and provider receipt IDs.
   Strict CLI and web views expose settled spend, active and unresolved holds,
   effective authority, and maximum new-call headroom. Offline provider-billing
-  preview and explicit fail-closed apply are stable.
+  preview and explicit fail-closed apply are stable. Attended status reports a
+  single total grant drawdown rather than misleading day, week, or month
+  balances.
 - Explicit local and safety-eligible plan selection. Automatic cross-provider
   metered fallback is disabled.
 - Local report storage under the configured reports root.
@@ -91,6 +102,13 @@ must not be described as usable capacity.
 ## Experimental But Usable
 
 - Web dashboard and dashboard APIs.
+- Attended OpenAI report absorption through `deepr expert absorb --api`. It
+  requires `deepr budget allow`, a typed amount confirmation, a grant no larger
+  than $2 total, explicit per-call consent, a narrower caller budget, durable
+  reserve and settlement, and an exact Deepr-owned client binding. The client
+  uses the official endpoint with zero hidden retries, no redirects, no ambient
+  proxy configuration, and an exact credential fingerprint and priced model.
+  The grant is ignored by MCP and refused by scheduled or loop execution.
 - Expert councils, task planning contracts, and approval flows. Standalone
   metered expert chat is gated as described under Visible Or Planned Only.
 - `deepr eval consult --structured-local` is an eval-only owned-local graph. It
@@ -132,7 +150,8 @@ must not be described as usable capacity.
   `deepr costs doctor` matched / disposed / unexplained buckets. The
   append-only cost ledger is never rewritten. Parent-budget transaction
   substrate and offline maximum-charge contract evaluators are present for
-  future metered lifecycle re-enable; production paid dispatch stays blocked.
+  future metered lifecycle re-enable; paid dispatch outside the attended absorb
+  path stays blocked.
 - `deepr_expert_handoff`, `deepr_expert_loop_status`, and adjacent versioned
   handoff contracts. The MCP loop-status tool, the CLI JSON loop-status command,
   and `/api/experts/{name}/loop-status` share the `deepr-loop-status-v1` rollup
@@ -210,8 +229,11 @@ must not be described as usable capacity.
   payloads preserve per-claim `grounding_assurance` and include verified-claim
   counts by assurance level. The verdict is model judgment; vendor diversity and
   spend gates are deterministic routing requirements.
-- OKF export and absorb paths. OKF export is a derived view; OKF absorb is an
-  ingestion source that still passes through verified extraction.
+- Deepr OKF-profile export and absorb paths. Export is a legacy OKF-style
+  derived view under `deepr-okf-profile-v1`, not a claim of conformance to the
+  current external OKF 0.2 specification. Absorb reads concept Markdown as an
+  ingestion source and still passes every candidate through verified
+  extraction.
 - Indirect prompt-injection boundaries for fresh retrieval context, report
   absorption, first-party tool findings, local document review previews,
   campaign context summarization, completed-research review, company-intelligence
@@ -617,8 +639,10 @@ If development stops, users keep these portable artifacts:
 - Generated expert memory cards (`EXPERT.md`) when written. These are derived
   orientation views over canonical state, including labeled original-idea
   perspective state, and can be regenerated.
-- OKF bundles from `deepr expert export-okf`, including `index.md`,
-  `log.md`, concept pages, citations, gaps, and contested claims.
+- Deepr OKF-profile bundles from `deepr expert export-okf`, including
+  `index.md`, `log.md`, concept pages, citations, gaps, and contested claims.
+  They are portable Markdown/YAML derived views, but v2.47 does not claim OKF
+  0.2 conformance.
 - Published JSON Schemas under `docs/schemas/` for handoff, expert self-models,
   metacognitive monitor proposals, reviewed monitor promotion, loop status, OKF
   profile mapping, expert memory cards, compiler envelopes, A2A task envelopes,

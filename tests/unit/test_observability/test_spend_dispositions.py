@@ -119,6 +119,54 @@ def test_classify_separates_matched_disposed_unexplained(tmp_path: Path) -> None
     assert unexplained[0]["cost_usd"] == 1.85
 
 
+def test_classify_closes_exact_expert_absorb_settlement_without_report_dir() -> None:
+    event = CostLedgerEvent(
+        operation="research_completion",
+        provider="openai",
+        cost_usd=0.010712,
+        model="gpt-5-mini",
+        task_id="research_expert-absorb-extraction-66f70a3933254459b86da27c2321d829",
+        request_id="req_b2e7a5526a954845a360568a35f72469",
+        source="expert_absorb.extraction",
+        idempotency_key="job:expert-absorb-extraction-66f70a3933254459b86da27c2321d829:completion",
+        timestamp=datetime.now(UTC),
+    )
+
+    matched, disposed, unexplained = classify_paid_events(
+        [event],
+        [],
+        datetime.now(UTC) - timedelta(days=1),
+    )
+
+    assert matched == []
+    assert unexplained == []
+    assert len(disposed) == 1
+    assert disposed[0]["disposition"] == DISPOSITION_EXPECTED_NON_REPORT
+    assert disposed[0]["provider_receipt_id"] == event.request_id
+    assert "persists expert state" in disposed[0]["rationale"]
+
+
+def test_expert_absorb_intrinsic_disposition_requires_source_and_task_identity() -> None:
+    base = {
+        "event_key": "idem:absorb",
+        "cost_usd": 0.01,
+        "task_id": "research_expert-absorb-extraction-abc",
+        "operation": "research_completion",
+        "provider": "openai",
+        "model": "gpt-5-mini",
+        "timestamp": "2026-08-12T23:18:40+00:00",
+        "request_id": "req-1",
+        "source": "expert_absorb.extraction",
+    }
+
+    kind, _rationale, _evidence = suggest_disposition_for_orphan(base)
+    assert kind == DISPOSITION_EXPECTED_NON_REPORT
+
+    mismatched = {**base, "task_id": "research_unrelated"}
+    mismatched_kind, _mismatched_rationale, _mismatched_evidence = suggest_disposition_for_orphan(mismatched)
+    assert mismatched_kind == DISPOSITION_LOST_ARTIFACT
+
+
 def test_suggest_and_apply_closes_unexplained(tmp_path: Path) -> None:
     entry = {
         "event_key": "idem:portrait-x",

@@ -1808,7 +1808,10 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
         }
 
     try:
-        result = await handler(arguments)
+        from deepr.core.cost_caps import unattended_paid_api_scope
+
+        with unattended_paid_api_scope():
+            result = await handler(arguments)
 
         # Security: Record output for verification
         verified_output = server.output_verifier.record_output(

@@ -61,6 +61,7 @@ _FREEZE_KINDS = frozenset(
 _EVIDENCE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 _PROVIDER_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
 _PAID_API_PROVIDER: ContextVar[str | None] = ContextVar("deepr_paid_api_provider", default=None)
+_UNATTENDED_PAID_API: ContextVar[bool] = ContextVar("deepr_unattended_paid_api", default=False)
 _VERIFIED_AUTHORITY_MARKER = object()
 
 
@@ -117,6 +118,9 @@ class OperatorBudget:
     """Set when authority came from an attended grant rather than provider
     evidence, so every surface can say which of the two allowed the spend."""
     attended_grant_expires_at: str = ""
+    attended_grant_amount_usd: float = 0.0
+    attended_grant_settled_baseline_usd: float = 0.0
+    attended_grant_provider: str = ""
     authorization_cost_state_id: str = ""
     _verified_marker: object | None = field(default=None, repr=False, compare=False)
 
@@ -162,6 +166,16 @@ def paid_api_provider_scope(provider: str) -> Iterator[None]:
         yield
     finally:
         _PAID_API_PROVIDER.reset(token)
+
+
+@contextmanager
+def unattended_paid_api_scope() -> Iterator[None]:
+    """Prevent attended authority from being used by MCP, schedules, or loops."""
+    token = _UNATTENDED_PAID_API.set(True)
+    try:
+        yield
+    finally:
+        _UNATTENDED_PAID_API.reset(token)
 
 
 @contextmanager
@@ -233,6 +247,9 @@ def _with_attended_grant(operator: OperatorBudget, *, provider: str | None) -> O
     bound to the current cost state, or is for another provider leaves the
     freeze exactly as it was.
     """
+    if _UNATTENDED_PAID_API.get():
+        return operator
+
     from deepr.core.attended_grant import active_grant
 
     try:
@@ -256,12 +273,16 @@ def _with_attended_grant(operator: OperatorBudget, *, provider: str | None) -> O
 
     return replace(
         operator,
+        configured=True,
         monthly_limit=grant.amount_usd,
         frozen=False,
         freeze_reason="",
         freeze_kind="",
         attended_grant_id=grant.grant_id,
         attended_grant_expires_at=grant.expires_at,
+        attended_grant_amount_usd=grant.amount_usd,
+        attended_grant_settled_baseline_usd=grant.settled_cost_baseline_usd,
+        attended_grant_provider=grant.provider,
     )
 
 
@@ -273,12 +294,15 @@ def read_operator_budget(path: Path | None = None, *, provider: str | None = Non
     """
     target = path or budget_file_path()
     if not target.exists():
-        return OperatorBudget(
-            configured=False,
-            monthly_limit=0.0,
-            frozen=True,
-            freeze_reason="paid API account controls are not configured",
-            freeze_kind="unconfigured",
+        return _with_attended_grant(
+            OperatorBudget(
+                configured=False,
+                monthly_limit=0.0,
+                frozen=True,
+                freeze_reason="paid API account controls are not configured",
+                freeze_kind="unconfigured",
+            ),
+            provider=provider,
         )
     try:
         document = _loads_operator_budget(target.read_text(encoding="utf-8"))
@@ -338,6 +362,29 @@ def read_operator_budget(path: Path | None = None, *, provider: str | None = Non
             freeze_kind="account_identity_mismatch",
         )
     return _with_verified_authorization(operator, authorization)
+
+
+def read_operator_budget_for_status(path: Path | None = None) -> OperatorBudget:
+    """Read authority for a human-facing status surface.
+
+    A provider-scoped attended grant should still be visible on dashboards and
+    in ``budget status`` even though those read-only surfaces are not inside a
+    provider dispatch scope. The unattended context guard remains authoritative
+    because both reads below pass through ``_with_attended_grant``.
+    """
+    operator = read_operator_budget(path)
+    if operator.attended_grant_id or _UNATTENDED_PAID_API.get():
+        return operator
+
+    from deepr.core.attended_grant import active_grant
+
+    try:
+        grant = active_grant(cost_state_id=_active_cost_state_id())
+    except Exception:
+        return operator
+    if grant is None or not grant.provider:
+        return operator
+    return read_operator_budget(path, provider=grant.provider)
 
 
 def _aware_datetime(value: object, *, source: str) -> datetime:
@@ -719,6 +766,8 @@ __all__ = [
     "paid_api_provider_scope",
     "parse_operator_budget",
     "read_operator_budget",
+    "read_operator_budget_for_status",
     "resolve_spend_caps",
     "spend_policy_lock",
+    "unattended_paid_api_scope",
 ]

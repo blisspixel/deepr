@@ -202,6 +202,7 @@ class ReportAbsorber:
 
     def _get_client(self) -> Any:
         if self._client is None:
+            import httpx
             from openai import AsyncOpenAI
 
             api_key = os.getenv("OPENAI_API_KEY")
@@ -210,13 +211,18 @@ class ReportAbsorber:
             # This endpoint has no supported application idempotency key. Keep
             # one provider POST behind each durable reservation outcome instead
             # of letting SDK retries hide duplicate paid attempts.
-            from deepr.providers.dispatch_authority import default_paid_endpoint
+            from deepr.providers.dispatch_authority import (
+                _mint_attended_paid_client_attestation,
+                default_paid_endpoint,
+            )
 
             self._client = AsyncOpenAI(
                 api_key=api_key,
                 base_url=default_paid_endpoint("openai"),
                 max_retries=0,
+                http_client=httpx.AsyncClient(trust_env=False, follow_redirects=False),
             )
+            _mint_attended_paid_client_attestation(self._client, "openai", self.model)
         return self._client
 
     async def _create_completion(self, operation: str, **kwargs: Any) -> Any:
@@ -259,7 +265,7 @@ class ReportAbsorber:
         client = self._get_client()
         from deepr.providers.dispatch_authority import require_official_paid_client
 
-        require_official_paid_client(client, "openai")
+        require_official_paid_client(client, "openai", self.model)
 
         try:
             response = await execute_reserved_async_call(

@@ -22,14 +22,15 @@ What keeps "no surprise bills" true:
 
 **A ceiling on the ceiling.** ``MAX_GRANT_USD`` refuses a grant larger than it
 rather than clamping. A silently reduced authorization is its own surprise, and
-a mistyped 200 must not become an authorized 25.
+a mistyped 200 must be refused.
 
 **Expiry.** A grant is minutes. A forgotten grant that never expires is exactly
 how an attended control decays into an unattended one.
 
-**Binding to the cost state.** A grant carries the cost-state id it was issued
-against, so an authorization cannot survive the ledger being replaced beneath
-it.
+**Binding to the cost state and starting total.** A grant carries the
+cost-state id and canonical settled total it was issued against. The amount is
+therefore a true draw-down from issuance, not a calendar-month cap that can be
+exhausted by older spend or reset at midnight.
 
 **It is authority, not accounting.** Grants raise the ceiling; the existing
 durable reservation, settlement and orphaned-spend detection are untouched and
@@ -50,13 +51,13 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-GRANT_SCHEMA_VERSION = "deepr-attended-spend-grant-v1"
+GRANT_SCHEMA_VERSION = "deepr-attended-spend-grant-v2"
 
-MAX_GRANT_USD = 25.0
+MAX_GRANT_USD = 2.0
 """The largest attended grant that may be issued.
 
-Attended spend is for bounded, supervised work. Anything above this is the
-unattended risk profile wearing an attended costume, and belongs behind
+Attended spend is for bounded, supervised work. Two dollars is the hard total
+ceiling, not a per-call allowance. Anything larger belongs behind
 provider-verified authority instead."""
 
 MAX_GRANT_MINUTES = 240
@@ -80,6 +81,7 @@ class AttendedGrant:
     issued_at: str
     expires_at: str
     cost_state_id: str
+    settled_cost_baseline_usd: float
     reason: str
     provider: str = ""
     """Empty means any provider. A grant may be narrowed to one."""
@@ -96,6 +98,7 @@ class AttendedGrant:
             issued_at=str(data.get("issued_at") or ""),
             expires_at=str(data.get("expires_at") or ""),
             cost_state_id=str(data.get("cost_state_id") or ""),
+            settled_cost_baseline_usd=float(data.get("settled_cost_baseline_usd", -1.0)),
             reason=str(data.get("reason") or ""),
             provider=str(data.get("provider") or ""),
         )
@@ -124,7 +127,26 @@ class AttendedGrant:
         # against any ledger, which is the opposite of what the binding is for.
         if not self.cost_state_id or not cost_state_id or self.cost_state_id != cost_state_id:
             return False
+        if not math.isfinite(self.settled_cost_baseline_usd) or self.settled_cost_baseline_usd < 0:
+            return False
         return self.remaining_seconds(now=now) > 0
+
+    def consumed_usd(self, *, total_settled_cost_usd: float) -> float:
+        """Canonical paid spend appended since this grant was issued."""
+        if not math.isfinite(total_settled_cost_usd) or total_settled_cost_usd < 0:
+            raise AttendedGrantError("canonical settled cost must be a finite non-negative number")
+        if total_settled_cost_usd < self.settled_cost_baseline_usd:
+            raise AttendedGrantError("canonical settled cost is below the grant baseline")
+        return total_settled_cost_usd - self.settled_cost_baseline_usd
+
+    def remaining_usd(self, *, total_settled_cost_usd: float, active_holds_usd: float = 0.0) -> float:
+        """Uncommitted grant authority after settled spend and durable holds."""
+        if not math.isfinite(active_holds_usd) or active_holds_usd < 0:
+            raise AttendedGrantError("active holds must be a finite non-negative number")
+        return max(
+            0.0,
+            self.amount_usd - self.consumed_usd(total_settled_cost_usd=total_settled_cost_usd) - active_holds_usd,
+        )
 
 
 def _parse(value: str) -> datetime | None:
@@ -153,6 +175,7 @@ def issue_grant(
     amount_usd: float,
     minutes: int,
     cost_state_id: str,
+    settled_cost_baseline_usd: float,
     reason: str = "",
     provider: str = "",
     now: datetime | None = None,
@@ -164,6 +187,12 @@ def issue_grant(
     """
     if not cost_state_id:
         raise AttendedGrantError("a grant must be bound to a known cost state")
+    if (
+        isinstance(settled_cost_baseline_usd, bool)
+        or not math.isfinite(settled_cost_baseline_usd)
+        or settled_cost_baseline_usd < 0
+    ):
+        raise AttendedGrantError("a grant baseline must be a finite non-negative settled cost")
     if not math.isfinite(amount_usd):
         # NaN compares False against both < and >, so it would pass the floor
         # and the ceiling and be written as an authorized amount.
@@ -186,6 +215,7 @@ def issue_grant(
         issued_at=issued.isoformat(),
         expires_at=(issued + timedelta(minutes=minutes)).isoformat(),
         cost_state_id=cost_state_id,
+        settled_cost_baseline_usd=float(settled_cost_baseline_usd),
         reason=reason.strip(),
         provider=provider.strip().lower(),
     )

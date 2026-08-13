@@ -120,3 +120,52 @@ def test_cost_summary_reads_freeze_and_zero_caps_without_restart() -> None:
     assert summary["monthly_limit"] == 0.0
     assert summary["effective_monthly_limit"] == 0.0
     assert summary["over_budget"] is False
+
+
+def test_cost_summary_reports_attended_grant_drawdown_from_issue_time() -> None:
+    from deepr.core.attended_grant import issue_grant, save_grant
+    from deepr.observability.cost_ledger import current_cost_state_id
+
+    ledger = CostLedger()
+    ledger.record_event(
+        operation="prior_paid_work",
+        provider="openai",
+        cost_usd=4.50,
+        idempotency_key="web-grant-prior",
+    )
+    budget_path = budget_file_path()
+    budget_path.write_text(
+        json.dumps({"monthly_limit": 50.0, "paid_api_frozen": True, "freeze_reason": "default freeze"}),
+        encoding="utf-8",
+    )
+    save_grant(
+        issue_grant(
+            amount_usd=2.0,
+            minutes=30,
+            cost_state_id=current_cost_state_id(),
+            settled_cost_baseline_usd=4.50,
+            provider="anthropic",
+        )
+    )
+    ledger.record_event(
+        operation="grant_paid_work",
+        provider="openai",
+        cost_usd=0.25,
+        idempotency_key="web-grant-spend",
+    )
+
+    response = web_app.app.test_client().get("/api/cost/summary")
+
+    assert response.status_code == 200
+    summary = response.get_json()["summary"]
+    assert summary["paid_api_frozen"] is False
+    assert summary["authority_mode"] == "attended_grant"
+    assert summary["effective_caps"] == {
+        "per_job": 1.0,
+        "daily": 2.0,
+        "weekly": 2.0,
+        "monthly": 2.0,
+    }
+    assert summary["exposure"]["monthly"] == pytest.approx(0.25)
+    assert summary["attended_grant_spent"] == pytest.approx(0.25)
+    assert summary["attended_grant_remaining"] == pytest.approx(1.75)

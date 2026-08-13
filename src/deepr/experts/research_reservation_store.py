@@ -10,6 +10,7 @@ from datetime import UTC, datetime, timedelta
 from hmac import compare_digest
 from math import isfinite
 from pathlib import Path
+from typing import Any
 
 from deepr.observability.cost_ledger import (
     CostLedger,
@@ -71,6 +72,38 @@ def _validated_identity_text(value: object, *, field_name: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{field_name} must be a non-empty string")
     return value
+
+
+def _settled_spend_windows(
+    events: list[CostLedgerEvent],
+    *,
+    now: datetime,
+    attended_baseline_usd: float | None,
+) -> tuple[float, float, float]:
+    """Spend relevant to the current authority, in daily/weekly/monthly order."""
+    if attended_baseline_usd is not None:
+        total = float(sum(event.cost_usd for event in events))
+        if total < attended_baseline_usd:
+            raise ResearchReservationStoreError("canonical settled cost is below the attended grant baseline")
+        consumed = total - attended_baseline_usd
+        return consumed, consumed, consumed
+    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = day_start - timedelta(days=day_start.weekday())
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    return (
+        float(sum(event.cost_usd for event in events if event.timestamp >= day_start)),
+        float(sum(event.cost_usd for event in events if event.timestamp >= week_start)),
+        float(sum(event.cost_usd for event in events if event.timestamp >= month_start)),
+    )
+
+
+def _read_spend_authority(provider: str | None) -> tuple[dict[str, float], Any]:
+    """Bind real providers exactly while preserving the caller's scoped authority."""
+    from deepr.core.cost_caps import read_operator_budget, resolve_spend_caps
+
+    if not provider or provider == "deepr-internal":
+        return resolve_spend_caps(), read_operator_budget()
+    return resolve_spend_caps(provider=provider), read_operator_budget(provider=provider)
 
 
 def _validated_hex_token(value: object, *, field_name: str) -> str:
@@ -305,7 +338,8 @@ class ResearchReservationStore:
                     provider TEXT,
                     model TEXT,
                     dispatch_binding_id TEXT,
-                    request_envelope_sha256 TEXT
+                    request_envelope_sha256 TEXT,
+                    attended_grant_id TEXT
                 )
                 """
             )
@@ -323,6 +357,7 @@ class ResearchReservationStore:
             "model": "TEXT",
             "dispatch_binding_id": "TEXT",
             "request_envelope_sha256": "TEXT",
+            "attended_grant_id": "TEXT",
         }
         for column, declaration in migrations.items():
             if column not in columns:
@@ -343,7 +378,7 @@ class ResearchReservationStore:
         request_envelope_sha256: str | None = None,
     ) -> None:
         """Atomically hold cost after checking fresh ledger and active holds."""
-        from deepr.core.cost_caps import resolve_spend_caps, spend_policy_lock
+        from deepr.core.cost_caps import spend_policy_lock
 
         provider, model, dispatch_binding_id, request_envelope_sha256 = _validated_optional_dispatch_binding(
             provider=provider,
@@ -363,7 +398,9 @@ class ResearchReservationStore:
             )
         )
         with spend_policy_lock():
-            authority = resolve_spend_caps()
+            authority, operator = _read_spend_authority(provider)
+            attended_grant_id = operator.attended_grant_id
+            attended_baseline = operator.attended_grant_settled_baseline_usd if attended_grant_id else None
             max_daily_cost = min(max_daily_cost, authority["daily"])
             max_weekly_cost = min(caller_weekly, authority["weekly"])
             max_monthly_cost = min(max_monthly_cost, authority["monthly"])
@@ -393,12 +430,11 @@ class ResearchReservationStore:
                         )
                     )
                     active = primary_active + sibling_active
-                    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-                    week_start = day_start - timedelta(days=day_start.weekday())
-                    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-                    monthly = sum(event.cost_usd for event in events if event.timestamp >= month_start)
-                    weekly = sum(event.cost_usd for event in events if event.timestamp >= week_start)
-                    daily = sum(event.cost_usd for event in events if event.timestamp >= day_start)
+                    daily, weekly, monthly = _settled_spend_windows(
+                        events,
+                        now=now,
+                        attended_baseline_usd=attended_baseline,
+                    )
                     if daily + active + reserved_cost > max_daily_cost:
                         raise ResearchReservationLimitExceeded(
                             f"Daily limit ${max_daily_cost:.2f} would be exceeded "
@@ -418,8 +454,9 @@ class ResearchReservationStore:
                         """
                         INSERT INTO research_cost_reservations
                             (reservation_id, job_id, reserved_cost, state, created_at,
-                             provider, model, dispatch_binding_id, request_envelope_sha256)
-                        VALUES (?, ?, ?, 'active', ?, ?, ?, ?, ?)
+                             provider, model, dispatch_binding_id, request_envelope_sha256,
+                             attended_grant_id)
+                        VALUES (?, ?, ?, 'active', ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             reservation_id,
@@ -430,6 +467,7 @@ class ResearchReservationStore:
                             model,
                             dispatch_binding_id,
                             request_envelope_sha256,
+                            attended_grant_id or None,
                         ),
                     )
                     connection.commit()
@@ -497,7 +535,7 @@ class ResearchReservationStore:
         request_envelope_sha256: str | None = None,
     ) -> None:
         """Revalidate authority and atomically bind an exact paid request."""
-        from deepr.core.cost_caps import resolve_spend_caps, spend_policy_lock
+        from deepr.core.cost_caps import spend_policy_lock
 
         required_identity_values = (
             provider,
@@ -529,7 +567,9 @@ class ResearchReservationStore:
                 )
             )
         with spend_policy_lock():
-            authority = resolve_spend_caps()
+            authority, operator = _read_spend_authority(provider)
+            attended_grant_id = operator.attended_grant_id
+            attended_baseline = operator.attended_grant_settled_baseline_usd if attended_grant_id else None
             now = datetime.now(UTC)
             ledger = CostLedger()
             paths, reservation_locations, _job_locations = self._validated_identity_state()
@@ -544,7 +584,7 @@ class ResearchReservationStore:
                     self._expire_stale_council_predispatch_rows(connection, now)
                     row = connection.execute(
                         "SELECT job_id, reserved_cost, provider, model, dispatch_binding_id, "
-                        "request_envelope_sha256, provider_work_may_have_run "
+                        "request_envelope_sha256, provider_work_may_have_run, attended_grant_id "
                         "FROM research_cost_reservations "
                         "WHERE reservation_id = ? AND state = 'active'",
                         (reservation_id,),
@@ -587,17 +627,17 @@ class ResearchReservationStore:
                         )
                     )
                     active = target_active + other_active
-                    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-                    week_start = day_start - timedelta(days=day_start.weekday())
-                    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-                    daily = sum(event.cost_usd for event in events if event.timestamp >= day_start)
-                    weekly = sum(event.cost_usd for event in events if event.timestamp >= week_start)
-                    monthly = sum(event.cost_usd for event in events if event.timestamp >= month_start)
+                    daily, weekly, monthly = _settled_spend_windows(
+                        events,
+                        now=now,
+                        attended_baseline_usd=attended_baseline,
+                    )
                     changed = (
                         row_reserved_cost > authority["per_job"]
                         or daily + active > authority["daily"]
                         or weekly + active > authority["weekly"]
                         or monthly + active > authority["monthly"]
+                        or str(row[7] or "") != attended_grant_id
                     )
                     if changed:
                         raise ResearchReservationLimitExceeded(

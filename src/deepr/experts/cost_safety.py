@@ -368,10 +368,13 @@ class CostSafetyManager:
         self._session_costs: dict[str, float] = {}
         self._sessions: dict[str, CostSession] = {}
         self._ledger = CostLedger(lock_timeout_seconds=5.0)
-        # Every secondary metered call shares the same operator and environment
-        # authority as research submissions. Ledger seeding is strict: broken
-        # accounting cannot be reinterpreted as $0 already spent.
-        self.daily_cost, self.weekly_cost, self.monthly_cost = seed_window_costs(self._ledger)
+        # Seed every secondary metered call from strict canonical accounting.
+        from deepr.core.cost_caps import read_operator_budget
+
+        operator = read_operator_budget()
+        baseline = operator.attended_grant_settled_baseline_usd if operator.attended_grant_id else None
+        seeded = seed_window_costs(self._ledger, settled_cost_baseline_usd=baseline)
+        self.daily_cost, self.weekly_cost, self.monthly_cost = seeded
         caps = resolve_spend_caps()
         self.max_per_operation = min(caps["per_job"], self.ABSOLUTE_MAX_PER_OPERATION)
         self.max_daily = min(caps["daily"], self.ABSOLUTE_MAX_DAILY)

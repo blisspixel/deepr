@@ -157,6 +157,17 @@ export default function Overview() {
           </p>
         </div>
       )}
+      {moneyKnown && costSummary.authority_mode === 'attended_grant' && (
+        <div className="rounded-lg border border-success/40 bg-success/5 px-4 py-3 flex items-center gap-3">
+          <DollarSign className="w-4 h-4 text-success shrink-0" />
+          <p className="text-sm text-foreground">
+            <span className="font-semibold text-success">Attended API grant:</span>{' '}
+            {formatCurrency(costSummary.attended_grant_remaining)} of{' '}
+            {formatCurrency(costSummary.attended_grant_amount)} remains. Local and verified prepaid-plan work is $0 at the
+            margin and does not draw down this limit.
+          </p>
+        </div>
+      )}
       {moneyKnown && costSummary.unresolved_holds > 0 && (
         <div className="rounded-lg border border-warning/40 bg-warning/5 px-4 py-3 flex items-center gap-3">
           <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
@@ -189,7 +200,7 @@ export default function Overview() {
           <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
           <p className="text-sm text-foreground">
             <span className="font-semibold text-destructive">Over budget:</span>{' '}
-            {formatCurrency(costSummary.exposure.monthly)} exposed this month, including active holds, against a{' '}
+            {formatCurrency(costSummary.exposure.monthly)} exposed under the current authority, including active holds, against a{' '}
             {formatCurrency(costSummary.effective_monthly_limit)} limit. Metered dispatch
             should be blocked; review{' '}
             <Link to="/costs" className="text-primary hover:underline">Costs</Link> before approving anything.
@@ -464,9 +475,11 @@ export default function Overview() {
             </div>
           </div>
 
-          {/* Monthly Summary */}
+          {/* Governing paid-spend authority */}
           <div className="rounded-lg border bg-card p-5 space-y-3">
-            <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">Monthly</h2>
+            <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+              {costSummary?.authority_mode === 'attended_grant' ? 'API Grant' : 'Monthly'}
+            </h2>
             <div className="space-y-3">
               <div className="flex justify-between items-baseline">
                 <span className="text-sm text-muted-foreground">Exposure</span>

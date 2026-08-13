@@ -107,15 +107,15 @@ def cost_exposure_snapshot(*, now: datetime | None = None) -> dict[str, Any]:
     settles. Policy and holds are read fresh on every request, which keeps CLI,
     MCP, worker, and dashboard changes visible without restarting the web app.
     """
-    from deepr.core.cost_caps import read_operator_budget, resolve_spend_caps
+    from deepr.core.cost_caps import read_operator_budget_for_status, resolve_spend_caps
     from deepr.experts.research_reservation_store import ResearchReservationStore
 
     current = now or datetime.now(UTC)
     if current.tzinfo is None or current.utcoffset() is None:
         raise ValueError("cost exposure timestamp must include a UTC offset")
     current = current.astimezone(UTC)
-    operator = read_operator_budget()
-    caps = resolve_spend_caps(operator_budget=operator)
+    operator = read_operator_budget_for_status()
+    caps = resolve_spend_caps(provider=operator.attended_grant_provider or None)
     snapshot = ResearchReservationStore().exposure_snapshot(now=current)
     settled = {
         "daily": snapshot.daily_settled_cost,
@@ -124,11 +124,22 @@ def cost_exposure_snapshot(*, now: datetime | None = None) -> dict[str, Any]:
         "total": snapshot.total_settled_cost,
     }
     active_holds = snapshot.active_cost
-    exposure = {
-        "daily": settled["daily"] + active_holds,
-        "weekly": settled["weekly"] + active_holds,
-        "monthly": settled["monthly"] + active_holds,
-    }
+    attended_spent = 0.0
+    if operator.attended_grant_id:
+        attended_spent = settled["total"] - operator.attended_grant_settled_baseline_usd
+        if attended_spent < 0:
+            raise ValueError("canonical settled cost is below the attended grant baseline")
+        exposure = {
+            "daily": attended_spent + active_holds,
+            "weekly": attended_spent + active_holds,
+            "monthly": attended_spent + active_holds,
+        }
+    else:
+        exposure = {
+            "daily": settled["daily"] + active_holds,
+            "weekly": settled["weekly"] + active_holds,
+            "monthly": settled["monthly"] + active_holds,
+        }
     remaining = {period: max(0.0, caps[period] - exposure[period]) for period in ("daily", "weekly", "monthly")}
     paid_api_frozen = operator.frozen or caps["monthly"] <= 0
     freeze_reason = operator.freeze_reason
@@ -150,6 +161,16 @@ def cost_exposure_snapshot(*, now: datetime | None = None) -> dict[str, Any]:
         "budget_monthly_limit": operator.monthly_limit if operator.configured else 0.0,
         "paid_api_frozen": paid_api_frozen,
         "freeze_reason": freeze_reason,
+        "authority_mode": "attended_grant" if operator.attended_grant_id else "provider_verified",
+        "attended_grant_id": operator.attended_grant_id,
+        "attended_grant_expires_at": operator.attended_grant_expires_at,
+        "attended_grant_amount": operator.attended_grant_amount_usd,
+        "attended_grant_spent": attended_spent,
+        "attended_grant_remaining": (
+            max(0.0, operator.attended_grant_amount_usd - attended_spent - active_holds)
+            if operator.attended_grant_id
+            else 0.0
+        ),
         "over_budget": exposure["monthly"] > caps["monthly"],
         "authority_exhausted": caps["monthly"] <= 0 or exposure["monthly"] >= caps["monthly"],
         # Flat aliases preserve the existing REST contract while all web

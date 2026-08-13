@@ -222,6 +222,45 @@ class TestBudgetStatusCommand:
         assert "Budget: $2.50 / $10.00" in result.output
         assert "Remaining: $7.50" in result.output
 
+    def test_budget_status_shows_total_attended_grant_drawdown(self, runner):
+        from deepr.core.cost_caps import OperatorBudget
+
+        with (
+            patch(
+                "deepr.cli.commands.budget.load_budget_config",
+                return_value={"monthly_limit": 50.0, "monthly_spending": 19.0, "current_month": "2026-08"},
+            ),
+            patch("deepr.cli.commands.budget.resolve_spend_caps", return_value={"monthly": 2.0}),
+            patch(
+                "deepr.cli.commands.budget.read_operator_budget_for_status",
+                return_value=OperatorBudget(
+                    configured=True,
+                    monthly_limit=2.0,
+                    frozen=False,
+                    attended_grant_id="grant-test",
+                    attended_grant_expires_at="2026-08-12T12:30:00+00:00",
+                    attended_grant_amount_usd=2.0,
+                    attended_grant_settled_baseline_usd=41.0,
+                ),
+            ),
+            patch(
+                "deepr.cli.commands.budget._atomic_monthly_exposure",
+                return_value=SimpleNamespace(
+                    monthly_settled_cost=19.0,
+                    total_settled_cost=41.25,
+                    active_cost=0.5,
+                ),
+            ),
+        ):
+            result = runner.invoke(cli, ["budget", "status"])
+
+        assert result.exit_code == 0
+        assert "Mode: Attended paid API grant" in result.output
+        assert "Settled since grant: $0.25" in result.output
+        assert "API grant: $0.75 / $2.00" in result.output
+        assert "Remaining: $1.25" in result.output
+        assert "does not draw down this grant" in result.output
+
     def test_budget_status_fails_closed_when_holds_are_unreadable(self, runner):
         with (
             patch(

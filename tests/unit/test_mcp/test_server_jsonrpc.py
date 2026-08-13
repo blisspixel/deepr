@@ -232,6 +232,37 @@ class TestToolsCall:
         assert "version" in data
 
     @pytest.mark.asyncio
+    async def test_mcp_tool_call_cannot_use_attended_spend_grant(self, mock_server):
+        from deepr.cli.commands.budget import mutate_budget_config
+        from deepr.core.attended_grant import issue_grant, save_grant
+        from deepr.core.cost_caps import apply_paid_api_freeze, resolve_spend_caps
+        from deepr.observability.cost_ledger import current_cost_state_id
+
+        def freeze(config):
+            config["monthly_limit"] = 0.0
+            apply_paid_api_freeze(config, reason="MCP attended-grant test", kind="manual")
+
+        mutate_budget_config(freeze)
+        save_grant(
+            issue_grant(
+                amount_usd=2.0,
+                minutes=30,
+                cost_state_id=current_cost_state_id(),
+                settled_cost_baseline_usd=0.0,
+            )
+        )
+        assert resolve_spend_caps()["monthly"] == 2.0
+
+        async def status_during_mcp_call():
+            return {"monthly_cap": resolve_spend_caps()["monthly"]}
+
+        mock_server.deepr_status = status_during_mcp_call
+        result = await _handle_tools_call(mock_server, {"name": "deepr_status", "arguments": {}})
+
+        assert result["isError"] is False
+        assert json.loads(result["content"][0]["text"])["monthly_cap"] == 0.0
+
+    @pytest.mark.asyncio
     async def test_deepr_status_marks_unknown_money_state_degraded(self, mock_server):
         with patch(
             "deepr.experts.research_reservation_store.ResearchReservationStore.exposure_snapshot",

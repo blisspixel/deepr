@@ -678,6 +678,112 @@ def test_exposure_snapshot_returns_settled_active_and_unresolved_together() -> N
     assert exposure.unresolved_count == 1
 
 
+def _activate_attended_grant(amount_usd: float, *, baseline_usd: float) -> str:
+    from deepr.core.attended_grant import issue_grant, save_grant
+    from deepr.observability.cost_ledger import current_cost_state_id
+
+    budget_path = Path(os.environ["DEEPR_BUDGET_FILE"])
+    budget_path.write_text(
+        json.dumps({"monthly_limit": 50.0, "paid_api_frozen": True, "freeze_reason": "default freeze"}),
+        encoding="utf-8",
+    )
+    grant = issue_grant(
+        amount_usd=amount_usd,
+        minutes=30,
+        cost_state_id=current_cost_state_id(),
+        settled_cost_baseline_usd=baseline_usd,
+    )
+    save_grant(grant)
+    return grant.grant_id
+
+
+def test_attended_grant_ignores_prior_calendar_spend_and_caps_total_drawdown() -> None:
+    ledger = CostLedger()
+    ledger.record_event(
+        operation="prior_paid_work",
+        provider="openai",
+        cost_usd=4.50,
+        idempotency_key="attended-prior-spend",
+    )
+    _activate_attended_grant(2.0, baseline_usd=4.50)
+    store = ResearchReservationStore()
+
+    store.reserve(
+        reservation_id="grant-first",
+        job_id="grant-first-job",
+        reserved_cost=1.0,
+        max_daily_cost=100.0,
+        max_weekly_cost=100.0,
+        max_monthly_cost=100.0,
+    )
+    with pytest.raises(ResearchReservationLimitExceeded, match="limit"):
+        store.reserve(
+            reservation_id="grant-over",
+            job_id="grant-over-job",
+            reserved_cost=1.01,
+            max_daily_cost=100.0,
+            max_weekly_cost=100.0,
+            max_monthly_cost=100.0,
+        )
+
+
+def test_every_later_metered_ledger_dollar_draws_down_attended_grant() -> None:
+    _activate_attended_grant(2.0, baseline_usd=0.0)
+    CostLedger().record_event(
+        operation="other_api_usage",
+        provider="xai",
+        cost_usd=1.25,
+        idempotency_key="attended-cross-provider-spend",
+    )
+
+    with pytest.raises(ResearchReservationLimitExceeded, match="limit"):
+        ResearchReservationStore().reserve(
+            reservation_id="grant-after-ledger-spend",
+            job_id="grant-after-ledger-spend-job",
+            reserved_cost=0.76,
+            max_daily_cost=100.0,
+            max_weekly_cost=100.0,
+            max_monthly_cost=100.0,
+        )
+
+
+def test_zero_dollar_plan_records_do_not_draw_down_attended_grant() -> None:
+    _activate_attended_grant(2.0, baseline_usd=0.0)
+    CostLedger().record_event(
+        operation="plan_quota_completion",
+        provider="claude",
+        cost_usd=0.0,
+        idempotency_key="attended-plan-zero",
+    )
+
+    ResearchReservationStore().reserve(
+        reservation_id="grant-after-plan",
+        job_id="grant-after-plan-job",
+        reserved_cost=1.0,
+        max_daily_cost=100.0,
+        max_weekly_cost=100.0,
+        max_monthly_cost=100.0,
+    )
+
+
+def test_dispatch_mark_refuses_a_reservation_from_another_attended_grant() -> None:
+    first_id = _activate_attended_grant(2.0, baseline_usd=0.0)
+    store = ResearchReservationStore()
+    store.reserve(
+        reservation_id="first-grant-hold",
+        job_id="first-grant-job",
+        reserved_cost=0.5,
+        max_daily_cost=100.0,
+        max_weekly_cost=100.0,
+        max_monthly_cost=100.0,
+    )
+    second_id = _activate_attended_grant(2.0, baseline_usd=0.0)
+    assert first_id != second_id
+
+    with pytest.raises(ResearchReservationLimitExceeded, match="authority changed"):
+        store.mark_provider_work_may_have_run("first-grant-hold")
+
+
 def test_freeze_cannot_finish_between_authority_read_and_reservation_commit(monkeypatch) -> None:
     from deepr.cli.commands.budget import mutate_budget_config
     from deepr.core import cost_caps

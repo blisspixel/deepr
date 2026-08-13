@@ -364,7 +364,21 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.46.0)
+## Current Status (v2.47.0)
+
+**Shipped in v2.47.0 (see docs/CHANGELOG.md):** attended API spend now has
+one non-configurable $2 total maximum rather than a per-call or calendar-window
+allowance. Each settled API dollar and durable hold draws down the grant from
+its issue-time baseline. Local and admitted prepaid-plan work records $0 and
+does not consume it. MCP, schedules, loops, and automatic fallback cannot use
+the grant. Status output, the web cost API, and the dashboard report the same
+authority and remaining balance.
+
+The path was proved with a real bounded run on 2026-08-12. A $2 OpenAI grant
+improved the Knowledge System Evaluation expert from 0 to 20 canonical claims.
+One extraction and five short semantic checks settled to exactly $0.011031,
+left no active or unresolved hold, and the grant was revoked immediately after
+verification.
 
 **Shipped in v2.46.0 (see docs/CHANGELOG.md):** an expert now holds a view
 rather than a list of claims. A position ledger keeps every view it has held
@@ -424,30 +438,45 @@ naming: a module with tests is not a shipped feature.
 calendar, and the sequence is derived from what blocks what rather than from
 what looks appetising.
 
-0. ~~**Make paid dispatch usable without making it surprising.**~~ **Mostly done** - `budget allow` / `budget revoke` ship the attended grant; enforcing the unattended refusal at the MCP and scheduler call sites remains. First, because
-   it is the one item where the current state is not "unfinished" but "broken
-   in a way that looks finished". Paid dispatch cannot be enabled by anyone:
-   `budget unfreeze` requires provider-signed account-control evidence, and no
-   adapter produces it. The operator can neither spend nor find out why not.
+0. **Ship Deepr as an Agent Plugin.** [agent-plugins.org](https://agent-plugins.org)
+   is a vendor-neutral standard for packaging Agent Skills and MCP servers into
+   a portable directory. The current normative target is the Agent Plugins
+   1.0.0 working draft. Deepr already has both portable component types: an MCP
+   server and a set of skills, with `SKILL.md` export machinery already in the
+   packager.
 
-   The mistake is one control for two risk profiles. A person typing a command
-   with a $2 ceiling is safe when they set a cap and knowingly acknowledge the
-   spend - and that acknowledgement already exists, as the
-   `allow_metered_api` / `confirm_metered_cost` consent pair on 15 commands. It
-   is unreachable, because budget authority fails closed above it.
-   Cryptographic proof from the provider is the right bar for an agent loop
-   spending unattended for hours, not for the attended case.
+   What is missing is a manifest layer, not research capability: required root
+   `plugin.json`, root `mcp.json` describing the stdio server, and a
+   directory-shape adapter from the current `skill.yaml` + `prompt.md` +
+   `tools/` to fixed `skills/<name>/SKILL.md` discovery plus `scripts/`,
+   `references/`, and `assets/` where needed. Pin both `$schema` fields to the
+   canonical 1.0.0 schema identifiers, keep the command as one executable token
+   with separate arguments, keep package paths inside `PLUGIN_ROOT`, put
+   persistent generated state under `PLUGIN_DATA`, and embed no credentials in
+   `env` or HTTP headers. Validate against locally pinned canonical schemas
+   rather than fetching them during load or checking by eye. Stdio is the first
+   portable transport; Streamable HTTP is a later package option only when its
+   remote authorization and no-surprise-bills boundary is independently safe.
 
-   Add an attended grant between "frozen" and "provider-verified": a bounded,
-   expiring, typed-confirmation authorization that raises the ceiling without
-   skipping the per-call prompt, is refused to anything unattended, and settles
-   through the existing ledger. Keep the strict path for unattended work.
+   Worth doing because it makes Deepr installable in any compliant client
+   instead of only where someone hand-wires an MCP config, and
+   [where-deepr-sits.md](docs/design/where-deepr-sits.md) already argues the
+   MCP surface is the product surface.
 
-   [Design](docs/design/attended-spend.md). The argument for doing it before
-   the adapter is that a control which cannot be satisfied is not a control, it
-   is a wall - and a wall gets routed around by exporting a key and calling the
-   provider directly, outside the ledger, where none of the accounting this
-   project has built can see it.
+   Keep packaging separate from knowledge interchange. Agent Plugins 1.0.0
+   packages Skills and MCP servers; it does not define a knowledge-bundle
+   component. The current Open Knowledge Format target is OKF 0.2, which
+   supersedes the 0.1 format introduced by the June 2026 Google Cloud post.
+   Deepr's existing `deepr-okf-profile-v1` export is a legacy OKF-style derived
+   view, not a proved OKF 0.2 conformance claim. After the plugin package, audit
+   and migrate it to 0.2: root `index.md` may declare only `okf_version`,
+   `log.md` uses date-grouped newest-first entries without concept
+   frontmatter, concept frontmatter begins at byte zero, `timestamp` moves to
+   `generated.at`, provenance moves from a body citations list to `sources`,
+   and optional `verified`, `status`, `stale_after`, and Attested Computation
+   fields are emitted only when canonical Deepr state can support them. Import
+   remains permissive and verification-gated, and the belief/event/edge store
+   remains authoritative.
 
 1. ~~**Durable identity for positions.**~~ **Done.** A position is keyed on its
    question and keeps that identity across a re-brief.
@@ -1759,7 +1788,7 @@ Order of Operations item 3.
 **2026-06-18 loop/OKF research update.** The useful part of the current loop
 engineering push is narrower than the hype: long-running agents work when the
 harness makes context, reviewer checks, handoff artifacts, stop conditions, tool
-execution, and acceptance metrics explicit. OKF v0.1 adds a portable
+execution, and acceptance metrics explicit. OKF v0.1 introduced a portable
 Markdown/YAML knowledge-bundle shape that other agents can read directly. Deepr
 should absorb the pattern, not become a generic orchestrator: experts run
 verified knowledge loops, expose machine-readable loop state, and export/import
@@ -1943,12 +1972,12 @@ over-reach for a solo project; Letta/MemOS already own the "OS" label).
   - [ ] Auto-gap detection and citation mapping on imported corpora
   - [ ] Works with any structured output (research reports, synthesis docs, company briefs)
   - [x] OKF bundle import (`deepr expert absorb-okf NAME PATH`): parse
-        conformant Markdown/YAML concept documents, preserve frontmatter and
+        Deepr-profile Markdown/YAML concept documents, preserve frontmatter and
         cross-links as provenance, and route claims through the existing
         verification-gated absorb pipeline rather than trusting the bundle text.
 - [x] Per-expert SKILL.md export (v2.13): `deepr expert export-skill NAME` builds `deepr/skills/expert_skill.build_expert_skill` on top of the generic `SkillPackager` - an expert-scoped SKILL.md whose triggers/instructions/tools are populated from one expert and whose body calls that expert via Deepr's MCP tools. The validated interoperability direction: Deepr is the MCP server / SKILL.md that hosts (Claude Cowork, Copilot agent mode, Cursor, Goose, OpenClaw) *call*, not Deepr delegating execution outward. agentskills.io SKILL.md is broadly adopted, so one export reaches every major host.
 - [x] OKF expert export (`deepr expert export-okf NAME PATH`):
-  - [x] Generate a conformant OKF bundle from the structured belief store:
+  - [x] Generate a portable Deepr OKF-profile bundle from the structured belief store:
         one concept file per current belief, YAML frontmatter with
         `type`, `title`, `description`, `tags`, `timestamp`, and Deepr-specific
         confidence/trust extensions, plus `index.md` and `log.md`.
@@ -1958,6 +1987,11 @@ over-reach for a solo project; Letta/MemOS already own the "OS" label).
         digests.
   - [x] Optionally emit `llms.txt` discovery instructions pointing hosts to the
         exported OKF bundle and to the Deepr MCP tools for live queries.
+  - [ ] Migrate and validate the generated profile against the current OKF 0.2
+        specification before claiming external conformance. The present
+        `timestamp`, citations section, reserved-file frontmatter, and marker
+        placement reflect the legacy Deepr profile and are not an OKF 0.2
+        conformance proof.
 - [ ] Skill auto-generation from research artifacts:
   - [ ] `expert skill make "Topic" --from-report artifact.md` generates skill with tools and triggers
   - [ ] Dependency tracking between generated skills
@@ -3161,6 +3195,7 @@ A mock panel (business buyer, indie hacker, enterprise AI architect, research sc
 - [x] Surprise image-spend guard (2026-06-30): portrait generation now auto-selects only a local `$0` image endpoint. OpenAI, Gemini, and xAI image APIs are explicit paid provider choices, or require the single premium auto opt-in `DEEPR_ALLOW_METERED_IMAGE_AUTO=1`; provider-specific image auto env vars are ignored; existing portraits are skipped unless regeneration is forced; metered web and CLI requests must acknowledge the estimate; CLI `--yes` is not enough for metered image dispatch unless paired with `--confirm-metered-cost`; and CLI portrait generation now uses the same reserve, settle, and refund cost gate as the web endpoint before any provider dispatch.
 - [x] API-backed expert profile setup warning (2026-06-30): `deepr expert make` now previews the metered provider, selected upload size, and hosted-vector-store storage estimate before provider construction, and unattended API-backed profile creation requires `--confirm-metered-profile` with `--yes`. Local `expert make --local` remains the `$0` profile setup path for no provider calls.
 - [x] Live-validation finding (2026-07-11, expert dogfood cost audit): API-backed `expert absorb` and the shared legacy sync absorption path dispatched extraction, contradiction, dedup, and optional adjudication model calls without one enforceable run ceiling or exact aggregate result; MCP added only a process-local estimate and sync omitted dynamic absorption spend from its budget. Fixed 2026-07-11 by moving per-dispatch durable reservation and provider-usage settlement into `ReportAbsorber`, applying one caller-supplied ceiling across every dynamically routed semantic call, deriving the provider's `max_completion_tokens` from exact registry pricing plus a conservative input bound, routing `ConflictResolver.resolve` through the same fail-closed completion seam, returning settled aggregate `actual_cost`, and using it for sync, gap-fill, MCP, CLI, OKF, and profile totals. Unknown pricing and oversized prompts fail before client construction; paid previews and failures retain settled spend, hidden SDK retries remain disabled, duplicate MCP ledger writes are gone, and explicit local/plan execution remains `$0`.
+- [x] Live-validation finding (2026-08-12, attended expert absorb): the six correctly settled model calls had no active or unresolved hold, but `costs doctor` classified their $0.011031 as unexplained because it tried to join every generic `research_completion` event to a research report directory. Fixed 2026-08-12 by recognizing only the exact paired `expert_absorb.*` source and `research_expert-absorb-*` task identity as an intrinsic `expected_non_report` disposition. The ledger remains append-only, the provider receipt stays visible, expert state is the durable output, and a partial or mismatched identity remains unexplained or lost-artifact for review.
 - [x] Live-validation finding (2026-07-11, stale research queue audit): 323 zero-attempt queued rows referenced reservation IDs absent from the durable reservation store. No production worker consumes `QueueBackend.dequeue`, so those rows had no automatic provider path, but the modern CLI trusted its in-memory reservation and the shared dispatcher checked only an ID rather than restoring exact queued authority. Fixed 2026-07-11 by verifying persisted reservation ID, job ID, provider, model, and held maximum against one active job-owned row immediately before queue claim. Missing, closed, or mismatched authority fails before provider submission; a transient store read failure remains queued and retryable. Queue inspection is read-only and the historical database was not mutated.
 - [x] Live-validation finding (2026-07-11, conflict-resolution cost audit): CLI `expert resolve-conflicts` and the matching web mutation endpoint treated `budget` as a pair-count hint while contradiction detection, single-provider adjudication, and consensus could dispatch without durable reservation or canonical settlement. Fixed fail-closed on 2026-07-11 by blocking both surfaces before expert-store or provider construction and pointing operators to the `$0` contested view.
 - [x] Live-validation finding (2026-07-11, cross-platform release packaging): the deterministic frontend archive normalized timestamps and permissions but preserved Windows CRLF in generated text, inherited Python's platform-specific ZIP creator field, relied on zlib output, and sorted `Path` objects with platform-specific case semantics. The Windows-built payload therefore differed from the Linux CI rebuild even when member content matched. Fixed 2026-07-11 by normalizing generated text assets to LF, pinning Unix creator metadata, storing intermediate entries without compressor variance, sorting case-sensitive POSIX archive names, and regression-testing mixed-case CRLF and LF inputs plus the full metadata contract. Wheel and sdist transport remain compressed.

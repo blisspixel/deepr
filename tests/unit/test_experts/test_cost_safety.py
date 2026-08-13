@@ -571,7 +571,7 @@ class TestCostSafetyManager:
         first.max_daily = second.max_daily = 1.0
         first.max_monthly = second.max_monthly = 1.0
 
-        allowed, _, _, first_id = first.check_and_reserve(
+        allowed, first_reason, _, first_id = first.check_and_reserve(
             "first-session",
             "council_consult",
             0.8,
@@ -586,7 +586,7 @@ class TestCostSafetyManager:
             reservation_job_id="council_second",
         )
 
-        assert allowed is True
+        assert allowed is True, first_reason
         assert denied is False
         assert "Daily limit $1.00 would be exceeded" in reason
         assert second_id == ""
@@ -639,14 +639,14 @@ class TestCostSafetyManager:
         from deepr.core.cost_caps import paid_api_provider_scope
 
         manager = CostSafetyManager()
-        allowed, _, _, first_id = manager.check_and_reserve(
+        allowed, first_reason, _, first_id = manager.check_and_reserve(
             "first-session",
             "council_consult",
             0.2,
             durable_reservation=True,
             reservation_job_id="council_lock_order_first",
         )
-        assert allowed
+        assert allowed, first_reason
         manager.mark_provider_work_may_have_run(first_id)
         store = manager._get_reservation_store()
         settlement_holds_sqlite = threading.Event()

@@ -37,12 +37,13 @@ def _current_cost_authority(
     *,
     daily_display_limit: float | None = None,
     monthly_display_limit: float | None = None,
-) -> dict[str, float]:
+) -> dict[str, Any]:
     """Return strict settled spend, active holds, and effective authority."""
-    from deepr.core.cost_caps import resolve_spend_caps
+    from deepr.core.cost_caps import read_operator_budget_for_status, resolve_spend_caps
     from deepr.experts.research_reservation_store import ResearchReservationStore
 
-    caps = resolve_spend_caps()
+    operator = read_operator_budget_for_status()
+    caps = resolve_spend_caps(provider=operator.attended_grant_provider or None)
     daily_limit = float(caps["daily"])
     weekly_limit = float(caps["weekly"])
     monthly_limit = float(caps["monthly"])
@@ -52,10 +53,18 @@ def _current_cost_authority(
         monthly_limit = min(monthly_limit, monthly_display_limit)
 
     exposure = ResearchReservationStore().exposure_snapshot()
-    daily_settled = exposure.daily_settled_cost
-    weekly_settled = exposure.weekly_settled_cost
-    monthly_settled = exposure.monthly_settled_cost
     active_holds = exposure.active_cost
+    if operator.attended_grant_id:
+        settled_since_grant = exposure.total_settled_cost - operator.attended_grant_settled_baseline_usd
+        if settled_since_grant < 0:
+            raise ValueError("canonical settled cost is below the attended grant baseline")
+        daily_settled = settled_since_grant
+        weekly_settled = settled_since_grant
+        monthly_settled = settled_since_grant
+    else:
+        daily_settled = exposure.daily_settled_cost
+        weekly_settled = exposure.weekly_settled_cost
+        monthly_settled = exposure.monthly_settled_cost
     daily_exposure = daily_settled + active_holds
     weekly_exposure = weekly_settled + active_holds
     monthly_exposure = monthly_settled + active_holds
@@ -83,6 +92,8 @@ def _current_cost_authority(
         "weekly_exposure": weekly_exposure,
         "monthly_exposure": monthly_exposure,
         "authorizable_headroom": authorizable_headroom,
+        "authority_mode": "attended_grant" if operator.attended_grant_id else "provider_verified",
+        "attended_grant_expires_at": operator.attended_grant_expires_at,
     }
 
 
@@ -178,6 +189,33 @@ def show(daily_limit: float | None, monthly_limit: float | None):
         )
     except Exception as exc:
         raise click.ClickException("Canonical money state is unreadable; cost summary is unavailable.") from exc
+
+    if summary.get("authority_mode") == "attended_grant":
+        utilization, color = _utilization_display(summary["monthly_exposure"], summary["monthly_limit"])
+        remaining = max(0.0, summary["monthly_limit"] - summary["monthly_exposure"])
+        console.print(
+            Panel(
+                f"[bold]Attended paid API grant[/bold]\n"
+                f"Settled since grant: [bold]${summary['monthly_settled']:.2f}[/bold]\n"
+                f"Active holds: ${summary['active_holds']:.2f}\n"
+                f"Unresolved post-dispatch holds: {int(summary['unresolved_holds'])} "
+                f"(${summary['unresolved_exposure']:.2f})\n"
+                f"Total drawdown: [bold]${summary['monthly_exposure']:.2f}[/bold] / "
+                f"${summary['monthly_limit']:.2f}\n"
+                f"Remaining: ${remaining:.2f}\n"
+                f"Utilization: [{color}]{utilization}[/{color}]\n"
+                f"Expires: {summary['attended_grant_expires_at']}\n\n"
+                "Local and verified prepaid-plan work records $0 and does not draw down this grant.",
+                title="API Grant Costs",
+            )
+        )
+        console.print(
+            f"[bold]Maximum currently authorizable new paid call:[/bold] ${summary['authorizable_headroom']:.2f}"
+        )
+        label = _threshold_label(summary["monthly_exposure"], summary["monthly_limit"])
+        if label is not None:
+            console.print(f"[bold red]Grant alert:[/bold red] {label}")
+        return
 
     # Daily summary
     daily_utilization, daily_color = _utilization_display(summary["daily_exposure"], summary["daily_limit"])
