@@ -1611,6 +1611,19 @@ class TestExpertRouteGapsCommand:
             assert result.exit_code == 2
             assert "not found" in result.output.lower()
 
+    def test_scheduled_gap_fill_rejects_metered_api_before_expert_access(self, runner):
+        with patch("deepr.experts.profile.ExpertStore") as mock_store_class:
+            result = runner.invoke(
+                cli,
+                ["expert", "route-gaps", "AI Strategy Expert", "--execute", "--scheduled", "--api"],
+            )
+
+        assert result.exit_code == 2
+        assert "--scheduled cannot use --api" in result.output
+        assert "work a person is" in result.output
+        assert "watching" in result.output
+        mock_store_class.assert_not_called()
+
     def test_json_output(self, runner):
         from deepr.core.contracts import ExpertManifest, Gap
 

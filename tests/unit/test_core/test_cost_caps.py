@@ -16,7 +16,9 @@ from deepr.core.cost_caps import (
     budget_file_path,
     freeze_paid_api,
     parse_operator_budget,
+    read_operator_budget_for_status,
     resolve_spend_caps,
+    unattended_paid_api_scope,
 )
 from deepr.observability import cost_authority as authority_module
 
@@ -260,6 +262,54 @@ def test_manual_freeze_collapses_every_window(tmp_path) -> None:
         "weekly": 0.0,
         "monthly": 0.0,
     }
+
+
+def test_attended_grant_authorizes_its_own_total_and_unattended_scope_refuses_it() -> None:
+    from deepr.core.attended_grant import issue_grant, save_grant
+    from deepr.observability.cost_ledger import current_cost_state_id
+
+    budget = Path(os.environ["DEEPR_BUDGET_FILE"])
+    budget.write_text(
+        json.dumps({"monthly_limit": 50.0, "paid_api_frozen": True, "freeze_reason": "default freeze"}),
+        encoding="utf-8",
+    )
+    save_grant(
+        issue_grant(
+            amount_usd=2.0,
+            minutes=30,
+            cost_state_id=current_cost_state_id(),
+            settled_cost_baseline_usd=41.16,
+        )
+    )
+
+    assert resolve_spend_caps() == {"per_job": 1.0, "daily": 2.0, "weekly": 2.0, "monthly": 2.0}
+    with unattended_paid_api_scope():
+        assert resolve_spend_caps() == {"per_job": 0.0, "daily": 0.0, "weekly": 0.0, "monthly": 0.0}
+
+
+def test_status_surfaces_show_provider_scoped_attended_grant() -> None:
+    from deepr.core.attended_grant import issue_grant, save_grant
+    from deepr.observability.cost_ledger import current_cost_state_id
+
+    budget = Path(os.environ["DEEPR_BUDGET_FILE"])
+    budget.write_text(
+        json.dumps({"monthly_limit": 0.0, "paid_api_frozen": True, "freeze_reason": "default freeze"}),
+        encoding="utf-8",
+    )
+    save_grant(
+        issue_grant(
+            amount_usd=2.0,
+            minutes=30,
+            cost_state_id=current_cost_state_id(),
+            settled_cost_baseline_usd=0.0,
+            provider="anthropic",
+        )
+    )
+
+    assert resolve_spend_caps()["monthly"] == 0.0
+    assert read_operator_budget_for_status().attended_grant_amount_usd == 2.0
+    with unattended_paid_api_scope():
+        assert read_operator_budget_for_status().frozen is True
 
 
 def test_missing_monthly_authority_is_default_off(tmp_path) -> None:

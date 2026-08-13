@@ -448,14 +448,14 @@ async def test_cancellation_after_reservation_commit_waits_and_refunds_predispat
 @pytest.mark.asyncio
 async def test_cancellation_after_dispatch_mark_commit_waits_and_refunds_before_provider(monkeypatch):
     manager = get_cost_safety_manager()
-    allowed, _, _, reservation_id = manager.check_and_reserve(
+    allowed, reason, _, reservation_id = manager.check_and_reserve(
         "mark-cancel-session",
         "council_consult",
         0.5,
         durable_reservation=True,
         reservation_job_id="council_mark_cancel",
     )
-    assert allowed
+    assert allowed, reason
     council = ExpertCouncil(synthesis_provider="openai", synthesis_model="gpt-4o-mini")
     committed = threading.Event()
     release = threading.Event()

@@ -112,6 +112,75 @@ class TestShow:
         expected_headroom = min(2.0, 3.5, 7.5, 3.5)
         assert summary["authorizable_headroom"] == pytest.approx(max(0.0, expected_headroom))
 
+    def test_current_authority_uses_attended_grant_total_drawdown(self):
+        from deepr.cli.commands.costs import _current_cost_authority
+        from deepr.core.cost_caps import OperatorBudget
+
+        store = MagicMock()
+        store.exposure_snapshot.return_value = SimpleNamespace(
+            daily_settled_cost=0.01,
+            weekly_settled_cost=20.01,
+            monthly_settled_cost=20.01,
+            total_settled_cost=41.17,
+            active_cost=0.25,
+            unresolved_count=0,
+            unresolved_cost=0.0,
+        )
+        operator = OperatorBudget(
+            configured=True,
+            monthly_limit=2.0,
+            frozen=False,
+            attended_grant_id="grant-test",
+            attended_grant_expires_at="2026-08-13T00:00:00+00:00",
+            attended_grant_amount_usd=2.0,
+            attended_grant_settled_baseline_usd=41.16,
+            attended_grant_provider="openai",
+        )
+        with (
+            patch("deepr.core.cost_caps.read_operator_budget_for_status", return_value=operator),
+            patch(
+                "deepr.core.cost_caps.resolve_spend_caps",
+                return_value={"per_job": 1.0, "daily": 2.0, "weekly": 2.0, "monthly": 2.0},
+            ),
+            patch("deepr.experts.research_reservation_store.ResearchReservationStore", return_value=store),
+        ):
+            summary = _current_cost_authority()
+
+        assert summary["authority_mode"] == "attended_grant"
+        assert summary["daily_settled"] == pytest.approx(0.01)
+        assert summary["monthly_exposure"] == pytest.approx(0.26)
+        assert summary["authorizable_headroom"] == pytest.approx(1.0)
+
+    def test_show_renders_one_total_attended_grant(self, runner):
+        summary = {
+            "per_job_limit": 1.0,
+            "daily_limit": 2.0,
+            "weekly_limit": 2.0,
+            "monthly_limit": 2.0,
+            "daily_settled": 0.01,
+            "weekly_settled": 0.01,
+            "monthly_settled": 0.01,
+            "active_holds": 0.0,
+            "unresolved_holds": 0,
+            "unresolved_exposure": 0.0,
+            "daily_exposure": 0.01,
+            "weekly_exposure": 0.01,
+            "monthly_exposure": 0.01,
+            "authorizable_headroom": 1.0,
+            "authority_mode": "attended_grant",
+            "attended_grant_expires_at": "2026-08-13T00:00:00+00:00",
+        }
+        with patch("deepr.cli.commands.costs._current_cost_authority", return_value=summary):
+            result = runner.invoke(cli, ["costs", "show"])
+
+        assert result.exit_code == 0
+        assert "Attended paid API grant" in result.output
+        assert "Total drawdown: $0.01 / $2.00" in result.output
+        assert "Remaining: $1.99" in result.output
+        assert "does not draw down" in result.output
+        assert "grant." in result.output
+        assert "Today's Spending" not in result.output
+
     def test_command_line_limits_cannot_raise_effective_authority(self, runner):
         summary = {
             "per_job_limit": 2.0,

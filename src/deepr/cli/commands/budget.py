@@ -17,6 +17,7 @@ from deepr.core.cost_caps import (
     budget_file_path,
     parse_operator_budget,
     read_operator_budget,
+    read_operator_budget_for_status,
     resolve_spend_caps,
     spend_policy_lock,
 )
@@ -155,10 +156,19 @@ def check_budget_approval(estimated_cost: float) -> bool:
     if monthly_limit <= 0 or exposure is None:
         return False
 
-    # Spend = max(side counter, canonical ledger) so
-    # spend recorded by other entry points (web, MCP, expert learning)
-    # counts against the month even if record_spending never saw it.
-    current_spending = max(config.get("monthly_spending", 0.0), exposure.monthly_settled_cost) + exposure.active_cost
+    operator = read_operator_budget()
+    if operator.attended_grant_id:
+        settled_since_grant = exposure.total_settled_cost - operator.attended_grant_settled_baseline_usd
+        if settled_since_grant < 0:
+            return False
+        current_spending = settled_since_grant + exposure.active_cost
+    else:
+        # Spend = max(side counter, canonical ledger) so spend recorded by
+        # other entry points counts against the month even if record_spending
+        # never saw it.
+        current_spending = (
+            max(config.get("monthly_spending", 0.0), exposure.monthly_settled_cost) + exposure.active_cost
+        )
     # The durable reservation boundary enforces the absolute ceiling. Keep the
     # interactive auto-approval threshold deliberately lower so approaching a
     # hard cap still requires an explicit human decision.
@@ -256,6 +266,37 @@ def set(amount: float):
         click.echo(f"Resets: {_next_month_start().strftime('%B %d, %Y')} UTC")
 
 
+def _render_attended_status(operator: Any, exposure: Any | None, effective_monthly: float) -> bool:
+    """Render one total grant drawdown when attended authority is active."""
+    if not operator.attended_grant_id or exposure is None:
+        return False
+    settled_since_grant = exposure.total_settled_cost - operator.attended_grant_settled_baseline_usd
+    active_cost = exposure.active_cost
+    grant_exposure = max(0.0, settled_since_grant) + active_cost
+    click.echo(f"\nSettled since grant: ${max(0.0, settled_since_grant):.2f}")
+    click.echo(f"Active durable holds: ${active_cost:.2f}")
+    if settled_since_grant < 0:
+        click.echo("Mode: Paid API blocked (canonical money state is unreadable)")
+        click.echo(f"API grant: UNKNOWN / ${effective_monthly:.2f}")
+        click.echo("Remaining: $0.00 (fail closed)")
+    elif effective_monthly <= 0:
+        click.echo("Mode: Paid API blocked (a binding spend cap is $0)")
+        click.echo("API grant: $0.00 / $0.00")
+        click.echo("Remaining: $0.00")
+    else:
+        percentage = grant_exposure / effective_monthly * 100
+        remaining = max(0.0, effective_monthly - grant_exposure)
+        click.echo("Mode: Attended paid API grant")
+        click.echo(f"API grant: ${grant_exposure:.2f} / ${effective_monthly:.2f} ({percentage:.0f}%)")
+        click.echo(f"Remaining: ${remaining:.2f}")
+        click.echo(f"Expires: {operator.attended_grant_expires_at}")
+        click.echo("Local and verified prepaid-plan work records $0 and does not draw down this grant.")
+        threshold_notice = _budget_threshold_notice(percentage)
+        if threshold_notice is not None:
+            click.echo(f"\n{threshold_notice}")
+    return True
+
+
 @budget.command()
 def status():
     """Show current budget status."""
@@ -263,7 +304,8 @@ def status():
 
     config = load_budget_config()
     configured_monthly = float(config.get("monthly_limit", 0) or 0)
-    effective_monthly = resolve_spend_caps()["monthly"]
+    operator = read_operator_budget_for_status()
+    effective_monthly = resolve_spend_caps(provider=operator.attended_grant_provider or None)["monthly"]
     # The approval gate spends against max(session counter, canonical ledger),
     # so the status display must show that same reconciled number. Showing only
     # the session counter once reported $0.00 while the ledger held $37.99 of
@@ -280,10 +322,12 @@ def status():
     current_exposure = settled_spending + active_cost
     current_month = config.get("current_month", datetime.now(UTC).strftime("%Y-%m"))
 
+    if _render_attended_status(operator, exposure, effective_monthly):
+        return
+
     click.echo(f"\nSettled this month: ${settled_spending:.2f}")
     click.echo(f"Active durable holds: {'UNKNOWN' if holds_unreadable else f'${active_cost:.2f}'}")
 
-    operator = read_operator_budget()
     if operator.frozen:
         reason = operator.freeze_reason or "paid API safety freeze"
         click.echo(f"Mode: Paid API frozen ({reason})")
@@ -582,6 +626,7 @@ def allow(amount: float, minutes: int, reason: str, provider: str) -> None:
         issue_grant,
         save_grant,
     )
+    from deepr.core.cost_caps import spend_policy_lock
     from deepr.observability.cost_ledger import current_cost_state_id
 
     print_header("Attended spend grant")
@@ -604,7 +649,7 @@ def allow(amount: float, minutes: int, reason: str, provider: str) -> None:
 
     if existing := active_grant(cost_state_id=cost_state_id):
         click.echo(f"  Existing grant    : ${existing.amount_usd:.2f}, expires {existing.expires_at}")
-        click.echo("  Issuing a new grant replaces it.")
+        raise click.ClickException("Revoke the existing grant before issuing another one.")
 
     click.echo(f"\n  Requested ceiling : ${amount:.2f} for {minutes} minute(s)")
     click.echo(f"  Attended maximum  : ${MAX_GRANT_USD:.2f}")
@@ -617,17 +662,27 @@ def allow(amount: float, minutes: int, reason: str, provider: str) -> None:
         raise click.ClickException("Amount not confirmed; no grant issued.")
 
     try:
-        grant = issue_grant(
-            amount_usd=amount,
-            minutes=minutes,
-            cost_state_id=cost_state_id,
-            reason=reason,
-            provider=provider,
-        )
+        from deepr.experts.research_reservation_store import ResearchReservationStore
+
+        with spend_policy_lock():
+            exposure = ResearchReservationStore().exposure_snapshot()
+            if exposure.unresolved_count:
+                raise click.ClickException("Unresolved post-dispatch holds must be reconciled before issuing a grant.")
+            if exposure.active_cost > 0:
+                raise click.ClickException(
+                    "Active durable paid holds must be settled or refunded before issuing a grant."
+                )
+            grant = issue_grant(
+                amount_usd=amount,
+                minutes=minutes,
+                cost_state_id=current_cost_state_id(),
+                settled_cost_baseline_usd=exposure.total_settled_cost,
+                reason=reason,
+                provider=provider,
+            )
+            save_grant(grant)
     except AttendedGrantError as exc:
         raise click.ClickException(str(exc)) from exc
-
-    save_grant(grant)
     print_success(f"Granted ${grant.amount_usd:.2f} until {grant.expires_at} (id {grant.grant_id[:12]})")
     click.echo("  Revoke early with: deepr budget revoke")
 
@@ -636,9 +691,12 @@ def allow(amount: float, minutes: int, reason: str, provider: str) -> None:
 def revoke() -> None:
     """Revoke the attended spend grant immediately."""
     from deepr.core.attended_grant import revoke_grant
+    from deepr.core.cost_caps import spend_policy_lock
 
     print_header("Revoke attended grant")
-    if revoke_grant():
+    with spend_policy_lock():
+        revoked = revoke_grant()
+    if revoked:
         print_success("Grant revoked. Paid dispatch is frozen again.")
     else:
         click.echo("No attended grant was active.")

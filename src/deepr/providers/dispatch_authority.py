@@ -20,6 +20,8 @@ class PaidDispatchAuthorityError(RuntimeError):
 
 
 _GRANT_SEAL = object()
+_ATTENDED_CLIENT_SEAL = object()
+_ATTENDED_CLIENT_ATTRIBUTE = "_deepr_attended_paid_client_attestation"
 
 
 @dataclass
@@ -39,6 +41,17 @@ class _PaidDispatchAuthority:
     provider_identity: int
     request_sha256: str
     used: bool = False
+
+
+@dataclass(frozen=True)
+class _AttendedPaidClientAttestation:
+    provider: str
+    model: str
+    endpoint: str
+    credential_fingerprint: str
+    grant_id: str
+    client_identity: int
+    seal: object = field(repr=False)
 
 
 _PAID_DISPATCH_AUTHORITY: ContextVar[_PaidDispatchAuthority | None] = ContextVar(
@@ -242,16 +255,92 @@ def paid_client_endpoint(client: object, provider: str) -> str:
     return require_official_paid_endpoint(canonical, endpoint, source="injected SDK client")
 
 
-def require_official_paid_client(client: object, provider: str) -> str:
-    """Hard-block generic clients until Deepr can prove the whole account scope."""
+def _paid_client_credential_fingerprint(client: object) -> str:
+    credential = getattr(client, "api_key", None)
+    if not isinstance(credential, str) or not credential:
+        raise PaidDispatchAuthorityError("Paid provider client has no bindable credential identity")
+    return hashlib.sha256(credential.encode("utf-8")).hexdigest()
+
+
+def _require_attended_client_transport(client: object) -> None:
+    retries = getattr(client, "max_retries", None)
+    if isinstance(retries, bool) or not isinstance(retries, int) or retries != 0:
+        raise PaidDispatchAuthorityError("Attended paid client must disable hidden SDK retries")
+    transport = getattr(client, "_client", None)
+    if (type(transport).__module__, type(transport).__name__) not in {
+        ("httpx", "Client"),
+        ("httpx", "AsyncClient"),
+    }:
+        raise PaidDispatchAuthorityError("Attended paid client must use Deepr's exact HTTP transport")
+    if getattr(transport, "follow_redirects", None) is not False:
+        raise PaidDispatchAuthorityError("Attended paid client must disable redirects")
+    if getattr(transport, "trust_env", None) is not False:
+        raise PaidDispatchAuthorityError("Attended paid client must ignore ambient proxy configuration")
+
+
+def _mint_attended_paid_client_attestation(client: object, provider: str, model: str) -> str:
+    """Bind a Deepr-constructed SDK client to the current attended grant.
+
+    This does not claim a provider-side hard limit or authenticated account
+    identity. Those remain mandatory for unattended work. It proves the
+    narrower attended contract: one exact credential, official endpoint,
+    priced model, no hidden retries, no redirects, no ambient proxy, and the
+    currently active provider-scoped total grant.
+    """
     require_unproxied_paid_transport()
-    endpoint = paid_client_endpoint(client, provider)
-    del endpoint
-    raise PaidDispatchAuthorityError(
-        "Generic or injected paid SDK clients are disabled until an opaque Deepr-minted attestation binds "
-        "client identity, endpoint, retries, redirects, proxy policy, provider model, credential account, "
-        "and a provider hard no-overage ceiling"
+    canonical = canonical_provider_key(provider)
+    if not isinstance(model, str) or not model.strip():
+        raise PaidDispatchAuthorityError("Attended paid client requires an exact priced model")
+    from deepr.core.cost_caps import read_operator_budget
+
+    operator = read_operator_budget(provider=canonical)
+    if not operator.attended_grant_id:
+        raise PaidDispatchAuthorityError("Attended paid client requires a live provider-matching spend grant")
+    endpoint = paid_client_endpoint(client, canonical)
+    _require_attended_client_transport(client)
+    attestation = _AttendedPaidClientAttestation(
+        provider=canonical,
+        model=model,
+        endpoint=endpoint,
+        credential_fingerprint=_paid_client_credential_fingerprint(client),
+        grant_id=operator.attended_grant_id,
+        client_identity=id(client),
+        seal=_ATTENDED_CLIENT_SEAL,
     )
+    setattr(client, _ATTENDED_CLIENT_ATTRIBUTE, attestation)
+    return endpoint
+
+
+def require_official_paid_client(client: object, provider: str, model: str | None = None) -> str:
+    """Require a current opaque attestation for one attended paid SDK client."""
+    require_unproxied_paid_transport()
+    canonical = canonical_provider_key(provider)
+    endpoint = paid_client_endpoint(client, canonical)
+    attestation = getattr(client, _ATTENDED_CLIENT_ATTRIBUTE, None)
+    if (
+        not isinstance(attestation, _AttendedPaidClientAttestation)
+        or attestation.seal is not _ATTENDED_CLIENT_SEAL
+        or attestation.client_identity != id(client)
+        or attestation.provider != canonical
+    ):
+        raise PaidDispatchAuthorityError(
+            "Generic or injected paid SDK clients are disabled until an opaque Deepr-minted attestation binds "
+            "the attended grant, client identity, endpoint, retries, redirects, proxy policy, provider model, "
+            "and credential"
+        )
+    from deepr.core.cost_caps import read_operator_budget
+
+    operator = read_operator_budget(provider=canonical)
+    if not operator.attended_grant_id or operator.attended_grant_id != attestation.grant_id:
+        raise PaidDispatchAuthorityError("Attended paid client attestation is no longer bound to live spend authority")
+    if model is not None and model != attestation.model:
+        raise PaidDispatchAuthorityError("Paid request model changed after client attestation")
+    if endpoint != attestation.endpoint:
+        raise PaidDispatchAuthorityError("Paid SDK endpoint changed after client attestation")
+    _require_attended_client_transport(client)
+    if _paid_client_credential_fingerprint(client) != attestation.credential_fingerprint:
+        raise PaidDispatchAuthorityError("Paid SDK credential changed after client attestation")
+    return endpoint
 
 
 def require_exact_provider_model(provider_instance: object, requested_model: object) -> str:

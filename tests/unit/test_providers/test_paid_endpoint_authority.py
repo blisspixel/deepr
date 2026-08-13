@@ -15,6 +15,7 @@ from openai import AsyncAzureOpenAI, AsyncOpenAI
 from deepr.providers.base import ToolConfig
 from deepr.providers.dispatch_authority import (
     PaidDispatchAuthorityError,
+    _mint_attended_paid_client_attestation,
     default_paid_endpoint,
     paid_client_endpoint,
     require_bounded_paid_request_payload,
@@ -119,6 +120,42 @@ async def test_recognized_sdk_endpoint_can_be_inspected_but_generic_paid_client_
         assert paid_client_endpoint(client, "openai") == default_paid_endpoint("openai")
         with pytest.raises(PaidDispatchAuthorityError, match="opaque Deepr-minted attestation"):
             require_official_paid_client(client, "openai")
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_deepr_minted_attended_client_binds_grant_model_and_transport() -> None:
+    from deepr.core.attended_grant import issue_grant, save_grant
+    from deepr.core.cost_caps import freeze_paid_api
+    from deepr.experts.research_reservation_store import ResearchReservationStore
+    from deepr.observability.cost_ledger import current_cost_state_id
+
+    freeze_paid_api("attended client test")
+    save_grant(
+        issue_grant(
+            amount_usd=2.0,
+            minutes=30,
+            cost_state_id=current_cost_state_id(),
+            settled_cost_baseline_usd=ResearchReservationStore().exposure_snapshot().total_settled_cost,
+            provider="openai",
+        )
+    )
+    transport = httpx.AsyncClient(trust_env=False, follow_redirects=False)
+    client = AsyncOpenAI(
+        api_key="test-key",
+        base_url=default_paid_endpoint("openai"),
+        max_retries=0,
+        http_client=transport,
+    )
+    try:
+        assert _mint_attended_paid_client_attestation(client, "openai", "gpt-5-mini") == default_paid_endpoint("openai")
+        assert require_official_paid_client(client, "openai", "gpt-5-mini") == default_paid_endpoint("openai")
+        with pytest.raises(PaidDispatchAuthorityError, match="model changed"):
+            require_official_paid_client(client, "openai", "gpt-5")
+        client.api_key = "changed-key"
+        with pytest.raises(PaidDispatchAuthorityError, match="credential changed"):
+            require_official_paid_client(client, "openai", "gpt-5-mini")
     finally:
         await client.close()
 

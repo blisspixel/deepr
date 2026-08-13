@@ -515,6 +515,7 @@ def _validate_sync_all_flags(
     per_expert_budget: float,
     local: bool,
     api: bool,
+    scheduled: bool,
     plan: str | None,
     plan_model: str | None,
 ) -> None:
@@ -524,6 +525,8 @@ def _validate_sync_all_flags(
         raise ValueError("--per-expert-budget must be finite and non-negative.")
     if sum(bool(x) for x in (local, api, plan)) > 1:
         raise ValueError("Use only one of --local, --api, or --plan.")
+    if scheduled and api:
+        raise ValueError("--scheduled cannot use --api; attended grants are only for work a person is watching.")
     if plan_model and not plan:
         raise ValueError("Use --plan-model only with --plan.")
 
@@ -864,6 +867,7 @@ def sync_all_cmd(
             per_expert_budget=per_expert_budget,
             local=local,
             api=api,
+            scheduled=scheduled,
             plan=plan,
             plan_model=plan_model,
         )

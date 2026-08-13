@@ -2,10 +2,10 @@
 
 Status: built, 2026-08-12. `deepr budget allow` / `deepr budget revoke`.
 
-## The problem, stated plainly
+## The original problem, stated plainly
 
-Paid dispatch cannot be enabled. Not "is disabled by default" - cannot be
-enabled at all, by anyone, today.
+Paid dispatch could not be enabled. It was not merely disabled by default; it
+could not be enabled by anyone.
 
 `deepr budget unfreeze` requires `--evidence-id`: a content-addressed
 `PaidApiAccountEvidence` document whose schema demands a `source_posture` of
@@ -14,14 +14,13 @@ enabled at all, by anyone, today.
 `control_mode` proving a hard monthly limit with `overage_enabled: False`, all
 bound to the exact freeze id and timestamp.
 
-That evidence can only come from the provider. **No adapter produces it**, which
-`SUPPORTED_SURFACE.md` records accurately: metered dispatch has been frozen
-since v2.40 pending a provider-authenticated account-control adapter.
+That evidence can only come from the provider. **No adapter produces it**, so
+unattended metered dispatch remains frozen pending a provider-authenticated
+account-control adapter.
 
-So the operator's actual request - "I need to be able to use the paid APIs when
-I want, I just don't want surprise bills" - is unmet in both directions. They
-cannot spend, and the reason they cannot spend has nothing to do with whether a
-given spend would have surprised them.
+The operator's actual request was narrower: "I need to be able to use the paid
+APIs when I want, I just don't want surprise bills." The original authority
+model could not express that attended case.
 
 ## The mistake
 
@@ -53,7 +52,7 @@ and exactly why it is not enough for the unattended one - a loop can pass the
 same flag. The grant below is what supplies the ceiling and the expiry that
 a boolean cannot.
 
-## What to build
+## What was built
 
 A third authority mode between "frozen" and "provider-verified": an **attended
 grant**.
@@ -72,10 +71,16 @@ deepr budget allow --amount 2.00 --minutes 30
 
 ### The properties that keep "no surprise bills" true
 
-**A hard ceiling per grant, and a ceiling on the ceiling.** A grant may not
-exceed `DEEPR_MAX_ATTENDED_GRANT_USD` (default $25). A mistyped `200` cannot
-authorize two hundred dollars; it is refused, not clamped, because a silently
-reduced authorization is its own surprise.
+**A hard total ceiling per grant, and a ceiling on the ceiling.** A grant may not
+exceed $2. This is a non-configurable safety boundary, not a per-call allowance.
+A mistyped `200` cannot authorize two hundred dollars; it is refused, not
+clamped, because a silently reduced authorization is its own surprise.
+
+The grant records the canonical total settled cost at issuance. Every later
+metered ledger dollar and every active paid hold draws down the grant, regardless
+of API provider or UTC day, week, or month rollover. Earlier settled spend does
+not consume a new grant. Local work and admitted plan-quota work record `$0`, so
+they remain visible without drawing down metered authority.
 
 **Expiry.** A grant is minutes, not forever. A forgotten grant must not become
 standing permission, which is precisely how an attended control decays into an
@@ -104,8 +109,10 @@ or a loop runner is refused regardless of an active grant. That path keeps
 requiring provider evidence, because nobody is watching it. This is the whole
 point of the split and it must be enforced at the call site, not by convention.
 
-**Every grant is recorded.** Issued, consumed, expired, and by whom, in the
-append-only ledger. "How did that get spent" must remain answerable.
+**Every paid call is recorded.** Reservations, dispatch marks, settlement, and
+provider identifiers remain in the append-only money records. The grant record
+binds those calls to its id and issue-time baseline, so "how did that get
+spent" remains answerable.
 
 ## What shipped
 
@@ -120,9 +127,22 @@ limit - still frozen for a provider the grant was not scoped to, and
 reports the OpenAI key "Not configured" with no grant and "Configured" with
 one.
 
-Not yet done: the unattended refusal is specified above but not enforced at the
-MCP and scheduler call sites. Until it is, a grant is only as attended as the
-operator who issued it, which is why grants are minutes rather than hours.
+MCP tool dispatch runs inside an unattended spend scope that ignores attended
+grants. Scheduled sync, roster sync, and gap-fill commands refuse `--api` and
+continue to use only admitted local or plan-quota capacity. The loop runners
+reuse those scheduled entry points, so a grant cannot become their metered
+fallback.
+
+The attended OpenAI absorb client is constructed inside Deepr and bound to the
+live grant, exact credential fingerprint, official endpoint, exact priced
+model, retry count, redirect policy, and proxy policy. Injected clients remain
+blocked. The binding is rechecked immediately before every paid request.
+
+On 2026-08-12, a $2 OpenAI grant improved the Knowledge System Evaluation
+expert from 0 to 20 canonical claims. One extraction and five short semantic
+checks settled to $0.011031 in the canonical ledger, left no active or
+unresolved hold, and left $1.988969 of the single grant unconsumed. The grant
+was then revoked and paid dispatch returned to frozen.
 
 ## What this does not do
 

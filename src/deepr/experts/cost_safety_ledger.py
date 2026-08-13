@@ -135,7 +135,11 @@ __all__ = [
 ]
 
 
-def seed_window_costs(ledger: CostLedger) -> tuple[float, float, float]:
+def seed_window_costs(
+    ledger: CostLedger,
+    *,
+    settled_cost_baseline_usd: float | None = None,
+) -> tuple[float, float, float]:
     """Current (daily, weekly, monthly) canonical spend.
 
     An unreadable accounting source must not look like zero spend. Propagate the
@@ -149,6 +153,12 @@ def seed_window_costs(ledger: CostLedger) -> tuple[float, float, float]:
     week_start = day_start - timedelta(days=day_start.weekday())
 
     def totals(events: list[Any]) -> tuple[float, float, float]:
+        if settled_cost_baseline_usd is not None:
+            total = float(sum(event.cost_usd for event in events))
+            if total < settled_cost_baseline_usd:
+                raise ValueError("canonical settled cost is below the attended grant baseline")
+            consumed = total - settled_cost_baseline_usd
+            return consumed, consumed, consumed
         return (
             float(sum(event.cost_usd for event in events if event.timestamp >= day_start)),
             float(sum(event.cost_usd for event in events if event.timestamp >= week_start)),

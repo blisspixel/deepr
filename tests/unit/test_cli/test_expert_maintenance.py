@@ -1349,8 +1349,9 @@ class TestBackendFlagGuard:
         )
 
         assert r.exit_code == 2
-        assert "temporarily disabled" in r.output.lower()
-        assert "--local" in r.output
+        assert "--scheduled cannot use --api" in r.output
+        assert "work a person is" in r.output
+        assert "watching" in r.output
         assert captured == {}
 
     def test_sync_deep_context_rejects_api(self):

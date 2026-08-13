@@ -84,6 +84,12 @@ export interface CostSummary {
   weekly_exposure: number
   monthly_exposure: number
   budget_monthly_limit: number
+  authority_mode: 'attended_grant' | 'provider_verified'
+  attended_grant_id: string
+  attended_grant_expires_at: string
+  attended_grant_amount: number
+  attended_grant_spent: number
+  attended_grant_remaining: number
   effective_per_job_limit: number
   effective_daily_limit: number
   effective_weekly_limit: number

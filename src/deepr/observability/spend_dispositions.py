@@ -57,6 +57,19 @@ _EXPECTED_NON_REPORT_OPERATIONS = frozenset(
     }
 )
 
+# Exact ledger identities for supported flows that persist a different durable
+# artifact by design. Keeping the source and task prefix paired prevents a
+# generic research completion from being closed merely because one field was
+# mislabeled.
+_EXPECTED_NON_REPORT_IDENTITIES = (("expert_absorb.", "research_expert-absorb-"),)
+
+
+def _expected_non_report_identity(*, source: str, task_id: str) -> bool:
+    return any(
+        source.startswith(source_prefix) and task_id.startswith(task_prefix)
+        for source_prefix, task_prefix in _EXPECTED_NON_REPORT_IDENTITIES
+    )
+
 
 def spend_disposition_log_path(path: Path | None = None) -> Path:
     """Return the append-only disposition log path (cost data dir by default)."""
@@ -319,6 +332,15 @@ def classify_paid_events(
             matched.append(entry)
             continue
 
+        if _expected_non_report_identity(source=source, task_id=task):
+            entry["status"] = "disposed"
+            entry["disposition"] = DISPOSITION_EXPECTED_NON_REPORT
+            entry["rationale"] = "Expert absorb settlement persists expert state, not a research report directory."
+            entry["job_id"] = ""
+            entry["provider_receipt_id"] = request_id
+            disposed.append(entry)
+            continue
+
         disposition = dispositions.get(event_key)
         if disposition is not None:
             entry["status"] = "disposed"
@@ -349,7 +371,11 @@ def suggest_disposition_for_orphan(entry: Mapping[str, Any]) -> tuple[str, str, 
         "source": source,
     }
 
-    if operation in _EXPECTED_NON_REPORT_OPERATIONS or task_id.startswith("portrait_"):
+    if (
+        operation in _EXPECTED_NON_REPORT_OPERATIONS
+        or task_id.startswith("portrait_")
+        or _expected_non_report_identity(source=source, task_id=task_id)
+    ):
         return (
             DISPOSITION_EXPECTED_NON_REPORT,
             (

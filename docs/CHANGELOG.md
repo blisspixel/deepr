@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.47.0] - 2026-08-12
+
+Attended API work is usable without turning a small ceiling into standing or
+per-call permission. A grant is one $2-or-less total drawdown, and local or
+verified prepaid-plan work remains $0 at the margin.
+
 ### Added
 
 - **The v2 expert layer is reachable over HTTP** (`deepr.web.expert_v2_api`).
@@ -33,15 +39,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   endpoint to impersonate and no credential to forward - so it is exempt from
   the metered gate that keeps `DEEPR_LOCAL_IMAGE_URL` blocked.
 
-- **A plan for making paid dispatch usable**
-  ([attended-spend.md](design/attended-spend.md)). Paid dispatch cannot be
-  enabled by anyone today: `budget unfreeze` requires provider-signed
-  account-control evidence and no adapter produces it, so the operator can
-  neither spend nor learn why not. The design separates attended spend - a
-  person, a small ceiling, a typed confirmation - from unattended spend, which
-  keeps requiring provider proof, and notes that the existing
-  `confirm_metered_cost` consent flag is a claim by the caller rather than
-  evidence a human saw a number. Now roadmap item 0.
+- **Attended API spend with one hard total drawdown**
+  ([attended-spend.md](design/attended-spend.md)). `deepr budget allow` requires
+  the amount typed back, expires automatically, and cannot exceed $2. Every
+  later settled API dollar and active paid hold consumes the same grant from
+  its issue-time baseline, regardless of provider or UTC window rollover.
+  Earlier spend does not consume a new grant. Local and admitted prepaid-plan
+  work records $0 and does not draw it down. `deepr budget revoke` restores the
+  freeze immediately.
+
+- **An exact attended OpenAI client binding for report absorption.** The client
+  is constructed inside Deepr and bound to the live provider-scoped grant,
+  credential fingerprint, official endpoint, exact priced model, zero hidden
+  retries, disabled redirects, and disabled ambient proxy configuration. Every
+  field is rechecked before each request. Generic or injected paid clients stay
+  blocked.
 
 - **Notes on a sibling project**
   ([what-ai-proxy-teaches-deepr.md](design/what-ai-proxy-teaches-deepr.md)).
@@ -50,6 +62,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   consolidation pass that learns from being used rather than only from reading.
 
 ### Changed
+
+- **Portable-format claims now follow the current specifications.** The Agent
+  Plugin roadmap targets the 1.0.0 working draft's fixed `plugin.json`,
+  `skills/`, and `mcp.json` locations, canonical schemas, path containment,
+  `PLUGIN_ROOT`/`PLUGIN_DATA`, and no-secret package rules. The shipped
+  `deepr-okf-profile-v1` surface is now described honestly as a legacy
+  OKF-style derived view rather than current OKF 0.2 conformance; migration to
+  0.2 provenance, lifecycle, reserved-file, and generation fields remains
+  planned.
 
 - **The web UI shows what an expert is.** It rendered every expert as
   `document_count`, `finding_count`, `gap_count` and `$0.00 spent`, because
@@ -66,13 +87,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   scoped to machine data rather than applied to prose. This is the Phase 2 pass
   `docs/design/web-ui-refinement.md` scoped and never built.
 
-- **README screenshots are screenshots.** They were drawn rectangle by
+- **README screenshots are screenshots.** The web images were drawn rectangle by
   rectangle with Pillow by `scripts/render_web_demo_screenshot.py` - wrong
   accent, wrong font, no logo, stat values as Python string literals - and
-  presented as the product. Captured from a running instance now, in light
-  mode, against the real fleet.
+  presented as the product. The expert hub is captured from a running instance
+  against the real fleet. The CLI image now records the verified $2 grant,
+  exact $0.011031 settlement, expert improvement, and revocation without a
+  fictional-data disclaimer.
+
+- **All cost surfaces agree on attended authority.** `budget status`, `costs
+  show`, the web cost API, status bar, overview, and cost-intelligence page now
+  report the same total grant spend and remaining balance rather than a frozen
+  $0 monthly cap or misleading calendar-window balances.
+
+- **Attended grants cannot authorize unattended execution.** MCP tool handlers
+  ignore attended authority, and scheduled sync, sync-all, gap routing, and the
+  loop paths that reuse them refuse API execution. They continue to use only
+  admitted local or prepaid-plan capacity.
+
+- **Live bounded-spend validation.** On 2026-08-12, a $2 OpenAI grant improved
+  the Knowledge System Evaluation expert from 0 to 20 canonical claims. One
+  extraction and five short semantic checks settled to exactly $0.011031,
+  leaving no active or unresolved hold. The grant was revoked after the check.
 
 ### Fixed
+
+- **`costs doctor` now understands paid expert-absorb artifacts.** The live
+  attended run settled all six calls correctly but the diagnostic labeled the
+  $0.011031 unexplained because expert absorption persists expert state rather
+  than a research report directory. Only the exact paired `expert_absorb.*`
+  source and `research_expert-absorb-*` task identity receives an intrinsic
+  `expected_non_report` disposition. The append-only event and provider receipt
+  remain visible, while partial or mismatched identities still fail closed for
+  review.
 
 - **Position survival was stuck at 1** (`deepr.experts.position_ledger`).
   `survived()` counts the distinct corpus states a position has been re-derived

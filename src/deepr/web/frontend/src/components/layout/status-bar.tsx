@@ -38,6 +38,7 @@ export default function StatusBar() {
   const moneyKnown = costOk && !costError && costSummary !== undefined
   const overBudget = moneyKnown && costSummary.over_budget
   const paidApiFrozen = moneyKnown && costSummary.paid_api_frozen
+  const attendedGrant = moneyKnown && costSummary.authority_mode === 'attended_grant'
   const paidApiBlocked = !moneyKnown || paidApiFrozen
   const unresolvedHolds = moneyKnown ? costSummary.unresolved_holds : 0
   const monthlyCap = moneyKnown ? costSummary.effective_monthly_limit : 0
@@ -93,14 +94,14 @@ export default function StatusBar() {
                   ? 'text-destructive'
                   : 'text-warning'
               )}
-              title={`Monthly exposure at the ${thresholdLabel} threshold of the effective ceiling`}
+              title={`${attendedGrant ? 'Grant' : 'Monthly'} exposure at the ${thresholdLabel} threshold of the effective ceiling`}
             >
-              {thresholdLabel} month
+              {thresholdLabel} {attendedGrant ? 'grant' : 'month'}
             </span>
           )}
         </div>
 
-        {/* Month spend vs the governing budget, always visible: the exact
+        {/* Paid exposure vs the governing budget, always visible: the exact
             number the approval gate uses, red when over. A $37.99 month once
             showed nowhere until the bill arrived. */}
         <div
@@ -113,15 +114,17 @@ export default function StatusBar() {
             !moneyKnown
               ? 'Canonical money state is unavailable; paid API dispatch must remain blocked'
               : overBudget
-              ? 'Monthly exposure exceeds the effective ceiling'
+              ? `${attendedGrant ? 'Grant' : 'Monthly'} exposure exceeds the effective ceiling`
               : paidApiFrozen
                 ? costSummary.freeze_reason || 'Paid API dispatch is frozen'
-                : `Includes ${formatCurrency(costSummary.active_holds)} in active holds`
+                : attendedGrant
+                  ? `Attended grant expires ${costSummary.attended_grant_expires_at}; includes ${formatCurrency(costSummary.active_holds)} in active holds`
+                  : `Includes ${formatCurrency(costSummary.active_holds)} in active holds`
           }
         >
           {(overBudget || paidApiBlocked || unresolvedHolds > 0) && <AlertTriangle className="h-3 w-3" />}
           <span>
-            Month exposure:{' '}
+            {attendedGrant ? 'API grant' : 'Month exposure'}:{' '}
             {moneyKnown
               ? `${formatCurrency(costSummary.exposure.monthly)} / ${formatCurrency(costSummary.effective_monthly_limit)}`
               : 'UNKNOWN / UNKNOWN'}

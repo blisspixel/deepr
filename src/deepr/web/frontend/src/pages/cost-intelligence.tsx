@@ -184,6 +184,17 @@ export default function CostIntelligence() {
           </div>
         </div>
       )}
+      {moneyKnown && summary.authority_mode === 'attended_grant' && (
+        <div className="rounded-lg border border-success/40 bg-success/5 p-4 flex items-start gap-3">
+          <div>
+            <p className="text-sm font-medium text-foreground">Attended API grant is active</p>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {formatCurrency(summary.attended_grant_remaining)} of {formatCurrency(summary.attended_grant_amount)} remains.
+              Every positive-cost API ledger event and active hold draws down this total. Local and verified prepaid-plan work does not.
+            </p>
+          </div>
+        </div>
+      )}
       {moneyKnown && summary.unresolved_holds > 0 && (
         <div className="rounded-lg border border-warning/40 bg-warning/5 p-4 flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-warning shrink-0 mt-0.5" />
@@ -199,9 +210,11 @@ export default function CostIntelligence() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Monthly */}
+        {/* Governing paid-spend authority */}
         <div className="rounded-lg border bg-card p-5 space-y-2">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Monthly Exposure</p>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            {summary?.authority_mode === 'attended_grant' ? 'API Grant Exposure' : 'Monthly Exposure'}
+          </p>
           <p className="text-2xl font-semibold text-foreground tabular-nums">{moneyLabel(summary?.exposure.monthly)}</p>
           <div className="space-y-1">
             <div className="flex justify-between text-xs text-muted-foreground">

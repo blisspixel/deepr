@@ -37,7 +37,15 @@ def grant_path(tmp_path: Path) -> Path:
 
 
 def _issue(**kwargs):
-    return issue_grant(**{"amount_usd": 2.0, "minutes": 30, "cost_state_id": "cs1", **kwargs})
+    return issue_grant(
+        **{
+            "amount_usd": 2.0,
+            "minutes": 30,
+            "cost_state_id": "cs1",
+            "settled_cost_baseline_usd": 0.0,
+            **kwargs,
+        }
+    )
 
 
 class TestTheCeilingRefusesRatherThanClamps:
@@ -47,11 +55,12 @@ class TestTheCeilingRefusesRatherThanClamps:
         assert _issue(amount_usd=2.0).amount_usd == 2.0
 
     def test_the_ceiling_itself_is_allowed(self) -> None:
+        assert MAX_GRANT_USD == 2.0
         assert _issue(amount_usd=MAX_GRANT_USD).amount_usd == MAX_GRANT_USD
 
     @pytest.mark.parametrize("amount", [MAX_GRANT_USD + 0.01, 200.0, 10_000.0])
     def test_above_the_ceiling_is_refused_not_reduced(self, amount: float) -> None:
-        """A mistyped 200 must not become an authorized 25."""
+        """A mistyped 200 must be refused, not reduced."""
         with pytest.raises(AttendedGrantError, match="exceeds"):
             _issue(amount_usd=amount)
 
@@ -68,6 +77,11 @@ class TestTheCeilingRefusesRatherThanClamps:
     def test_a_grant_must_be_bound_to_a_cost_state(self) -> None:
         with pytest.raises(AttendedGrantError, match="cost state"):
             _issue(cost_state_id="")
+
+    @pytest.mark.parametrize("baseline", [True, -0.01, float("nan"), float("inf")])
+    def test_a_grant_must_have_a_valid_settled_baseline(self, baseline: float) -> None:
+        with pytest.raises(AttendedGrantError, match="baseline"):
+            _issue(settled_cost_baseline_usd=baseline)
 
 
 class TestAGrantExpires:
@@ -135,14 +149,27 @@ class TestRevoking:
 
 class TestItSurvivesTheRoundTrip:
     def test_what_was_granted_is_what_is_read_back(self, grant_path: Path) -> None:
-        grant = _issue(amount_usd=2.5, reason="validate the paid path", provider="openai")
+        grant = _issue(amount_usd=1.5, reason="validate the paid path", provider="openai")
         save_grant(grant, grant_path)
         restored = load_grant(grant_path)
         assert restored is not None
-        assert restored.amount_usd == 2.5
+        assert restored.amount_usd == 1.5
         assert restored.reason == "validate the paid path"
         assert restored.provider == "openai"
+        assert restored.settled_cost_baseline_usd == 0.0
         assert restored.schema_version == GRANT_SCHEMA_VERSION
+
+    def test_the_grant_draws_down_from_its_starting_total(self) -> None:
+        grant = _issue(amount_usd=2.0, settled_cost_baseline_usd=41.16)
+
+        assert grant.consumed_usd(total_settled_cost_usd=41.66) == pytest.approx(0.5)
+        assert grant.remaining_usd(total_settled_cost_usd=41.66, active_holds_usd=0.25) == pytest.approx(1.25)
+
+    def test_a_ledger_total_below_the_baseline_fails_closed(self) -> None:
+        grant = _issue(settled_cost_baseline_usd=41.16)
+
+        with pytest.raises(AttendedGrantError, match="below the grant baseline"):
+            grant.consumed_usd(total_settled_cost_usd=41.15)
 
 
 class TestTheFailOpenHoles:
@@ -186,6 +213,12 @@ class TestTheFailOpenHoles:
         """Editing the file must not get past what issuing refuses."""
         payload = _issue().to_dict()
         payload["amount_usd"] = 10_000.0
+        grant_path.write_text(json.dumps(payload), encoding="utf-8")
+        assert active_grant(cost_state_id="cs1", path=grant_path) is None
+
+    def test_a_missing_baseline_on_disk_authorizes_nothing(self, grant_path: Path) -> None:
+        payload = _issue().to_dict()
+        payload.pop("settled_cost_baseline_usd")
         grant_path.write_text(json.dumps(payload), encoding="utf-8")
         assert active_grant(cost_state_id="cs1", path=grant_path) is None
 

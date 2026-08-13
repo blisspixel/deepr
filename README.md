@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.46.0-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.46.0)
+[![Version](https://img.shields.io/badge/version-2.47.0-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.47.0)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -12,43 +12,32 @@ citations, provenance, and outcomes. It prefers owned local models, then proven
 subscription quota, with no automatic fallback to a paid API.
 
 <p align="center">
-  <img src="assets/cli-demo.png" width="92%" alt="Demo CLI session: doctor MCP conformance, capacity inventory, local expert consult with sample beliefs and gaps, and costs doctor on fictional data" />
+  <img src="assets/cli-demo.png" width="92%" alt="Bounded attended API run: one $2 total grant, exact ledger settlement, expert improvement, and immediate revocation" />
 </p>
 
 <p align="center">
-  <em>Demo CLI session only (fictional expert and spend). Not a live account or real research content. Regenerated with <code>python scripts/render_cli_demo_screenshot.py</code>.</em>
-</p>
-
-<p align="center">
-  <img src="assets/expert-hub.png" width="49%" alt="Expert roster: each expert leads with the name it chose, its own standpoint, and what it is glad to be asked" />
-  <img src="assets/dashboard.png" width="49%" alt="Overview: one line of live state, the paid-API freeze banner, and the job queue" />
-</p>
-
-<p align="center">
-  <em>The optional web UI, captured from a real run against the local expert
-  fleet. Position, finding and source counts are that fleet&#39;s real numbers;
-  spend is a local sandbox and no metered work is dispatched. Regenerated with
-  <code>QA_THEME=light node src/deepr/web/frontend/screenshot-qa.mjs</code>
-  against <code>deepr web</code>.</em>
+  <img src="assets/expert-hub.png" width="70%" alt="Expert roster: each expert leads with the name it chose, its own standpoint, and what it is glad to be asked" />
 </p>
 
 ## Capacity
 
 | Class | Current posture |
 | --- | --- |
-| Local Ollama | Preferred for expert setup, maintenance, evaluation, and consultation after endpoint ownership is proven. |
-| Prepaid plan quota | Runs only when authentication, tool confinement, remaining quota, and disabled paid overage are proven. Claude Code is the current executable adapter. |
-| Metered API | No automatic fallback. Production dispatch is currently blocked pending a provider-authenticated account-control adapter. |
+| Local Ollama | Preferred for expert setup, maintenance, evaluation, and consultation after endpoint ownership is proven. Records $0 and does not consume an API grant. |
+| Prepaid plan quota | Runs only when authentication, tool confinement, remaining quota, and disabled paid overage are proven. Claude Code is the current executable adapter. Successful work records $0 and does not consume an API grant. |
+| Metered API | No automatic fallback. Attended `expert absorb --api` can run only under a typed, expiring grant with a hard $2 total maximum. Other metered surfaces remain gated. |
 
-A budget is a hard ceiling, not permission to spend. Metered work requires a
-durable reservation, a final pre-dispatch check, append-only settlement, and a
-live provider control bound to the exact account, credential, client, and
-request. Unknown state blocks. Paid dispatch is currently frozen.
+A grant is one total drawdown, not $2 per call. Every settled API dollar and
+every active paid hold consumes the same grant across provider calls and time
+windows. Each call still needs its own finite reservation and explicit consent.
+MCP, schedules, loops, and automatic fallback cannot use attended authority.
 
 ```bash
-deepr budget set 5
+deepr budget allow --amount 2.00 --minutes 60 --provider openai
+deepr expert absorb "My Domain Expert" --file report.md --api --budget 0.30
 deepr costs show
 deepr costs doctor
+deepr budget revoke
 ```
 
 See [Capacity and Cost](docs/CAPACITY.md) for billing reconciliation and the

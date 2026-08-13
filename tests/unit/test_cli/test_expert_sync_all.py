@@ -52,6 +52,20 @@ def _failed_heartbeat(*, failure_kind: str = "network_error", http_status: int |
     )
 
 
+def test_scheduled_sync_all_rejects_metered_api_before_roster_access(monkeypatch):
+    monkeypatch.setattr(
+        "deepr.cli.commands.semantic.expert_sync_all._inspect_roster",
+        lambda **_: pytest.fail("scheduled metered refusal must happen before roster access"),
+    )
+
+    result = CliRunner().invoke(expert, ["sync-all", "--scheduled", "--api", "--json"])
+
+    assert result.exit_code == 2
+    assert "--scheduled cannot use --api" in result.output
+    assert "work a person is" in result.output
+    assert "watching" in result.output
+
+
 def _assert_heartbeat_evidence(
     evidence: dict,
     *,
