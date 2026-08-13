@@ -165,14 +165,11 @@ def _validate_capacity_request(backend_mode: str, budget: float, metadata: dict[
     if not isfinite(budget) or budget < 0:
         return _error("INVALID_BUDGET", "budget must be non-negative")
     if backend_mode == "api":
-        if metadata.get("allow_metered_api") is not True or metadata.get("confirm_metered_cost") is not True:
-            return _error(
-                "METERED_API_NOT_APPROVED",
-                "A2A API consult requires metadata.allow_metered_api=true, "
-                "metadata.confirm_metered_cost=true, and a positive budget. A budget is only a ceiling.",
-            )
-        if budget <= 0:
-            return _error("INVALID_BUDGET", "A2A API consult requires a positive budget.")
+        return _error(
+            "METERED_API_DISABLED",
+            "Metered API synthesis is disabled for A2A expert consults. Use local or an explicit "
+            "safety-eligible plan. Consent flags cannot enable API spend.",
+        )
     if backend_mode == "plan" and not _optional_string(metadata.get("plan")):
         return _error("INVALID_BACKEND", "plan is required when synthesis_backend='plan'")
     return None

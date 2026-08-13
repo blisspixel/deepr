@@ -14,8 +14,8 @@ _PROVIDER_DEFAULT_MODELS = {
     "openai": "o3-deep-research",
     "azure": "o3-deep-research",
     "gemini": "gemini-3.6-flash",
-    "xai": "grok-4.5",
-    "grok": "grok-4.5",
+    "xai": "grok-4.6",
+    "grok": "grok-4.6",
 }
 _BOUNDED_TOOL_PROVIDERS = frozenset({"openai", "azure"})
 

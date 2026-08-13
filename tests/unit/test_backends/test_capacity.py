@@ -10,6 +10,7 @@ import json
 from datetime import UTC, datetime
 
 import httpx
+import pytest
 from click.testing import CliRunner
 
 from deepr.backends.capacity import (
@@ -19,6 +20,7 @@ from deepr.backends.capacity import (
     _key_is_set,
     detect_capacity,
     ollama_status,
+    validate_owned_local_ollama_cloud_status,
 )
 from deepr.backends.local_capacity import LocalCapacityObservation, LocalCapacityState
 from deepr.backends.quota_ledger import QuotaEventType, QuotaLedgerEvent, record_quota_event
@@ -72,6 +74,15 @@ class TestDetection:
 
 
 class TestOllamaProbe:
+    @pytest.mark.parametrize("source", ["config", "both"])
+    def test_persistent_cloud_disable_sources_are_accepted(self, source: str) -> None:
+        validate_owned_local_ollama_cloud_status({"cloud": {"disabled": True, "source": source}})
+
+    @pytest.mark.parametrize("source", ["env", "default", "", None])
+    def test_nonpersistent_cloud_disable_sources_are_rejected(self, source: object) -> None:
+        with pytest.raises(ValueError, match="persistent config"):
+            validate_owned_local_ollama_cloud_status({"cloud": {"disabled": True, "source": source}})
+
     def test_dead_port_returns_false_not_raise(self, monkeypatch):
         class RefusingClient:
             def __init__(self, **kwargs):

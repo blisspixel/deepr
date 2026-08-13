@@ -565,7 +565,7 @@ async def test_shared_local_request_guard_requires_cloud_disabled_and_strips_hea
             assert url == "http://127.0.0.1:11434/api/status"
             return SimpleNamespace(
                 status_code=200,
-                json=lambda: {"cloud": {"disabled": True, "source": "config"}},
+                json=lambda: {"cloud": {"disabled": True, "source": "both"}},
             )
 
     request = httpx.Request(

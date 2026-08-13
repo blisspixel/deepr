@@ -290,6 +290,27 @@ class TestJobSubmission:
         assert response.status_code == 200
         assert response.get_json()["job"]["model"] == model
 
+    @pytest.mark.parametrize(
+        ("provider", "model"),
+        [
+            ("openai", "gpt-5.6-sol"),
+            ("openai", "gpt-5.6-terra"),
+            ("openai", "gpt-5.6-luna"),
+            ("xai", "grok-4.6"),
+            ("xai", "grok-build-0.1"),
+            ("anthropic", "claude-opus-5"),
+        ],
+    )
+    def test_submit_job_accepts_current_provider_models(self, client, provider, model):
+        response = client.post(
+            "/api/jobs",
+            json=_paid_request(prompt="Research AI", model=model, provider=provider, enable_web_search=False),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        assert response.get_json()["job"]["model"] == model
+
     def test_submit_job_with_priority(self, client):
         """Test that POST /api/jobs accepts priority."""
         response = client.post(

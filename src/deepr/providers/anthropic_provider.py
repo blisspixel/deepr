@@ -61,7 +61,7 @@ class AnthropicProvider(DeepResearchProvider):
     SUPPORTED_MODELS = [
         "claude-fable-5",  # Frontier tier - $10/$50 per MTok (new tokenizer ~30% more tokens)
         "claude-opus-5",  # Newest Opus flagship (GA 2026-07-24) - $5/$25 per MTok
-        "claude-sonnet-5",  # Current Sonnet - estimate at standard $3/$15 per MTok
+        "claude-sonnet-5",  # Current Sonnet - $2/$10 per MTok
         "claude-opus-4-8",  # Previous Opus flagship - $5/$25 per MTok (adaptive thinking only)
         "claude-opus-4-7",  # Previous flagship - $5/$25 per MTok (adaptive thinking only)
         "claude-opus-4-6",  # $5/$25 per MTok (adaptive thinking recommended)
@@ -78,7 +78,7 @@ class AnthropicProvider(DeepResearchProvider):
     RECOMMENDED_MODELS = {
         "research": "claude-opus-5",  # Newest Opus flagship, same rate as 4.8 (~$0.85/query)
         "frontier": "claude-fable-5",  # Most capable, premium price (~$2.20/query)
-        "balanced": "claude-sonnet-5",  # Current Sonnet, estimated at standard rates (~$0.48/query)
+        "balanced": "claude-sonnet-5",  # Current Sonnet (~$0.32/query)
         "fast": "claude-haiku-4-5",  # Quick answers, cheapest (no Extended Thinking)
     }
 
@@ -102,7 +102,7 @@ class AnthropicProvider(DeepResearchProvider):
     def __init__(
         self,
         api_key: str | None = None,
-        model: str = "claude-opus-4-8",  # Default to Opus for research quality
+        model: str = "claude-opus-5",  # Default to the current Opus research model
         thinking_budget: int = 32000,  # Higher budget for Opus research tasks
         web_search_backend: str = "auto",  # brave, tavily, duckduckgo, auto
     ):
@@ -111,16 +111,16 @@ class AnthropicProvider(DeepResearchProvider):
 
         Args:
             api_key: Anthropic API key (defaults to ANTHROPIC_API_KEY env var)
-            model: Claude model (default: claude-opus-4-8 for best research quality)
+            model: Claude model (default: claude-opus-5 for best research quality)
             thinking_budget: Token budget for Extended Thinking on legacy models.
                 Adaptive-thinking models (4.6+/Fable) ignore the budget but still
                 use it to size max_tokens headroom.
             web_search_backend: Web search backend (brave, tavily, duckduckgo, auto)
 
         Model recommendations:
-            - Research tasks: claude-opus-4-8 (~$0.85/query) - best reasoning
+            - Research tasks: claude-opus-5 (~$0.85/query) - current Opus flagship
             - Frontier: claude-fable-5 (~$2.20/query) - most capable, 2x token rate
-            - Balanced: claude-sonnet-5 (~$0.48/query) - current Sonnet, standard-rate estimate
+            - Balanced: claude-sonnet-5 (~$0.32/query) - current Sonnet
             - Fast/cheap: claude-haiku-4-5 - no Extended Thinking support
         """
         if not ANTHROPIC_AVAILABLE:
@@ -291,7 +291,7 @@ class AnthropicProvider(DeepResearchProvider):
                     raise ProviderError(
                         f"Anthropic safety classifiers declined the request"
                         f"{f' (category: {category})' if category else ''}. "
-                        "Retry on a different model (e.g. claude-opus-4-8).",
+                        "Retry on a different model (e.g. claude-opus-5).",
                         provider="anthropic",
                     )
 
@@ -496,7 +496,7 @@ class AnthropicProvider(DeepResearchProvider):
         Map generic model key to Anthropic model name.
 
         Examples:
-            "claude-4-opus" -> "claude-opus-4-8"
+            "claude-opus" -> "claude-opus-5"
             "claude-sonnet" -> "claude-sonnet-5"
             "claude-haiku" -> "claude-haiku-4-5"
         """
@@ -506,7 +506,8 @@ class AnthropicProvider(DeepResearchProvider):
         model_mapping = {
             # Current generation
             "claude-fable": "claude-fable-5",
-            "claude-opus": "claude-opus-4-8",
+            "claude-opus": "claude-opus-5",
+            "claude-5-opus": "claude-opus-5",
             "claude-4-opus": "claude-opus-4-8",
             "claude-sonnet": "claude-sonnet-5",
             "claude-5-sonnet": "claude-sonnet-5",
@@ -591,8 +592,8 @@ Always show your work. Transparency builds trust."""
         return "".join(parts)
 
 
-# Pricing (as of 2026-06)
-# Source: https://www.anthropic.com/pricing
+# Pricing (as of 2026-08-13)
+# Source: https://platform.claude.com/docs/en/about-claude/pricing
 # INFORMATIONAL ONLY: actual billing/estimates use deepr/providers/registry.py
 # (get_token_pricing). When adding a model, update the registry first - an
 # unregistered model silently bills at the o4-mini default rate.
@@ -601,47 +602,49 @@ ANTHROPIC_PRICING = {
     "claude-fable-5": {
         "input": 10.00,  # per MTok - new tokenizer uses ~30% more tokens for the same text
         "output": 50.00,
-        "thinking": 10.00,  # Thinking always on, charged at input rate
+        "thinking": 50.00,  # Current-turn thinking is billed as output
+    },
+    "claude-opus-5": {
+        "input": 5.00,
+        "output": 25.00,
+        "thinking": 25.00,
     },
     "claude-sonnet-5": {
-        # Anthropic listed lower introductory pricing through 2026-08-31.
-        # Use the standard post-intro rate so budget preflights do not
-        # underestimate spend after the intro window expires.
-        "input": 3.00,
-        "output": 15.00,
-        "thinking": 3.00,  # Adaptive Thinking charged at input rate
+        "input": 2.00,
+        "output": 10.00,
+        "thinking": 10.00,
     },
     # Claude 4.6-4.8 series
     "claude-opus-4-8": {
         "input": 5.00,  # per MTok
         "output": 25.00,
-        "thinking": 5.00,  # Adaptive Thinking charged at input rate
+        "thinking": 25.00,
     },
     "claude-opus-4-7": {
         "input": 5.00,
         "output": 25.00,
-        "thinking": 5.00,
+        "thinking": 25.00,
     },
     "claude-opus-4-6": {
         "input": 5.00,
         "output": 25.00,
-        "thinking": 5.00,
+        "thinking": 25.00,
     },
     "claude-sonnet-4-6": {
         "input": 3.00,
         "output": 15.00,
-        "thinking": 3.00,
+        "thinking": 15.00,
     },
     # Claude 4.5 series
     "claude-opus-4-5": {
         "input": 5.00,  # per MTok - 66% cheaper than Opus 4!
         "output": 25.00,
-        "thinking": 5.00,  # Extended Thinking charged at input rate
+        "thinking": 25.00,
     },
     "claude-sonnet-4-5": {
         "input": 3.00,  # per MTok (prompts ≤200K tokens)
         "output": 15.00,
-        "thinking": 3.00,
+        "thinking": 15.00,
         # Note: $6/$15 for prompts >200K tokens
     },
     "claude-haiku-4-5": {
@@ -653,23 +656,23 @@ ANTHROPIC_PRICING = {
     "claude-opus-4-1": {
         "input": 15.00,
         "output": 75.00,
-        "thinking": 15.00,
+        "thinking": 75.00,
     },
     "claude-opus-4": {
         "input": 15.00,
         "output": 75.00,
-        "thinking": 15.00,
+        "thinking": 75.00,
     },
     "claude-sonnet-4": {
         "input": 3.00,
         "output": 15.00,
-        "thinking": 3.00,
+        "thinking": 15.00,
     },
     # Claude 3.7 (legacy)
     "claude-sonnet-3-7": {
         "input": 3.00,
         "output": 15.00,
-        "thinking": 3.00,
+        "thinking": 15.00,
     },
 }
 
@@ -685,10 +688,13 @@ ANTHROPIC_CACHE_PRICING = {
         "cache_write": 12.50,
         "cache_read": 1.00,
     },
+    "claude-opus-5": {
+        "cache_write": 6.25,
+        "cache_read": 0.50,
+    },
     "claude-sonnet-5": {
-        # Standard post-intro prompt-cache rates. See pricing note above.
-        "cache_write": 3.75,
-        "cache_read": 0.30,
+        "cache_write": 2.50,
+        "cache_read": 0.20,
     },
     "claude-opus-4-8": {
         "cache_write": 6.25,

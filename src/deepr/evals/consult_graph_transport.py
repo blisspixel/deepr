@@ -73,7 +73,7 @@ class OwnedOllamaConsultTransport:
                 "Ollama must report cloud.disabled=true before structured local execution",
             )
         status_source = cloud.get("source")
-        if status_source != "config":
+        if status_source not in {"config", "both"}:
             raise StructuredConsultContractError(
                 "LOCAL_CLOUD_STATUS_UNKNOWN",
                 "Ollama cloud-disable provenance must be stable config",
@@ -88,7 +88,7 @@ class OwnedOllamaConsultTransport:
         evidence: dict[str, Any] = {
             "attestation_kind": "ollama-owned-local-v1",
             "cloud_disabled": True,
-            "cloud_status_source": "config",
+            "cloud_status_source": status_source,
             "model": selected_model,
             "digest": selected["digest"],
             "size_bytes": selected["size"],

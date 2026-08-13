@@ -364,7 +364,15 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.47.0)
+## Current Status (v2.48.0)
+
+**Shipped in v2.48.0 (see docs/CHANGELOG.md):** expert consultation is now
+local Ollama by default or an explicit safety-eligible prepaid plan. Metered
+consult is blocked before transaction and provider-client construction across
+CLI, MCP, and A2A. The provider registry now carries the verified 2026-08-13
+OpenAI, Anthropic, xAI, Gemini, and Azure posture, including GPT-5.6 Sol,
+Terra, and Luna, Grok 4.6, Grok Build 0.1, and Claude 5 pricing corrections.
+The paid-client ratchet dropped by one constructor site.
 
 **Shipped in v2.47.0 (see docs/CHANGELOG.md):** attended API spend now has
 one non-configurable $2 total maximum rather than a per-call or calendar-window
@@ -1177,10 +1185,10 @@ overshoot is the design standard, not a closed story.
    **Protocol migration landed (v2.41.0, 2026-07-31):** the dual-era `2026-07-28` core shipped - per-request `_meta` version and capability negotiation, `server/discover`, modern result envelopes, `subscriptions/listen` on both transports, Streamable HTTP metadata-header and Origin validation, modern `-32602` resource errors, and honest capability advertisement (`logging` over-claim removed, elicitation self-report corrected). Legacy handshake clients are unaffected. Tasks remain unclaimed. Remaining hosted-claims work below still applies before widening remote serving.
    Treat the final MCP `2026-07-28` specification as the authoritative migration input before widening hosted claims. It defines a stateless protocol core, makes Tasks an optional extension for `tools/call`, deprecates sampling, roots, and logging, requires per-request capability negotiation, and binds task authorization to the originating request authority. Deepr does not ship or claim background Tasks support. Update Deepr's transport compatibility checklist, HTTP smoke tests, hosted endpoint docs, task-auth tests, schema validation assumptions, and conformance expectations in one focused protocol cycle.
    Add the expert-chat capacity backend contract before widening chat claims:
-   consult synthesis can use local and safety-eligible explicit plan capacity
-   today. API consult schemas retain explicit OpenAI or Anthropic
-   provider/model contract inputs and disabled request-shape and settlement
-   substrate, but production metered dispatch is blocked. The
+   consult synthesis defaults to local and can use safety-eligible explicit plan
+   capacity today. API consult schemas retain explicit OpenAI or Anthropic
+   provider/model compatibility inputs, but CLI, MCP, and A2A requests return a
+   typed block before transaction or client construction. The
    `deepr_query_expert` now accepts explicit `backend=local|plan` by running
    one read-only compiled-context turn through local Ollama or explicit
    plan-quota `ExpertChatBackend` adapters with live metered fallback disabled,
@@ -3196,6 +3204,7 @@ A mock panel (business buyer, indie hacker, enterprise AI architect, research sc
 - [x] API-backed expert profile setup warning (2026-06-30): `deepr expert make` now previews the metered provider, selected upload size, and hosted-vector-store storage estimate before provider construction, and unattended API-backed profile creation requires `--confirm-metered-profile` with `--yes`. Local `expert make --local` remains the `$0` profile setup path for no provider calls.
 - [x] Live-validation finding (2026-07-11, expert dogfood cost audit): API-backed `expert absorb` and the shared legacy sync absorption path dispatched extraction, contradiction, dedup, and optional adjudication model calls without one enforceable run ceiling or exact aggregate result; MCP added only a process-local estimate and sync omitted dynamic absorption spend from its budget. Fixed 2026-07-11 by moving per-dispatch durable reservation and provider-usage settlement into `ReportAbsorber`, applying one caller-supplied ceiling across every dynamically routed semantic call, deriving the provider's `max_completion_tokens` from exact registry pricing plus a conservative input bound, routing `ConflictResolver.resolve` through the same fail-closed completion seam, returning settled aggregate `actual_cost`, and using it for sync, gap-fill, MCP, CLI, OKF, and profile totals. Unknown pricing and oversized prompts fail before client construction; paid previews and failures retain settled spend, hidden SDK retries remain disabled, duplicate MCP ledger writes are gone, and explicit local/plan execution remains `$0`.
 - [x] Live-validation finding (2026-08-12, attended expert absorb): the six correctly settled model calls had no active or unresolved hold, but `costs doctor` classified their $0.011031 as unexplained because it tried to join every generic `research_completion` event to a research report directory. Fixed 2026-08-12 by recognizing only the exact paired `expert_absorb.*` source and `research_expert-absorb-*` task identity as an intrinsic `expected_non_report` disposition. The ledger remains append-only, the provider receipt stays visible, expert state is the durable output, and a partial or mismatched identity remains unexplained or lost-artifact for review.
+- [x] Live-validation finding (2026-08-13, README dashboard capture): `DEEPR_COST_DATA_DIR` isolated the canonical ledger and reservations but the attended-grant file still used the general runtime-data root. A screenshot process could therefore write grant authority beside live user data while binding it to an isolated ledger. Fixed 2026-08-13 by colocating the grant with canonical cost state and adding a regression test that proves the override moves the grant too.
 - [x] Live-validation finding (2026-07-11, stale research queue audit): 323 zero-attempt queued rows referenced reservation IDs absent from the durable reservation store. No production worker consumes `QueueBackend.dequeue`, so those rows had no automatic provider path, but the modern CLI trusted its in-memory reservation and the shared dispatcher checked only an ID rather than restoring exact queued authority. Fixed 2026-07-11 by verifying persisted reservation ID, job ID, provider, model, and held maximum against one active job-owned row immediately before queue claim. Missing, closed, or mismatched authority fails before provider submission; a transient store read failure remains queued and retryable. Queue inspection is read-only and the historical database was not mutated.
 - [x] Live-validation finding (2026-07-11, conflict-resolution cost audit): CLI `expert resolve-conflicts` and the matching web mutation endpoint treated `budget` as a pair-count hint while contradiction detection, single-provider adjudication, and consensus could dispatch without durable reservation or canonical settlement. Fixed fail-closed on 2026-07-11 by blocking both surfaces before expert-store or provider construction and pointing operators to the `$0` contested view.
 - [x] Live-validation finding (2026-07-11, cross-platform release packaging): the deterministic frontend archive normalized timestamps and permissions but preserved Windows CRLF in generated text, inherited Python's platform-specific ZIP creator field, relied on zlib output, and sorted `Path` objects with platform-specific case semantics. The Windows-built payload therefore differed from the Linux CI rebuild even when member content matched. Fixed 2026-07-11 by normalizing generated text assets to LF, pinning Unix creator metadata, storing intermediate entries without compressor variance, sorting case-sensitive POSIX archive names, and regression-testing mixed-case CRLF and LF inputs plus the full metadata contract. Wheel and sdist transport remain compressed.

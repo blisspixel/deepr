@@ -98,14 +98,13 @@ explicit plan-capacity path.
   `deepr_get_expert_info`, `deepr_expert_handoff`,
   `deepr_expert_loop_status`, `deepr_what_changed`, `deepr_contested`, and
   `deepr_explain_belief`, `deepr_temporal_edges`.
-- `deepr_consult_experts` can stay off metered APIs when the caller sets
-  `synthesis_backend` to `local` or `plan`. These modes disable live metered
-  expert fallback and return a `capacity.live_metered_fallback=false` marker.
-- API consult synthesis exposes explicit `provider`, `model`, and budget
-  inputs for preview and contract testing. Production metered dispatch remains
-  blocked (freeze since v2.40; still current on v2.42) until authenticated
-  provider account controls and current credential identity are proven. Use
-  local or plan modes for execution.
+- `deepr_consult_experts` defaults to local Ollama and also supports an explicit
+  safety-eligible `plan` backend. Both modes disable live metered expert
+  fallback and return a `capacity.live_metered_fallback=false` marker.
+- API consult synthesis retains explicit `provider`, `model`, budget, and legacy
+  consent inputs for compatibility testing. It returns
+  `METERED_API_DISABLED` before a consult transaction or provider client is
+  created. Use local or plan modes for execution.
 - `deepr_query_expert` stays off metered APIs when the caller sets
   `backend` to `local` or `plan`. Those modes route one named expert through
   a read-only compiled-context chat turn, attach `readonly_chat_artifact`, set
@@ -578,10 +577,9 @@ Expected completed task:
   `true`.
 - `cost` stays `0` for local or explicit plan synthesis.
 
-API synthesis over A2A requires a positive `budget`, exact
-`metadata.allow_metered_api=true`, and exact
-`metadata.confirm_metered_cost=true`. A budget is only a ceiling; otherwise the
-task fails closed without spend.
+API synthesis over A2A returns `METERED_API_DISABLED` before consult work.
+Positive budgets and legacy `metadata.allow_metered_api` or
+`metadata.confirm_metered_cost` values cannot enable it.
 
 Before Deepr ships a listener, the custom task and Agent Card model must be
 migrated or versioned against A2A 1.0, task and context state must survive

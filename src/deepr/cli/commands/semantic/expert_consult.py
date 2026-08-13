@@ -94,12 +94,10 @@ def _render(payload: dict[str, Any]) -> None:
 def _validate_consult_limits(
     *,
     budget: float,
-    use_local: bool,
-    plan_backend: str | None,
     max_elapsed_seconds: float,
 ) -> None:
-    if not isfinite(budget) or budget < 0 or (budget <= 0 and not use_local and not plan_backend):
-        print_error("--budget must be finite and non-negative; API-backed consults require a positive value.")
+    if not isfinite(budget) or budget < 0:
+        print_error("--budget must be finite and non-negative.")
         sys.exit(2)
     if (
         not isfinite(max_elapsed_seconds)
@@ -260,19 +258,19 @@ def _emit_consult_result(
 @click.option(
     "--budget",
     "-b",
-    default=2.0,
+    default=0.0,
     show_default=True,
-    help="Hard transaction ceiling. Current API mode meters final synthesis only; local and plan cost $0 in Deepr.",
+    help="Hard transaction ceiling. Local and plan synthesis cost $0 in Deepr; metered API synthesis is disabled.",
 )
 @click.option(
     "--provider",
     "api_provider",
     type=click.Choice(["openai", "anthropic"], case_sensitive=False),
     default=None,
-    help="API synthesis provider when not using --local or --plan.",
+    help="Compatibility input only. Metered API synthesis is disabled.",
 )
-@click.option("--model", "api_model", default=None, help="API synthesis model when not using --local or --plan.")
-@click.option("--local", "use_local", is_flag=True, help="Use local Ollama synthesis at $0.")
+@click.option("--model", "api_model", default=None, help="Compatibility input only. Metered API synthesis is disabled.")
+@click.option("--local", "use_local", is_flag=True, help="Use local Ollama synthesis at $0. This is the default.")
 @click.option("--local-model", default=None, help="Local Ollama model for synthesis. Defaults to detected model.")
 @click.option("--plan", "plan_backend", default=None, help="Use an explicit plan-quota CLI for synthesis.")
 @click.option("--plan-model", default=None, help="Model hint for the plan-quota CLI.")
@@ -296,7 +294,7 @@ def _emit_consult_result(
 @click.option(
     "--confirm-metered-cost",
     is_flag=True,
-    help="With --yes, explicitly authorize metered API synthesis up to --budget.",
+    help="Legacy compatibility flag. It cannot enable metered API synthesis.",
 )
 def expert_consult(
     question,
@@ -325,12 +323,18 @@ def expert_consult(
     EXAMPLES:
       deepr expert consult "How should we harden absorption provenance?"
       deepr expert consult "Cost vs quality tradeoff?" -e "AI Cost Optimization" -e "LLM Evaluation and Calibration"
-      deepr expert consult "What changed in MCP?" --local --json
+      deepr expert consult "What changed in MCP?" --json
+      deepr expert consult "What should change next?" --plan claude --json
     """
+    if api_provider or api_model or confirm_metered_cost:
+        raise click.UsageError(
+            "Metered API synthesis is disabled for expert consults. Use the default local Ollama backend "
+            "or select an explicit safety-eligible plan with --plan."
+        )
+    if not plan_backend:
+        use_local = True
     _validate_consult_limits(
         budget=budget,
-        use_local=use_local,
-        plan_backend=plan_backend,
         max_elapsed_seconds=max_elapsed_seconds,
     )
     backend_mode, capacity_request = _requested_capacity(
@@ -341,24 +345,6 @@ def expert_consult(
         api_provider=api_provider,
         api_model=api_model,
     )
-
-    if backend_mode == "api":
-        if yes and not confirm_metered_cost:
-            raise click.UsageError(
-                "Metered API consult with --yes requires --confirm-metered-cost; --budget is only a hard ceiling."
-            )
-        if not yes:
-            if json_output or not sys.stdin.isatty():
-                raise click.UsageError(
-                    "Noninteractive metered API consult requires --yes --confirm-metered-cost. "
-                    "Use --local or --plan for an explicit non-metered path."
-                )
-            if not click.confirm(
-                f"Authorize metered API synthesis with a hard ceiling of ${budget:.2f}?",
-                default=False,
-            ):
-                print_warning("Cancelled.")
-                return
 
     backend_factory = _make_backend_factory(
         use_local=use_local,

@@ -883,7 +883,7 @@ Budget remaining: ${budget_remaining:.2f}
             return {"error": f"Quick lookup blocked: {reason}", "mode": "quick_lookup_gpt52", "status": "blocked"}
 
         try:
-            model_name = self._provider_model_or("gpt-5.5")
+            model_name = self._provider_model_or("gpt-5.6-sol")
             result = await self.chat_backend.complete(
                 ExpertChatRequest(
                     model=model_name,

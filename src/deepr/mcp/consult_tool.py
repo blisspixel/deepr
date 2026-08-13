@@ -15,7 +15,6 @@ from deepr.experts.consult_transaction import (
     execute_consult_transaction,
     requested_consult_capacity,
 )
-from deepr.mcp.metered_contract import MeteredMCPContractError, require_metered_api_contract
 
 CONSULT_EXPERTS_OUTPUT_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -87,30 +86,29 @@ CONSULT_EXPERTS_INPUT_SCHEMA: dict[str, Any] = {
             "type": "string",
             "enum": ["api", "local", "plan"],
             "description": (
-                "Defaults to local. API exposes contract inputs only; production metered dispatch is blocked."
+                "Defaults to local. API is a compatibility value that returns METERED_API_DISABLED before a "
+                "consult transaction or provider client is created."
             ),
             "default": "local",
         },
         "allow_metered_api": {
             "type": "boolean",
             "default": False,
-            "description": ("Legacy API contract input. It never authorizes production metered dispatch."),
+            "description": "Legacy compatibility input. It cannot authorize metered API synthesis.",
         },
         "confirm_metered_cost": {
             "type": "boolean",
             "default": False,
-            "description": (
-                "Legacy API contract input. Neither this flag nor a budget authorizes production dispatch."
-            ),
+            "description": "Legacy compatibility input. It cannot authorize metered API synthesis.",
         },
         "provider": {
             "type": "string",
             "enum": ["openai", "anthropic"],
-            "description": "API synthesis provider when synthesis_backend='api'. Defaults to openai.",
+            "description": "Compatibility input only. Metered API synthesis is disabled.",
         },
         "model": {
             "type": "string",
-            "description": "API synthesis model when synthesis_backend='api'.",
+            "description": "Compatibility input only. Metered API synthesis is disabled.",
         },
         "local_model": {
             "type": "string",
@@ -140,18 +138,6 @@ CONSULT_EXPERTS_INPUT_SCHEMA: dict[str, Any] = {
         },
     },
     "required": ["question"],
-    "allOf": [
-        {
-            "if": {
-                "properties": {"synthesis_backend": {"const": "api"}},
-                "required": ["synthesis_backend"],
-            },
-            "then": {
-                "properties": {"budget": {"exclusiveMinimum": 0}},
-                "required": ["budget", "allow_metered_api", "confirm_metered_cost"],
-            },
-        }
-    ],
 }
 
 
@@ -240,28 +226,6 @@ def _request_validation_error(
     return None
 
 
-def _authorized_budget(
-    *,
-    backend_mode: str,
-    budget: float | None,
-    allow_metered_api: object,
-    confirm_metered_cost: object,
-) -> tuple[float, dict[str, Any] | None]:
-    if backend_mode != "api":
-        return (0.0 if budget is None else float(budget)), None
-    try:
-        return (
-            require_metered_api_contract(
-                budget=budget,
-                allow_metered_api=allow_metered_api,
-                confirm_metered_cost=confirm_metered_cost,
-            ),
-            None,
-        )
-    except MeteredMCPContractError as exc:
-        return 0.0, _error(exc.code, str(exc))
-
-
 def _requested_capacity(
     *,
     backend_mode: str,
@@ -320,14 +284,13 @@ async def consult_experts_tool(
         return runtime_error
 
     backend_mode = synthesis_backend.strip().lower()
-    effective_budget, authorization_error = _authorized_budget(
-        backend_mode=backend_mode,
-        budget=budget,
-        allow_metered_api=allow_metered_api,
-        confirm_metered_cost=confirm_metered_cost,
-    )
-    if authorization_error is not None:
-        return authorization_error
+    if backend_mode == "api":
+        return _error(
+            "METERED_API_DISABLED",
+            "Metered API synthesis is disabled for expert consults. Use synthesis_backend='local' or an "
+            "explicit safety-eligible plan. No consult transaction or provider client was created.",
+        )
+    effective_budget = 0.0 if budget is None else float(budget)
 
     validation_error = _request_validation_error(
         backend_mode=backend_mode,

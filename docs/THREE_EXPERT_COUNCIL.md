@@ -251,12 +251,10 @@ monthly limits include earlier ledger spend in the same periods, so available
 headroom can be less than `$5`. Unsafe metered expert paths remain disabled
 rather than escaping the cap.
 
-A budget is never spend permission. Legacy remote and API request bodies still
-require the exact booleans `allow_metered_api=true` and
-`confirm_metered_cost=true`, but those inputs cannot lift the production
-quarantine. Missing consent, finite pricing, authenticated account controls,
-current credential identity, reservation, or ledger settlement fails closed
-before provider construction.
+A budget is never spend permission. Expert consult defaults to local Ollama and
+also accepts an explicit safety-eligible plan backend. API-shaped compatibility
+inputs return a typed block before consult transaction or provider construction;
+legacy consent booleans cannot lift the production quarantine.
 
 This is a current-period ceiling, not a lifetime wallet. The daily and monthly
 windows reset. Deepr does not yet ship a reusable parent budget spanning an
@@ -274,10 +272,10 @@ quota or credits, and Deepr cannot prove the vendor's final billing treatment.
 An explicit plan selection never bypasses the auth, native-tool, or marginal-
 cost gate.
 
-The API council contract models only final synthesis, a complete transaction
-ceiling, and a 10 percent synthesis sub-ceiling. Production execution is frozen,
-so it currently makes no provider call even when consent and budget inputs are
-present. Stored expert perspectives also make no provider calls.
+The API council compatibility contract models only final synthesis, a complete
+transaction ceiling, and a 10 percent synthesis sub-ceiling. Production API
+execution is frozen and blocked before a consult transaction. Stored expert
+perspectives also make no provider calls.
 
 ## 1. Prepare The Purpose Contracts Without Claiming Review
 

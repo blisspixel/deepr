@@ -643,7 +643,7 @@ def _validate_model_provenance(value: Mapping[str, Any], *, model: str) -> dict[
         raise StructuredConsultContractError("LOCAL_MODEL_PROVENANCE", "Ollama cloud must be explicitly disabled")
     if value.get("model") != model:
         raise StructuredConsultContractError("LOCAL_MODEL_PROVENANCE", "model provenance identity mismatch")
-    if value.get("cloud_status_source") != "config":
+    if value.get("cloud_status_source") not in {"config", "both"}:
         raise StructuredConsultContractError("LOCAL_MODEL_PROVENANCE", "cloud-disable source must be stable config")
     digest = _nonempty_string("model digest", value.get("digest"), maximum_bytes=64)
     if len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest):

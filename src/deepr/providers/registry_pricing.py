@@ -10,6 +10,11 @@ from .registry import MODEL_CAPABILITIES, ModelCapability
 logger = logging.getLogger(__name__)
 
 _MODEL_ALIASES: dict[str, str] = {
+    "gpt-5.6": "gpt-5.6-sol",
+    "grok-build": "grok-build-0.1",
+    "grok-code-fast": "grok-build-0.1",
+    "grok-code-fast-1": "grok-build-0.1",
+    "grok-code-fast-1-0825": "grok-build-0.1",
     "gemini-deep-research": "deep-research-pro-preview-12-2025",
     "deep-research": "deep-research-pro-preview-12-2025",
     "gemini-pro": "gemini-3.1-pro-preview",
@@ -28,12 +33,18 @@ class _TokenPricingTier:
 
 
 _TIERED_PRICING: dict[str, _TokenPricingTier] = {
+    # GPT-5.6 applies the long-context rate only above 272K input tokens.
+    "gpt-5.6-sol": _TokenPricingTier(272_000, 2.0, 1.5, inclusive=False),
+    "gpt-5.6-terra": _TokenPricingTier(272_000, 2.0, 1.5, inclusive=False),
+    "gpt-5.6-luna": _TokenPricingTier(272_000, 2.0, 1.5, inclusive=False),
     # Google keeps the base tier through 200K prompt tokens and applies the
     # long-context tier only above 200K.
     "gemini-2.5-pro": _TokenPricingTier(200_000, 2.0, 1.5, inclusive=False),
     "gemini-3.1-pro-preview": _TokenPricingTier(200_000, 2.0, 1.5, inclusive=False),
     "gemini-3-pro-preview": _TokenPricingTier(200_000, 2.0, 1.5, inclusive=False),
     # xAI applies these Grok long-context rates at 200K prompt tokens and above.
+    "grok-4-6": _TokenPricingTier(200_000, 2.0, 2.0, inclusive=True),
+    "grok-build-0-1": _TokenPricingTier(200_000, 2.0, 2.0, inclusive=True),
     "grok-4-5": _TokenPricingTier(200_000, 2.0, 2.0, inclusive=True),
     "grok-4-3": _TokenPricingTier(200_000, 2.0, 2.0, inclusive=True),
     "grok-4-20-reasoning": _TokenPricingTier(200_000, 2.0, 2.0, inclusive=True),

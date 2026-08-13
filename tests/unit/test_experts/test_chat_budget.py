@@ -190,7 +190,7 @@ async def test_quick_lookup_uses_chat_backend(monkeypatch):
     assert result["answer"] == "fresh cached answer"
     assert result["mode"] == "quick_lookup_gpt52"
     assert len(backend.requests) == 1
-    assert backend.requests[0].model == "gpt-5.5"
+    assert backend.requests[0].model == "gpt-5.6-sol"
     assert backend.requests[0].reasoning_effort == "low"
 
 

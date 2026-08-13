@@ -119,6 +119,7 @@ _CLI_BACKENDS: list[tuple[str, str, CostModel, str]] = [
 ]
 
 _OLLAMA_DEFAULT_URL = "http://localhost:11434"
+_STABLE_OLLAMA_CLOUD_DISABLE_SOURCES = frozenset({"config", "both"})
 
 
 def _parse_owned_local_http_url(value: str, label: str) -> SplitResult:
@@ -193,9 +194,14 @@ def validate_owned_local_ollama_url(value: str) -> str:
 def validate_owned_local_ollama_cloud_status(payload: Mapping[str, Any]) -> None:
     """Require stable server-side proof that Ollama cloud access is disabled."""
     cloud = payload.get("cloud")
-    if not isinstance(cloud, Mapping) or cloud.get("disabled") is not True or cloud.get("source") != "config":
+    if (
+        not isinstance(cloud, Mapping)
+        or cloud.get("disabled") is not True
+        or cloud.get("source") not in _STABLE_OLLAMA_CLOUD_DISABLE_SOURCES
+    ):
         raise ValueError(
-            "Owned local Ollama requires cloud.disabled=true from config; set OLLAMA_NO_CLOUD=1 and restart Ollama"
+            "Owned local Ollama requires cloud.disabled=true from persistent config; "
+            "set disable_ollama_cloud=true in server.json and restart Ollama"
         )
 
 

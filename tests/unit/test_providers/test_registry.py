@@ -21,8 +21,11 @@ class TestModelCapabilities:
     def test_registry_not_empty(self):
         """Test that registry contains model definitions."""
         assert len(MODEL_CAPABILITIES) > 0
+        assert "openai/gpt-5.6-sol" in MODEL_CAPABILITIES
         assert "openai/gpt-5.4" in MODEL_CAPABILITIES
         assert "openai/gpt-5.4-pro" in MODEL_CAPABILITIES
+        assert "xai/grok-4-6" in MODEL_CAPABILITIES
+        assert "xai/grok-build-0-1" in MODEL_CAPABILITIES
         assert "xai/grok-4-20-reasoning" in MODEL_CAPABILITIES
 
     def test_all_capabilities_valid(self):
@@ -99,6 +102,20 @@ class TestModelCapabilities:
 
     def test_openai_models(self):
         """Test OpenAI model capabilities."""
+        expected_56 = {
+            "gpt-5.6-sol": (5.00, 0.50, 30.00),
+            "gpt-5.6-terra": (2.00, 0.20, 12.00),
+            "gpt-5.6-luna": (0.20, 0.02, 1.20),
+        }
+        for model, (input_rate, cached_rate, output_rate) in expected_56.items():
+            capability = get_model_capability("openai", model)
+            assert capability is not None
+            assert capability.context_window == 1_050_000
+            assert capability.max_output_tokens == 128_000
+            assert capability.input_cost_per_1m == pytest.approx(input_rate)
+            assert capability.cached_input_cost_per_1m == pytest.approx(cached_rate)
+            assert capability.output_cost_per_1m == pytest.approx(output_rate)
+
         gpt54 = get_model_capability("openai", "gpt-5.4")
         assert gpt54 is not None
         assert "reasoning" in gpt54.specializations
@@ -116,6 +133,24 @@ class TestModelCapabilities:
 
     def test_xai_models(self):
         """Test xAI (Grok) model capabilities."""
+        grok_46 = get_model_capability("xai", "grok-4-6")
+        assert grok_46 is not None
+        assert grok_46.context_window == 500_000
+        assert (grok_46.input_cost_per_1m, grok_46.cached_input_cost_per_1m, grok_46.output_cost_per_1m) == (
+            2.00,
+            0.50,
+            6.00,
+        )
+
+        grok_build = get_model_capability("xai", "grok-build-0-1")
+        assert grok_build is not None
+        assert grok_build.context_window == 256_000
+        assert (grok_build.input_cost_per_1m, grok_build.cached_input_cost_per_1m, grok_build.output_cost_per_1m) == (
+            1.00,
+            0.20,
+            2.00,
+        )
+
         grok = get_model_capability("xai", "grok-4-1-fast-non-reasoning")
         assert grok is not None
         assert "speed" in grok.specializations
@@ -236,6 +271,14 @@ class TestCostEstimateMatching:
     def test_dotted_and_hyphenated_grok_equivalent(self):
         # Normalization: dotted API form and hyphenated registry form match
         assert get_cost_estimate("grok-4.3") == get_cost_estimate("grok-4-3")
+        assert get_cost_estimate("grok-4.6") == get_cost_estimate("grok-4-6")
+        assert get_cost_estimate("grok-build-0.1") == get_cost_estimate("grok-build-0-1")
+
+    def test_current_provider_aliases_resolve_to_canonical_pricing(self):
+        from deepr.providers.registry import get_token_pricing
+
+        assert get_token_pricing("gpt-5.6") == get_token_pricing("gpt-5.6-sol")
+        assert get_token_pricing("grok-code-fast-1") == get_token_pricing("grok-build-0.1")
 
     def test_tiered_pricing_preserved(self):
         base = get_cost_estimate("gemini-3.1-pro-preview")
@@ -259,6 +302,21 @@ class TestTokenPricingTiers:
 
         prices = get_token_pricing("gemini-3.1-pro-preview", input_tokens=100_000)
         assert prices == get_token_pricing("gemini-3.1-pro-preview")
+
+    @pytest.mark.parametrize("model", ["gpt-5.6", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"])
+    def test_gpt_56_long_context_tier_is_exclusive_above_272k(self, model):
+        from deepr.providers.registry import get_token_pricing
+
+        base = get_token_pricing(model)
+        cached_rate = get_cached_input_pricing(model)
+        assert cached_rate is not None
+        assert get_token_pricing(model, input_tokens=272_000) == base
+        assert get_cached_input_pricing(model, input_tokens=272_000) == cached_rate
+        assert get_token_pricing(model, input_tokens=272_001) == {
+            "input": round(base["input"] * 2.0, 6),
+            "output": round(base["output"] * 1.5, 6),
+        }
+        assert get_cached_input_pricing(model, input_tokens=272_001) == pytest.approx(cached_rate * 2.0)
 
     def test_tier_rates_above_threshold(self):
         from deepr.providers.registry import get_token_pricing
@@ -291,8 +349,11 @@ class TestTokenPricingTiers:
     @pytest.mark.parametrize(
         "model",
         [
+            "grok-4.6",
             "grok-4.5",
             "grok-4.3",
+            "grok-build-0.1",
+            "grok-code-fast-1",
             "grok-4.20-0309-reasoning",
             "grok-4.20-0309-non-reasoning",
             "grok-4.20-multi-agent-0309",
@@ -343,6 +404,9 @@ class TestTokenPricingTiers:
 
     def test_cached_input_pricing_uses_model_registry(self):
         assert get_cached_input_pricing("gpt-5") == pytest.approx(0.125)
+        assert get_cached_input_pricing("grok-4.6") == pytest.approx(0.50)
+        assert get_cached_input_pricing("grok-4.5") == pytest.approx(0.30)
+        assert get_cached_input_pricing("grok-build-0.1") == pytest.approx(0.20)
         assert get_cached_input_pricing("grok-4.20-0309-reasoning") == pytest.approx(0.20)
 
     def test_settlement_uses_tier_rates(self):

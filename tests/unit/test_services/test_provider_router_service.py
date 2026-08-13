@@ -125,7 +125,7 @@ class TestProviderRouter:
     def test_get_model_anthropic(self, router_multi):
         """Anthropic returns Claude model."""
         result = router_multi.get_model_for_task("anthropic", "analysis")
-        assert result == "claude-opus-4-8"
+        assert result == "claude-opus-5"
         assert router_multi.get_model_for_task("anthropic", "documentation") == "claude-sonnet-5"
 
     def test_get_model_unknown_provider_raises(self, router_multi):
