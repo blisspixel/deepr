@@ -35,11 +35,16 @@ paid overage disabled are also mandatory for dispatch. Deepr verifies both
 layers and applies the tighter boundary. A soft budget alert on an open
 postpaid account is not a hard stop and remains execution-blocked. MCP, schedules,
 loops, consultation, and automatic routing cannot use wallet authority.
+No production provider account-control verifier ships in v2.49, so actual paid
+dispatch remains blocked even after local wallet funding. The wallet and
+attended transaction are ready for a future authenticated verifier; they are
+not a bypass for today's quarantine.
 
 ```bash
 # Keep the active example's independent calendar ceiling conservative.
 # In .env: DEEPR_MAX_COST_PER_MONTH=5.00
 deepr budget credits add --amount 200.00 --reason "Bound this API campaign"
+# This remains blocked unless capacity status proves a provider hard stop.
 deepr expert absorb "My Domain Expert" --file report.md --api --budget 4.00
 deepr budget status
 deepr costs show

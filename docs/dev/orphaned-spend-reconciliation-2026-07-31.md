@@ -1,8 +1,8 @@
 # Orphaned spend reconciliation report
 
-Date: 2026-07-31  
-Scope: ROADMAP P0 forensic reconciliation of historical orphaned spend  
-External spend: $0.00 (no provider calls)  
+Date: 2026-07-31
+Scope: ROADMAP P0 forensic reconciliation of historical orphaned spend
+External spend: $0.00 (no provider calls)
 Ledger rewrite: none (append-only preserved)
 
 ## Method

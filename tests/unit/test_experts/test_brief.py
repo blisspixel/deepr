@@ -454,7 +454,7 @@ class TestHouseStyle:
     def test_dashes_and_smart_quotes_are_normalized_on_the_way_in(self, corpus):
         """A prompt is a request. This is the part that cannot be declined."""
         payload = json.loads(json.dumps(_GOOD))
-        payload["orientation"] = "plant–fungus “wood-wide web” — really…"
+        payload["orientation"] = "plant\u2013fungus “wood-wide web” \u2014 really…"
         brief = assemble_brief(
             payload, expert_name="E", result=_result([_finding("Silent restore failure")]), corpus=corpus
         )
@@ -462,8 +462,8 @@ class TestHouseStyle:
 
     def test_a_rendered_brief_carries_no_dashes_or_curly_quotes(self, corpus):
         payload = json.loads(json.dumps(_GOOD))
-        payload["positions"][0]["stance"] = "Mostly — under “stated” conditions"
+        payload["positions"][0]["stance"] = "Mostly \u2014 under “stated” conditions"
         brief = assemble_brief(
             payload, expert_name="E", result=_result([_finding("Silent restore failure")]), corpus=corpus
         )
-        assert not (set(render_brief(brief)) & set("–—‘’“”…"))
+        assert not (set(render_brief(brief)) & set("\u2013\u2014‘’“”…"))

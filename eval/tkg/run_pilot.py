@@ -119,9 +119,7 @@ def format_world(world: dict) -> str:
         lines.append(f"- [{src['id']}] {src['text']}")
     if world.get("invalidated_claim_refs"):
         lines.append("")
-        lines.append(
-            "INVALIDATED CLAIM REFS: " + ", ".join(world["invalidated_claim_refs"])
-        )
+        lines.append("INVALIDATED CLAIM REFS: " + ", ".join(world["invalidated_claim_refs"]))
     return "\n".join(lines)
 
 
@@ -139,9 +137,7 @@ def run_ollama(prompt: str) -> tuple[str, float]:
     )
     elapsed = time.perf_counter() - started
     if proc.returncode != 0:
-        raise RuntimeError(
-            f"ollama failed ({proc.returncode}): {proc.stderr[-2000:]}"
-        )
+        raise RuntimeError(f"ollama failed ({proc.returncode}): {proc.stderr[-2000:]}")
     text = (proc.stdout or "").strip()
     if not text:
         raise RuntimeError(f"ollama returned empty stdout: {proc.stderr[-1000:]}")
@@ -151,8 +147,7 @@ def run_ollama(prompt: str) -> tuple[str, float]:
 def run_consult(question: str, *, maintenance: bool) -> tuple[str, float, dict]:
     if maintenance:
         question = (
-            question
-            + "\n\nOperator note: Prefer current maintained expert state. "
+            question + "\n\nOperator note: Prefer current maintained expert state. "
             "Call out invalidated or superseded claims. Separate valid-time "
             "from transaction-time. Do not invent sources."
         )
@@ -188,10 +183,7 @@ def run_consult(question: str, *, maintenance: bool) -> tuple[str, float, dict]:
     )
     elapsed = time.perf_counter() - started
     if proc.returncode != 0:
-        raise RuntimeError(
-            f"consult failed ({proc.returncode}): "
-            f"{proc.stderr[-2000:]}\n{proc.stdout[-1000:]}"
-        )
+        raise RuntimeError(f"consult failed ({proc.returncode}): {proc.stderr[-2000:]}\n{proc.stdout[-1000:]}")
     payload = json.loads(out_path.read_text(encoding="utf-8"))
     answer = (
         payload.get("answer")
@@ -233,19 +225,13 @@ def run_arm(arm: str, case_id: str, case: dict) -> dict:
             "cost_usd": 0.0,
         }
     else:
-        answer, latency, consult_payload = run_consult(
-            question, maintenance=(arm == "maintained_expert")
-        )
+        answer, latency, consult_payload = run_consult(question, maintenance=(arm == "maintained_expert"))
         run_meta = {
             "arm": arm,
             "backend": "deepr-consult-local",
             "model": LOCAL_MODEL,
             "world_id": world_id,
-            "cost_usd": float(
-                consult_payload.get("cost_usd")
-                or consult_payload.get("total_cost_usd")
-                or 0.0
-            ),
+            "cost_usd": float(consult_payload.get("cost_usd") or consult_payload.get("total_cost_usd") or 0.0),
             "consult_schema": consult_payload.get("schema_version"),
         }
 
@@ -308,21 +294,22 @@ def score_answer(case_id: str, arm: str, text: str) -> dict:
             "provenance",
         )
     )
-    agrees_drop_prov = any(
-        p in lower
-        for p in (
-            "no longer required",
-            "not required",
-            "replace sources",
-            "replaces sources",
-            "provenance is optional",
-            "citations are optional",
-            "drop provenance",
+    agrees_drop_prov = (
+        any(
+            p in lower
+            for p in (
+                "no longer required",
+                "not required",
+                "replace sources",
+                "replaces sources",
+                "provenance is optional",
+                "citations are optional",
+                "drop provenance",
+            )
         )
-    ) and "not" not in lower.split("provenance")[0][-40:]
-    mentions_history = any(
-        p in lower for p in ("history", "audit", "as-of", "as of", "supersed", "invalidat")
+        and "not" not in lower.split("provenance")[0][-40:]
     )
+    mentions_history = any(p in lower for p in ("history", "audit", "as-of", "as of", "supersed", "invalidat"))
     invents_vendor_lock = "must use graphiti" in lower or "only zep" in lower
 
     # Base scores 1-5
@@ -465,7 +452,7 @@ def main() -> int:
                     f"cost={results[(case_id, arm)]['cost_usd']}",
                     flush=True,
                 )
-            except Exception as exc:  # noqa: BLE001 - pilot must record failures
+            except Exception as exc:
                 print(f"  FAIL: {exc}", flush=True)
                 # Write failure artifacts so the pilot is auditable
                 run_dir = ARTIFACTS / "runs" / case_id

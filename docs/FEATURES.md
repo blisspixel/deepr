@@ -48,7 +48,7 @@ for the bounded browser and transport contract.
 
 **Overview** - Landing page with active jobs, recent activity feed, spending summary, and system health status.
 
-**Research Studio** - Configure one bounded OpenAI background research request with an o3/o4-mini model picker, priority, and web search toggle, and inspect its write-free estimate. Production metered submission is blocked in v2.40 pending authenticated provider account controls and current credential identity. Compatibility choices for check, learn, team, and docs remain visible but fail closed before provider work because their legacy or multi-call transactions are incomplete. The form checks OpenAI readiness and pauses submission when provider configuration or cost estimation is unavailable. Prompt and scalar configuration drafts are validated and restored from session-scoped browser storage, with visible saved, restored, invalid, and unavailable states plus explicit clearing. A saved draft is preserved until the user explicitly accepts a different URL-prefilled prompt. Uploaded file names and contents are never persisted. The Context Files selector retains local validation, but provider file submission is gated before provider work until storage lifecycle costs share the research reservation. Ctrl+Enter / Cmd+Enter follows the same readiness and budget checks as the button but cannot bypass the production freeze. Request-specific cost estimation appears as you type. Use CLI workflows for local and safety-eligible plan-quota capacity. Supports pre-filled prompts via URL query parameter.
+**Research Studio** - Configure one bounded OpenAI background research request with an o3/o4-mini model picker, priority, and web search toggle, and inspect its write-free estimate. Production metered submission is blocked pending authenticated provider account controls and current credential identity. Compatibility choices for check, learn, team, and docs remain visible but fail closed before provider work because their legacy or multi-call transactions are incomplete. The form checks OpenAI readiness and pauses submission when provider configuration or cost estimation is unavailable. Prompt and scalar configuration drafts are validated and restored from session-scoped browser storage, with visible saved, restored, invalid, and unavailable states plus explicit clearing. A saved draft is preserved until the user explicitly accepts a different URL-prefilled prompt. Uploaded file names and contents are never persisted. The Context Files selector retains local validation, but provider file submission is gated before provider work until storage lifecycle costs share the research reservation. Ctrl+Enter / Cmd+Enter follows the same readiness and budget checks as the button but cannot bypass the production freeze. Request-specific cost estimation appears as you type. Use CLI workflows for local and safety-eligible plan-quota capacity. Supports pre-filled prompts via URL query parameter.
 
 **Research Live** - Real-time progress tracking for running jobs via Socket.IO. The browser starts with reliable HTTP polling and upgrades to WebSocket when supported. A background server poller checks the provider API every 15 seconds. Completed jobs show enriched summary with cost, tokens, model, completion date, and content preview.
 
@@ -56,13 +56,17 @@ for the bounded browser and transport contract.
 
 **Result Detail** - Full markdown report viewer with citation sidebar showing source URLs and snippets. Copy-to-clipboard button for the full report content. Export dropdown for downloading results.
 
-**Expert Hub** - List all domain experts with document counts, finding counts, knowledge gaps, and cost stats. Search and sort controls. Navigate to individual expert profiles.
+**Expert Hub** - Opens on the explicit 25-expert flagship roster, with a toggle
+for the complete standard roster. Cards show portrait, standpoint, position,
+studied-finding, and retained-source readiness from durable state. Search and
+sort controls navigate to individual expert profiles. Readiness describes
+presentation structure, not semantic quality or correctness.
 
-**Expert Profile** - Six tabs: Chat (the interface remains visible, but metered streaming and slash-command execution fail closed in v2.36; use explicit local or plan query and consult surfaces), Claims (tracked assertions with confidence scores and source provenance), Knowledge Gaps (view gaps with EV/cost priority), Decisions (reasoning audit trail with rationale and alternatives), History (learning timeline with costs), and Skills (install/remove domain-specific capability packages). Chat includes a read-only stored-conversation sidebar when sessions exist; metered resume is gated. Each secondary view distinguishes a retrieval failure from a legitimate empty state and offers a scoped retry without hiding the loaded profile.
+**Expert Profile** - Six tabs: Chat (the interface remains visible, but metered streaming and slash-command execution fail closed; use explicit local or plan query and consult surfaces), Claims (tracked assertions with confidence scores and source provenance), Knowledge Gaps (view gaps with EV/cost priority), Decisions (reasoning audit trail with rationale and alternatives), History (learning timeline with costs), and Skills (install/remove domain-specific capability packages). Chat includes a read-only stored-conversation sidebar when sessions exist; metered resume is gated. Each secondary view distinguishes a retrieval failure from a legitimate empty state and offers a scoped retry without hiding the loaded profile.
 
-**Cost Intelligence** - Append-only ledger spending trends over configurable time ranges (7/30/90 days), per-model cost breakdown with charts, strict budget history, settled-spend and active-hold exposure, live CLI thresholds, all-operation ledger total, and queue completion progress. Every CLI limit display resolves the binding per-job, day, week, and month authority. Provider billing remains authoritative; billing-export import and provider account hard-limit verification are not shipped.
+**Cost Intelligence** - Append-only ledger spending trends over configurable time ranges (7/30/90 days), per-model cost breakdown with charts, cumulative wallet funding and drawdown, settled-spend and active-hold exposure, live CLI thresholds, all-operation ledger total, and queue completion progress. Every CLI limit display resolves wallet, per-job, day, week, and month authority separately. Provider billing remains authoritative; offline billing-export reconciliation works, but an authenticated provider account-control verifier is not shipped. A funded wallet never makes an open postpaid account executable.
 
-**Models & Benchmarks** - Model registry browser with provider grouping, saved benchmark results with quality rankings by tier (chat/news/research), quality charts, dry-run estimates, retained historical output, benchmark file selection, and routing configuration display. Available-only filtering requires verified provider configuration and fails closed when readiness is unavailable. All live provider validation, evaluation, and judge dispatch is gated in v2.36, including direct script execution; a larger estimate cap or approval does not unlock it.
+**Models & Benchmarks** - Model registry browser with provider grouping, saved benchmark results with quality rankings by tier (chat/news/research), quality charts, dry-run estimates, retained historical output, benchmark file selection, and routing configuration display. Available-only filtering requires verified provider configuration and fails closed when readiness is unavailable. All live provider validation, evaluation, and judge dispatch is gated, including direct script execution; a larger estimate cap or approval does not unlock it.
 
 **Trace Explorer** - Inspect research execution traces. View span hierarchy with timing, cost attribution, token counts, and model info for each operation. The collapsible decision sidebar shows the reasoning audit trail, while scoped warnings and retries preserve trace data when temporal findings or decision evidence fail independently.
 
@@ -109,20 +113,20 @@ deepr research "Question" --provider openai --model o4-mini-deep-research --prev
 ```
 
 Hosted file upload, scrape-to-provider handoff, file search, and vector-store
-attachment are gated in v2.36 until upload, indexing, retention, retrieval, and
+attachment are gated until upload, indexing, retention, retrieval, and
 cleanup costs share the same durable reservation. Local expert source files and
 local source packs remain available.
 
 ### Fact Verification
 
-The legacy metered `deepr check` completion path is gated in v2.36 because its
+The legacy metered `deepr check` completion path is gated because its
 retry loop does not yet use the shared reserve, dispatch-mark, output-ceiling,
 and settlement transaction. Use one bounded `deepr research` job or a local or
 plan expert consult.
 
 ### Documentation Generation
 
-The legacy metered `deepr make docs` path is gated in v2.36 until its provider
+The legacy metered `deepr make docs` path is gated until its provider
 call uses durable admission and canonical settlement. Existing reports remain
 available as local source material.
 
@@ -208,7 +212,7 @@ deepr research submit "follow-up research" --context abc123 -y
 ### Single Research Jobs
 
 The legacy `run` command group remains visible for compatibility, but its
-metered modes exit before provider construction in v2.40:
+metered modes exit before provider construction:
 
 ```bash
 # Focus mode (quick research)
@@ -274,7 +278,7 @@ deepr prep review
 ```
 
 Metered `prep execute`, `prep continue`, `prep auto`, auto-batch, legacy
-`run project`, and legacy `run team` execution are gated in v2.36. They require
+`run project`, and legacy `run team` execution are gated. They require
 one durable parent reservation that covers every nested call before they can be
 re-enabled. Submit bounded research jobs one at a time meanwhile.
 
@@ -348,7 +352,7 @@ deepr providers benchmark --history
 deepr eval new --dry-run --tier all
 ```
 
-Live provider benchmark execution is gated in v2.36 until each request uses the
+Live provider benchmark execution is gated until each request uses the
 shared durable reserve, dispatch-mark, settlement, and canonical-ledger
 transaction. Historical and dry-run views remain available.
 
@@ -356,7 +360,7 @@ transaction. Historical and dry-run views remain available.
 
 Deepr records provider health, latency percentiles, and success metrics for
 read-only inspection. Automatic cross-provider metered fallback and exploratory
-dispatch are gated in v2.36 because each attempt needs its own approved
+dispatch are gated because each attempt needs its own approved
 reservation.
 
 View disabled providers with `deepr providers status`.
@@ -407,14 +411,14 @@ deepr expert make "UI Experience Expert" --local --description "UI/UX for agenti
 deepr expert make "Supply Chain Expert" --local --files *.md --description "Logistics and supply chain domain"
 ```
 
-Nonlocal profile setup and `--learn` fail closed in v2.36 pending one shared
+Nonlocal profile setup and `--learn` fail closed pending one shared
 durable parent-run budget transaction that prices hosted storage and every
 nested call. Use `--local` for provider-free profile setup, then local or
 explicit plan-quota maintenance.
 
 ### Preview Curriculum
 
-API curriculum `expert plan` is gated in v2.36. Use
+API curriculum `expert plan` is gated. Use
 `deepr expert next NAME --json` for a `$0` structural next-action plan until
 curriculum generation uses
 the shared durable run-budget transaction.
@@ -439,7 +443,7 @@ deepr expert consult "What should we verify next?" --expert "Azure Architect" --
 deepr expert consult "Which assumption is weakest?" --expert "Azure Architect" --plan claude
 ```
 
-Standalone metered expert chat is hard-gated in v2.40. Local and safety-eligible
+Standalone metered expert chat is hard-gated. Local and safety-eligible
 explicit plan MCP query and bounded consult surfaces remain available. Claude
 Code is the current executable plan example; see `deepr capacity` for typed
 adapter decisions.
@@ -490,8 +494,8 @@ consume the costs recorded in the workbook.
 ### Gated Agentic Chat Design
 
 The disabled interactive design includes slash commands, chat modes, and
-research triggers. CLI, web, and MCP API chat fail before provider dispatch in
-v2.36; the capabilities below do not authorize metered execution.
+research triggers. CLI, web, and MCP API chat fail before provider dispatch;
+the capabilities below do not authorize metered execution.
 
 **Chat Modes** control how the expert responds:
 
@@ -541,7 +545,7 @@ turns or see one another's output. The CLI form emits a versioned
 API council synthesis retains its separate bounded cost contract for
 compatibility, including the transaction ceiling and 10 percent synthesis
 sub-ceiling, but production dispatch is blocked before provider construction in
-v2.40. Consent and a positive budget do not lift that quarantine. `--local` and
+the current release. Consent and a positive budget do not lift that quarantine. `--local` and
 `--plan <id>` use owned or explicit plan-quota synthesis and disable live
 metered expert fallback when stored belief context is missing.
 The MCP result also exposes `structuredContent` for JSON-object clients while
@@ -663,7 +667,7 @@ review-case shape. It does not judge answer meaning through keyword matching.
 ```
 
 The task-planning contract decomposes work into independent steps and exposes
-live progress. A metered interactive session remains blocked by the v2.40 chat
+live progress. A metered interactive session remains blocked by the chat
 quarantine; the command does not override capacity policy.
 
 **Approval Flows** protect against expensive operations:
@@ -671,7 +675,7 @@ quarantine; the command does not override capacity policy.
 - Moderate operations show a notification with cost
 - Expensive operations (deep research above threshold, council above $3) block until the user approves or denies
 
-These are compatibility policy tiers, not spend authority. The v2.40 production
+These are compatibility policy tiers, not spend authority. The production
 metered-dispatch quarantine wins even after approval.
 
 ### Update Expert Knowledge
@@ -684,7 +688,7 @@ deepr expert learn "Azure Architect" "Azure AI Agent Service 2026" --plan claude
 # Fill knowledge gaps proactively (ranked by EV/cost ratio)
 deepr expert route-gaps "Azure Architect" --execute --scheduled --top 3
 
-# Direct API resume is gated in v2.36; saved progress remains intact.
+# Direct API resume is gated; saved progress remains intact.
 
 # Absorb a completed report into permanent beliefs (verification-gated, deduped)
 # The free word-overlap heuristics only ROUTE; a cheap model verdict concludes -
@@ -706,7 +710,7 @@ deepr expert reflect "Azure Architect" <job_id> --depth 2 --scheduled
 ```
 
 API `fill-gaps`, provider-backed refresh or synthesis, and API compiled-claim
-sync fail closed in v2.36. Use local or explicit plan-quota expert paths.
+sync fail closed. Use local or explicit plan-quota expert paths.
 
 ### Knowledge Maintenance
 
@@ -940,7 +944,7 @@ deepr expert absorb-okf "Existing Expert" ./okf/azure-architect --dry-run
 
 ## Vector Store Management
 
-New provider vector-store creation and research attachment are gated in v2.36
+New provider vector-store creation and research attachment are gated
 until their full storage lifecycle is priced. Existing stores from earlier
 releases can still be inspected and explicitly cleaned up.
 
@@ -994,7 +998,7 @@ deepr prep status <plan-id>
 ```
 
 These status and pause records remain readable. New metered execution is gated
-before provider work in v2.36.
+before provider work.
 
 ## Safe Eval Workflow
 
@@ -1094,11 +1098,11 @@ deepr eval calibrate --from data/calibration/graded.jsonl   # $0, grades existin
 
 ```
 
-Non-dry `deepr eval new` and live provider benchmarks are gated in v2.36.
+Non-dry `deepr eval new` and live provider benchmarks are gated.
 Local, local-context, saved-artifact, and explicit CLI-judge evaluation paths
 above remain available under their documented capacity rules.
 
-Paid `deepr eval calibrate --corpus` is gated in v2.36 pending the shared
+Paid `deepr eval calibrate --corpus` is gated pending the shared
 durable transaction. Continue to use `--from` with existing graded pairs at
 `$0`.
 
@@ -1136,7 +1140,7 @@ Capacity source status:
 | Source | Status | Notes |
 |---|---|---|
 | Local Ollama | Execution works for local expert setup, local sync, deep/fresh local context, local absorb, local eval, local context eval, and scored admission | `$0` marginal cost, quality-gated before automatic routing |
-| OpenAI, Gemini, Grok, Anthropic, Azure APIs | Write-free request preview and offline billing reconciliation work for supported finite envelopes | Production metered dispatch is blocked in v2.40 until authenticated account controls and current credential identity are proven; every supported spend source must use the canonical ledger |
+| OpenAI, Gemini, Grok, Anthropic, Azure APIs | Write-free request preview and offline billing reconciliation work for supported finite envelopes | The attended absorb transaction still requires authenticated prepaid-no-overage or hard-stop proof plus a funded wallet and job ceiling; other production metered dispatch remains blocked; every supported spend source must use the canonical ledger |
 | Codex, Claude Code, OpenCode, Antigravity, Grok Build, Kiro, and other plan CLIs | Claude Code execution works behind auth-mode, tool-confinement, live no-overage, and no-surprise-bills gates; the other adapters remain visible/read-only | Automatic plan routing also requires a trusted remaining-quota observation; metered-at-margin Copilot remains execution-blocked |
 | CLI judge for local eval | Quarantined compatibility surface | Even `--allow-cli-judge` exits before process creation because billing source, overage posture, and total cost cannot be proven |
 
@@ -1144,7 +1148,7 @@ Local-model execution runs quality-tolerant steps at $0 against a local Ollama
 endpoint. Force it with `--local`, choose explicit plan-quota capacity with
 `--plan <id>`, or admit a local model so maintenance uses owned capacity.
 Metered API overrides for the gated expert lifecycle surfaces do not dispatch
-in v2.40:
+in the current release:
 
 ```bash
 deepr expert make "Platform Team Expert" --local -d "Platform engineering knowledge"
@@ -1284,7 +1288,7 @@ that preview before launching due subscription syncs. `route-gaps --execute
 --scheduled` now gives gap-fill sweeps the same no-surprise-spend wait behavior.
 `expert reflect --scheduled` waits before reflection evaluation and follow-up
 research until owned/prepaid evaluator capacity exists. A one-off metered
-reflection remains gated in v2.36. `expert health-check --scheduled` adds an action plan, and
+reflection remains gated. `expert health-check --scheduled` adds an action plan, and
 `--archive-stale --scheduled` waits for confirmation instead of prompting or
 mutating unless `--yes` is explicit. These scheduled wait/action-plan payloads
 append `ExpertLoopRun` snapshots, include `loop_run` JSON, and are published as
@@ -1615,11 +1619,11 @@ deepr --help       # Full help
 
 ```bash
 deepr research     # Exact write-free preview; production metered dispatch is blocked
-deepr learn        # Metered multi-phase execution gated in v2.36
-deepr team         # Metered multi-perspective execution gated in v2.36
-deepr check        # Legacy metered completion gated in v2.36
-deepr make docs    # Legacy metered completion gated in v2.36
-deepr make strategy # Legacy metered completion gated in v2.36
+deepr learn        # Metered multi-phase execution gated
+deepr team         # Metered multi-perspective execution gated
+deepr check        # Legacy metered completion gated
+deepr make docs    # Legacy metered completion gated
+deepr make strategy # Legacy metered completion gated
 deepr expert       # Domain expert management
 deepr skill        # Expert skill management
 ```

@@ -70,6 +70,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Corrected GPT-5.6 Terra and Luna from preview-era token rates to the current
   official GA rates: Terra is `$2.50/$0.25/$15` and Luna is
   `$1/$0.10/$6` per MTok in input, cached-input, and output order.
+- Reconciled the current README, roadmap, architecture, capacity, quick-start,
+  features, expert, MCP, supported-surface, model, council, vision, and threat
+  model guides with the v2.49 contract. They now distinguish a complete but
+  execution-blocked attended transaction from a shipped provider verifier,
+  classify wallet authority separately from provider credit, remove stale
+  release-gate labels, and use the current provider model defaults.
 
 ## [2.48.0] - 2026-08-13
 

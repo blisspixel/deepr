@@ -1,6 +1,6 @@
 # Three Expert Council And Learning Workflow
 
-Status: works-now guide, verified against the CLI on 2026-07-29. The one-shot
+Status: works-now guide, reviewed on 2026-08-13. The one-shot
 consult is stable. The deeper local investigation surface is experimental and
 has not passed its semantic-quality promotion gate.
 
@@ -256,15 +256,18 @@ also accepts an explicit safety-eligible plan backend. API-shaped compatibility
 inputs return a typed block before consult transaction or provider construction;
 legacy consent booleans cannot lift the production quarantine.
 
-This is a current-period ceiling, not a lifetime wallet. The daily and monthly
-windows reset. Deepr does not yet ship a reusable parent budget spanning an
-arbitrary list of shell commands. Keep the period caps in place for the whole
-experiment and stop before their reset boundary. Local `--budget 0` work remains
-the safest way to prepare experts without consuming that allowance.
+These are current-period ceilings, not the cumulative wallet. Daily and monthly
+windows reset. `deepr budget credits add` separately funds one persistent
+drawdown across attended metered calls and active holds. Neither mechanism is a
+reusable parent budget spanning arbitrary shell commands. Keep the period caps
+in place for the whole experiment and stop before their reset boundary. Local
+`--budget 0` work remains the safest way to prepare experts without consuming
+wallet or calendar allowance.
 
 `deepr budget set 5` is a monthly approval policy. It is not a substitute for
-the hard environment caps above. A command-level `--budget` is also a ceiling
-for that one command, not a shared budget across an arbitrary shell script.
+the hard environment caps above or a funded wallet. A command-level `--budget`
+is also a ceiling for that one command, not a shared budget across an arbitrary
+shell script.
 
 For the strongest no-bill posture, use explicit `--local --budget 0`. A
 safety-eligible `--plan` path records `$0` in Deepr but consumes subscription
@@ -403,7 +406,7 @@ which credential the CLI will use. `deepr capacity refresh-quota claude --json`
 is a metadata-only `$0` check; `deepr capacity probe-plan claude --json` consumes
 one subscription request only after the same live overage proof.
 
-The legacy API command shape is not runnable in v2.40. Even with a budget and
+The legacy API command shape is not runnable. Even with a budget and
 confirmation, it exits before provider construction. Use the local or eligible
 plan command above. To inspect a provider request envelope without spending:
 

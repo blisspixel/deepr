@@ -1,6 +1,6 @@
 # Deepr Threat Model
 
-Status: current with Deepr v2.40.0. Last reviewed: 2026-07-29.
+Status: current with Deepr v2.49.0. Last reviewed: 2026-08-13.
 
 This document is the repository-scoped threat model for Deepr. It is intended
 for security reviews, design reviews, and future bug discovery. It should stay
@@ -46,8 +46,9 @@ Assets and privileges that matter:
 
 - Provider API keys, plan CLI sessions, MCP scoped keys, web API tokens, and
   local environment variables.
-- Metered provider budget, daily/monthly limits, prepaid plan quota, local GPU
-  time, and any quota-consuming external CLI calls.
+- Metered provider budget, cumulative Deepr wallet state, per-job and calendar
+  ceilings, durable paid holds, prepaid plan quota, local GPU time, and any
+  quota-consuming external CLI calls.
 - Expert memory: profiles, belief event logs, graph state, temporal edges,
   hypotheses, stances, original ideas, self-model records, consult traces, and
   loop records.
@@ -302,6 +303,10 @@ Relevant attacker stories:
   to consume only included quota becomes a billed call.
 - Another application or compromised shared credential creates provider spend
   that is absent from Deepr's local ledger.
+- A caller treats a funded local wallet as proof that an open postpaid provider
+  account cannot exceed that amount.
+- Concurrent requests reserve more than the remaining wallet, a calendar reset
+  recreates wallet authority, or a top-up silently discards earlier drawdown.
 - A locally constructed account-control file claims a hard provider limit or
   disabled overage without authenticated provider evidence.
 - A forged, oversized, or secret-bearing provider identifier enters cost
@@ -329,6 +334,12 @@ Existing controls:
   read. Central metered wrappers preserve bounded provider HTTP request and
   object identifiers without recording prompts, responses, credentials, or
   endpoints.
+- `src/deepr/core/spend_wallet.py` stores exact integer-cent cumulative local
+  authority. Funding is additive, settlement and active holds draw down one
+  wallet across provider and calendar boundaries, and there is no overdraft,
+  automatic refill, or rollover. Reservation admission is serialized with
+  wallet state and binds each hold to the wallet identity. Missing, corrupt,
+  replaced, exhausted, or rollback-inconsistent wallet state authorizes zero.
 - `src/deepr/backends/plan_quota/safety.py` and plan-quota adapters enforce
   auth-mode, stored-provider provenance, native-tool posture, marginal-cost,
   and no-surprise-bills decisions before explicit plan launches. Claude is the
@@ -356,20 +367,24 @@ Existing controls:
   applied evidence, and freezes on non-clean or failed apply. Paid account
   evidence is non-authoritative unless a provider-specific authenticated source
   verifier and current account, scope, and credential resolver both succeed.
-  Neither production adapter is installed in v2.40, so metered dispatch remains
-  blocked.
+  No production provider account-control adapter is installed in v2.49, so
+  metered dispatch remains blocked. A funded Deepr wallet cannot change that
+  result: it is local spend authority, not proof that provider overage is
+  impossible.
 - Image generation auto-selects only local `$0` image endpoints by default.
   Premium image APIs require explicit provider choice or the single premium
   auto opt-in.
 
 Security invariant:
 
-Budget is a hard ceiling, not a suggestion. Any path that can spend money or
+Budgets and wallet credits are hard ceilings, not suggestions. Any path that can spend money or
 consume scarce external quota must estimate before dispatch, require explicit
 operator intent for premium paths, record usage afterward, and fail closed when
-cost cannot be bounded. Production paid dispatch also requires authenticated
-provider-side account control bound to the active credential. This invariant
-applies to Deepr-controlled dispatch; a
+cost cannot be bounded. A local wallet is necessary authorization for the
+attended metered path but never proof of provider funds or provider-side safety.
+Production paid dispatch also requires authenticated provider-side prepaid or
+hard-stop control bound to the active credential. The tighter boundary wins.
+This invariant applies to Deepr-controlled dispatch; a
 provider-side hard limit, disabled paid overage, scoped credential, monitored
 alert, and billing reconciliation are required for account-wide protection.
 

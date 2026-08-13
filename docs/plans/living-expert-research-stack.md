@@ -1,6 +1,6 @@
 # Implementation plan: living expert research stack
 
-Status: active plan, 2026-08-05.  
+Status: active plan, 2026-08-05.
 **Order of operations is mandatory.** Later steps assume earlier steps are done
 or explicitly skipped with a written reason.
 
@@ -63,7 +63,7 @@ Complete each step (or mark N/A with reason) before starting the next.
 | 0.3 | ROADMAP points here | Unreleased section links design + plan; no loose "next" without order |
 | 0.4 | INTEGRATIONS points here | Living-expert paragraph present |
 
-**Depends on:** nothing.  
+**Depends on:** nothing.
 **Status:** done for 0.1-0.4 once this revision lands.
 
 ### Step 1 - Inventory honesty and trust (so depth is not wasted)
@@ -76,7 +76,7 @@ Complete each step (or mark N/A with reason) before starting the next.
 | 1.4 | Quality scorecard | `expert quality` grades circularity, multi-source, origins |
 | 1.5 | Improve orchestrator | `expert improve` emits ordered operator steps |
 
-**Depends on:** Step 0.  
+**Depends on:** Step 0.
 **Status:** done (prior work in this track).
 
 ### Step 2 - Deepen path recipes (corpus before more features)
@@ -88,7 +88,7 @@ Complete each step (or mark N/A with reason) before starting the next.
 | 2.3 | Improve points at deepen-plan | Operator-required steps include deepen-plan + digest |
 | 2.4 | Tests | Unit tests for digest sections + deepen-plan |
 
-**Depends on:** Step 1.  
+**Depends on:** Step 1.
 **Status:** done for 2.1-2.4.
 
 ### Step 3 - Diverse council composition (this slice)
@@ -101,7 +101,7 @@ Complete each step (or mark N/A with reason) before starting the next.
 | 3.4 | Diversity contract | Plan requires multi-axis roles, not N clones of the same domain |
 | 3.5 | Tests | Schema + diversity constraints + CLI smoke |
 
-**Depends on:** Step 2 (operators can deepen after make).  
+**Depends on:** Step 2 (operators can deepen after make).
 **Status:** done for 3.1-3.5 (`expert council-plan`, diversity gate, design, tests).
 
 ### Step 3.5 - Decide the ingestion shape (**blocking gate, decide before 4.1**)
@@ -262,22 +262,22 @@ measurements.
 
 When using the system on a real idea (example: NephMesh README review):
 
-1. **Compose** diverse council  
-   `deepr expert council-plan --from-file README.md --local`  
+1. **Compose** diverse council
+   `deepr expert council-plan --from-file README.md --local`
    (or paste goal text)
 2. **Review** roster axes (must span more than "domain expert x N")
-3. **Make** each expert  
+3. **Make** each expert
    `deepr expert make "..." --local -d "..."`
-4. **Deepen** each (or critical subset first)  
-   `deepr expert deepen-plan "..." --query "..."`  
+4. **Deepen** each (or critical subset first)
+   `deepr expert deepen-plan "..." --query "..."`
    then Distill no-metered + absorb secondary
-5. **Stance** (optional project intent)  
+5. **Stance** (optional project intent)
    absorb intent as **primary** only on hybrid/stance roles
-6. **Digest + quality**  
+6. **Digest + quality**
    `digest` + `quality` until multi-source up, circularity down
-7. **Consult** with explicit roster and a **challenge** question  
+7. **Consult** with explicit roster and a **challenge** question
    include diverse perspectives; ask what README/roadmap miss
-8. **Improve**  
+8. **Improve**
    `improve` -> fill gaps -> re-deepen -> re-consult
 
 Do not consult before step 4 if you need non-generic depth. Empty or

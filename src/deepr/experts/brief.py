@@ -197,8 +197,8 @@ def _as_list(value: Any) -> list[str]:
 
 _TYPOGRAPHY = str.maketrans(
     {
-        "–": "-",
-        "—": "-",
+        "\u2013": "-",
+        "\u2014": "-",
         "‘": "'",
         "’": "'",
         "“": '"',

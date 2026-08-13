@@ -6,7 +6,7 @@
 
 Transform research from isolated queries into cumulative understanding. Build systems that learn and improve over time.
 
-## Current State (v2.40.0)
+## Current State (v2.49.0)
 
 What works today:
 - Write-free bounded provider-research preview and offline billing
@@ -15,8 +15,8 @@ What works today:
 - Local Ollama and explicit non-metered plan-quota expert maintenance.
 - Persistent expert beliefs, gaps, provenance, temporal state, generated views,
   and portable handoff artifacts.
-- One-shot local, explicit plan, and separately bounded API expert councils with
-  dissent preservation and proposal-only authority.
+- One-shot local and explicit plan expert councils with dissent preservation
+  and proposal-only authority. API synthesis remains contract-only and blocked.
 - An eval-only structured local consult graph with frozen expert snapshots,
   independent positions, exact completion accounting, and one require-all
   synthesis. It does not replace the public consult or MCP contracts.
@@ -28,7 +28,7 @@ What works today:
 
 Automatic paid fallback, hosted file/vector context, metered multi-call
 campaigns, standalone metered expert chat, and every production metered
-dispatch fail closed in v2.40. [Supported Surface](SUPPORTED_SURFACE.md) is the
+dispatch fail closed in the current release. [Supported Surface](SUPPORTED_SURFACE.md) is the
 current capability contract; the sections below describe direction and existing
 substrate, not permission to use a gated runtime path.
 
