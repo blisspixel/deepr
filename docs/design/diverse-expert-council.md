@@ -1,7 +1,7 @@
 # Diverse expert councils (meaningful multi-perspective review)
 
-Status: design + CLI shipped (scaffold + optional --local composition), 2026-08-05.  
-Plan order: Step 3 in [../plans/living-expert-research-stack.md](../plans/living-expert-research-stack.md).  
+Status: design + CLI shipped (scaffold + optional --local composition), 2026-08-05.
+Plan order: Step 3 in [../plans/living-expert-research-stack.md](../plans/living-expert-research-stack.md).
 Parent: [exceptional-expert-quality.md](exceptional-expert-quality.md).
 
 CLI: `deepr expert council-plan [GOAL] [--from-file PATH] [--local] [--roles N]`

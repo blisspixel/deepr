@@ -99,13 +99,14 @@ Pricing notes:
 - Run `deepr providers models` or `python scripts/discover_models.py` only when
   you intentionally want live provider model-list checks. API discovery lists
   model names only; most provider APIs do not expose pricing.
-- `python scripts/discover_models.py --llm` is gated in v2.40 before any model
+- `python scripts/discover_models.py --llm` is gated before any model
   call. Restore it only with an exact estimate, explicit approval, durable
   reservation, and canonical settlement.
 - Use `deepr research ... --dry-run` or the web preflight estimate before any
   metered research.
 - Prefer local Ollama and admitted plan-quota capacity for routine maintenance.
-  Metered APIs are preview-only in v2.40. Budget gates remain necessary but do
+  Metered APIs are preview-only outside the narrow attended absorb transaction.
+  Budget gates remain necessary but do
   not authorize production dispatch.
 - Premium image generation is never a background default. Deepr only
   auto-selects local image endpoints for portraits; OpenAI, Gemini, and xAI
@@ -352,12 +353,12 @@ Manual verification:
 
 | Workload | Preferred capacity order | Notes |
 |----------|--------------------------|-------|
-| Scheduled expert maintenance | Local admitted model, then observed non-metered plan quota | Background loops wait or stop when owned capacity is unavailable; automatic and explicit metered maintenance are gated in v2.40. |
+| Scheduled expert maintenance | Local admitted model, then observed non-metered plan quota | Background loops wait or stop when owned capacity is unavailable; automatic and explicit metered maintenance are gated. |
 | Quick lookup or lightweight synthesis | Cheapest capable registered model from configured provider, or local/plan backend if admitted | Keep quality floor and budget estimate visible. |
 | Large inline prompt analysis | A registered long-context model whose declared request bound fits its context window | Hosted file and vector context is gated; preview the complete inline envelope. |
 | Deep research | Bounded OpenAI or Azure OpenAI research envelopes | Gemini managed research, xAI multi-agent, and Azure Foundry agents are registered but gated until their complete run cost is enforceable. |
 | Expert consultation | Local or explicit plan query/consult; metered API council synthesis is preview-only | Production metered dispatch is blocked until authenticated account controls and current credential identity are proven; tools and streaming are not implied. |
-| Portraits and images | Existing portrait or explicit local image endpoint | Paid portrait dispatch is gated in v2.40. |
+| Portraits and images | Existing portrait or explicit local image endpoint | Paid portrait dispatch is gated. |
 
 ## Safe Refresh Workflow
 

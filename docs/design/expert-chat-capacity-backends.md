@@ -1,6 +1,6 @@
 # Expert Chat Capacity Backends
 
-Status: design note, refreshed 2026-07-29.
+Status: design note, refreshed 2026-08-13.
 
 Scope: `deepr expert consult`, `deepr_consult_experts`, `deepr expert chat`,
 `deepr_query_expert`, and browser Socket.IO/REST expert chat.
@@ -18,14 +18,14 @@ but they must not fall through to metered APIs. Paid API paths may be stronger,
 but every request must estimate, reserve, settle, and append to the canonical
 cost ledger.
 
-## Current v2.40 Release Gate
+## Current Release Gate
 
 Every standalone metered `ExpertChatSession` dispatch fails closed before the
-provider call in v2.40. This includes `deepr expert chat`, browser Socket.IO and
+provider call in the current release. This includes `deepr expert chat`, browser Socket.IO and
 REST chat, and `deepr_query_expert backend=api`. Local and explicit plan
 `deepr_query_expert` read-only compiled-context turns remain available. Paid
 council synthesis is also blocked before provider construction. No metered
-expert-chat or council live validation is claimed for v2.40.
+expert-chat or council live validation is claimed.
 
 Restoration is P1 work. The old feature flag and
 `DEEPR_ALLOW_METERED_EXPERT_CHAT` no longer authorize dispatch. Every provider
@@ -71,7 +71,7 @@ contracts below remain design targets, not shipped metered capacity.
   safety-eligible `plan`, and retains `api` only as a compatibility value that
   returns `METERED_API_DISABLED` before consult work.
   MCP `deepr_query_expert` accepts `backend=local|plan` as usable capacity in
-  v2.40; `backend=api` is accepted only to return the fail-closed release gate.
+  the current release; `backend=api` is accepted only to return the fail-closed release gate.
   `local` and `plan` compile the expert handoff state into one read-only no-tool chat turn
   through the owned-capacity backend seam, with live metered fallback disabled,
   no research trigger, and a `readonly_chat_artifact` attached to the result.
@@ -83,21 +83,20 @@ contracts below remain design targets, not shipped metered capacity.
 
 The paid API path cannot be a thin OpenAI wrapper.
 
-- Claude Sonnet 5 and Opus 4.8 use Anthropic's Messages API. Official examples
+- Claude Sonnet 5 and Opus 5 use Anthropic's Messages API. Official examples
   call `client.messages.create(model="claude-sonnet-5", ...)` or
-  `client.messages.create(model="claude-opus-4-8", ...)`.
-- Claude Sonnet 5 and Opus 4.8 support adaptive thinking. Manual extended
+  `client.messages.create(model="claude-opus-5", ...)`.
+- Claude Sonnet 5 and Opus 5 support adaptive thinking. Manual extended
   thinking with a fixed `budget_tokens` is rejected. Use
   `thinking={"type": "adaptive"}` when thinking is needed.
 - Claude Sonnet 5 supports the `effort` parameter. The API default is `high`.
   Deepr can omit it unless a user-facing effort policy is added; any future
   policy must be budget-aware and visible before dispatch.
 - Non-default sampling parameters such as `temperature`, `top_p`, and `top_k`
-  are rejected on Claude Sonnet 5 and Opus 4.8. The Anthropic adapter must omit
+  are rejected on Claude Sonnet 5 and Opus 5. The Anthropic adapter must omit
   them instead of passing Deepr's OpenAI-style `temperature=0.3`.
-- Opus 4.8 has the 1M context window on Claude API, Amazon Bedrock, and Google
-  Cloud. Microsoft Foundry launched it with a 200k context window, so platform
-  matters.
+- Opus 5 is Deepr's current Anthropic research flagship. Registry presence is
+  not execution authority, and platform-specific availability still matters.
 - Prompt caching has separate usage buckets:
   `input_tokens`, `cache_creation_input_tokens`, and
   `cache_read_input_tokens`. Cost settlement must price each bucket separately.
@@ -107,7 +106,7 @@ The paid API path cannot be a thin OpenAI wrapper.
   cache controls until TTL, cache-key, pre-warm, cache-miss, privacy, and budget
   estimators are explicit.
 
-References checked 2026-06-30:
+References checked 2026-08-13:
 
 - Anthropic Claude API primer:
   https://platform.claude.com/docs/en/claude_api_primer
@@ -121,12 +120,8 @@ References checked 2026-06-30:
   https://platform.claude.com/docs/en/build-with-claude/effort
 - Anthropic pricing:
   https://platform.claude.com/docs/en/about-claude/pricing
-- Anthropic Opus 4.8 API migration notes:
-  https://platform.claude.com/docs/en/about-claude/models/whats-new-claude-4-8
 - Anthropic prompt caching:
   https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
-- Anthropic Opus 4.8 announcement:
-  https://www.anthropic.com/news/claude-opus-4-8
 
 ## 2026 Multi-Agent Findings
 
@@ -208,7 +203,7 @@ Backends:
 - `OpenAIExpertBackend`: keeps current OpenAI chat behavior, but moves cost
   settlement and feature declarations behind the common interface.
 - `AnthropicExpertBackend`: native Messages API adapter. It omits unsupported
-  sampling params for Opus 4.8, supports adaptive thinking with explicit effort,
+  sampling params for Opus 5, supports adaptive thinking with explicit effort,
   handles refusal stop details, and prices regular input, cache writes, cache
   reads, and output tokens separately.
 
@@ -264,7 +259,7 @@ Expert chat comes next:
 }
 ```
 
-The following API-chat request is rejected by the v2.36 release gate before
+The following API-chat request is rejected by the current release gate before
 provider dispatch. It documents the intended future contract only:
 
 ```json
@@ -275,7 +270,7 @@ provider dispatch. It documents the intended future contract only:
     "question": "...",
     "backend": "api",
     "provider": "anthropic",
-    "model": "claude-opus-4-8",
+    "model": "claude-opus-5",
     "budget": 1.0,
     "_approved": true
   }
@@ -285,7 +280,7 @@ provider dispatch. It documents the intended future contract only:
 `deepr_query_expert` local and plan modes return the normal query shape plus
 `capacity` and `readonly_chat_artifact`, set `research_triggered=0`, reject
 `agentic=true`, and never fall through to metered APIs. API mode is gated in
-v2.36. Its intended future contract defaults to OpenAI and can be pinned to
+the current release. Its intended future contract defaults to OpenAI and can be pinned to
 non-agentic Anthropic chat with `provider=anthropic` and an Anthropic model only
 after the P1 restoration criteria pass.
 
@@ -293,7 +288,7 @@ after the P1 restoration criteria pass.
 
 The gated browser chat is a distinct public boundary because one
 Socket.IO connection owns interactive session state across turns. Its current
-request shape is intentionally narrower than MCP query chat, but v2.36 rejects
+request shape is intentionally narrower than MCP query chat, but the current release rejects
 it before provider dispatch:
 
 ```json

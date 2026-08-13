@@ -1,8 +1,8 @@
 # Living expert research stack (Distillr + Learny + plan-quota + TKG)
 
-Status: design + active implementation, 2026-08-05.  
-Parent: [exceptional-expert-quality.md](exceptional-expert-quality.md).  
-Implementation plan: [../plans/living-expert-research-stack.md](../plans/living-expert-research-stack.md).  
+Status: design + active implementation, 2026-08-05.
+Parent: [exceptional-expert-quality.md](exceptional-expert-quality.md).
+Implementation plan: [../plans/living-expert-research-stack.md](../plans/living-expert-research-stack.md).
 Integrations baseline: [INTEGRATIONS.md](../INTEGRATIONS.md).
 
 ## Operator ask (compressed)

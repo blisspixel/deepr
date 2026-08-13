@@ -13,7 +13,7 @@ inside Deepr but may consume a subscription quota, monthly credit pool, or
 external credits. Metered APIs cost money and must be estimated, reserved, and
 settled through the canonical ledger.
 
-Metered APIs are explicit premium paths, not an automatic fallback in v2.40. Feature
+Metered APIs are explicit premium paths, not an automatic fallback. Feature
 surfaces that can trigger a distinct paid class, such as image generation, must
 not infer paid execution from a text-model API key alone. Portrait generation
 auto-selects only a local image endpoint. Paid portrait providers are recognized
@@ -30,7 +30,7 @@ asset manifest. An explicit manifest wins over a friendly model alias that may
 drift between Artomate releases. This is still an operator attestation about an
 external executable, not proof that the executable cannot reach a paid service.
 
-API-backed expert profile setup is gated in v2.40 because hosted storage and
+API-backed expert profile setup is gated because hosted storage and
 nested learning calls do not yet share one durable parent reservation. Local
 profile creation through `deepr expert make --local` stays provider-free.
 
@@ -57,7 +57,7 @@ than treating the budget as per expert.
 MCP `deepr_query_expert backend=local|plan` now runs one read-only
 compiled-context turn through owned-capacity chat backends with live metered
 fallback disabled. MCP `deepr_query_expert backend=api` and every standalone
-metered chat path fail closed in v2.40. Full interactive `expert chat` still
+metered chat path fail closed. Full interactive `expert chat` still
 needs the shared per-call transaction before it can honestly claim local, plan,
 tool, streaming, and paid API parity. The implementation plan is
 [expert-chat-capacity-backends.md](design/expert-chat-capacity-backends.md).
@@ -112,7 +112,8 @@ deepr costs alerts
 deepr costs limits
 deepr costs doctor --json
 
-# One attended API drawdown. Wallet credits and the job ceiling are separate.
+# Stage attended authority. Dispatch remains blocked in v2.49 because no
+# production provider account-control verifier ships.
 deepr budget credits add --amount 5.00 --reason "bounded document absorption"
 deepr expert absorb "Platform Team Expert" --file report.md --api --budget 0.30
 deepr costs show
@@ -216,7 +217,7 @@ on non-metered plan capacity they cost `$0` inside Deepr but consume
 subscription quota. A metered-at-margin plan CLI remains visible but cannot
 dispatch until its adapter has deterministic estimation, durable reservation,
 usage settlement, and canonical cost-ledger support. Confirmation flags cannot
-override that boundary. Metered API compiled sync is gated in v2.36 until every
+override that boundary. Metered API compiled sync is gated until every
 nested call uses the shared durable transaction. If the source pack cannot
 be persisted, Deepr
 fails closed and does not absorb the context-grounded answer.
@@ -272,7 +273,7 @@ defines the key. The stored Claude subscription login remains intact. Deepr
 intentionally refuses when the API credential is present rather than guessing
 which authentication path the vendor will charge.
 
-The API judge form is visible but gated in v2.36.
+The API judge form is visible but gated.
 
 Before launch, Deepr removes known metered API-key environment variables for the
 selected adapter and evaluates the sanitized child environment. If the CLI
@@ -387,7 +388,7 @@ deepr expert loop-status "Platform Team Expert" --json
 Scheduled sync consumes `capacity next` guidance. Scheduled gap-fill,
 reflection, and health-check surfaces return wait or action-plan payloads
 instead of starting metered work. Rerunning without `--scheduled` or supplying
-confirmation does not unlock metered gap-fill or reflection in v2.36. Use an
+confirmation does not unlock metered gap-fill or reflection. Use an
 explicit local or trusted plan path where supported; otherwise wait or stop.
 These payloads include durable loop-run records and published schema identifiers.
 
@@ -420,10 +421,10 @@ API work in scheduled mode. `sync-all --plan <id>` and
 
 ## Cost Accounting Rules
 
-- `deepr budget set N` is the shared UTC-month provider-verified ceiling for
-  unattended API work across CLI, web, REST, MCP, scripts, workers, and
-  unrelated commands. A command budget is a narrower child envelope, never
-  permission to exceed N.
+- `deepr budget set N` is the shared local UTC-month approval ceiling across
+  CLI, web, REST, MCP, scripts, workers, and unrelated commands. It is not
+  provider proof and does not authorize a gated path. A command budget is a
+  narrower child envelope, never permission to exceed N.
 - `deepr budget credits add --amount N` adds exact integer-cent authorization
   to the attended CLI wallet after the operator types the amount back. It does
   not transfer provider funds, enable automatic refill, or erase prior wallet

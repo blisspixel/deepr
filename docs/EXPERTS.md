@@ -7,7 +7,7 @@
 Deepr's expert system creates domain experts from documents that can answer
 questions, recognize knowledge gaps, and propose the next bounded research or
 maintenance step. Explicit local and non-metered plan workflows can execute
-documented updates; metered autonomous expert work is gated in v2.40.
+documented updates; metered autonomous expert work is gated.
 Expert learning is not passive document accumulation. New material is processed
 into canonical beliefs, concepts, hypotheses, stance, original ideas,
 provenance refs, temporal graph edges, contradiction signals, gap backlogs, freshness watchlists, and
@@ -162,7 +162,7 @@ records them in the profile. Local creation does not run the API-backed
 `--learn` curriculum; use subscriptions plus `expert sync --local` for $0
 maintenance.
 
-The v2.40 safety gate also blocks provider-backed `expert refresh` and
+The current safety gate also blocks provider-backed `expert refresh` and
 `--synthesize`, API `fill-gaps` including consensus and deep modes, and API
 `expert sync --compile-claims`. Paid `deepr eval calibrate --corpus` is gated;
 `deepr eval calibrate --from` remains a `$0` read of existing graded pairs.
@@ -251,7 +251,7 @@ without calling the model or advancing the subscription cadence.
 
 ### Gated Metered Autonomous Learning
 
-Nonlocal `expert make` and `--learn` fail closed in v2.40 while hosted storage,
+Nonlocal `expert make` and `--learn` fail closed while hosted storage,
 curriculum calls, nested research, and absorption move to one durable parent-run
 budget transaction. Use local profile creation plus local or explicit plan
 maintenance:
@@ -268,7 +268,7 @@ capacity is available. Neither path falls through to a metered API.
 ### Learning Curriculum
 
 The gated `--learn` design uses a synthesis model to generate a curriculum. The
-example below illustrates the intended preview, not a v2.40 dispatchable path:
+example below illustrates the intended preview, not a dispatchable path:
 
 ```
 Learning Curriculum (10 topics):
@@ -285,7 +285,7 @@ Proceed? [y/N]
 
 ## Expert Query and Chat
 
-Standalone metered expert chat remains gated in v2.40. `deepr expert chat`, browser
+Standalone metered expert chat remains gated. `deepr expert chat`, browser
 Socket.IO/REST chat, and `deepr_query_expert backend=api` fail closed before a
 provider dispatch. This release does not claim live metered chat validation.
 Restoration requires durable reserve, dispatch-mark, and settlement for every
@@ -302,7 +302,7 @@ MCP hosts can also call `deepr_query_expert` with explicit `backend=local` or
 `backend=plan`. These modes compile stored expert context into one read-only,
 no-tool turn and never fall through to a metered API. API council synthesis
 exposes bounded contract inputs only; production metered dispatch is blocked in
-v2.40 even with explicit approval and a positive budget.
+the current release even with explicit approval and a positive budget.
 
 For an agent-host workflow, call `deepr_list_experts`, then choose one of these
 explicit local paths:
@@ -325,7 +325,7 @@ inbound loopback HTTP, scoped-key, and fail-closed outbound-validation posture.
 ### Gated Interactive Design
 
 The interactive design can trigger research when it recognizes knowledge gaps,
-but its metered provider dispatch is disabled in v2.40:
+but its metered provider dispatch is disabled:
 
 ```
 You: How should we handle OneLake security for multi-tenant SaaS?
@@ -345,7 +345,7 @@ Expert: "Based on my research, there are three approaches:
 ### Intended Metered Research Tiers
 
 These tiers describe the gated interactive design. They do not dispatch through
-a provider API in v2.40. Use local or safety-eligible plan capacity for current
+a provider API. Use local or safety-eligible plan capacity for current
 execution and write-free preview for paid request envelopes.
 
 | Tier | Cost posture | Use Case |
@@ -362,7 +362,7 @@ time ranges.
 ### Gated Slash Commands and Chat Modes
 
 The interactive design includes 27 slash commands (use `/` in web, `\` in
-CLI). These commands do not authorize a metered provider dispatch in v2.40.
+CLI). These commands do not authorize a metered provider dispatch.
 Chat modes describe the intended expert behavior:
 
 - **`/ask`** - Quick answers from knowledge base only
@@ -388,7 +388,7 @@ Expensive operations require approval before proceeding. The system uses three t
 | Notify | Shows cost, proceeds unless budget critically low | Deep research under $1 |
 | Confirm | Blocks until user approves or denies | Deep research over $1, council over $3 |
 
-These compatibility policy tiers are not spend authority. The v2.40 production
+These compatibility policy tiers are not spend authority. The production
 metered-dispatch quarantine wins even after approval. In the web UI,
 confirmation appears as an inline card in the chat. In CLI, it is a simple y/n
 prompt.
@@ -406,7 +406,7 @@ The system suggests compaction automatically after 30+ messages or when estimate
 
 ## Preview a Curriculum
 
-API curriculum `expert plan` is gated in v2.40. It cannot yet bind curriculum
+API curriculum `expert plan` is gated. It cannot yet bind curriculum
 generation and every resulting call to one durable run ceiling. Use the `$0`
 structural navigator instead:
 
@@ -454,12 +454,12 @@ result to every belief.
 deepr expert route-gaps "Azure Architect" --execute --scheduled --top 3
 ```
 
-API `fill-gaps`, including consensus and deep modes, fails closed in v2.40.
+API `fill-gaps`, including consensus and deep modes, fails closed.
 Use `route-gaps --execute` with local or explicit plan-quota capacity.
 
 ### Resume Paused Learning
 Saved progress remains intact, but direct API `deepr expert resume` fails closed
-in v2.40 pending the shared durable transaction. Continue maintenance through
+pending the shared durable transaction. Continue maintenance through
 local or explicit plan-quota sync while the resume path is migrated.
 
 ### Absorb a Report into Knowledge
@@ -488,7 +488,7 @@ deepr expert absorb "Azure Architect" <job_id> --min-confidence 0.7 --budget 0.1
 Self-evaluate a report against its question before relying on or absorbing it:
 scores grounding, completeness, calibration, and directness, then returns a
 verdict (accept / revise / re-research) with issues and follow-up queries. A
-natural pre-step to `absorb`. Normal metered reflection fails closed in v2.40;
+natural pre-step to `absorb`. Normal metered reflection fails closed;
 the scheduled capacity waterfall can run on admitted local or trusted explicit
 plan capacity, or return a wait payload without spending.
 ```bash
@@ -966,7 +966,7 @@ Multiple layers prevent runaway costs:
 
 ### Per-Session Limits
 
-The v2.40 fail-closed gate overrides metered chat session settings. Local and
+The fail-closed gate overrides metered chat session settings. Local and
 explicit plan read-only query turns remain available. A future restored session
 must reserve its full approved ceiling before every call, mark dispatch
 durably, settle every outcome, bound output, charge auxiliaries to the same
@@ -983,7 +983,7 @@ production-frozen metered path.
 
 ### Pause/Resume
 When learning hits limits, progress is saved. Direct API resume fails closed in
-v2.40 while its durable transaction is migrated; saved progress is not deleted.
+while its durable transaction is migrated; saved progress is not deleted.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md#security) for full budget protection details.
 
@@ -1050,7 +1050,7 @@ estimated_cost = domain velocity lookup (fast=$0.25, medium=$1.00, slow=$2.00)
 
 Higher-ratio gaps are filled first, making `expert route-gaps --execute --top N`
 a rational allocation rather than arbitrary ordering. The legacy metered API
-`expert fill-gaps` command fails closed in v2.40; local and explicit plan routes
+`expert fill-gaps` command fails closed; local and explicit plan routes
 remain available.
 
 ### Decision Records
@@ -1085,7 +1085,7 @@ The manifest includes computed properties: `claim_count`, `open_gap_count`, `avg
 ### Continuous Learning
 
 Local and explicit plan maintenance can re-synthesize new knowledge.
-Provider-backed `expert refresh` and `--synthesize` are gated in v2.40 pending
+Provider-backed `expert refresh` and `--synthesize` are gated pending
 the shared durable parent-run budget transaction.
 
 ### Expert Council
@@ -1108,7 +1108,7 @@ deepr expert consult "Which assumption is weakest?" --expert "Tech Architect" --
 Current expert perspectives are stored-state reads and make zero model calls.
 Local and eligible explicit plan synthesis record `$0` in Deepr. API mode keeps
 bounded provider, model, consent, and budget inputs for compatibility, but
-production metered synthesis is blocked before provider construction in v2.40.
+production metered synthesis is blocked before provider construction.
 A positive budget cannot override that quarantine. Plan CLIs can still consume
 external quota, credits, or vendor-side metered credentials that Deepr cannot
 distinguish, so only safety-eligible adapters pass the no-overage gate.
@@ -1322,7 +1322,7 @@ complete input, context, control, and staged-apply workflow.
 
 - Early-stage software - more testing needed
 - Vector search quality depends on document quality
-- Standalone metered agentic chat is gated in v2.40; local and plan read-only
+- Standalone metered agentic chat is gated; local and plan read-only
   turns cannot launch research.
 - Deliberation and consult traces are derived proposal artifacts, not authority
   to spend, call tools, or write beliefs.

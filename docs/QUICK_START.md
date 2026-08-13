@@ -12,9 +12,11 @@ write-free and make no paid request.
   non-metered plan CLI
 - An API key only when intentionally running supported live credential checks
 
-Local and explicit plan expert workflows do not require an API key. Production
-API research is blocked in v2.40 even when pricing, tools, output, and context
-can be bounded. The paid surface is preview-only.
+Local and explicit plan expert workflows do not require an API key. General
+production API research remains blocked even when pricing, tools, output, and
+context can be bounded. The only complete metered transaction is attended
+expert absorption, and it remains unavailable until a shipped provider adapter
+proves prepaid-no-overage or an authenticated hard stop for the active account.
 
 ---
 
@@ -88,8 +90,10 @@ deepr budget set 5
 ```
 
 Keep the binding monthly ceiling at $5 or less and use a smaller per-job
-ceiling for each previewed request. A budget ceiling can block excess spend;
-it never authorizes a paid call.
+ceiling for each previewed request. Preview does not need wallet funding and
+does not create a reservation. A wallet, calendar ceilings, and job ceilings
+are independent. None of them buys provider credits or proves that provider
+overage is disabled.
 
 ### Preview One Bounded Job
 
@@ -102,10 +106,13 @@ This will:
 2. Validate whether the provider, model, tools, and payload have a finite envelope.
 3. Make no provider request and write no paid result.
 
-Production metered dispatch is blocked in v2.40 until a provider-specific
+General production metered dispatch is blocked until a provider-specific
 authenticated account-control verifier and current account, scope, and
 credential resolver are installed. A budget or local evidence file cannot
-remove that block. Local and safety-eligible plan workflows remain available.
+remove that block. The attended absorb transaction additionally requires a
+funded wallet, a finite job ceiling, and provider-authenticated prepaid or hard
+stop evidence. No such production account-control adapter ships today. Local
+and safety-eligible plan workflows remain available.
 
 ---
 
@@ -117,7 +124,7 @@ remove that block. Local and safety-eligible plan workflows remain available.
 deepr research --auto --batch queries.txt --preview
 ```
 
-Metered batch and multi-phase execution are gated in v2.40 until every nested
+Metered batch and multi-phase execution are gated until every nested
 call belongs to one durable parent reservation.
 
 ### Create a Domain Expert
@@ -175,7 +182,7 @@ deepr expert sync "Web Dev Expert" --local --fresh-context -y
 ```
 
 Standalone metered expert chat and unsafe metered expert lifecycle commands are
-gated in v2.40. Local, explicit plan-quota, scheduled, dry-run, history-only,
+gated. Local, explicit plan-quota, scheduled, dry-run, history-only,
 and graded-file paths remain available where the command supports them.
 
 Use `deepr expert next NAME` to inspect safe follow-up actions. No local or plan
@@ -218,7 +225,8 @@ deepr doctor --skip-connectivity
 | Local expert setup and maintenance | `$0` provider cost | Works with local capacity |
 | Explicit plan expert maintenance and consult | `$0` Deepr ledger cost; consumes external plan quota | Works for supported non-metered adapters |
 | Local expert consult | `$0` provider cost | Works |
-| Any metered API dispatch | No dispatch | Gated in v2.40 pending authenticated account controls |
+| Attended API expert absorption | Complete transaction, but no provider dispatch with the adapters shipped today | Requires a funded cumulative wallet, finite job ceiling, explicit confirmation, and authenticated provider prepaid-no-overage or hard-stop proof |
+| Other metered API dispatch | No dispatch | Gated pending complete transaction ownership and authenticated account controls |
 
 `deepr budget set <amount>` controls monthly approval behavior and binds
 `deepr run`, `deepr research`, and MCP research. For an authoritative hard

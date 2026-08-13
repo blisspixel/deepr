@@ -125,13 +125,6 @@ must not be described as usable capacity.
 ## Experimental But Usable
 
 - Web dashboard and dashboard APIs.
-- Attended OpenAI report absorption through `deepr expert absorb --api`. It
-  requires `deepr budget credits add`, a typed amount confirmation, explicit
-  per-call consent, a separate finite caller budget, durable
-  reserve and settlement, and an exact Deepr-owned client binding. The client
-  uses the official endpoint with zero hidden retries, no redirects, no ambient
-  proxy configuration, and an exact credential fingerprint and priced model.
-  The local wallet is ignored by MCP and refused by scheduled or loop execution.
 - Expert councils, task planning contracts, and approval flows. Standalone
   metered expert chat is gated as described under Visible Or Planned Only.
 - `deepr eval consult --structured-local` is an eval-only owned-local graph. It
@@ -188,7 +181,7 @@ must not be described as usable capacity.
   uses `/.well-known/agent-card.json` with `/.well-known/agent.json` as a
   compatibility alias and advertises `deepr_consult_experts`; completed consult
   tasks attach the full `deepr-consult-v1` payload. The adapter defaults to
-  local no-metered synthesis. API synthesis is production-frozen in v2.40.
+  local no-metered synthesis. API synthesis is production-frozen.
   Legacy consent flags and a positive budget remain necessary contract inputs
   but cannot authorize provider dispatch. No `deepr a2a serve` command is
   shipped, task state is not restart-durable, and the custom model is not an
@@ -210,7 +203,7 @@ must not be described as usable capacity.
   public failure copy, safe loop-status inspection argv, explicit non-metered
   `--plan <id>` override, and admitted quota-observed plan dispatch when the
   waterfall selects one). Automatic and explicit metered sync-all execution is
-  gated in v2.36; dry-run remains available. The command also preserves
+  gated; dry-run remains available. The command also preserves
   `would_sync` as a distinct preview state and returns a versioned empty-roster
   completion with a structured local create-expert action. Read-only preflight
   blocks unreadable profile or subscription state before capacity selection,
@@ -283,7 +276,7 @@ must not be described as usable capacity.
   no-metered single-expert consult; `deepr_query_expert` also supports explicit
   `backend=local|plan` as a read-only compiled-context chat turn with
   `readonly_chat_artifact`, `research_triggered=0`, and no live metered fallback.
-  In v2.40, `deepr_query_expert backend=api` and every other standalone
+  `deepr_query_expert backend=api` and every other standalone
   metered `ExpertChatSession` path fail closed before provider dispatch. Local
   and explicit plan read-only query turns are unchanged. API council synthesis
   is a separate compatibility surface whose final synthesis is also blocked.
@@ -297,7 +290,7 @@ must not be described as usable capacity.
   or graph write authority. The dormant API contract retains a complete
   transaction ceiling and a 10 percent synthesis sub-ceiling, but production API
   council synthesis is blocked by the authenticated provider-account authority
-  gate in v2.40. This contract does not authorize dispatch. CLI
+  gate. This contract does not authorize dispatch. CLI
   `--output` explicitly saves the full artifact; no separate full artifact path
   is written by default.
   Experimental CLI `deepr expert investigate` is a distinct local-only
@@ -568,6 +561,14 @@ must not be described as usable capacity.
 
 ## Visible Or Planned Only
 
+- Attended OpenAI report absorption through `deepr expert absorb --api` has a
+  complete wallet, job reservation, exact-client, dispatch, and settlement
+  transaction, but no production provider account-control verifier ships in
+  v2.49. It therefore fails before provider construction even after
+  `deepr budget credits add`, typed amount confirmation, and explicit per-call
+  consent. Reclassify it as experimental only after authenticated evidence can
+  prove prepaid-no-overage or a provider hard stop for the active credential.
+  The local wallet is ignored by MCP and refused by scheduled or loop execution.
 - `deepr eval local` retains `--judge-cli`, `--judge-command`, and
   `--allow-cli-judge` for compatibility, but every CLI judge request exits
   before process creation. Deepr cannot prove the external CLI's billing source,
@@ -610,7 +611,7 @@ must not be described as usable capacity.
   proof, conservative identity mismatch handling, cancellation settlement,
   canonical-ledger idempotency, concurrency, and ledger-failure regressions.
   Local and explicit plan read-only query is shipped and unaffected.
-- Unsafe metered expert lifecycle surfaces also fail closed in v2.40:
+- Unsafe metered expert lifecycle surfaces also fail closed:
   nonlocal `expert make` and `--learn`, API curriculum `expert plan`,
   provider-backed `expert refresh` and `--synthesize`, `expert resume`, normal
   metered `expert reflect` and MCP `deepr_reflect`, API `fill-gaps` including
@@ -633,6 +634,15 @@ must not be described as usable capacity.
   marginal-cost, or process-safety gates.
 - Multi-account capacity pools are planned after a single-account mechanism is
   complete.
+- Agent Plugin 1.0.0 packaging is planned against the current working-draft
+  specification at <https://agent-plugins.org/specification>. A future package
+  must keep code, skills, MCP declarations, configuration, and secrets inside
+  their correct containment and authority boundaries. No Agent Plugin package
+  or conformance claim ships in v2.49.
+- OKF 0.2 migration is planned against
+  <https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf>.
+  Existing Deepr OKF-profile bundles remain derived legacy views, and import
+  remains verification-gated. They are not OKF 0.2 conformance claims.
 - Live hosted-agent registration smoke against a real third-party platform is
   still open.
 - A long-running A2A conversation mapping is not shipped. MCP query and consult
@@ -665,7 +675,7 @@ If development stops, users keep these portable artifacts:
   perspective state, and can be regenerated.
 - Deepr OKF-profile bundles from `deepr expert export-okf`, including
   `index.md`, `log.md`, concept pages, citations, gaps, and contested claims.
-  They are portable Markdown/YAML derived views, but v2.47 does not claim OKF
+  They are portable Markdown/YAML derived views, but v2.49 does not claim OKF
   0.2 conformance.
 - Published JSON Schemas under `docs/schemas/` for handoff, expert self-models,
   metacognitive monitor proposals, reviewed monitor promotion, loop status, OKF
@@ -701,7 +711,7 @@ source text through the verified absorb path.
   blocked because local assertions cannot prove account-side controls. Use a
   dedicated provider project, the smallest available account hard limit or
   disabled paid overage, monitored provider alerts, and regular billing-export
-  reconciliation. Deepr v2.40.0 imports bounded normalized statements offline
+  reconciliation. Deepr imports bounded normalized statements offline
   and freezes on non-clean applied evidence. It does not yet ship an
   authenticated provider verifier or current credential-identity resolver and
   cannot govern another application using the same credential.

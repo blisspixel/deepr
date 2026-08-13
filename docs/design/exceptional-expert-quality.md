@@ -1,6 +1,6 @@
 # Exceptional expert quality (research, plan, improve)
 
-Status: design + partial implementation (2026-08-05).  
+Status: design + partial implementation (2026-08-05).
 Trigger: live NephMesh / Claude Code validation - consults ran correctly at $0
 but felt only "moderately useful": flat confidence, circular sources, generic
 local best-practice synthesis, no adversarial depth.
