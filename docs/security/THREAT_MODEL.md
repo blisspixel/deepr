@@ -224,10 +224,9 @@ Existing controls:
   records remote calls.
 - `src/deepr/mcp/consult_validation.py` validates consult artifacts for schema,
   trace linkage, capacity posture, forbidden secrets, and no-metered fallback.
-- `src/deepr/a2a/consult_tasks.py` requires exact
-  `allow_metered_api=true`, exact `confirm_metered_cost=true`, and a positive
-  budget before API-backed A2A consult synthesis. The budget remains a ceiling,
-  never consent.
+- `src/deepr/a2a/consult_tasks.py` returns `METERED_API_DISABLED` for API-backed
+  A2A consult synthesis before consult work. Positive budgets and legacy
+  consent flags cannot lift the block.
 - `src/deepr/a2a/output_contracts.py` validates published A2A envelope shape
   before host-facing output.
 

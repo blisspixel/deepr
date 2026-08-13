@@ -134,7 +134,7 @@
       "properties": {
         "attestation_kind": {"const": "ollama-owned-local-v1"},
         "cloud_disabled": {"const": true},
-        "cloud_status_source": {"const": "config"},
+        "cloud_status_source": {"enum": ["config", "both"]},
         "model": {"type": "string", "minLength": 1, "maxLength": 512},
         "digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
         "size_bytes": {"type": "integer", "minimum": 1},

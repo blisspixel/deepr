@@ -1,6 +1,6 @@
 # Model Selection Guide
 
-Status: current with Deepr v2.40.0. Last reviewed: 2026-07-29.
+Status: current with Deepr v2.48.0. Last reviewed: 2026-08-13.
 
 The source of truth for model IDs, pricing estimates, context windows, and
 routing metadata is [src/deepr/providers/registry.py](../src/deepr/providers/registry.py).
@@ -8,12 +8,13 @@ This guide explains how to use that registry safely. Provider docs and prices
 change faster than prose, so treat this document as an operating guide, not a
 billing authority.
 
-External model docs checked through 2026-07-22:
+External model docs checked through 2026-08-13:
 
 - OpenAI Models and Pricing:
-  <https://platform.openai.com/docs/models>,
-  <https://platform.openai.com/docs/pricing>,
-  <https://openai.com/index/previewing-gpt-5-6-sol/>
+  <https://developers.openai.com/api/docs/models>,
+  <https://developers.openai.com/api/docs/models/gpt-5.6-sol>,
+  <https://developers.openai.com/api/docs/models/gpt-5.6-terra>,
+  <https://developers.openai.com/api/docs/models/gpt-5.6-luna>
 - Claude Platform Models, Pricing, and Thinking:
   <https://platform.claude.com/docs/en/about-claude/models/overview>,
   <https://platform.claude.com/docs/en/about-claude/pricing>,
@@ -32,15 +33,15 @@ External model docs checked through 2026-07-22:
   <https://learn.microsoft.com/azure/foundry/foundry-models/concepts/models-sold-directly-by-azure>,
   <https://learn.microsoft.com/azure/ai-foundry/agents/overview>
 
-## 2026-07-22 Verification Matrix
+## 2026-08-13 Verification Matrix
 
 | Provider | Current external signal | Deepr status | Action |
 |----------|-------------------------|--------------|--------|
-| OpenAI | Official API docs list GPT-5.5 as the recommended flagship and GPT-5.6 as trusted-partner preview only. | GPT-5.5 is registered. GPT-5.6 is watchlist-only. | Keep GPT-5.6 out of auto-routing until self-serve API access, pricing, context, and adapter behavior are verified. |
-| Anthropic | Claude docs list Fable 5 as generally available, Mythos 5 as limited availability, and Sonnet 5 as the current balanced Sonnet with adaptive thinking. | Fable 5, Sonnet 5, Opus 4.8, and Haiku 4.5 are registered. Mythos is not registered. | Keep Sonnet 5 as the balanced Anthropic default. Keep Mythos out until access and settlement are normal. |
+| OpenAI | Official API docs list GPT-5.6 Sol, Terra, and Luna as self-serve API models with published prices and limits. | All three are registered with cached-input and long-context pricing. Sol is the OpenAI task default. | Keep the exact tier visible in previews because the GPT-5.6 alias resolves to Sol and prompts above 272K input tokens cost more. |
+| Anthropic | Claude docs list Fable 5, Opus 5, Sonnet 5, and Haiku 4.5 as current. Sonnet 5's $2/$10 launch price is now permanent. | All four are registered. Opus 5 is the research default and Sonnet 5 is the balanced default. Mythos remains invitation-only. | Use current first-party prices and keep limited-access Mythos outside automatic routing. |
 | Google Gemini | Google released Gemini 3.6 Flash and Gemini 3.5 Flash-Lite as GA production API models on 2026-07-21. The same launch limits Gemini 3.5 Flash Cyber to a CodeMender pilot for governments and trusted partners. | Both GA API models are registered with standard pricing, cached-input pricing, context metadata, and the new thinking-level request shape. Flash Cyber is deliberately absent. Managed Gemini Deep Research remains gated because its autonomous loop lacks a complete request ceiling. | Use the GA API models for explicit bounded requests. Do not represent Flash Cyber as selectable Gemini API capacity. |
-| xAI | xAI docs direct general text work to Grok 4.3, list Grok Build 0.1 for coding, and price Imagine image/video APIs separately. | Grok 4.3 is the preferred xAI text default. Grok Build is watchlist-only. xAI image remains explicit premium capacity. | Keep coding and media model additions behind registry, adapter, and no-surprise-bills tests. |
-| Azure AI Foundry | Foundry docs expose agents through the Responses API, deployment catalogs, regional limits, and managed endpoint controls. | Azure entries remain deployment targets, not global public model defaults. | Treat availability as subscription, deployment, and region dependent. |
+| xAI | Grok 4.6 launched on 2026-08-12. xAI also publishes Grok Build 0.1 and revived `grok-code-fast` aliases with current prices. | Grok 4.6 and Grok Build 0.1 are registered. Generic flagship aliases resolve to 4.6; quick routing can retain cheaper Grok 4.3. | Keep fast service tiers and server-side tools outside base estimates unless their separate charges are explicitly bounded. |
+| Azure AI Foundry | Microsoft lists GPT-5.6 Sol, Terra, and Luna, but availability and billing remain deployment, quota, region, and service-tier dependent. | Azure entries remain tested deployment targets, not mirrors of every public OpenAI model. | Do not promote a catalog listing into Azure routing without deployment-specific pricing and adapter verification. |
 
 ## Current External Watchlist
 
@@ -48,9 +49,6 @@ These are visible in current provider docs but are not automatic Deepr routing
 defaults unless the registry, adapter behavior, cost settlement, and tests are
 explicitly updated.
 
-- OpenAI lists GPT-5.6 as a trusted-partner preview with broad availability
-  still pending. Treat it as watchlist-only until self-serve API access,
-  pricing, context limits, and Responses API behavior are verified.
 - Anthropic lists Claude Mythos 5 and the Mythos preview as limited
   availability. Keep them out of Deepr's public registry and auto-routing until
   API access and pricing are normal enough to test and settle.
@@ -69,10 +67,9 @@ explicitly updated.
 - Google now lists `gemini-3-pro-preview` and
   `gemini-3.1-flash-lite-preview` in the shut-down previous-model set. Deepr
   keeps them only as deprecated migration entries for historical cost lookup.
-- xAI currently directs general chat and reasoning workloads to Grok 4.3 and
-  lists Grok Build 0.1 for agentic coding. The coding model should remain a
-  watchlist item until Deepr has registry pricing, adapter expectations, and
-  tests for its coding-specific behavior.
+- xAI offers a 2x-priced fast Grok 4.6 variant and separately billed
+  server-side tools. Deepr registers standard token pricing only and does not
+  silently select fast service or provider tools.
 - xAI image, video, and voice surfaces are dedicated APIs with separate pricing.
   Deepr should continue treating xAI image generation as premium explicit
   capacity.
@@ -82,13 +79,12 @@ explicitly updated.
 
 Pricing notes:
 
-- OpenAI currently exposes short-context, long-context, and priority pricing
-  buckets for some models. Deepr should continue using conservative registry
-  estimates until the estimator can pick the right bucket from prompt size and
-  request class.
-- Anthropic currently documents lower introductory Sonnet 5 pricing through
-  2026-08-31, but Deepr estimates Sonnet 5 with the standard post-intro rates
-  so budget gates do not understate future spend.
+- GPT-5.6 prompts above 272K input tokens use 2x input and cached-input rates
+  plus 1.5x output rates for the full request. Deepr applies this boundary in
+  both preflight and settlement pricing.
+- Anthropic made Sonnet 5's $2 input and $10 output per MTok launch rates
+  permanent. Deepr uses those current rates plus $0.20 cache hits and $2.50
+  five-minute cache writes.
 - Gemini free-tier and quota-inclusive entries are useful for setup guidance,
   but automatic routing still depends on the local Deepr capacity profile,
   provider keys, quota posture, and budget gates.
@@ -121,10 +117,10 @@ Pricing notes:
 
 ## Current Deepr Registry Snapshot
 
-The registry currently contains 58 models across OpenAI, Gemini, xAI,
+The registry currently contains 65 models across OpenAI, Gemini, xAI,
 Anthropic, and Azure AI Foundry. The list below mirrors the registry on
-2026-07-22; run the command above for exact pricing and context values. The web
-Models page intentionally reports 41 active benchmarkable public text or
+2026-08-13; run the command above for exact pricing and context values. The web
+Models page intentionally reports 48 active benchmarkable public text or
 research models because Azure AI Foundry entries are deployment targets, premium
 media entries are not chat capacity, and deprecated migration entries are hidden
 from new benchmark target lists.
@@ -135,6 +131,9 @@ Environment variable: `OPENAI_API_KEY`
 
 Registered IDs:
 
+- `openai/gpt-5.6-sol`
+- `openai/gpt-5.6-terra`
+- `openai/gpt-5.6-luna`
 - `openai/gpt-5.5`
 - `openai/gpt-5.5-pro`
 - `openai/gpt-5.4`
@@ -162,16 +161,18 @@ Default posture:
   with a budget ceiling.
 - Use mini or nano variants for cheap classification, summaries, and routing
   only when quality risk is acceptable.
-- GPT-5.5 is the OpenAI flagship currently represented in Deepr defaults and
-  routing priors. If OpenAI publishes a newer limited or preview model, keep it
-  out of automatic routing until registry pricing and adapter behavior are
-  verified.
+- GPT-5.6 Sol is the OpenAI task default. Terra is the balanced tier and Luna
+  is the cost-sensitive tier. The `gpt-5.6` provider alias is priced as Sol.
+- A 272K-token prompt is still base price. At 272,001 input tokens, Deepr
+  applies the documented full-request long-context multipliers before a budget
+  reservation can be admitted.
 
 Manual verification:
 
-- Models: <https://platform.openai.com/docs/models>
-- Pricing: <https://platform.openai.com/docs/pricing>
-- GPT-5.6 preview status: <https://openai.com/index/previewing-gpt-5-6-sol/>
+- Models: <https://developers.openai.com/api/docs/models>
+- GPT-5.6 Sol: <https://developers.openai.com/api/docs/models/gpt-5.6-sol>
+- GPT-5.6 Terra: <https://developers.openai.com/api/docs/models/gpt-5.6-terra>
+- GPT-5.6 Luna: <https://developers.openai.com/api/docs/models/gpt-5.6-luna>
 
 ### Google Gemini
 
@@ -226,7 +227,10 @@ Environment variable: `XAI_API_KEY`
 
 Registered IDs:
 
+- `xai/grok-4-6`
+- `xai/grok-4-5`
 - `xai/grok-4-3`
+- `xai/grok-build-0-1`
 - `xai/grok-4-20-reasoning`
 - `xai/grok-4-20-non-reasoning`
 - `xai/grok-4-20-multi-agent`
@@ -243,12 +247,13 @@ Default posture:
 
 - Prefer current Grok text models only for explicitly selected bounded xAI work
   without unpriced server-side tools.
-- Grok 4.3 is the preferred xAI text default. Grok 4.20 multi-agent dispatch is
-  gated because its fan-out is not yet covered by one durable parent
-  reservation.
-- Grok Build 0.1 is visible in current xAI docs as a coding-specific model, but
-  it is not yet registered in Deepr. Add it only with pricing, adapter, and
-  no-surprise-bills tests.
+- Generic `grok`, `grok-flagship`, and `grok-reasoning` aliases resolve to Grok
+  4.6. Quick and fact-check routing retains Grok 4.3 because it is cheaper.
+- Grok Build 0.1 is the current coding-specific entry. The documented
+  `grok-code-fast`, `grok-code-fast-1`, and dated alias settle against the same
+  $1/$2 standard rate and $0.20 cached-input rate.
+- Grok 4.20 multi-agent dispatch is gated because its fan-out is not yet
+  covered by one durable parent reservation.
 - Legacy Grok IDs and `xai/grok-imagine-image-pro` remain in the registry as
   deprecated migration entries. They are excluded from active web benchmark
   target counts and must not be promoted as defaults.
@@ -259,6 +264,8 @@ Manual verification:
 
 - Models: <https://docs.x.ai/developers/models>
 - Pricing: <https://docs.x.ai/developers/pricing>
+- Grok 4.6: <https://docs.x.ai/developers/models/grok-4.6>
+- Grok Build 0.1: <https://docs.x.ai/developers/models/grok-build-0.1>
 
 ### Anthropic Claude
 
@@ -268,6 +275,7 @@ Registered IDs:
 
 - `anthropic/claude-fable-5`
 - `anthropic/claude-sonnet-5`
+- `anthropic/claude-opus-5`
 - `anthropic/claude-opus-4-8`
 - `anthropic/claude-opus-4-7`
 - `anthropic/claude-opus-4-6`
@@ -279,7 +287,7 @@ Registered IDs:
 Default posture:
 
 - `claude-sonnet-5` is Deepr's balanced Anthropic chat and synthesis default.
-- `claude-opus-4-8` is the registered Anthropic research flagship when an
+- `claude-opus-5` is the registered Anthropic research flagship when an
   explicit budget supports a higher-cost call.
 - `claude-fable-5` is a frontier, premium tier. It should be selected
   deliberately, not by background routing.

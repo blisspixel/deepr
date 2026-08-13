@@ -71,21 +71,16 @@ def test_consult_output_schema_exposes_completion_reason():
     assert "synthesis_stop_reason" in CONSULT_EXPERTS_OUTPUT_SCHEMA["properties"]
 
 
-def test_consult_schema_defaults_to_owned_capacity_and_conditions_api_fields():
+def test_consult_schema_defaults_to_owned_capacity_and_marks_api_disabled():
     properties = CONSULT_EXPERTS_INPUT_SCHEMA["properties"]
 
     assert properties["synthesis_backend"]["default"] == "local"
-    assert "production metered dispatch is blocked" in properties["synthesis_backend"]["description"]
+    assert "METERED_API_DISABLED" in properties["synthesis_backend"]["description"]
     assert "current executable adapter" in properties["plan"]["description"]
     assert "Codex" not in properties["plan"]["description"]
     assert "default" not in properties["budget"]
     assert properties["budget"]["minimum"] == 0
-    assert CONSULT_EXPERTS_INPUT_SCHEMA["allOf"][0]["then"]["properties"]["budget"] == {"exclusiveMinimum": 0}
-    assert CONSULT_EXPERTS_INPUT_SCHEMA["allOf"][0]["then"]["required"] == [
-        "budget",
-        "allow_metered_api",
-        "confirm_metered_cost",
-    ]
+    assert "allOf" not in CONSULT_EXPERTS_INPUT_SCHEMA
 
 
 @pytest.mark.asyncio
@@ -218,16 +213,9 @@ async def test_consult_plan_backend_vets_capacity_and_disables_metered_fallback(
 
 
 @pytest.mark.asyncio
-async def test_consult_api_provider_and_model_pass_to_shared_core(server, monkeypatch):
-    captured: dict[str, object] = {}
-
-    async def fake(question, experts, max_experts, budget, **kwargs):
-        captured["budget"] = budget
-        captured.update(kwargs)
-        return {**_RESULT, "total_cost": 0.0}
-
-    monkeypatch.setattr("deepr.experts.consult.run_consult", fake)
-
+async def test_consult_api_provider_and_model_are_blocked_before_transaction(server, monkeypatch):
+    transaction = MagicMock(side_effect=AssertionError("metered consult must not execute"))
+    monkeypatch.setattr("deepr.mcp.consult_tool.execute_consult_transaction", transaction)
     out = await server.consult_experts(
         question="q",
         synthesis_backend="api",
@@ -238,13 +226,9 @@ async def test_consult_api_provider_and_model_pass_to_shared_core(server, monkey
         confirm_metered_cost=True,
     )
 
-    assert captured["budget"] == 1.0
-    assert captured["synthesis_provider"] == "anthropic"
-    assert captured["synthesis_model"] == "claude-sonnet-4-6"
-    assert captured["allow_live_fallback"] is False
-    assert out["capacity"]["synthesis_backend"] == "api"
-    assert out["capacity"]["provider"] == "anthropic"
-    assert out["capacity"]["model"] == "claude-sonnet-4-6"
+    assert out["error_code"] == "METERED_API_DISABLED"
+    assert "No consult transaction or provider client was created" in out["message"]
+    transaction.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -268,15 +252,15 @@ async def test_consult_rejects_nonpositive_budget(server):
         allow_metered_api=True,
         confirm_metered_cost=True,
     )
-    assert "INVALID_BUDGET" in str(out)
+    assert out["error_code"] == "METERED_API_DISABLED"
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("allow_metered_api", "confirm_metered_cost"),
-    [(False, False), (True, False), (False, True)],
+    [(False, False), (True, False), (False, True), (True, True)],
 )
-async def test_consult_api_requires_both_explicit_consents_before_transaction(
+async def test_consult_api_consent_flags_cannot_enable_dispatch(
     server,
     monkeypatch,
     allow_metered_api,
@@ -293,7 +277,7 @@ async def test_consult_api_requires_both_explicit_consents_before_transaction(
         confirm_metered_cost=confirm_metered_cost,
     )
 
-    assert out["error_code"] == "METERED_API_NOT_APPROVED"
+    assert out["error_code"] == "METERED_API_DISABLED"
     transaction.assert_not_called()
 
 

@@ -204,7 +204,7 @@ async def test_native_transport_ignores_ambient_credentials_and_records_local_pr
     def handler(request: httpx.Request) -> httpx.Response:
         requests.append(request)
         if request.url.path == "/api/status":
-            return httpx.Response(200, json={"cloud": {"disabled": True, "source": "config"}})
+            return httpx.Response(200, json={"cloud": {"disabled": True, "source": "both"}})
         if request.url.path == "/api/tags":
             return httpx.Response(200, json={"models": [_inventory_entry()]})
         return httpx.Response(
@@ -239,7 +239,7 @@ async def test_native_transport_ignores_ambient_credentials_and_records_local_pr
     assert all("authorization" not in request.headers for request in requests)
     assert all(request.headers["user-agent"] == "deepr-local-consult/1" for request in requests)
     assert evidence["cloud_disabled"] is True
-    assert evidence["cloud_status_source"] == "config"
+    assert evidence["cloud_status_source"] == "both"
     assert evidence["digest"] == "a" * 64
     assert response.request_id == "local-request"
     assert response.reported_input_tokens == 101

@@ -196,21 +196,25 @@ class TestTaskCreation:
         assert body["artifacts"][0]["content"]["collaboration"]["dissent_handling"]["dissent_preserved"] is True
         assert body["trace_id"] == fixture["trace"]["trace_id"]
 
-    def test_consult_task_blocks_api_without_explicit_metered_approval(self, server: A2AServer) -> None:
-        """A2A consult cannot fall into API synthesis unless explicitly approved."""
+    def test_consult_task_blocks_api_even_with_budget_and_consent(self, server: A2AServer) -> None:
+        """A2A consult cannot enable API synthesis through legacy consent."""
         payload = json.dumps(
             {
                 "skill": CONSULT_SKILL_NAME,
                 "input": "Use a paid model.",
                 "budget": 1,
-                "metadata": {"synthesis_backend": "api"},
+                "metadata": {
+                    "synthesis_backend": "api",
+                    "allow_metered_api": True,
+                    "confirm_metered_cost": True,
+                },
             }
         )
         status, body = asyncio.run(server.handle_request("POST", "/tasks", payload))
 
         assert status == 201
         assert body["state"] == "failed"
-        assert body["error"]["error_code"] == "METERED_API_NOT_APPROVED"
+        assert body["error"]["error_code"] == "METERED_API_DISABLED"
         assert body["cost"] == 0.0
 
     @pytest.mark.parametrize(
@@ -242,12 +246,10 @@ class TestTaskCreation:
             {
                 "skill": CONSULT_SKILL_NAME,
                 "input": "Preserve a failed consult artifact.",
-                "budget": 1,
+                "budget": 0,
                 "metadata": {
                     "experts": ["Contract Expert"],
-                    "synthesis_backend": "api",
-                    "allow_metered_api": True,
-                    "confirm_metered_cost": True,
+                    "synthesis_backend": "local",
                 },
             }
         )

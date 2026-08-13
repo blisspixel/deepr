@@ -113,14 +113,15 @@ def providers():
 
     table.add_row(
         "openai",
-        "gpt-5.5, gpt-5.4, gpt-5-mini, o4-mini-deep-research",
+        "gpt-5.6-sol, gpt-5.6-terra, gpt-5.6-luna, o4-mini-deep-research",
         "Deep research, synthesis, complex reasoning",
     )
     table.add_row(
         "xai",
-        "grok-4.3, grok-4.20-reasoning, grok-4.20-multi-agent",
+        "grok-4.6, grok-4.3, grok-build-0.1, grok-4.20-multi-agent",
         "Quick lookups, freshness, multi-agent research",
     )
+    table.add_row("anthropic", "claude-opus-5, claude-sonnet-5, claude-haiku-4-5", "Reasoning and synthesis")
     table.add_row(
         "gemini", "gemini-3.6-flash, gemini-3.5-flash-lite, gemini-3.1-pro-preview", "Multimodal tasks, long context"
     )

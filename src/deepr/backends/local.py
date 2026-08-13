@@ -23,7 +23,12 @@ import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from deepr.backends.capacity import _OLLAMA_DEFAULT_URL, ollama_status, validate_owned_local_ollama_url
+from deepr.backends.capacity import (
+    _OLLAMA_DEFAULT_URL,
+    ollama_status,
+    validate_owned_local_ollama_cloud_status,
+    validate_owned_local_ollama_url,
+)
 from deepr.backends.context_building import (
     ContextBuilder,
     build_context,
@@ -70,11 +75,9 @@ async def _guard_and_sanitize_ollama_request(request: Any) -> None:
         payload = response.json()
     except ValueError as exc:
         raise ValueError("Owned local Ollama cloud-disable proof was not JSON") from exc
-    cloud = payload.get("cloud") if isinstance(payload, dict) else None
-    if not isinstance(cloud, dict) or cloud.get("disabled") is not True or cloud.get("source") != "config":
-        raise ValueError(
-            "Owned local Ollama requires cloud.disabled=true from config; set OLLAMA_NO_CLOUD=1 and restart Ollama"
-        )
+    if not isinstance(payload, dict):
+        raise ValueError("Owned local Ollama cloud-disable proof must be an object")
+    validate_owned_local_ollama_cloud_status(payload)
 
     content_length = request.headers.get("content-length")
     request.headers.clear()

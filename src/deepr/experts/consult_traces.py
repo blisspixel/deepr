@@ -172,13 +172,13 @@ def _contract() -> dict[str, Any]:
 def _capacity_block(capacity: dict[str, Any] | None) -> dict[str, Any]:
     if not capacity:
         return {
-            "synthesis_backend": "api",
-            "provider": "openai",
+            "synthesis_backend": "local",
+            "provider": "local",
             "model": "",
             "live_metered_fallback": False,
         }
     return {
-        "synthesis_backend": str(capacity.get("synthesis_backend", "api")),
+        "synthesis_backend": str(capacity.get("synthesis_backend", "local")),
         "provider": str(capacity.get("provider", "")),
         "model": str(capacity.get("model") or ""),
         "live_metered_fallback": bool(capacity.get("live_metered_fallback", False)),

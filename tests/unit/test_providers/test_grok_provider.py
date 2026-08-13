@@ -42,15 +42,19 @@ class TestGrokProvider:
         assert provider.get_model_name("grok-4-1-fast-non-reasoning") == "grok-4-1-fast-non-reasoning"
         assert provider.get_model_name("grok-4-1-fast-reasoning") == "grok-4-1-fast-reasoning"
 
+        assert provider.get_model_name("grok-4-6") == "grok-4.6"
+        assert provider.get_model_name("grok-build-0-1") == "grok-build-0.1"
+        assert provider.get_model_name("grok-code-fast-1") == "grok-build-0.1"
+
         # Grok 4 full reasoning model
         assert provider.get_model_name("grok-4") == "grok-4"
 
         # Aliases - map to the canonical dotted flagship id so cost lookups
-        # match the pricing table. Flagship moved to grok-4.5 (July 8, 2026).
-        assert provider.get_model_name("grok") == "grok-4.5"
+        # match the pricing table. Flagship moved to grok-4.6 on August 12, 2026.
+        assert provider.get_model_name("grok") == "grok-4.6"
         assert provider.get_model_name("grok-fast") == "grok-4.20-0309-non-reasoning"
-        assert provider.get_model_name("grok-flagship") == "grok-4.5"
-        assert provider.get_model_name("grok-reasoning") == "grok-4.5"
+        assert provider.get_model_name("grok-flagship") == "grok-4.6"
+        assert provider.get_model_name("grok-reasoning") == "grok-4.6"
         assert provider.get_model_name("grok-multi-agent") == "grok-4.20-multi-agent-0309"
 
         # Legacy models
@@ -68,6 +72,10 @@ class TestGrokProvider:
         assert "grok-4.20-multi-agent-0309" in provider.pricing
         assert provider.pricing["grok-4.20-0309-reasoning"]["input"] == 1.25
         assert provider.pricing["grok-4.20-0309-reasoning"]["output"] == 2.50
+
+        assert provider.pricing["grok-4.6"] == {"input": 2.00, "output": 6.00, "cached_input": 0.50}
+        assert provider.pricing["grok-4.5"] == {"input": 2.00, "output": 6.00, "cached_input": 0.30}
+        assert provider.pricing["grok-build-0.1"] == {"input": 1.00, "output": 2.00, "cached_input": 0.20}
         assert provider.pricing["grok-4.20-0309-reasoning"]["cached_input"] == 0.20
 
         # Grok 4.1 Fast budget pricing
@@ -134,16 +142,19 @@ class TestGrokProvider:
     @pytest.mark.parametrize(
         "model",
         [
+            "grok-4.6",
             "grok-4.5",
             "grok-4.3",
+            "grok-build-0.1",
             "grok-4.20-0309-reasoning",
             "grok-4.20-0309-non-reasoning",
             "grok-4.20-multi-agent-0309",
         ],
     )
     def test_current_grok_settlement_uses_inclusive_long_context_boundary(self, provider, model):
-        base_input = 2.0 if model == "grok-4.5" else 1.25
-        base_output = 6.0 if model == "grok-4.5" else 2.5
+        rates = provider.pricing[model]
+        base_input = rates["input"]
+        base_output = rates["output"]
 
         for prompt_tokens, multiplier in ((199_999, 1.0), (200_000, 2.0), (200_001, 2.0)):
             expected = (prompt_tokens * base_input * multiplier + 10_000 * base_output * multiplier) / 1_000_000
@@ -321,7 +332,7 @@ class TestGrokCapabilities:
         assert provider.pricing["grok-4-1-fast-reasoning"]["output"] == 0.50
 
         # Verify model mappings (flagship alias tracks the newest model)
-        assert provider.get_model_name("grok") == "grok-4.5"
+        assert provider.get_model_name("grok") == "grok-4.6"
         assert provider.get_model_name("grok-fast") == "grok-4.20-0309-non-reasoning"
 
     def test_grok_use_cases(self, provider):

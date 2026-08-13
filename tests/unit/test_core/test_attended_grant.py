@@ -24,6 +24,7 @@ from deepr.core.attended_grant import (
     MAX_GRANT_USD,
     AttendedGrantError,
     active_grant,
+    grant_file_path,
     issue_grant,
     load_grant,
     revoke_grant,
@@ -46,6 +47,16 @@ def _issue(**kwargs):
             **kwargs,
         }
     )
+
+
+def test_default_grant_path_follows_the_canonical_cost_state(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    isolated_cost_state = (tmp_path / "isolated-cost-state").resolve()
+    monkeypatch.setenv("DEEPR_COST_DATA_DIR", str(isolated_cost_state))
+
+    assert grant_file_path() == isolated_cost_state / "attended_grant.json"
 
 
 class TestTheCeilingRefusesRatherThanClamps:

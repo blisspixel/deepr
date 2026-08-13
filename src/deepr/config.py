@@ -119,11 +119,11 @@ class ProviderConfig(BaseModel):
         "quick_lookup": ("xai", "grok-4.3"),  # Fast, cheap fact checks
         "fact_check": ("xai", "grok-4.3"),  # Fact verification
         "deep_research": ("openai", "o3-deep-research"),  # Deep research (BEST model)
-        "synthesis": ("openai", "gpt-5.5"),  # Knowledge synthesis
-        "chat": ("openai", "gpt-5.5"),  # Expert chat
-        "planning": ("openai", "gpt-5.5"),  # Research planning
-        "documentation": ("openai", "gpt-5.5"),  # Doc generation
-        "strategy": ("openai", "gpt-5.5"),  # Strategic analysis
+        "synthesis": ("openai", "gpt-5.6-sol"),  # Knowledge synthesis
+        "chat": ("openai", "gpt-5.6-sol"),  # Expert chat
+        "planning": ("openai", "gpt-5.6-sol"),  # Research planning
+        "documentation": ("openai", "gpt-5.6-sol"),  # Doc generation
+        "strategy": ("openai", "gpt-5.6-sol"),  # Strategic analysis
     }
 
     @model_validator(mode="after")
@@ -347,7 +347,7 @@ class ExpertConfig(BaseModel):
 
     # Synthesis
     auto_synthesis: bool = Field(default=True, description="Automatically synthesize knowledge after learning")
-    synthesis_model: str = Field(default="gpt-5.5", description="Model for knowledge synthesis")
+    synthesis_model: str = Field(default="gpt-5.6-sol", description="Model for knowledge synthesis")
 
     # Domain Velocity Defaults
     default_domain_velocity: str = Field(default="medium", description="Default domain velocity (slow/medium/fast)")

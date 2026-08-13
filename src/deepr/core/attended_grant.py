@@ -165,9 +165,15 @@ def grant_file_path(root: Path | None = None) -> Path:
     """
     if root is not None:
         return root / "attended_grant.json"
-    from deepr.config import runtime_data_path
+    from deepr.observability.cost_authority import default_cost_data_dir
 
-    return runtime_data_path("costs") / "attended_grant.json"
+    # The grant is spend authority bound to one canonical cost state. Keeping
+    # it in another runtime root made DEEPR_COST_DATA_DIR only partly isolate
+    # money state: a preview process could write its grant beside a user's live
+    # data while its ledger and reservations lived elsewhere. Co-location makes
+    # the binding visible on disk and ensures one override isolates the entire
+    # state involved in grant drawdown.
+    return default_cost_data_dir() / "attended_grant.json"
 
 
 def issue_grant(

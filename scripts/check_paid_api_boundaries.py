@@ -68,7 +68,7 @@ _METERED_WRAPPERS = {
     "deepr.experts.chat_metered.execute_metered_chat_provider_stream",
 }
 
-# Audited 2026-07-25. A lower count is an improvement. A higher count or new
+# Audited 2026-08-13. A lower count is an improvement. A higher count or new
 # path fails until the site has a durable transaction or an explicit gate and
 # this review baseline is deliberately amended.
 _BASELINE = {
@@ -84,7 +84,7 @@ _BASELINE = {
     "src/deepr/experts/claim_verification.py": 1,
     "src/deepr/experts/conflict_resolver.py": 0,
     "src/deepr/experts/consensus.py": 5,
-    "src/deepr/experts/consult.py": 1,
+    "src/deepr/experts/consult.py": 0,
     "src/deepr/experts/consult_quality_judges.py": 2,
     "src/deepr/experts/curriculum.py": 1,
     "src/deepr/experts/gap_discovery.py": 1,

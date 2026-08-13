@@ -12,14 +12,17 @@ scores), capped below measured eval results so real benchmarks always win once
 they exist (see routing.auto_mode._estimate_quality), and they are refined or
 overridden the moment `deepr eval` produces measured rankings.
 
-Source (reviewed July 2026, refresh on model changes):
-- Artificial Analysis Intelligence Index: Claude Opus 4.8 ~61, GPT-5.5 ~60,
-  Gemini 3.1 Pro ~57, Grok 4.3 ~53 - the four flagships are near-parity at the
-  top (https://artificialanalysis.ai/models).
-- Per-task standing: Opus 4.8 / GPT-5.5 lead coding; Gemini 3.1 Pro leads
-  reasoning / data analysis / multimodal and "best cost-performance"; Grok is
-  strong on agentic / tool-use and cheapest of the flagships; GPT-5.5 leads
-  creative writing.
+Source (reviewed August 2026, refresh on model changes):
+- xAI's Grok 4.6 release reports Grok 4.6 and GPT-5.6 Sol at 61 on the
+  Artificial Analysis Intelligence Index, with Fable 5 at 62
+  (https://x.ai/news/grok-4-6).
+- Anthropic describes Opus 5 as a step-change improvement over Opus 4.8 for
+  deep reasoning and long-horizon agentic work
+  (https://platform.claude.com/docs/en/about-claude/models/whats-new-opus-5).
+- Current provider reports place the newest flagships in the same broad tier,
+  but those reports are not interchangeable held-out evaluations. Deepr keeps
+  the priors coarse until its own provider-free or explicitly budgeted evals
+  produce measured rankings.
 - Efficient tier punches above price: GPT-5 mini and Gemini Flash are
   near-frontier on easy tasks; Gemini Flash-Lite scores above GPT nano at half
   the cost. This is the price-as-quality failure these priors correct.
@@ -44,6 +47,7 @@ _BUDGET = 0.66
 # price-tier heuristic in auto_mode._estimate_quality.
 QUALITY_PRIORS: dict[str, float] = {
     # Frontier flagships + deep-research (near-parity at the top of the index).
+    "openai/gpt-5.6-sol": _FRONTIER,
     "openai/gpt-5.5": _FRONTIER,
     "openai/gpt-5.5-pro": _FRONTIER,
     "openai/gpt-5.4": _FRONTIER,
@@ -51,6 +55,7 @@ QUALITY_PRIORS: dict[str, float] = {
     "openai/o3-deep-research": _FRONTIER,
     "openai/o4-mini-deep-research": _FRONTIER,
     "anthropic/claude-fable-5": _FRONTIER,
+    "anthropic/claude-opus-5": _FRONTIER,
     "anthropic/claude-opus-4-8": _FRONTIER,
     "anthropic/claude-opus-4-7": _FRONTIER,
     "anthropic/claude-opus-4-6": _FRONTIER,
@@ -58,10 +63,12 @@ QUALITY_PRIORS: dict[str, float] = {
     "gemini/deep-research": _FRONTIER,
     "xai/grok-4-20-reasoning": _FRONTIER,
     "xai/grok-4-20-multi-agent": _FRONTIER,
+    "xai/grok-4-6": _FRONTIER,
     "azure-foundry/o3-deep-research": _FRONTIER,
     # Strong: just below the flagships.
     "openai/gpt-5.2": _STRONG,
     "openai/gpt-5": _STRONG,
+    "openai/gpt-5.6-terra": _STRONG,
     "openai/o3": _STRONG,
     "anthropic/claude-sonnet-5": _STRONG,
     "anthropic/claude-sonnet-4-6": _STRONG,
@@ -82,6 +89,7 @@ QUALITY_PRIORS: dict[str, float] = {
     "azure-foundry/gpt-5-mini": _EFFICIENT,
     # Budget: solid on simple/factual lookups at the lowest cost.
     "openai/gpt-5.4-nano": _BUDGET,
+    "openai/gpt-5.6-luna": _BUDGET,
     "openai/gpt-5-nano": _BUDGET,
     "openai/gpt-4.1-mini": _BUDGET,
     "openai/gpt-4.1-nano": _BUDGET,

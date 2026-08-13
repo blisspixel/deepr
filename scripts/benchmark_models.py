@@ -638,18 +638,22 @@ DOCS_EVAL_PROMPTS = [
 # Azure Foundry runs the same models as OpenAI - test it separately for latency.
 DEFAULT_MODELS = [
     # Frontier models
-    "openai/gpt-5.5",  # Newest OpenAI frontier (April 2026, 1M+ context)
+    "openai/gpt-5.6-sol",  # Current OpenAI frontier (July 2026, 1M+ context)
+    "openai/gpt-5.6-terra",  # Balanced GPT-5.6 tier
+    "openai/gpt-5.6-luna",  # Cost-sensitive GPT-5.6 tier
     "openai/gpt-5.4",  # Previous OpenAI frontier (1M+ context)
-    "anthropic/claude-opus-4-8",  # Current Opus-tier Claude research model ($0.85/query)
+    "anthropic/claude-opus-5",  # Current Opus-tier Claude research model ($0.85/query)
     "gemini/gemini-3.1-pro-preview",  # Latest gen, best quality ($0.20/query)
     "gemini/gemini-2.5-pro",  # Thinking model, can't disable thinking ($0.15/query)
     # Mid-tier
-    "anthropic/claude-sonnet-5",  # Current balanced Anthropic default ($0.48/query)
+    "anthropic/claude-sonnet-5",  # Current balanced Anthropic default ($0.32/query)
     "openai/gpt-4.1",  # 1M context ($0.04/query)
     "openai/o3",  # Reasoning model for complex tasks ($0.10/query)
     "openai/o4-mini",  # Fast reasoning ($0.04/query)
     # xAI flagship
-    "xai/grok-4-3",  # xAI newest flagship - agentic + reasoning ($0.05/query)
+    "xai/grok-4-6",  # Current xAI frontier model
+    "xai/grok-4-3",  # Lower-cost current xAI reasoning model ($0.05/query)
+    "xai/grok-build-0-1",  # Current xAI coding model
     "xai/grok-4-20-reasoning",  # xAI multi-agent workhorse ($0.10/query)
     "xai/grok-4-20-non-reasoning",  # xAI flagship non-reasoning ($0.08/query)
     # Budget models
@@ -673,7 +677,7 @@ EXPENSIVE_MODELS: list[str] = [
 
 NEWS_MODELS = [
     # OpenAI (via Responses API web_search tool)
-    "openai/gpt-5.5",
+    "openai/gpt-5.6-sol",
     "openai/gpt-5.4",
     "openai/gpt-5-mini",
     # Gemini (Google grounding)
@@ -1285,10 +1289,12 @@ def call_gemini_news(api_key: str, model: str, prompt: str, max_tokens: int) -> 
 
 # Registry model names -> actual API model IDs (where they differ)
 _API_MODEL_IDS = {
+    "grok-4-6": "grok-4.6",
     "grok-4-20-reasoning": "grok-4.20-0309-reasoning",
     "grok-4-20-non-reasoning": "grok-4.20-0309-non-reasoning",
     "grok-4-20-multi-agent": "grok-4.20-multi-agent-0309",
     "grok-4-3": "grok-4.3",
+    "grok-build-0-1": "grok-build-0.1",
 }
 
 

@@ -207,7 +207,7 @@ class ProviderRouter:
             # -> "o3-deep-research" (thorough)
 
             get_model_for_task("anthropic", "analysis")
-            # -> "claude-opus-4-8" (Adaptive Thinking flagship)
+            # -> "claude-opus-5" (Adaptive Thinking flagship)
         """
         if provider == "openai" or provider == "azure":
             if task_type == "documentation":
@@ -222,7 +222,7 @@ class ProviderRouter:
             # silently route to a default.
             if task_type == "documentation":
                 return "claude-sonnet-5"  # Balanced cost
-            return "claude-opus-4-8"  # Flagship for analysis
+            return "claude-opus-5"  # Flagship for analysis
 
         else:
             raise ValueError(f"Unknown provider: {provider}")

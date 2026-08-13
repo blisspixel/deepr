@@ -1,10 +1,16 @@
 # Supported Surface
 
-Status: v2.47.0 current main, 2026-08-12. This document defines what users and host
+Status: v2.48.0 current main, 2026-08-13. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. A narrow attended absorb
 path is the only metered execution exception.
+
+**v2.48.0 makes expert consultation local or plan-only.** CLI consultation
+uses confined local Ollama by default. An explicit plan may execute only after
+the existing no-surprise-bills gate proves it safe. CLI, MCP, and A2A requests
+for metered consult synthesis are blocked before transaction and paid-client
+construction; budget and legacy consent flags cannot enable them.
 
 **v2.47.0 adds attended API authority.** A person at the CLI may issue a typed,
 expiring grant with a non-configurable $2 total maximum, then run the supported
@@ -244,11 +250,12 @@ must not be described as usable capacity.
   string fields before downstream host consumption. The structured expert store
   remains canonical.
 - MCP `deepr_consult_experts` can synthesize through local Ollama or an
-  explicit plan-quota CLI with live metered fallback disabled. API consult
-  synthesis retains explicit `provider=openai|anthropic` and `model` inputs for
-  compatibility, but production API synthesis is blocked before provider client
-  construction or request dispatch. A positive budget and legacy consent flags
-  cannot lift this quarantine. The
+  explicit plan-quota CLI with live metered fallback disabled. Local is the
+  default for both CLI and MCP. API consult synthesis retains explicit
+  `provider=openai|anthropic` and `model` inputs for compatibility, but returns
+  `METERED_API_DISABLED` before a consult transaction, provider client, or
+  request exists. A positive budget and legacy consent flags cannot lift this
+  quarantine. The
   returned `deepr-consult-v1` artifact includes a `capacity` block describing
   the selected synthesis backend. Each council perspective's `context` also
   discloses its selected beliefs' grounding assurance: an inline

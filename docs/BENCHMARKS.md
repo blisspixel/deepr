@@ -14,7 +14,7 @@ their output into metered routing.
 
 | Tier | What it tests | Models | Prompts | API | Typical cost |
 |------|--------------|--------|---------|-----|-------------|
-| **Chat** | Training data knowledge, reasoning, docs | 22 default + opt-in premium | 18 (6 task types) | Chat completions | Dry-run estimate |
+| **Chat** | Training data knowledge, reasoning, docs | 26 default + opt-in premium | 18 (6 task types) | Chat completions | Dry-run estimate |
 | **News** | Web search, freshness, citations | 5 | 6 (3 task types) | OpenAI web search, Gemini 2.5 grounding | Dry-run ceiling |
 | **Research** | Bounded multi-source reports | 4 orchestrated | 4 (2 task types) | Bounded web-search orchestration | Dry-run ceiling |
 | **Docs** | API doc fetching, SDK guides | 4 | 5 (3 task types) | Bounded web search + chat completions | Dry-run ceiling |
@@ -37,28 +37,28 @@ deepr eval local --model qwen2.5:14b --judge-model qwen2.5:14b --save
 
 ## Current Benchmark Target Sets
 
-These lists mirror `scripts/benchmark_models.py` as of 2026-07-12 and exclude
+These lists mirror `scripts/benchmark_models.py` as of 2026-08-13 and exclude
 deprecated registry entries. Historical tables below may still mention retired
 or deprecated models because they describe prior saved runs.
 
-### Chat Tier (22 default models)
+### Chat Tier (26 default models)
 
-- OpenAI: `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5-mini`,
+- OpenAI: `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5-mini`,
   `gpt-4.1`, `gpt-4.1-mini`, `gpt-5.4-nano`, `gpt-5-nano`,
   `gpt-4.1-nano`, `o3`, `o4-mini`
-- Anthropic: `claude-opus-4-8`, `claude-sonnet-5`, `claude-haiku-4-5`
+- Anthropic: `claude-opus-5`, `claude-sonnet-5`, `claude-haiku-4-5`
 - Gemini: `gemini-3.5-flash`, `gemini-3.1-pro-preview`,
   `gemini-3.1-flash-lite`, `gemini-3-flash-preview`,
   `gemini-2.5-pro`
-- xAI: `grok-4.3`, `grok-4.20-reasoning`,
-  `grok-4.20-non-reasoning`
+- xAI: `grok-4.6`, `grok-4.3`, `grok-build-0.1`,
+  `grok-4.20-reasoning`, `grok-4.20-non-reasoning`
 
 Optional expensive models (add `--include-expensive`): `openai/gpt-5.5-pro`,
 `openai/gpt-5.4-pro`, and `anthropic/claude-fable-5`.
 
 ### News Tier (5 models)
 
-- OpenAI Responses API with web search: `gpt-5.5`, `gpt-5.4`,
+- OpenAI Responses API with web search: `gpt-5.6-sol`, `gpt-5.4`,
   `gpt-5-mini`
 - Gemini grounding: `gemini-2.5-flash`, `gemini-2.5-pro`
 

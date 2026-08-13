@@ -136,6 +136,25 @@ def test_build_consult_trace_records_replay_context():
     }
 
 
+def test_default_trace_capacity_is_truthful_local_capacity() -> None:
+    record = build_consult_trace(
+        question="Which backend is this trace for?",
+        requested_experts=["A"],
+        max_experts=1,
+        budget=0.0,
+        payload=_payload(),
+        result={"perspectives": [{}], "synthesis_status": "completed"},
+        trace_id="consult_default_capacity",
+    )
+
+    assert record["capacity"] == {
+        "synthesis_backend": "local",
+        "provider": "local",
+        "model": "",
+        "live_metered_fallback": False,
+    }
+
+
 def test_build_consult_trace_records_effective_explicit_roster_size():
     record = build_consult_trace(
         question="How should four experts collaborate?",

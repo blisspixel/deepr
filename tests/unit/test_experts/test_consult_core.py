@@ -8,7 +8,6 @@ import pytest
 
 from deepr.experts.consult import (
     MAX_CONSULT_EXPERTS,
-    AnthropicConsultSynthesisClient,
     ConsultBackendError,
     build_collaboration_contract,
     build_consult_payload,
@@ -209,22 +208,14 @@ async def test_run_consult_passes_synthesis_backend_options(monkeypatch):
     assert captured["consult"] == ("q", [{"name": "A", "domain": "alpha"}], 0.5)
 
 
-def test_build_synthesis_backend_supports_anthropic_api_provider():
-    backend = build_synthesis_backend(api_provider="anthropic", api_model="claude-sonnet-4-6")
-
-    assert isinstance(backend.client, AnthropicConsultSynthesisClient)
-    assert backend.provider == "anthropic"
-    assert backend.model == "claude-sonnet-4-6"
-    assert backend.allow_live_fallback is False
+def test_build_synthesis_backend_blocks_anthropic_api_provider():
+    with pytest.raises(ConsultBackendError, match="Metered API synthesis is disabled"):
+        build_synthesis_backend(api_provider="anthropic", api_model="claude-sonnet-5")
 
 
-def test_build_synthesis_backend_defaults_openai_compatibly():
-    backend = build_synthesis_backend()
-
-    assert backend.client is None
-    assert backend.provider == "openai"
-    assert backend.model is None
-    assert backend.allow_live_fallback is False
+def test_build_synthesis_backend_requires_owned_capacity():
+    with pytest.raises(ConsultBackendError, match="Metered API synthesis is disabled"):
+        build_synthesis_backend()
 
 
 def test_build_synthesis_backend_rejects_api_overrides_for_owned_capacity():

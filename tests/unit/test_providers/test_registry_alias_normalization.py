@@ -80,6 +80,28 @@ class TestAliasResolution:
         assert get_token_pricing(alias) == {"input": input_rate, "output": output_rate}
         assert get_cached_input_pricing(alias) == pytest.approx(cached_rate)
 
+    @pytest.mark.parametrize(
+        ("alias", "model", "input_rate", "output_rate", "cached_rate"),
+        [
+            ("gpt-5.6", "gpt-5.6-sol", 5.00, 30.00, 0.50),
+            ("grok-code-fast-1", "grok-build-0.1", 1.00, 2.00, 0.20),
+            ("grok-code-fast-1-0825", "grok-build-0.1", 1.00, 2.00, 0.20),
+        ],
+    )
+    def test_current_openai_and_xai_aliases_share_canonical_pricing(
+        self,
+        alias,
+        model,
+        input_rate,
+        output_rate,
+        cached_rate,
+    ):
+        capability = get_resolved_model_capability(alias)
+        assert capability is not None
+        assert capability.model == model
+        assert get_token_pricing(alias) == {"input": input_rate, "output": output_rate}
+        assert get_cached_input_pricing(alias) == pytest.approx(cached_rate)
+
     def test_contract_identity_resolves_chat_alias_to_registry_owner(self):
         assert get_resolved_model_contract_identity("gemini-flash") == ("gemini", "gemini-3.6-flash")
 

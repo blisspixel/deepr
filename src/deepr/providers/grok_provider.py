@@ -101,22 +101,30 @@ class GrokProvider(DeepResearchProvider):
             # Grok 4.1 Fast budget tier
             "grok-4-1-fast-reasoning": "grok-4-1-fast-reasoning",
             "grok-4-1-fast-non-reasoning": "grok-4-1-fast-non-reasoning",
-            # Grok 4.3 (May 2026)
+            # Current Grok frontier models
+            "grok-4-6": "grok-4.6",
+            "grok-4.6": "grok-4.6",
             "grok-4-5": "grok-4.5",
             "grok-4.5": "grok-4.5",
             "grok-4-3": "grok-4.3",
             "grok-4.3": "grok-4.3",
+            # Current coding model and documented aliases
+            "grok-build": "grok-build-0.1",
+            "grok-build-0-1": "grok-build-0.1",
+            "grok-build-0.1": "grok-build-0.1",
+            "grok-code-fast": "grok-build-0.1",
+            "grok-code-fast-1": "grok-build-0.1",
+            "grok-code-fast-1-0825": "grok-build-0.1",
             # Legacy / other
             "grok-3": "grok-3",
             "grok-3-mini": "grok-3-mini",
-            "grok-code-fast": "grok-code-fast-1",
             # Aliases - map to a canonical dotted id so the pricing table lookup
             # matches and cost accounting does not silently fall back to the
             # much cheaper Grok 4.1 Fast pricing.
-            "grok": "grok-4.5",  # Default: newest flagship (launched July 8, 2026)
+            "grok": "grok-4.6",
             "grok-fast": "grok-4.20-0309-non-reasoning",  # Fast non-reasoning
-            "grok-flagship": "grok-4.5",  # Explicit flagship -> 4.5
-            "grok-reasoning": "grok-4.5",  # Reasoning workloads -> 4.5
+            "grok-flagship": "grok-4.6",
+            "grok-reasoning": "grok-4.6",
             "grok-multi-agent": "grok-4.20-multi-agent-0309",  # Multi-agent stays 4.20
             "grok-mini": "grok-3-mini",
         }
@@ -134,8 +142,10 @@ class GrokProvider(DeepResearchProvider):
             }
 
         _grok_4_20 = _rates("grok-4-20-reasoning")
+        _grok_4_6 = _rates("grok-4-6")
         _grok_4_5 = _rates("grok-4-5")
         _grok_4_3 = _rates("grok-4-3")
+        _grok_build = _rates("grok-build-0.1")
         _grok_4_1_fast = get_token_pricing("grok-4-1-fast-non-reasoning")
         _grok_4_1_fast_cached = get_cached_input_pricing("grok-4-1-fast-non-reasoning")
         _grok_4_1_fast_rates = {
@@ -153,6 +163,8 @@ class GrokProvider(DeepResearchProvider):
             "grok-4-20-reasoning": _grok_4_20,
             "grok-4-20-non-reasoning": _grok_4_20,
             "grok-4-20-multi-agent": _grok_4_20,
+            "grok-4.6": _grok_4_6,
+            "grok-4-6": _grok_4_6,
             # Grok 4.5 flagship. Dotted API id and hyphenated registry form both
             # keyed so cost accounting is correct regardless of caller spelling.
             "grok-4.5": _grok_4_5,
@@ -162,13 +174,17 @@ class GrokProvider(DeepResearchProvider):
             # that submits "grok-4-3" still gets accurate cost accounting.
             "grok-4.3": _grok_4_3,
             "grok-4-3": _grok_4_3,
+            "grok-build-0.1": _grok_build,
+            "grok-build-0-1": _grok_build,
+            "grok-code-fast": _grok_build,
+            "grok-code-fast-1": _grok_build,
+            "grok-code-fast-1-0825": _grok_build,
             # Grok 4.1 Fast budget ($0.20/$0.50 per MTok)
             "grok-4-1-fast-reasoning": _grok_4_1_fast_rates,
             "grok-4-1-fast-non-reasoning": _grok_4_1_fast_rates,
             # Other
             "grok-3": _rates("grok-3"),
             "grok-3-mini": {"input": 0.30, "output": 0.50, "cached_input": 0.30},
-            "grok-code-fast-1": _rates("grok-code-fast-1"),
         }
 
         # Store completed jobs in memory (simple implementation)

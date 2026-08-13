@@ -262,6 +262,10 @@ class TestSettings:
         assert provider == "xai"
         assert model == "grok-4.3"
 
+        provider, model = settings.get_model_for_task("synthesis")
+        assert provider == "openai"
+        assert model == "gpt-5.6-sol"
+
     def test_get_model_for_unknown_task(self):
         """Test get_model_for_task() falls back to defaults."""
         settings = Settings()

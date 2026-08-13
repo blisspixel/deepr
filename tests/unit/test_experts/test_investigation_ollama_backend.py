@@ -68,7 +68,7 @@ async def test_native_ollama_backend_enforces_json_context_and_disables_thinking
     async def get_json(url: str, timeout: float) -> dict[str, Any]:
         captured.setdefault("preflight", []).append((url, timeout))
         if url.endswith("/api/status"):
-            return {"cloud": {"disabled": True, "source": "config"}}
+            return {"cloud": {"disabled": True, "source": "both"}}
         return {"models": [_local_model("review:30b")]}
 
     async def post_json(url: str, payload: dict[str, Any], timeout: float) -> dict[str, Any]:

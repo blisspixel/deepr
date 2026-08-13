@@ -67,7 +67,9 @@ contracts below remain design targets, not shipped metered capacity.
   controls remain disabled until those policy gates exist. The shared chat-turn
   helper rejects requested tools before backend dispatch when
   `supports_tools=false` and omits `tool_choice` on no-tool turns.
-- MCP `deepr_consult_experts` accepts `synthesis_backend=api|local|plan`.
+- MCP `deepr_consult_experts` defaults to `local`, accepts an explicit
+  safety-eligible `plan`, and retains `api` only as a compatibility value that
+  returns `METERED_API_DISABLED` before consult work.
   MCP `deepr_query_expert` accepts `backend=local|plan` as usable capacity in
   v2.40; `backend=api` is accepted only to return the fail-closed release gate.
   `local` and `plan` compile the expert handoff state into one read-only no-tool chat turn
@@ -234,14 +236,17 @@ Consult comes first because it already has the narrowest backend seam:
   "arguments": {
     "question": "...",
     "experts": ["AI Agent Harnesses", "Model Context Protocol"],
-    "synthesis_backend": "api",
-    "provider": "anthropic",
-    "model": "claude-opus-4-8",
-    "budget": 1.0,
+    "synthesis_backend": "local",
+    "budget": 0,
     "_approved": true
   }
 }
 ```
+
+The omitted backend also defaults to local. `synthesis_backend="api"` is a
+compatibility value that returns `METERED_API_DISABLED` before a consult
+transaction or provider client exists. Budget and consent inputs cannot enable
+it.
 
 Expert chat comes next:
 

@@ -23,8 +23,6 @@ CONSULT_SCHEMA_VERSION = "deepr-consult-v1"
 CONSULT_KIND = "deepr.expert.consult"
 COLLABORATION_SCHEMA_VERSION = "deepr-expert-collaboration-v1"
 COLLABORATION_KIND = "deepr.expert.collaboration"
-DEFAULT_API_SYNTHESIS_PROVIDER = "openai"
-DEFAULT_ANTHROPIC_SYNTHESIS_MODEL = "claude-opus-4-8"
 # Hard ceiling on how many experts one consult transaction may fan out to when
 # auto-selecting. A harness opts into wider fan-out by passing a larger
 # max_experts (e.g. 10 for a Grok-Heavy style cross-domain sweep); the default
@@ -47,40 +45,6 @@ class ConsultSynthesisBackend:
     allow_live_fallback: bool = False
     note: str = ""
     tos_note: str = ""
-
-
-class AnthropicConsultSynthesisClient:
-    """Lazy AsyncAnthropic holder for consult synthesis.
-
-    Construction is intentionally side-effect light so CLI and schema tests can
-    select the backend without requiring a local API key. The real SDK client is
-    created only when an explicit API consult reaches the paid call path, with
-    SDK retries disabled. An injected client remains caller-owned.
-    """
-
-    def __init__(self, *, api_key: str | None = None, client: Any | None = None) -> None:
-        self._api_key = api_key
-        self._client = client
-
-    def _resolve_client(self) -> Any:
-        if self._client is None:
-            import os
-
-            from anthropic import AsyncAnthropic
-
-            from deepr.providers.dispatch_authority import default_paid_endpoint
-
-            api_key = self._api_key or os.getenv("ANTHROPIC_API_KEY")
-            self._client = AsyncAnthropic(
-                api_key=api_key,
-                base_url=default_paid_endpoint("anthropic"),
-                max_retries=0,
-            )
-        return self._client
-
-    @property
-    def messages(self) -> Any:
-        return self._resolve_client().messages
 
 
 def _sha256(value: str) -> str:
@@ -163,7 +127,12 @@ def build_synthesis_backend(
     api_provider: str | None = None,
     api_model: str | None = None,
 ) -> ConsultSynthesisBackend:
-    """Build the shared consult synthesis backend for CLI and MCP callers."""
+    """Build an owned-capacity consult synthesis backend.
+
+    Metered API synthesis is intentionally absent from this factory. Keeping
+    the refusal at the shared boundary means CLI, MCP, A2A, and direct Python
+    callers cannot turn compatibility fields or consent flags into spend.
+    """
     if use_local and plan_backend:
         raise ConsultBackendError("Choose only one synthesis backend: local or plan.")
     if (use_local or plan_backend) and (api_provider or api_model):
@@ -186,24 +155,10 @@ def build_synthesis_backend(
     if plan_backend:
         return _plan_synthesis_backend(plan_backend, plan_model)
 
-    provider = (api_provider or DEFAULT_API_SYNTHESIS_PROVIDER).strip().lower()
-    if provider == "openai":
-        return ConsultSynthesisBackend(
-            model=api_model,
-            provider="openai",
-            allow_live_fallback=False,
-            note=f"API synthesis via OpenAI {api_model}" if api_model else "",
-        )
-    if provider == "anthropic":
-        model = api_model or DEFAULT_ANTHROPIC_SYNTHESIS_MODEL
-        return ConsultSynthesisBackend(
-            client=AnthropicConsultSynthesisClient(),
-            model=model,
-            provider="anthropic",
-            allow_live_fallback=False,
-            note=f"API synthesis via Anthropic {model}; prompt-cache controls disabled",
-        )
-    raise ConsultBackendError("API synthesis provider must be one of: openai, anthropic.")
+    raise ConsultBackendError(
+        "Metered API synthesis is disabled for expert consults. Use local Ollama or an explicit "
+        "safety-eligible plan-quota backend. No provider client was constructed."
+    )
 
 
 def build_consult_payload(question: str, result: dict[str, Any]) -> dict[str, Any]:

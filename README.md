@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.47.0-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.47.0)
+[![Version](https://img.shields.io/badge/version-2.48.0-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.48.0)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -16,7 +16,7 @@ subscription quota, with no automatic fallback to a paid API.
 </p>
 
 <p align="center">
-  <img src="assets/expert-hub.png" width="70%" alt="Expert roster: each expert leads with the name it chose, its own standpoint, and what it is glad to be asked" />
+  <img src="assets/expert-hub.png" width="70%" alt="Live roster of 49 experts with the improved cost expert at 173 findings and API grant exposure of $0.01 against one $2 total limit" />
 </p>
 
 ## Capacity
@@ -67,7 +67,7 @@ deepr init
 deepr doctor --skip-connectivity
 deepr capacity
 deepr expert make "My Domain Expert" --local -d "The decisions this expert supports"
-deepr expert consult "What should we decide next?" --expert "My Domain Expert" --local
+deepr expert consult "What should we decide next?" --expert "My Domain Expert"
 ```
 
 See [Quick Start](docs/QUICK_START.md), [Supported Surface](docs/SUPPORTED_SURFACE.md),

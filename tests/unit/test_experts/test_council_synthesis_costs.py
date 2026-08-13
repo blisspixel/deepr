@@ -5,13 +5,12 @@ from __future__ import annotations
 import asyncio
 import threading
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from anthropic.types import Usage
 
 from deepr.experts.beliefs import Belief, BeliefStore
-from deepr.experts.consult import AnthropicConsultSynthesisClient
 from deepr.experts.cost_safety import get_cost_safety_manager, reset_cost_safety_manager
 from deepr.experts.council import ExpertCouncil, ExpertPerspective
 from deepr.experts.council_synthesis_costs import (
@@ -673,18 +672,3 @@ async def test_default_openai_client_is_not_constructed_while_metered_synthesis_
     )
 
     assert result["synthesis_error_type"] == "MeteredCouncilSynthesisDisabledError"
-
-
-def test_default_anthropic_client_disables_sdk_retries():
-    messages = object()
-    sdk_client = SimpleNamespace(messages=messages)
-    with patch("anthropic.AsyncAnthropic", return_value=sdk_client) as constructor:
-        client = AnthropicConsultSynthesisClient(api_key="test-key")
-
-        assert client.messages is messages
-
-    constructor.assert_called_once_with(
-        api_key="test-key",
-        base_url="https://api.anthropic.com",
-        max_retries=0,
-    )

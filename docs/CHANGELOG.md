@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.48.0] - 2026-08-13
+
+### Added
+
+- Registered the self-serve OpenAI GPT-5.6 family with official API IDs,
+  context and output limits, cached-input prices, and the full-request price
+  multipliers above 272K input tokens. `gpt-5.6` resolves to GPT-5.6 Sol;
+  Terra and Luna remain explicit cost and capability tiers.
+- Registered Grok 4.6 and Grok Build 0.1 with official xAI standard and
+  long-context rates. Generic Grok flagship aliases resolve to 4.6, while the
+  documented `grok-code-fast` aliases resolve and settle as Grok Build 0.1.
+
+### Changed
+
+- OpenAI task defaults now use GPT-5.6 Sol at the same base $5/$30 per MTok
+  rates as GPT-5.5. Cost-sensitive quick and fact-check routing remains on
+  Grok 4.3 rather than silently paying the newer flagship rate.
+- Anthropic research defaults and generic Opus aliases now use Claude Opus 5.
+  Sonnet 5 uses Anthropic's now-permanent $2/$10 per MTok rates, with matching
+  prompt-cache pricing, instead of the canceled future $3/$15 increase.
+- Refreshed the provider verification matrix through 2026-08-13. Gemini's
+  current GA registry already matched official documentation. Microsoft lists
+  GPT-5.6 in Foundry, but Deepr keeps Azure choices deployment-specific until
+  pricing and adapter behavior are verified for that account boundary.
+- Expert consult now defaults to local Ollama. Explicit safety-eligible plan
+  quota remains available, while CLI, MCP, and A2A API consult requests return
+  a typed block before transaction or provider-client construction. Legacy
+  consent flags cannot enable API spend.
+
+### Fixed
+
+- **Attended grants now follow canonical cost-state isolation.** The grant file
+  lives under `DEEPR_COST_DATA_DIR` with the ledger and durable reservations.
+  An isolated validation or screenshot process can no longer write temporary
+  authority into the user's live runtime-data root.
+- Corrected Grok 4.5 cached input from $0.50 to the official $0.30 per MTok
+  short-context rate. Its 200K-token long-context rate now derives as $0.60.
+- Corrected the Anthropic informational table so current-turn thinking uses
+  the output-token rate. Runtime settlement already uses Anthropic's inclusive
+  `usage.output_tokens`, but the table no longer invites an input-rate mistake.
+- Added regression coverage for every new alias and exact long-context
+  threshold so preflight reservations and settlement cannot disagree.
+- Accepted Ollama's official `cloud.source="both"` proof as persistent-config
+  local-only authority. A server with both `server.json` and environment cloud
+  disablement no longer makes local consult fail with a wrapped connection
+  error; environment-only disablement remains blocked.
+
 ## [2.47.0] - 2026-08-12
 
 Attended API work is usable without turning a small ceiling into standing or
