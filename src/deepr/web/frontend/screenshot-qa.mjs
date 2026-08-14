@@ -6,16 +6,20 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // Port + appearance are configurable so the QA loop can run against whatever
-// port vite picked and capture both themes / a chosen accent.
-//   QA_BASE=http://localhost:3002 QA_API=http://localhost:5002 QA_THEME=dark QA_ACCENT=indigo node screenshot-qa.mjs
+// port vite picked and capture both themes / a chosen accent and expert.
+//   QA_BASE=http://localhost:3002 QA_API=http://localhost:5002 QA_THEME=dark QA_ACCENT=indigo QA_EXPERT="Temporal Knowledge Graphs" node screenshot-qa.mjs
 const BASE = process.env.QA_BASE || 'http://localhost:3000';
 const API = process.env.QA_API || 'http://localhost:5000';
 const THEME = process.env.QA_THEME || 'light';
 const ACCENT = process.env.QA_ACCENT || 'teal';
+const PREFERRED_EXPERT = (process.env.QA_EXPERT || '').trim();
 const DEMO = ['1', 'true', 'yes', 'on'].includes((process.env.QA_DEMO || '').trim().toLowerCase());
 const ALLOW_OVER_LIMIT_COST_SCREENSHOT = ['1', 'true', 'yes', 'on'].includes(
   (process.env.QA_ALLOW_OVER_LIMIT_COST_SCREENSHOT || '').trim().toLowerCase()
 );
+const CONTENT_ONLY = process.argv.includes('--content');
+const VIEWPORT = { width: 1440, height: 900 };
+const STATUS_BAR_HEIGHT = 32;
 const apiUrl = (path) => `${API.replace(/\/+$/, '')}${path}`;
 
 const screenshotDir = join(__dirname, 'screenshots', THEME === 'dark' ? 'dark' : 'light');
@@ -73,7 +77,15 @@ async function getCaptureContext() {
   try {
     const expertsData = await fetchJson('/api/experts');
     const experts = expertsData.experts || expertsData || [];
-    const rich = experts.find(e => (e.total_documents || e.documents || 0) >= 5) || experts[0];
+    const preferred = experts.find(e => e.name === PREFERRED_EXPERT);
+    const richnessScore = (expert) =>
+      (expert.roster_tier === 'flagship' ? 1000 : 0) +
+      (expert.position_count || 0) * 100 +
+      (expert.grounded_findings || 0) * 10 +
+      (expert.source_count || 0);
+    const rich =
+      preferred ||
+      [...experts].sort((left, right) => richnessScore(right) - richnessScore(left))[0];
     if (rich?.name) expertName = rich.name;
   } catch {
     // fall back to default
@@ -121,7 +133,7 @@ async function main() {
 
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
-    viewport: { width: 1440, height: 900 },
+    viewport: VIEWPORT,
     deviceScaleFactor: 1,
   });
 
@@ -158,7 +170,10 @@ async function main() {
     }
 
     const filepath = join(screenshotDir, `${pg.name}.png`);
-    await page.screenshot({ path: filepath, fullPage: FULL_PAGE });
+    const capture = CONTENT_ONLY
+      ? { path: filepath, clip: { x: 0, y: 0, width: VIEWPORT.width, height: VIEWPORT.height - STATUS_BAR_HEIGHT } }
+      : { path: filepath, fullPage: FULL_PAGE };
+    await page.screenshot(capture);
     console.log(`  Saved: ${filepath}`);
     await page.close();
   }

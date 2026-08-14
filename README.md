@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.49.1-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.49.1)
+[![Version](https://img.shields.io/badge/version-2.49.2-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.49.2)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -11,9 +11,35 @@ Deepr turns research into durable beliefs, gaps, contradictions, confidence,
 citations, provenance, and outcomes. It prefers owned local models, then proven
 subscription quota, with no automatic fallback to a paid API.
 
+## Build a durable expert fleet
+
+<p align="center">
+  <img src="assets/expert-hub.png" width="100%" alt="Deepr Expert Hub showing the 25-expert flagship roster with portraits, standpoints, positions, studied findings, and retained sources" />
+</p>
+
+The flagship view keeps the selected 25 experts in focus while preserving the
+complete roster. Each card exposes the expert's standpoint, positions, studied
+findings, retained sources, and readiness from durable state.
+
+## Turn evidence into reusable judgment
+
+<p align="center">
+  <img src="assets/expert-profile.png" width="100%" alt="A Deepr temporal knowledge graphs expert profile showing inspectable claims, confidence, source counts, and knowledge domains" />
+</p>
+
+Expert profiles keep claims, confidence, source lineage, gaps, decisions, and
+history inspectable after a research run ends. The structured belief store is
+authoritative; reports, digests, and portable exports are regenerable views.
+
+## Keep the spend boundary visible
+
 <p align="center">
   <img src="assets/cli-demo.png" width="92%" alt="A $200 cumulative Deepr wallet with a separate $4 job ceiling, exact drawdown, no automatic refill, and provider hard-stop status shown separately" />
 </p>
+
+Local and eligible plan-quota work stay at `$0` marginal API cost. Metered work
+never becomes an automatic fallback and cannot turn the local wallet into an
+open check.
 
 ## Capacity
 

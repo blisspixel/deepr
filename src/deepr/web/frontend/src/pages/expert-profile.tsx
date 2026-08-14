@@ -1133,22 +1133,22 @@ export default function ExpertProfile() {
             ) : !sortedClaims.length ? (
               <EmptyState icon={Lightbulb} title="No claims yet" description="Claims will appear here as the expert forms beliefs from evidence." />
             ) : (
-              <div className="rounded-lg border bg-card overflow-hidden">
-                <table className="w-full text-sm">
+              <div className="rounded-lg border bg-card overflow-x-auto">
+                <table className="w-full min-w-[900px] table-fixed text-sm">
                   <thead>
                     <tr className="border-b bg-muted/50">
-                      <th className="text-left p-3 font-medium text-muted-foreground">Statement</th>
+                      <th className="text-left p-3 font-medium text-muted-foreground w-[52%]">Statement</th>
                       <th className="text-left p-3 font-medium text-muted-foreground w-32">Confidence</th>
-                      <th className="text-left p-3 font-medium text-muted-foreground w-20">Sources</th>
-                      <th className="text-left p-3 font-medium text-muted-foreground w-28">Domain</th>
+                      <th className="text-left p-3 font-medium text-muted-foreground w-24">Sources</th>
+                      <th className="text-left p-3 font-medium text-muted-foreground w-[28%]">Domain</th>
                     </tr>
                   </thead>
                   <tbody>
                     {sortedClaims.map((claim) => (
                       <tr key={claim.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                        <td className="p-3 text-foreground">{claim.statement}</td>
-                        <td className="p-3"><ConfidenceBar value={claim.confidence} /></td>
-                        <td className="p-3">
+                        <td className="p-3 align-top text-foreground">{claim.statement}</td>
+                        <td className="p-3 align-top"><ConfidenceBar value={claim.confidence} /></td>
+                        <td className="p-3 align-top">
                           <div className="flex items-center gap-1 flex-wrap">
                             <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-secondary text-xs font-medium text-foreground">
                               {claim.sources.length}
@@ -1158,8 +1158,11 @@ export default function ExpertProfile() {
                             ))}
                           </div>
                         </td>
-                        <td className="p-3">
-                          <span className="px-2 py-0.5 rounded bg-secondary text-xs text-muted-foreground">
+                        <td className="p-3 align-top">
+                          <span
+                            className="block max-w-full px-2 py-0.5 rounded bg-secondary text-xs text-muted-foreground leading-5 line-clamp-3 break-words"
+                            title={claim.domain}
+                          >
                             {claim.domain}
                           </span>
                         </td>
