@@ -364,6 +364,18 @@ def _absorb(findings: list[StudyFinding], fresh: list[StudyFinding]) -> None:
         for anchor in candidate.anchors:
             if anchor not in existing.anchors:
                 existing.anchors.append(anchor)
+        if existing.payload != candidate.payload:
+            # Same derived id, different content. Identity should have
+            # prevented this; keep both so a collision cannot drop a finding.
+            suffix = 2
+            new_id = f"{candidate.finding_id}-{suffix}"
+            while new_id in by_id:
+                suffix += 1
+                new_id = f"{candidate.finding_id}-{suffix}"
+            candidate.finding_id = new_id
+            findings.append(candidate)
+            by_id[new_id] = candidate
+            continue
         existing.grounded_anchor_count += candidate.grounded_anchor_count
         existing.ungrounded_anchor_count += candidate.ungrounded_anchor_count
 
@@ -382,6 +394,7 @@ def build_findings(
         anchors = _read_anchors(item)
         grounded, ungrounded, shas = _ground_anchors(anchors, haystacks)
         title = _title_for(item, lens, shas)
+        payload = {k: v for k, v in item.items() if k != "anchors"}
         findings.append(
             StudyFinding(
                 lens=lens.key,
@@ -392,9 +405,14 @@ def build_findings(
                 # one lens, so a brief citing `failure-30` silently repointed at
                 # a different finding - and the citation still validated against
                 # the id set, which is worse than failing.
-                finding_id=finding_thread_id(lens=lens.key, title=title, anchors=anchors),
+                finding_id=finding_thread_id(
+                    lens=lens.key,
+                    title=title,
+                    anchors=anchors,
+                    payload=json.dumps(payload, sort_keys=True, default=str),
+                ),
                 title=title,
-                payload={k: v for k, v in item.items() if k != "anchors"},
+                payload=payload,
                 anchors=anchors,
                 grounded_anchor_count=grounded,
                 ungrounded_anchor_count=ungrounded,

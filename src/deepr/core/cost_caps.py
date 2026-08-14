@@ -253,18 +253,36 @@ def _with_spend_wallet(operator: OperatorBudget) -> OperatorBudget:
     if _UNATTENDED_PAID_API.get():
         return operator
 
-    from deepr.core.spend_wallet import active_wallet
+    from deepr.core.spend_wallet import active_wallet, wallet_file_path
+
+    wallet_path = wallet_file_path()
+    wallet_present = wallet_path.exists()
 
     try:
         cost_state_id = _active_cost_state_id()
-    except Exception:
+    except SpendCapConfigurationError:
+        if wallet_present:
+            raise
+        return operator
+    except Exception as exc:
+        if wallet_present:
+            raise SpendCapConfigurationError(
+                "spend wallet exists but cost-state identity is unavailable; paid work is blocked"
+            ) from exc
         return operator
 
     try:
-        wallet = active_wallet(cost_state_id=cost_state_id)
-    except Exception:
-        return operator
+        wallet = active_wallet(cost_state_id=cost_state_id, path=wallet_path)
+    except Exception as exc:
+        raise SpendCapConfigurationError(
+            "spend wallet could not be evaluated; paid work is blocked until it is repaired or cleared"
+        ) from exc
     if wallet is None:
+        if wallet_present:
+            raise SpendCapConfigurationError(
+                "spend wallet file exists but is unreadable or not valid for the current cost state; "
+                "paid work is blocked until it is repaired or cleared"
+            )
         return operator
 
     effective_limit = operator.monthly_limit

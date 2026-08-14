@@ -180,3 +180,25 @@ class TestASourceIsAddressedByItsHash:
         response = client.get("/api/experts/flooding/source/..%2F..%2Fsecret")
         assert response.status_code in (400, 404)
         assert b"do not serve me" not in response.data
+
+
+class TestFleetHealth:
+    def test_never_consulted_expert_does_not_500(self, client, fleet, monkeypatch: pytest.MonkeyPatch) -> None:
+        """`.get(name)` is None for experts with no consult trace; to_dict used to crash."""
+
+        class FakeProfile:
+            name = "flooding"
+
+        class FakeStore:
+            def list_all(self):
+                return [FakeProfile()]
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeStore)
+        monkeypatch.setattr("deepr.experts.expert_health.last_consulted_days", lambda: {})
+        monkeypatch.setattr("deepr.web.expert_v2_api._belief_count", lambda name: 4)
+
+        response = client.get("/api/fleet/health")
+        assert response.status_code == 200, response.get_json()
+        payload = response.get_json()
+        assert payload["experts"][0]["consulted_days_ago"] == -1
+        assert payload["experts"][0]["beliefs"] == 4

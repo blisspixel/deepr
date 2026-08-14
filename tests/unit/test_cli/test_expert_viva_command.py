@@ -106,6 +106,15 @@ class TestRefusalsBeforeSpending:
         assert "expert brief" in r.output
         assert called["prompts"] == []
 
+    def test_an_empty_brief_is_refused_before_any_model_call(self, profile, expert_home, monkeypatch):
+        """A timed-out synthesis left a parseable brief holding zero positions."""
+        _write_brief(expert_home, "Candidate", positions=0)
+        called = _stub_backend(monkeypatch, [])
+        r = CliRunner().invoke(expert, ["viva", "Candidate"])
+        assert r.exit_code == 2
+        assert "holding no positions" in r.output
+        assert called["prompts"] == []
+
     def test_an_examiner_without_an_orientation_is_skipped(self, profile, expert_home, monkeypatch):
         _write_brief(expert_home, "Candidate")
         _write_brief(expert_home, "Examiner One", orientation="")

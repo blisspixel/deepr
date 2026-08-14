@@ -281,6 +281,30 @@ class TestReSightingsMergeRatherThanDuplicate:
 
         assert len(findings) == 2
 
+    def test_untitled_items_with_different_payloads_are_kept(self, corpus):
+        """A failure lens that names nothing used to collapse every item."""
+        parsed = {
+            "fail_patterns": [
+                {"trigger": "quota", "symptom": "empty answer", "anchors": []},
+                {"trigger": "timeout", "symptom": "the run hangs", "anchors": []},
+            ]
+        }
+        findings = build_findings(LENSES["failure"], parsed, corpus.load_study_material())
+        assert len(findings) == 2
+        assert {f.payload.get("trigger") for f in findings} == {"quota", "timeout"}
+
+    def test_same_id_different_payload_is_not_dropped(self):
+        from deepr.experts.study import _absorb
+
+        first = self._finding(["sha-a"])
+        first.payload = {"name": "a"}
+        second = self._finding(["sha-b"])
+        second.payload = {"name": "b"}
+        findings = [first]
+        _absorb(findings, [second])
+        assert len(findings) == 2
+        assert {f.payload["name"] for f in findings} == {"a", "b"}
+
     def test_a_one_source_finding_becoming_cross_source_is_visible(self):
         """The evidential claim genuinely changed, and that is the point."""
         from deepr.experts.study import _absorb

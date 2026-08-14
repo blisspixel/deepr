@@ -76,6 +76,22 @@ class TestAThreadSurvivesARebrief:
         assert len(ledger.live) == 1
         assert ledger.live[0].stance == "c"
 
+    def test_one_brief_cannot_leave_two_live_versions_of_the_same_thread(self):
+        """Questions that fold to one thread used to both stay live."""
+        ledger = PositionLedger(expert_name="E")
+        record_brief(
+            ledger,
+            [
+                _position("Does X hold?", stance="first"),
+                _position("does x hold", stance="second"),
+            ],
+            at=JAN,
+        )
+
+        assert len(ledger.live) == 1
+        assert ledger.live[0].stance == "second"
+        assert ledger.stats()["versions"] == 2
+
 
 class TestAnIdenticalRestatementIsNotAVersion:
     def test_restating_the_same_position_adds_no_version(self):

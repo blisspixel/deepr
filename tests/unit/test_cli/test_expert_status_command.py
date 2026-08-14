@@ -36,15 +36,25 @@ def profile(monkeypatch):
     return FakeProfile
 
 
+def _corpus_index(sources: int, *, superseded: int = 0) -> str:
+    lines = ['{"schema_version": "deepr-expert-corpus-v1", "expert": "Subject"}']
+    for i in range(sources):
+        lines.append(json.dumps({"sha256": f"live-{i}", "origin_key": f"url:ex{i}.org", "superseded_by": ""}))
+    for i in range(superseded):
+        lines.append(json.dumps({"sha256": f"old-{i}", "origin_key": "url:old.org", "superseded_by": "live-0"}))
+    return "\n".join(lines) + "\n"
+
+
 def _build(home, *, sources=3, findings=10, grounded=8, positions=1, standpoint="I read this as X."):
     d = home / "Subject"
     (d / "corpus").mkdir(parents=True, exist_ok=True)
-    (d / "corpus" / "index.jsonl").write_text("\n".join('{"x":1}' for _ in range(sources)), encoding="utf-8")
+    (d / "corpus" / "index.jsonl").write_text(_corpus_index(sources), encoding="utf-8")
     (d / "study.json").write_text(
         json.dumps({"totals": {"findings": findings, "grounded_findings": grounded}}), encoding="utf-8"
     )
     (d / "brief.json").write_text(
-        json.dumps({"positions": [{"question": f"Q{i}"} for i in range(positions)]}), encoding="utf-8"
+        json.dumps({"positions": [{"question": f"Q{i}", "supported_by": ["f1"]} for i in range(positions)]}),
+        encoding="utf-8",
     )
     if standpoint:
         (d / "profile_card.json").write_text(json.dumps({"standpoint": standpoint}), encoding="utf-8")
@@ -130,3 +140,27 @@ class TestReadingArtifacts:
     def test_an_unknown_expert_exits_two(self, profile, expert_home):
         r = CliRunner().invoke(expert, ["status", "Nobody"])
         assert r.exit_code == 2
+
+    def test_a_header_only_corpus_is_not_treated_as_acquired(self, profile, expert_home):
+        d = expert_home / "Subject"
+        (d / "corpus").mkdir(parents=True)
+        (d / "corpus" / "index.jsonl").write_text(
+            '{"schema_version": "deepr-expert-corpus-v1", "expert": "Subject"}\n',
+            encoding="utf-8",
+        )
+        stages = {
+            s["stage"]: s
+            for s in json.loads(CliRunner().invoke(expert, ["status", "Subject", "--json"]).output)["stages"]
+        }
+        assert stages["acquire"]["status"] == "failed"
+        assert stages["study"]["status"] == "blocked"
+
+    def test_a_fully_superseded_corpus_is_not_treated_as_acquired(self, profile, expert_home):
+        d = expert_home / "Subject"
+        (d / "corpus").mkdir(parents=True)
+        (d / "corpus" / "index.jsonl").write_text(_corpus_index(0, superseded=3), encoding="utf-8")
+        stages = {
+            s["stage"]: s
+            for s in json.loads(CliRunner().invoke(expert, ["status", "Subject", "--json"]).output)["stages"]
+        }
+        assert stages["acquire"]["status"] == "failed"

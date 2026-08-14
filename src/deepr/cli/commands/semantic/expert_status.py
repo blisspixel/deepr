@@ -74,10 +74,9 @@ def _read_artifacts(directory: Path) -> dict[str, dict[str, Any] | None]:
             continue
         try:
             if path.suffix == ".jsonl":
-                # The corpus index is a line-per-source log; the contract only
-                # asks how many are active, so count rather than parse each.
-                active = sum(1 for line in path.read_text(encoding="utf-8").splitlines() if line.strip())
-                artifacts[relative] = {"active_count": active}
+                from deepr.experts.corpus_store import active_source_count
+
+                artifacts[relative] = {"active_count": active_source_count(path.read_text(encoding="utf-8"))}
             else:
                 loaded = json.loads(path.read_text(encoding="utf-8"))
                 artifacts[relative] = loaded if isinstance(loaded, dict) else None

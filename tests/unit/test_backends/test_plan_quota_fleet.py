@@ -99,6 +99,19 @@ class TestFleetStatus:
         assert _row(rows, "kiro")["routable"] == "blocked"
         assert _row(rows, "copilot")["routable"] == "metered"
 
+    def test_windows_cmd_shim_is_installed_but_not_routable(self, tmp_path, monkeypatch):
+        """PATH presence is not launchability. A .cmd shim Deepr refuses is blocked."""
+        monkeypatch.setattr("deepr.backends.plan_quota.process_launch._WINDOWS", True)
+
+        def which(exe):
+            return "C:/bin/agy.cmd" if exe == "agy" else None
+
+        rows = build_fleet_status(which=which, env={}, quota_ledger_path=tmp_path / "q.jsonl")
+        row = _row(rows, "antigravity")
+        assert row["installed"] is True
+        assert row["routable"] == "blocked"
+        assert "shim" in row["detail"].lower()
+
     def test_unobserved_by_default(self, tmp_path):
         rows = build_fleet_status(which=_which("codex"), env={}, quota_ledger_path=tmp_path / "q.jsonl")
         assert _row(rows, "codex")["status"] == "unobserved"

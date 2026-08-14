@@ -56,17 +56,22 @@ def build_fleet_status(
     quota_ledger_path: Path | None = None,
 ) -> list[dict[str, Any]]:
     """Return one status row per plan-quota adapter. Pure, read-only, $0."""
+    from deepr.backends.plan_quota.process_launch import windows_launch_block_reason
+
     resolved_env = env if env is not None else dict(os.environ)
     states = _latest_per_backend(summarize_quota_state(quota_ledger_path))
 
     rows: list[dict[str, Any]] = []
     for adapter in all_adapters():
         installed = which(adapter.exe) is not None
+        launch_block = windows_launch_block_reason(adapter.exe, which=which) if installed else None
         state = states.get(adapter.backend_id)
         event = state.latest_event if state else None
         status = "unobserved" if event is None else _EVENT_STATUS.get(event.event_type, "active")
         raw_auth_mode = detect_auth_mode(adapter, resolved_env).value if installed else None
         auth_mode = evaluate_plan_quota_safety(adapter, env=resolved_env).auth_mode.value if installed else None
+        routable = "blocked" if launch_block else _routability(adapter)
+        detail = launch_block or (event.detail if event else "")
         rows.append(
             {
                 "backend": adapter.backend_id,
@@ -75,12 +80,12 @@ def build_fleet_status(
                 "installed": installed,
                 "auth_mode": auth_mode,
                 "raw_auth_mode": raw_auth_mode,
-                "routable": _routability(adapter),
+                "routable": routable,
                 "experimental": adapter.experimental,
                 "status": status,
                 "reset_at": event.reset_at.isoformat() if event and event.reset_at else None,
                 "last_event_at": event.timestamp.isoformat() if event else None,
-                "detail": event.detail if event else "",
+                "detail": detail,
                 "value_note": adapter.value_note,
             }
         )

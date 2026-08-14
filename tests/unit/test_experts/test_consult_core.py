@@ -221,3 +221,53 @@ def test_build_synthesis_backend_requires_owned_capacity():
 def test_build_synthesis_backend_rejects_api_overrides_for_owned_capacity():
     with pytest.raises(ConsultBackendError, match="API provider/model overrides"):
         build_synthesis_backend(use_local=True, api_provider="anthropic")
+
+
+def test_plan_list_skips_a_blocked_backend_and_uses_the_next(monkeypatch):
+    """`--plan grok,claude` must not die on grok when claude can run."""
+    from deepr.backends.waterfall import BACKEND_PLAN_QUOTA, BACKEND_UNAVAILABLE, BackendChoice
+    from deepr.experts.consult import _plan_synthesis_backend
+
+    monkeypatch.setattr("deepr.backends.quota_headroom.read_headroom", lambda: {})
+
+    def fake_choose(backend_id, **_kwargs):
+        if backend_id == "grok":
+            return BackendChoice(BACKEND_UNAVAILABLE, None, "native tools unconfined")
+        return BackendChoice(BACKEND_PLAN_QUOTA, None, "safe plan", plan_backend_id=backend_id)
+
+    monkeypatch.setattr("deepr.backends.waterfall.choose_plan_quota_backend", fake_choose)
+
+    class Adapter:
+        backend_id = "claude"
+        tos_note = ""
+
+    monkeypatch.setattr(
+        "deepr.backends.plan_quota.get_adapter",
+        lambda backend_id: Adapter() if backend_id == "claude" else None,
+    )
+
+    class FakeClient:
+        def __init__(self, adapter, model=None, operation=""):
+            self.adapter = adapter
+            self.model = model
+            self.operation = operation
+
+    monkeypatch.setattr("deepr.backends.plan_quota.PlanQuotaChatClient", FakeClient)
+
+    backend = _plan_synthesis_backend("grok,claude", None)
+    assert backend.provider == "plan_quota:claude"
+    assert backend.allow_live_fallback is False
+
+
+def test_plan_list_fails_when_every_named_backend_is_blocked(monkeypatch):
+    from deepr.backends.waterfall import BACKEND_UNAVAILABLE, BackendChoice
+    from deepr.experts.consult import _plan_synthesis_backend
+
+    monkeypatch.setattr("deepr.backends.quota_headroom.read_headroom", lambda: {})
+    monkeypatch.setattr(
+        "deepr.backends.waterfall.choose_plan_quota_backend",
+        lambda backend_id, **_kwargs: BackendChoice(BACKEND_UNAVAILABLE, None, "blocked"),
+    )
+
+    with pytest.raises(ConsultBackendError, match="No plan backend has capacity"):
+        _plan_synthesis_backend("grok,codex", None)

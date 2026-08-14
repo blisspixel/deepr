@@ -66,9 +66,14 @@ def _load_brief_text(expert_name: str) -> str:
     from deepr.experts.consult_context import load_brief
 
     brief = load_brief(hold_current_path(expert_name))
-    if brief is None:
+    if brief is None or not brief.positions:
+        # An empty brief is worse than a missing one: it looks like material.
+        # A timed-out synthesis left a parseable file holding zero positions,
+        # and examining it spent three model calls producing a document about
+        # the pipeline failing rather than about the subject.
+        detail = "has no brief" if brief is None else "has a brief holding no positions"
         click.echo(
-            f"Error: {expert_name} has no brief, so it holds no positions to examine. "
+            f"Error: {expert_name} {detail}, so it holds no positions to examine. "
             f'Run: deepr expert brief "{expert_name}"',
             err=True,
         )

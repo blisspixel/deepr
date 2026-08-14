@@ -10,6 +10,7 @@ Covers the v2.15 lifecycle substrate:
 - health-check surfacing of archive candidates
 """
 
+import math
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
@@ -514,3 +515,27 @@ class TestDecayNeverRaisesConfidence:
     def test_decay_never_exceeds_the_stored_value(self) -> None:
         for offset in (-365, -30, -1, 0, 1, 30, 365):
             assert self._belief(days_offset=offset).get_current_confidence() <= 0.5
+
+    def test_historical_read_does_not_apply_today_decay(self) -> None:
+        """A point-in-time read must decay against that instant, not wall-clock now."""
+        belief = self._belief(days_offset=-30)
+        then = belief.updated_at + timedelta(days=1)
+        today = belief.get_current_confidence()
+        historical = belief.get_current_confidence(as_of=then)
+        assert historical == pytest.approx(0.5 * math.exp(-0.01 * 1))
+        assert today < historical
+
+    def test_naive_stored_timestamp_does_not_crash_decay(self) -> None:
+        """Legacy or hand-edited beliefs may lack tzinfo; decay must still run."""
+        belief = Belief(claim="a claim", domain="d", confidence=0.5)
+        belief.decay_rate = 0.01
+        belief.updated_at = datetime.now(UTC).replace(tzinfo=None) - timedelta(days=10)
+        assert 0.0 <= belief.get_current_confidence() <= 0.5
+
+    def test_naive_iso_round_trip_stays_comparable(self) -> None:
+        payload = Belief(claim="a claim", domain="d", confidence=0.5).to_dict()
+        payload["created_at"] = "2024-01-01T00:00:00"
+        payload["updated_at"] = "2024-01-01T00:00:00"
+        loaded = Belief.from_dict(payload)
+        assert loaded.updated_at.tzinfo is not None
+        assert loaded.get_current_confidence() <= 0.5

@@ -100,6 +100,46 @@ class TestCouncilPlanOffline:
         assert json.loads(result.output)["roles"]
 
 
+class TestImproveExecute:
+    def test_execute_skips_metered_discover_gaps(self, runner, monkeypatch):
+        """Paid-gated discover-gaps must not be invoked as if it were local."""
+
+        class FakeProfile:
+            name = "Subject"
+            domain = "d"
+
+            def get_manifest(self):
+                return type("M", (), {"domain": "d", "open_gap_count": 0})()
+
+        class FakeStore:
+            def load(self, name):
+                return FakeProfile() if name == "Subject" else None
+
+        class FakeBeliefStore:
+            def __init__(self, name):
+                self.beliefs = {}
+
+        invoked: list[list[str]] = []
+
+        class FakeRunner:
+            def invoke(self, cli, argv):
+                invoked.append(list(argv))
+                return type("R", (), {"exit_code": 0, "output": "dry-run ok"})()
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeStore)
+        monkeypatch.setattr("deepr.experts.beliefs.BeliefStore", FakeBeliefStore)
+        monkeypatch.setattr("click.testing.CliRunner", FakeRunner)
+
+        result = runner.invoke(expert, ["improve", "Subject", "--execute", "--json"])
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        discover = next(step for step in payload["executed"] if step["step"] == "discover-gaps")
+        assert discover["skipped"] is True
+        assert "metered-gated" in discover["output_tail"]
+        assert not any(argv[:2] == ["expert", "discover-gaps"] for argv in invoked)
+        assert any("--dry-run" in argv for argv in invoked)
+
+
 class TestNoPaidPath:
     def test_offline_commands_construct_no_provider(self, runner, monkeypatch):
         """None of these surfaces may reach a metered client."""

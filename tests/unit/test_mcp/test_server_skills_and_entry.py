@@ -57,7 +57,8 @@ class TestListSkills:
     @pytest.mark.asyncio
     async def test_rejects_path_traversal(self):
         out = await _list_skills("../etc/passwd")
-        assert "illegal path" in out["error"]
+        assert out["error_code"] == "INVALID_PARAMS"
+        assert "illegal path" in out["message"]
 
     @pytest.mark.asyncio
     async def test_returns_skill_listing_for_known_expert(self):

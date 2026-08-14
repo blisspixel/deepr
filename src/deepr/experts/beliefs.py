@@ -75,6 +75,11 @@ def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
+def _as_utc(value: datetime | str) -> datetime:
+    parsed = value if isinstance(value, datetime) else datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
+
+
 class ConflictResolution(Enum):
     """Conflict resolution strategies."""
 
@@ -175,8 +180,16 @@ class Belief:
                 keys.add(token.lower())
         return len(keys)
 
-    def get_current_confidence(self) -> float:
+    def get_current_confidence(self, as_of: datetime | None = None) -> float:
         """Get confidence with decay and the source-trust ceiling applied.
+
+        ``as_of`` is the instant decay is measured against. The default is now.
+        A historical read must pass the historical instant; otherwise a past
+        record carries today's (more decayed) confidence, which is the bug that
+        blocked point-in-time belief reads.
+
+        Args:
+            as_of: Instant to evaluate decay at. Naive values are treated as UTC.
 
         Returns:
             Current confidence after decay, capped by trust class.
@@ -187,7 +200,8 @@ class Belief:
         # exp(-rate * negative) is greater than 1. Unclamped, a belief stored
         # at 0.50 came back as 0.60: inflated to the trust ceiling, so the one
         # record you had reason to distrust read as maximally trustworthy.
-        days_elapsed = max(0, (datetime.now(UTC) - self.updated_at).days)
+        moment = _as_utc(as_of) if as_of is not None else datetime.now(UTC)
+        days_elapsed = max(0, (moment - _as_utc(self.updated_at)).days)
         decayed = self.confidence * math.exp(-self.decay_rate * days_elapsed)
         return max(0.0, min(self._trust_ceiling(), decayed))
 
@@ -286,14 +300,15 @@ class Belief:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Belief":
+        now = datetime.now(UTC)
         return cls(
             id=data.get("id", ""),
             claim=data["claim"],
             confidence=data["confidence"],
             evidence_refs=data.get("evidence_refs", []),
             domain=data.get("domain", ""),
-            created_at=datetime.fromisoformat(data["created_at"]) if "created_at" in data else datetime.now(UTC),
-            updated_at=datetime.fromisoformat(data["updated_at"]) if "updated_at" in data else datetime.now(UTC),
+            created_at=_as_utc(data["created_at"]) if "created_at" in data else now,
+            updated_at=_as_utc(data["updated_at"]) if "updated_at" in data else now,
             contradictions_with=data.get("contradictions_with", []),
             source_type=data.get("source_type", "learned"),
             decay_rate=data.get("decay_rate", 0.01),
@@ -302,9 +317,7 @@ class Belief:
             trust_class=data.get("trust_class", "tertiary"),
             grounding_assurance=data.get("grounding_assurance", "unverified"),
             retrieval_count=int(data.get("retrieval_count", 0) or 0),
-            last_retrieved_at=(
-                datetime.fromisoformat(data["last_retrieved_at"]) if data.get("last_retrieved_at") else None
-            ),
+            last_retrieved_at=(_as_utc(data["last_retrieved_at"]) if data.get("last_retrieved_at") else None),
         )
 
 

@@ -99,3 +99,131 @@ class TestStudyRoundTrip:
         _write(elsewhere, json.dumps(_study().to_dict()))
 
         assert _load_study_result(profile, str(elsewhere)).findings
+
+
+class TestBriefRefusesUngroundedStudy:
+    def test_brief_does_not_spend_on_an_ungrounded_study(self, tmp_path, monkeypatch):
+        """Presence is not validity: a study with findings that cite nothing."""
+        from click.testing import CliRunner
+
+        from deepr.cli.commands.semantic.experts import expert
+        from deepr.experts import paths
+
+        home = tmp_path / "experts"
+        monkeypatch.setattr(paths, "canonical_expert_dir", lambda name: home / name)
+
+        class FakeProfile:
+            name = "Subject"
+
+        class FakeStore:
+            def load(self, name):
+                return FakeProfile() if name == "Subject" else None
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeStore)
+
+        called: list[object] = []
+        monkeypatch.setattr(
+            "deepr.cli.commands.semantic.expert_study.build_study_backend",
+            lambda **kwargs: called.append(kwargs) or (_ for _ in ()).throw(AssertionError("backend built")),
+        )
+
+        ungrounded = StudyResult(expert_name="Subject")
+        ungrounded.outcomes = [
+            LensOutcome(
+                lens="contention",
+                axis="interrogation",
+                status="ok",
+                findings=[
+                    StudyFinding(
+                        lens="contention",
+                        axis="interrogation",
+                        kind="disputes",
+                        title="Ungrounded",
+                        payload={"claim": "c"},
+                        grounded_anchor_count=0,
+                        corpus_shas=[],
+                    )
+                ],
+            )
+        ]
+        path = home / "Subject" / "noticed" / "current.json"
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps(ungrounded.to_dict()), encoding="utf-8")
+
+        result = CliRunner().invoke(expert, ["brief", "Subject"])
+        assert result.exit_code == 2
+        assert "no grounded findings" in result.output
+        assert called == []
+
+
+class TestBriefRefusesEmptyResult:
+    def test_empty_brief_does_not_write_or_close_the_ledger(self, tmp_path, monkeypatch):
+        """A timed-out synthesis must not erase a previous consultable brief."""
+        from click.testing import CliRunner
+
+        from deepr.cli.commands.semantic.experts import expert
+        from deepr.experts import paths
+        from deepr.experts.brief_contracts import ExpertBrief
+
+        home = tmp_path / "experts"
+        monkeypatch.setattr(paths, "canonical_expert_dir", lambda name: home / name)
+
+        class FakeProfile:
+            name = "Subject"
+            domain = "d"
+
+        class FakeStore:
+            def load(self, name):
+                return FakeProfile() if name == "Subject" else None
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeStore)
+
+        existing = home / "Subject" / "hold" / "current.json"
+        existing.parent.mkdir(parents=True)
+        existing.write_text(json.dumps({"positions": [{"question": "Q", "stance": "s"}]}), encoding="utf-8")
+        history = home / "Subject" / "hold" / "history.json"
+        history.write_text(
+            json.dumps(
+                {
+                    "expert": "Subject",
+                    "versions": [
+                        {
+                            "thread_id": "t1",
+                            "version_id": "v1",
+                            "question": "Q",
+                            "stance": "s",
+                            "recorded_at": "2026-01-01T00:00:00+00:00",
+                            "superseded_at": "9999-12-31T23:59:59.999999+00:00",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        _write(home / "Subject" / "noticed" / "current.json", json.dumps(_study().to_dict()))
+
+        async def empty_brief(**_kwargs):
+            return ExpertBrief(expert_name="Subject", limitations=["synthesis timed out"])
+
+        monkeypatch.setattr("deepr.experts.brief.build_brief", empty_brief)
+
+        class FakeBackend:
+            capacity_source = "local:x"
+            model = "x"
+            cost_note = "$0"
+            completion = staticmethod(lambda prompt: "")
+
+        monkeypatch.setattr(
+            "deepr.cli.commands.semantic.expert_study.build_study_backend",
+            lambda **kwargs: FakeBackend(),
+        )
+        monkeypatch.setattr(
+            "deepr.cli.commands.semantic.expert_study.CorpusStore",
+            lambda name: type("C", (), {"active_entries": staticmethod(lambda: [])})(),
+        )
+
+        result = CliRunner().invoke(expert, ["brief", "Subject", "--json"])
+        assert result.exit_code == 2
+        assert "holds no positions" in result.output
+        assert json.loads(existing.read_text(encoding="utf-8"))["positions"][0]["question"] == "Q"
+        assert json.loads(history.read_text(encoding="utf-8"))["versions"][0]["thread_id"] == "t1"

@@ -24,7 +24,7 @@ def _artifacts(**overrides):
     defaults = {
         "corpus/index.jsonl": {"active_count": 12},
         "noticed/current.json": {"totals": {"findings": 40, "grounded_findings": 31}},
-        "hold/current.json": {"positions": [{"question": "Q"}]},
+        "hold/current.json": {"positions": [{"question": "Q", "supported_by": ["f1"]}]},
         "self.json": {"standpoint": "I read this as a systems problem."},
         "graph/evidence.json": {"stats": {"is_formed": True}},
         "attend/practice.json": {"stats": {"live_pursuits": 3}},
@@ -69,6 +69,14 @@ class TestProducingAFileIsNotSucceeding:
 
     def test_a_real_artifact_reads_as_done(self):
         assert evaluate_stage(get_stage(STAGE_BRIEF), _artifacts()).status == "done"
+
+    def test_uncited_positions_are_not_a_successful_brief(self):
+        """A stance that cites nothing cannot answer 'why do you think that'."""
+        state = evaluate_stage(
+            get_stage(STAGE_BRIEF),
+            _artifacts(**{"hold/current.json": {"positions": [{"question": "Q", "stance": "it holds"}]}}),
+        )
+        assert state.status == "failed"
 
     def test_an_absent_artifact_with_inputs_met_reads_as_ready(self):
         state = evaluate_stage(get_stage(STAGE_BRIEF), _artifacts(**{"hold/current.json": None}))

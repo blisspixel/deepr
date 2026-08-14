@@ -542,9 +542,10 @@ what looks appetising.
    Deliberately no controller in the first pass - adjusting confidence against
    an unvalidated signal is how a system optimises the wrong thing quietly.
 5. **A point-in-time read.** `history_of(thread)` first, then `as_of(t)`, with
-   `current()` as the zero-argument default. Blocked on a real bug:
-   `get_current_confidence` decays against wall-clock, so a historical read
-   would return a past record carrying today's confidence.
+   `current()` as the zero-argument default. The wall-clock decay bug is
+   closed: `get_current_confidence(as_of=...)` evaluates at the requested
+   instant, and digest / OKF / `what_changed` pass that instant. The
+   remaining work is the read API itself (`current()` as the default).
 6. **Then, and only then, unattended operation** for the stages that already
    pass the reversibility test - `source`, `study`, `graph`, `viva` - with a
    quota preflight rather than a schedule. Two runs died mid-flight on quota
@@ -553,13 +554,16 @@ what looks appetising.
 
 **Refinements worth doing alongside, none of them blocking:**
 
-- **`stage_contract` enforced at the stage, not only in `expert status`.** It
-  reports correctly and does not yet gate anything.
-- **Consult failover.** `--plan a,b,c` fails over mid-call for study and brief,
-  and only picks a plan with headroom for consult, because a consult builds a
-  chat client rather than a completion callable.
-- **antigravity cannot launch on Windows** despite the fleet reporting it
-  installed and active, which silently costs a whole quota pool.
+- **`stage_contract` at the stage.** Brief, viva, and profile now refuse empty
+  or uncited inputs before a model call or write. Status also requires cited
+  findings on every position. Remaining: graph / practice still report more
+  than they gate.
+- **Consult failover.** `--plan a,b,c` now skips a safety-blocked or exhausted
+  name and uses the next eligible backend. Mid-call failover is still only on
+  study and brief, because a consult builds a chat client rather than a
+  completion callable.
+- **antigravity on Windows.** Fleet status now marks a `.cmd` shim as blocked
+  instead of explicit. Launch still needs a confined native binary mapping.
 - **One time module.** 64 duplicated `_utc_now()` definitions and four
   hand-rolled UTC coercions guarantee closed-open intervals get implemented
   three ways.

@@ -115,6 +115,26 @@ def clean_argv(argv: list[str]) -> list[str]:
     return clean
 
 
+def windows_launch_block_reason(command: str, *, which: Any = shutil.which) -> str | None:
+    """Why this command cannot be launched safely on Windows, or None.
+
+    Fleet status used PATH presence as 'installed and usable'. A ``.cmd``
+    shim that Deepr refuses to execute is installed and still unusable.
+    """
+    if not _WINDOWS:
+        return None
+    resolved = which(command) or ""
+    if not resolved:
+        return None
+    if Path(resolved).suffix.casefold() not in {".bat", ".cmd"}:
+        return None
+    try:
+        _windows_native_package_executable(command, resolved)
+    except RuntimeError as exc:
+        return str(exc)
+    return None
+
+
 def _windows_native_package_executable(command: str, shim: str) -> str:
     """Resolve a declared vendor package binary without executing its shell shim."""
     command_name = Path(command).stem.casefold()

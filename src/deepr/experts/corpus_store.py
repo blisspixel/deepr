@@ -89,6 +89,31 @@ class CorpusStats:
         return asdict(self)
 
 
+def active_source_count(index_text: str) -> int:
+    """How many currently active sources a corpus index describes.
+
+    The index is jsonl: a schema header plus one line per retained source,
+    including superseded revisions. Status and stage-contract readers used to
+    count every non-empty line, so a header-only file or a fully superseded
+    corpus looked like something to study.
+    """
+    entries: dict[str, CorpusEntry] = {}
+    for line in index_text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(payload, dict) or payload.get("schema_version") == CORPUS_SCHEMA_VERSION:
+            continue
+        entry = CorpusEntry.from_dict(payload)
+        if entry.sha256:
+            entries[entry.sha256] = entry
+    return sum(1 for entry in entries.values() if entry.is_active)
+
+
 def content_hash(text: str) -> str:
     """Stable identity for source text.
 

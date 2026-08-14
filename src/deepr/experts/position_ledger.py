@@ -282,6 +282,7 @@ def record_brief(
 
         if prior is None:
             ledger.versions.append(fresh)
+            live_by_thread[fresh.thread_id] = fresh
             changed["new"] += 1
             continue
 
@@ -302,6 +303,7 @@ def record_brief(
         prior.superseded_by = fresh.version_id
         prior.supersession_reason = REASON_REVISED
         ledger.versions.append(fresh)
+        live_by_thread[fresh.thread_id] = fresh
         changed["revised"] += 1
 
     for thread_id, prior in live_by_thread.items():

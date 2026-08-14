@@ -353,8 +353,9 @@ def _stage_artifacts(directory: Path) -> dict[str, dict[str, Any] | None]:
             artifacts[relative] = None
         elif path.suffix == ".jsonl":
             try:
-                lines = [ln for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
-                artifacts[relative] = {"active_count": len(lines)}
+                from deepr.experts.corpus_store import active_source_count
+
+                artifacts[relative] = {"active_count": active_source_count(path.read_text(encoding="utf-8"))}
             except OSError:
                 artifacts[relative] = None
         else:
@@ -389,6 +390,16 @@ def _register_stages_route(app: Flask, resolve: Resolver, logger: logging.Logger
     app.add_url_rule("/api/experts/<name>/stages", endpoint="expert_v2_stages", view_func=view, methods=["GET"])
 
 
+def _belief_count(name: str) -> int:
+    """Claim count for fleet health. Missing or unreadable stores are empty, not fatal."""
+    try:
+        from deepr.experts.beliefs import BeliefStore
+
+        return len(BeliefStore(name, read_only=True).beliefs)
+    except Exception:
+        return 0
+
+
 def _register_fleet_health_route(app: Flask, logger: logging.Logger) -> None:
     """Every expert's artifact hygiene, in one pass over the consult log.
 
@@ -411,8 +422,8 @@ def _register_fleet_health_route(app: Flask, logger: logging.Logger) -> None:
                     assess_expert(
                         name=expert_name,
                         expert_dir=canonical_expert_dir(expert_name),
-                        beliefs=0,
-                        consulted_days_ago=consulted.get(expert_name),
+                        beliefs=_belief_count(expert_name),
+                        consulted_days_ago=consulted.get(expert_name, -1),
                     )
                 )
             return jsonify({"summary": fleet_summary(fleet), "experts": [h.to_dict() for h in fleet], "cost_usd": 0.0})
