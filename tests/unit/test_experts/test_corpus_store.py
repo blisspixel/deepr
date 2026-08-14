@@ -2,7 +2,7 @@
 
 import pytest
 
-from deepr.experts.corpus_store import CorpusStore, content_hash
+from deepr.experts.corpus_store import CorpusStore, active_source_count, content_hash
 
 
 @pytest.fixture
@@ -91,6 +91,24 @@ class TestPersistence:
 
         reloaded = CorpusStore("Torn Expert", storage_dir=tmp_path / "corpus")
         assert reloaded.stats().active_count == 1
+
+
+class TestActiveSourceCount:
+    def test_header_and_superseded_lines_are_not_active(self):
+        """Status used to count every non-empty line, including the schema header."""
+        import json
+
+        header = json.dumps({"schema_version": "deepr-expert-corpus-v1", "expert": "X"})
+        live = json.dumps({"sha256": "aaa", "origin_key": "url:one.org", "superseded_by": ""})
+        old = json.dumps({"sha256": "bbb", "origin_key": "url:one.org", "superseded_by": "aaa"})
+        text = "\n".join([header, live, old, "{not json", ""]) + "\n"
+        assert active_source_count(text) == 1
+
+    def test_header_only_index_is_empty(self):
+        import json
+
+        header = json.dumps({"schema_version": "deepr-expert-corpus-v1", "expert": "X"})
+        assert active_source_count(header + "\n") == 0
 
 
 class TestSupersede:

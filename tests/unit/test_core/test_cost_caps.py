@@ -55,6 +55,22 @@ def test_tighter_bound_wins_when_both_families_set(monkeypatch: pytest.MonkeyPat
     assert resolve_spend_caps()["daily"] == 5.0
 
 
+def test_unreadable_wallet_file_does_not_widen_to_provider_cap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A $2 wallet that cannot be parsed must not restore the $5 provider cap."""
+    from deepr.core.spend_wallet import wallet_file_path
+
+    monkeypatch.setenv("DEEPR_COST_DATA_DIR", str(tmp_path / "costs"))
+    path = wallet_file_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("{not-json", encoding="utf-8")
+
+    operator = OperatorBudget(configured=True, monthly_limit=5.0, frozen=False)
+    with pytest.raises(SpendCapConfigurationError, match="spend wallet"):
+        cost_caps_module._with_spend_wallet(operator)
+
+
 def test_malformed_values_never_fall_open(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DEEPR_MAX_COST_PER_JOB", "not-a-number")
     with pytest.raises(SpendCapConfigurationError, match="DEEPR_MAX_COST_PER_JOB"):

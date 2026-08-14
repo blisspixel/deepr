@@ -72,7 +72,17 @@ def _digest(*parts: str) -> str:
     return hashlib.sha256("\n\x00".join(parts).encode("utf-8")).hexdigest()[:_ID_CHARS]
 
 
-def finding_thread_id(*, lens: str, title: str, anchors: list[str]) -> str:
+def is_generic_finding_title(lens: str, title: str) -> bool:
+    """True when the title is the stub used when a lens named nothing.
+
+    ``failure finding`` is not a subject. Hashing it as identity collapsed
+    every untitled item from that lens into one finding.
+    """
+    normalized = normalize_text(title)
+    return not normalized or normalized == normalize_text(f"{lens} finding")
+
+
+def finding_thread_id(*, lens: str, title: str, anchors: list[str], payload: str = "") -> str:
     """Which finding this is, stable across runs.
 
     Derived from the lens, the normalized title, and the sorted anchor set.
@@ -81,9 +91,15 @@ def finding_thread_id(*, lens: str, title: str, anchors: list[str]) -> str:
     differently is the same finding, and including the anchors makes that
     recognisable while a title-only hash would not.
 
+    A fallback stub title is not identity. When the lens named nothing, the
+    payload fingerprint distinguishes untitled items so two failure modes
+    cannot collapse into one record.
+
     Sorted, so anchor ordering from the model cannot change identity.
     """
     normalized_anchors = sorted({normalize_text(a) for a in anchors if str(a).strip()})
+    if is_generic_finding_title(lens, title):
+        return f"{lens}-{_digest(lens, str(payload or ''), *normalized_anchors)}"
     return f"{lens}-{_digest(lens, normalize_text(title), *normalized_anchors)}"
 
 

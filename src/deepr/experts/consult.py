@@ -51,21 +51,29 @@ def _sha256(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
-def _first_usable_plan(plan_backend: str) -> tuple[str | None, list[str]]:
-    """Pick the first named plan with headroom. Returns (choice, why-not).
+def _named_plans(plan_backend: str) -> list[str]:
+    return [p.strip() for p in str(plan_backend or "").split(",") if p.strip()]
 
-    ``--plan grok,codex,claude`` names an order of preference. Reading quota
-    headroom first is what stops a consult beginning on a plan that is already
+
+def _usable_plans(plan_backend: str) -> tuple[list[str], list[str]]:
+    """Order named plans by headroom and drop ones already at their cap.
+
+    ``--plan grok,codex,claude`` is a candidate list. Reading quota headroom
+    first is what stops a consult beginning on a plan that is already
     exhausted, which costs a round-trip and a confusing error rather than a
     result. A single name passes straight through, so nothing changes for
     callers that name one plan.
 
-    Falls back to the first name when headroom is unreadable: an unavailable
+    Falls back to the given order when headroom is unreadable: an unavailable
     quotabot must not turn into a refusal to consult at all.
+
+    Safety-blocked backends stay in this list. The resolver walks it and skips
+    those that cannot execute, so a blocked first name does not hide a later
+    eligible one.
     """
-    names = [p.strip() for p in str(plan_backend or "").split(",") if p.strip()]
+    names = _named_plans(plan_backend)
     if len(names) <= 1:
-        return (names[0] if names else None), []
+        return list(names), []
 
     try:
         from deepr.backends.quota_headroom import exhausted, order_by_headroom, read_headroom
@@ -75,47 +83,57 @@ def _first_usable_plan(plan_backend: str) -> tuple[str | None, list[str]]:
         headroom = {}
 
     if not headroom:
-        return names[0], []
+        return list(names), []
 
     spent = exhausted(names, headroom)
     usable = [n for n in order_by_headroom(names, headroom) if n not in spent]
     why_not = [headroom[n.lower()].describe() for n in spent if n.lower() in headroom]
+    return usable, why_not
+
+
+def _first_usable_plan(plan_backend: str) -> tuple[str | None, list[str]]:
+    """Pick the first named plan with headroom. Returns (choice, why-not)."""
+    usable, why_not = _usable_plans(plan_backend)
     return (usable[0] if usable else None), why_not
 
 
 def _plan_synthesis_backend(plan_backend: str, plan_model: str | None) -> ConsultSynthesisBackend:
     """Resolve a consult onto prepaid plan capacity.
 
-    A list picks the first plan that both resolves and has headroom. Not the
-    same as the study path's pool, and deliberately not pretending to be: a
-    consult builds a chat *client* rather than a completion callable, so there
-    is nowhere to fail over mid-call without wrapping the client. What this
-    does buy is the larger half - not starting a consult on a plan that is
-    already at its cap, which is how these runs actually died.
+    A list picks the first plan that resolves, is safety-eligible, and has
+    headroom. Not the same as the study path's pool, and deliberately not
+    pretending to be: a consult builds a chat *client* rather than a
+    completion callable, so there is nowhere to fail over mid-call without
+    wrapping the client. What this does buy is the larger half - not starting
+    a consult on a plan that is already at its cap, or on a named backend
+    that cannot execute, while a later name in the same list could.
     """
     from deepr.backends.plan_quota import PlanQuotaChatClient, get_adapter
     from deepr.backends.waterfall import choose_plan_quota_backend
 
-    chosen, unusable = _first_usable_plan(plan_backend)
-    if chosen is None:
-        raise ConsultBackendError(f"No plan backend has capacity: {'; '.join(unusable)}")
+    candidates, why_not = _usable_plans(plan_backend)
+    if not candidates:
+        raise ConsultBackendError(f"No plan backend has capacity: {'; '.join(why_not)}")
 
-    choice = choose_plan_quota_backend(chosen)
-    if not choice.is_plan_quota:
-        raise ConsultBackendError(f"Plan backend {chosen!r} is not available for explicit plan use: {choice.reason}")
+    for chosen in candidates:
+        choice = choose_plan_quota_backend(chosen)
+        if not choice.is_plan_quota:
+            why_not.append(f"{chosen}: {choice.reason}")
+            continue
+        adapter = get_adapter(choice.plan_backend_id or chosen)
+        if adapter is None:
+            why_not.append(f"{chosen}: unknown plan-quota backend")
+            continue
+        return ConsultSynthesisBackend(
+            client=PlanQuotaChatClient(adapter, model=plan_model, operation="plan_quota_consult_synthesis"),
+            model=plan_model or adapter.backend_id,
+            provider=f"plan_quota:{adapter.backend_id}",
+            allow_live_fallback=False,
+            note=f"{choice.reason}; live metered expert fallback disabled",
+            tos_note=adapter.tos_note,
+        )
 
-    adapter = get_adapter(choice.plan_backend_id or chosen)
-    if adapter is None:
-        raise ConsultBackendError(f"Unknown plan-quota backend {chosen!r}.")
-
-    return ConsultSynthesisBackend(
-        client=PlanQuotaChatClient(adapter, model=plan_model, operation="plan_quota_consult_synthesis"),
-        model=plan_model or adapter.backend_id,
-        provider=f"plan_quota:{adapter.backend_id}",
-        allow_live_fallback=False,
-        note=f"{choice.reason}; live metered expert fallback disabled",
-        tos_note=adapter.tos_note,
-    )
+    raise ConsultBackendError(f"No plan backend has capacity: {'; '.join(why_not)}")
 
 
 def build_synthesis_backend(

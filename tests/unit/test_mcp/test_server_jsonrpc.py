@@ -316,6 +316,14 @@ class TestToolsCall:
         data = json.loads(result["content"][0]["text"])
         assert isinstance(data, list)
         assert data[0]["name"] == "test"
+        assert result["structuredContent"] == {"items": data}
+
+    @pytest.mark.asyncio
+    async def test_list_experts_failure_is_an_error_envelope(self, mock_server):
+        mock_server.store.list_all.side_effect = OSError("disk gone")
+        result = await _handle_tools_call(mock_server, {"name": "deepr_list_experts", "arguments": {}})
+        assert result["isError"] is True
+        assert result["structuredContent"]["error_code"] == "EXPERT_LIST_FAILED"
 
     @pytest.mark.asyncio
     async def test_call_tool_result_format(self, mock_server):

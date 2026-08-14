@@ -870,7 +870,7 @@ def _render_temporal_timeline(job_id: str, trace_path):
 
     try:
         # Try to load temporal data from trace
-        with open(trace_path) as f:
+        with open(trace_path, encoding="utf-8") as f:
             trace_data = json.load(f)
 
         temporal_data = trace_data.get("temporal", {})

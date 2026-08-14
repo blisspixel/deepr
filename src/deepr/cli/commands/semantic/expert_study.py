@@ -644,6 +644,16 @@ def expert_brief(
     """
     profile = _load_profile(name)
     result = _load_study_result(profile, from_study)
+    if not result.grounded_findings:
+        # Presence is not validity. Briefing an ungrounded study spends a model
+        # call to invent positions that cite text nobody can open.
+        click.echo(
+            f"Error: the study produced no grounded findings, so a brief would rest "
+            "on nothing checkable. Re-run: "
+            f'deepr expert study "{profile.name}"',
+            err=True,
+        )
+        sys.exit(2)
 
     try:
         backend = build_study_backend(profile=profile, local=local, plan=plan, model=model)
@@ -679,6 +689,14 @@ def expert_brief(
         )
     )
 
+    # A brief with no positions is a failed brief. Check before any write:
+    # recording an empty brief would close every live ledger thread as
+    # not_restated, and --json used to return 0 after writing the empty file.
+    if not brief.positions:
+        reason = brief.limitations[0] if brief.limitations else "no positions were produced"
+        click.echo(f"Error: the brief holds no positions, so it is not consultable. {reason}", err=True)
+        sys.exit(2)
+
     # Record what changed before writing the new brief. Every run used to
     # discard the previous positions - likelihood bands, falsifiers, carried
     # dissent - and derive fresh ones, so an expert that had existed six months
@@ -700,17 +718,6 @@ def expert_brief(
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(text, encoding="utf-8")
     console.print(text)
-
-    # A brief with no positions is a failed brief, whatever else went right.
-    # Measured: a synthesis call timed out, the empty brief was written with
-    # the failure recorded only as a limitation, and the command exited 0
-    # printing the path as though it had worked. `expert profile` then read it
-    # and produced a standpoint about the pipeline failing rather than about
-    # the subject. Exiting 2 stops that chain at the first link.
-    if not brief.positions:
-        reason = brief.limitations[0] if brief.limitations else "no positions were produced"
-        click.echo(f"Error: the brief holds no positions, so it is not consultable. {reason}", err=True)
-        sys.exit(2)
 
     if changed and any(changed.values()):
         # What moved is the interesting part of a re-brief, and it was

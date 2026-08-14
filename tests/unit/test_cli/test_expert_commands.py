@@ -2250,6 +2250,7 @@ class TestExpertDeleteCommand:
 
             result = runner.invoke(cli, ["expert", "delete", "Nonexistent", "--yes"])
 
+            assert result.exit_code == 2
             assert "not found" in result.output.lower()
 
     def test_expert_delete_with_yes_flag(self, runner):

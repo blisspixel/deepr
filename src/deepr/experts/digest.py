@@ -33,12 +33,8 @@ _BANNER = (
 )
 
 
-def _as_of(store: BeliefStore) -> str:
-    """Latest knowledge timestamp - from events when available, else beliefs.
-
-    Using the store's own latest change (not the wall clock) keeps the
-    digest byte-stable across regenerations of an unchanged store.
-    """
+def _as_of_dt(store: BeliefStore) -> datetime | None:
+    """Latest knowledge timestamp - from events when available, else beliefs."""
     timestamps: list[datetime] = []
     if store.has_event_log:
         events = store.iter_events()
@@ -46,13 +42,22 @@ def _as_of(store: BeliefStore) -> str:
     if not timestamps:
         timestamps = [b.updated_at for b in store.beliefs.values()]
     if not timestamps:
-        return "never"
-    latest = max(t if t.tzinfo else t.replace(tzinfo=UTC) for t in timestamps)
-    return latest.isoformat()
+        return None
+    return max(t if t.tzinfo else t.replace(tzinfo=UTC) for t in timestamps)
 
 
-def _belief_line(belief: Belief) -> str:
-    conf = belief.get_current_confidence()
+def _as_of(store: BeliefStore) -> str:
+    """Latest knowledge timestamp - from events when available, else beliefs.
+
+    Using the store's own latest change (not the wall clock) keeps the
+    digest byte-stable across regenerations of an unchanged store.
+    """
+    latest = _as_of_dt(store)
+    return latest.isoformat() if latest else "never"
+
+
+def _belief_line(belief: Belief, as_of: datetime | None = None) -> str:
+    conf = belief.get_current_confidence(as_of)
     flags = ""
     if belief.contradictions_with:
         flags = f"  **[contested x{len(belief.contradictions_with)}]**"
@@ -110,11 +115,18 @@ def _append_temporal_edge_section(lines: list[str], store: BeliefStore) -> None:
     lines.append("")
 
 
-def _sorted_beliefs(beliefs: list[Belief]) -> list[Belief]:
-    return sorted(beliefs, key=lambda b: (-b.get_current_confidence(), b.claim))
+def _sorted_beliefs(beliefs: list[Belief], as_of: datetime | None = None) -> list[Belief]:
+    return sorted(beliefs, key=lambda b: (-b.get_current_confidence(as_of), b.claim))
 
 
-def _section(lines: list[str], title: str, beliefs: list[Belief], *, empty_note: str = "") -> None:
+def _section(
+    lines: list[str],
+    title: str,
+    beliefs: list[Belief],
+    *,
+    empty_note: str = "",
+    as_of: datetime | None = None,
+) -> None:
     lines += [f"## {title}", ""]
     if not beliefs:
         if empty_note:
@@ -122,7 +134,7 @@ def _section(lines: list[str], title: str, beliefs: list[Belief], *, empty_note:
         else:
             lines += ["*None.*", ""]
         return
-    lines += [_belief_line(b) for b in _sorted_beliefs(beliefs)]
+    lines += [_belief_line(b, as_of) for b in _sorted_beliefs(beliefs, as_of)]
     lines.append("")
 
 
@@ -178,12 +190,13 @@ def build_digest(store: BeliefStore, *, expert_name: str = "") -> str:
     """
     name = expert_name or store.expert_name
     beliefs = list(store.beliefs.values())
+    as_of = _as_of_dt(store)
 
     by_domain: dict[str, list[Belief]] = defaultdict(list)
     for b in beliefs:
         by_domain[b.domain or "general"].append(b)
     for domain_beliefs in by_domain.values():
-        domain_beliefs.sort(key=lambda b: (-b.get_current_confidence(), b.claim))
+        domain_beliefs.sort(key=lambda b: (-b.get_current_confidence(as_of), b.claim))
 
     conflicts = contested_query(store, expert_name=name)
     edge_count = len(store.edges)
@@ -195,7 +208,7 @@ def build_digest(store: BeliefStore, *, expert_name: str = "") -> str:
         _BANNER,
         f"# Expert Digest: {name}",
         "",
-        f"As of: {_as_of(store)}",
+        f"As of: {as_of.isoformat() if as_of else 'never'}",
         "",
         f"**{len(beliefs)}** beliefs across **{len(by_domain)}** domain(s) - "
         f"**{edge_count}** graph edge(s) ({supports_count} supporting) - "
@@ -223,24 +236,28 @@ def build_digest(store: BeliefStore, *, expert_name: str = "") -> str:
         "Stance (operator / primary)",
         parts["stance"],
         empty_note="No primary-trust beliefs. Project stance may be absorbed with --trust-class primary.",
+        as_of=as_of,
     )
     _section(
         lines,
         "Multi-source corroborated",
         parts["multi_source"],
         empty_note="No multi-origin claims yet. Absorb a second independent source to corroborate.",
+        as_of=as_of,
     )
     _section(
         lines,
         "Domain knowledge (secondary)",
         parts["secondary"],
         empty_note="No secondary-trust beliefs. Prefer official docs via absorb --trust-class secondary.",
+        as_of=as_of,
     )
     _section(
         lines,
         "Research / tertiary",
         parts["tertiary"],
         empty_note="No tertiary research claims.",
+        as_of=as_of,
     )
 
     if conflicts["open_count"]:
@@ -266,6 +283,7 @@ def build_digest(store: BeliefStore, *, expert_name: str = "") -> str:
         "Contested beliefs",
         parts["contested"],
         empty_note="No beliefs currently marked with contradiction links.",
+        as_of=as_of,
     )
 
     lines += ["## Source inventory", ""]
@@ -281,7 +299,7 @@ def build_digest(store: BeliefStore, *, expert_name: str = "") -> str:
     for domain in sorted(by_domain):
         domain_beliefs = by_domain[domain]
         lines += [f"### {domain} ({len(domain_beliefs)})", ""]
-        lines += [_belief_line(b) for b in domain_beliefs]
+        lines += [_belief_line(b, as_of) for b in domain_beliefs]
         lines.append("")
 
     if not beliefs:

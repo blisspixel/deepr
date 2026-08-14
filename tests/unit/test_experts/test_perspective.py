@@ -183,6 +183,21 @@ class TestTemporalEdges:
         assert edge["temporal_contexts"] == [june]
         assert result["filters"]["valid_at"] == "2026-06-15T00:00:00+00:00"
 
+    def test_valid_at_keeps_contexts_that_only_have_observed_at(self, tmp_path):
+        """A missing validity window is unbounded, not a reason to drop the edge."""
+        store = _store(tmp_path)
+        source, _ = store.add_belief(_belief("Default apply is enabled"), check_conflicts=False)
+        target, _ = store.add_belief(_belief("Verified compiler emits graph commits"), check_conflicts=False)
+        observed_only = {"observed_at": "2026-06-29T00:00:00+00:00"}
+        store.add_edge(
+            source.id, target.id, "derived_from", provenance="graph-commit", temporal_context=observed_only
+        )
+
+        result = temporal_edges(store, valid_at="2026-06-15T00:00:00+00:00")
+
+        assert result["total_edges"] == 1
+        assert result["edges"][0]["temporal_contexts"] == [observed_only]
+
     def test_observed_window_filters_temporal_contexts(self, tmp_path):
         store = _store(tmp_path)
         source, _ = store.add_belief(_belief("Feature flag default changed"), check_conflicts=False)

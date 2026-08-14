@@ -54,6 +54,27 @@ class TestFindingIdentityIsAboutTheCorpus:
             lens="failure", title="T", anchors=[""]
         )
 
+    def test_untitled_findings_with_different_payloads_stay_distinct(self):
+        """The stub title 'failure finding' must not collapse two modes."""
+        a = finding_thread_id(
+            lens="failure",
+            title="failure finding",
+            anchors=[],
+            payload='{"trigger":"quota","symptom":"empty"}',
+        )
+        b = finding_thread_id(
+            lens="failure",
+            title="failure finding",
+            anchors=[],
+            payload='{"trigger":"timeout","symptom":"hang"}',
+        )
+        assert a != b
+
+    def test_untitled_findings_with_the_same_payload_keep_one_id(self):
+        a = finding_thread_id(lens="failure", title="failure finding", anchors=[], payload='{"x":1}')
+        b = finding_thread_id(lens="failure", title="Failure finding", anchors=[], payload='{"x":1}')
+        assert a == b
+
 
 class TestPositionIdentityIsTheQuestion:
     def test_revising_the_stance_keeps_the_same_thread(self):

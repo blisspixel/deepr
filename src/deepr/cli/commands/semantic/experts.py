@@ -1,6 +1,7 @@
 """Expert system commands - create, manage, and interact with domain experts."""
 
 import asyncio
+import sys
 from datetime import UTC, datetime
 
 import click
@@ -1325,7 +1326,7 @@ def delete_expert(name: str, purge: bool, yes: bool):
     profile = store.load(name)
     if not profile:
         print_error(f"Expert not found: {name}")
-        return
+        sys.exit(2)
 
     action = "Delete" if purge else "Archive and delete"
     if not yes and not click.confirm(f"{action} expert '{profile.name}'?"):
@@ -1342,6 +1343,7 @@ def delete_expert(name: str, purge: bool, yes: bool):
             console.print(f"Knowledge base (vector store) remains; delete with: deepr knowledge delete {vsid}")
     else:
         print_error("Failed to delete expert")
+        sys.exit(1)
 
 
 @expert.command(name="learn")
@@ -2090,7 +2092,7 @@ def export_expert(name: str, output: str, yes: bool):
         print_error(f"Expert not found: {name}")
         console.print("\nList available experts:")
         console.print("  deepr expert list")
-        return
+        sys.exit(2)
 
     output_path = Path(output)
     corpus_name = name.lower().replace(" ", "-")
@@ -2117,7 +2119,7 @@ def export_expert(name: str, output: str, yes: bool):
 
     if not result["success"]:
         print_error(f"Export failed: {result['error']}")
-        return
+        sys.exit(1)
 
     manifest = result["manifest"]
 
@@ -2173,7 +2175,7 @@ def import_expert(name: str, corpus: str, yes: bool):
         print_error("Invalid corpus structure")
         for error in validation["errors"]:
             console.print(f"  [dim]-[/dim] {error}")
-        return
+        sys.exit(2)
 
     manifest = validation["manifest"]
 
@@ -2183,7 +2185,7 @@ def import_expert(name: str, corpus: str, yes: bool):
         print_error(f"Expert already exists: {name}")
         console.print("\nChoose a different name or delete the existing expert:")
         console.print(f'  deepr expert delete "{name}"')
-        return
+        sys.exit(2)
 
     print_key_value("Corpus", str(corpus_path))
     print_key_value("Source", manifest.source_expert)
@@ -2213,7 +2215,7 @@ def import_expert(name: str, corpus: str, yes: bool):
 
     if not result["success"]:
         print_error(f"Import failed: {result['error']}")
-        return
+        sys.exit(1)
 
     profile = result["profile"]
 
@@ -2310,7 +2312,7 @@ def fill_gaps(
         print_error(f"Expert not found: {name}")
         console.print("\nList available experts:")
         console.print("  deepr expert list")
-        return
+        sys.exit(2)
 
     # Load worldview
     knowledge_dir = store.get_knowledge_dir(name)
@@ -2320,13 +2322,13 @@ def fill_gaps(
         print_error("Expert has no worldview yet.")
         console.print("\nThe expert needs to synthesize knowledge first:")
         console.print(f'  deepr expert refresh "{name}" --synthesize')
-        return
+        sys.exit(2)
 
     try:
         worldview = Worldview.load(worldview_path)
     except Exception as e:
         print_error(f"Error loading worldview: {e}")
-        return
+        sys.exit(1)
 
     # Check for gaps
     if not worldview.knowledge_gaps:
@@ -2589,19 +2591,19 @@ def validate_citations_cmd(name: str):
     profile = store.load(name)
     if not profile:
         print_error(f"Expert not found: {name}")
-        return
+        sys.exit(2)
 
     knowledge_dir = store.get_knowledge_dir(name)
     worldview_path = knowledge_dir / "worldview.json"
     if not worldview_path.exists():
         print_error("Expert has no worldview yet.")
-        return
+        sys.exit(2)
 
     try:
         worldview = Worldview.load(worldview_path)
     except Exception as e:
         print_error(f"Error loading worldview: {e}")
-        return
+        sys.exit(1)
 
     if not worldview.beliefs:
         print_success("Expert has no beliefs to validate.")
@@ -2664,19 +2666,19 @@ def discover_gaps_cmd(name: str):
     profile = store.load(name)
     if not profile:
         print_error(f"Expert not found: {name}")
-        return
+        sys.exit(2)
 
     knowledge_dir = store.get_knowledge_dir(name)
     worldview_path = knowledge_dir / "worldview.json"
     if not worldview_path.exists():
         print_error("Expert has no worldview yet.")
-        return
+        sys.exit(2)
 
     try:
         worldview = Worldview.load(worldview_path)
     except Exception as e:
         print_error(f"Error loading worldview: {e}")
-        return
+        sys.exit(1)
 
     if not worldview.beliefs:
         print_warning("Expert has no beliefs to analyze.")

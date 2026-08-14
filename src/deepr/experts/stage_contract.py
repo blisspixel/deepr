@@ -99,8 +99,22 @@ def _has_grounded_findings(study: dict[str, Any]) -> bool:
     return int((study.get("totals") or {}).get("grounded_findings", 0) or 0) > 0
 
 
+def _position_cites_a_finding(position: dict[str, Any]) -> bool:
+    """A position without a cited finding cannot be checked from the record."""
+    question = str(position.get("question") or "").strip()
+    supported = position.get("supported_by") or []
+    return bool(question) and isinstance(supported, list) and any(str(item).strip() for item in supported)
+
+
 def _has_positions(brief: dict[str, Any]) -> bool:
-    return bool(brief.get("positions"))
+    """At least one position that cites the findings it rests on.
+
+    A stance with an empty ``supported_by`` parses and used to count as
+    success, so status reported the brief done while 'why do you think that'
+    could not be answered.
+    """
+    positions = [p for p in (brief.get("positions") or []) if isinstance(p, dict)]
+    return bool(positions) and all(_position_cites_a_finding(p) for p in positions)
 
 
 def _has_standpoint(profile: dict[str, Any]) -> bool:

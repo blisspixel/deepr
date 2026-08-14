@@ -110,13 +110,12 @@ def _context_matches_temporal_filters(
     observed_until: datetime | None,
 ) -> bool:
     if valid_at is not None:
-        valid_from = parse_iso_temporal(context.get("valid_from", ""))
-        valid_until = parse_iso_temporal(context.get("valid_until", ""))
-        if valid_from is None and valid_until is None:
-            return False
-        if valid_from is not None and valid_at < valid_from:
-            return False
-        if valid_until is not None and valid_at > valid_until:
+        from deepr.experts.record_time import contains
+
+        # Missing endpoints are unbounded, not absent. The previous filter
+        # dropped contexts that only recorded observed_at, and used a
+        # closed-closed end test that disagreed with every other interval.
+        if not contains(context.get("valid_from", ""), context.get("valid_until", ""), valid_at.isoformat()):
             return False
 
     if observed_since is not None or observed_until is not None:
@@ -327,7 +326,9 @@ def what_changed(store: BeliefStore, since: datetime, *, expert_name: str = "") 
         # already shows the floored value. Fall back to the recorded change value
         # only for archived beliefs, where there is no live belief left to floor.
         current = store.beliefs.get(change.belief_id)
-        effective_confidence = current.get_current_confidence() if current is not None else change.new_confidence
+        effective_confidence = (
+            current.get_current_confidence(as_of=ts) if current is not None else change.new_confidence
+        )
         entry: dict[str, Any] = {
             "belief_id": change.belief_id,
             "claim": change.new_claim,

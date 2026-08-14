@@ -245,101 +245,78 @@ def _render_quality_scorecard(card: Any) -> None:
     )
 
 
-@expert.command(name="improve")
-@click.argument("name")
-@click.option(
-    "--local",
-    is_flag=True,
-    help="Prefer $0 local capacity for any execute path (recommended)",
-)
-@click.option(
-    "--execute",
-    is_flag=True,
-    help=(
-        "Run the non-mutating improve steps: discover-gaps and route-gaps --dry-run. "
-        "discover-gaps is metered-gated and fails closed while paid dispatch is frozen."
-    ),
-)
-@click.option("--json", "as_json", is_flag=True, help="Emit scorecard + plan JSON")
-def expert_improve(name: str, local: bool, execute: bool, as_json: bool) -> None:
-    """Research → plan → improve loop for one expert (structural orchestration).
+def _run_improve_execute(
+    name: str, *, local: bool, store: Any, profile: Any
+) -> tuple[Any, Any, list[Any], list[dict[str, Any]]]:
+    """Run the remaining $0 improve step. discover-gaps stays skipped while gated."""
+    executed: list[dict[str, Any]] = [
+        {
+            "step": "discover-gaps",
+            "ok": True,
+            "skipped": True,
+            "exit_code": 0,
+            "output_tail": (
+                "Skipped: discover-gaps is metered-gated and cannot run while paid dispatch "
+                "is frozen. It is not a local structural step."
+            ),
+        }
+    ]
+    from click.testing import CliRunner
 
-    Always prints a quality scorecard and an improve plan. With --execute, runs
-    only non-mutating steps: discover-gaps and route-gaps --dry-run.
+    from deepr.cli.main import cli
+    from deepr.experts.beliefs import BeliefStore
 
-    Note: discover-gaps is metered-gated and takes no --local, so while paid
-    dispatch is frozen that step fails closed rather than running. This command
-    has no --api option; nothing here can authorize spend.
+    route_argv = ["expert", "route-gaps", name, "--execute", "--dry-run"]
+    if local:
+        route_argv.append("--local")
+    route_result = CliRunner().invoke(cli, route_argv)
+    executed.append(
+        {
+            "step": "route-gaps-dry-run",
+            "ok": route_result.exit_code == 0,
+            "skipped": False,
+            "exit_code": route_result.exit_code,
+            "output_tail": (route_result.output or "")[-1500:],
+        }
+    )
+    profile = store.load(name) or profile
+    manifest = profile.get_manifest()
+    beliefs = list(BeliefStore(name).beliefs.values())
+    return profile, manifest, beliefs, executed
 
-    Absorb of primary docs remains an explicit operator absorb command (files
-    and trust-class must be chosen deliberately).
 
-    EXAMPLES:
-      deepr expert improve "Meshtastic LoRa Mesh Automation" --local
-      deepr expert improve "Meshtastic LoRa Mesh Automation" --local --execute
-    """
+def _improve_execute_failed(executed: list[dict[str, Any]]) -> bool:
+    return any(not step["ok"] and not step.get("skipped") for step in executed)
+
+
+def _scorecard(profile: Any, beliefs: list[Any], manifest: Any) -> Any:
+    from deepr.experts.quality_scorecard import build_quality_scorecard
+
+    return build_quality_scorecard(
+        expert_name=profile.name,
+        domain=profile.domain or manifest.domain or profile.name,
+        beliefs=beliefs,
+        open_gap_count=int(getattr(manifest, "open_gap_count", 0) or 0),
+        verified_learning_loops=0,
+    )
+
+
+def _improve_plan(name: str, *, local: bool, execute: bool) -> tuple[dict[str, Any], bool]:
     from deepr.experts.beliefs import BeliefStore
     from deepr.experts.profile import ExpertStore
-    from deepr.experts.quality_scorecard import build_quality_scorecard
 
     store = ExpertStore()
     profile = store.load(name)
     if not profile:
         click.echo(f"Error: Expert not found: {name}", err=True)
         sys.exit(2)
-
     manifest = profile.get_manifest()
     beliefs = list(BeliefStore(name).beliefs.values())
-    before = build_quality_scorecard(
-        expert_name=profile.name,
-        domain=profile.domain or manifest.domain or profile.name,
-        beliefs=beliefs,
-        open_gap_count=int(getattr(manifest, "open_gap_count", 0) or 0),
-        verified_learning_loops=0,
-    )
-
+    before = _scorecard(profile, beliefs, manifest)
     executed: list[dict[str, Any]] = []
     if execute:
-        # Discover gaps mutates gap inventory - local/structural, $0.
-        from click.testing import CliRunner
-
-        from deepr.cli.main import cli
-
-        runner = CliRunner()
-        gap_result = runner.invoke(cli, ["expert", "discover-gaps", name])
-        executed.append(
-            {
-                "step": "discover-gaps",
-                "ok": gap_result.exit_code == 0,
-                "exit_code": gap_result.exit_code,
-                "output_tail": (gap_result.output or "")[-1500:],
-            }
-        )
-        route_argv = ["expert", "route-gaps", name, "--execute", "--dry-run"]
-        if local:
-            route_argv.append("--local")
-        route_result = runner.invoke(cli, route_argv)
-        executed.append(
-            {
-                "step": "route-gaps-dry-run",
-                "ok": route_result.exit_code == 0,
-                "exit_code": route_result.exit_code,
-                "output_tail": (route_result.output or "")[-1500:],
-            }
-        )
-        # Refresh after gap discovery
-        profile = store.load(name) or profile
-        manifest = profile.get_manifest()
-        beliefs = list(BeliefStore(name).beliefs.values())
-
-    after = build_quality_scorecard(
-        expert_name=profile.name,
-        domain=profile.domain or manifest.domain or profile.name,
-        beliefs=beliefs,
-        open_gap_count=int(getattr(manifest, "open_gap_count", 0) or 0),
-        verified_learning_loops=0,
-    )
-
+        profile, manifest, beliefs, executed = _run_improve_execute(name, local=local, store=store, profile=profile)
+    after = _scorecard(profile, beliefs, manifest)
     plan = {
         "schema_version": "deepr-expert-improve-plan-v1",
         "kind": "deepr.expert.improve_plan",
@@ -388,35 +365,83 @@ def expert_improve(name: str, local: bool, execute: bool, as_json: bool) -> None
             "Exceptional quality still requires Distill/Learny corpus depth and human review.",
             "See docs/design/living-expert-research-stack.md and docs/plans/living-expert-research-stack.md",
         ],
+        "_before": before,
+        "_after": after,
     }
+    return plan, execute and _improve_execute_failed(executed)
 
-    if as_json:
-        click.echo(json.dumps(plan, indent=2, sort_keys=True, default=str))
-        return
 
-    print_header(f"Improve plan: {name}")
+def _render_improve_plan(plan: dict[str, Any]) -> None:
+    before = plan["_before"]
+    after = plan["_after"]
+    print_header(f"Improve plan: {plan['expert']}")
     print_key_value("Before grade", before.grade)
     print_key_value("Circularity risk", f"{before.circularity_risk:.2f}")
     print_key_value("Secondary+ share", f"{before.secondary_or_better_share:.2f}")
     print_key_value("Multi-source share", f"{before.multi_source_share:.2f}")
-    if execute:
+    if plan["execute"]:
         print_key_value("After grade", after.grade)
         print_key_value("After open gaps", str(after.open_gap_count))
-        for step in executed:
-            status = "ok" if step["ok"] else f"failed ({step['exit_code']})"
+        for step in plan["executed"]:
+            if step.get("skipped"):
+                status = "skipped"
+            elif step["ok"]:
+                status = "ok"
+            else:
+                status = f"failed ({step['exit_code']})"
             console.print(f"  executed {step['step']}: {status}")
-
     console.print("\n[bold]Blockers[/bold]")
-    for b in before.blockers or ["(none)"]:
-        console.print(f"  - {b}")
-
+    for blocker in before.blockers or ["(none)"]:
+        console.print(f"  - {blocker}")
     console.print("\n[bold]Operator-required (not auto-run)[/bold]")
     for step in plan["operator_required"]:
         console.print(f"  - {step['step']}: {step['why']}")
         console.print(f"      [dim]{step['example']}[/dim]")
-
     console.print(
         '\n[dim]Deepen corpus: deepr expert deepen-plan "'
-        f'{name}"  |  designs: docs/design/living-expert-research-stack.md, '
+        f'{plan["expert"]}"  |  designs: docs/design/living-expert-research-stack.md, '
         "docs/plans/living-expert-research-stack.md[/dim]"
     )
+
+
+@expert.command(name="improve")
+@click.argument("name")
+@click.option(
+    "--local",
+    is_flag=True,
+    help="Prefer $0 local capacity for any execute path (recommended)",
+)
+@click.option(
+    "--execute",
+    is_flag=True,
+    help=(
+        "Run the remaining non-mutating improve step (route-gaps --dry-run). "
+        "discover-gaps is metered-gated and is skipped while paid dispatch is frozen."
+    ),
+)
+@click.option("--json", "as_json", is_flag=True, help="Emit scorecard + plan JSON")
+def expert_improve(name: str, local: bool, execute: bool, as_json: bool) -> None:
+    """Research → plan → improve loop for one expert (structural orchestration).
+
+    Always prints a quality scorecard and an improve plan. With --execute, runs
+    only non-mutating steps: discover-gaps and route-gaps --dry-run.
+
+    Note: discover-gaps is metered-gated and takes no --local, so while paid
+    dispatch is frozen that step fails closed rather than running. This command
+    has no --api option; nothing here can authorize spend.
+
+    Absorb of primary docs remains an explicit operator absorb command (files
+    and trust-class must be chosen deliberately).
+
+    EXAMPLES:
+      deepr expert improve "Meshtastic LoRa Mesh Automation" --local
+      deepr expert improve "Meshtastic LoRa Mesh Automation" --local --execute
+    """
+    plan, failed_execute = _improve_plan(name, local=local, execute=execute)
+    public = {key: value for key, value in plan.items() if not key.startswith("_")}
+    if as_json:
+        click.echo(json.dumps(public, indent=2, sort_keys=True, default=str))
+    else:
+        _render_improve_plan(plan)
+    if failed_execute:
+        sys.exit(1)

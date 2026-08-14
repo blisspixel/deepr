@@ -18,6 +18,7 @@ from typing import Any
 from deepr.experts.belief_edges import Edge
 from deepr.experts.beliefs import Belief, BeliefChange, BeliefStore
 from deepr.experts.perspective import contested as contested_query
+from deepr.experts.record_time import parse_iso
 
 OKF_SCHEMA_VERSION = "deepr-okf-v1"
 OKF_PROFILE_SCHEMA_VERSION = "deepr-okf-profile-v1"
@@ -173,12 +174,17 @@ def _fmt_num(value: float) -> str:
     return f"{value:.3f}".rstrip("0").rstrip(".")
 
 
-def _sorted_beliefs(store: BeliefStore) -> list[Belief]:
+def _moment(as_of: str) -> datetime | None:
+    return parse_iso(as_of)
+
+
+def _sorted_beliefs(store: BeliefStore, as_of: str = "") -> list[Belief]:
+    at = _moment(as_of)
     return sorted(
         store.beliefs.values(),
         key=lambda belief: (
             belief.domain or "",
-            -belief.get_current_confidence(),
+            -belief.get_current_confidence(at),
             belief.claim,
             belief.id,
         ),
@@ -222,7 +228,7 @@ def _build_index(
     as_of: str,
     events: list[BeliefChange],
 ) -> str:
-    beliefs = _sorted_beliefs(store)
+    beliefs = _sorted_beliefs(store, as_of)
     gaps = list(getattr(manifest, "gaps", []) or [])
     contested = contested_query(store, expert_name=str(profile.name))
     fields = {
@@ -263,7 +269,7 @@ def _build_index(
             path = paths_by_id[belief.id]
             body.append(
                 f"- [{_md_escape(belief.claim)}]({path}) "
-                f"`{belief.domain or 'general'}, confidence {_fmt_num(belief.get_current_confidence())}`"
+                f"`{belief.domain or 'general'}, confidence {_fmt_num(belief.get_current_confidence(_moment(as_of)))}`"
             )
     else:
         body.append("- No beliefs recorded yet.")
@@ -306,7 +312,7 @@ def _build_concept(
             "source_expert": str(profile.name),
             "belief_id": belief.id,
             "confidence": round(belief.confidence, 6),
-            "current_confidence": round(belief.get_current_confidence(), 6),
+            "current_confidence": round(belief.get_current_confidence(_moment(as_of) or updated_at), 6),
             "trust_class": belief.trust_class,
             "source_type": belief.source_type,
             "evidence_refs": list(belief.evidence_refs),
@@ -324,7 +330,7 @@ def _build_concept(
         "",
         f"- Belief id: `{belief.id}`",
         f"- Domain: {belief.domain or 'general'}",
-        f"- Confidence: {_fmt_num(belief.get_current_confidence())}",
+        f"- Confidence: {_fmt_num(belief.get_current_confidence(_moment(as_of) or updated_at))}",
         f"- Source type: {belief.source_type}",
         f"- Trust class: {belief.trust_class}",
         f"- Created: {created_at.isoformat() if created_at else ''}",
@@ -578,7 +584,7 @@ def build_okf_bundle(
     resolved_manifest = manifest if manifest is not None else profile.get_manifest()
     events = store.iter_events() if store.has_event_log else list(store.changes)
     as_of = _as_of(store, events)
-    beliefs = _sorted_beliefs(store)
+    beliefs = _sorted_beliefs(store, as_of)
     paths_by_id = {belief.id: _concept_path(belief) for belief in beliefs}
     contested = contested_query(store, expert_name=str(profile.name))
 

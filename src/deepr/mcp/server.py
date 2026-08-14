@@ -1487,7 +1487,7 @@ async def _list_skills(expert_name: str) -> dict[str, Any]:
     """List available/installed skills for an expert."""
     err = _validate_expert_name_component(expert_name or "")
     if err:
-        return {"error": err}
+        return _make_error("INVALID_PARAMS", err)
     try:
         from deepr.experts.skills import SkillManager
 
@@ -1585,6 +1585,23 @@ async def _handle_tools_list(server: DeeprMCPServer, params: dict[str, Any]) -> 
     full_list = params.get("_fullList", False)
     tools = _build_tools_list(server, use_gateway=not full_list)
     return {"tools": tools}
+
+
+def _structured_tool_result(result: Any) -> tuple[bool, dict[str, Any]]:
+    """Shape a tool result for MCP hosts that read structuredContent.
+
+    List payloads used to omit structuredContent, and a list whose first item
+    was an error envelope looked like success.
+    """
+    if isinstance(result, dict):
+        is_error = "error_code" in result or result.get("kind") == "deepr.expert.conversation_error"
+        return is_error, result
+    if isinstance(result, list):
+        first = result[0] if result else None
+        if isinstance(first, dict) and "error_code" in first:
+            return True, first
+        return False, {"items": result}
+    return False, {"value": result}
 
 
 async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> dict[str, Any]:
@@ -1790,21 +1807,20 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
     # whitespace value would otherwise reach ContextIndex's prefix lookup and
     # (historically) match an arbitrary report. Reject it at the boundary.
     if name in ("deepr_reflect", "deepr_expert_absorb") and not str(arguments.get("report_id") or "").strip():
+        err = _make_error("INVALID_PARAMS", "report_id is required and must not be empty")
         return {
-            "content": [
-                {
-                    "type": "text",
-                    "text": json.dumps(_make_error("INVALID_PARAMS", "report_id is required and must not be empty")),
-                }
-            ],
+            "content": [{"type": "text", "text": json.dumps(err)}],
             "isError": True,
+            "structuredContent": err,
         }
 
     handler = tool_dispatch.get(name)
     if not handler:
+        err = _make_error("TOOL_NOT_FOUND", f"Unknown tool: {name}")
         return {
-            "content": [{"type": "text", "text": json.dumps(_make_error("TOOL_NOT_FOUND", f"Unknown tool: {name}"))}],
+            "content": [{"type": "text", "text": json.dumps(err)}],
             "isError": True,
+            "structuredContent": err,
         }
 
     try:
@@ -1828,25 +1844,26 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
         )
 
         text = json.dumps(result, default=str)
-        is_error = isinstance(result, dict) and (
-            "error_code" in result or result.get("kind") == "deepr.expert.conversation_error"
-        )
+        is_error, structured = _structured_tool_result(result)
         response: dict[str, Any] = {
             "content": [{"type": "text", "text": text}],
             "isError": is_error,
+            "structuredContent": structured,
             "_verification": {
                 "output_id": verified_output.id,
                 "content_hash": verified_output.content_hash,
                 "instruction_nonce": signed.nonce,
             },
         }
-        if isinstance(result, dict):
-            response["structuredContent"] = result
         return response
     except Exception:
         logger.exception("Tool %s failed", name)
-        safe = json.dumps(_make_error("TOOL_EXECUTION_FAILED", "Tool execution failed safely."))
-        return {"content": [{"type": "text", "text": safe}], "isError": True}
+        err = _make_error("TOOL_EXECUTION_FAILED", "Tool execution failed safely.")
+        return {
+            "content": [{"type": "text", "text": json.dumps(err)}],
+            "isError": True,
+            "structuredContent": err,
+        }
 
 
 async def _handle_resources_list(server: DeeprMCPServer, params: dict[str, Any]) -> dict[str, Any]:

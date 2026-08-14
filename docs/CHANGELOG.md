@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Empty or ungrounded briefs no longer write over a previous brief, close the
+  position ledger as not-restated, or exit 0 on `--json`. `expert brief`
+  refuses before any write. `expert viva` refuses a parseable brief that
+  holds no positions.
+- `get_current_confidence` can evaluate decay at a requested instant. Digest,
+  OKF, and perspective history no longer apply today's decay to a past record.
+  Naive stored timestamps no longer crash decay.
+- Consult `--plan a,b,c` walks the list and uses the first backend that is
+  both unexhausted and safety-eligible, instead of dying on the first blocked
+  name.
+- `expert status` and the web stages API count only active corpus sources.
+  A schema header or fully superseded index no longer looks like a retained
+  corpus.
+- One brief can no longer leave two live versions of the same position thread.
+- Untitled study findings with different payloads keep distinct identities
+  instead of collapsing onto the stub title `failure finding`.
+- A brief is not `done` unless every position cites at least one finding.
+- A present but unreadable spend wallet fails closed instead of restoring the
+  larger provider cap.
+- `expert improve --execute` skips metered-gated `discover-gaps` and exits
+  non-zero when a real execute step fails.
+- `expert delete`, `export`, `import`, `fill-gaps`, `validate-citations`, and
+  `discover-gaps` exit non-zero on error instead of printing and returning 0.
+- Fleet status marks a Windows `.cmd` plan CLI as blocked when Deepr will not
+  launch the shim. MCP list-expert failures are `isError`. Expert Hub no
+  longer treats zero studied findings as the belief count. Temporal `valid_at`
+  keeps edges that only recorded `observed_at`. Trace JSON opens as UTF-8.
+- Fleet health no longer hardcodes `beliefs=0` or crash on never-consulted
+  experts.
+
 ## [2.49.2] - 2026-08-13
 
 ### Changed

@@ -259,7 +259,7 @@ export default function ExpertHub() {
                   </span>
                   <span title="Findings from its own study of the retained corpus">
                     <span className="data-figure text-foreground">
-                      {expert.studied_findings || expert.finding_count}
+                      {expert.studied_findings ?? 0}
                     </span>{' '}
                     findings
                   </span>
