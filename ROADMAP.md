@@ -363,7 +363,12 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.49.0)
+## Current Status (v2.49.1)
+
+**Shipped in v2.49.1 (see docs/CHANGELOG.md):** expert-profile migration now
+normalizes and validates schema versions consistently, refuses future or
+fractional schemas, and re-reads under the profile save lock so it cannot
+overwrite a concurrent newer save.
 
 **Shipped in v2.49.0 (see docs/CHANGELOG.md):** attended metered authority is
 now a persistent cumulative wallet chosen by the operator, with a separate

@@ -2,6 +2,8 @@
 
 from datetime import UTC, datetime
 
+import pytest
+
 from deepr.experts.profile import PROFILE_SCHEMA_VERSION, ExpertProfile
 from deepr.experts.serializer import (
     COMPOSED_FIELDS,
@@ -89,6 +91,18 @@ class TestDictToProfileKwargs:
         data = {"name": "test", "schema_version": "2.0"}
         result = dict_to_profile_kwargs(data)
         assert result["schema_version"] == 2
+
+    @pytest.mark.parametrize(
+        "invalid_version",
+        [True, 0, -1, 2.5, "0", "-1", "2.5", "nan", "not-a-version", []],
+    )
+    def test_rejects_non_integral_schema_versions(self, invalid_version):
+        with pytest.raises(ValueError, match="schema_version"):
+            dict_to_profile_kwargs({"name": "test", "schema_version": invalid_version})
+
+    def test_rejects_future_schema_version(self):
+        with pytest.raises(ValueError, match="newer than supported"):
+            dict_to_profile_kwargs({"name": "test", "schema_version": PROFILE_SCHEMA_VERSION + 1})
 
     def test_converts_iso_to_datetime(self):
         data = {

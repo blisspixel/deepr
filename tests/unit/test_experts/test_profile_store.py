@@ -65,6 +65,16 @@ class TestMigrations:
         migrated = migrate_profile_data(current_data)
         assert migrated == current_data
 
+    def test_future_profile_schema_is_not_silently_downgraded(self):
+        future_data = {
+            "name": "future-expert",
+            "vector_store_id": "vs_future",
+            "schema_version": PROFILE_SCHEMA_VERSION + 1,
+        }
+
+        with pytest.raises(ValueError, match="newer than supported"):
+            migrate_profile_data(future_data)
+
 
 class TestExpertStore:
     """Tests for ExpertStore class."""
@@ -95,6 +105,72 @@ class TestExpertStore:
         assert loaded.description == "Test expert for unit tests"
         assert loaded.schema_version == PROFILE_SCHEMA_VERSION
         assert loaded.roster_tier == "standard"
+
+    def test_load_normalizes_string_schema_version_before_comparing_migration(self, store, sample_profile):
+        profile_path = store._get_profile_path(sample_profile.name)
+        profile_path.parent.mkdir(parents=True)
+        payload = sample_profile.to_dict()
+        payload["schema_version"] = "4"
+        payload.pop("roster_tier", None)
+        profile_path.write_text(json.dumps(payload), encoding="utf-8")
+
+        loaded = store.load(sample_profile.name)
+
+        assert loaded is not None
+        assert loaded.roster_tier == "standard"
+        assert json.loads(profile_path.read_text(encoding="utf-8"))["schema_version"] == PROFILE_SCHEMA_VERSION
+
+    def test_migration_reloads_under_save_lock_before_persisting(
+        self,
+        store,
+        sample_profile,
+        monkeypatch,
+        caplog,
+    ):
+        profile_path = store._get_profile_path(sample_profile.name)
+        profile_path.parent.mkdir(parents=True)
+        legacy = sample_profile.to_dict()
+        legacy["schema_version"] = 4
+        legacy.pop("roster_tier", None)
+        profile_path.write_text(json.dumps(legacy), encoding="utf-8")
+
+        concurrent = sample_profile.to_dict()
+        concurrent["schema_version"] = PROFILE_SCHEMA_VERSION
+        concurrent["description"] = "saved while migration was waiting"
+        concurrent["roster_tier"] = "flagship"
+
+        class CompletingSave:
+            def __init__(self, *_args, **_kwargs):
+                pass
+
+            def __enter__(self):
+                profile_path.write_text(json.dumps(concurrent), encoding="utf-8")
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+        monkeypatch.setattr("deepr.experts.profile_store.FileLock", CompletingSave)
+
+        with caplog.at_level("INFO", logger="deepr.experts.profile_store"):
+            loaded = store.load(sample_profile.name)
+
+        assert loaded is not None
+        assert loaded.description == "saved while migration was waiting"
+        assert loaded.roster_tier == "flagship"
+        assert json.loads(profile_path.read_text(encoding="utf-8"))["description"] == concurrent["description"]
+        assert "Migrated profile" not in caplog.text
+
+    @pytest.mark.parametrize("invalid_version", [True, 0, -1, 4.5, "not-a-version"])
+    def test_load_rejects_invalid_schema_versions(self, store, sample_profile, invalid_version):
+        profile_path = store._get_profile_path(sample_profile.name)
+        profile_path.parent.mkdir(parents=True)
+        payload = sample_profile.to_dict()
+        payload["schema_version"] = invalid_version
+        profile_path.write_text(json.dumps(payload), encoding="utf-8")
+
+        with pytest.raises(ValueError, match="schema_version"):
+            store.load(sample_profile.name)
 
     def test_flagship_roster_tier_round_trips(self, store, sample_profile):
         sample_profile.roster_tier = "flagship"
