@@ -95,8 +95,12 @@ def _load_prior(expert_name: str) -> ExpertProfile | None:
     try:
         return ExpertProfile.from_dict(json.loads(path.read_text(encoding="utf-8")))
     except (json.JSONDecodeError, OSError, TypeError, ValueError):
-        print_warning("Existing profile could not be read; writing a fresh one and losing its shift history.")
-        return None
+        click.echo(
+            "Error: existing profile could not be read, so nothing was written. "
+            "Shift history would have been lost. Repair self.json first.",
+            err=True,
+        )
+        sys.exit(2)
 
 
 def _material(expert_name: str) -> tuple[str, str, int]:

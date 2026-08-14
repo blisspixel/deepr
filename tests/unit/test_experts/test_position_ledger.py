@@ -10,12 +10,18 @@ a new version, revised is not a replacement, and not-restated is not a
 retirement.
 """
 
+import json
+from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 from deepr.experts.position_ledger import (
     REASON_NOT_RESTATED,
     REASON_REVISED,
+    LedgerUnreadableError,
     PositionLedger,
+    load_ledger,
     record_brief,
 )
 from deepr.experts.record_time import END_OF_TIME, utc_now
@@ -296,3 +302,26 @@ class TestSurvivalCountsEveryCorpusItWasReachedFrom:
         for version in payload["versions"]:
             version.pop("corroborated_over", None)
         assert PositionLedger.from_dict(payload).survived(thread) == 1
+
+
+class TestLoadLedgerDoesNotInventAnEmptyHistory:
+    def test_a_missing_file_is_an_empty_ledger(self, tmp_path: Path) -> None:
+        ledger = load_ledger(tmp_path / "hold" / "history.json", expert_name="E")
+        assert ledger.versions == []
+        assert ledger.expert_name == "E"
+
+    def test_a_present_unreadable_file_is_not_an_empty_ledger(self, tmp_path: Path) -> None:
+        path = tmp_path / "history.json"
+        path.write_text("{not json", encoding="utf-8")
+        with pytest.raises(LedgerUnreadableError, match="unreadable"):
+            load_ledger(path, expert_name="E")
+        assert path.read_text(encoding="utf-8") == "{not json"
+
+    def test_a_readable_file_round_trips(self, tmp_path: Path) -> None:
+        path = tmp_path / "history.json"
+        original = PositionLedger(expert_name="E")
+        record_brief(original, [_position("Q")], at=JAN)
+        path.write_text(json.dumps(original.to_dict()), encoding="utf-8")
+        restored = load_ledger(path, expert_name="E")
+        assert len(restored.live) == 1
+        assert restored.live[0].question == "Q"

@@ -218,6 +218,23 @@ class TestRefusalsBeforeWriting:
         assert "left alone" in r.output
         assert json.loads(card.read_text(encoding="utf-8"))["shifts"]
 
+    def test_an_unreadable_profile_is_not_replaced(self, profile, expert_home, monkeypatch):
+        _write_brief(expert_home, "Subject")
+        card = expert_home / "Subject" / "self.json"
+        card.write_text("{not json", encoding="utf-8")
+        called: list[object] = []
+        monkeypatch.setattr(
+            "deepr.cli.commands.semantic.expert_profile_card_cmd.build_study_backend",
+            lambda **kwargs: called.append(kwargs) or (_ for _ in ()).throw(AssertionError("backend")),
+        )
+
+        r = CliRunner().invoke(expert, ["profile", "Subject"])
+
+        assert r.exit_code == 2
+        assert "could not be read" in r.output
+        assert card.read_text(encoding="utf-8") == "{not json"
+        assert called == []
+
     def test_an_unbriefed_expert_is_refused(self, profile, expert_home, monkeypatch):
         _stub_backend(monkeypatch, _reply())
         r = CliRunner().invoke(expert, ["profile", "Subject"])

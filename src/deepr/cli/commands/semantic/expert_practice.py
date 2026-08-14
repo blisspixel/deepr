@@ -140,7 +140,7 @@ def _parse_json(text: str) -> dict[str, Any]:
     return parsed if isinstance(parsed, dict) else {}
 
 
-def _render(practice: ResearchPractice, changed: dict[str, int], *, path: Path) -> None:
+def _render(practice: ResearchPractice, changed: dict[str, int], *, path: Path, wrote: bool = True) -> None:
     stats = practice.stats()
     console.print()
     print_key_value(
@@ -166,7 +166,50 @@ def _render(practice: ResearchPractice, changed: dict[str, int], *, path: Path) 
             console.print(f"  - {item}")
 
     console.print()
-    print_success(f"Written to {path}")
+    if wrote:
+        print_success(f"Written to {path}")
+
+
+def _show_practice(profile: Any, path: Path, *, as_json: bool) -> None:
+    if not path.exists():
+        click.echo(f"{profile.name} has no research practice recorded yet.", err=True)
+        sys.exit(2)
+    stored = _read_json(path)
+    if not stored:
+        click.echo(
+            f"Error: {profile.name}'s practice file exists but is unreadable, so nothing was shown.",
+            err=True,
+        )
+        sys.exit(2)
+    practice = ResearchPractice.from_dict(stored)
+    if as_json:
+        click.echo(json.dumps(practice.to_dict(), indent=2))
+        return
+    print_header(f"Practice: {profile.name}")
+    _render(practice, {"answered": 0, "abandoned": 0, "opened": 0}, path=path, wrote=False)
+
+
+def _refuse_if_practice_blocked(expert_name: str) -> None:
+    from deepr.experts.consult_context import load_brief
+    from deepr.experts.stage_contract import STAGE_PRACTICE, evaluate_stage, get_stage
+
+    brief = load_brief(hold_current_path(expert_name))
+    practice_stage = get_stage(STAGE_PRACTICE)
+    if practice_stage is None:
+        return
+    state = evaluate_stage(
+        practice_stage,
+        {"hold/current.json": brief.to_dict() if brief is not None else None},
+    )
+    if not state.blockers:
+        return
+    reason = state.blockers[0].reason
+    fix = state.blockers[0].fix
+    click.echo(
+        f'Error: {expert_name} cannot keep a practice: {reason}. Run: deepr {fix} "{expert_name}"',
+        err=True,
+    )
+    sys.exit(2)
 
 
 @expert.command(name="practice")
@@ -204,41 +247,52 @@ def expert_practice(
       deepr expert practice "My Expert" --plan claude --markdown
     """
     profile = _load_profile(name)
-    at = datetime.now(UTC).isoformat()
+    path = canonical_practice_path(profile.name)
 
+    if show:
+        _show_practice(profile, path, as_json=as_json)
+        return
+
+    _refuse_if_practice_blocked(profile.name)
+
+    at = datetime.now(UTC).isoformat()
     practice = _load_practice(profile.name)
     _seed_from_artifacts(practice, profile.name, at=at)
     changed = {"answered": 0, "abandoned": 0, "opened": 0}
 
-    if not show:
-        try:
-            backend = build_study_backend(profile=profile, local=local, plan=plan, plan_model=plan_model, model=model)
-        except StudyBackendError as exc:
-            click.echo(f"Error: {exc}", err=True)
-            sys.exit(2)
+    try:
+        backend = build_study_backend(profile=profile, local=local, plan=plan, plan_model=plan_model, model=model)
+    except StudyBackendError as exc:
+        click.echo(f"Error: {exc}", err=True)
+        sys.exit(2)
 
-        if not as_json:
-            print_header(f"Practice: {profile.name}")
-            print_key_value("Capacity", backend.cost_note)
+    if not as_json:
+        print_header(f"Practice: {profile.name}")
+        print_key_value("Capacity", backend.cost_note)
 
-        card = _read_json(self_path(profile.name))
-        prompt = build_practice_prompt(
-            expert_name=str(card.get("chosen_name") or profile.name),
-            standpoint=str(card.get("standpoint") or ""),
-            practice=practice,
-            material=_material(profile.name),
+    card = _read_json(self_path(profile.name))
+    prompt = build_practice_prompt(
+        expert_name=str(card.get("chosen_name") or profile.name),
+        standpoint=str(card.get("standpoint") or ""),
+        practice=practice,
+        material=_material(profile.name),
+    )
+    try:
+        raw = asyncio.run(backend.completion(prompt))
+    except Exception as exc:
+        click.echo(f"Error: the model call failed: {type(exc).__name__}: {exc}", err=True)
+        sys.exit(2)
+
+    parsed = _parse_json(raw)
+    if not parsed:
+        click.echo(
+            "Error: the model returned no usable practice update, so nothing was written.",
+            err=True,
         )
-        try:
-            raw = asyncio.run(backend.completion(prompt))
-        except Exception as exc:
-            click.echo(f"Error: the model call failed: {type(exc).__name__}: {exc}", err=True)
-            sys.exit(2)
+        sys.exit(2)
 
-        changed = apply_practice_update(practice, _parse_json(raw), at=at)
-    else:
-        practice.updated_at = at
+    changed = apply_practice_update(practice, parsed, at=at)
 
-    path = canonical_practice_path(profile.name)
     path.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_json(path, practice.to_dict(), fsync=True)
 
@@ -248,6 +302,4 @@ def expert_practice(
     if as_json:
         click.echo(json.dumps(practice.to_dict(), indent=2))
     else:
-        if show:
-            print_header(f"Practice: {profile.name}")
         _render(practice, changed, path=path)

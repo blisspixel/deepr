@@ -91,7 +91,7 @@ def _with_absorb_overlap_guard(command):
                 click.echo(json.dumps(payload, indent=2))
             else:
                 print_warning(f"Another absorb is already running for {name!r}; skipped before model construction.")
-            return None
+            sys.exit(2)
 
     return guarded
 

@@ -264,6 +264,15 @@ class TestAssessFromDisk:
         (tmp_path / "study.json").write_text("{not json", encoding="utf-8")
         assert assess_expert("E", tmp_path).grade == "F"
 
+    def test_a_header_only_corpus_is_not_a_source(self, tmp_path):
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        (corpus / "index.jsonl").write_text(
+            '{"schema_version": "deepr-expert-corpus-v1", "expert": "E"}\n',
+            encoding="utf-8",
+        )
+        assert assess_expert("E", tmp_path).sources == 0
+
 
 class TestConsultRecencyComesFromRealTraces:
     """The shape was guessed wrong once and silently graded everything A.

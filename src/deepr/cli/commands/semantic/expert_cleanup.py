@@ -6,7 +6,8 @@ while its beliefs and loop-runs landed in a display-named directory
 docs/design/... / paths.py). This command:
 
   1. MERGES each split into the single canonical (slug) directory, and
-  2. DELETES genuinely-empty experts (no beliefs, conversations, or documents).
+  2. DELETES genuinely-empty experts (no beliefs, corpus, brief, or other
+     durable artifacts).
 
 Dry-run by default. ``--apply`` backs up the whole experts root first, then
 acts (with a confirmation unless ``-y``). Never deletes an expert that has data.
@@ -61,6 +62,10 @@ class CleanupPlan:
     conflicts: list[str] = field(default_factory=list)
 
 
+_V2_DATA_DIRS = ("corpus", "noticed", "hold", "attend", "met", "graph", "became")
+"""The v2 loop never writes beliefs. These directories *are* the expert."""
+
+
 def _belief_count(expert_dir: Path) -> int:
     bf = expert_dir / "beliefs" / "beliefs.json"
     if not bf.exists():
@@ -68,7 +73,9 @@ def _belief_count(expert_dir: Path) -> int:
     try:
         data = json.loads(bf.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
-        return 0
+        # Present and unreadable is data. Counting it as 0 made cleanup
+        # delete the only surviving claim store.
+        return 1
     store = data.get("beliefs", data) if isinstance(data, dict) else data
     return len(store.values() if isinstance(store, dict) else store)
 
@@ -79,12 +86,18 @@ def _nonempty_subdir(expert_dir: Path, name: str) -> bool:
 
 
 def _has_data(expert_dir: Path) -> bool:
-    """An expert has data if it holds beliefs, conversations, or documents."""
-    return (
-        _belief_count(expert_dir) > 0
-        or _nonempty_subdir(expert_dir, "conversations")
-        or _nonempty_subdir(expert_dir, "documents")
-    )
+    """An expert has data if any durable artifact would be lost by deleting it.
+
+    Study never writes beliefs. A sourced, studied, briefed expert that has
+    never absorbed still has a corpus, a study, a brief, and a self-account.
+    Treating only v1 leftovers as data made ``--apply`` rmtree those experts.
+    """
+    if _belief_count(expert_dir) > 0:
+        return True
+    self_account = expert_dir / "self.json"
+    if self_account.is_file() and self_account.stat().st_size > 0:
+        return True
+    return any(_nonempty_subdir(expert_dir, name) for name in ("conversations", "documents", *_V2_DATA_DIRS))
 
 
 def build_plan(root: Path) -> CleanupPlan:
@@ -171,7 +184,10 @@ def _render_plan(plan: CleanupPlan) -> None:
         for legacy, canonical in plan.merges:
             console.print(f"  {legacy.name}  ->  {canonical.name}/")
     if plan.deletions:
-        console.print(f"\n[bold]Delete {len(plan.deletions)} empty expert(s)[/bold] (no beliefs/conversations/docs):")
+        console.print(
+            f"\n[bold]Delete {len(plan.deletions)} empty expert(s)[/bold] "
+            "(no beliefs, corpus, brief, or other durable artifacts):"
+        )
         for d in plan.deletions:
             console.print(f"  [red]{d.name}[/red]")
     if not plan.merges and not plan.deletions:

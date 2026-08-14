@@ -583,8 +583,9 @@ def assess_expert(
         index = expert_dir / "corpus" / "index.jsonl"
         if index.exists():
             try:
-                lines = [line for line in index.read_text(encoding="utf-8").splitlines() if line.strip()]
-                health.sources = len(lines)
+                from deepr.experts.corpus_store import active_source_count
+
+                health.sources = active_source_count(index.read_text(encoding="utf-8"))
             except OSError:
                 pass
 

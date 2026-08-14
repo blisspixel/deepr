@@ -298,7 +298,7 @@ class TestBackendFlagGuard:
 
         r = CliRunner().invoke(expert, ["absorb", "Busy Expert", "job123", "--json", "-y"])
 
-        assert r.exit_code == 0
+        assert r.exit_code == 2
         assert json.loads(r.output) == {
             "status": "skipped",
             "reason": "overlap_locked",
@@ -322,7 +322,7 @@ class TestBackendFlagGuard:
             ["absorb", "Busy Expert", "job123", "--dry-run", "--json", "-y"],
         )
 
-        assert r.exit_code == 0
+        assert r.exit_code == 2
         assert json.loads(r.output)["reason"] == "overlap_locked"
 
     def test_sync_rejects_checker_plan_without_grounding_before_store_work(self, monkeypatch):

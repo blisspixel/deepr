@@ -56,13 +56,18 @@ def canonical_position_ledger_path(expert_name: str) -> Path:
 
 
 def _live_positions(expert_name: str) -> list[Any]:
-    """Positions this expert currently holds, for the brief to restate or revise."""
-    from deepr.experts.position_ledger import load_ledger
+    """Positions this expert currently holds, for the brief to restate or revise.
+
+    An unreadable ledger is not "no priors". Treating it as empty made a
+    re-brief invent new questions and then overwrite the torn history.
+    """
+    from deepr.experts.position_ledger import LedgerUnreadableError, load_ledger
 
     try:
         return list(load_ledger(canonical_position_ledger_path(expert_name), expert_name=expert_name).live)
-    except Exception:
-        return []
+    except LedgerUnreadableError as exc:
+        click.echo(f"Error: {exc}", err=True)
+        sys.exit(2)
 
 
 def _record_positions(expert_name: str, brief: Any, result: Any) -> dict[str, int]:
@@ -72,7 +77,7 @@ def _record_positions(expert_name: str, brief: Any, result: Any) -> dict[str, in
     is bad; taking down a brief that a study just paid for is worse, and the
     brief itself is still written either way.
     """
-    from deepr.experts.position_ledger import load_ledger, record_brief
+    from deepr.experts.position_ledger import LedgerUnreadableError, load_ledger, record_brief
     from deepr.experts.record_time import utc_now
     from deepr.utils.atomic_io import atomic_write_json
 
@@ -91,6 +96,8 @@ def _record_positions(expert_name: str, brief: Any, result: Any) -> dict[str, in
         changed = record_brief(ledger, list(brief.positions), at=utc_now(), corpus_fingerprint=fingerprint)
         atomic_write_json(path, ledger.to_dict(), fsync=True)
         return changed
+    except LedgerUnreadableError:
+        raise
     except Exception:
         return {}
 
@@ -216,7 +223,18 @@ def expert_retain(
     """
     profile = _load_profile(name)
     path = Path(source)
-    text = path.read_text(encoding="utf-8", errors="replace")
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        click.echo(
+            "Error: source is not valid UTF-8. Convert it first; replacing bytes "
+            "would hash a different text than the file on disk.",
+            err=True,
+        )
+        sys.exit(2)
+    except OSError as exc:
+        click.echo(f"Error: cannot read source: {exc}", err=True)
+        sys.exit(2)
     if len(text) > _MAX_SOURCE_CHARS:
         click.echo(f"Error: source exceeds {_MAX_SOURCE_CHARS} chars; split it first", err=True)
         sys.exit(2)
@@ -655,6 +673,10 @@ def expert_brief(
         )
         sys.exit(2)
 
+    # Read priors before any backend or model call. An unreadable ledger must
+    # not become "no priors" after a paid synthesis.
+    prior_positions = _live_positions(profile.name)
+
     try:
         backend = build_study_backend(profile=profile, local=local, plan=plan, model=model)
     except StudyBackendError as exc:
@@ -676,8 +698,6 @@ def expert_brief(
     # produced seven differently-worded questions and restated none of the nine
     # already held, so every thread closed and reopened and survival could
     # never accumulate.
-    prior_positions = _live_positions(profile.name)
-
     brief = asyncio.run(
         build_brief(
             expert_name=profile.name,
@@ -689,12 +709,20 @@ def expert_brief(
         )
     )
 
-    # A brief with no positions is a failed brief. Check before any write:
-    # recording an empty brief would close every live ledger thread as
-    # not_restated, and --json used to return 0 after writing the empty file.
-    if not brief.positions:
-        reason = brief.limitations[0] if brief.limitations else "no positions were produced"
-        click.echo(f"Error: the brief holds no positions, so it is not consultable. {reason}", err=True)
+    # A brief with no cited positions is a failed brief. Check before any
+    # write: recording an empty or uncited brief would close every live
+    # ledger thread as not_restated, and --json used to return 0 after
+    # writing the empty file. Status already requires every position to cite
+    # a finding; the command has to refuse the same way.
+    from deepr.experts.stage_contract import STAGE_BRIEF, get_stage
+
+    brief_stage = get_stage(STAGE_BRIEF)
+    if brief_stage is None or brief_stage.succeeds_when is None or not brief_stage.succeeds_when(brief.to_dict()):
+        reason = brief.limitations[0] if brief.limitations else "no cited positions were produced"
+        click.echo(
+            f"Error: the brief is not consultable (every position must cite a finding). {reason}",
+            err=True,
+        )
         sys.exit(2)
 
     # Record what changed before writing the new brief. Every run used to
@@ -704,7 +732,13 @@ def expert_brief(
     # versions; brief.json stays the current view, because every reader in the
     # system loads it and changing its shape to serve one new reader would
     # break all of them.
-    changed = _record_positions(profile.name, brief, result)
+    from deepr.experts.position_ledger import LedgerUnreadableError
+
+    try:
+        changed = _record_positions(profile.name, brief, result)
+    except LedgerUnreadableError as exc:
+        click.echo(f"Error: {exc}", err=True)
+        sys.exit(2)
 
     payload = json.dumps(brief.to_dict(), indent=2, sort_keys=True)
     atomic_write_json(canonical_brief_path(profile.name), brief.to_dict(), sort_keys=True, fsync=True)

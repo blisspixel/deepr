@@ -42,6 +42,27 @@ def test_plan_deletes_empty_expert(tmp_path):
     assert tmp_path / "empty_expert" in plan.deletions
 
 
+def test_plan_does_not_delete_a_v2_expert_with_no_beliefs(tmp_path):
+    """Study never writes beliefs. The corpus and brief *are* the expert."""
+    expert = tmp_path / "v2_expert"
+    _write(expert / "profile.json", {"name": "V2 Expert"})
+    (expert / "corpus").mkdir()
+    (expert / "corpus" / "index.jsonl").write_text("{}\n", encoding="utf-8")
+    _write(expert / "hold" / "current.json", {"positions": [{"question": "Q"}]})
+    plan = build_plan(tmp_path)
+    assert expert not in plan.deletions
+
+
+def test_plan_does_not_delete_an_unreadable_belief_store(tmp_path):
+    expert = tmp_path / "torn_expert"
+    _write(expert / "profile.json", {"name": "Torn Expert"})
+    beliefs = expert / "beliefs" / "beliefs.json"
+    beliefs.parent.mkdir(parents=True)
+    beliefs.write_text("{not json", encoding="utf-8")
+    plan = build_plan(tmp_path)
+    assert expert not in plan.deletions
+
+
 def test_plan_does_not_delete_when_beliefs_in_split_display_dir(tmp_path):
     # The canonical slug dir is empty, but its display twin holds the beliefs;
     # the expert must NOT be deleted (data lives in the split dir).
