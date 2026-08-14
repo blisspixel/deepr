@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.49.1] - 2026-08-13
+
+### Fixed
+
+- Profile migration now normalizes numeric schema strings before comparing
+  versions, rejects fractional, invalid, and future schema versions, and uses
+  the same validation for direct deserialization. A valid legacy profile with
+  `"schema_version": "4"` no longer crashes during migration, and malformed
+  versions can no longer be truncated into a supported schema.
+- Profile migration now re-reads the document while holding the same file lock
+  used by normal saves. A concurrent save that completes while migration is
+  waiting can no longer be overwritten by the stale pre-lock profile.
+
 ## [2.49.0] - 2026-08-13
 
 ### Added

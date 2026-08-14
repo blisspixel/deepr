@@ -7,6 +7,7 @@ serialization.
 Requirements: 5.5 - Extract to_dict/from_dict logic
 """
 
+import math
 from dataclasses import asdict
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -29,6 +30,31 @@ COMPOSED_FIELDS = ["_temporal_state", "_freshness_checker", "_budget_manager", "
 
 # Metadata fields to exclude from ExpertProfile constructor.
 METADATA_FIELDS: list[str] = []
+
+
+def _normalized_schema_version(value: object) -> int:
+    """Return one supported integral profile schema version."""
+    if isinstance(value, bool):
+        raise ValueError("profile schema_version must be an integer")
+    if isinstance(value, int):
+        version = value
+    elif isinstance(value, (float, str)):
+        try:
+            numeric_version = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("profile schema_version must be an integer") from exc
+        if not math.isfinite(numeric_version) or not numeric_version.is_integer():
+            raise ValueError("profile schema_version must be an integer")
+        version = int(numeric_version)
+    else:
+        raise ValueError("profile schema_version must be an integer")
+    if version < 1:
+        raise ValueError("profile schema_version must be an integer")
+    from deepr.experts.profile_store import PROFILE_SCHEMA_VERSION
+
+    if version > PROFILE_SCHEMA_VERSION:
+        raise ValueError(f"profile schema_version {version} is newer than supported version {PROFILE_SCHEMA_VERSION}")
+    return version
 
 
 def datetime_to_iso(dt: datetime | None) -> str | None:
@@ -116,8 +142,8 @@ def dict_to_profile_kwargs(data: dict[str, Any]) -> dict[str, Any]:
     for field in METADATA_FIELDS:
         kwargs.pop(field, None)
 
-    if "schema_version" in kwargs and isinstance(kwargs["schema_version"], str):
-        kwargs["schema_version"] = int(float(kwargs["schema_version"]))
+    if "schema_version" in kwargs:
+        kwargs["schema_version"] = _normalized_schema_version(kwargs["schema_version"])
 
     # Convert ISO format strings to datetime
     for field in DATETIME_FIELDS:

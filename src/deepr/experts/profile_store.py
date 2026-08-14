@@ -134,9 +134,13 @@ def migrate_profile_data(data: dict[str, Any]) -> dict[str, Any]:
         Migrated profile data at current schema version
     """
     # Determine current version (default to 1 if not present)
-    current_version = int(float(data.get("schema_version") or 1))
+    current_version = _profile_schema_version(data)
 
-    if current_version >= PROFILE_SCHEMA_VERSION:
+    if current_version > PROFILE_SCHEMA_VERSION:
+        raise ValueError(
+            f"profile schema_version {current_version} is newer than supported version {PROFILE_SCHEMA_VERSION}"
+        )
+    if current_version == PROFILE_SCHEMA_VERSION:
         return data
 
     # Apply migrations sequentially
@@ -155,6 +159,22 @@ def migrate_profile_data(data: dict[str, Any]) -> dict[str, Any]:
         current_version = next_version
 
     return data
+
+
+def _profile_schema_version(data: dict[str, Any]) -> int:
+    """Return the normalized integral schema version used by migrations."""
+    raw_version = data.get("schema_version")
+    if raw_version is None or raw_version == "":
+        return 1
+    if isinstance(raw_version, bool):
+        raise ValueError("profile schema_version must be an integer")
+    try:
+        numeric_version = float(raw_version)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("profile schema_version must be an integer") from exc
+    if not numeric_version.is_integer() or numeric_version < 1:
+        raise ValueError("profile schema_version must be an integer")
+    return int(numeric_version)
 
 
 # =============================================================================
@@ -356,20 +376,30 @@ class ExpertStore:
 
         # Apply migrations if needed
         if migrate:
-            original_version = data.get("schema_version", 1)
+            original_version = _profile_schema_version(data)
             data = migrate_profile_data(data)
 
             # Save migrated data if version changed
-            if persist_migration and data.get("schema_version", 1) > original_version:
+            if persist_migration and _profile_schema_version(data) > original_version:
                 from deepr.utils.atomic_io import atomic_write_json
 
-                atomic_write_json(path, data)
-                logger.info(
-                    "Migrated profile '%s' from v%d to v%d",
-                    name,
-                    original_version,
-                    data["schema_version"],
-                )
+                lock_path = path.with_suffix(path.suffix + ".lock")
+                with FileLock(str(lock_path), timeout=10):
+                    # A normal save may have completed after the first read.
+                    # Re-read under the shared lock so migration cannot replace
+                    # a newer profile with the stale pre-lock document.
+                    with open(path, encoding="utf-8") as f:
+                        locked_data = json.load(f)
+                    locked_version = _profile_schema_version(locked_data)
+                    data = migrate_profile_data(locked_data)
+                    if _profile_schema_version(data) > locked_version:
+                        atomic_write_json(path, data)
+                        logger.info(
+                            "Migrated profile '%s' from v%d to v%d",
+                            name,
+                            locked_version,
+                            data["schema_version"],
+                        )
 
         return ExpertProfile.from_dict(data)
 
