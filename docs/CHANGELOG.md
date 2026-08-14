@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.49.2] - 2026-08-13
+
+### Changed
+
+- Restored the README's product-first web story with current captures of the
+  25-expert flagship hub and an evidence-rich expert profile. Spend controls
+  remain visible as supporting proof instead of the only product image.
+- Screenshot QA now selects experts from the current fleet summary fields,
+  accepts a deterministic preferred expert, and can frame content without the
+  fixed status bar.
+
+### Fixed
+
+- Process-only spend caps no longer contaminate immutable checkout `.env`
+  provenance. A temporary tighter cap still binds that process, but a later
+  process can read the unchanged checkout policy without a false widening
+  failure.
+- Long expert domains no longer collapse into an unreadable narrow column in
+  the profile claims table. The table now preserves useful statement and
+  domain widths, scrolls on smaller viewports, and clamps long domain labels.
+
 ## [2.49.1] - 2026-08-13
 
 ### Fixed

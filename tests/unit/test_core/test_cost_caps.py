@@ -123,6 +123,49 @@ def test_validated_checkout_caps_persist_for_installed_runtime_and_cannot_widen(
         resolve_spend_caps()
 
 
+def test_runtime_caps_do_not_contaminate_checkout_file_provenance(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_home = tmp_path / "home"
+    canonical_cost_root = fake_home / ".deepr" / "costs"
+    checkout = tmp_path / "checkout"
+    checkout.joinpath("src", "deepr").mkdir(parents=True)
+    checkout.joinpath("pyproject.toml").write_text(
+        '[project]\nname = "deepr-research"\n',
+        encoding="utf-8",
+    )
+    checkout.joinpath(".env").write_text(
+        "DEEPR_MAX_COST_PER_JOB=2\nDEEPR_MAX_COST_PER_DAY=5\nDEEPR_MAX_COST_PER_MONTH=10\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: fake_home))
+    monkeypatch.setenv("DEEPR_COST_DATA_DIR", str(canonical_cost_root))
+    monkeypatch.setenv("DEEPR_MAX_COST_PER_DAY", "2")
+    monkeypatch.setenv("DEEPR_MAX_COST_PER_MONTH", "5")
+    monkeypatch.setattr(
+        authority_module,
+        "_source_checkout_cost_data_dir",
+        lambda: checkout / "data" / "costs",
+    )
+    monkeypatch.setattr(authority_module, "_cwd_checkout_cost_data_dir", lambda: None)
+    monkeypatch.setattr(
+        cost_caps_module,
+        "read_operator_budget",
+        lambda *_args, **_kwargs: OperatorBudget(configured=True, monthly_limit=200.0, frozen=False),
+    )
+
+    assert resolve_spend_caps() == {"per_job": 2.0, "daily": 2.0, "weekly": 5.0, "monthly": 5.0}
+    registry = canonical_cost_root / "accounting_sources.jsonl"
+    records = [json.loads(line) for line in registry.read_text(encoding="utf-8").splitlines()]
+    spend_cap_record = next(record for record in records if record["artifact"] == "spend_caps.env")
+    assert spend_cap_record["limits"] == {"daily": 5.0, "monthly": 10.0, "per_job": 2.0}
+
+    monkeypatch.delenv("DEEPR_MAX_COST_PER_DAY")
+    monkeypatch.delenv("DEEPR_MAX_COST_PER_MONTH")
+    assert resolve_spend_caps() == {"per_job": 2.0, "daily": 5.0, "weekly": 5.0, "monthly": 5.0}
+
+
 def test_spend_cap_registry_rollback_cannot_erase_tighter_history(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

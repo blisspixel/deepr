@@ -568,14 +568,7 @@ def _read_checkout_policy(path: Path) -> dict[str, float]:
         for env_name in (_PRIMARY[key], _LEGACY[key]):
             if env_name in document:
                 current[key].append(_checkout_policy_value(path, env_name, document[env_name]))
-    normalized = {key: min(values) for key, values in current.items() if values}
-    for key in normalized:
-        runtime_values = [
-            value for value in (_parse_env_limit(_PRIMARY[key]), _parse_env_limit(_LEGACY[key])) if value is not None
-        ]
-        if runtime_values:
-            normalized[key] = min(normalized[key], *runtime_values)
-    return normalized
+    return {key: min(values) for key, values in current.items() if values}
 
 
 def _trusted_checkout_limits() -> dict[str, tuple[float, ...]]:
