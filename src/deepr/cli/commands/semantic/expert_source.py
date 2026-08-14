@@ -215,9 +215,22 @@ def expert_source(
         acquire_sources(expert_name=profile.name, urls=urls, corpus=store, fetch_page=default_fetch_page())
     )
     after = len(store.active_entries())
+    _emit_source_acquire(profile.name, report, before=before, after=after, plan_backend=plan_backend)
 
+
+def _emit_source_acquire(expert_name: str, report: Any, *, before: int, after: int, plan_backend: str | None) -> None:
+    """Report acquire outcomes and exit with the acquire contract's code."""
     console.print()
     print_key_value("Retained", f"{after - before} new source(s), {after} in the corpus")
-    if failures := getattr(report, "failures", None):
-        print_warning(f"{len(failures)} fetch(es) failed and were skipped.")
-    print_success(f'Next: deepr expert study "{profile.name}" --plan {plan_backend or "grok"}')
+    if report.failed:
+        print_warning(f"{len(report.failed)} fetch(es) failed and were skipped.")
+    for item in report.limitations:
+        print_warning(item)
+    if report.exit_code == 2:
+        click.echo("Error: nothing usable was retained.", err=True)
+        sys.exit(2)
+    if report.exit_code == 1:
+        print_warning("Partial acquire: some URLs were not retained.")
+    else:
+        print_success(f'Next: deepr expert study "{expert_name}" --plan {plan_backend or "grok"}')
+    sys.exit(report.exit_code)

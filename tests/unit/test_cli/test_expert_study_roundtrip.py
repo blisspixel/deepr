@@ -224,6 +224,155 @@ class TestBriefRefusesEmptyResult:
 
         result = CliRunner().invoke(expert, ["brief", "Subject", "--json"])
         assert result.exit_code == 2
-        assert "holds no positions" in result.output
+        assert "not consultable" in result.output
         assert json.loads(existing.read_text(encoding="utf-8"))["positions"][0]["question"] == "Q"
         assert json.loads(history.read_text(encoding="utf-8"))["versions"][0]["thread_id"] == "t1"
+
+    def test_uncited_positions_do_not_write_or_close_the_ledger(self, tmp_path, monkeypatch):
+        """Status already requires a citation; the command used to write anyway."""
+        from click.testing import CliRunner
+
+        from deepr.cli.commands.semantic.experts import expert
+        from deepr.experts import paths
+        from deepr.experts.brief_contracts import ExpertBrief, Position
+
+        home = tmp_path / "experts"
+        monkeypatch.setattr(paths, "canonical_expert_dir", lambda name: home / name)
+
+        class FakeProfile:
+            name = "Subject"
+            domain = "d"
+
+        class FakeStore:
+            def load(self, name):
+                return FakeProfile() if name == "Subject" else None
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeStore)
+
+        existing = home / "Subject" / "hold" / "current.json"
+        existing.parent.mkdir(parents=True)
+        existing.write_text(
+            json.dumps({"positions": [{"question": "Q", "stance": "s", "supported_by": ["f1"]}]}),
+            encoding="utf-8",
+        )
+        history = home / "Subject" / "hold" / "history.json"
+        history.write_text(
+            json.dumps(
+                {
+                    "expert": "Subject",
+                    "versions": [
+                        {
+                            "thread_id": "t1",
+                            "version_id": "v1",
+                            "question": "Q",
+                            "stance": "s",
+                            "recorded_at": "2026-01-01T00:00:00+00:00",
+                            "superseded_at": "9999-12-31T23:59:59.999999+00:00",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        _write(home / "Subject" / "noticed" / "current.json", json.dumps(_study().to_dict()))
+
+        async def uncited_brief(**_kwargs):
+            brief = ExpertBrief(expert_name="Subject")
+            brief.positions = [Position(question="New Q", stance="it holds", reasoning="", would_change_my_mind="x")]
+            return brief
+
+        monkeypatch.setattr("deepr.experts.brief.build_brief", uncited_brief)
+
+        class FakeBackend:
+            capacity_source = "local:x"
+            model = "x"
+            cost_note = "$0"
+            completion = staticmethod(lambda prompt: "")
+
+        monkeypatch.setattr(
+            "deepr.cli.commands.semantic.expert_study.build_study_backend",
+            lambda **kwargs: FakeBackend(),
+        )
+        monkeypatch.setattr(
+            "deepr.cli.commands.semantic.expert_study.CorpusStore",
+            lambda name: type("C", (), {"active_entries": staticmethod(lambda: [])})(),
+        )
+
+        result = CliRunner().invoke(expert, ["brief", "Subject", "--json"])
+        assert result.exit_code == 2
+        assert "not consultable" in result.output
+        assert json.loads(existing.read_text(encoding="utf-8"))["positions"][0]["supported_by"] == ["f1"]
+        assert json.loads(history.read_text(encoding="utf-8"))["versions"][0]["thread_id"] == "t1"
+
+    def test_unreadable_ledger_refuses_before_the_model_call(self, tmp_path, monkeypatch):
+        from click.testing import CliRunner
+
+        from deepr.cli.commands.semantic.experts import expert
+        from deepr.experts import paths
+
+        home = tmp_path / "experts"
+        monkeypatch.setattr(paths, "canonical_expert_dir", lambda name: home / name)
+
+        class FakeProfile:
+            name = "Subject"
+            domain = "d"
+
+        class FakeStore:
+            def load(self, name):
+                return FakeProfile() if name == "Subject" else None
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeStore)
+
+        history = home / "Subject" / "hold" / "history.json"
+        history.parent.mkdir(parents=True)
+        history.write_text("{not json", encoding="utf-8")
+        _write(home / "Subject" / "noticed" / "current.json", json.dumps(_study().to_dict()))
+
+        called: list[object] = []
+        monkeypatch.setattr(
+            "deepr.cli.commands.semantic.expert_study.build_study_backend",
+            lambda **kwargs: called.append(kwargs) or (_ for _ in ()).throw(AssertionError("backend built")),
+        )
+
+        result = CliRunner().invoke(expert, ["brief", "Subject"])
+        assert result.exit_code == 2
+        assert "unreadable" in result.output
+        assert history.read_text(encoding="utf-8") == "{not json"
+        assert called == []
+
+
+class TestRetainRefusesNonUtf8:
+    def test_latin1_source_is_not_hashed_as_replacement_text(self, tmp_path, monkeypatch):
+        from click.testing import CliRunner
+
+        from deepr.cli.commands.semantic.experts import expert
+        from deepr.experts import paths
+
+        home = tmp_path / "experts"
+        monkeypatch.setattr(paths, "canonical_expert_dir", lambda name: home / name)
+
+        class FakeProfile:
+            name = "Subject"
+
+        class FakeStore:
+            def load(self, name):
+                return FakeProfile() if name == "Subject" else None
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeStore)
+
+        source = tmp_path / "note.txt"
+        source.write_bytes("caf\xe9".encode("latin-1"))
+
+        added: list[str] = []
+
+        class FakeCorpus:
+            def add(self, text, **_kwargs):
+                added.append(text)
+                raise AssertionError("must not hash replaced text")
+
+        monkeypatch.setattr("deepr.cli.commands.semantic.expert_study.CorpusStore", lambda name: FakeCorpus())
+
+        result = CliRunner().invoke(expert, ["retain", "Subject", str(source)])
+        assert result.exit_code == 2
+        assert "UTF-8" in result.output
+        assert added == []

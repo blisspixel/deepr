@@ -95,13 +95,18 @@ def _load_profile(name: str) -> Any:
 
 
 def _corpus_entries(expert_name: str) -> list[Any]:
-    """The retained sources, so an edge can only point at a real passage."""
-    try:
-        from deepr.experts.corpus_store import CorpusStore
+    """The retained sources, so an edge can only point at a real passage.
 
+    An unreadable corpus is not "no sources". Swallowing that used to persist
+    an unformed graph over a previous formed one.
+    """
+    from deepr.experts.corpus_store import CorpusStore
+
+    try:
         return list(CorpusStore(expert_name).active_entries())
-    except Exception:
-        return []
+    except Exception as exc:
+        click.echo(f"Error: could not read the retained corpus: {exc}", err=True)
+        sys.exit(2)
 
 
 def _render_human(graph: Any, *, path: Path) -> None:
@@ -185,19 +190,28 @@ def expert_graph(name: str, out: str | None, write_markdown: bool, as_json: bool
       deepr expert graph "My Expert" --markdown
     """
     from deepr.experts.consult_context import load_brief, load_study
+    from deepr.experts.stage_contract import STAGE_GRAPH, evaluate_stage, get_stage
 
     profile = _load_profile(name)
     directory = canonical_expert_dir(profile.name)
     study = load_study(part_in(directory, "noticed"))
     brief = load_brief(part_in(directory, "hold_current"))
 
-    if study is None and brief is None:
-        click.echo(
-            f"Error: {profile.name} has neither a study nor a brief, so there is no chain to record. "
-            f'Run: deepr expert study "{profile.name}"',
-            err=True,
-        )
-        sys.exit(2)
+    artifacts = {
+        "noticed/current.json": study.to_dict() if study is not None else None,
+        "hold/current.json": brief.to_dict() if brief is not None else None,
+    }
+    graph_stage = get_stage(STAGE_GRAPH)
+    if graph_stage is not None:
+        state = evaluate_stage(graph_stage, artifacts)
+        if state.blockers:
+            reason = state.blockers[0].reason
+            fix = state.blockers[0].fix
+            click.echo(
+                f'Error: {profile.name} cannot form an evidence graph: {reason}. Run: deepr {fix} "{profile.name}"',
+                err=True,
+            )
+            sys.exit(2)
 
     built_at = datetime.now(UTC).isoformat()
     graph = build_graph(
@@ -207,6 +221,15 @@ def expert_graph(name: str, out: str | None, write_markdown: bool, as_json: bool
         corpus_entries=_corpus_entries(profile.name),
         at=built_at,
     )
+
+    formed = graph_stage is None or graph_stage.succeeds_when is None or graph_stage.succeeds_when(graph.to_dict())
+    if not formed:
+        click.echo(
+            f"Error: no position reaches a source through a finding, so nothing was written. "
+            f'Run: deepr expert study "{profile.name}" and deepr expert brief "{profile.name}"',
+            err=True,
+        )
+        sys.exit(2)
 
     path = Path(out) if out else canonical_graph_path(profile.name)
     path.parent.mkdir(parents=True, exist_ok=True)

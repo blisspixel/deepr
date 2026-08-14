@@ -9,10 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Empty or ungrounded briefs no longer write over a previous brief, close the
-  position ledger as not-restated, or exit 0 on `--json`. `expert brief`
-  refuses before any write. `expert viva` refuses a parseable brief that
-  holds no positions.
+- `expert cleanup --apply` no longer deletes a v2 expert that sourced, studied,
+  or briefed but never absorbed. Unreadable `beliefs.json` is treated as data,
+  not emptiness.
+- A present but unreadable position ledger is no longer treated as a new
+  expert. `expert brief` refuses before the model call instead of overwriting
+  the torn history.
+- `expert graph` and `expert practice` now refuse the same way status already
+  reports: they do not write an unformed graph or a practice with no cited
+  brief. `--show` is read-only. An unreadable `self.json` is not replaced.
+- `expert source` uses the acquire exit code and reports failed fetches.
+  A lock-skipped absorb exits 2. `expert retain` refuses non-UTF-8 sources
+  instead of hashing replacement characters. Fleet health counts only active
+  corpus sources.
+- Empty, ungrounded, or uncited briefs no longer write over a previous brief,
+  close the position ledger as not-restated, or exit 0 on `--json`.
+  `expert brief` refuses before any write. `expert viva` refuses a parseable
+  brief that holds no positions.
 - `get_current_confidence` can evaluate decay at a requested instant. Digest,
   OKF, and perspective history no longer apply today's decay to a past record.
   Naive stored timestamps no longer crash decay.

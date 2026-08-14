@@ -554,10 +554,10 @@ what looks appetising.
 
 **Refinements worth doing alongside, none of them blocking:**
 
-- **`stage_contract` at the stage.** Brief, viva, and profile now refuse empty
-  or uncited inputs before a model call or write. Status also requires cited
-  findings on every position. Remaining: graph / practice still report more
-  than they gate.
+- **`stage_contract` at the stage.** Brief, viva, profile, graph, and practice
+  now refuse empty or uncited inputs before a model call or write. Status also
+  requires cited findings on every position. Remaining: mid-call consult
+  failover still cannot wrap a chat client.
 - **Consult failover.** `--plan a,b,c` now skips a safety-blocked or exhausted
   name and uses the next eligible backend. Mid-call failover is still only on
   study and brief, because a consult builds a chat client rather than a

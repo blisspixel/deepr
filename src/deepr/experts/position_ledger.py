@@ -64,6 +64,14 @@ REASON_SOURCE_RETRACTED = "retracted_by_source"
 _REASONS = (REASON_REVISED, REASON_NOT_RESTATED, REASON_OPERATOR_RETIRED, REASON_SOURCE_RETRACTED)
 
 
+class LedgerUnreadableError(ValueError):
+    """The ledger file exists but cannot be used as a ledger.
+
+    Missing is empty. Present-and-broken is not: treating a torn history as a
+    new expert is how a re-brief used to wipe thread identity.
+    """
+
+
 @dataclass
 class PositionVersion:
     """One statement of one position, and when the store held it."""
@@ -317,11 +325,18 @@ def record_brief(
 
 
 def load_ledger(path: Path, *, expert_name: str = "") -> PositionLedger:
-    """Read the ledger, or an empty one when there is none yet."""
+    """Read the ledger, or an empty one when there is none yet.
+
+    An existing file that will not parse is not an empty ledger. Returning a
+    blank one used to let the next brief atomically replace months of
+    versions.
+    """
+    if not path.exists():
+        return PositionLedger(expert_name=expert_name)
     try:
         return PositionLedger.from_dict(json.loads(path.read_text(encoding="utf-8")))
-    except (json.JSONDecodeError, OSError, TypeError, ValueError):
-        return PositionLedger(expert_name=expert_name)
+    except (json.JSONDecodeError, OSError, TypeError, ValueError) as exc:
+        raise LedgerUnreadableError(f"position ledger at {path} is unreadable: {exc}") from exc
 
 
 def find_thread(ledger: PositionLedger, question: str) -> str:
