@@ -1,3 +1,5 @@
+
+
 # Deepr
 
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
@@ -142,7 +144,7 @@ Current OKF 0.2 conformance and Agent Plugin packaging are planned surfaces, not
 
 ```bash
 uv pip install -e ".[dev,full]"
-pytest tests/unit/ --ignore=tests/data -q
+pytest tests/unit/ --ignore=tests/data -q --cov=deepr --cov-report=term-missing
 ruff check src/deepr/
 ruff format --check src/deepr/
 python scripts/check_file_sizes.py
