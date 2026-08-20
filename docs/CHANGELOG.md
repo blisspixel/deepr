@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Refined the external-harness roadmap against OKF 0.2, the published Agent
+  Plugins 1.0.0 specification, Agent Skills, and MCP 2026-07-28. The dependency
+  order now repairs knowledge interchange before plugin packaging, proves
+  read-only MCP projection before control, and gates remote or metered actions
+  behind Deepr's canonical identity, evidence, budget, and approval contracts.
+- Added a versioned bridge design for Agent Plugin installation, host capability
+  profiles, OpenClaw, DeepSeek Harness, Grok Build, Codex, NemoClaw and
+  OpenShell, lineage-only steering, and external workspace evidence. Optional
+  MCP extensions remain deferred until the core bridge exposes a measured gap.
+
 ### Fixed
 
 - `expert cleanup --apply` no longer deletes a v2 expert that sourced, studied,
@@ -127,7 +139,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   job ceiling, a `$5` independent monthly ceiling, disabled automatic refill,
   and explicit provider-hard-stop status. Removed the earlier Expert Hub image
   from the README because it no longer represented the current flagship roster.
-- Kept Agent Plugin packaging aligned to the current 1.0.0 working draft and
+- Kept Agent Plugin packaging aligned to the current published 1.0.0
+  specification and
   the knowledge-export migration targeted at OKF 0.2. Both remain planned
   surfaces rather than shipped conformance claims.
 
@@ -260,7 +273,7 @@ verified prepaid-plan work remains $0 at the margin.
 ### Changed
 
 - **Portable-format claims now follow the current specifications.** The Agent
-  Plugin roadmap targets the 1.0.0 working draft's fixed `plugin.json`,
+  Plugin roadmap targets the published 1.0.0 specification's fixed `plugin.json`,
   `skills/`, and `mcp.json` locations, canonical schemas, path containment,
   `PLUGIN_ROOT`/`PLUGIN_DATA`, and no-secret package rules. The shipped
   `deepr-okf-profile-v1` surface is now described honestly as a legacy

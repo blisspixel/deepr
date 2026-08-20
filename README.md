@@ -117,7 +117,7 @@ still serving legacy `initialize`-era clients on both transports. Operators can
 prove the offline host-interop posture with `deepr mcp conformance` (`$0`, no
 network, no model).
 
-The portability roadmap follows the current [Agent Plugins 1.0.0 working-draft
+The portability roadmap follows the current published [Agent Plugins 1.0.0
 specification](https://agent-plugins.org/specification) and containment
 contract. OKF export remains a derived view over Deepr's canonical belief and
 provenance stores; the migration target is the current [Open Knowledge Format

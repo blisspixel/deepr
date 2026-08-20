@@ -51,6 +51,7 @@
 | [Epistemic Simulation Experts](docs/design/epistemic-simulation-experts.md) | Branch-scoped speculative lenses with isolated memory authority, graph-aware context, and held-out evaluation |
 | [Epistemic Simulation Evaluation](docs/design/epistemic-simulation-evaluation.md) | Identity ablation, counterfactual transfer, belief revision, evidence contracts, and outcome gates for reasoning lenses |
 | [Agent Harness Lessons 2026](docs/design/agent-harness-lessons-2026.md) | Hermes, OpenClaw, Pi, OpenHands, Goose, and Letta patterns relevant to Deepr |
+| [External Harness Investigation Bridge](docs/design/external-harness-investigation-bridge.md) | Projection-first Grok Build, DeepSeek Harness, OpenClaw, NemoClaw, Codex, and workspace-host integration without moving orchestration authority into Deepr |
 | [Evidence-Gated Polyglot Evolution](docs/design/evidence-gated-polyglot-evolution.md) | Measured Python-first performance plan and explicit Rust, Go, Mojo, and free-threading extraction gates |
 | [Architecture](docs/ARCHITECTURE.md) | Technical details, security, observability |
 | [Security Threat Model](docs/security/THREAT_MODEL.md) | Trust boundaries, attacker stories, mitigations, and severity calibration |
@@ -363,7 +364,13 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.49.1)
+## Current Status (v2.49.2 plus unreleased fixes)
+
+**Shipped in v2.49.2 (see docs/CHANGELOG.md):** the README again leads with
+the expert product, current Expert Hub and profile captures are published, and
+the screenshot and profile-table paths handle the current flagship roster and
+long expert domains. Process-only spend caps no longer alter immutable checkout
+policy provenance.
 
 **Shipped in v2.49.1 (see docs/CHANGELOG.md):** expert-profile migration now
 normalizes and validates schema versions consistently, refuses future or
@@ -469,45 +476,57 @@ naming: a module with tests is not a shipped feature.
 calendar, and the sequence is derived from what blocks what rather than from
 what looks appetising.
 
-0. **Ship Deepr as an Agent Plugin.** [agent-plugins.org](https://agent-plugins.org)
-   is a vendor-neutral standard for packaging Agent Skills and MCP servers into
-   a portable directory. The current normative target is the Agent Plugins
-   1.0.0 working draft. Deepr already has both portable component types: an MCP
-   server and a set of skills, with `SKILL.md` export machinery already in the
-   packager.
+0. **Close the standards foundation before widening distribution.** The three
+   current targets have separate jobs: OKF 0.2 carries selected knowledge,
+   Agent Plugins 1.0.0 packages Agent Skills and MCP declarations, and MCP
+   2026-07-28 carries bounded runtime requests. None becomes Deepr's authority
+   model.
 
-   What is missing is a manifest layer, not research capability: required root
-   `plugin.json`, root `mcp.json` describing the stdio server, and a
-   directory-shape adapter from the current `skill.yaml` + `prompt.md` +
-   `tools/` to fixed `skills/<name>/SKILL.md` discovery plus `scripts/`,
-   `references/`, and `assets/` where needed. Pin both `$schema` fields to the
-   canonical 1.0.0 schema identifiers, keep the command as one executable token
-   with separate arguments, keep package paths inside `PLUGIN_ROOT`, put
-   persistent generated state under `PLUGIN_DATA`, and embed no credentials in
-   `env` or HTTP headers. Validate against locally pinned canonical schemas
-   rather than fetching them during load or checking by eye. Stdio is the first
-   portable transport; Streamable HTTP is a later package option only when its
-   remote authorization and no-surprise-bills boundary is independently safe.
+   0. **Pin standards truth and offline fixtures.** Pin the published Agent
+      Plugins 1.0.0 plugin and MCP schemas by canonical identifier and checksum;
+      freeze representative OKF 0.2, Agent Skill, and MCP fixtures; and retain
+      the existing blocking dual-era MCP conformance suite. OKF is a minimal
+      Markdown and YAML specification, not a schema registry, so implement a
+      spec-derived validator instead of inventing a canonical OKF JSON Schema.
+      All validation stays network-free and `$0`.
 
-   Worth doing because it makes Deepr installable in any compliant client
-   instead of only where someone hand-wires an MCP config, and
-   [where-deepr-sits.md](docs/design/where-deepr-sits.md) already argues the
-   MCP surface is the product surface.
+   1. **Migrate the legacy OKF view to 0.2.** Deepr's current
+      `deepr-okf-profile-v1` export is explicitly nonconformant. Repair it before
+      packaging makes the surface easier to distribute: root `index.md` may
+      declare only `okf_version`, `log.md` uses date-grouped newest-first entries
+      without concept frontmatter, concept frontmatter begins at byte zero,
+      `timestamp` moves to `generated.at`, and provenance moves from a body
+      citations list to `sources`. Preserve permitted unknown extensions and
+      emit `verified`, `status`, `stale_after`, and Attested Computation fields
+      only when canonical Deepr state supports their meaning. Import remains
+      permissive and verification-gated; the belief, event, and edge stores
+      remain authoritative.
 
-   Keep packaging separate from knowledge interchange. Agent Plugins 1.0.0
-   packages Skills and MCP servers; it does not define a knowledge-bundle
-   component. The current Open Knowledge Format target is OKF 0.2, which
-   supersedes the 0.1 format introduced by the June 2026 Google Cloud post.
-   Deepr's existing `deepr-okf-profile-v1` export is a legacy OKF-style derived
-   view, not a proved OKF 0.2 conformance claim. After the plugin package, audit
-   and migrate it to 0.2: root `index.md` may declare only `okf_version`,
-   `log.md` uses date-grouped newest-first entries without concept
-   frontmatter, concept frontmatter begins at byte zero, `timestamp` moves to
-   `generated.at`, provenance moves from a body citations list to `sources`,
-   and optional `verified`, `status`, `stale_after`, and Attested Computation
-   fields are emitted only when canonical Deepr state can support them. Import
-   remains permissive and verification-gated, and the belief/event/edge store
-   remains authoritative.
+   2. **Validate Agent Skills, then ship Deepr as an Agent Plugin.**
+      [agent-plugins.org](https://agent-plugins.org/specification) publishes
+      version 1.0.0 as the current vendor-neutral package specification. Deepr
+      already has both defined core component types: an MCP server and Agent
+      Skills with `SKILL.md` export machinery. Validate skill layout first, then
+      add required root `plugin.json`, stdio-first `mcp.json`, and immediate
+      `skills/<name>/SKILL.md` children. Pin both `$schema` identifiers locally,
+      keep the command as one executable token with separate arguments, keep
+      paths inside `PLUGIN_ROOT`, use `PLUGIN_DATA` only for newly created
+      plugin-owned state, and include no credential, expert database, or
+      knowledge-bundle extension. Streamable HTTP remains a later option after
+      its authentication and no-surprise-bills boundary is independently safe.
+
+   3. **Prove clean installation before host recipes.** A clean environment
+      must validate the package offline, produce a byte-reproducible manifest,
+      invoke the local no-metered surface, and show that schema loading, package
+      inspection, and startup make no secret-bearing or paid network call.
+      Host-specific configuration is a compatibility artifact only when a host
+      does not support Agent Plugins or requires a narrower capability profile.
+
+   This order matters: format truth precedes portable packaging, portable
+   packaging precedes host-specific recipes, and read-only observation precedes
+   steering or remote paid authority. The complete bridge sequence and gates
+   live in
+   [external-harness-investigation-bridge.md](docs/design/external-harness-investigation-bridge.md).
 
 1. ~~**Durable identity for positions.**~~ **Done.** A position is keyed on its
    question and keeps that identity across a re-brief.
@@ -978,9 +997,12 @@ the gate for that version is proven.
 | **v2.47** (shipped, grant superseded) | Expert v2 web surface, local portraits, and the original attended `$2` grant | The new expert state needed a real interface; attended spend needed a first narrow proof | Twelve read-only v2 routes and local portrait path shipped; the grant was replaced in v2.49 |
 | **v2.48** (shipped) | Local-first consult plus the 2026-08-13 provider model and pricing refresh | Consultation must not inherit metered authority; estimates must follow current official catalogs | Consult blocks API paths; GPT-5.6, Grok 4.6, Claude 5, and current Gemini posture registered |
 | **v2.49** (shipped) | Persistent metered-spend wallet, independent job ceilings, and a curated flagship expert roster | Operators need chosen total exposure without a universal $2 research limit; the main roster must show developed experts | Wallet and verified provider boundaries both apply; no refill or overdraft; 25 explicit flagship experts have inspectable structure |
-| **v2.50** | Agent Plugin 1.0.0 packaging and OKF 0.2 derived-export migration | Portable execution packaging and portable knowledge are separate contracts that should land before widening runtime authority | Canonical schemas pinned locally; package containment proven; no secrets; OKF export remains derived and verification-gated |
-| **v2.51** | Metered lifecycle re-enable only on shared durable parent transaction + maximum-charge contract | Partial unfreeze is how silent spend returns | Every gated metered lifecycle surface shares one reservation/settlement path |
-| **v2.52** | Protocol-native remote expert conversations (MCP first; A2A after 1.0 honesty) | Collaboration after local value and spend truth, not before | Durable conversation handles; no A2A 1.0 claim without live conformance client |
+| **v2.50** | Standards foundation: OKF 0.2 migration, Agent Skill validation, then Agent Plugin 1.0.0 packaging | Format truth must precede distribution, and distribution must precede host-specific adapters | Offline pinned fixtures pass; OKF remains derived and verification-gated; package containment and secret absence are proven |
+| **v2.51** | Versioned external-harness contracts plus read-only MCP investigation projection | Hosts need replayable observation before they receive control authority | Stateless `run_id` and cursor reads reproduce the canonical lifecycle and deny cross-run access |
+| **v2.52** | Agent Plugin install proof plus fixture-validated OpenClaw, DeepSeek Harness, Grok Build, and Codex profiles | Portable packaging is primary; host fragments are compatibility paths | Every advertised host claim names exact versions, tools, transport, and validation evidence |
+| **v2.53** | Shared durable parent transaction, maximum-charge contract, scoped HTTP authority, then NemoClaw remote-isolation proof | Remote mutation and isolation depend on spend, identity, credential, and endpoint truth | Retry and crash tests cannot overshoot the parent ceiling or duplicate effects; NemoClaw remains reference-only until live evidence passes |
+| **v2.54** | Lineage-only follow-up, fork, pause, resume, cancel, and separately approved remote start | Control follows observation and authority, never precedes them | Every transition is idempotent, hash-bound, race-tested, and reconstructible from the canonical journal |
+| **v2.55** | External workspace evidence bundles and selectively negotiated MCP extensions | Computer-produced evidence and protocol convenience arrive only after core boundaries hold | Tainted artifacts remain evidence-only; each Tasks, Skills-over-MCP, or Apps adapter removes a measured limitation without becoming authority |
 | **v3.0** | Portable, evidence-gated expert maturity (Level 5/6 gates, multi-device continuity, honest Supported Surface) | 3.0 is a contract freeze, not a feature dump | Approach + Supported Surface + capacity classes stable; paid path either proven safe or still honestly frozen |
 | **3.x+** | Polyglot extraction, broader plan adapters, hosted MCP only after evidence | Widen only after quality, cost, and security evidence | Per-item gates in design notes; no global cheapest-first metered fallback |
 
@@ -1279,8 +1301,8 @@ overshoot is the design standard, not a closed story.
 18. **Device-partitioned expert continuity** - after deterministic event replay, add read-only sync health, immutable per-device journals, idempotent union, quarantine, tombstones, and explicit conflict artifacts before claiming concurrent edits. Separate machine-bound operational state from the concurrent expert event exchange. Never let storage convergence decide semantic belief, stance, hypothesis, or policy conflicts. Why: generic cloud sync preserves conflicting files but cannot merge an evolving expert's meaning. Design: [multi-device-expert-continuity.md](docs/design/multi-device-expert-continuity.md).
 19. **Historically grounded perspective lenses** - define `deepr-historical-perspective-v1` with persistent AI disclosure, institutional-source provenance, historical cutoff, contested interpretations, temporal bridge labels, non-impersonation, and a Why this perspective inspector. Pilot Leonardo and Beethoven only after the held-out acceptance harness exists. No identity claims, invented memories, fabricated quotations, voice cloning, or canonical writes from fictional dramatization. Why: great-mind perspectives can make expert consultation memorable and useful only when historical record, interpretation, and modern synthesis remain visibly distinct. Design: [historically-grounded-perspectives.md](docs/design/historically-grounded-perspectives.md).
 20. **Epistemic simulation experts** - define `deepr-epistemic-simulation-v1` and a `$0`, read-only five-arm acceptance fixture before adding a persona catalog or live deliberation. Separate factual, perspective, simulation, episodic, and governance authority; scope every counterfactual node and edge to an immutable branch; preserve alternative hypotheses and prior-to-posterior belief deltas; compile task-shaped graph paths with assumptions, dissent, temporal change, and Why this lens provenance; blind identity during adjudication; and prohibit simulation-to-fact writes. Start with one Leonardo-informed historical lens and one five-years-forward scenario lens only after anonymous-method, counterfactual-transfer, private-evidence, revision, negative-transfer, and held-out outcome gates pass. Why: exceptional insight can come from coherent unverified hypotheses and deliberately different priors, but only lane isolation, branch integrity, and outcome-grounded evaluation keep imagination from becoming synthetic evidence. Design: [epistemic-simulation-experts.md](docs/design/epistemic-simulation-experts.md). Evaluation: [epistemic-simulation-evaluation.md](docs/design/epistemic-simulation-evaluation.md). Proposed authority: [ADR 0006](docs/decisions/0006-epistemic-simulation-memory-authority.md).
-21. **Harness-grade run control plane** - persist a run-start capability snapshot and an exact prepared-approval artifact binding argv, cwd, model, auth mode, budget, writes, inputs, expert snapshot, and schema hashes. Join routing, capacity, policy, trace, and verification in one control-plane evidence record. Why: current Hermes, OpenClaw, Pi, and OpenHands patterns show that reproducibility and authority must be explicit before adding more surfaces. Design: [agent-harness-lessons-2026.md](docs/design/agent-harness-lessons-2026.md).
-22. **Steering, fork lineage, and verified skill candidates** - distinguish steer-after-safe-boundary from follow-up-after-completion, restore queued input on abort, and fork from checkpoints with inherited budget and parent trace. Promote learned skills only through isolated replay, held-out improvement, negative-transfer checks, and reviewed activation. Why: responsive long-running agents and learning skills are valuable, but neither may bypass the evidence and authority boundaries. Design: [agent-harness-lessons-2026.md](docs/design/agent-harness-lessons-2026.md).
+21. **Harness-grade run control plane** - persist a run-start capability snapshot and an exact prepared-approval artifact binding argv, cwd, model, auth mode, budget, writes, inputs, expert snapshot, and schema hashes. Join routing, capacity, policy, trace, and verification in one control-plane evidence record. Extend the existing token-redacted MCP registration manifest with an exact-tool, offline-generated host profile for OpenClaw, NemoClaw, DeepSeek Harness, Grok Build, and Codex. Host profiles are derived reference artifacts, not installers or live-support claims. Why: current harnesses show that reproducibility and authority must be explicit before adding more surfaces. Designs: [agent-harness-lessons-2026.md](docs/design/agent-harness-lessons-2026.md) and [external-harness-investigation-bridge.md](docs/design/external-harness-investigation-bridge.md).
+22. **Steering, fork lineage, and verified skill candidates** - keep an active investigation plan immutable. Pause and cancel request typed lifecycle transitions; semantic redirection creates a separately admitted follow-up or checkpoint fork with explicit parent lineage and a bound remaining or fresh capacity envelope. Promote learned skills only through isolated replay, held-out improvement, negative-transfer checks, and reviewed activation. Why: responsive long-running agents and learning skills are valuable, but neither may bypass the evidence and authority boundaries. Designs: [agent-harness-lessons-2026.md](docs/design/agent-harness-lessons-2026.md) and [external-harness-investigation-bridge.md](docs/design/external-harness-investigation-bridge.md).
 
 The Phase 4c `$0` read-only structured-consultation evidence gate is a child of
 item 5 and may run as soon as its human-anchored consult review set is
@@ -1424,7 +1446,11 @@ This is the canonical plan for remaining work. Keep each item in one place only;
 - Admit loops only when the harness can prove progress: the task repeats, verification is automated, budget/capacity is explicit, and the agent has the tools/logs/state needed to inspect failures. If any of those are missing, keep the surface advisory, one-shot, or human-gated. The minimum viable Deepr loop is an automation trigger, a reusable expert context package, a durable state file/record, and a verifier gate. Goal loops come before meta/team loops; Deepr widens autonomy only after the closed loop has acceptable acceptance rate, cost per accepted knowledge change, and failure telemetry.
 - Treat portable knowledge formats as interchange, not authority. OKF fits Deepr as an export/import contract (Markdown concepts, YAML frontmatter, `index.md`, `log.md`, bundle links) because agents can read it anywhere. It must remain a derived view or an ingestion source: canonical truth stays in the structured belief/event/edge store, and OKF import goes through the same verify/absorb pipeline as any other corpus. Do not let an agent-maintained wiki bypass source trust, contradiction checks, or the generated-artifact regeneration invariant.
 - Self-improvement is a verification problem (recursive self-improvement, bounded): Deepr runs improvement loops (knowledge: research -> verified absorb -> beliefs -> reflection -> re-research; routing: evals -> rankings -> picks -> outcomes; self-knowledge: health-check/what-changed/contested), and is the substrate for *other* agents' improvement loops (trusted memory + perspective deltas + contradiction surfacing + inference chains + bounded spend). The governing insight, proven live 2026-06-11 twice: an unverified improvement loop is a degradation loop - saturated eval scores "improved" routing into a nano model; a bypassable budget gate was no gate. The sign of the feedback is set by measurement integrity and gate integrity, so verification machinery is never overhead on the loops - it IS the loops. Unbounded self-modification stays a non-goal; machinery-level self-improvement (trace-based skill/prompt evolution) ships only behind tests, size limits, and human review.
-- Speak every protocol: MCP for tools, A2A for agent-to-agent, agentskills.io for portability.
+- Use each protocol for its defined layer: OKF 0.2 for selected knowledge
+  interchange, Agent Plugins 1.0.0 and Agent Skills for installation and
+  discovery, MCP 2026-07-28 for bounded runtime tools and resources, and A2A
+  only for separately operated agents after live conformance. None replaces
+  Deepr's canonical state, evidence, budget, or approval contracts.
 - Autonomy earns trust incrementally: start supervised, prove reliability, then expand bounds.
 - Engineering standards are a feature *only where they protect the user*: money-path integrity (no surprise bills, append-only ledger), security/prompt-injection defense, and not shipping broken installs are part of the product. But ratchet-chasing for its own sake - coverage %, mutation score, file-size/complexity caps, whole-tree type-strictness - is the churn trap (Planning Principle 1b); it must never divert from the experts + evidence-layer core, and is explicitly deprioritized below it.
 
@@ -2355,6 +2381,73 @@ threat model, evaluation arms, and delivery order are in
 - [ ] **Stage 7, remote surfaces:** expose the stable investigation lifecycle
       over scoped MCP and later A2A only after the CLI and local acceptance gates
       pass. Remote conversation handles do not become investigation authority.
+  - [ ] **Bridge 0, standards truth:** pin published Agent Plugins 1.0.0
+        schemas and representative OKF 0.2, Agent Skill, and MCP 2026-07-28
+        fixtures locally. Build OKF validation from the specification because
+        OKF publishes no schema registry. Keep all conformance checks offline,
+        network-free, and `$0`.
+  - [ ] **Bridge 1, OKF 0.2 migration:** repair reserved files, byte-zero
+        concept frontmatter, `generated.at`, and `sources`; preserve permitted
+        unknown extensions; and prove permissive import, round-trip,
+        regeneration, path containment, and verification-gated absorb. Do this
+        before widening package distribution.
+  - [ ] **Bridge 2, Agent Skill and Agent Plugin packaging:** validate current
+        skill output, then add a schema-pinned stdio-first package containing
+        only Agent Skills and the MCP server. Keep expert data, OKF bundles,
+        credentials, remote routes, and paid authority outside the package.
+        Prove clean install, containment, and reproducibility before host
+        recipes.
+  - [ ] **Bridge 3, contracts and drift audit:** add zero-call host-profile,
+        capability-snapshot, control-evidence, event-page, artifact-metadata,
+        follow-up, and fork-lineage schemas. Resolve the current Grok Build
+        plan-adapter documentation and runtime drift before any Grok execution
+        claim: either restore the execution block or prove the exact admitted
+        skill, agent, MCP, native-tool, filesystem, network, process, output,
+        cancellation, and marginal-cost posture before dispatch.
+  - [ ] **Bridge 4, read-only MCP projection:** expose exact-run status,
+        content-free events after a cursor, and bounded artifact metadata under
+        existing scoped-key ownership. Prove replay equivalence, stable paging,
+        modern per-request negotiation, legacy compatibility, cache metadata,
+        path redaction, malformed-journal failure, cross-run denial, and zero
+        projection writes. Subscriptions may announce cursor movement but never
+        replace canonical reads. An IM-style room is a host view over these
+        events, not Deepr workflow state.
+  - [ ] **Bridge 5, popular host conformance:** prefer the Agent Plugin package
+        for compliant clients; otherwise extend the network-free,
+        token-redacted registration manifest with an observer host profile and
+        exact configuration fragment for OpenClaw, DeepSeek Harness, Grok
+        Build, and Codex. Treat NemoClaw plus OpenShell as a remote reference
+        recipe until scoped HTTP auth, egress, endpoint-cost, and live-evidence
+        gates pass. Generated fragments neither install nor mutate a host. Do
+        not claim direct Grok Bot automation or supported public hosting.
+  - [ ] **Bridge 6, shared parent transaction and remote authority:** put every
+        multi-call or metered lifecycle behind one durable reservation,
+        settlement, reconciliation, cancellation, and maximum-charge contract.
+        Complete scoped HTTP identity, credential aliases, endpoint ownership,
+        rate limits, and independent provider-cost evidence before remote
+        mutation.
+  - [ ] **Bridge 7, lineage-only steering:** add preview-only follow-up and
+        checkpoint-fork requests, then pause, resume, cancel, and remote start
+        only after exact ownership, idempotency, race, audit, argument-hash, and
+        per-key ceiling tests pass. Active plans remain immutable. Learning
+        apply remains a separate scope.
+  - [ ] **Bridge 8, external evidence bundles:** admit bounded, hash-verified,
+        tainted repository and browser artifacts from host-owned workspaces.
+        Deepr does not allocate one computer per expert. Artifact-content reads
+        wait for classification, export policy, size, red-team, and cross-run
+        isolation gates.
+  - [ ] **Bridge 9, optional extensions:** evaluate MCP Tasks only as an adapter
+        over the canonical investigation handle, Skills over MCP only after
+        static skill and plugin packaging stabilizes, and MCP Apps only after a
+        measured projection need. Negotiated multi-round requests may present
+        missing input or approval but cannot create authority.
+  - [ ] Keep actor runtimes, tuple spaces, a general plugin kernel, Temporal,
+        NATS, PostgreSQL task scheduling, Firecracker-per-expert, generated TLA+
+        per research task, and reward-model training out of this phase.
+        Reconsider only against a measured failure of the existing phase state
+        machine, event journal, scoped MCP projection, or held-out quality
+        program. Detailed decision:
+        [external-harness-investigation-bridge.md](docs/design/external-harness-investigation-bridge.md).
 
 - [x] **Live-validation finding, retrieval accounting:** the first local pilot
       counted every fresh-context candidate as a fetched page and could exhaust
@@ -3320,7 +3413,8 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.36.0. This roadmap keeps only active work and future criteria; completed
+v2.49.2 plus the unreleased fixes listed in the changelog. This roadmap keeps
+only active work and future criteria; completed
 items move to the changelog at release.
 
 ## Version Plan (logical order, not a calendar)

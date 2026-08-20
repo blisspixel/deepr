@@ -116,7 +116,7 @@ following boundary:
 The implementation composes these primitives without creating a second belief
 store, a second cost system, or a hidden agent runtime.
 
-## Research basis through 2026-07-16
+## Research basis through 2026-08-20
 
 The strongest current evidence favors centralized, selective collaboration:
 
@@ -129,6 +129,25 @@ The strongest current evidence favors centralized, selective collaboration:
   [multi-agent API](https://docs.x.ai/developers/model-capabilities/text/multi-agent),
   and
   [model pricing](https://docs.x.ai/developers/models/grok-4.20-multi-agent-0309).
+- xAI now separately documents Grok Bot as persistent named Bots with peer
+  handoffs, routines, and one shared computer, while warning that the shared
+  computer is not a security boundary. Grok Build exposes MCP configuration and
+  workflow-based parallel agents. These developments validate an external host
+  experience for Deepr investigations, not shared workspace state inside Deepr.
+  The resulting bridge decision is
+  [external-harness-investigation-bridge.md](external-harness-investigation-bridge.md).
+  Sources: [Grok Bot overview](https://docs.x.ai/grok-bot/overview),
+  [Grok Bot security](https://docs.x.ai/grok-bot/approvals-security-and-privacy),
+  [Grok Build MCP](https://docs.x.ai/build/features/mcp-servers), and
+  [Grok Build workflows](https://x.ai/news/workflows).
+- DeepSeek Harness's append-only session projection, OpenClaw's filtered MCP
+  client, and NemoClaw's sandboxed managed-MCP path strengthen the case for a
+  versioned observer profile and replayable event projection. They do not
+  justify replacing the investigation state machine or moving credentials and
+  computer workspaces into Deepr. Sources:
+  [DeepSeek Harness](https://deepseek.com/harness/en/),
+  [OpenClaw MCP](https://docs.openclaw.ai/gateway/configuration-reference), and
+  [NemoClaw managed MCP](https://docs.nvidia.com/nemoclaw/latest/user-guide/openclaw/manage-sandboxes/mcp-servers/add-an-mcp-server).
 - Anthropic's production research system uses a lead agent to delegate
   breadth-first searches to parallel subagents, then adds citation processing.
   It reports a substantial internal quality gain and roughly 15 times the token
@@ -769,10 +788,18 @@ larger.
 
 ### Stage 7: remote surfaces
 
-- Expose status and artifact reads over MCP after the CLI contract stabilizes.
+- Start with status, content-free event cursors, and artifact metadata over MCP
+  after the CLI contract stabilizes. Treat an IM-style room as a replayable
+  projection of the existing event journal, never as workflow authority.
 - Add remote start, continue, pause, resume, cancel, and apply scopes only with
   caller ownership and per-key ceilings.
+- Keep active plans immutable. A semantic steer creates a hash-bound follow-up
+  or checkpoint fork with explicit parent lineage and fresh capacity admission.
+- Keep external computers in the host. Admit only bounded, immutable, tainted
+  workspace evidence bundles into a new investigation or follow-up.
 - Map to A2A only after its durable service and protocol gates pass.
+- Follow the detailed delivery and acceptance gates in
+  [external-harness-investigation-bridge.md](external-harness-investigation-bridge.md).
 
 ## Local implementation validation
 
