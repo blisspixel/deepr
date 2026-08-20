@@ -1,7 +1,13 @@
 # Agent Harness Lessons for Deepr
 
-Status: researched roadmap design, 2026-07-10. Nothing in this document is
+Status: researched roadmap design, updated 2026-08-20. Nothing in this document is
 shipped merely because it is described here.
+
+The current Deepr-specific integration decision is
+[external-harness-investigation-bridge.md](external-harness-investigation-bridge.md).
+It keeps persistent chat, cross-project orchestration, and computer workspaces
+in the external host while exposing Deepr's bounded investigation lifecycle
+through a narrow, projection-first MCP profile.
 
 ## Goal
 
@@ -42,6 +48,30 @@ safe.
   repository. That migration is a warning against freezing Deepr contracts
   around another project's unstable package surface
   ([repository, accessed 2026-07-10](https://github.com/letta-ai/letta)).
+- Grok Bot now documents persistent named Bots, peer handoffs, routines, and a
+  shared computer. The same documentation states that the shared computer is
+  not a security boundary. Deepr should borrow the observable collaboration
+  experience, not the shared authority model
+  ([overview](https://docs.x.ai/grok-bot/overview),
+  [security](https://docs.x.ai/grok-bot/approvals-security-and-privacy)).
+- Grok Build supports MCP configuration and reusable workflows with parallel
+  agents and verification. It is therefore a plausible external Deepr host,
+  separately from any eligibility as a Deepr plan-capacity adapter
+  ([MCP](https://docs.x.ai/build/features/mcp-servers),
+  [workflows](https://x.ai/news/workflows)).
+- DeepSeek Harness developer preview makes capabilities profile-composed
+  plugins and reconstructs resume, fork, search, replay, and UI views from an
+  append-only session log. Deepr should adopt the narrower host-profile and
+  projection seams, not the general plugin kernel or private-reasoning log
+  ([overview](https://deepseek.com/harness/en/),
+  [architecture](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/architecture.md)).
+- OpenClaw now documents remote and stdio MCP servers with tool filters and
+  distinct sandbox, tool-policy, and elevated-execution controls. NemoClaw adds
+  an OpenShell deployment profile with sandbox, egress, credential-alias,
+  snapshot, and lifecycle controls. Both are practical external host targets,
+  not Deepr runtime dependencies
+  ([OpenClaw MCP](https://docs.openclaw.ai/gateway/configuration-reference),
+  [NemoClaw overview](https://docs.nvidia.com/nemoclaw/latest/about/overview.html)).
 
 ## Adopt
 

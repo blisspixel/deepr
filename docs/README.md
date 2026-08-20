@@ -59,8 +59,12 @@ The reasoning behind contract-spanning choices, kept versioned with the code.
   sourced Leonardo-informed and Beethoven-informed perspective lenses with a
   strict non-impersonation boundary.
 - **[design/agent-harness-lessons-2026.md](design/agent-harness-lessons-2026.md)** -
-  concrete lessons from Hermes, OpenClaw, Pi, OpenHands, Goose, and Letta for
-  run snapshots, approvals, steering, skill learning, and control-plane proof.
+  concrete lessons from current agent harnesses for run snapshots, approvals,
+  steering, skill learning, and control-plane proof.
+- **[design/external-harness-investigation-bridge.md](design/external-harness-investigation-bridge.md)** -
+  the projection-first integration plan for Grok Build, DeepSeek Harness,
+  OpenClaw, NemoClaw, Codex, and workspace-equipped hosts without moving
+  orchestration authority into Deepr.
 - **[design/evidence-correlation-and-hypothesis-memory.md](design/evidence-correlation-and-hypothesis-memory.md)** -
   how Deepr uses correlation math for evidence dependence, hypothesis memory,
   freshness priority, and candidate routing without turning scores into meaning

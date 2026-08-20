@@ -634,7 +634,7 @@ must not be described as usable capacity.
   marginal-cost, or process-safety gates.
 - Multi-account capacity pools are planned after a single-account mechanism is
   complete.
-- Agent Plugin 1.0.0 packaging is planned against the current working-draft
+- Agent Plugin 1.0.0 packaging is planned against the current published
   specification at <https://agent-plugins.org/specification>. A future package
   must keep code, skills, MCP declarations, configuration, and secrets inside
   their correct containment and authority boundaries. No Agent Plugin package
