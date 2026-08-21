@@ -13,6 +13,7 @@ lines are the only prose, and they describe outcomes, not mechanics.
 
 from __future__ import annotations
 
+from collections.abc import Set
 from typing import Any
 
 from deepr.mcp.search.registry import ToolRegistry
@@ -43,13 +44,19 @@ _KEY_TOOLS: tuple[tuple[str, str], ...] = (
 )
 
 
-def build_capabilities(store: Any, registry: ToolRegistry, *, version: str) -> dict[str, Any]:
+def build_capabilities(
+    store: Any,
+    registry: ToolRegistry,
+    *,
+    version: str,
+    allowed_tool_names: Set[str] | None = None,
+) -> dict[str, Any]:
     """Build the ``deepr-capabilities-v1`` map. Read-only, $0, no provider calls."""
     roster = _roster(store)
     tools = [
         {"tool": name, "cost_tier": schema.cost_tier, "use_when": use_when}
         for name, use_when in _KEY_TOOLS
-        if (schema := registry.get(name)) is not None
+        if (schema := registry.get(name)) is not None and (allowed_tool_names is None or name in allowed_tool_names)
     ]
     return {
         "schema_version": CAPABILITIES_SCHEMA_VERSION,

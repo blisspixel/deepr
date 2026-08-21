@@ -25,10 +25,12 @@ class ToolManifest:
 # Frontmatter template
 FRONTMATTER_TEMPLATE = """\
 ---
-name: {name}
-description: {description}
-version: {version}
-mcp_server: {mcp_server}
+name: {name_yaml}
+description: {description_yaml}
+license: Apache-2.0
+metadata:
+  deepr-version: {version_yaml}
+  deepr-mcp-server: {mcp_server_yaml}
 ---
 """
 

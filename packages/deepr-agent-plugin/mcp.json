@@ -1,0 +1,29 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "deepr": {
+      "type": "stdio",
+      "command": "deepr-mcp",
+      "cwd": "${PLUGIN_DATA}",
+      "env": {
+        "DEEPR_DATA_DIR": "${PLUGIN_DATA}/deepr",
+        "DEEPR_EXPERTS_PATH": "${PLUGIN_DATA}/deepr/experts",
+        "DEEPR_REPORTS_PATH": "${PLUGIN_DATA}/deepr/reports",
+        "DEEPR_COST_DATA_DIR": "${PLUGIN_DATA}/deepr/costs",
+        "DEEPR_CAPACITY_DATA_DIR": "${PLUGIN_DATA}/deepr/capacity",
+        "DEEPR_BUDGET_FILE": "${PLUGIN_DATA}/deepr/budget.json",
+        "DEEPR_RESEARCH_MODE": "read_only",
+        "DEEPR_MCP_AUTO_APPROVE": "0",
+        "DEEPR_LOG_LEVEL": "WARNING",
+        "DEEPR_MAX_COST_PER_JOB": "0",
+        "DEEPR_MAX_COST_PER_DAY": "0",
+        "DEEPR_MAX_COST_PER_WEEK": "0",
+        "DEEPR_MAX_COST_PER_MONTH": "0",
+        "DEEPR_PER_JOB_LIMIT": "0",
+        "DEEPR_DAILY_LIMIT": "0",
+        "DEEPR_WEEKLY_LIMIT": "0",
+        "DEEPR_MONTHLY_LIMIT": "0"
+      }
+    }
+  }
+}

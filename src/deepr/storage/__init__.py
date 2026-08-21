@@ -1,11 +1,13 @@
 """Storage abstraction for multiple backends (local, Azure Blob)."""
 
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from .base import ReportMetadata, StorageBackend
-from .blob import AzureBlobStorage
 from .findings_store import FindingsStore, StoredFinding
 from .local import LocalStorage
+
+if TYPE_CHECKING:
+    from .blob import AzureBlobStorage
 
 StorageType = Literal["local", "blob"]
 
@@ -27,9 +29,20 @@ def create_storage(storage_type: StorageType, **kwargs: Any) -> StorageBackend:
     if storage_type == "local":
         return LocalStorage(**kwargs)
     elif storage_type == "blob":
+        from .blob import AzureBlobStorage
+
         return AzureBlobStorage(**kwargs)
     else:
         raise ValueError(f"Unsupported storage type: {storage_type}")
+
+
+def __getattr__(name: str) -> Any:
+    """Load the optional Azure backend only when a caller requests it."""
+    if name == "AzureBlobStorage":
+        from .blob import AzureBlobStorage
+
+        return AzureBlobStorage
+    raise AttributeError(name)
 
 
 __all__ = [

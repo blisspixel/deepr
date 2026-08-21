@@ -17,6 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Published `deepr-okf-profile-v2` for the current OKF 0.2 derived-view
   mapping. The v1 schema remains available as a deprecated compatibility
   record.
+- Added immutable offline pins for published Agent Plugins 1.0.0, Agent Skills,
+  and MCP 2026-07-28. The exact Agent Plugins schemas are vendored and checked
+  against their canonical byte lengths and SHA-256 digests.
+- Added a contained Agent Plugin package with a valid Agent Skill, a local
+  `deepr-mcp` stdio declaration, explicit plugin-data roots, zero primary and
+  legacy spend ceilings, an exact file manifest, and a deterministic archive
+  builder. A clean-install CI gate verifies mode-filtered discovery, JSON-only
+  stdout, package immutability, and read-only approval non-bypass.
 
 ### Changed
 
@@ -35,10 +43,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hand-maintained content. `--force` now explicitly replaces the complete
   export root.
 - Advanced export-validation reports to `deepr-export-validation-v2` for the
-  OKF 0.2 form-check contract. Existing handoff and Agent Skill validation
-  behavior is unchanged.
-- Refined the external-harness roadmap against OKF 0.2, the published Agent
-  Plugins 1.0.0 working draft, Agent Skills, and MCP 2026-07-28. The dependency
+  OKF 0.2 form-check contract. Agent Skill validation now enforces the pinned
+  published field, type, length, metadata, and directory identity rules.
+- Refined the external-harness roadmap against OKF 0.2, published Agent
+  Plugins 1.0.0, Agent Skills, and MCP 2026-07-28. The dependency
   order now repairs knowledge interchange before plugin packaging, proves
   read-only MCP projection before control, and gates remote or metered actions
   behind Deepr's canonical identity, evidence, budget, and approval contracts.
@@ -49,6 +57,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The installed `deepr-mcp` entrypoint no longer imports optional DOCX and
+  Azure storage implementations during startup. The local read-only Agent
+  Plugin profile now runs from a core-only wheel installation.
 - `expert cleanup --apply` no longer deletes a v2 expert that sourced, studied,
   or briefed but never absorbed. Unreadable `beliefs.json` is treated as data,
   not emptiness.
@@ -167,10 +178,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   job ceiling, a `$5` independent monthly ceiling, disabled automatic refill,
   and explicit provider-hard-stop status. Removed the earlier Expert Hub image
   from the README because it no longer represented the current flagship roster.
-- Kept Agent Plugin packaging aligned to the current published 1.0.0
-  specification and
-  the knowledge-export migration targeted at OKF 0.2. Both remain planned
-  surfaces rather than shipped conformance claims.
+- Kept Agent Plugin packaging aligned to the published 1.0.0 specification and
+  completed the knowledge-export migration to OKF 0.2. Host-specific profiles,
+  remote routes, steering, and external computer control remain planned.
 
 ### Fixed
 

@@ -1,6 +1,6 @@
 # Research capacity reference
 
-## Works now in v2.36
+## Works now
 
 | Capacity | Supported use | Cost posture |
 |----------|---------------|--------------|

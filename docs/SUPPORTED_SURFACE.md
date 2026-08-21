@@ -141,6 +141,13 @@ must not be described as usable capacity.
   `server/discover`, `subscriptions/listen`, Streamable HTTP header/Origin
   rules) while continuing to serve legacy `initialize`-era clients
   (`2025-06-18`, `2025-03-26`, `2024-11-05`) on both transports.
+- Published Agent Plugins 1.0.0 package foundation under
+  `packages/deepr-agent-plugin`. The package uses an installed `deepr-mcp`
+  stdio executable, a spec-conformant Agent Skill, explicit state roots beneath
+  `PLUGIN_DATA`, and zero primary and legacy spend ceilings. Its `read_only`
+  profile is capability-read-only, not filesystem-immutable: runtime and audit
+  databases are expected beneath plugin data, while the installed package must
+  remain unchanged. Clean-install and byte-reproducibility checks are blocking.
 - Offline machine-checkable MCP host-interop rollup via
   `deepr mcp conformance` (`deepr-mcp-conformance-v1`): dual-era constants,
   offline consult form checks, remote smoke fail-closed posture, managed
@@ -642,11 +649,10 @@ must not be described as usable capacity.
   marginal-cost, or process-safety gates.
 - Multi-account capacity pools are planned after a single-account mechanism is
   complete.
-- Agent Plugin 1.0.0 packaging is planned against the published working draft
-  at <https://agent-plugins.org/specification>. A future package
-  must keep code, skills, MCP declarations, configuration, and secrets inside
-  their correct containment and authority boundaries. No Agent Plugin package
-  or conformance claim ships yet.
+- Host-specific Agent Plugin installation recipes, remote MCP routes, steering,
+  and external computer control remain planned. They require independently
+  validated host capability profiles and cannot widen the shipped local
+  read-only package boundary.
 - OKF 0.2 export and offline form validation ship under
   `deepr-okf-profile-v2`. Import remains permissive, untrusted, and
   verification-gated. Runtime computation execution and attestation do not

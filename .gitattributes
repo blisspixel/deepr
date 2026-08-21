@@ -1,3 +1,6 @@
 *.sh text eol=lf
 *.ps1 text eol=crlf
 src/deepr/web/frontend/frontend-dist.zip binary
+docs/schemas/vendor/** text eol=lf
+docs/standards/** text eol=lf
+packages/deepr-agent-plugin/** text eol=lf

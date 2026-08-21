@@ -43,7 +43,7 @@ not call unknown state free or busy.
 - Treat CLI presence as visibility, not proof of remaining quota.
 - Reject API-key-authenticated children as plan capacity.
 - Preserve typed timeout, cancellation, exhaustion, and unknown-usage state.
-- Copilot is visible/read-only in v2.36.
+- A visible backend is not proof of executable plan capacity.
 
 ## Research jobs
 

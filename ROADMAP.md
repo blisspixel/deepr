@@ -482,13 +482,14 @@ what looks appetising.
    2026-07-28 carries bounded runtime requests. None becomes Deepr's authority
    model.
 
-   0. **Pin standards truth and offline fixtures.** In progress. The reviewed
+   0. ~~**Pin standards truth and offline fixtures.**~~ **Done 2026-08-20.** The reviewed
       OKF 0.2 specification revision, checksum, valid bundle, and known-invalid
       legacy bundle are pinned, and the spec-derived validator runs offline at
-      `$0` without inventing an OKF JSON Schema. Pinning the published working
-      draft Agent Plugins 1.0.0 plugin and MCP schemas, plus representative
-      Agent Skill and MCP fixtures, remains before this foundation gate closes.
-      The existing blocking dual-era MCP conformance suite stays in force.
+      `$0` without inventing an OKF JSON Schema. Published Agent Plugins 1.0.0,
+      Agent Skills, and MCP 2026-07-28 have immutable upstream revisions, byte
+      lengths, and SHA-256 pins. The exact Agent Plugins schemas are vendored,
+      representative plugin and skill fixtures run offline, and the existing
+      blocking dual-era MCP conformance suite stays in force.
 
    1. ~~**Migrate the legacy OKF view to 0.2.**~~ **Done 2026-08-20.**
       `deepr-okf-profile-v2` now restricts root `index.md` frontmatter to
@@ -503,23 +504,29 @@ what looks appetising.
       authoritative. The v1 profile schema remains a deprecated compatibility
       record.
 
-   2. **Validate Agent Skills, then ship Deepr as an Agent Plugin.**
+   2. ~~**Validate Agent Skills, then ship Deepr as an Agent Plugin.**~~
+      **Done 2026-08-20 for the contained read-only foundation.**
       [agent-plugins.org](https://agent-plugins.org/specification) publishes
       version 1.0.0 as the current vendor-neutral package specification. Deepr
       already has both defined core component types: an MCP server and Agent
-      Skills with `SKILL.md` export machinery. Validate skill layout first, then
-      add required root `plugin.json`, stdio-first `mcp.json`, and immediate
-      `skills/<name>/SKILL.md` children. Pin both `$schema` identifiers locally,
-      keep the command as one executable token with separate arguments, keep
-      paths inside `PLUGIN_ROOT`, use `PLUGIN_DATA` only for newly created
-      plugin-owned state, and include no credential, expert database, or
-      knowledge-bundle extension. Streamable HTTP remains a later option after
-      its authentication and no-surprise-bills boundary is independently safe.
+      Skills with `SKILL.md` export machinery. Generated and static skills now
+      use only published frontmatter fields, with Deepr extensions in the
+      required string-to-string metadata map. The package has closed
+      `plugin.json` and `mcp.json` manifests, an immediate skill child, a single
+      `deepr-mcp` stdio executable token, explicit plugin-data roots, zero
+      primary and legacy spend ceilings, exact checksums, no credentials, and
+      no expert database or knowledge-bundle extension. Streamable HTTP remains
+      a later option after its authentication and no-surprise-bills boundary is
+      independently safe.
 
-   3. **Prove clean installation before host recipes.** A clean environment
-      must validate the package offline, produce a byte-reproducible manifest,
-      invoke the local no-metered surface, and show that schema loading, package
-      inspection, and startup make no secret-bearing or paid network call.
+   3. ~~**Prove clean installation before host recipes.**~~ **Done 2026-08-20
+      for the read-only package profile.** A clean environment installs from a
+      prebuilt wheelhouse with package indexes disabled, validates and exercises
+      the extracted Agent Plugin archive, produces a byte-reproducible manifest,
+      and invokes the local no-metered surface. The startup proof verifies that
+      caller approval cannot bypass the read-only tool gate, explicit plugin-data
+      roots override hostile inherited roots, and runtime state remains contained.
+      General runtime network sandboxing remains a separate host responsibility.
       Host-specific configuration is a compatibility artifact only when a host
       does not support Agent Plugins or requires a narrower capability profile.
 

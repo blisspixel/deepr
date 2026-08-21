@@ -1,7 +1,7 @@
 # /research command
 
 Submit one bounded research job. Metered batch, campaign, continuation, and
-agentic execution are gated in v2.36.
+agentic execution are gated.
 
 ## Syntax
 
@@ -22,7 +22,7 @@ maximum, not a target or fixed quote. Obtain approval before dispatch.
 6. Retrieve the report and preserve citations.
 7. Report actual settled cost when available.
 
-Do not pass hosted files in v2.36. Use local source packs or compact prompt
+Do not pass hosted files. Use local source packs or compact prompt
 context. Do not call `deepr_agentic_research`; its visible adapter fails closed
 until parent-run accounting is complete.
 

@@ -26,7 +26,7 @@ deepr expert sync "Security Analyst" --local --fresh-context --compile-claims -y
 
 Explicit non-metered plan-quota variants work only on documented commands with
 `--plan <id>` and the no-surprise-bills auth gate. Do not infer plan capacity
-from CLI presence. Copilot is visible/read-only in v2.36.
+from CLI presence. A visible backend is not proof of executable plan capacity.
 
 Scheduled local work may return a durable `busy`/waiting result with a retry
 time. Preserve that outcome and do not fall through to plan or API capacity.
@@ -51,7 +51,7 @@ regenerable views over structured state. Do not hand-edit them as authority.
 Import and absorb must pass the verification and explicit apply boundary before
 belief state changes.
 
-## Gated in v2.36
+## Gated surfaces
 
 Do not advertise or retry these as live metered workflows:
 

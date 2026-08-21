@@ -25,7 +25,7 @@ serialized payload size determine the current hard envelope.
 | Metered-at-margin CLI | Blocked | Requires complete estimate/reserve/settle support |
 | Bounded provider API | Actual or conservative settlement | Requires explicit approval and positive ceiling |
 
-Copilot is visible/read-only in v2.36. CLI presence is never proof of free
+Some plan adapters are visible but not executable. CLI presence is never proof of free
 remaining quota.
 
 ## Before a paid call

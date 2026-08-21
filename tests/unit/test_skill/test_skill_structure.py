@@ -65,8 +65,8 @@ class TestYAMLFrontmatter:
     Property 1: YAML Frontmatter Validity
 
     For any valid SKILL.md file, parsing the YAML frontmatter SHALL produce
-    a valid object containing the required fields: name (non-empty string),
-    description (non-empty string), and version (valid semver string).
+    a valid object containing the required name and description fields plus
+    string-valued Deepr metadata.
 
     Validates: Requirements 1.1
     """
@@ -101,13 +101,10 @@ class TestYAMLFrontmatter:
         assert len(frontmatter["description"].strip()) > 0, "description must be non-empty"
 
     def test_version_field_is_valid_semver(self, frontmatter: dict[str, Any]) -> None:
-        """Version field must be valid semver format (top-level or under metadata)."""
-        if "version" in frontmatter:
-            version = frontmatter["version"]
-        else:
-            metadata = frontmatter.get("metadata", {})
-            assert "version" in metadata, "Missing 'version' field in frontmatter or metadata"
-            version = metadata["version"]
+        """Namespaced Deepr version metadata must use semantic versioning."""
+        metadata = frontmatter.get("metadata", {})
+        assert "deepr-version" in metadata, "Missing 'deepr-version' metadata"
+        version = metadata["deepr-version"]
 
         # Semver pattern: MAJOR.MINOR.PATCH with optional pre-release
         semver_pattern = r"^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$"
@@ -190,7 +187,8 @@ class TestPropertyBasedFrontmatter:
         skill_content = f"""---
 name: "{name}"
 description: "{description}"
-version: "{version}"
+metadata:
+  deepr-version: "{version}"
 ---
 
 # Test Content
@@ -198,7 +196,7 @@ version: "{version}"
         frontmatter, _body = parse_skill_frontmatter(skill_content)
 
         assert frontmatter["name"] == name
-        assert frontmatter["version"] == version
+        assert frontmatter["metadata"]["deepr-version"] == version
         assert "research" in frontmatter["description"].lower()
 
     @given(
