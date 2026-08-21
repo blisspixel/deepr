@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/investigation-status-projection-v1.json",
+  "title": "Deepr Investigation Status Projection v1",
+  "description": "Read-only host observation of one investigation run. It cannot mutate the run or imply semantic acceptance.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "projection_only",
+    "semantic_acceptance",
+    "mutates_run",
+    "cost_usd",
+    "run_id",
+    "plan_sha256",
+    "lifecycle",
+    "observed_ceilings",
+    "remaining_ceilings",
+    "capability_snapshot_sha256",
+    "control_evidence_sha256",
+    "control",
+    "event_cursor",
+    "artifact_count",
+    "errors",
+    "capability_snapshot",
+    "control_evidence"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-investigation-status-projection-v1"},
+    "kind": {"const": "deepr.expert.investigation_status_projection"},
+    "projection_only": {"const": true},
+    "semantic_acceptance": {"const": false},
+    "mutates_run": {"const": false},
+    "cost_usd": {"const": 0.0},
+    "run_id": {"type": "string", "pattern": "^inv_[a-z0-9_]{4,80}$"},
+    "plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "lifecycle": {"$ref": "#/$defs/lifecycle"},
+    "observed_ceilings": {"$ref": "#/$defs/observed_ceilings"},
+    "remaining_ceilings": {"$ref": "#/$defs/remaining_ceilings"},
+    "capability_snapshot_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "control_evidence_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "control": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requested", "revision"],
+      "properties": {
+        "requested": {"enum": ["run", "pause", "cancel"]},
+        "revision": {"type": "integer", "minimum": 0}
+      }
+    },
+    "event_cursor": {"type": "integer", "minimum": 0},
+    "artifact_count": {"type": "integer", "minimum": 0},
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["phase", "error_type"],
+        "properties": {
+          "phase": {"type": "string"},
+          "error_type": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "capability_snapshot": {"type": "object"},
+    "control_evidence": {"type": "object"}
+  },
+  "$defs": {
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "phase", "attempt", "terminal_reason"],
+      "properties": {
+        "state": {"type": "string", "minLength": 1},
+        "phase": {"type": "string", "minLength": 1},
+        "attempt": {"const": 1},
+        "terminal_reason": {"oneOf": [{"type": "string", "minLength": 1}, {"type": "null"}]}
+      }
+    },
+    "observed_ceilings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "generation_calls",
+        "search_queries",
+        "page_fetches",
+        "input_tokens",
+        "output_tokens",
+        "artifact_bytes",
+        "elapsed_seconds",
+        "cost_usd"
+      ],
+      "properties": {
+        "generation_calls": {"type": "integer", "minimum": 0},
+        "search_queries": {"type": "integer", "minimum": 0},
+        "page_fetches": {"type": "integer", "minimum": 0},
+        "input_tokens": {"type": "integer", "minimum": 0},
+        "output_tokens": {"type": "integer", "minimum": 0},
+        "artifact_bytes": {"type": "integer", "minimum": 0},
+        "elapsed_seconds": {"type": "number", "minimum": 0},
+        "cost_usd": {"const": 0.0}
+      }
+    },
+    "remaining_ceilings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "generation_calls",
+        "search_queries",
+        "page_fetches",
+        "input_tokens",
+        "output_tokens",
+        "disk_bytes",
+        "cost_usd",
+        "elapsed_seconds"
+      ],
+      "properties": {
+        "generation_calls": {"type": "integer", "minimum": 0},
+        "search_queries": {"type": "integer", "minimum": 0},
+        "page_fetches": {"type": "integer", "minimum": 0},
+        "input_tokens": {"type": "integer", "minimum": 0},
+        "output_tokens": {"type": "integer", "minimum": 0},
+        "disk_bytes": {"type": "integer", "minimum": 0},
+        "cost_usd": {"type": "number", "minimum": 0},
+        "elapsed_seconds": {"type": "number", "minimum": 0}
+      }
+    }
+  }
+}

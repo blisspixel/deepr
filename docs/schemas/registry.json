@@ -664,6 +664,62 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "investigation-capability-snapshot",
+      "schema_version": "deepr-investigation-capability-snapshot-v1",
+      "kind": "deepr.expert.investigation_capability_snapshot",
+      "path": "investigation-capability-snapshot-v1.json",
+      "status": "experimental",
+      "compatibility": "authority-fields-closed-extensions-additive"
+    },
+    {
+      "name": "investigation-control-evidence",
+      "schema_version": "deepr-investigation-control-evidence-v1",
+      "kind": "deepr.expert.investigation_control_evidence",
+      "path": "investigation-control-evidence-v1.json",
+      "status": "experimental",
+      "compatibility": "authority-fields-closed-extensions-additive"
+    },
+    {
+      "name": "investigation-status-projection",
+      "schema_version": "deepr-investigation-status-projection-v1",
+      "kind": "deepr.expert.investigation_status_projection",
+      "path": "investigation-status-projection-v1.json",
+      "status": "experimental",
+      "compatibility": "authority-fields-closed-extensions-additive"
+    },
+    {
+      "name": "investigation-event-page",
+      "schema_version": "deepr-investigation-event-page-v1",
+      "kind": "deepr.expert.investigation_event_page",
+      "path": "investigation-event-page-v1.json",
+      "status": "experimental",
+      "compatibility": "authority-fields-closed-extensions-additive"
+    },
+    {
+      "name": "investigation-artifact-page",
+      "schema_version": "deepr-investigation-artifact-page-v1",
+      "kind": "deepr.expert.investigation_artifact_page",
+      "path": "investigation-artifact-page-v1.json",
+      "status": "experimental",
+      "compatibility": "authority-fields-closed-extensions-additive"
+    },
+    {
+      "name": "investigation-follow-up",
+      "schema_version": "deepr-investigation-follow-up-v1",
+      "kind": "deepr.expert.investigation_follow_up",
+      "path": "investigation-follow-up-v1.json",
+      "status": "experimental",
+      "compatibility": "authority-fields-closed-extensions-additive"
+    },
+    {
+      "name": "investigation-fork-lineage",
+      "schema_version": "deepr-investigation-fork-lineage-v1",
+      "kind": "deepr.expert.investigation_fork_lineage",
+      "path": "investigation-fork-lineage-v1.json",
+      "status": "experimental",
+      "compatibility": "authority-fields-closed-extensions-additive"
+    },
+    {
       "name": "investigation-eval",
       "schema_version": "deepr-investigation-eval-v1",
       "kind": "deepr.eval.investigation",

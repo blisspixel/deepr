@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/investigation-control-evidence-v1.json",
+  "title": "Deepr Investigation Control Evidence v1",
+  "description": "Generated audit projection joining plan, snapshot, journal, control, and learning identities. It is not a canonical store and cannot rewrite its inputs.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "run_id",
+    "plan_sha256",
+    "capability_snapshot_sha256",
+    "event_head_sequence",
+    "artifact_manifest_sha256",
+    "control",
+    "lifecycle",
+    "learning_disposition",
+    "verification_disposition",
+    "projection_only",
+    "semantic_acceptance",
+    "canonical_store",
+    "evidence_sha256"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-investigation-control-evidence-v1"},
+    "kind": {"const": "deepr.expert.investigation_control_evidence"},
+    "run_id": {"type": "string", "pattern": "^inv_[a-z0-9_]{4,80}$"},
+    "plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "capability_snapshot_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "event_head_sequence": {"type": "integer", "minimum": 0},
+    "artifact_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "control": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requested", "revision", "updated_at"],
+      "properties": {
+        "requested": {"enum": ["run", "pause", "cancel"]},
+        "revision": {"type": "integer", "minimum": 0},
+        "updated_at": {"type": "string"}
+      }
+    },
+    "lifecycle": {"$ref": "#/$defs/lifecycle"},
+    "learning_disposition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "writes_expert_state", "human_reviewed", "truth_verified", "novelty_verified"],
+      "properties": {
+        "mode": {"enum": ["off", "stage"]},
+        "writes_expert_state": {"const": false},
+        "human_reviewed": {"const": false},
+        "truth_verified": {"const": false},
+        "novelty_verified": {"const": false}
+      }
+    },
+    "verification_disposition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["semantic_acceptance", "human_reviewed"],
+      "properties": {
+        "semantic_acceptance": {"const": false},
+        "human_reviewed": {"const": false}
+      }
+    },
+    "projection_only": {"const": true},
+    "semantic_acceptance": {"const": false},
+    "canonical_store": {"const": false},
+    "evidence_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "$defs": {
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "phase", "attempt", "terminal_reason"],
+      "properties": {
+        "state": {"type": "string", "minLength": 1},
+        "phase": {"type": "string", "minLength": 1},
+        "attempt": {"const": 1},
+        "terminal_reason": {"oneOf": [{"type": "string", "minLength": 1}, {"type": "null"}]}
+      }
+    }
+  }
+}

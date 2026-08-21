@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/investigation-event-page-v1.json",
+  "title": "Deepr Investigation Event Page v1",
+  "description": "Content-free, path-redacted event page over one investigation journal. Replay from sequence zero must reconstruct the same visible lifecycle.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "projection_only",
+    "semantic_acceptance",
+    "mutates_run",
+    "cost_usd",
+    "run_id",
+    "plan_sha256",
+    "lifecycle",
+    "observed_ceilings",
+    "remaining_ceilings",
+    "capability_snapshot_sha256",
+    "control_evidence_sha256",
+    "after_sequence",
+    "limit",
+    "count",
+    "next_sequence",
+    "complete",
+    "events"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-investigation-event-page-v1"},
+    "kind": {"const": "deepr.expert.investigation_event_page"},
+    "projection_only": {"const": true},
+    "semantic_acceptance": {"const": false},
+    "mutates_run": {"const": false},
+    "cost_usd": {"const": 0.0},
+    "run_id": {"type": "string", "pattern": "^inv_[a-z0-9_]{4,80}$"},
+    "plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "lifecycle": {"$ref": "#/$defs/lifecycle"},
+    "observed_ceilings": {"type": "object"},
+    "remaining_ceilings": {"type": "object"},
+    "capability_snapshot_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "control_evidence_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "after_sequence": {"type": "integer", "minimum": 0},
+    "limit": {"type": "integer", "minimum": 1, "maximum": 50},
+    "count": {"type": "integer", "minimum": 0, "maximum": 50},
+    "next_sequence": {"oneOf": [{"type": "integer", "minimum": 1}, {"type": "null"}]},
+    "complete": {"type": "boolean"},
+    "events": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema_version",
+          "kind",
+          "run_id",
+          "sequence",
+          "event_type",
+          "phase",
+          "status",
+          "detail",
+          "created_at"
+        ],
+        "properties": {
+          "schema_version": {"const": "deepr-investigation-event-v1"},
+          "kind": {"const": "deepr.expert.investigation_event"},
+          "run_id": {"type": "string", "pattern": "^inv_[a-z0-9_]{4,80}$"},
+          "sequence": {"type": "integer", "minimum": 1},
+          "event_type": {"type": "string", "minLength": 1},
+          "phase": {"type": "string", "minLength": 1},
+          "status": {"type": "string", "minLength": 1},
+          "detail": {
+            "type": "object",
+            "propertyNames": {
+              "enum": [
+                "plan_sha256",
+                "operation",
+                "expert_name",
+                "expert_key",
+                "model",
+                "context_window_tokens",
+                "prompt_bytes",
+                "estimated_input_tokens",
+                "generation_call",
+                "error_type",
+                "call_counted_conservatively",
+                "input_tokens",
+                "output_tokens",
+                "provider_request_id",
+                "stop_reason",
+                "cost_usd",
+                "search_queries",
+                "page_fetches",
+                "logical_key",
+                "sha256",
+                "artifact_bytes"
+              ]
+            }
+          },
+          "created_at": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "phase", "attempt", "terminal_reason"],
+      "properties": {
+        "state": {"type": "string", "minLength": 1},
+        "phase": {"type": "string", "minLength": 1},
+        "attempt": {"const": 1},
+        "terminal_reason": {"oneOf": [{"type": "string", "minLength": 1}, {"type": "null"}]}
+      }
+    }
+  }
+}

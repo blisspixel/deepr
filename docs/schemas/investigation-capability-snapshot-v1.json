@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/investigation-capability-snapshot-v1.json",
+  "title": "Deepr Investigation Capability Snapshot v1",
+  "description": "Derived evidence about the admitted investigation environment. It cannot create spend, tool, or memory authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "deepr",
+    "investigation_schema_versions",
+    "investigation_kinds",
+    "capacity",
+    "allowed_verbs",
+    "denied_verbs",
+    "retrieval",
+    "network_policy",
+    "roster",
+    "parent_ceilings",
+    "configuration_hash",
+    "approval_posture",
+    "creates_authority",
+    "snapshot_sha256"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-investigation-capability-snapshot-v1"},
+    "kind": {"const": "deepr.expert.investigation_capability_snapshot"},
+    "deepr": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "source_revision", "source_revision_status"],
+      "properties": {
+        "version": {"type": "string", "minLength": 1},
+        "source_revision": {"type": "null"},
+        "source_revision_status": {"const": "not_collected"}
+      }
+    },
+    "investigation_schema_versions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "input_bundle",
+        "plan",
+        "run",
+        "charter",
+        "position",
+        "discussion",
+        "check",
+        "result",
+        "learning_manifest",
+        "event"
+      ],
+      "properties": {
+        "input_bundle": {"const": "deepr-investigation-input-bundle-v1"},
+        "plan": {"const": "deepr-investigation-plan-v1"},
+        "run": {"const": "deepr-investigation-run-v1"},
+        "charter": {"const": "deepr-investigation-charter-v1"},
+        "position": {"const": "deepr-investigation-position-v1"},
+        "discussion": {"const": "deepr-investigation-discussion-v1"},
+        "check": {"const": "deepr-investigation-check-v1"},
+        "result": {"const": "deepr-investigation-result-v1"},
+        "learning_manifest": {"const": "deepr-investigation-learning-manifest-v1"},
+        "event": {"const": "deepr-investigation-event-v1"}
+      }
+    },
+    "investigation_kinds": {"type": "object", "additionalProperties": {"type": "string", "minLength": 1}},
+    "capacity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["class", "model", "review_model", "auth_mode", "fallback"],
+      "properties": {
+        "class": {"const": "local"},
+        "model": {"type": "string", "minLength": 1},
+        "review_model": {"type": "string", "minLength": 1},
+        "auth_mode": {"const": "owned_local"},
+        "fallback": {"const": "none"}
+      }
+    },
+    "allowed_verbs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "items": {"const": "observe"}
+    },
+    "denied_verbs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "enum": ["start", "control", "steer", "learn", "spend", "read_artifact_content"]
+      }
+    },
+    "retrieval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_queries_per_expert", "max_pages_per_expert"],
+      "properties": {
+        "max_queries_per_expert": {"type": "integer", "minimum": 0},
+        "max_pages_per_expert": {"type": "integer", "minimum": 0}
+      }
+    },
+    "network_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["public_web_retrieval", "metered_providers", "fallback"],
+      "properties": {
+        "public_web_retrieval": {"type": "boolean"},
+        "metered_providers": {"const": false},
+        "fallback": {"const": "none"}
+      }
+    },
+    "roster": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "snapshot_sha256"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "snapshot_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    "parent_ceilings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_generation_calls",
+        "max_search_queries",
+        "max_page_fetches",
+        "max_input_tokens",
+        "max_output_tokens",
+        "max_prompt_bytes_per_call",
+        "max_output_tokens_per_call",
+        "max_elapsed_seconds",
+        "max_disk_bytes",
+        "max_concurrency",
+        "budget_usd"
+      ],
+      "properties": {
+        "max_generation_calls": {"type": "integer", "minimum": 1},
+        "max_search_queries": {"type": "integer", "minimum": 0},
+        "max_page_fetches": {"type": "integer", "minimum": 0},
+        "max_input_tokens": {"type": "integer", "minimum": 1},
+        "max_output_tokens": {"type": "integer", "minimum": 1},
+        "max_prompt_bytes_per_call": {"type": "integer", "minimum": 1},
+        "max_output_tokens_per_call": {"type": "integer", "minimum": 1},
+        "max_elapsed_seconds": {"type": "number", "exclusiveMinimum": 0},
+        "max_disk_bytes": {"type": "integer", "minimum": 1},
+        "max_concurrency": {"type": "integer", "minimum": 1, "maximum": 5},
+        "budget_usd": {"const": 0.0}
+      }
+    },
+    "configuration_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "approval_posture": {"const": "local_explicit_confirmation"},
+    "creates_authority": {"const": false},
+    "snapshot_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}
