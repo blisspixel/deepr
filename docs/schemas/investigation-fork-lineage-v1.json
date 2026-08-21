@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/investigation-fork-lineage-v1.json",
+  "title": "Deepr Investigation Fork Lineage v1",
+  "description": "Preview-only checkpoint fork lineage. Publishing this contract does not create a child run or edit the parent.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "projection_only",
+    "semantic_acceptance",
+    "implemented",
+    "creates_run",
+    "mutates_parent",
+    "requires_fresh_capacity",
+    "parent_run_id",
+    "parent_plan_sha256",
+    "parent_phase",
+    "parent_lifecycle",
+    "capability_snapshot_sha256",
+    "control_evidence_sha256",
+    "request"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-investigation-fork-lineage-v1"},
+    "kind": {"const": "deepr.expert.investigation_fork_lineage"},
+    "projection_only": {"const": true},
+    "semantic_acceptance": {"const": false},
+    "implemented": {"const": false},
+    "creates_run": {"const": false},
+    "mutates_parent": {"const": false},
+    "requires_fresh_capacity": {"const": true},
+    "parent_run_id": {"type": "string", "pattern": "^inv_[a-z0-9_]{4,80}$"},
+    "parent_plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "parent_phase": {
+      "enum": [
+        "preflight",
+        "charters",
+        "research",
+        "positions",
+        "discussion",
+        "revisions",
+        "check",
+        "synthesis",
+        "learning",
+        "complete"
+      ]
+    },
+    "parent_lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "phase", "attempt", "terminal_reason"],
+      "properties": {
+        "state": {"type": "string", "minLength": 1},
+        "phase": {"type": "string", "minLength": 1},
+        "attempt": {"const": 1},
+        "terminal_reason": {"oneOf": [{"type": "string", "minLength": 1}, {"type": "null"}]}
+      }
+    },
+    "capability_snapshot_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "control_evidence_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "request": {"const": "run.fork"}
+  }
+}

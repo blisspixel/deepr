@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/investigation-artifact-page-v1.json",
+  "title": "Deepr Investigation Artifact Page v1",
+  "description": "Metadata-only artifact page. Hashes, sizes, media types, and taint labels are visible; artifact bodies, local paths, and semantic acceptance are not.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "projection_only",
+    "semantic_acceptance",
+    "mutates_run",
+    "cost_usd",
+    "run_id",
+    "plan_sha256",
+    "lifecycle",
+    "observed_ceilings",
+    "remaining_ceilings",
+    "capability_snapshot_sha256",
+    "control_evidence_sha256",
+    "after_name",
+    "limit",
+    "count",
+    "next_name",
+    "complete",
+    "read_content",
+    "artifacts"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-investigation-artifact-page-v1"},
+    "kind": {"const": "deepr.expert.investigation_artifact_page"},
+    "projection_only": {"const": true},
+    "semantic_acceptance": {"const": false},
+    "mutates_run": {"const": false},
+    "cost_usd": {"const": 0.0},
+    "run_id": {"type": "string", "pattern": "^inv_[a-z0-9_]{4,80}$"},
+    "plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "lifecycle": {"$ref": "#/$defs/lifecycle"},
+    "observed_ceilings": {"type": "object"},
+    "remaining_ceilings": {"type": "object"},
+    "capability_snapshot_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "control_evidence_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "after_name": {"type": "string", "maxLength": 200},
+    "limit": {"type": "integer", "minimum": 1, "maximum": 50},
+    "count": {"type": "integer", "minimum": 0, "maximum": 50},
+    "next_name": {"oneOf": [{"type": "string", "minLength": 1}, {"type": "null"}]},
+    "complete": {"type": "boolean"},
+    "read_content": {"const": false},
+    "artifacts": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "phase", "key", "sha256", "bytes", "media_type", "taint"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "phase": {"type": "string"},
+          "key": {"type": "string"},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "bytes": {"type": "integer", "minimum": 0},
+          "media_type": {"enum": ["application/json", "text/plain"]},
+          "taint": {"enum": ["run_derived", "external_retrieval"]}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "phase", "attempt", "terminal_reason"],
+      "properties": {
+        "state": {"type": "string", "minLength": 1},
+        "phase": {"type": "string", "minLength": 1},
+        "attempt": {"const": 1},
+        "terminal_reason": {"oneOf": [{"type": "string", "minLength": 1}, {"type": "null"}]}
+      }
+    }
+  }
+}

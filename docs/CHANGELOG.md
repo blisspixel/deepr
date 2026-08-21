@@ -32,6 +32,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and zero primary and legacy spend ceilings. It cannot install or mutate the
   host, inspect credentials, grant paid authority, or self-promote a fixture or
   live-validation claim.
+- Added zero-call investigation projection contracts and local builders for
+  capability snapshots, control evidence, status, event pages, artifact
+  metadata pages, and preview-only follow-up and fork lineage. Projections are
+  `$0`, content-free, path-redacted, owner-scoped, and cannot mutate a run or
+  imply semantic acceptance. MCP observer tools remain the next increment.
 
 ### Changed
 

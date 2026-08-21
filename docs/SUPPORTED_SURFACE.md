@@ -667,6 +667,11 @@ must not be described as usable capacity.
   live-validated. It does not install a host, edit host configuration, inspect
   credentials, open a network route, or prove OpenClaw parser, handshake,
   discovery, tool-call, sandbox, or Agent Plugins behavior.
+- Experimental investigation projection contracts now exist as local `$0`
+  builders over one run: status, event cursor pages, and artifact metadata
+  pages, plus preview-only follow-up and fork lineage. They cannot mutate a
+  run, return artifact bodies, include local paths, or imply semantic
+  acceptance. MCP observer tools, remote start, and control remain planned.
 - Additional host profiles, remote MCP routes, steering, and external computer
   control remain planned. The next local fixtures target DeepSeek Harness
   `dsh-v0.1.1-rc.2`, and Grok Build 1.0.6. OpenClaw native Agent Plugins support

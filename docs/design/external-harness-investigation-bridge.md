@@ -485,11 +485,15 @@ through the package with byte-reproducible output and no secret material.
 
 ### Bridge 3: contracts and drift audit
 
-Status: active. The 2026-08-21 re-audit restored explicit production blocks
+Status: implemented 2026-08-21 for zero-call schemas and local projection
+builders. The 2026-08-21 re-audit restored explicit production blocks
 for Codex, Grok Build, and Antigravity. The first closed host-profile schema,
 runtime-derived tool inventory, deterministic generator, and reference-only
-OpenClaw stable artifact are implemented. Capability, control, event, artifact,
-follow-up, and fork contracts remain pending.
+OpenClaw stable artifact are implemented. Capability snapshot, control
+evidence, status projection, event page, artifact metadata page, follow-up,
+and fork lineage now have published schemas and read-only builders in
+`deepr.experts.investigation.projection`. Follow-up and fork remain
+preview-only (`implemented: false`) until Bridge 7.
 
 - Publish zero-call schemas for capability snapshot, control
   evidence, event page, artifact metadata page, follow-up, and fork lineage.
