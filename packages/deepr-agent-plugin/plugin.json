@@ -1,0 +1,16 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "deepr-research",
+  "version": "2.49.2",
+  "description": "Bounded research and persistent expert discovery through an Agent Skill and a local read-only MCP capability profile.",
+  "homepage": "https://github.com/blisspixel/deepr",
+  "repository": "https://github.com/blisspixel/deepr",
+  "license": "Apache-2.0",
+  "keywords": [
+    "research",
+    "agent-skills",
+    "mcp",
+    "knowledge-graphs",
+    "persistent-experts"
+  ]
+}

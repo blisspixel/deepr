@@ -123,7 +123,9 @@ class TestSkillValidation:
     def test_generated_skill_export_passes(self, tmp_path):
         from deepr.skills.expert_skill import build_expert_skill
 
-        path = tmp_path / "SKILL.md"
+        directory = tmp_path / "deepr-expert-ai-strategy-expert"
+        directory.mkdir()
+        path = directory / "SKILL.md"
         path.write_text(
             build_expert_skill("AI Strategy Expert", "ai strategy", "Tracks AI strategy.").render(),
             encoding="utf-8",
@@ -135,16 +137,19 @@ class TestSkillValidation:
         assert report["status"] == "valid", report["checks"]
 
     def test_skill_without_mcp_reference_fails_presence_check(self, tmp_path):
-        path = tmp_path / "SKILL.md"
+        directory = tmp_path / "x"
+        directory.mkdir()
+        path = directory / "SKILL.md"
         path.write_text(
-            "---\nname: x\ndescription: y\nversion: 1\nmcp_server: deepr\n---\n\nJust prose knowledge.\n",
+            '---\nname: x\ndescription: y\nmetadata:\n  deepr-version: "1.0.0"\n'
+            "  deepr-mcp-server: deepr\n---\n\nJust prose knowledge.\n",
             encoding="utf-8",
         )
 
         report = validate_export(path)
 
         checks = _checks_by_name(report)
-        # Body check only; the frontmatter mcp_server value is a different check.
+        # Body check only; MCP metadata is a separate hard-form check.
         assert checks["mcp_reference_present"]["status"] == "fail"
         assert report["status"] == "invalid"
 

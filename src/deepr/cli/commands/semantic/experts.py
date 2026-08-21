@@ -2043,7 +2043,7 @@ def export_skill(name: str, output: str | None, print_only: bool):
     path = packager.generate(out_dir)
     print_success(f"Wrote {path}")
     console.print(
-        f"Install: copy [white]{out_dir}[/white] into your agent's skills directory "
+        f"Install: copy [white]{path.parent}[/white] into your agent's skills directory "
         "(e.g. [white]~/.claude/skills/[/white]). The host must have a Deepr MCP server configured."
     )
 

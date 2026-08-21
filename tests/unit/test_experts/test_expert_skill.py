@@ -25,8 +25,8 @@ class TestExpertSlug:
 class TestBuildExpertSkill:
     def test_frontmatter_and_name(self):
         md = build_expert_skill("AI Strategy Expert", "AI market strategy", "desc").render()
-        assert "name: deepr-expert-ai-strategy-expert" in md
-        assert "mcp_server: deepr" in md
+        assert 'name: "deepr-expert-ai-strategy-expert"' in md
+        assert 'deepr-mcp-server: "deepr"' in md
         # agentskills.io requires name + description frontmatter keys
         assert "description:" in md
         assert "AI Strategy Expert" in md
@@ -78,7 +78,7 @@ class TestBuildExpertSkill:
 
     def test_no_domain_no_description_still_valid(self):
         md = build_expert_skill("Bare Expert").render()
-        assert "name: deepr-expert-bare-expert" in md
+        assert 'name: "deepr-expert-bare-expert"' in md
         assert "Bare Expert" in md
         assert "## Gotchas" in md  # gotchas are always emitted
 

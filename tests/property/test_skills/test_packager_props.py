@@ -7,6 +7,8 @@ Validates: Requirements 13.1, 13.2
 
 from __future__ import annotations
 
+import json
+
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
@@ -41,11 +43,7 @@ version_st = st.from_regex(r"[0-9]+\.[0-9]+\.[0-9]+", fullmatch=True)
 @given(
     tools=st.lists(tool_manifest_st, min_size=1, max_size=5),
     version=version_st,
-    name=st.text(
-        alphabet=st.characters(whitelist_categories=("L", "N"), whitelist_characters="-"),
-        min_size=3,
-        max_size=20,
-    ),
+    name=st.from_regex(r"[a-z][a-z0-9]{2,19}", fullmatch=True),
 )
 def test_skill_md_completeness(
     tools: list[ToolManifest],
@@ -55,7 +53,7 @@ def test_skill_md_completeness(
     """Property 29: SKILL.md completeness.
 
     For any set of public MCP tools, the generated SKILL.md contains:
-    - name, description, version, mcp_server in frontmatter
+    - name and description plus namespaced version and MCP metadata
     - Every tool appears in the tools list with description and parameters
 
     **Validates: Requirements 13.1, 13.2**
@@ -71,9 +69,9 @@ def test_skill_md_completeness(
     content = packager.render()
 
     # Frontmatter fields present
-    assert f"name: {name}" in content, "name missing from frontmatter"
-    assert f"version: {version}" in content, "version missing from frontmatter"
-    assert "mcp_server: deepr" in content, "mcp_server missing from frontmatter"
+    assert f"name: {json.dumps(name)}" in content, "name missing from frontmatter"
+    assert f'deepr-version: "{version}"' in content, "version metadata missing from frontmatter"
+    assert 'deepr-mcp-server: "deepr"' in content, "MCP metadata missing from frontmatter"
     assert "description:" in content, "description missing from frontmatter"
 
     # Every tool appears

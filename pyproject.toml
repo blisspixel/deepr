@@ -131,6 +131,7 @@ dev = [
     "hypothesis>=6.163.0",
     "mypy>=2.3.0",
     "types-PyYAML>=6.0.12.20260724",
+    "jsonschema>=4.26.0,<5.0.0",
     "pip-audit>=2.10.1",
     "mutmut>=3.6.0",
     "build>=1.5.0,<2.0.0",
@@ -140,6 +141,7 @@ dev = [
 
 [project.scripts]
 deepr = "deepr.cli.main:main"
+deepr-mcp = "deepr.mcp.server:main"
 
 [project.urls]
 Homepage = "https://github.com/blisspixel/deepr"

@@ -22,7 +22,6 @@ ARTIFACT_CLASS_OKF = "okf_bundle"
 ARTIFACT_CLASS_SKILL = "skill_export"
 ARTIFACT_CLASS_UNKNOWN = "unknown"
 
-_SKILL_REQUIRED_FRONTMATTER = ("name", "description", "version", "mcp_server")
 _HANDOFF_REQUIRED_KEYS = ("schema_version", "kind", "generated_at", "contract", "expert", "summary")
 
 
@@ -152,28 +151,22 @@ def _validate_okf_bundle(path: Path) -> list[dict[str, Any]]:
 
 
 def _validate_skill_export(path: Path) -> list[dict[str, Any]]:
-    from deepr.experts.okf import _split_frontmatter
+    from deepr.skills.contract import validate_agent_skill
 
+    result = validate_agent_skill(path)
+    detail = (
+        "Agent Skills hard-form contract passes"
+        if result.valid
+        else "; ".join(f"{item.code}: {item.detail}" for item in result.violations[:5])
+    )
+    checks = [_check("agent_skills_conformance", result.valid, detail)]
     try:
         text = path.read_text(encoding="utf-8")
-    except (OSError, ValueError) as exc:
-        return [_check("readable_file", False, str(exc))]
-
-    # _split_frontmatter never raises; missing or malformed frontmatter
-    # simply yields no fields.
-    fields, body = _split_frontmatter(text)
-    checks = [
-        _check("readable_file", True, "file read as UTF-8"),
-        _check("frontmatter_present", bool(fields), "frontmatter block present" if fields else "no frontmatter"),
-    ]
-    missing = [key for key in _SKILL_REQUIRED_FRONTMATTER if not str(fields.get(key, "") or "")]
-    checks.append(
-        _check(
-            "required_frontmatter",
-            not missing,
-            "name, description, version, mcp_server present" if not missing else f"missing: {', '.join(missing)}",
-        )
-    )
+    except (OSError, UnicodeError):
+        text = ""
+    _frontmatter, separator, body = text[4:].partition("\n---\n") if text.startswith("---\n") else ("", "", text)
+    if not separator:
+        body = ""
     has_mcp_reference = "mcp" in body.lower()
     checks.append(
         _check(

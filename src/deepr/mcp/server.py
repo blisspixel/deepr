@@ -55,11 +55,19 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from deepr.mcp.tool_surface import (
+    build_tools_list,
+    effective_tool_names,
+    effective_tool_schemas,
+    explicit_research_mode_value,
+    register_bridge_tool_schemas,
+)
+
+# Validate before importing Deepr modules that may initialize persistent state.
+explicit_research_mode_value()
+
 from deepr.config import load_config
-from deepr.core.documents import DocumentManager
 from deepr.core.errors import DeeprError
-from deepr.core.reports import ReportGenerator
-from deepr.core.research import ResearchOrchestrator
 from deepr.experts.chat import ExpertChatSession
 from deepr.experts.claim_inventory import read_claim_inventory
 from deepr.experts.consult_transaction import DEFAULT_CONSULT_MAX_ELAPSED_SECONDS
@@ -157,6 +165,15 @@ class DeeprMCPServer:
 
     def __init__(self) -> None:
         """Initialize MCP server with research and expert capabilities."""
+        # Parse an explicit mode before constructors that create or migrate
+        # persistent state. The historical default remains standard when the
+        # variable is absent, but an invalid explicit value must fail closed.
+        research_mode_value = explicit_research_mode_value()
+        if research_mode_value is None:
+            research_mode = ResearchMode.STANDARD
+        else:
+            research_mode = ResearchMode(research_mode_value)
+
         # Expert-related components
         self.store = ExpertStore()
         self.sessions: dict[str, ExpertChatSession] = {}
@@ -189,17 +206,18 @@ class DeeprMCPServer:
         self.instruction_signer = InstructionSigner()
         self.output_verifier = OutputVerifier()
 
-        # Research mode from environment (default: standard)
-        research_mode_str = os.environ.get("DEEPR_RESEARCH_MODE", "standard")
-        try:
-            research_mode = ResearchMode(research_mode_str)
-        except ValueError:
-            research_mode = ResearchMode.STANDARD
-            logger.warning("Invalid DEEPR_RESEARCH_MODE '%s', using 'standard'", research_mode_str)
         self.tool_allowlist = ToolAllowlist(mode=research_mode)
 
         # Register the tools in the registry
         _register_new_tools(self.registry)
+
+    def available_tool_schemas(self) -> list[ToolSchema]:
+        """Return registered tools that the active mode permits clients to call."""
+        return effective_tool_schemas(self.registry, self.tool_allowlist)
+
+    def available_tool_names(self) -> set[str]:
+        """Return names for the effective registered MCP tool surface."""
+        return effective_tool_names(self.registry, self.tool_allowlist)
 
     # ------------------------------------------------------------------ #
     # Tool: deepr_status (health check)
@@ -207,6 +225,9 @@ class DeeprMCPServer:
     async def deepr_status(self) -> dict[str, Any]:
         """Health check returning server version, uptime, active jobs, and cost summary."""
         health_status, cost_summary = current_cost_status()
+        available_tools = self.available_tool_schemas()
+        registered_tools = self.registry.all_tools()
+        confirmation_tools = [tool for tool in available_tools if self.tool_allowlist.require_confirmation(tool.name)]
 
         uptime = time.time() - _server_start_time if _server_start_time else 0
         active_count = len(self.resource_handler.jobs.list_jobs(phase=None))
@@ -219,7 +240,7 @@ class DeeprMCPServer:
             "transport": "stdio",
             "cost_summary": cost_summary,
             "capabilities": {
-                "tools": self.registry.count(),
+                "tools": len(available_tools),
                 "dynamic_discovery": True,
                 "resource_subscriptions": True,
                 # The elicitation router exists in-process but is not
@@ -232,9 +253,9 @@ class DeeprMCPServer:
             },
             "security": {
                 "research_mode": self.tool_allowlist.mode.value,
-                "allowed_tools": len(self.tool_allowlist.get_allowed_tools()),
-                "blocked_tools": len(self.tool_allowlist.get_blocked_tools()),
-                "tools_requiring_confirmation": len(self.tool_allowlist.get_tools_requiring_confirmation()),
+                "allowed_tools": len(available_tools),
+                "blocked_tools": len(registered_tools) - len(available_tools),
+                "tools_requiring_confirmation": len(confirmation_tools),
                 "instruction_signing": True,
                 "output_verification": True,
             },
@@ -244,14 +265,19 @@ class DeeprMCPServer:
         """Return the versioned capability map: roster, key tools, cost tiers, $0 paths."""
         from deepr.mcp.capabilities import build_capabilities
 
-        return build_capabilities(self.store, self.registry, version=SERVER_VERSION)
+        return build_capabilities(
+            self.store,
+            self.registry,
+            version=SERVER_VERSION,
+            allowed_tool_names=self.available_tool_names(),
+        )
 
     # ------------------------------------------------------------------ #
     # Tool: deepr_tool_search (gateway / dynamic discovery)
     # ------------------------------------------------------------------ #
     async def deepr_tool_search(self, query: str, limit: int = 3) -> dict[str, Any]:
         """Search Deepr capabilities by natural language query."""
-        return self.gateway.search(query, limit=limit)
+        return self.gateway.search(query, limit=limit, allowed_names=self.available_tool_names())
 
     # ------------------------------------------------------------------ #
     # Tool: deepr_cancel_job
@@ -895,6 +921,10 @@ class DeeprMCPServer:
                     fallback="Configure via .env file or environment variables",
                 )
 
+            from deepr.core.documents import DocumentManager
+            from deepr.core.reports import ReportGenerator
+            from deepr.core.research import ResearchOrchestrator
+
             provider_instance = create_provider(provider, api_key=api_key)  # type: ignore[arg-type]
             storage_instance = create_storage("local", base_path=load_config().get("results_dir", "data/reports"))
             doc_manager = DocumentManager()
@@ -1084,6 +1114,8 @@ class DeeprMCPServer:
             # persisted, and even on success the report only went back over
             # the wire - if the MCP client dropped it, the paid artifact was
             # gone once the provider expired the response.
+            from deepr.core.reports import ReportGenerator
+
             report = ReportGenerator().extract_text_from_response(response)
             if report:
                 storage_instance = create_storage("local", base_path=load_config().get("results_dir", "data/reports"))
@@ -1408,54 +1440,7 @@ def _register_new_tools(registry: ToolRegistry) -> None:
     from deepr.mcp.expert_conversation import register_conversation_tools
 
     register_conversation_tools(registry)
-    registry.register(
-        ToolSchema(
-            name="deepr_list_skills",
-            description=(
-                "List available and installed skills for an expert. Skills are domain-specific "
-                "capability packages that give experts unique tools (e.g., financial ratios, "
-                "code analysis). Pass expert_name to see installed vs available for that expert, "
-                "or omit to see all available skills."
-            ),
-            input_schema={
-                "type": "object",
-                "properties": {
-                    "expert_name": {
-                        "type": "string",
-                        "description": "Optional expert name to check installed skills",
-                    },
-                },
-            },
-            category="experts",
-            cost_tier="free",
-        )
-    )
-
-    registry.register(
-        ToolSchema(
-            name="deepr_install_skill",
-            description=(
-                "Install a skill on an expert, giving it access to the skill's tools "
-                "and domain-specific capabilities during chat."
-            ),
-            input_schema={
-                "type": "object",
-                "properties": {
-                    "expert_name": {
-                        "type": "string",
-                        "description": "Name of the expert to install the skill on",
-                    },
-                    "skill_name": {
-                        "type": "string",
-                        "description": "Name of the skill to install (e.g., 'financial-data', 'code-analysis')",
-                    },
-                },
-                "required": ["expert_name", "skill_name"],
-            },
-            category="experts",
-            cost_tier="free",
-        )
-    )
+    register_bridge_tool_schemas(registry)
 
 
 # ------------------------------------------------------------------ #
@@ -1555,14 +1540,8 @@ async def _install_skill(expert_name: str, skill_name: str) -> dict[str, Any]:
 
 
 def _build_tools_list(server: DeeprMCPServer, use_gateway: bool = True) -> list[dict[str, Any]]:
-    """Build the tools list for tools/list response.
-
-    If use_gateway is True, only return the gateway tool (dynamic discovery).
-    If False, return all tools (for clients that don't support dynamic discovery).
-    """
-    if use_gateway:
-        return [GatewayTool.get_gateway_schema()]
-    return [t.to_mcp_format() for t in server.registry.all_tools()]
+    """Build the policy filtered tools/list response."""
+    return build_tools_list(server.registry, server.tool_allowlist, use_gateway=use_gateway)
 
 
 async def _handle_initialize(server: DeeprMCPServer, params: dict[str, Any]) -> dict[str, Any]:

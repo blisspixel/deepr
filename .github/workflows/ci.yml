@@ -149,6 +149,57 @@ jobs:
           deepr doctor --skip-connectivity
           deepr init --yes
 
+  agent-plugin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          activate-environment: true
+          python-version: "3.12"
+          version: "0.11.32"
+
+      - name: Build Python and Agent Plugin distributions
+        run: |
+          uv sync --frozen --extra dev
+          uv run pytest -q \
+            tests/unit/test_standards/test_external_standards_pins.py \
+            tests/unit/test_skill/test_agent_skills_contract.py \
+            tests/unit/test_skill/test_agent_plugin_package.py \
+            tests/unit/test_mcp/test_server_bridge_hardening.py
+          uv run python -m build
+          uv run python scripts/build_agent_plugin.py --output dist/deepr-agent-plugin-first.tar.gz
+          uv run python scripts/build_agent_plugin.py --output dist/deepr-agent-plugin-second.tar.gz
+          cmp dist/deepr-agent-plugin-first.tar.gz dist/deepr-agent-plugin-second.tar.gz
+
+      - name: Install the wheel in a clean environment
+        run: |
+          mkdir -p "${RUNNER_TEMP}/deepr-wheelhouse"
+          uv pip install --python .venv/bin/python pip
+          .venv/bin/python -m pip download \
+            --dest "${RUNNER_TEMP}/deepr-wheelhouse" \
+            "$(find dist -maxdepth 1 -name '*.whl' -print -quit)"
+          uv venv .agent-plugin-venv --python 3.12
+          uv pip install \
+            --offline \
+            --no-index \
+            --find-links "${RUNNER_TEMP}/deepr-wheelhouse" \
+            --python .agent-plugin-venv/bin/python \
+            "$(find dist -maxdepth 1 -name '*.whl' -print -quit)"
+
+      - name: Prove contained read-only stdio operation
+        run: |
+          mkdir -p "${RUNNER_TEMP}/deepr-agent-plugin-extracted"
+          tar -xzf dist/deepr-agent-plugin-first.tar.gz \
+            -C "${RUNNER_TEMP}/deepr-agent-plugin-extracted"
+          .agent-plugin-venv/bin/python scripts/check_agent_plugin_install.py \
+            --package-root "${RUNNER_TEMP}/deepr-agent-plugin-extracted/deepr-research" \
+            --data-root "${RUNNER_TEMP}/deepr-agent-plugin-data" \
+            --command .agent-plugin-venv/bin/deepr-mcp
+
   frontend:
     # The web frontend was previously verified only by hand: CI never ran
     # lint/tsc/build, so a dangling identifier that broke type-checking and

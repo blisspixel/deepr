@@ -2200,7 +2200,7 @@ class TestExpertExportSkillCommand:
             mock_store_class.return_value = mock_store
             result = runner.invoke(cli, ["expert", "export-skill", "AI Strategy Expert", "--print"])
             assert result.exit_code == 0
-            assert "name: deepr-expert-ai-strategy-expert" in result.output
+            assert 'name: "deepr-expert-ai-strategy-expert"' in result.output
             assert "deepr_query_expert" in result.output
 
     def test_writes_file_to_output_dir(self, runner, tmp_path):
@@ -2214,7 +2214,7 @@ class TestExpertExportSkillCommand:
             mock_store_class.return_value = mock_store
             result = runner.invoke(cli, ["expert", "export-skill", "AI Strategy Expert", "-o", str(out)])
             assert result.exit_code == 0
-            assert (out / "SKILL.md").exists()
+            assert (out / "deepr-expert-ai-strategy-expert" / "SKILL.md").exists()
 
 
 class TestExpertDeleteCommand:

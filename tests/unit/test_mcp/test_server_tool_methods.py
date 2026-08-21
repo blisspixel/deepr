@@ -182,9 +182,9 @@ class TestDeeprResearch:
             patch.object(mock_server, "_get_api_key", return_value="k"),
             patch("deepr.mcp.server.create_provider"),
             patch("deepr.mcp.server.create_storage"),
-            patch("deepr.mcp.server.DocumentManager"),
-            patch("deepr.mcp.server.ReportGenerator"),
-            patch("deepr.mcp.server.ResearchOrchestrator", return_value=orchestrator),
+            patch("deepr.core.documents.DocumentManager"),
+            patch("deepr.core.reports.ReportGenerator"),
+            patch("deepr.core.research.ResearchOrchestrator", return_value=orchestrator),
         ):
             token = bind_mcp_request_identity(identity)
             try:
@@ -378,7 +378,7 @@ class TestGetResult:
         lifecycle = _lifecycle_owner(settled_cost=0.42)
         mock_server.active_jobs["j1"] = {"provider_instance": prov, "orchestrator": lifecycle}
         # Report text comes from ReportGenerator.extract_text_from_response(response).
-        with patch("deepr.mcp.server.ReportGenerator") as rg:
+        with patch("deepr.core.reports.ReportGenerator") as rg:
             rg.return_value.extract_text_from_response.return_value = "short report"
             out = await mock_server.deepr_get_result("j1")
         assert out["status"] == "completed"
@@ -398,7 +398,7 @@ class TestGetResult:
         mock_server.active_jobs["j2"] = {"provider_instance": prov, "orchestrator": lifecycle}
         with (
             patch.dict(os.environ, {"DEEPR_MAX_INLINE_CHARS": "1000"}),
-            patch("deepr.mcp.server.ReportGenerator") as rg,
+            patch("deepr.core.reports.ReportGenerator") as rg,
         ):
             rg.return_value.extract_text_from_response.return_value = big_report
             out = await mock_server.deepr_get_result("j2")

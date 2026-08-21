@@ -27,7 +27,7 @@ useful for routing review, but it does not prove correctness. Report:
 
 ## Read-only consultation
 
-`deepr_query_expert` works in v2.36 only with `backend="local"` or
+`deepr_query_expert` works in the current release only with `backend="local"` or
 `backend="plan"`, `agentic=false`, and explicit corresponding capacity. The
 turn compiles stored context and cannot write beliefs or start tools.
 
@@ -45,7 +45,7 @@ apply boundary; generated artifacts never become canonical by editing them.
 
 Do not claim that conversation alone caused continuous learning. Standalone
 metered chat, background synthesis, API resume/refresh, metered gap fill,
-metered reflection, API sync, and autonomous research are gated in v2.36.
+metered reflection, API sync, and autonomous research remain gated.
 
 ## Local busy handling
 

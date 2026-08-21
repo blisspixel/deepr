@@ -140,7 +140,7 @@ complementary, not competing orchestration models.
 | Layer | Normative target | Deepr use | Boundary |
 |---|---|---|---|
 | Knowledge interchange | [OKF 0.2](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md) | Export selected expert knowledge and ingest external bundles as untrusted evidence | The canonical belief, event, and edge stores remain authoritative. |
-| Installation and discovery | [Agent Plugins 1.0.0](https://agent-plugins.org/specification), Working Draft | Package Agent Skills and an MCP server for conforming clients | A plugin packages code, skills, and MCP declarations, not canonical expert knowledge or credentials. |
+| Installation and discovery | [Agent Plugins 1.0.0](https://agent-plugins.org/specification), Published | Package Agent Skills and an MCP server for conforming clients | A plugin packages code, skills, and MCP declarations, not canonical expert knowledge or credentials. |
 | Runtime protocol | [MCP 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28) | Expose bounded tools, resources, lifecycle projections, and later negotiated extensions | MCP transport state never becomes run, spend, credential, or verification authority. |
 
 OKF 0.2 is a minimal Markdown and YAML specification, not a schema registry.
@@ -392,9 +392,10 @@ its predecessor's acceptance gate is recorded.
 
 ### Bridge 0: standards truth and offline fixtures
 
-Status: in progress. The pinned OKF 0.2 revision, checksum, fixtures, and
-spec-derived validator are implemented. Agent Plugin, Agent Skill, and MCP
-schema fixtures remain.
+Status: implemented 2026-08-20. OKF 0.2, Agent Plugins 1.0.0, Agent Skills,
+and MCP 2026-07-28 have immutable upstream revisions, byte lengths, and hashes.
+The exact Agent Plugins schemas are vendored for offline validation, and the
+representative skill, plugin package, and modern MCP contracts are blocking.
 
 - Pin the Agent Plugins 1.0.0 plugin and MCP schemas locally with their
   canonical identifiers and checksums.
@@ -425,6 +426,8 @@ Gate: externally shaped 0.2 fixtures round-trip without authority inversion;
 the legacy profile label is retired only when conformance evidence passes.
 
 ### Bridge 2: Agent Skill and Agent Plugin packaging
+
+Status: implemented 2026-08-20 for the contained, local, read-only foundation.
 
 - Validate generated skills against the current Agent Skills specification,
   immediate-child discovery, and progressive-disclosure layout.

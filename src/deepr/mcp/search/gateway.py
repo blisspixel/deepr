@@ -52,25 +52,40 @@ class GatewayTool:
         """
         self._registry = registry
 
-    def search(self, query: str, limit: int = 3) -> dict[str, Any]:
+    def search(
+        self,
+        query: str,
+        limit: int = 3,
+        *,
+        allowed_names: set[str] | None = None,
+    ) -> dict[str, Any]:
         """
         Search for tools matching the query.
 
         Args:
             query: Natural language description of desired capability
             limit: Maximum tools to return (1-10)
+            allowed_names: Optional registered-tool names that discovery may expose
 
         Returns:
             Dict with tools array and metadata
         """
+        available_count = (
+            self._registry.count()
+            if allowed_names is None
+            else sum(tool.name in allowed_names for tool in self._registry.all_tools())
+        )
         if not query or not query.strip():
-            return {"error": "Query cannot be empty", "tools": [], "total_available": self._registry.count()}
+            return {"error": "Query cannot be empty", "tools": [], "total_available": available_count}
 
         # Clamp limit
         limit = max(1, min(10, limit))
 
         # Search registry
-        matches = self._registry.search(query, limit=limit)
+        search_limit = self._registry.count() if allowed_names is not None else limit
+        matches = self._registry.search(query, limit=search_limit)
+        if allowed_names is not None:
+            matches = [tool for tool in matches if tool.name in allowed_names][:limit]
 
         # Format results
         tools = [
@@ -87,7 +102,7 @@ class GatewayTool:
         return {
             "tools": tools,
             "count": len(tools),
-            "total_available": self._registry.count(),
+            "total_available": available_count,
             "query": query,
             "message": self._generate_message(tools, query),
         }

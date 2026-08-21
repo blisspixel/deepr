@@ -47,7 +47,7 @@ multi-call expansion.
 
 ## Gated compatibility tools
 
-`deepr_agentic_research` remains discoverable but returns a typed v2.36 capacity
+`deepr_agentic_research` remains discoverable but returns a typed capacity
 block before provider work. `deepr_query_expert backend="api"` is also blocked.
 Do not use host retries or elicitation to bypass these gates.
 

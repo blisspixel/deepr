@@ -71,22 +71,22 @@ class TestFrontmatter:
     def test_name_in_frontmatter(self, packager: SkillPackager) -> None:
         """Frontmatter contains name field."""
         content = packager.render()
-        assert "name: deepr-research" in content
+        assert 'name: "deepr-research"' in content
 
     def test_description_in_frontmatter(self, packager: SkillPackager) -> None:
         """Frontmatter contains description field."""
         content = packager.render()
-        assert "description: Multi-provider research automation" in content
+        assert 'description: "Multi-provider research automation"' in content
 
     def test_version_in_frontmatter(self, packager: SkillPackager) -> None:
-        """Frontmatter contains version field."""
+        """Frontmatter contains namespaced version metadata."""
         content = packager.render()
-        assert f"version: {DEEPR_VERSION}" in content
+        assert f'deepr-version: "{DEEPR_VERSION}"' in content
 
     def test_mcp_server_in_frontmatter(self, packager: SkillPackager) -> None:
-        """Frontmatter contains mcp_server field."""
+        """Frontmatter contains namespaced MCP server metadata."""
         content = packager.render()
-        assert "mcp_server: deepr" in content
+        assert 'deepr-mcp-server: "deepr"' in content
 
     def test_frontmatter_delimiters(self, packager: SkillPackager) -> None:
         """Frontmatter is wrapped in --- delimiters."""
@@ -102,6 +102,11 @@ class TestFrontmatter:
                 closing_idx = i
                 break
         assert closing_idx is not None
+
+
+def test_packager_rejects_whitespace_only_description() -> None:
+    with pytest.raises(ValueError, match="description"):
+        SkillPackager(name="research", description="   ")
 
 
 # --- Tools list tests ---
@@ -201,12 +206,14 @@ class TestGenerate:
         result_path = packager.generate(tmp_path)
         assert result_path.exists()
         assert result_path.name == "SKILL.md"
+        assert result_path.parent.name == "deepr-research"
 
     def test_generate_creates_directory(self, packager: SkillPackager, tmp_path: Path) -> None:
         """generate() creates output directory if needed."""
         output = tmp_path / "nested" / "dir"
         result_path = packager.generate(output)
         assert result_path.exists()
+        assert result_path == output / "deepr-research" / "SKILL.md"
 
     def test_generate_content_matches_render(self, packager: SkillPackager, tmp_path: Path) -> None:
         """File content matches render() output."""
@@ -214,3 +221,9 @@ class TestGenerate:
         file_content = result_path.read_text(encoding="utf-8")
         render_content = packager.render()
         assert file_content == render_content
+
+
+@pytest.mark.parametrize("name", ["Uppercase", "-leading", "trailing-", "two--hyphens", "space name"])
+def test_invalid_agent_skill_names_fail_before_generation(name: str) -> None:
+    with pytest.raises(ValueError, match="Agent Skill name"):
+        SkillPackager(name=name)

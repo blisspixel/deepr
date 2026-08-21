@@ -117,15 +117,18 @@ still serving legacy `initialize`-era clients on both transports. Operators can
 prove the offline host-interop posture with `deepr mcp conformance` (`$0`, no
 network, no model).
 
-The portability roadmap follows the published [Agent Plugins 1.0.0 working
-draft](https://agent-plugins.org/specification) and containment contract. OKF
+The portability roadmap follows the published [Agent Plugins 1.0.0
+specification](https://agent-plugins.org/specification) and containment contract. OKF
 export remains a derived view over Deepr's canonical belief and
 provenance stores. Export and `$0` validation now target the hard bundle rules
 in the current [Open Knowledge Format 0.2
 specification](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md),
 while import remains untrusted and verification-gated. Agent Plugin packaging
-is still planned; see [Supported Surface](docs/SUPPORTED_SURFACE.md) and
-[Roadmap](ROADMAP.md).
+is now available as a contained, stdio-only, capability-read-only package
+foundation under `packages/deepr-agent-plugin`. Its schemas and Agent Skill are
+validated offline, its spend ceilings are fixed at zero, and its archive build
+is byte reproducible. Broader host profiles, remote routes, steering, and
+external computer control remain gated in [Roadmap](ROADMAP.md).
 
 ## Documentation
 

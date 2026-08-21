@@ -6,7 +6,8 @@ description: |
   analysis, a research cost preview, a domain expert or expert council, or
   inspection of durable beliefs, gaps, confidence, and provenance.
 metadata:
-  version: "2.38.0"
+  deepr-version: "2.49.2"
+  deepr-mcp-server: "deepr"
 ---
 
 # Deepr research
@@ -16,7 +17,7 @@ citations, budget posture, capacity provenance, uncertainty, and dissent.
 
 ## Release-safe operating contract
 
-Treat these as works-now surfaces in v2.36:
+Treat these as works-now surfaces in the current release:
 
 - One API-backed research job when the provider, model, tools, token ceilings,
   and price are all known.
@@ -47,7 +48,8 @@ asked a bad question.
 2. Prefer `backend="local"` for a true `$0` marginal-cost expert turn when an
    admitted Ollama model is ready.
 3. Use `backend="plan"` only with an explicit non-metered plan id. Do not infer
-   that CLI presence proves free quota. Copilot is visible/read-only in v2.36.
+   that CLI presence proves free quota. A visible backend is not proof of
+   executable plan capacity.
 4. Use one bounded API research request only after the user authorizes spend.
    Pass an explicit provider, model, and budget ceiling.
 5. Never silently fall through between capacity classes.
@@ -60,7 +62,7 @@ Use this sequence:
 2. Obtain explicit approval before a paid call.
 3. Call `deepr_research` with one focused prompt, an explicit provider/model,
    and the approved budget.
-4. Omit `files` in v2.36 because hosted research context is gated. Put compact
+4. Omit `files` because hosted research context is gated. Put compact
    non-sensitive context in the prompt or use local source packs outside this
    tool.
 5. Monitor the returned job id or returned resource URI with

@@ -8,11 +8,14 @@ Feature: mcp-client-agent-interop
 
 from __future__ import annotations
 
+import json
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
 from deepr import __version__ as DEEPR_VERSION
+from deepr.skills.contract import validate_agent_skill
 from deepr.skills.templates import (
     DEFAULT_INSTRUCTIONS,
     DEFAULT_TRIGGERS,
@@ -26,6 +29,7 @@ from deepr.skills.templates import (
 )
 
 logger = logging.getLogger(__name__)
+_SKILL_NAME = re.compile(r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$")
 
 
 class SkillPackager:
@@ -55,6 +59,10 @@ class SkillPackager:
         triggers: list[str] | None = None,
         instructions: str = "",
     ) -> None:
+        if not 1 <= len(name) <= 64 or not _SKILL_NAME.fullmatch(name) or "--" in name:
+            raise ValueError("Agent Skill name must use 1 to 64 lowercase ASCII letters, digits, and single hyphens")
+        if not description.strip() or len(description) > 1024:
+            raise ValueError("Agent Skill description must contain 1 to 1024 characters")
         self._name = name
         self._description = description
         self._version = version or DEEPR_VERSION
@@ -84,11 +92,16 @@ class SkillPackager:
         Returns:
             Path to the generated SKILL.md file.
         """
-        output_dir.mkdir(parents=True, exist_ok=True)
-        output_path = output_dir / "SKILL.md"
+        skill_dir = output_dir if output_dir.name == self._name else output_dir / self._name
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        output_path = skill_dir / "SKILL.md"
 
         content = self._render()
         output_path.write_text(content, encoding="utf-8")
+        validation = validate_agent_skill(output_path)
+        if not validation.valid:
+            detail = "; ".join(f"{item.code}: {item.detail}" for item in validation.violations)
+            raise ValueError(f"generated Agent Skill failed validation: {detail}")
 
         logger.info("Generated SKILL.md at %s (%d tools)", output_path, len(self._tools))
         return output_path
@@ -100,10 +113,10 @@ class SkillPackager:
     def _render(self) -> str:
         """Render the full SKILL.md content."""
         frontmatter = FRONTMATTER_TEMPLATE.format(
-            name=self._name,
-            description=self._description,
-            version=self._version,
-            mcp_server=self._mcp_server,
+            name_yaml=json.dumps(self._name),
+            description_yaml=json.dumps(self._description),
+            version_yaml=json.dumps(self._version),
+            mcp_server_yaml=json.dumps(self._mcp_server),
         )
 
         tools_section = self._render_tools()
