@@ -68,6 +68,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Registered the existing pause and resume task handlers in MCP discovery,
   restoring the documented 36-tool catalog while keeping both write-class
   tools outside read-only profiles.
+- Updated the blocking dependency-audit environment to pip 26.2 after
+  `PYSEC-2026-3721` made the runner-provided pip 26.1.2 fail the clean audit.
 
 - The installed `deepr-mcp` entrypoint no longer imports optional DOCX and
   Azure storage implementations during startup. The local read-only Agent
