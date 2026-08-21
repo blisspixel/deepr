@@ -1,0 +1,180 @@
+{
+  "authority": {
+    "credentials_inspected": false,
+    "external_side_effects_allowed": false,
+    "generation_cost_usd": 0,
+    "generation_mode": "offline_config_only",
+    "host_config_mutated": false,
+    "host_installed": false,
+    "host_version_inferred": false,
+    "network_opened": false,
+    "runtime_paid_dispatch_authorized": false,
+    "runtime_state_root": "${DEEPR_HOST_DATA}",
+    "runtime_state_writes_expected": true
+  },
+  "capabilities": {
+    "auto_approve": false,
+    "caller_approval_can_widen": false,
+    "effective_read_only_tools": [
+      "deepr_capabilities",
+      "deepr_check_status",
+      "deepr_get_expert_info",
+      "deepr_get_result",
+      "deepr_get_task_progress",
+      "deepr_list_experts",
+      "deepr_list_recoverable_tasks",
+      "deepr_list_skills",
+      "deepr_status",
+      "deepr_tool_search"
+    ],
+    "initial_advertised_tools": [
+      "deepr_capabilities",
+      "deepr_check_status",
+      "deepr_get_expert_info",
+      "deepr_get_result",
+      "deepr_get_task_progress",
+      "deepr_list_experts",
+      "deepr_list_recoverable_tasks",
+      "deepr_list_skills",
+      "deepr_status",
+      "deepr_tool_search"
+    ],
+    "parallel_tool_calls_hint": false,
+    "research_mode": "read_only",
+    "tool_count": 10,
+    "tool_listing_mode": "full_read_only_catalog"
+  },
+  "config_fragment": {
+    "mcp": {
+      "servers": {
+        "deepr": {
+          "args": [],
+          "command": "deepr-mcp",
+          "connectionTimeoutMs": 10000,
+          "enabled": true,
+          "env": {
+            "DEEPR_BUDGET_FILE": "${DEEPR_HOST_DATA}/deepr/budget.json",
+            "DEEPR_CAPACITY_DATA_DIR": "${DEEPR_HOST_DATA}/deepr/capacity",
+            "DEEPR_COST_DATA_DIR": "${DEEPR_HOST_DATA}/deepr/costs",
+            "DEEPR_DAILY_LIMIT": "0",
+            "DEEPR_DATA_DIR": "${DEEPR_HOST_DATA}/deepr",
+            "DEEPR_EXPERTS_PATH": "${DEEPR_HOST_DATA}/deepr/experts",
+            "DEEPR_LOG_LEVEL": "WARNING",
+            "DEEPR_MAX_COST_PER_DAY": "0",
+            "DEEPR_MAX_COST_PER_JOB": "0",
+            "DEEPR_MAX_COST_PER_MONTH": "0",
+            "DEEPR_MAX_COST_PER_WEEK": "0",
+            "DEEPR_MCP_ADVERTISE_FULL_TOOL_LIST": "1",
+            "DEEPR_MCP_AUTO_APPROVE": "0",
+            "DEEPR_MONTHLY_LIMIT": "0",
+            "DEEPR_PER_JOB_LIMIT": "0",
+            "DEEPR_REPORTS_PATH": "${DEEPR_HOST_DATA}/deepr/reports",
+            "DEEPR_RESEARCH_MODE": "read_only",
+            "DEEPR_WEEKLY_LIMIT": "0"
+          },
+          "requestTimeoutMs": 30000,
+          "supportsParallelToolCalls": false,
+          "toolFilter": {
+            "include": [
+              "deepr_capabilities",
+              "deepr_check_status",
+              "deepr_get_expert_info",
+              "deepr_get_result",
+              "deepr_get_task_progress",
+              "deepr_list_experts",
+              "deepr_list_recoverable_tasks",
+              "deepr_list_skills",
+              "deepr_status",
+              "deepr_tool_search"
+            ]
+          },
+          "transport": "stdio"
+        }
+      }
+    }
+  },
+  "conformance": {
+    "deepr_contract_validated": true,
+    "live_tool_call_validated": false,
+    "mcp_handshake_validated": false,
+    "openclaw_parser_validated": false,
+    "tool_discovery_validated": false
+  },
+  "deepr": {
+    "installed_executable_required": true,
+    "server_command": "deepr-mcp",
+    "source_revision": null,
+    "source_revision_status": "not_collected",
+    "version": "2.49.2"
+  },
+  "evidence": {
+    "config_document_revision": "2b41702024a76a89b1a6d0c15caff967fde8d93d",
+    "config_document_sha256": "d33e9fcf8d48ca4084d32b40d243cb30a244e3c8c1bc98c733d39e81ea5f440e",
+    "config_documentation_url": "https://github.com/openclaw/openclaw/blob/0790d9f593ad30c940ed93b5872a8cf6d6f3cf8c/docs/gateway/configuration-reference.md",
+    "host_revision": "0790d9f593ad30c940ed93b5872a8cf6d6f3cf8c",
+    "mcp_types_revision": "89b0f5b68df0292ee80132c1aa0173cc58c15b74",
+    "mcp_types_sha256": "bc3b1d818d50d67ee9121ea05fd4508008095f87b2a076eea3a45539e741e7e4",
+    "mcp_types_url": "https://github.com/openclaw/openclaw/blob/0790d9f593ad30c940ed93b5872a8cf6d6f3cf8c/src/config/types.mcp.ts",
+    "release_url": "https://github.com/openclaw/openclaw/releases/tag/v2026.7.1-2",
+    "runtime_schema_revision": "59d56fe50dc5782936b60a7dbe3f9d7d17b7e535",
+    "runtime_schema_sha256": "e9fc8b4bd58d7e78a9409fe0fd032a9d3f0eb7325d517b03b576acce1f20bec1",
+    "runtime_schema_url": "https://github.com/openclaw/openclaw/blob/0790d9f593ad30c940ed93b5872a8cf6d6f3cf8c/src/config/zod-schema.ts",
+    "tag_object": "be8b8a9e8838f832e4fa47cde8bea0a33aec71ba"
+  },
+  "extensions": {},
+  "host": {
+    "id": "openclaw",
+    "native_agent_plugins_supported": false,
+    "package_version": "2026.7.1",
+    "release_channel": "stable",
+    "revision": "0790d9f593ad30c940ed93b5872a8cf6d6f3cf8c",
+    "tag_object": "be8b8a9e8838f832e4fa47cde8bea0a33aec71ba",
+    "tag_signature_verified": true,
+    "version": "v2026.7.1-2"
+  },
+  "host_posture": {
+    "approval": "deepr_auto_approve_disabled",
+    "filesystem": "runtime_state_under_operator_selected_host_data",
+    "network": "not_configured_by_profile",
+    "sandbox": "not_configured_by_profile"
+  },
+  "kind": "deepr.mcp.host_profile",
+  "policy_posture": {
+    "allowed_tool_classes": [
+      "read",
+      "compute"
+    ],
+    "budget_basis": "primary_and_legacy_environment_ceilings",
+    "budget_ceiling_usd": 0,
+    "denied_tool_classes": [
+      "write",
+      "execute",
+      "sensitive"
+    ],
+    "expert_scope": "all_experts_under_contained_root",
+    "rate_limit": "not_configured",
+    "scoped_key_mode": "not_applicable_local_stdio"
+  },
+  "runtime_controls": {
+    "connection_timeout_ms": 10000,
+    "parallel_tool_calls_hint": false,
+    "request_timeout_ms": 30000,
+    "retry_policy": "host_default_not_validated",
+    "server_serialization_guaranteed": false
+  },
+  "schema_version": "deepr-mcp-host-profile-v1",
+  "transport": {
+    "required_host_environment": [
+      "DEEPR_HOST_DATA"
+    ],
+    "server_name": "deepr",
+    "type": "stdio"
+  },
+  "validation": {
+    "checked_on": "2026-08-21",
+    "host_config_fields_checked": true,
+    "independent_validation_evidence": null,
+    "live_runtime_checked": false,
+    "status": "reference"
+  }
+}

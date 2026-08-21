@@ -56,6 +56,7 @@ and recomputes the full report, including the fixture and linked input hashes.
 | `deepr-okf-profile-v2` | [okf-profile-v2.json](okf-profile-v2.json) | OKF 0.2 mapping from canonical Deepr expert state to regenerated Markdown bundles |
 | `deepr-mcp-remote-audit-v1` | [mcp-remote-audit-v1.json](mcp-remote-audit-v1.json) | Append-only scoped-key remote MCP tool-call audit events |
 | `deepr-mcp-registration-manifest-v1` | [mcp-registration-manifest-v1.json](mcp-registration-manifest-v1.json) | Token-redacted hosted MCP endpoint registration metadata plus optional smoke results |
+| `deepr-mcp-host-profile-v1` | [mcp-host-profile-v1.json](mcp-host-profile-v1.json) | Deterministic offline OpenClaw stable reference with the exact registered read-only tool surface, contained zero-spend environment, closed authority fields, and no self-promoted validation claim |
 | `deepr-a2a-task-v1` | [a2a-task-v1.json](a2a-task-v1.json) | Agent-to-agent task state envelope for A2A create, status, cancel, result responses, and attached task artifacts |
 | `deepr-a2a-host-validation-v1` | [a2a-host-validation-v1.json](a2a-host-validation-v1.json) | No-metered A2A Agent Card and consult task validation report for offline fixtures and HTTP endpoints |
 | `deepr-consult-v1` | [consult-v1.json](consult-v1.json) | One-shot synthesis over stored packets from one or many experts, with explicit zero-peer-turn, zero-knowledge-write, and bounded synthesis-call metadata |

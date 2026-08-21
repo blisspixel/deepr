@@ -4,9 +4,12 @@
     {
       "name": "Open Knowledge Format",
       "version": "0.2",
-      "canonical_identifier": "https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/3fcbb9f828c2f23d109c855ee403c3a4c81f3a96/okf/SPEC.md",
-      "retrieved_at": "2026-08-20",
-      "sha256": "5a3311d270bebb16d558010e75064f5b75323f284992641732b1c8097511f948",
+      "canonical_identifier": "https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/62432a095456147ee71e70ac6e4dc0d2dea3ac30/okf/SPEC.md",
+      "revision": "62432a095456147ee71e70ac6e4dc0d2dea3ac30",
+      "git_blob_sha": "c06e3eede0c910d0ecf12524c34204156f8795ac",
+      "retrieved_at": "2026-08-21",
+      "byte_length": 37748,
+      "sha256": "26aa5da029278939f914e578107242d9607d4f2dc5fe153272b82f9ed1030101",
       "fixture_root": "okf-0.2"
     }
   ]

@@ -8,6 +8,7 @@ from deepr.cli.async_runner import run_async_command
 from deepr.cli.commands.mcp_conformance import conformance
 from deepr.cli.commands.mcp_consult_validation import validate_consult_fleet
 from deepr.cli.commands.mcp_conversation_validation import validate_conversation
+from deepr.cli.commands.mcp_host_profile import register_host_profile_command
 
 _HTTP_VALIDATION_TIMEOUT = click.FloatRange(min=0.1, max=300.0)
 
@@ -941,3 +942,4 @@ def test():
 from deepr.cli.commands.mcp_host_install import register_host_install_commands
 
 register_host_install_commands(mcp)
+register_host_profile_command(mcp)

@@ -129,8 +129,13 @@ while import remains untrusted and verification-gated. Agent Plugin packaging
 is now available as a contained, stdio-only, capability-read-only package
 foundation under `packages/deepr-agent-plugin`. Its schemas and Agent Skill are
 validated offline, its spend ceilings are fixed at zero, and its archive build
-is byte reproducible. Broader host profiles, remote routes, steering, and
-external computer control remain gated in [Roadmap](ROADMAP.md).
+is byte reproducible. `deepr mcp host-profile openclaw` now emits a
+deterministic, config-only reference for stable OpenClaw `v2026.7.1-2`. It uses
+the exact ten-tool read-only catalog, explicit contained data roots, and zero
+primary and legacy spend ceilings. The command does not install OpenClaw,
+change host configuration, inspect credentials, or claim live validation.
+Independent host conformance, additional profiles, remote routes, steering,
+and external computer control remain gated in [Roadmap](ROADMAP.md).
 
 ## Documentation
 

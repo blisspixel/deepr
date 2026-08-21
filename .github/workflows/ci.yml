@@ -200,6 +200,11 @@ jobs:
             --package-root "${RUNNER_TEMP}/deepr-agent-plugin-extracted/deepr-research" \
             --data-root "${RUNNER_TEMP}/deepr-agent-plugin-data" \
             --command .agent-plugin-venv/bin/deepr-mcp
+          .agent-plugin-venv/bin/python scripts/check_host_profile_install.py \
+            --fixture tests/fixtures/hosts/openclaw/v2026.7.1-2/profile.json \
+            --data-root "${RUNNER_TEMP}/deepr-openclaw-profile-data" \
+            --mcp-command .agent-plugin-venv/bin/deepr-mcp \
+            --deepr-command .agent-plugin-venv/bin/deepr
 
   frontend:
     # The web frontend was previously verified only by hand: CI never ran

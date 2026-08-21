@@ -124,8 +124,11 @@ must not be described as usable capacity.
 - CLI output modes: `--json`, `--quiet`, `--verbose`, and trace flags where
   documented. The shared `OperationResult` JSON envelope is versioned as
   `deepr-cli-operation-result-v1`.
-- The published schema registry under `docs/schemas/`, with additive
-  compatibility inside each v1 schema.
+- The published schema registry under `docs/schemas/`. Descriptive fields are
+  additive inside v1 by default. Entries labeled as closed authority accept
+  additions only under their ignored `extensions` object; changing tools,
+  credentials, spend, transport, identity, validation, or other authority
+  requires a new schema version.
 
 ## Experimental But Usable
 
@@ -654,9 +657,18 @@ must not be described as usable capacity.
   marginal-cost, or process-safety gates.
 - Multi-account capacity pools are planned after a single-account mechanism is
   complete.
-- Host-specific profiles, remote MCP routes, steering, and external computer
-  control remain planned. The first local fixtures target OpenClaw stable
-  `v2026.7.1-2` through explicit MCP plus a skill, DeepSeek Harness
+- One experimental host-specific reference now ships:
+  `deepr mcp host-profile openclaw` deterministically emits a closed,
+  config-only `deepr-mcp-host-profile-v1` artifact for OpenClaw stable
+  `v2026.7.1-2`. The profile pins the signed tag object, target commit, package
+  version, exact configuration source blobs, local stdio transport, the ten
+  policy-filtered read-only tools, explicit contained roots, and zero primary
+  and legacy spend ceilings. It remains `reference`, not fixture-validated or
+  live-validated. It does not install a host, edit host configuration, inspect
+  credentials, open a network route, or prove OpenClaw parser, handshake,
+  discovery, tool-call, sandbox, or Agent Plugins behavior.
+- Additional host profiles, remote MCP routes, steering, and external computer
+  control remain planned. The next local fixtures target DeepSeek Harness
   `dsh-v0.1.1-rc.2`, and Grok Build 1.0.6. OpenClaw native Agent Plugins support
   remains a separate `v2026.8.1-beta.2` prerelease evidence lane. Manual Grok
   Bot installation is a valid future host path, but no public Bot lifecycle API
@@ -720,7 +732,9 @@ source text through the verified absorb path.
 
 ## Compatibility Rules
 
-- Published v1 schemas are additive within the same schema version.
+- Published v1 schemas are additive within the same schema version by default.
+  A registry entry labeled as closed authority may add ignored descriptive
+  extensions only; any authority change requires a new schema version.
 - Removing a required field, changing required semantics, or changing the kind
   of a record requires a new schema file and schema version.
 - Stable commands should keep existing flags working or document a migration in

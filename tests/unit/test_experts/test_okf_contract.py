@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 import deepr.experts.okf_contract as okf_contract
+from deepr.experts.okf import build_okf_ingestion_corpus
 from deepr.experts.okf_contract import (
     OKF_VERSION,
     parse_markdown_frontmatter,
@@ -29,8 +30,12 @@ def test_fixture_manifest_pins_the_reviewed_okf_spec_revision():
 
     assert manifest["schema_version"] == "deepr-standards-fixture-manifest-v1"
     assert okf["version"] == OKF_VERSION
-    assert okf["canonical_identifier"].endswith("3fcbb9f828c2f23d109c855ee403c3a4c81f3a96/okf/SPEC.md")
-    assert okf["sha256"] == "5a3311d270bebb16d558010e75064f5b75323f284992641732b1c8097511f948"
+    assert okf["canonical_identifier"].endswith("62432a095456147ee71e70ac6e4dc0d2dea3ac30/okf/SPEC.md")
+    assert okf["revision"] == "62432a095456147ee71e70ac6e4dc0d2dea3ac30"
+    assert okf["git_blob_sha"] == "c06e3eede0c910d0ecf12524c34204156f8795ac"
+    assert okf["retrieved_at"] == "2026-08-21"
+    assert okf["byte_length"] == 37_748
+    assert okf["sha256"] == "26aa5da029278939f914e578107242d9607d4f2dc5fe153272b82f9ed1030101"
 
 
 def test_pinned_okf_0_2_fixture_is_conformant_and_preserves_nested_yaml():
@@ -43,6 +48,26 @@ def test_pinned_okf_0_2_fixture_is_conformant_and_preserves_nested_yaml():
     assert result.declared_version == OKF_VERSION
     assert parsed.fields["fixture_extension"] == {"preserved": True}
     assert parsed.fields["verified"]["by"] == "process:fixture-review"
+
+
+def test_okf_timestamp_scalars_remain_authored_strings_through_ingestion():
+    fixture = FIXTURE_ROOT / "okf-0.2" / "valid"
+    parsed = parse_markdown_frontmatter((fixture / "concepts" / "orders.md").read_text(encoding="utf-8"))
+    expected = (
+        (parsed.fields["generated"]["at"], "2026-08-20T12:00:00Z"),
+        (parsed.fields["verified"]["at"], "2026-08-20T13:00:00Z"),
+        (parsed.fields["stale_after"], "2027-08-20T00:00:00Z"),
+        (parsed.fields["sources"][0]["last_modified"], "2026-08-19T23:30:00-04:00"),
+        (parsed.fields["usage_window"]["from"], "2026-08-01T00:00:00Z"),
+        (parsed.fields["usage_window"]["to"], "2026-08-20T23:59:59+00:00"),
+    )
+
+    assert all(isinstance(actual, str) and actual == authored for actual, authored in expected)
+
+    corpus = build_okf_ingestion_corpus(fixture)
+    for _, authored in expected:
+        assert authored in corpus.report_text
+    assert "2027-08-20 00:00:00+00:00" not in corpus.report_text
 
 
 def test_pinned_legacy_fixture_detects_reserved_file_and_frontmatter_placement_violations():

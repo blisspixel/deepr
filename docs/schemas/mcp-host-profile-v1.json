@@ -1,0 +1,383 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/mcp-host-profile-v1.json",
+  "title": "Deepr MCP Host Profile v1",
+  "description": "Deterministic offline reference configuration for a pinned external MCP host. Validation promotion requires a separate digest-bound evidence artifact.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "deepr",
+    "host",
+    "transport",
+    "capabilities",
+    "authority",
+    "policy_posture",
+    "runtime_controls",
+    "host_posture",
+    "conformance",
+    "validation",
+    "evidence",
+    "config_fragment",
+    "extensions"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-mcp-host-profile-v1"},
+    "kind": {"const": "deepr.mcp.host_profile"},
+    "deepr": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "source_revision",
+        "source_revision_status",
+        "server_command",
+        "installed_executable_required"
+      ],
+      "properties": {
+        "version": {"type": "string", "minLength": 1},
+        "source_revision": {"type": "null"},
+        "source_revision_status": {"const": "not_collected"},
+        "server_command": {"const": "deepr-mcp"},
+        "installed_executable_required": {"const": true}
+      }
+    },
+    "host": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "release_channel",
+        "revision",
+        "tag_object",
+        "tag_signature_verified",
+        "package_version",
+        "native_agent_plugins_supported"
+      ],
+      "properties": {
+        "id": {"const": "openclaw"},
+        "version": {"const": "v2026.7.1-2"},
+        "release_channel": {"const": "stable"},
+        "revision": {"const": "0790d9f593ad30c940ed93b5872a8cf6d6f3cf8c"},
+        "tag_object": {"const": "be8b8a9e8838f832e4fa47cde8bea0a33aec71ba"},
+        "tag_signature_verified": {"const": true},
+        "package_version": {"const": "2026.7.1"},
+        "native_agent_plugins_supported": {"const": false}
+      }
+    },
+    "transport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "server_name", "required_host_environment"],
+      "properties": {
+        "type": {"const": "stdio"},
+        "server_name": {"const": "deepr"},
+        "required_host_environment": {
+          "const": ["DEEPR_HOST_DATA"]
+        }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "research_mode",
+        "initial_advertised_tools",
+        "effective_read_only_tools",
+        "tool_count",
+        "tool_listing_mode",
+        "auto_approve",
+        "caller_approval_can_widen",
+        "parallel_tool_calls_hint"
+      ],
+      "properties": {
+        "research_mode": {"const": "read_only"},
+        "initial_advertised_tools": {"$ref": "#/$defs/exact_tools"},
+        "effective_read_only_tools": {"$ref": "#/$defs/exact_tools"},
+        "tool_count": {"const": 10},
+        "tool_listing_mode": {"const": "full_read_only_catalog"},
+        "auto_approve": {"const": false},
+        "caller_approval_can_widen": {"const": false},
+        "parallel_tool_calls_hint": {"const": false}
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "generation_mode",
+        "generation_cost_usd",
+        "network_opened",
+        "host_config_mutated",
+        "host_installed",
+        "credentials_inspected",
+        "host_version_inferred",
+        "runtime_paid_dispatch_authorized",
+        "runtime_state_writes_expected",
+        "runtime_state_root",
+        "external_side_effects_allowed"
+      ],
+      "properties": {
+        "generation_mode": {"const": "offline_config_only"},
+        "generation_cost_usd": {"const": 0},
+        "network_opened": {"const": false},
+        "host_config_mutated": {"const": false},
+        "host_installed": {"const": false},
+        "credentials_inspected": {"const": false},
+        "host_version_inferred": {"const": false},
+        "runtime_paid_dispatch_authorized": {"const": false},
+        "runtime_state_writes_expected": {"const": true},
+        "runtime_state_root": {"const": "${DEEPR_HOST_DATA}"},
+        "external_side_effects_allowed": {"const": false}
+      }
+    },
+    "policy_posture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "allowed_tool_classes",
+        "denied_tool_classes",
+        "scoped_key_mode",
+        "expert_scope",
+        "rate_limit",
+        "budget_ceiling_usd",
+        "budget_basis"
+      ],
+      "properties": {
+        "allowed_tool_classes": {"const": ["read", "compute"]},
+        "denied_tool_classes": {"const": ["write", "execute", "sensitive"]},
+        "scoped_key_mode": {"const": "not_applicable_local_stdio"},
+        "expert_scope": {"const": "all_experts_under_contained_root"},
+        "rate_limit": {"const": "not_configured"},
+        "budget_ceiling_usd": {"const": 0},
+        "budget_basis": {"const": "primary_and_legacy_environment_ceilings"}
+      }
+    },
+    "runtime_controls": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "connection_timeout_ms",
+        "request_timeout_ms",
+        "retry_policy",
+        "parallel_tool_calls_hint",
+        "server_serialization_guaranteed"
+      ],
+      "properties": {
+        "connection_timeout_ms": {"const": 10000},
+        "request_timeout_ms": {"const": 30000},
+        "retry_policy": {"const": "host_default_not_validated"},
+        "parallel_tool_calls_hint": {"const": false},
+        "server_serialization_guaranteed": {"const": false}
+      }
+    },
+    "host_posture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sandbox", "filesystem", "network", "approval"],
+      "properties": {
+        "sandbox": {"const": "not_configured_by_profile"},
+        "filesystem": {"const": "runtime_state_under_operator_selected_host_data"},
+        "network": {"const": "not_configured_by_profile"},
+        "approval": {"const": "deepr_auto_approve_disabled"}
+      }
+    },
+    "conformance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "deepr_contract_validated",
+        "openclaw_parser_validated",
+        "mcp_handshake_validated",
+        "tool_discovery_validated",
+        "live_tool_call_validated"
+      ],
+      "properties": {
+        "deepr_contract_validated": {"const": true},
+        "openclaw_parser_validated": {"const": false},
+        "mcp_handshake_validated": {"const": false},
+        "tool_discovery_validated": {"const": false},
+        "live_tool_call_validated": {"const": false}
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "checked_on",
+        "host_config_fields_checked",
+        "live_runtime_checked",
+        "independent_validation_evidence"
+      ],
+      "properties": {
+        "status": {"const": "reference"},
+        "checked_on": {"const": "2026-08-21"},
+        "host_config_fields_checked": {"const": true},
+        "live_runtime_checked": {"const": false},
+        "independent_validation_evidence": {"type": "null"}
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "release_url",
+        "config_documentation_url",
+        "host_revision",
+        "tag_object",
+        "config_document_revision",
+        "config_document_sha256",
+        "mcp_types_url",
+        "mcp_types_revision",
+        "mcp_types_sha256",
+        "runtime_schema_url",
+        "runtime_schema_revision",
+        "runtime_schema_sha256"
+      ],
+      "properties": {
+        "release_url": {
+          "const": "https://github.com/openclaw/openclaw/releases/tag/v2026.7.1-2"
+        },
+        "config_documentation_url": {
+          "const": "https://github.com/openclaw/openclaw/blob/0790d9f593ad30c940ed93b5872a8cf6d6f3cf8c/docs/gateway/configuration-reference.md"
+        },
+        "host_revision": {"const": "0790d9f593ad30c940ed93b5872a8cf6d6f3cf8c"},
+        "tag_object": {"const": "be8b8a9e8838f832e4fa47cde8bea0a33aec71ba"},
+        "config_document_revision": {"const": "2b41702024a76a89b1a6d0c15caff967fde8d93d"},
+        "config_document_sha256": {"const": "d33e9fcf8d48ca4084d32b40d243cb30a244e3c8c1bc98c733d39e81ea5f440e"},
+        "mcp_types_url": {
+          "const": "https://github.com/openclaw/openclaw/blob/0790d9f593ad30c940ed93b5872a8cf6d6f3cf8c/src/config/types.mcp.ts"
+        },
+        "mcp_types_revision": {"const": "89b0f5b68df0292ee80132c1aa0173cc58c15b74"},
+        "mcp_types_sha256": {"const": "bc3b1d818d50d67ee9121ea05fd4508008095f87b2a076eea3a45539e741e7e4"},
+        "runtime_schema_url": {
+          "const": "https://github.com/openclaw/openclaw/blob/0790d9f593ad30c940ed93b5872a8cf6d6f3cf8c/src/config/zod-schema.ts"
+        },
+        "runtime_schema_revision": {"const": "59d56fe50dc5782936b60a7dbe3f9d7d17b7e535"},
+        "runtime_schema_sha256": {"const": "e9fc8b4bd58d7e78a9409fe0fd032a9d3f0eb7325d517b03b576acce1f20bec1"}
+      }
+    },
+    "config_fragment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mcp"],
+      "properties": {
+        "mcp": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["servers"],
+          "properties": {
+            "servers": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["deepr"],
+              "properties": {
+                "deepr": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "transport",
+                    "enabled",
+                    "command",
+                    "args",
+                    "env",
+                    "connectionTimeoutMs",
+                    "requestTimeoutMs",
+                    "supportsParallelToolCalls",
+                    "toolFilter"
+                  ],
+                  "properties": {
+                    "transport": {"const": "stdio"},
+                    "enabled": {"const": true},
+                    "command": {"const": "deepr-mcp"},
+                    "args": {"const": []},
+                    "env": {"$ref": "#/$defs/contained_environment"},
+                    "connectionTimeoutMs": {"const": 10000},
+                    "requestTimeoutMs": {"const": 30000},
+                    "supportsParallelToolCalls": {"const": false},
+                    "toolFilter": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["include"],
+                      "properties": {
+                        "include": {"$ref": "#/$defs/exact_tools"}
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "extensions": {
+      "type": "object",
+      "description": "Ignored descriptive metadata. Consumers must not derive tools, credentials, spend, transport, support, or validation authority from extensions.",
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "exact_tools": {
+      "const": [
+        "deepr_capabilities",
+        "deepr_check_status",
+        "deepr_get_expert_info",
+        "deepr_get_result",
+        "deepr_get_task_progress",
+        "deepr_list_experts",
+        "deepr_list_recoverable_tasks",
+        "deepr_list_skills",
+        "deepr_status",
+        "deepr_tool_search"
+      ]
+    },
+    "contained_environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "DEEPR_DATA_DIR",
+        "DEEPR_EXPERTS_PATH",
+        "DEEPR_REPORTS_PATH",
+        "DEEPR_COST_DATA_DIR",
+        "DEEPR_CAPACITY_DATA_DIR",
+        "DEEPR_BUDGET_FILE",
+        "DEEPR_RESEARCH_MODE",
+        "DEEPR_MCP_AUTO_APPROVE",
+        "DEEPR_MCP_ADVERTISE_FULL_TOOL_LIST",
+        "DEEPR_LOG_LEVEL",
+        "DEEPR_MAX_COST_PER_JOB",
+        "DEEPR_MAX_COST_PER_DAY",
+        "DEEPR_MAX_COST_PER_WEEK",
+        "DEEPR_MAX_COST_PER_MONTH",
+        "DEEPR_PER_JOB_LIMIT",
+        "DEEPR_DAILY_LIMIT",
+        "DEEPR_WEEKLY_LIMIT",
+        "DEEPR_MONTHLY_LIMIT"
+      ],
+      "properties": {
+        "DEEPR_DATA_DIR": {"const": "${DEEPR_HOST_DATA}/deepr"},
+        "DEEPR_EXPERTS_PATH": {"const": "${DEEPR_HOST_DATA}/deepr/experts"},
+        "DEEPR_REPORTS_PATH": {"const": "${DEEPR_HOST_DATA}/deepr/reports"},
+        "DEEPR_COST_DATA_DIR": {"const": "${DEEPR_HOST_DATA}/deepr/costs"},
+        "DEEPR_CAPACITY_DATA_DIR": {"const": "${DEEPR_HOST_DATA}/deepr/capacity"},
+        "DEEPR_BUDGET_FILE": {"const": "${DEEPR_HOST_DATA}/deepr/budget.json"},
+        "DEEPR_RESEARCH_MODE": {"const": "read_only"},
+        "DEEPR_MCP_AUTO_APPROVE": {"const": "0"},
+        "DEEPR_MCP_ADVERTISE_FULL_TOOL_LIST": {"const": "1"},
+        "DEEPR_LOG_LEVEL": {"const": "WARNING"},
+        "DEEPR_MAX_COST_PER_JOB": {"const": "0"},
+        "DEEPR_MAX_COST_PER_DAY": {"const": "0"},
+        "DEEPR_MAX_COST_PER_WEEK": {"const": "0"},
+        "DEEPR_MAX_COST_PER_MONTH": {"const": "0"},
+        "DEEPR_PER_JOB_LIMIT": {"const": "0"},
+        "DEEPR_DAILY_LIMIT": {"const": "0"},
+        "DEEPR_WEEKLY_LIMIT": {"const": "0"},
+        "DEEPR_MONTHLY_LIMIT": {"const": "0"}
+      }
+    }
+  }
+}

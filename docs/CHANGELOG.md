@@ -25,9 +25,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   legacy spend ceilings, an exact file manifest, and a deterministic archive
   builder. A clean-install CI gate verifies mode-filtered discovery, JSON-only
   stdout, package immutability, and read-only approval non-bypass.
+- Added `deepr-mcp-host-profile-v1` and `deepr mcp host-profile openclaw`.
+  The deterministic, network-free generator emits a reference-only OpenClaw
+  stable `v2026.7.1-2` configuration with signed tag and source-blob evidence,
+  the exact ten-tool read-only MCP catalog, explicit contained runtime roots,
+  and zero primary and legacy spend ceilings. It cannot install or mutate the
+  host, inspect credentials, grant paid authority, or self-promote a fixture or
+  live-validation claim.
 
 ### Changed
 
+- Refreshed the immutable OKF 0.2 specification pin to the 2026-08-21
+  timestamp clarification. The bounded safe YAML loader now preserves all OKF
+  timestamp scalars exactly as authored instead of coercing and rewriting them,
+  while optional metadata remains permissive under the published conformance
+  rules.
 - Migrated `expert export-okf` to OKF 0.2 structure: concept frontmatter now
   starts on the first line, the root index declares only `okf_version`, logs
   are frontmatter-free and newest-first, `generated.at` replaces legacy
@@ -58,6 +70,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   refreshed host evidence against current official OpenClaw, DeepSeek Harness,
   Grok Build, Grok Bot, NemoClaw, and OpenShell releases. Stable, prerelease,
   fixture-validated, and reference-only claims remain distinct.
+- Removed the legacy OpenClaw `mcpServers` and `autoAllow` templates that also
+  injected provider keys. The MCP guide now points to the pinned, zero-spend
+  `deepr mcp host-profile openclaw` reference and keeps Docker hosting gated
+  until its image, mount, network, and runtime identity are validated.
 
 ### Fixed
 

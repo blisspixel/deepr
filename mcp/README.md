@@ -131,39 +131,28 @@ environment in every template below. Use `deepr_consult_experts` with
 
 ### OpenClaw
 
-Copy `mcp/openclaw-config.json` to your OpenClaw MCP configuration:
+Generate the pinned stable reference instead of copying a hand-maintained
+template:
 
-```json
-{
-  "mcpServers": {
-    "deepr-research": {
-      "command": "python",
-      "args": ["-m", "deepr.mcp.server"],
-      "env": {
-        "OPENAI_API_KEY": "${OPENAI_API_KEY}",
-        "DEEPR_LOG_LEVEL": "INFO",
-        "DEEPR_LOG_FORMAT": "json"
-      },
-      "autoAllow": [
-        "deepr_tool_search", "deepr_status", "deepr_list_experts",
-        "deepr_get_expert_info", "deepr_check_status", "deepr_get_result"
-      ]
-    }
-  }
-}
+```bash
+deepr mcp host-profile openclaw
+deepr mcp host-profile openclaw --output data/openclaw-deepr-profile.json
 ```
 
-The `autoAllow` list includes read-only tools that do not incur costs.
-`deepr_research` requires approval for one exact bounded request.
-`deepr_agentic_research` is execution-blocked in v2.40 and should not be added
-to an approval list. `deepr_query_expert` is no-metered only when the caller
-explicitly selects local or plan capacity; its API backend is gated. For
-no-cost expert synthesis, use `deepr_consult_experts` with
-`synthesis_backend="local"` or `synthesis_backend="plan"` and verify
-`capacity.live_metered_fallback=false`.
-For no-metered trials, omit provider API keys from the MCP server environment.
+Review `config_fragment`, define `DEEPR_HOST_DATA` to an operator-selected
+directory, and merge the fragment into the OpenClaw configuration. The profile
+uses the canonical stable `mcp.servers` and `toolFilter.include` fields, the
+installed `deepr-mcp` entrypoint, the exact ten-tool read-only catalog,
+contained runtime roots, and zero primary and legacy spend ceilings. It does
+not include provider keys.
 
-For Docker deployment, use `mcp/openclaw-docker-config.json` instead.
+The generated artifact is `reference` only. It does not install OpenClaw,
+change host configuration, prove that `deepr-mcp` is installed, validate the
+OpenClaw parser, open a network route, or claim a successful MCP handshake or
+tool call. The former `mcpServers` plus `autoAllow` OpenClaw templates were
+removed because those fields do not match stable `v2026.7.1-2`. A Docker-hosted
+OpenClaw recipe remains gated until its exact image, mount, network, and runtime
+identity are independently validated.
 
 ### Claude Desktop
 
@@ -512,7 +501,9 @@ StdioServer (JSON-RPC transport)
 
 **API key issues:**
 - Verify key in config JSON (no extra quotes/spaces)
-- For OpenClaw, use `${OPENAI_API_KEY}` syntax for env injection
+- The OpenClaw reference profile intentionally contains no provider keys. Adding
+  credentials is a separate, explicitly authorized configuration outside that
+  zero-spend reference.
 - Test with `deepr doctor` from CLI
 
 **"No tools found":**

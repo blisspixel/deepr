@@ -347,7 +347,7 @@ def test_build_okf_ingestion_corpus_accepts_mixed_yaml_mapping_keys(tmp_path):
 
     assert corpus.concept_count == 1
     assert "1: one" in corpus.report_text
-    assert "2026-08-20: dated" in corpus.report_text
+    assert "'2026-08-20': dated" in corpus.report_text
 
 
 def test_build_okf_ingestion_corpus_rejects_bounds_before_parsing(tmp_path, monkeypatch):
