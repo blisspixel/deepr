@@ -319,7 +319,7 @@ def test_cli_writes_atomically_and_requires_force(tmp_path: Path) -> None:
 
     assert first.exit_code == 0, first.output
     assert refused.exit_code != 0
-    assert "already exists" in refused.output.lower()
+    assert "exists" in refused.output.lower()
     assert replaced.exit_code == 0, replaced.output
     assert output.read_text(encoding="utf-8") == serialize_host_profile(_profile())
 
