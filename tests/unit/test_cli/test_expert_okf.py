@@ -55,6 +55,7 @@ def test_export_okf_writes_bundle_json(monkeypatch, tmp_path):
     payload = json.loads(result.output)
     assert payload["concept_count"] == 0
     assert payload["schema_version"] == "deepr-okf-v1"
+    assert payload["okf_version"] == "0.2"
     assert (output / "index.md").exists()
     assert (output / "llms.txt").exists()
 
@@ -123,7 +124,7 @@ def test_absorb_okf_local_dry_run_routes_parsed_text_to_absorber(monkeypatch, tm
 
     assert result.exit_code == 0
     payload = json.loads(result.output)
-    assert payload["okf"]["concept_count"] == 1
+    assert payload["okf"]["concept_count"] == 3
     assert payload["absorption"]["dry_run"] is True
     assert captured["model"] == "qwen-profile"
     assert captured["estimated_cost"] == 0.0

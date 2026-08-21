@@ -147,8 +147,16 @@
       "schema_version": "deepr-okf-profile-v1",
       "kind": "deepr.okf.profile",
       "path": "okf-profile-v1.json",
-      "status": "experimental",
+      "status": "deprecated",
       "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "okf-profile",
+      "schema_version": "deepr-okf-profile-v2",
+      "kind": "deepr.okf.profile",
+      "path": "okf-profile-v2.json",
+      "status": "experimental",
+      "compatibility": "breaking-change-from-v1"
     },
     {
       "name": "mcp-remote-audit",

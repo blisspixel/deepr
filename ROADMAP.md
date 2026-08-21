@@ -482,25 +482,26 @@ what looks appetising.
    2026-07-28 carries bounded runtime requests. None becomes Deepr's authority
    model.
 
-   0. **Pin standards truth and offline fixtures.** Pin the published Agent
-      Plugins 1.0.0 plugin and MCP schemas by canonical identifier and checksum;
-      freeze representative OKF 0.2, Agent Skill, and MCP fixtures; and retain
-      the existing blocking dual-era MCP conformance suite. OKF is a minimal
-      Markdown and YAML specification, not a schema registry, so implement a
-      spec-derived validator instead of inventing a canonical OKF JSON Schema.
-      All validation stays network-free and `$0`.
+   0. **Pin standards truth and offline fixtures.** In progress. The reviewed
+      OKF 0.2 specification revision, checksum, valid bundle, and known-invalid
+      legacy bundle are pinned, and the spec-derived validator runs offline at
+      `$0` without inventing an OKF JSON Schema. Pinning the published working
+      draft Agent Plugins 1.0.0 plugin and MCP schemas, plus representative
+      Agent Skill and MCP fixtures, remains before this foundation gate closes.
+      The existing blocking dual-era MCP conformance suite stays in force.
 
-   1. **Migrate the legacy OKF view to 0.2.** Deepr's current
-      `deepr-okf-profile-v1` export is explicitly nonconformant. Repair it before
-      packaging makes the surface easier to distribute: root `index.md` may
-      declare only `okf_version`, `log.md` uses date-grouped newest-first entries
-      without concept frontmatter, concept frontmatter begins at byte zero,
-      `timestamp` moves to `generated.at`, and provenance moves from a body
-      citations list to `sources`. Preserve permitted unknown extensions and
-      emit `verified`, `status`, `stale_after`, and Attested Computation fields
-      only when canonical Deepr state supports their meaning. Import remains
-      permissive and verification-gated; the belief, event, and edge stores
-      remain authoritative.
+   1. ~~**Migrate the legacy OKF view to 0.2.**~~ **Done 2026-08-20.**
+      `deepr-okf-profile-v2` now restricts root `index.md` frontmatter to
+      `okf_version`, emits a date-grouped newest-first `log.md` without
+      frontmatter, starts concept frontmatter on the first line, replaces
+      `timestamp` with `generated.at`, and maps evidence references into
+      `sources` with stable ids and body footnotes. Unknown types, extensions,
+      omitted optional fields, and broken links remain consumable. `verified`
+      is emitted only for recorded checker assurance; unsupported lifecycle,
+      staleness, and computation claims remain absent. Import is permissive and
+      verification-gated, and the belief, event, and edge stores remain
+      authoritative. The v1 profile schema remains a deprecated compatibility
+      record.
 
    2. **Validate Agent Skills, then ship Deepr as an Agent Plugin.**
       [agent-plugins.org](https://agent-plugins.org/specification) publishes
@@ -2381,73 +2382,11 @@ threat model, evaluation arms, and delivery order are in
 - [ ] **Stage 7, remote surfaces:** expose the stable investigation lifecycle
       over scoped MCP and later A2A only after the CLI and local acceptance gates
       pass. Remote conversation handles do not become investigation authority.
-  - [ ] **Bridge 0, standards truth:** pin published Agent Plugins 1.0.0
-        schemas and representative OKF 0.2, Agent Skill, and MCP 2026-07-28
-        fixtures locally. Build OKF validation from the specification because
-        OKF publishes no schema registry. Keep all conformance checks offline,
-        network-free, and `$0`.
-  - [ ] **Bridge 1, OKF 0.2 migration:** repair reserved files, byte-zero
-        concept frontmatter, `generated.at`, and `sources`; preserve permitted
-        unknown extensions; and prove permissive import, round-trip,
-        regeneration, path containment, and verification-gated absorb. Do this
-        before widening package distribution.
-  - [ ] **Bridge 2, Agent Skill and Agent Plugin packaging:** validate current
-        skill output, then add a schema-pinned stdio-first package containing
-        only Agent Skills and the MCP server. Keep expert data, OKF bundles,
-        credentials, remote routes, and paid authority outside the package.
-        Prove clean install, containment, and reproducibility before host
-        recipes.
-  - [ ] **Bridge 3, contracts and drift audit:** add zero-call host-profile,
-        capability-snapshot, control-evidence, event-page, artifact-metadata,
-        follow-up, and fork-lineage schemas. Resolve the current Grok Build
-        plan-adapter documentation and runtime drift before any Grok execution
-        claim: either restore the execution block or prove the exact admitted
-        skill, agent, MCP, native-tool, filesystem, network, process, output,
-        cancellation, and marginal-cost posture before dispatch.
-  - [ ] **Bridge 4, read-only MCP projection:** expose exact-run status,
-        content-free events after a cursor, and bounded artifact metadata under
-        existing scoped-key ownership. Prove replay equivalence, stable paging,
-        modern per-request negotiation, legacy compatibility, cache metadata,
-        path redaction, malformed-journal failure, cross-run denial, and zero
-        projection writes. Subscriptions may announce cursor movement but never
-        replace canonical reads. An IM-style room is a host view over these
-        events, not Deepr workflow state.
-  - [ ] **Bridge 5, popular host conformance:** prefer the Agent Plugin package
-        for compliant clients; otherwise extend the network-free,
-        token-redacted registration manifest with an observer host profile and
-        exact configuration fragment for OpenClaw, DeepSeek Harness, Grok
-        Build, and Codex. Treat NemoClaw plus OpenShell as a remote reference
-        recipe until scoped HTTP auth, egress, endpoint-cost, and live-evidence
-        gates pass. Generated fragments neither install nor mutate a host. Do
-        not claim direct Grok Bot automation or supported public hosting.
-  - [ ] **Bridge 6, shared parent transaction and remote authority:** put every
-        multi-call or metered lifecycle behind one durable reservation,
-        settlement, reconciliation, cancellation, and maximum-charge contract.
-        Complete scoped HTTP identity, credential aliases, endpoint ownership,
-        rate limits, and independent provider-cost evidence before remote
-        mutation.
-  - [ ] **Bridge 7, lineage-only steering:** add preview-only follow-up and
-        checkpoint-fork requests, then pause, resume, cancel, and remote start
-        only after exact ownership, idempotency, race, audit, argument-hash, and
-        per-key ceiling tests pass. Active plans remain immutable. Learning
-        apply remains a separate scope.
-  - [ ] **Bridge 8, external evidence bundles:** admit bounded, hash-verified,
-        tainted repository and browser artifacts from host-owned workspaces.
-        Deepr does not allocate one computer per expert. Artifact-content reads
-        wait for classification, export policy, size, red-team, and cross-run
-        isolation gates.
-  - [ ] **Bridge 9, optional extensions:** evaluate MCP Tasks only as an adapter
-        over the canonical investigation handle, Skills over MCP only after
-        static skill and plugin packaging stabilizes, and MCP Apps only after a
-        measured projection need. Negotiated multi-round requests may present
-        missing input or approval but cannot create authority.
-  - [ ] Keep actor runtimes, tuple spaces, a general plugin kernel, Temporal,
-        NATS, PostgreSQL task scheduling, Firecracker-per-expert, generated TLA+
-        per research task, and reward-model training out of this phase.
-        Reconsider only against a measured failure of the existing phase state
-        machine, event journal, scoped MCP projection, or held-out quality
-        program. Detailed decision:
-        [external-harness-investigation-bridge.md](docs/design/external-harness-investigation-bridge.md).
+      The dependency-ordered portability work is tracked once in the
+      standards foundation near the top of this roadmap and in the
+      [external harness bridge](docs/design/external-harness-investigation-bridge.md).
+      Stage 7 cannot bypass its package, projection, host-conformance, remote
+      authority, or lineage gates.
 
 - [x] **Live-validation finding, retrieval accounting:** the first local pilot
       counted every fresh-context candidate as a fetched page and could exhaust
@@ -3019,7 +2958,8 @@ Goal: production posture for multi-user and autonomous deployments.
         in `docs/schemas/`.
   - [x] OKF profile: documented mapping from Deepr beliefs/events/edges/gaps to
         OKF concept documents, including which fields are Deepr extensions and
-        which parts are derived views. Published as `deepr-okf-profile-v1`.
+        which parts are derived views. Published as `deepr-okf-profile-v2` for
+        OKF 0.2, with v1 retained as a deprecated compatibility record.
   - [x] Schema registry with backward compatibility guarantees
         (`docs/schemas/registry.json` and `docs/schemas/README.md`).
   - [x] Scheduler JSON contracts for recurring expert maintenance waits and
@@ -3610,7 +3550,7 @@ consumers who will exercise all three. Design:
    manifest counts, bounded claims/gaps, dashboard telemetry, loop-status
    rollup, OKF interchange hints, and an additive compatibility contract.
    JSON Schema is published at `docs/schemas/expert-handoff-v1.json`.
-   `deepr-loop-status-v1`, `deepr-okf-profile-v1`, and
+   `deepr-loop-status-v1`, `deepr-okf-profile-v2` (with deprecated v1), and
    `deepr-mcp-remote-audit-v1`, `deepr-mcp-registration-manifest-v1`,
    `deepr-a2a-task-v1`, `deepr-a2a-host-validation-v1`, and the scheduled
    maintenance schemas in

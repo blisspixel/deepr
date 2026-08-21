@@ -1330,7 +1330,9 @@ their schema version, kind, lifecycle state, cost field, timestamps, or metadata
 drift.
 The adjacent loop-status and OKF mapping contracts are published as
 [schemas/loop-status-v1.json](schemas/loop-status-v1.json) and
-[schemas/okf-profile-v1.json](schemas/okf-profile-v1.json). Hosted MCP
+[schemas/okf-profile-v2.json](schemas/okf-profile-v2.json). The v2 OKF profile
+targets OKF 0.2 while keeping exported Markdown derived and verification-gated.
+Hosted MCP
 remote-audit, scheduled maintenance, capacity, and registry contracts are also
 published under [schemas/](schemas/).
 The MCP HTTP transport also has an experimental scoped-key primitive:

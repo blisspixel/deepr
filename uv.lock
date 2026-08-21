@@ -898,6 +898,8 @@ dependencies = [
     { name = "openai" },
     { name = "pydantic" },
     { name = "python-dotenv" },
+    { name = "pyyaml", marker = "python_full_version != '3.13.*'" },
+    { name = "pyyaml-ft", marker = "python_full_version == '3.13.*'" },
     { name = "requests" },
     { name = "rich" },
 ]
@@ -1024,6 +1026,8 @@ requires-dist = [
     { name = "python-docx", marker = "extra == 'docs'", specifier = ">=0.8.11,<2.0.0" },
     { name = "python-dotenv", specifier = ">=1.0.0,<2.0.0" },
     { name = "python-socketio", marker = "extra == 'web'", specifier = ">=5.10.0,<6.0.0" },
+    { name = "pyyaml", marker = "python_full_version != '3.13.*'", specifier = ">=6.0.3,<7.0.0" },
+    { name = "pyyaml-ft", marker = "python_full_version == '3.13.*'", specifier = ">=8.0.0,<9.0.0" },
     { name = "requests", specifier = ">=2.28.0,<3.0.0" },
     { name = "rich", specifier = ">=13.0.0,<16.0.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.16.0" },

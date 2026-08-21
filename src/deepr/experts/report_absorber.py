@@ -47,6 +47,7 @@ import json
 import logging
 import os
 from collections.abc import Awaitable, Callable, Mapping
+from datetime import UTC, datetime
 from math import isfinite
 from typing import TYPE_CHECKING, Any
 
@@ -622,6 +623,7 @@ class ReportAbsorber:
                 flagged.append(GroundingFlag(belief.claim, verdict.checker_vendor, verdict.reason))
         if verdict.supported is True:
             belief.grounding_assurance = verdict.assurance.value
+            belief.grounding_verified_at = datetime.now(UTC)
         elif verdict.refuted:
             flagged.append(GroundingFlag(belief.claim, verdict.checker_vendor, verdict.reason))
             return False

@@ -13,6 +13,7 @@ assert:
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -1068,6 +1069,7 @@ class TestGroundingCheck:
 
     @pytest.mark.asyncio
     async def test_supported_claim_gets_assurance_stamped(self, tmp_path):
+        checked_after = datetime.now(UTC)
         content = _claims_json({"statement": "X is true", "confidence": 0.9, "evidence": ["e1"]})
         checker = _checker(CheckVerdict(True, CheckAssurance.CROSS_VENDOR, "xai", "stated"))
         absorber = _grounding_absorber(content, tmp_path, checker)
@@ -1075,6 +1077,8 @@ class TestGroundingCheck:
         assert result.grounding_flagged == []
         bel = next(iter(absorber.belief_store.beliefs.values()))
         assert bel.grounding_assurance == "cross_vendor"
+        assert bel.grounding_verified_at is not None
+        assert bel.grounding_verified_at >= checked_after
 
     @pytest.mark.asyncio
     async def test_string_evidence_reaches_checker_as_one_excerpt(self, tmp_path):
@@ -1248,10 +1252,19 @@ async def test_commit_failure_reports_durable_partial_state(tmp_path, monkeypatc
 
 
 def test_belief_grounding_assurance_roundtrips():
-    b = Belief(claim="x", confidence=0.5, grounding_assurance="cross_vendor")
+    verified_at = datetime(2026, 8, 20, 12, 30, tzinfo=UTC)
+    b = Belief(
+        claim="x",
+        confidence=0.5,
+        grounding_assurance="cross_vendor",
+        grounding_verified_at=verified_at,
+    )
     assert b.to_dict()["grounding_assurance"] == "cross_vendor"
-    assert Belief.from_dict(b.to_dict()).grounding_assurance == "cross_vendor"
+    restored = Belief.from_dict(b.to_dict())
+    assert restored.grounding_assurance == "cross_vendor"
+    assert restored.grounding_verified_at == verified_at
     assert b.to_claim().grounding_assurance == "cross_vendor"
     # Legacy beliefs (no field) default to unverified.
     legacy = Belief.from_dict({"claim": "y", "confidence": 0.5})
     assert legacy.grounding_assurance == "unverified"
+    assert legacy.grounding_verified_at is None

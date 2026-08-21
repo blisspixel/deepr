@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from deepr.experts.beliefs import Belief, BeliefStore, ConflictResolution
 from deepr.experts.report_absorber import ReportAbsorber
 
@@ -89,6 +91,89 @@ def test_corroboration_upgrades_trust_class_to_secondary(tmp_path) -> None:
     stored, _ = store.add_belief(second, dedup=True)
     assert stored.trust_class == "secondary"
     assert stored.get_current_confidence() == 0.9
+
+
+def test_exact_claim_corroboration_preserves_strongest_complete_verification(tmp_path) -> None:
+    store = BeliefStore("t", storage_dir=tmp_path / "beliefs")
+    store.conflict_resolution = ConflictResolution.HIGHER_CONFIDENCE
+    older = datetime(2026, 8, 19, tzinfo=UTC)
+    newer = datetime(2026, 8, 20, tzinfo=UTC)
+    store.add_belief(
+        Belief(
+            "Portable claims retain checker provenance",
+            0.7,
+            domain="interop",
+            grounding_assurance="same_vendor_fresh_context",
+            grounding_verified_at=older,
+        )
+    )
+    candidate = Belief(
+        "Portable claims retain checker provenance",
+        0.8,
+        domain="interop",
+        grounding_assurance="cross_vendor",
+        grounding_verified_at=newer,
+    )
+
+    stored, _ = store.add_belief(candidate)
+
+    assert (stored.grounding_assurance, stored.grounding_verified_at) == ("cross_vendor", newer)
+
+
+def test_higher_confidence_does_not_transfer_verification_between_different_claims(tmp_path) -> None:
+    store = BeliefStore("t", storage_dir=tmp_path / "beliefs")
+    store.add_belief(
+        Belief(
+            "The platform supports regulated production workloads in ten regional deployment zones under the current agreement",
+            0.9,
+            domain="capacity",
+            trust_class="secondary",
+        )
+    )
+    checked_at = datetime(2026, 8, 20, tzinfo=UTC)
+    candidate = Belief(
+        "The platform supports regulated staging workloads in ten regional deployment zones under the current agreement",
+        0.7,
+        domain="capacity",
+        trust_class="secondary",
+        grounding_assurance="cross_vendor",
+        grounding_verified_at=checked_at,
+    )
+
+    stored, _ = store.add_belief(candidate)
+
+    assert "production workloads" in stored.claim
+    assert stored.grounding_assurance == "unverified"
+    assert stored.grounding_verified_at is None
+
+
+def test_merge_does_not_transfer_verification_between_different_claims(tmp_path) -> None:
+    store = BeliefStore(
+        "t",
+        storage_dir=tmp_path / "beliefs",
+        conflict_resolution=ConflictResolution.MERGE,
+    )
+    store.add_belief(
+        Belief(
+            "The platform supports regulated production workloads in ten regional deployment zones under the current agreement",
+            0.8,
+            domain="capacity",
+        )
+    )
+    checked_at = datetime(2026, 8, 20, tzinfo=UTC)
+    candidate = Belief(
+        "The platform supports regulated staging workloads in ten regional deployment zones under the current agreement",
+        0.7,
+        domain="capacity",
+        grounding_assurance="cross_vendor",
+        grounding_verified_at=checked_at,
+    )
+
+    stored, _ = store.add_belief(candidate)
+
+    assert "production workloads" in stored.claim
+    assert stored.grounding_assurance == "unverified"
+    assert stored.grounding_verified_at is None
 
 
 def test_report_absorber_respects_trust_class_parameter() -> None:

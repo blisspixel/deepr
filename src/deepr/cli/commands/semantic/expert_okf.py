@@ -131,15 +131,20 @@ def _emit_okf_absorption(profile, corpus, result) -> None:
 @expert.command(name="export-okf")
 @click.argument("name")
 @click.argument("output", type=click.Path(file_okay=False))
-@click.option("--force", is_flag=True, help="Overwrite files that lack the OKF derived-view marker")
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Replace the complete dedicated export root even when ownership or content checks fail",
+)
 @click.option("--llms/--no-llms", "include_llms", default=True, show_default=True, help="Emit llms.txt discovery file")
 @click.option("--json", "json_output", is_flag=True, help="Emit the export result as JSON")
 def export_okf(name: str, output: str, force: bool, include_llms: bool, json_output: bool):
-    """Export an expert as a portable OKF Markdown bundle.
+    """Export an expert as a portable OKF 0.2 Markdown bundle.
 
     The export is a regenerated derived view over the structured belief store,
     event log, typed edges, gaps, and contested claims. It never becomes the
-    source of truth and never spends money.
+    source of truth and never spends money. The output is a dedicated generated
+    directory. Do not store hand maintained files inside it.
 
     EXAMPLES:
       deepr expert export-okf "AI Strategy Expert" ./okf/ai-strategy
@@ -147,6 +152,7 @@ def export_okf(name: str, output: str, force: bool, include_llms: bool, json_out
     """
     from deepr.experts.beliefs import BeliefStore
     from deepr.experts.okf import build_okf_bundle, write_okf_bundle
+    from deepr.experts.okf_contract import OKF_VERSION
     from deepr.experts.profile import ExpertStore
 
     store = ExpertStore()
@@ -172,6 +178,7 @@ def export_okf(name: str, output: str, force: bool, include_llms: bool, json_out
         return
 
     print_header(f"OKF export: {profile.name}")
+    print_key_value("OKF version", OKF_VERSION)
     print_key_value("Output", str(result.output_dir))
     print_key_value("Concepts", str(result.concept_count))
     print_key_value("Gaps", str(result.gap_count))
