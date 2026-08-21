@@ -26,6 +26,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 from typing import Any
 
@@ -65,6 +66,31 @@ def is_verified_assurance(value: str | None) -> bool:
     checker corroborate this claim", never "is this claim true".
     """
     return value in VERIFIED_ASSURANCES
+
+
+def strongest_grounding_event(
+    existing: tuple[str, datetime | None],
+    candidate: tuple[str, datetime | None],
+) -> tuple[str, datetime | None]:
+    """Keep the strongest complete checker event for identical claim text."""
+    rank = {
+        CheckAssurance.CROSS_VENDOR.value: 2,
+        CheckAssurance.SAME_VENDOR_FRESH_CONTEXT.value: 1,
+    }
+    existing_assurance, existing_at = existing
+    candidate_assurance, candidate_at = candidate
+    existing_rank = rank.get(existing_assurance, 0) if existing_at is not None else 0
+    candidate_rank = rank.get(candidate_assurance, 0) if candidate_at is not None else 0
+    if candidate_rank > existing_rank:
+        return candidate
+    if (
+        candidate_rank > 0
+        and candidate_rank == existing_rank
+        and candidate_at is not None
+        and (existing_at is None or candidate_at > existing_at)
+    ):
+        return candidate
+    return existing
 
 
 def assurance_short_label(value: str | None) -> str:

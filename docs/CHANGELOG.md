@@ -7,10 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added a network-free, `$0` OKF 0.2 conformance validator backed by a pinned
+  official specification revision, checksum, conformant fixture, and
+  known-invalid legacy fixture. Validation enforces only published mechanical
+  rules and continues to accept unknown types, unknown extension fields,
+  omitted optional metadata, and broken links.
+- Published `deepr-okf-profile-v2` for the current OKF 0.2 derived-view
+  mapping. The v1 schema remains available as a deprecated compatibility
+  record.
+
 ### Changed
 
+- Migrated `expert export-okf` to OKF 0.2 structure: concept frontmatter now
+  starts on the first line, the root index declares only `okf_version`, logs
+  are frontmatter-free and newest-first, `generated.at` replaces legacy
+  timestamps, and stored evidence becomes `sources` with stable provenance
+  ids. Recorded checker assurance may emit `verified`; unsupported lifecycle,
+  staleness, and computation claims remain absent. Import now parses full safe
+  YAML and treats every non-reserved Markdown document as an untrusted concept
+  before the existing verification-gated absorb path.
+- Made OKF export a complete transaction over a dedicated generated directory.
+  An exact path and content manifest, bounded parser inputs, portable path
+  checks, sibling staging, link-safe cleanup, and a recoverable directory swap
+  prevent partial publication, stale derived files, and accidental ownership of
+  hand-maintained content. `--force` now explicitly replaces the complete
+  export root.
+- Advanced export-validation reports to `deepr-export-validation-v2` for the
+  OKF 0.2 form-check contract. Existing handoff and Agent Skill validation
+  behavior is unchanged.
 - Refined the external-harness roadmap against OKF 0.2, the published Agent
-  Plugins 1.0.0 specification, Agent Skills, and MCP 2026-07-28. The dependency
+  Plugins 1.0.0 working draft, Agent Skills, and MCP 2026-07-28. The dependency
   order now repairs knowledge interchange before plugin packaging, proves
   read-only MCP projection before control, and gates remote or metered actions
   behind Deepr's canonical identity, evidence, budget, and approval contracts.

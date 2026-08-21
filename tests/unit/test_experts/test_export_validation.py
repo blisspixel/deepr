@@ -12,7 +12,7 @@ from deepr.experts.export_validation import (
     validate_export,
 )
 from deepr.experts.handoff import HANDOFF_KIND, HANDOFF_SCHEMA_VERSION
-from deepr.experts.okf import OKF_SCHEMA_VERSION
+from deepr.experts.okf_contract import OKF_VERSION
 
 
 def _valid_handoff_payload() -> dict:
@@ -87,32 +87,36 @@ class TestHandoffValidation:
 
 
 class TestOkfValidation:
-    def test_bundle_with_known_frontmatter_passes(self, tmp_path):
+    def test_okf_0_2_bundle_with_unknown_extensions_and_broken_link_passes(self, tmp_path):
         bundle = tmp_path / "okf"
         bundle.mkdir()
-        for name in ("index.md", "log.md"):
-            (bundle / name).write_text(
-                f"---\nschema_version: {OKF_SCHEMA_VERSION}\n---\n\n# {name}\n",
-                encoding="utf-8",
-            )
+        (bundle / "index.md").write_text(f'---\nokf_version: "{OKF_VERSION}"\n---\n# Index\n', encoding="utf-8")
+        (bundle / "log.md").write_text("# Log\n\n## 2026-08-20\n\n* **Creation**: Added concept.\n", encoding="utf-8")
+        (bundle / "concept.md").write_text(
+            "---\ntype: Unregistered Type\nproducer_extension:\n  nested: true\n---\n\nSee [future](missing.md).\n",
+            encoding="utf-8",
+        )
 
         report = validate_export(bundle)
 
         assert report["artifact_class"] == "okf_bundle"
         assert report["status"] == "valid"
 
-    def test_bundle_with_unknown_schema_version_fails(self, tmp_path):
+    def test_legacy_reserved_frontmatter_fails_okf_0_2_conformance(self, tmp_path):
         bundle = tmp_path / "okf"
         bundle.mkdir()
-        (bundle / "index.md").write_text("---\nschema_version: something-else\n---\n\n# index\n", encoding="utf-8")
-        (bundle / "log.md").write_text(f"---\nschema_version: {OKF_SCHEMA_VERSION}\n---\n\n# log\n", encoding="utf-8")
+        (bundle / "index.md").write_text(
+            "---\ntype: deepr.okf.index\ntimestamp: 2026-08-20T00:00:00Z\n---\n\n# Index\n",
+            encoding="utf-8",
+        )
+        (bundle / "log.md").write_text("---\ntype: deepr.okf.log\n---\n\n# Log\n", encoding="utf-8")
 
         report = validate_export(bundle)
 
         checks = _checks_by_name(report)
         assert report["status"] == "invalid"
-        assert checks["frontmatter_schema_versions"]["status"] == "fail"
-        assert "index.md" in checks["frontmatter_schema_versions"]["detail"]
+        assert checks["okf_0_2_conformance"]["status"] == "fail"
+        assert "index.md" in checks["okf_0_2_conformance"]["detail"]
 
 
 class TestSkillValidation:

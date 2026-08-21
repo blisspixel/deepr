@@ -15,16 +15,28 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from deepr.experts.belief_edges import Edge
 from deepr.experts.beliefs import Belief, BeliefChange, BeliefStore
+from deepr.experts.maker_checker import CheckAssurance, is_verified_assurance
+from deepr.experts.okf_contract import (
+    OKF_VERSION,
+    parse_markdown_frontmatter,
+    read_bounded_markdown_bundle,
+    validate_okf_documents,
+)
+from deepr.experts.okf_publication import publish_okf_directory
 from deepr.experts.perspective import contested as contested_query
 from deepr.experts.record_time import parse_iso
 
 OKF_SCHEMA_VERSION = "deepr-okf-v1"
-OKF_PROFILE_SCHEMA_VERSION = "deepr-okf-profile-v1"
+OKF_PROFILE_SCHEMA_VERSION = "deepr-okf-profile-v2"
+OKF_PROFILE_SCHEMA_PATH = "docs/schemas/okf-profile-v2.json"
 OKF_MARKER = "deepr:okf derived-view regenerable"
+OKF_GENERATOR_ACTOR = "process:deepr-export-okf"
 
-_HTML_BANNER = f"<!-- {OKF_MARKER} -->\n<!-- DERIVED VIEW - do not hand-edit. The belief store is canonical. -->\n"
+_HTML_BANNER = f"<!-- {OKF_MARKER} -->\n<!-- DERIVED VIEW - do not hand-edit. The belief store is canonical. -->"
 _SLUG_CHARS = re.compile(r"[^a-z0-9]+")
 
 
@@ -62,6 +74,7 @@ class OKFWriteResult:
             "contested_count": self.contested_count,
             "as_of": self.as_of,
             "schema_version": OKF_SCHEMA_VERSION,
+            "okf_version": OKF_VERSION,
         }
 
 
@@ -90,14 +103,26 @@ def _aware(value: datetime | None) -> datetime | None:
     return value if value.tzinfo else value.replace(tzinfo=UTC)
 
 
-def _as_of(store: BeliefStore, events: list[BeliefChange]) -> str:
+def _append_aware(timestamps: list[datetime], value: datetime | None) -> None:
+    timestamp = _aware(value)
+    if timestamp is not None:
+        timestamps.append(timestamp)
+
+
+def _as_of(profile: Any, store: BeliefStore, manifest: Any, events: list[BeliefChange]) -> str:
     timestamps: list[datetime] = []
+    for value in (getattr(profile, "created_at", None), getattr(profile, "updated_at", None)):
+        _append_aware(timestamps, value)
     for event in events:
-        if (timestamp := _aware(event.timestamp)) is not None:
-            timestamps.append(timestamp)
+        _append_aware(timestamps, event.timestamp)
     for belief in store.beliefs.values():
-        if (timestamp := _aware(belief.updated_at)) is not None:
-            timestamps.append(timestamp)
+        for value in (belief.updated_at, belief.grounding_verified_at):
+            _append_aware(timestamps, value)
+    for edge in store.edges.values():
+        _append_aware(timestamps, edge.created_at)
+    for gap in list(getattr(manifest, "gaps", []) or []):
+        for value in (getattr(gap, "identified_at", None), getattr(gap, "filled_at", None)):
+            _append_aware(timestamps, value)
     if not timestamps:
         return "never"
     return max(timestamps).isoformat()
@@ -125,53 +150,60 @@ def _frontmatter(fields: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _parse_frontmatter_value(value: str) -> Any:
-    value = value.strip()
-    if not value:
-        return ""
-    try:
-        return json.loads(value)
-    except json.JSONDecodeError:
-        return value.strip("\"'")
-
-
 def _split_frontmatter(text: str) -> tuple[dict[str, Any], str]:
-    lines = text.splitlines()
-    start = 0
-    while start < len(lines):
-        stripped = lines[start].strip()
-        if not stripped or stripped.startswith("<!--"):
-            start += 1
-            continue
-        break
-    if start >= len(lines) or lines[start].strip() != "---":
+    parsed = parse_markdown_frontmatter(text, allow_leading_comments=True)
+    if parsed.error:
         return {}, text
-
-    end = start + 1
-    while end < len(lines) and lines[end].strip() != "---":
-        end += 1
-    if end >= len(lines):
-        return {}, text
-
-    fields: dict[str, Any] = {}
-    for line in lines[start + 1 : end]:
-        if ":" not in line:
-            continue
-        key, value = line.split(":", 1)
-        fields[key.strip()] = _parse_frontmatter_value(value)
-    return fields, "\n".join(lines[end + 1 :]).strip()
+    return {str(key): value for key, value in parsed.fields.items()}, parsed.body
 
 
 def _doc(fields: dict[str, Any], body: list[str]) -> str:
-    return "\n".join([_HTML_BANNER + _frontmatter(fields), "", *body, ""])
+    return "\n".join([_frontmatter(fields), _HTML_BANNER, "", *body, ""])
 
 
 def _md_escape(value: str) -> str:
-    return value.replace("[", "\\[").replace("]", "\\]")
+    normalized = " ".join(str(value).split())
+    return normalized.replace("[", "\\[").replace("]", "\\]")
+
+
+def _md_code(value: str) -> str:
+    return _md_escape(value).replace("`", "'")
 
 
 def _fmt_num(value: float) -> str:
     return f"{value:.3f}".rstrip("0").rstrip(".")
+
+
+def _generated(at: str) -> dict[str, str]:
+    generated = {"by": OKF_GENERATOR_ACTOR}
+    if parse_iso(at) is not None:
+        generated["at"] = at
+    return generated
+
+
+def _source_entries(evidence_refs: list[str]) -> list[dict[str, str]]:
+    entries: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for raw_ref in evidence_refs:
+        resource = str(raw_ref).strip()
+        if not resource or resource in seen:
+            continue
+        seen.add(resource)
+        source_id = f"source-{sha256(resource.encode('utf-8')).hexdigest()[:12]}"
+        entries.append({"id": source_id, "resource": resource})
+    return entries
+
+
+def _verification_event(belief: Belief) -> dict[str, str] | None:
+    assurance = str(belief.grounding_assurance or "")
+    verified_at = _aware(belief.grounding_verified_at)
+    if not is_verified_assurance(assurance) or verified_at is None:
+        return None
+    actor = {
+        CheckAssurance.CROSS_VENDOR.value: "process:deepr-cross-vendor-checker",
+        CheckAssurance.SAME_VENDOR_FRESH_CONTEXT.value: "process:deepr-fresh-context-checker",
+    }[assurance]
+    return {"by": actor, "at": verified_at.isoformat()}
 
 
 def _moment(as_of: str) -> datetime | None:
@@ -231,22 +263,6 @@ def _build_index(
     beliefs = _sorted_beliefs(store, as_of)
     gaps = list(getattr(manifest, "gaps", []) or [])
     contested = contested_query(store, expert_name=str(profile.name))
-    fields = {
-        "type": "deepr.okf.index",
-        "title": str(profile.name),
-        "description": str(getattr(profile, "description", "") or ""),
-        "tags": [str(getattr(profile, "domain", "") or "general")],
-        "timestamp": as_of,
-        "deepr": {
-            "schema_version": OKF_SCHEMA_VERSION,
-            "source_expert": str(profile.name),
-            "belief_count": len(beliefs),
-            "edge_count": len(store.edges),
-            "gap_count": len(gaps),
-            "event_count": len(events),
-            "contested_count": int(contested.get("open_count", 0) or 0),
-        },
-    }
     body = [
         f"# {profile.name}",
         "",
@@ -289,7 +305,7 @@ def _build_index(
             f'- `deepr expert contested "{profile.name}"`',
         ]
     )
-    return _doc(fields, body)
+    return "\n".join([_frontmatter({"okf_version": OKF_VERSION}), _HTML_BANNER, "", *body, ""])
 
 
 def _build_concept(
@@ -301,12 +317,13 @@ def _build_concept(
 ) -> str:
     updated_at = _aware(belief.updated_at)
     created_at = _aware(belief.created_at)
-    fields = {
+    sources = _source_entries(belief.evidence_refs)
+    fields: dict[str, Any] = {
         "type": "deepr.okf.concept",
         "title": belief.claim,
         "description": belief.claim,
         "tags": [belief.domain or "general", belief.source_type, belief.trust_class],
-        "timestamp": updated_at.isoformat() if updated_at else as_of,
+        "generated": _generated(as_of),
         "deepr": {
             "schema_version": OKF_SCHEMA_VERSION,
             "source_expert": str(profile.name),
@@ -316,15 +333,21 @@ def _build_concept(
             "trust_class": belief.trust_class,
             "source_type": belief.source_type,
             "evidence_refs": list(belief.evidence_refs),
+            "grounding_assurance": belief.grounding_assurance,
             "contradictions_with": list(belief.contradictions_with),
         },
     }
+    if sources:
+        fields["sources"] = sources
+    if verification := _verification_event(belief):
+        fields["verified"] = verification
+    citation_marks = "".join(f"[^{source['id']}]" for source in sources)
     body = [
-        f"# {belief.claim}",
+        f"# {_md_escape(belief.claim)}",
         "",
         "## Claim",
         "",
-        belief.claim,
+        f"{_md_escape(belief.claim)}{citation_marks}",
         "",
         "## State",
         "",
@@ -336,13 +359,13 @@ def _build_concept(
         f"- Created: {created_at.isoformat() if created_at else ''}",
         f"- Updated: {updated_at.isoformat() if updated_at else ''}",
         "",
-        "## Citations",
+        "## Provenance",
         "",
     ]
-    if belief.evidence_refs:
-        body.extend(f"- `{ref}`" for ref in belief.evidence_refs)
+    if sources:
+        body.extend(f"- `{source['id']}`: `{_md_code(source['resource'])}`" for source in sources)
     else:
-        body.append("- No citation references recorded.")
+        body.append("- No source references recorded.")
 
     edges = sorted(
         store.edges_for(belief.id),
@@ -354,6 +377,9 @@ def _build_concept(
         body.extend(_edge_line(edge, belief.id, paths_by_id, beliefs_by_id) for edge in edges)
     else:
         body.append("- No typed edges recorded.")
+    if sources:
+        body.append("")
+        body.extend(f"[^{source['id']}]: {_md_escape(source['resource'])}" for source in sources)
     body.extend(["", "[Back to index](../index.md)"])
     return _doc(fields, body)
 
@@ -373,7 +399,7 @@ def _build_gaps(profile: Any, manifest: Any, as_of: str) -> str:
         "title": f"{profile.name} knowledge gaps",
         "description": "Open and filled knowledge gaps exported from the Deepr expert manifest.",
         "tags": [str(getattr(profile, "domain", "") or "general"), "gaps"],
-        "timestamp": as_of,
+        "generated": _generated(as_of),
         "deepr": {
             "schema_version": OKF_SCHEMA_VERSION,
             "source_expert": str(profile.name),
@@ -416,7 +442,7 @@ def _build_contested(profile: Any, store: BeliefStore, as_of: str) -> str:
         "title": f"{profile.name} contested claims",
         "description": "Recorded contradiction candidates exported with verification provenance.",
         "tags": [str(getattr(profile, "domain", "") or "general"), "contested"],
-        "timestamp": as_of,
+        "generated": _generated(as_of),
         "deepr": {
             "schema_version": OKF_SCHEMA_VERSION,
             "source_expert": str(profile.name),
@@ -448,35 +474,39 @@ def _build_contested(profile: Any, store: BeliefStore, as_of: str) -> str:
     return _doc(fields, body)
 
 
-def _build_log(profile: Any, events: list[BeliefChange], as_of: str, paths_by_id: dict[str, str]) -> str:
-    fields = {
-        "type": "deepr.okf.log",
-        "title": f"{profile.name} belief change log",
-        "description": "Append-only belief event log exported as a portable Markdown view.",
-        "tags": [str(getattr(profile, "domain", "") or "general"), "log"],
-        "timestamp": as_of,
-        "deepr": {
-            "schema_version": OKF_SCHEMA_VERSION,
-            "source_expert": str(profile.name),
-            "event_count": len(events),
-        },
-    }
-    body = ["# Change Log", ""]
+def _build_log(events: list[BeliefChange], as_of: str, paths_by_id: dict[str, str]) -> str:
+    body = ["# Change Log", "", _HTML_BANNER, ""]
     if not events:
         body.append("No belief events recorded.")
-        return _doc(fields, body)
+        return "\n".join([*body, ""])
 
-    for event in sorted(events, key=lambda change: _aware(change.timestamp) or datetime.min.replace(tzinfo=UTC)):
+    current_date = ""
+    ordered_events = sorted(
+        events,
+        key=lambda change: _aware(change.timestamp) or datetime.min.replace(tzinfo=UTC),
+        reverse=True,
+    )
+    for event in ordered_events:
         event_time = _aware(event.timestamp)
-        timestamp = event_time.isoformat() if event_time else ""
+        event_date = (
+            event_time.date().isoformat()
+            if event_time
+            else (_moment(as_of) or datetime.min.replace(tzinfo=UTC)).date().isoformat()
+        )
+        if event_date != current_date:
+            if current_date:
+                body.append("")
+            body.extend([f"## {event_date}", ""])
+            current_date = event_date
         concept_path = paths_by_id.get(event.belief_id)
         belief_ref = f"[`{event.belief_id}`]({concept_path})" if concept_path else f"`{event.belief_id}`"
-        body.append(f"- {timestamp} `{event.change_type}` {belief_ref}: {event.new_claim or event.old_claim}")
+        change_label = _md_escape(str(event.change_type).replace("_", " ").title())
+        body.append(f"* **{change_label}**: {belief_ref} - {_md_escape(event.new_claim or event.old_claim)}")
         if event.reason:
-            body.append(f"  - Reason: {event.reason}")
+            body.append(f"  * Reason: {_md_escape(event.reason)}")
         if event.evidence:
-            body.append(f"  - Evidence: `{event.evidence}`")
-    return _doc(fields, body)
+            body.append(f"  * Evidence: `{_md_code(event.evidence)}`")
+    return "\n".join([*body, ""])
 
 
 def _build_llms(profile: Any, bundle_name: str) -> str:
@@ -499,29 +529,38 @@ def _build_llms(profile: Any, bundle_name: str) -> str:
     )
 
 
-def _iter_markdown_files(path: Path) -> tuple[Path, list[Path]]:
-    root = path.resolve()
-    if root.is_file():
-        return root.parent, [root]
-    if root.is_dir():
-        return root, sorted(root.rglob("*.md"))
-    raise ValueError(f"OKF path not found: {path}")
-
-
 def _is_concept_doc(relative_path: str, fields: dict[str, Any]) -> bool:
-    doc_type = str(fields.get("type", ""))
-    return doc_type.endswith(".concept") or relative_path.startswith("concepts/")
+    return Path(relative_path).name not in {"index.md", "log.md"} and bool(str(fields.get("type", "") or "").strip())
+
+
+def _okf_ingestion_error(violations: tuple[Any, ...]) -> ValueError:
+    detail = "; ".join(
+        f"{violation.path} [{violation.code}]: {violation.detail}"
+        for violation in sorted(
+            violations,
+            key=lambda item: (item.path, item.code, item.detail),
+        )
+    )
+    return ValueError(f"Cannot ingest OKF bundle: {detail}")
 
 
 def build_okf_ingestion_corpus(path: Path) -> OKFIngestionCorpus:
     """Parse OKF concept Markdown into source text for ReportAbsorber."""
-    base, markdown_files = _iter_markdown_files(path)
+    bundle_read = read_bounded_markdown_bundle(path)
+    if bundle_read.violations:
+        raise _okf_ingestion_error(bundle_read.violations)
+    if bundle_read.root is None:
+        raise ValueError(f"Cannot ingest OKF bundle: {path} [path_unreadable]: no bundle root")
+
+    base = bundle_read.root
+    content_validation = validate_okf_documents(dict(bundle_read.documents))
+    if content_validation.violations:
+        raise _okf_ingestion_error(content_validation.violations)
+
     concepts: list[tuple[str, dict[str, Any], str]] = []
     digest = sha256()
 
-    for file_path in markdown_files:
-        text = file_path.read_text(encoding="utf-8", errors="replace")
-        relative_path = file_path.resolve().relative_to(base).as_posix()
+    for relative_path, text in bundle_read.documents:
         fields, body = _split_frontmatter(text)
         if not _is_concept_doc(relative_path, fields):
             continue
@@ -554,8 +593,8 @@ def build_okf_ingestion_corpus(path: Path) -> OKFIngestionCorpus:
                 f"Source file: {relative_path}",
                 "",
                 "Frontmatter:",
-                "```json",
-                json.dumps(fields, indent=2, sort_keys=True),
+                "```yaml",
+                yaml.safe_dump(fields, allow_unicode=True, sort_keys=False).strip(),
                 "```",
                 "",
                 "Body:",
@@ -583,7 +622,7 @@ def build_okf_bundle(
     """Build a deterministic OKF bundle from structured expert state."""
     resolved_manifest = manifest if manifest is not None else profile.get_manifest()
     events = store.iter_events() if store.has_event_log else list(store.changes)
-    as_of = _as_of(store, events)
+    as_of = _as_of(profile, store, resolved_manifest, events)
     beliefs = _sorted_beliefs(store, as_of)
     paths_by_id = {belief.id: _concept_path(belief) for belief in beliefs}
     contested = contested_query(store, expert_name=str(profile.name))
@@ -592,7 +631,7 @@ def build_okf_bundle(
         "index.md": _build_index(profile, store, resolved_manifest, paths_by_id, as_of, events),
         "gaps.md": _build_gaps(profile, resolved_manifest, as_of),
         "contested.md": _build_contested(profile, store, as_of),
-        "log.md": _build_log(profile, events, as_of, paths_by_id),
+        "log.md": _build_log(events, as_of, paths_by_id),
     }
     for belief in beliefs:
         files[paths_by_id[belief.id]] = _build_concept(profile, belief, store, paths_by_id, as_of)
@@ -610,31 +649,27 @@ def build_okf_bundle(
 
 
 def write_okf_bundle(bundle: OKFBundle, output_dir: Path, *, force: bool = False) -> OKFWriteResult:
-    """Write an OKF bundle, refusing to overwrite hand-edited files."""
-    root = output_dir.resolve()
-    root.mkdir(parents=True, exist_ok=True)
+    """Publish a complete, dedicated OKF export root.
 
-    targets: list[tuple[str, Path, str]] = []
-    for relative_path, content in bundle.files.items():
-        target = (root / relative_path).resolve()
-        try:
-            target.relative_to(root)
-        except ValueError as exc:
-            raise ValueError(f"Invalid bundle path: {relative_path}") from exc
-        if target.exists() and OKF_MARKER not in target.read_text(encoding="utf-8", errors="replace") and not force:
-            raise ValueError(
-                f"{target} exists without the OKF derived-view marker. "
-                "Use --force only when you intend to replace a hand-edited file."
-            )
-        targets.append((relative_path, target, content))
+    Existing output must match the exact path and content hashes in its Deepr
+    publication manifest. ``force`` replaces the complete export root, so the
+    caller must not use this destination for hand maintained content.
+    """
+    validation = validate_okf_documents(bundle.files)
+    if not validation.valid:
+        detail = "; ".join(
+            f"{violation.path} [{violation.code}]: {violation.detail}" for violation in validation.violations[:5]
+        )
+        raise ValueError(f"Generated bundle does not conform to OKF {OKF_VERSION}: {detail}")
+    unowned = [relative_path for relative_path, content in bundle.files.items() if OKF_MARKER not in content]
+    if unowned:
+        raise ValueError(f"Generated bundle files lack the Deepr ownership marker: {', '.join(sorted(unowned))}")
 
-    for _, target, content in targets:
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content, encoding="utf-8")
+    root = publish_okf_directory(bundle.files, output_dir, force=force, okf_version=OKF_VERSION)
 
     return OKFWriteResult(
         output_dir=root,
-        files=[relative_path for relative_path, _, _ in targets],
+        files=sorted(bundle.files),
         concept_count=bundle.concept_count,
         gap_count=bundle.gap_count,
         event_count=bundle.event_count,

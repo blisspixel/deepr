@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.49.1 current main, 2026-08-13. This document defines what users and host
+Status: v2.49.2 current main, 2026-08-20. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -245,11 +245,19 @@ must not be described as usable capacity.
   payloads preserve per-claim `grounding_assurance` and include verified-claim
   counts by assurance level. The verdict is model judgment; vendor diversity and
   spend gates are deterministic routing requirements.
-- Deepr OKF-profile export and absorb paths. Export is a legacy OKF-style
-  derived view under `deepr-okf-profile-v1`, not a claim of conformance to the
-  current external OKF 0.2 specification. Absorb reads concept Markdown as an
-  ingestion source and still passes every candidate through verified
-  extraction.
+- Deepr OKF 0.2 profile export and absorb paths. Export targets the published
+  hard bundle rules through `deepr-okf-profile-v2`: concept frontmatter starts
+  on the first line with a non-empty `type`, the root index declares
+  `okf_version: "0.2"`, and the reserved log is frontmatter-free and grouped
+  newest first. The `$0` validator uses pinned offline fixtures and accepts
+  unknown concept types, unknown extension keys, omitted optional fields, and
+  broken links as the specification requires. Generated bundles remain
+  derived views over canonical expert state. `sources` comes from stored
+  evidence references, and `verified` appears only for recorded grounding
+  assurance that reflects an actual checker. Absorb treats every non-reserved
+  Markdown file as an untrusted concept ingestion source and still passes each
+  candidate through verified extraction. OKF computation execution and runtime
+  attestation are not shipped.
 - Indirect prompt-injection boundaries for fresh retrieval context, report
   absorption, first-party tool findings, local document review previews,
   campaign context summarization, completed-research review, company-intelligence
@@ -634,15 +642,15 @@ must not be described as usable capacity.
   marginal-cost, or process-safety gates.
 - Multi-account capacity pools are planned after a single-account mechanism is
   complete.
-- Agent Plugin 1.0.0 packaging is planned against the current published
-  specification at <https://agent-plugins.org/specification>. A future package
+- Agent Plugin 1.0.0 packaging is planned against the published working draft
+  at <https://agent-plugins.org/specification>. A future package
   must keep code, skills, MCP declarations, configuration, and secrets inside
   their correct containment and authority boundaries. No Agent Plugin package
-  or conformance claim ships in v2.49.
-- OKF 0.2 migration is planned against
-  <https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf>.
-  Existing Deepr OKF-profile bundles remain derived legacy views, and import
-  remains verification-gated. They are not OKF 0.2 conformance claims.
+  or conformance claim ships yet.
+- OKF 0.2 export and offline form validation ship under
+  `deepr-okf-profile-v2`. Import remains permissive, untrusted, and
+  verification-gated. Runtime computation execution and attestation do not
+  ship.
 - Live hosted-agent registration smoke against a real third-party platform is
   still open.
 - A long-running A2A conversation mapping is not shipped. MCP query and consult

@@ -418,10 +418,11 @@ def test_loop_status_schema_validates_rollup_payload(tmp_path):
     assert payload["runs"][0]["stop_reason"] == "verifier_passed"
 
 
-def test_okf_profile_schema_validates_mapping_payload():
+def test_okf_0_2_profile_schema_validates_mapping_payload():
     payload: dict[str, Any] = {
-        "schema_version": "deepr-okf-profile-v1",
+        "schema_version": "deepr-okf-profile-v2",
         "kind": "deepr.okf.profile",
+        "okf_version": "0.2",
         "contract": {
             "read_only": True,
             "cost_usd": 0.0,
@@ -429,7 +430,7 @@ def test_okf_profile_schema_validates_mapping_payload():
             "compatibility": {
                 "additive_fields": True,
                 "breaking_changes_require_new_schema_version": True,
-                "deprecation_policy": "Additive fields only within v1.",
+                "deprecation_policy": "Additive fields only within v2.",
             },
         },
         "derived_view": {
@@ -440,37 +441,43 @@ def test_okf_profile_schema_validates_mapping_payload():
         "documents": {
             "index": {
                 "path_pattern": "index.md",
-                "frontmatter_type": "deepr.okf.index",
+                "role": "root_index",
+                "frontmatter": "okf_version_only",
                 "source": "expert profile, belief store, manifest summary",
             },
             "concept": {
                 "path_pattern": "concepts/{domain}-{belief_id}.md",
-                "frontmatter_type": "deepr.okf.concept",
+                "role": "concept",
+                "frontmatter": "required_type",
                 "source": "beliefs plus typed edges",
             },
             "gaps": {
                 "path_pattern": "gaps.md",
-                "frontmatter_type": "deepr.okf.gaps",
+                "role": "concept",
+                "frontmatter": "required_type",
                 "source": "expert manifest gaps",
             },
             "contested": {
                 "path_pattern": "contested.md",
-                "frontmatter_type": "deepr.okf.contested",
+                "role": "concept",
+                "frontmatter": "required_type",
                 "source": "contradicts edges",
             },
             "log": {
                 "path_pattern": "log.md",
-                "frontmatter_type": "deepr.okf.log",
+                "role": "update_log",
+                "frontmatter": "none",
                 "source": "belief event log",
             },
             "llms": {
                 "path_pattern": "llms.txt",
-                "frontmatter_type": "none",
+                "role": "discovery",
+                "frontmatter": "not_applicable",
                 "source": "bundle discovery hints",
             },
         },
         "field_mapping": {
-            "profile": {"source": "ExpertProfile", "target": "index frontmatter and body", "authority": "derived"},
+            "profile": {"source": "ExpertProfile", "target": "index body", "authority": "derived"},
             "beliefs": {"source": "BeliefStore.beliefs", "target": "concept documents", "authority": "derived"},
             "events": {"source": "BeliefStore event log", "target": "log.md", "authority": "derived"},
             "edges": {"source": "BeliefStore.edges", "target": "concept relations", "authority": "derived"},
@@ -483,7 +490,7 @@ def test_okf_profile_schema_validates_mapping_payload():
             "marker": "deepr:okf derived-view regenerable",
         },
     }
-    schema = _load_schema("okf-profile-v1.json")
+    schema = _load_schema("okf-profile-v2.json")
 
     _validate(schema, payload)
     assert payload["derived_view"]["authoritative"] is False

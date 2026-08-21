@@ -52,7 +52,8 @@ and recomputes the full report, including the fixture and linked input hashes.
 | `deepr-metacognitive-monitor-v1` | [metacognitive-monitor-v1.json](metacognitive-monitor-v1.json) | Read-only reviewed proposals from self-model, loop-run, and consult-trace evidence |
 | `deepr-metacognitive-promotion-v1` | [metacognitive-promotion-v1.json](metacognitive-promotion-v1.json) | Preview or applied result for reviewed monitor proposal promotion into gap or eval artifacts |
 | `deepr-loop-status-v1` | [loop-status-v1.json](loop-status-v1.json) | Durable loop status rollup and embedded `ExpertLoopRun` records with optional run context |
-| `deepr-okf-profile-v1` | [okf-profile-v1.json](okf-profile-v1.json) | Mapping from Deepr structured expert state to regenerated OKF Markdown bundles |
+| `deepr-okf-profile-v1` | [okf-profile-v1.json](okf-profile-v1.json) | Deprecated mapping for the legacy Deepr OKF-style bundle |
+| `deepr-okf-profile-v2` | [okf-profile-v2.json](okf-profile-v2.json) | OKF 0.2 mapping from canonical Deepr expert state to regenerated Markdown bundles |
 | `deepr-mcp-remote-audit-v1` | [mcp-remote-audit-v1.json](mcp-remote-audit-v1.json) | Append-only scoped-key remote MCP tool-call audit events |
 | `deepr-mcp-registration-manifest-v1` | [mcp-registration-manifest-v1.json](mcp-registration-manifest-v1.json) | Token-redacted hosted MCP endpoint registration metadata plus optional smoke results |
 | `deepr-a2a-task-v1` | [a2a-task-v1.json](a2a-task-v1.json) | Agent-to-agent task state envelope for A2A create, status, cancel, result responses, and attached task artifacts |

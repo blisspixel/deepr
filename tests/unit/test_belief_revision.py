@@ -267,6 +267,23 @@ class TestBeliefStore:
         assert change.new_claim == "New claim"
         assert store.beliefs[added.id].claim == "New claim"
 
+    def test_revise_belief_clears_verification_for_changed_claim(self, tmp_path):
+        store = BeliefStore(expert_name="test", storage_dir=tmp_path / "beliefs")
+        checked_at = datetime(2026, 8, 20, tzinfo=UTC)
+        belief = Belief(
+            claim="Old verified claim",
+            confidence=0.8,
+            grounding_assurance="cross_vendor",
+            grounding_verified_at=checked_at,
+        )
+        added, _ = store.add_belief(belief)
+
+        store.revise_belief(added.id, "Changed claim", 0.8, "New evidence")
+
+        revised = store.beliefs[added.id]
+        assert revised.grounding_assurance == "unverified"
+        assert revised.grounding_verified_at is None
+
     def test_archive_belief(self, tmp_path):
         """Test archiving a belief."""
         store = BeliefStore(expert_name="test", storage_dir=tmp_path / "beliefs")

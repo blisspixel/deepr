@@ -16,6 +16,7 @@ from urllib.parse import urlsplit
 
 from deepr.experts import mutation_audit as audit
 from deepr.experts.belief_edges import EDGE_TYPES, Edge, normalized_edge_temporal_context
+from deepr.experts.maker_checker import strongest_grounding_event
 
 logger = logging.getLogger(__name__)
 
@@ -122,14 +123,12 @@ class Belief:
     # "secondary" (official / first-party tools), or "tertiary" (web / research
     # syntheses; the default, and the retroactive default for legacy beliefs).
     trust_class: str = "tertiary"
-    # Cross-vendor maker-checker assurance (maker_checker.py): "cross_vendor" /
-    # "same_vendor_fresh_context" / "unverified" (default; also could-not-verify).
+    # Maker-checker assurance; see maker_checker.py.
     grounding_assurance: str = "unverified"
-    # Usage salience (docs/design/belief-lifecycle.md): bump only when this belief
-    # is load-bearing on mutating surfaces. Read-side queries stay pure; recent
-    # usage can shield a belief from archival, but absence of usage never condemns it.
+    # Mutation-only usage salience; see docs/design/belief-lifecycle.md.
     retrieval_count: int = 0
     last_retrieved_at: datetime | None = None
+    grounding_verified_at: datetime | None = None
 
     def __post_init__(self):
         if not self.id:
@@ -294,6 +293,7 @@ class Belief:
             "history": self.history,
             "trust_class": self.trust_class,
             "grounding_assurance": self.grounding_assurance,
+            "grounding_verified_at": self.grounding_verified_at.isoformat() if self.grounding_verified_at else None,
             "retrieval_count": self.retrieval_count,
             "last_retrieved_at": self.last_retrieved_at.isoformat() if self.last_retrieved_at else None,
         }
@@ -316,6 +316,7 @@ class Belief:
             # Pre-floor beliefs default tertiary: retroactive honesty
             trust_class=data.get("trust_class", "tertiary"),
             grounding_assurance=data.get("grounding_assurance", "unverified"),
+            grounding_verified_at=_as_utc(value) if (value := data.get("grounding_verified_at")) else None,
             retrieval_count=int(data.get("retrieval_count", 0) or 0),
             last_retrieved_at=(_as_utc(data["last_retrieved_at"]) if data.get("last_retrieved_at") else None),
         )
@@ -749,8 +750,6 @@ class BeliefStore:
             new_evidence: New evidence reference
             reason: Reason for update
 
-        Returns:
-            BeliefChange record or None
         """
         if belief_id not in self.beliefs:
             return None
@@ -811,8 +810,9 @@ class BeliefStore:
         before = audit.belief_snapshot(belief)
         old_claim = belief.claim
         old_confidence = belief.confidence
-
-        # Update belief
+        if new_claim != old_claim:
+            belief.grounding_assurance = "unverified"
+            belief.grounding_verified_at = None
         belief.claim = new_claim
         belief.update_confidence(new_confidence, reason)
         if evidence:
@@ -1265,13 +1265,15 @@ class BeliefStore:
 
         claim_revised = bool(prefer_new_claim and new.claim.strip() and new.claim != existing.claim)
         if claim_revised:
-            # Attribution follows the claim. Keeping the prior source_type and
-            # grounding_assurance on rewritten text would attribute the new
-            # assertion to a source that never made it. Evidence refs are
-            # unioned above, so prior corroboration is not lost.
             existing.claim = new.claim
             existing.source_type = new.source_type
             existing.grounding_assurance = new.grounding_assurance
+            existing.grounding_verified_at = new.grounding_verified_at
+        elif new.claim == existing.claim:
+            existing.grounding_assurance, existing.grounding_verified_at = strongest_grounding_event(
+                (existing.grounding_assurance, existing.grounding_verified_at),
+                (new.grounding_assurance, new.grounding_verified_at),
+            )
 
         existing.history.append(
             {
@@ -1341,6 +1343,7 @@ class BeliefStore:
         existing.decay_rate = new.decay_rate
         existing.trust_class = better_trust
         existing.grounding_assurance = new.grounding_assurance
+        existing.grounding_verified_at = new.grounding_verified_at
         existing.updated_at = changed_at
 
         change = BeliefChange(

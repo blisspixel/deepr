@@ -1,0 +1,13 @@
+{
+  "schema_version": "deepr-standards-fixture-manifest-v1",
+  "standards": [
+    {
+      "name": "Open Knowledge Format",
+      "version": "0.2",
+      "canonical_identifier": "https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/3fcbb9f828c2f23d109c855ee403c3a4c81f3a96/okf/SPEC.md",
+      "retrieved_at": "2026-08-20",
+      "sha256": "5a3311d270bebb16d558010e75064f5b75323f284992641732b1c8097511f948",
+      "fixture_root": "okf-0.2"
+    }
+  ]
+}

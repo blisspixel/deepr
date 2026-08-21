@@ -8,7 +8,8 @@ from typing import Any
 from deepr.experts.dashboard_telemetry import build_expert_dashboard_telemetry
 from deepr.experts.loop_status_rollup import build_loop_status_rollup
 from deepr.experts.maker_checker import ASSURANCE_LEVELS, VERIFIED_ASSURANCES, CheckAssurance
-from deepr.experts.okf import OKF_PROFILE_SCHEMA_VERSION, OKF_SCHEMA_VERSION
+from deepr.experts.okf import OKF_PROFILE_SCHEMA_PATH, OKF_PROFILE_SCHEMA_VERSION, OKF_SCHEMA_VERSION
+from deepr.experts.okf_contract import OKF_VERSION
 from deepr.experts.perspective_state import build_perspective_state_packet
 from deepr.security.output_safety import sanitize_host_facing_payload
 
@@ -170,8 +171,9 @@ def build_expert_handoff(
         "loop_status": resolved_loop_status,
         "okf": {
             "schema_version": OKF_SCHEMA_VERSION,
+            "okf_version": OKF_VERSION,
             "profile_schema_version": OKF_PROFILE_SCHEMA_VERSION,
-            "profile_schema_url": "docs/schemas/okf-profile-v1.json",
+            "profile_schema_url": OKF_PROFILE_SCHEMA_PATH,
             "canonical": False,
             "export_command": f"deepr expert export-okf {resolved_name!r} ./okf/{resolved_name}",
             "absorb_command": f"deepr expert absorb-okf {resolved_name!r} ./okf/{resolved_name} --dry-run",

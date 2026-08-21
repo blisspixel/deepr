@@ -14,7 +14,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-EXPORT_VALIDATION_SCHEMA_VERSION = "deepr-export-validation-v1"
+EXPORT_VALIDATION_SCHEMA_VERSION = "deepr-export-validation-v2"
 EXPORT_VALIDATION_KIND = "deepr.expert.export_validation"
 
 ARTIFACT_CLASS_HANDOFF = "handoff_payload"
@@ -42,7 +42,7 @@ def _contract() -> dict[str, Any]:
 
 def _classify(path: Path) -> str:
     if path.is_dir():
-        return ARTIFACT_CLASS_OKF if (path / "index.md").is_file() else ARTIFACT_CLASS_UNKNOWN
+        return ARTIFACT_CLASS_OKF if any(path.rglob("*.md")) else ARTIFACT_CLASS_UNKNOWN
     if path.name.upper() == "SKILL.MD":
         return ARTIFACT_CLASS_SKILL
     if path.suffix.lower() == ".json":
@@ -128,34 +128,26 @@ def _validate_handoff(path: Path) -> list[dict[str, Any]]:
 
 
 def _validate_okf_bundle(path: Path) -> list[dict[str, Any]]:
-    from deepr.experts.okf import OKF_PROFILE_SCHEMA_VERSION, OKF_SCHEMA_VERSION, _split_frontmatter
+    from deepr.experts.okf_contract import OKF_VERSION, validate_okf_bundle
 
-    # index.md presence is what classified this path as an OKF bundle, so
-    # only log.md needs its own presence check here.
-    checks = [_check("log_present", (path / "log.md").is_file(), "log.md")]
-    allowed_versions = {OKF_SCHEMA_VERSION, OKF_PROFILE_SCHEMA_VERSION}
-    markdown_files = sorted(path.rglob("*.md"))
-    unreadable: list[str] = []
-    bad_versions: list[str] = []
-    for markdown_file in markdown_files:
-        try:
-            text = markdown_file.read_text(encoding="utf-8")
-        except (OSError, ValueError):
-            unreadable.append(markdown_file.name)
-            continue
-        fields, _body = _split_frontmatter(text)
-        if str(fields.get("schema_version", "") or "") not in allowed_versions:
-            bad_versions.append(markdown_file.name)
-    checks.append(_check("readable_files", not unreadable, ", ".join(unreadable[:5]) or "all markdown files readable"))
-    checks.append(
+    result = validate_okf_bundle(path)
+    checks = [
         _check(
-            "frontmatter_schema_versions",
-            not bad_versions,
-            f"{len(markdown_files)} markdown file(s) carry a known OKF schema version"
-            if not bad_versions
-            else f"missing or unknown schema_version in: {', '.join(bad_versions[:5])}",
+            "markdown_files_present",
+            bool(result.files),
+            f"{len(result.files)} Markdown file(s) found" if result.files else "bundle contains no Markdown files",
         )
-    )
+    ]
+    if result.violations:
+        detail = "; ".join(
+            f"{violation.path} [{violation.code}]: {violation.detail}" for violation in result.violations[:5]
+        )
+    else:
+        version_detail = (
+            f"declared {result.declared_version}" if result.declared_version else "version declaration omitted"
+        )
+        detail = f"OKF {OKF_VERSION} hard conformance rules pass; {version_detail}"
+    checks.append(_check("okf_0_2_conformance", result.valid, detail))
     return checks
 
 
@@ -211,7 +203,7 @@ def validate_export(path: Path) -> dict[str, Any]:
             _check(
                 "artifact_class",
                 False,
-                "unrecognized export; expected a handoff .json, an OKF bundle directory with index.md, or a SKILL.md",
+                "unrecognized export; expected a handoff .json, an OKF Markdown bundle directory, or a SKILL.md",
             )
         ]
 

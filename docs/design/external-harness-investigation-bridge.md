@@ -140,20 +140,23 @@ complementary, not competing orchestration models.
 | Layer | Normative target | Deepr use | Boundary |
 |---|---|---|---|
 | Knowledge interchange | [OKF 0.2](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md) | Export selected expert knowledge and ingest external bundles as untrusted evidence | The canonical belief, event, and edge stores remain authoritative. |
-| Installation and discovery | [Agent Plugins 1.0.0](https://agent-plugins.org/specification), Published | Package Agent Skills and an MCP server for conforming clients | A plugin packages code, skills, and MCP declarations, not canonical expert knowledge or credentials. |
+| Installation and discovery | [Agent Plugins 1.0.0](https://agent-plugins.org/specification), Working Draft | Package Agent Skills and an MCP server for conforming clients | A plugin packages code, skills, and MCP declarations, not canonical expert knowledge or credentials. |
 | Runtime protocol | [MCP 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28) | Expose bounded tools, resources, lifecycle projections, and later negotiated extensions | MCP transport state never becomes run, spend, credential, or verification authority. |
 
 OKF 0.2 is a minimal Markdown and YAML specification, not a schema registry.
-Deepr should implement spec-derived validation and frozen interoperability
-fixtures rather than invent a canonical OKF JSON Schema. The current
-`deepr-okf-profile-v1` is a legacy derived view. Its exporter must move concept
-frontmatter to byte zero, restrict root `index.md` frontmatter to
-`okf_version`, replace `timestamp` with `generated.at`, and replace body
-citations with frontmatter `sources` before Deepr claims OKF 0.2 conformance.
-Optional `verified`, lifecycle, staleness, and Attested Computation fields may
-be emitted only when canonical Deepr records support their exact meaning.
-Import stays permissive about optional fields and unknown keys, then passes
-every candidate through Deepr's verification-gated absorb path.
+Deepr implements spec-derived validation and frozen interoperability fixtures
+rather than inventing a canonical OKF JSON Schema. `deepr-okf-profile-v2`
+moves concept frontmatter to the first line, restricts root `index.md`
+frontmatter to `okf_version`, emits a frontmatter-free newest-first log,
+replaces `timestamp` with `generated.at`, and publishes stored evidence as
+frontmatter `sources`. `verified` is emitted only when canonical grounding
+assurance records an actual checker. Lifecycle, staleness, and Attested
+Computation fields remain absent because current canonical state does not
+support their exact OKF meanings. Import stays permissive about optional
+fields, unknown types, unknown keys, and broken links, then passes every
+candidate through Deepr's verification-gated absorb path. The former
+`deepr-okf-profile-v1` schema remains available as a deprecated compatibility
+record, not the current export contract.
 
 Agent Plugins 1.0.0 has a closed root manifest and locally pinned canonical
 schemas. A Deepr package needs root `plugin.json`, optional root `mcp.json`, and
@@ -389,6 +392,10 @@ its predecessor's acceptance gate is recorded.
 
 ### Bridge 0: standards truth and offline fixtures
 
+Status: in progress. The pinned OKF 0.2 revision, checksum, fixtures, and
+spec-derived validator are implemented. Agent Plugin, Agent Skill, and MCP
+schema fixtures remain.
+
 - Pin the Agent Plugins 1.0.0 plugin and MCP schemas locally with their
   canonical identifiers and checksums.
 - Freeze representative OKF 0.2, Agent Skill, Agent Plugin, and MCP fixtures.
@@ -401,6 +408,9 @@ Gate: a clean checkout validates every pinned fixture offline and detects each
 known legacy OKF violation.
 
 ### Bridge 1: OKF 0.2 migration
+
+Status: implemented 2026-08-20 as `deepr-okf-profile-v2`, with the v1 schema
+retained as a deprecated compatibility record.
 
 - Repair reserved files, concept frontmatter placement, `generated.at`, and
   `sources` output while preserving Deepr extensions as unknown permitted keys.
