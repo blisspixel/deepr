@@ -103,12 +103,15 @@ and
 OpenClaw stable `v2026.7.1-2` is an external gateway, channel, session,
 workspace, tool, skill, and agent runtime. Its configuration supports stdio and
 remote MCP servers, per-server timeouts, tool include and exclude filters,
-OAuth identity posture, TLS controls, and per-agent projection. Its sandbox,
-tool policy, and elevated execution controls are intentionally distinct.
+OAuth configuration and token-storage posture, TLS controls, and a Codex app-server-specific agent
+projection block. That block is not generic per-agent OpenClaw authority. Its
+sandbox, tool policy, and elevated execution controls are intentionally
+distinct.
 
-That makes OpenClaw a practical first host integration. The first stable Deepr
-profile should use explicit MCP plus the existing exported `SKILL.md`, with an
-exact observer tool allowlist. Native Agent Plugins support appears only in
+That makes OpenClaw a practical first host integration. The implemented stable
+reference uses explicit MCP with the exact ten-tool general read-only catalog.
+The later investigation observer profile should use the existing exported
+`SKILL.md` with its narrower three-tool allowlist. Native Agent Plugins support appears only in
 prerelease `v2026.8.1-beta.2`, so it belongs in a separate prerelease evidence
 lane until a stable release carries the capability. In either lane, the host
 still needs an installed `deepr-mcp` executable. Sources:
@@ -235,25 +238,39 @@ no expert database, bearer credential, host account, remote route, or implied
 metered authority.
 
 Some popular hosts do not implement Agent Plugins, and even conforming clients
-need an exact record of the policy used for one deployment. Extend the existing
-token-redacted `deepr-mcp-registration-manifest-v1` concept with a generated
-and locally validated `deepr-mcp-host-profile-v1`. A host profile is a derived
+need an exact record of the policy used for one deployment. Deepr now publishes
+a generated `deepr-mcp-host-profile-v1` reference alongside the existing
+token-redacted `deepr-mcp-registration-manifest-v1`. A host profile is a derived
 compatibility and capability artifact, not a competing plugin format,
 canonical configuration, or claim of live support.
 
 It records:
 
-- target host and tested host version;
-- Deepr commit, package version, endpoint, and transport;
-- secret environment variable or credential alias, never the secret;
+- pinned target host release, signed tag evidence, package version, and target
+  commit;
+- Deepr package version, explicit absent source-revision evidence, installed
+  runtime dependency, and transport;
+- credential and scoped-key posture without a secret;
 - exact tool include list and explicit denied tool classes;
 - scoped-key mode, expert allowlist, rate limit, and budget ceiling;
 - request timeout, concurrency posture, and retry posture;
 - host sandbox, filesystem, network, and approval posture when observable;
-- local schema and offline conformance results;
-- `reference`, `fixture_validated`, or `live_validated` status.
+- local contract and host-conformance results.
 
-The first profile is `observer`. Proposed read-side tools are:
+The ordinary generator emits only `reference`. It has no input or flag that
+can promote its own status. A later fixture or live validator must issue a
+separate evidence record bound to the canonical profile SHA-256, exact host and
+Deepr identities, validator identity, commands, result hashes, and all-pass
+checks before a projection may derive `fixture_validated` or `live_validated`.
+
+The first implemented profile is the local read-only OpenClaw reference. It
+sets `DEEPR_MCP_ADVERTISE_FULL_TOOL_LIST=1`, so a standard `tools/list` request
+receives the same ten policy-filtered tools recorded in the profile. This does
+not widen the allowlist or change task, spend, credential, or evidence
+authority.
+
+The later investigation observer profile remains planned. Proposed read-side
+tools are:
 
 ```text
 deepr_investigation_status(run_id)
@@ -469,9 +486,12 @@ through the package with byte-reproducible output and no secret material.
 ### Bridge 3: contracts and drift audit
 
 Status: active. The 2026-08-21 re-audit restored explicit production blocks
-for Codex, Grok Build, and Antigravity. Contract publication remains pending.
+for Codex, Grok Build, and Antigravity. The first closed host-profile schema,
+runtime-derived tool inventory, deterministic generator, and reference-only
+OpenClaw stable artifact are implemented. Capability, control, event, artifact,
+follow-up, and fork contracts remain pending.
 
-- Publish zero-call schemas for host profile, capability snapshot, control
+- Publish zero-call schemas for capability snapshot, control
   evidence, event page, artifact metadata page, follow-up, and fork lineage.
 - Add fixture validation proving projections cannot mutate a run or imply
   semantic acceptance.
@@ -501,15 +521,17 @@ reconstructs the same visible lifecycle without changing canonical state.
 
 - Prefer the conformant Agent Plugin package only where a stable host release
   supports it. Keep prerelease support in a separate evidence lane.
-- Generate an offline observer profile and exact configuration fragment for
-  OpenClaw `v2026.7.1-2`, DeepSeek Harness `dsh-v0.1.1-rc.2`, Grok Build 1.0.6,
-  and Codex where needed. Test OpenClaw Agent Plugins separately against
+- Retain the implemented reference-only OpenClaw `v2026.7.1-2` fragment, then
+  independently validate it against the exact pinned parser before promotion.
+  Generate offline observer profiles and exact fragments for DeepSeek Harness
+  `dsh-v0.1.1-rc.2`, Grok Build 1.0.6, and Codex where needed. Test OpenClaw Agent Plugins separately against
   prerelease `v2026.8.1-beta.2` until the feature reaches stable.
 - Treat NemoClaw `v0.0.113` plus its pinned OpenShell 0.0.106 as a remote
   isolation recipe after HTTP auth, egress, and endpoint-cost prerequisites
   pass. Do not substitute a newer standalone OpenShell release.
-- Record host version, transport, exact tool inventory, validation evidence,
-  and `reference`, `fixture_validated`, or `live_validated` status.
+- Record host version, transport, exact tool inventory, and validation
+  evidence. Profiles remain `reference`; a separately validated,
+  digest-bound evidence artifact derives any stronger status.
 - Allow a manual Grok Bot Agent Plugin or MCP host profile, but do not claim Bot
   lifecycle automation or supported public hosting.
 

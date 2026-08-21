@@ -42,7 +42,8 @@ UNSUPPORTED_PROTOCOL_VERSION_CODE = -32022
 DISCOVER_INSTRUCTIONS = (
     "Deepr exposes persistent research experts. Start with the deepr_tool_search "
     "gateway tool to discover the full tool surface (tools/list returns only the "
-    "gateway unless params._fullList is true), then deepr_capabilities for the "
+    "gateway by default; configured host profiles advertise the full policy-filtered "
+    "catalog), then deepr_capabilities for the "
     "expert roster and cost posture. All tool results are JSON and include "
     "structuredContent."
 )

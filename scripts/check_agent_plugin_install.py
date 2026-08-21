@@ -31,11 +31,12 @@ def _requests() -> str:
                 "clientInfo": {"name": "agent-plugin-install-check", "version": "1"},
             },
         },
-        {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {"_fullList": True}},
-        {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "deepr_status", "arguments": {}}},
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
+        {"jsonrpc": "2.0", "id": 3, "method": "tools/list", "params": {"_fullList": True}},
+        {"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "deepr_status", "arguments": {}}},
         {
             "jsonrpc": "2.0",
-            "id": 4,
+            "id": 5,
             "method": "tools/call",
             "params": {
                 "name": "deepr_research",
@@ -125,15 +126,18 @@ def main() -> int:
     if completed.returncode != 0:
         raise RuntimeError(f"deepr-mcp exited {completed.returncode}: {completed.stderr}")
     responses = [json.loads(line) for line in completed.stdout.splitlines() if line]
-    if [response.get("id") for response in responses] != [1, 2, 3, 4]:
-        raise RuntimeError("stdout was not a clean four-response JSON-RPC stream")
-    advertised = {tool["name"] for tool in responses[1]["result"]["tools"]}
-    if "deepr_research" in advertised:
+    if [response.get("id") for response in responses] != [1, 2, 3, 4, 5]:
+        raise RuntimeError("stdout was not a clean five-response JSON-RPC stream")
+    initial = {tool["name"] for tool in responses[1]["result"]["tools"]}
+    if initial != {"deepr_tool_search"}:
+        raise RuntimeError("ordinary Agent Plugin discovery did not return the gateway-only surface")
+    advertised = {tool["name"] for tool in responses[2]["result"]["tools"]}
+    if len(advertised) != 10 or "deepr_research" in advertised:
         raise RuntimeError("read-only discovery advertised a blocked research tool")
-    status = json.loads(responses[2]["result"]["content"][0]["text"])
+    status = json.loads(responses[3]["result"]["content"][0]["text"])
     if status["security"]["research_mode"] != "read_only":
         raise RuntimeError("installed bridge did not enter read-only mode")
-    blocked = json.loads(responses[3]["result"]["content"][0]["text"])
+    blocked = json.loads(responses[4]["result"]["content"][0]["text"])
     if blocked.get("error_code") != "TOOL_BLOCKED":
         raise RuntimeError("caller approval bypassed the read-only tool gate")
     if _tree_digest(package_root) != package_before:
@@ -144,7 +148,16 @@ def main() -> int:
     created = sorted(path.relative_to(data_root).as_posix() for path in data_root.rglob("*") if path.is_file())
     if not created:
         raise RuntimeError("expected contained runtime audit state was not created")
-    print(json.dumps({"status": "passed", "advertised_tools": sorted(advertised), "created_files": created}))
+    print(
+        json.dumps(
+            {
+                "status": "passed",
+                "initial_tools": sorted(initial),
+                "full_tools": sorted(advertised),
+                "created_files": created,
+            }
+        )
+    )
     return 0
 
 

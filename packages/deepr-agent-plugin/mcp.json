@@ -14,6 +14,7 @@
         "DEEPR_BUDGET_FILE": "${PLUGIN_DATA}/deepr/budget.json",
         "DEEPR_RESEARCH_MODE": "read_only",
         "DEEPR_MCP_AUTO_APPROVE": "0",
+        "DEEPR_MCP_ADVERTISE_FULL_TOOL_LIST": "0",
         "DEEPR_LOG_LEVEL": "WARNING",
         "DEEPR_MAX_COST_PER_JOB": "0",
         "DEEPR_MAX_COST_PER_DAY": "0",

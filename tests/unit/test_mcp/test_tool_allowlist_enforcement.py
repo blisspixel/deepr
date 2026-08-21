@@ -12,7 +12,7 @@ from typing import Any
 import pytest
 
 from deepr.mcp.expert_conversation import conversation_tool_dispatch
-from deepr.mcp.search.registry import create_default_registry
+from deepr.mcp.runtime_registry import create_runtime_registry
 from deepr.mcp.security.scoped_keys import (
     ScopedMCPKeyContext,
     authorize_scoped_mcp_tool_call,
@@ -22,12 +22,11 @@ from deepr.mcp.security.tool_allowlist import (
     ToolAllowlist,
     ToolConfig,
 )
-from deepr.mcp.server import _handle_tools_call, _register_new_tools
+from deepr.mcp.server import _handle_tools_call
 
 
 def _visible_tool_names() -> set[str]:
-    registry = create_default_registry()
-    _register_new_tools(registry)
+    registry = create_runtime_registry()
     return {tool.name for tool in registry.all_tools()}
 
 

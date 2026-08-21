@@ -109,6 +109,7 @@ def _isolate_budget_env(monkeypatch):
     the ledger fixture above. Tests that exercise the env caps set them
     explicitly via monkeypatch, which runs after this and wins.
     """
+    monkeypatch.delenv("DEEPR_MCP_ADVERTISE_FULL_TOOL_LIST", raising=False)
     for var in (
         "DEEPR_MAX_COST_PER_JOB",
         "DEEPR_MAX_COST_PER_DAY",

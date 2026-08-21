@@ -15,6 +15,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from deepr import __version__ as DEEPR_VERSION
+from deepr.mcp.contained_env import build_contained_read_only_env
 from deepr.skills.contract import validate_agent_skill
 
 AGENT_PLUGINS_VERSION = "1.0.0"
@@ -34,25 +35,7 @@ _EXPECTED_FILES = frozenset(
         "skills/deepr-research/references/capability_boundary.md",
     }
 )
-_EXPECTED_ENV = {
-    "DEEPR_DATA_DIR": "${PLUGIN_DATA}/deepr",
-    "DEEPR_EXPERTS_PATH": "${PLUGIN_DATA}/deepr/experts",
-    "DEEPR_REPORTS_PATH": "${PLUGIN_DATA}/deepr/reports",
-    "DEEPR_COST_DATA_DIR": "${PLUGIN_DATA}/deepr/costs",
-    "DEEPR_CAPACITY_DATA_DIR": "${PLUGIN_DATA}/deepr/capacity",
-    "DEEPR_BUDGET_FILE": "${PLUGIN_DATA}/deepr/budget.json",
-    "DEEPR_RESEARCH_MODE": "read_only",
-    "DEEPR_MCP_AUTO_APPROVE": "0",
-    "DEEPR_LOG_LEVEL": "WARNING",
-    "DEEPR_MAX_COST_PER_JOB": "0",
-    "DEEPR_MAX_COST_PER_DAY": "0",
-    "DEEPR_MAX_COST_PER_WEEK": "0",
-    "DEEPR_MAX_COST_PER_MONTH": "0",
-    "DEEPR_PER_JOB_LIMIT": "0",
-    "DEEPR_DAILY_LIMIT": "0",
-    "DEEPR_WEEKLY_LIMIT": "0",
-    "DEEPR_MONTHLY_LIMIT": "0",
-}
+_EXPECTED_ENV = build_contained_read_only_env("${PLUGIN_DATA}")
 _WINDOWS_DRIVE = re.compile(r"^[A-Za-z]:")
 _WINDOWS_DEVICES = re.compile(r"^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$", re.IGNORECASE)
 

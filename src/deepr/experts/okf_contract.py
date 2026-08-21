@@ -8,11 +8,11 @@ not judge the truth, quality, trust tier, or meaning of a concept.
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import Any
+from typing import Any, cast
 
 import yaml
 from yaml.events import MappingEndEvent, MappingStartEvent, SequenceEndEvent, SequenceStartEvent
@@ -25,6 +25,7 @@ _FENCE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,}).*$")
 _MAX_FRONTMATTER_CHARS = 256 * 1024
 _MAX_YAML_EVENTS = 10_000
 _MAX_YAML_DEPTH = 64
+_YAML_TIMESTAMP_TAG = "tag:yaml.org,2002:timestamp"
 OKF_MAX_MARKDOWN_FILES = 10_000
 OKF_MAX_MARKDOWN_FILE_BYTES = 8 * 1024 * 1024
 OKF_MAX_MARKDOWN_TOTAL_BYTES = 64 * 1024 * 1024
@@ -33,6 +34,16 @@ _WINDOWS_DEVICE_NAMES = frozenset(
     | {f"COM{number}" for number in range(1, 10)}
     | {f"LPT{number}" for number in range(1, 10)}
 )
+
+
+class _OKFSafeLoader(yaml.SafeLoader):
+    """Safe YAML loader that preserves authored OKF timestamps as strings."""
+
+
+_OKFSafeLoader.yaml_implicit_resolvers = {
+    initial: [resolver for resolver in resolvers if resolver[0] != _YAML_TIMESTAMP_TAG]
+    for initial, resolvers in yaml.SafeLoader.yaml_implicit_resolvers.items()
+}
 
 
 @dataclass(frozen=True)
@@ -122,7 +133,12 @@ def _load_bounded_yaml_mapping(raw_frontmatter: str) -> tuple[dict[Any, Any], st
                     raise ValueError(f"frontmatter exceeds YAML nesting depth {_MAX_YAML_DEPTH}")
             elif isinstance(event, (MappingEndEvent, SequenceEndEvent)):
                 depth -= 1
-        parsed = _bounded_yaml_tree(yaml.safe_load(raw_frontmatter))
+        loader = _OKFSafeLoader(raw_frontmatter)
+        try:
+            loaded = loader.get_single_data()
+        finally:
+            cast(Callable[[], None], loader.dispose)()
+        parsed = _bounded_yaml_tree(loaded)
     except (OverflowError, ValueError, yaml.YAMLError) as exc:
         return {}, f"invalid YAML: {exc}"
     if parsed is None:

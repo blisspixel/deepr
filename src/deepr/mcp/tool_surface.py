@@ -26,6 +26,14 @@ def explicit_research_mode_value() -> str | None:
     return value
 
 
+def advertise_full_tool_list_requested() -> bool:
+    """Return whether standard clients should receive the full allowed catalog."""
+    value = os.environ.get("DEEPR_MCP_ADVERTISE_FULL_TOOL_LIST")
+    if value not in (None, "0", "1"):
+        raise ValueError("DEEPR_MCP_ADVERTISE_FULL_TOOL_LIST must be 0 or 1")
+    return value == "1"
+
+
 def effective_tool_schemas(registry: ToolRegistry, allowlist: ToolAllowlist) -> list[ToolSchema]:
     """Return registered tools permitted by the active policy."""
     return [tool for tool in registry.all_tools() if allowlist.is_allowed(tool.name)]

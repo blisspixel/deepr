@@ -56,6 +56,22 @@ def test_explicit_invalid_mode_fails_before_state_initialization(
     load_config.assert_not_called()
 
 
+def test_invalid_full_tool_list_setting_fails_before_state_initialization(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DEEPR_RESEARCH_MODE", "read_only")
+    monkeypatch.setenv("DEEPR_MCP_ADVERTISE_FULL_TOOL_LIST", "true")
+    with (
+        patch("deepr.mcp.server.ExpertStore") as expert_store,
+        patch("deepr.mcp.server.load_config") as load_config,
+        pytest.raises(ValueError, match="DEEPR_MCP_ADVERTISE_FULL_TOOL_LIST must be 0 or 1"),
+    ):
+        DeeprMCPServer()
+
+    expert_store.assert_not_called()
+    load_config.assert_not_called()
+
+
 def test_unset_mode_preserves_standard_default(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("DEEPR_RESEARCH_MODE", raising=False)
     with (
@@ -109,6 +125,17 @@ async def test_read_only_discovery_uses_effective_registered_surface(
     assert status["security"]["allowed_tools"] == len(available)
     assert status["security"]["blocked_tools"] == len(registered - available)
     assert status["security"]["tools_requiring_confirmation"] == 0
+
+
+@pytest.mark.asyncio
+async def test_configured_standard_tools_list_advertises_full_read_only_surface(
+    read_only_server: DeeprMCPServer,
+) -> None:
+    read_only_server.advertise_full_tool_list = True
+
+    listed = await _handle_tools_list(read_only_server, {})
+
+    assert {tool["name"] for tool in listed["tools"]} == read_only_server.available_tool_names()
 
 
 @pytest.mark.asyncio

@@ -56,11 +56,11 @@ from pathlib import Path
 from typing import Any
 
 from deepr.mcp.tool_surface import (
+    advertise_full_tool_list_requested,
     build_tools_list,
     effective_tool_names,
     effective_tool_schemas,
     explicit_research_mode_value,
-    register_bridge_tool_schemas,
 )
 
 # Validate before importing Deepr modules that may initialize persistent state.
@@ -72,7 +72,7 @@ from deepr.experts.chat import ExpertChatSession
 from deepr.experts.claim_inventory import read_claim_inventory
 from deepr.experts.consult_transaction import DEFAULT_CONSULT_MAX_ELAPSED_SECONDS
 from deepr.experts.profile import ExpertStore
-from deepr.mcp.consult_tool import CONSULT_EXPERTS_INPUT_SCHEMA, CONSULT_EXPERTS_OUTPUT_SCHEMA, consult_experts_tool
+from deepr.mcp.consult_tool import consult_experts_tool
 from deepr.mcp.cost_status import current_cost_status
 from deepr.mcp.expert_reads import get_expert_handoff, get_expert_loop_status, get_semantic_recall, get_temporal_edges
 from deepr.mcp.metered_contract import MeteredMCPContractError, require_metered_api_contract
@@ -93,8 +93,9 @@ from deepr.mcp.request_context import (
     current_scoped_mcp_owner_id,
 )
 from deepr.mcp.research_result_view import build_research_result_view
+from deepr.mcp.runtime_registry import create_runtime_registry
 from deepr.mcp.search.gateway import GatewayTool
-from deepr.mcp.search.registry import ToolRegistry, ToolSchema, create_default_registry
+from deepr.mcp.search.registry import ToolSchema
 from deepr.mcp.security import SSRFProtector
 from deepr.mcp.security.instruction_signing import InstructionSigner
 from deepr.mcp.security.output_verification import OutputVerifier
@@ -173,6 +174,7 @@ class DeeprMCPServer:
             research_mode = ResearchMode.STANDARD
         else:
             research_mode = ResearchMode(research_mode_value)
+        advertise_full_tool_list = advertise_full_tool_list_requested()
 
         # Expert-related components
         self.store = ExpertStore()
@@ -185,7 +187,7 @@ class DeeprMCPServer:
 
         # MCP infrastructure
         self.resource_handler = get_resource_handler()
-        self.registry = create_default_registry()
+        self.registry = create_runtime_registry()
         self.gateway = GatewayTool(self.registry)
 
         # Security: SSRF protection for outbound requests
@@ -207,9 +209,7 @@ class DeeprMCPServer:
         self.output_verifier = OutputVerifier()
 
         self.tool_allowlist = ToolAllowlist(mode=research_mode)
-
-        # Register the tools in the registry
-        _register_new_tools(self.registry)
+        self.advertise_full_tool_list = advertise_full_tool_list
 
     def available_tool_schemas(self) -> list[ToolSchema]:
         """Return registered tools that the active mode permits clients to call."""
@@ -1370,80 +1370,6 @@ class DeeprMCPServer:
 
 
 # ------------------------------------------------------------------ #
-# Tool Registration
-# ------------------------------------------------------------------ #
-
-
-def _register_new_tools(registry: ToolRegistry) -> None:
-    """Register the three new tools (status, cancel, tool_search) in the registry."""
-    registry.register(
-        ToolSchema(
-            name="deepr_status",
-            description=(
-                "Health check for the Deepr MCP server. Returns version, uptime, "
-                "active jobs count, daily/monthly cost summary, and available capabilities. "
-                "Use this to verify the server is running and check spending before starting research."
-            ),
-            input_schema={
-                "type": "object",
-                "properties": {},
-            },
-            category="system",
-            cost_tier="free",
-        )
-    )
-
-    registry.register(
-        ToolSchema(
-            name="deepr_cancel_job",
-            description=(
-                "Cancel a running research job. Use when the user wants to stop an "
-                "in-progress research task. Cannot cancel already completed or failed jobs."
-            ),
-            input_schema={
-                "type": "object",
-                "properties": {
-                    "job_id": {
-                        "type": "string",
-                        "description": "Job ID from deepr_research or deepr_agentic_research",
-                    },
-                },
-                "required": ["job_id"],
-            },
-            category="research",
-            cost_tier="free",
-        )
-    )
-
-    # Note: deepr_tool_search is already defined in GatewayTool.SCHEMA
-    # but we register it in the registry too so it appears in full tool lists.
-    registry.register(GatewayTool.SCHEMA)
-
-    registry.register(
-        ToolSchema(
-            name="deepr_consult_experts",
-            description=(
-                "Consult a TEAM of domain experts on a question and get one synthesized, "
-                "calibrated answer (the deepr-consult-v1 artifact: answer, each expert's "
-                "perspective with confidence, points of agreement and dissent, and cost). "
-                "Routes to the most relevant experts automatically, or pass 'experts' to name "
-                "them. One bounded knowledge transaction - Deepr recommends; your harness "
-                "decides and enacts."
-            ),
-            input_schema=CONSULT_EXPERTS_INPUT_SCHEMA,
-            output_schema=CONSULT_EXPERTS_OUTPUT_SCHEMA,
-            category="experts",
-            cost_tier="low",
-        )
-    )
-
-    from deepr.mcp.expert_conversation import register_conversation_tools
-
-    register_conversation_tools(registry)
-    register_bridge_tool_schemas(registry)
-
-
-# ------------------------------------------------------------------ #
 # Skill helpers for MCP dispatch
 # ------------------------------------------------------------------ #
 
@@ -1560,8 +1486,8 @@ async def _handle_initialize(server: DeeprMCPServer, params: dict[str, Any]) -> 
 
 async def _handle_tools_list(server: DeeprMCPServer, params: dict[str, Any]) -> dict[str, Any]:
     """Handle tools/list."""
-    # If client sent _fullList hint, return all tools
-    full_list = params.get("_fullList", False)
+    # Operators can opt standard hosts into the full policy-filtered catalog.
+    full_list = params.get("_fullList") is True or getattr(server, "advertise_full_tool_list", False) is True
     tools = _build_tools_list(server, use_gateway=not full_list)
     return {"tools": tools}
 
