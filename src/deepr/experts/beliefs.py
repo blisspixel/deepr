@@ -17,6 +17,7 @@ from urllib.parse import urlsplit
 from deepr.experts import mutation_audit as audit
 from deepr.experts.belief_edges import EDGE_TYPES, Edge, normalized_edge_temporal_context
 from deepr.experts.maker_checker import strongest_grounding_event
+from deepr.utils.atomic_io import atomic_write_json
 
 logger = logging.getLogger(__name__)
 
@@ -424,9 +425,11 @@ class BeliefChange:
         )
 
 
-# Provenance string recorded on edges created by the one-time migration of
-# legacy contradictions_with lists.
+# Provenance for edges migrated from contradictions_with lists.
 _MIGRATED_PROVENANCE = "migrated:contradictions_with"
+
+
+class BeliefStoreError(RuntimeError): ...
 
 
 class BeliefStore:
@@ -1372,37 +1375,33 @@ class BeliefStore:
             self.domain_index[belief.domain].discard(belief.id)
 
     def _save(self):
-        """Save beliefs to disk."""
-        data = {
-            "edges": [e.to_dict() for e in self.edges.values()],
-            "beliefs": {bid: b.to_dict() for bid, b in self.beliefs.items()},
-            "changes": [c.to_dict() for c in self.changes[-100:]],  # Keep last 100 changes
-        }
-
-        from deepr.utils.atomic_io import atomic_write_json
-
-        atomic_write_json(self.storage_path, data)
+        if self.read_only:
+            raise BeliefStoreError("read-only belief store cannot be saved")
+        if self._unreadable:
+            raise BeliefStoreError("refusing to overwrite unreadable belief store")
+        atomic_write_json(
+            self.storage_path,
+            {
+                "edges": [e.to_dict() for e in self.edges.values()],
+                "beliefs": {bid: b.to_dict() for bid, b in self.beliefs.items()},
+                "changes": [c.to_dict() for c in self.changes[-100:]],
+            },
+        )
 
     def _load(self):
-        """Load beliefs from disk.
-
-        Catches corrupt/oversized files and starts fresh rather than
-        crashing the expert load entirely. A 50 MB ceiling guards
-        against poisoned belief files from corpus imports.
-        """
+        self._unreadable = False
         if not self.storage_path.exists():
             return
         try:
             if self.storage_path.stat().st_size > 50 * 1024 * 1024:
-                logger.error(
-                    "Belief store at %s exceeds 50 MB; refusing to load. Inspect and reduce manually.",
-                    self.storage_path,
-                )
+                self._unreadable = True
+                logger.error("Belief store at %s exceeds 50 MB; refusing to load.", self.storage_path)
                 return
             with open(self.storage_path, encoding="utf-8") as f:
                 data = json.load(f)
         except (json.JSONDecodeError, OSError) as exc:
-            logger.error("Failed to load beliefs from %s: %s. Starting fresh.", self.storage_path, exc)
+            self._unreadable = True
+            logger.error("Failed to load beliefs from %s: %s. Refusing writes.", self.storage_path, exc)
             return
         self.beliefs = {bid: Belief.from_dict(bdata) for bid, bdata in data.get("beliefs", {}).items()}
         # Rebuild domain index

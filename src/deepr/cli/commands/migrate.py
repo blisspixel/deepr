@@ -16,21 +16,23 @@ def migrate():
 
 @migrate.command()
 @click.option("--dry-run", is_flag=True, help="Show what would be done without making changes")
-@click.option("--reports-dir", default="data/reports", help="Reports directory to migrate")
-def organize(dry_run: bool, reports_dir: str):
+@click.option("--reports-dir", default=None, help="Reports directory to migrate (default: configured reports root)")
+def organize(dry_run: bool, reports_dir: str | None):
     """
     Organize legacy reports into human-readable format.
 
     Moves flat files and UUID-only directories into organized structure
     with timestamps and readable names.
     """
-    reports_path = Path(reports_dir)
+    from deepr.config import load_config
+
+    reports_path = Path(reports_dir or load_config().get("results_dir", "data/reports"))
 
     if not reports_path.exists():
-        print_error(f"Reports directory not found: {reports_dir}")
+        print_error(f"Reports directory not found: {reports_path}")
         return
 
-    click.echo(f"[*] Scanning {reports_dir} for legacy reports...")
+    click.echo(f"[*] Scanning {reports_path} for legacy reports...")
 
     legacy_files = []
     legacy_dirs = []
@@ -170,13 +172,15 @@ def consolidate(dry_run: bool, source: str):
 
 
 @migrate.command()
-@click.option("--reports-dir", default="data/reports", help="Reports directory")
-def stats(reports_dir: str):
+@click.option("--reports-dir", default=None, help="Reports directory (default: configured reports root)")
+def stats(reports_dir: str | None):
     """Show statistics about report organization."""
-    reports_path = Path(reports_dir)
+    from deepr.config import load_config
+
+    reports_path = Path(reports_dir or load_config().get("results_dir", "data/reports"))
 
     if not reports_path.exists():
-        print_error(f"Reports directory not found: {reports_dir}")
+        print_error(f"Reports directory not found: {reports_path}")
         return
 
     # Count different types

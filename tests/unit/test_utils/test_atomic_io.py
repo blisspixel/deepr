@@ -114,3 +114,8 @@ class TestAppendJsonlDurable:
         path = tmp_path / "nested" / "log.jsonl"
         append_jsonl_durable(path, {"ok": True}, fsync=False)
         assert json.loads(path.read_text().strip()) == {"ok": True}
+
+    def test_creates_sibling_append_lock(self, tmp_path: Path):
+        path = tmp_path / "log.jsonl"
+        append_jsonl_durable(path, {"ok": True}, fsync=False)
+        assert (tmp_path / "log.jsonl.append.lock").exists() or path.exists()

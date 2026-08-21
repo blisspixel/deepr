@@ -43,6 +43,12 @@ METERED_PROVIDER_FALLBACK_ENABLED = False
 logger = logging.getLogger(__name__)
 
 
+def _complete_failure(formatter: OutputFormatter, result: OperationResult) -> None:
+    """Print a failed operation result and fail the process."""
+    formatter.complete(result)
+    raise SystemExit(1)
+
+
 def _classify_provider_error(exc: Exception, provider: str) -> None:
     """Re-raise exception as a core ProviderError subclass for fallback routing.
 
@@ -686,7 +692,8 @@ async def _run_single(
 
                     await cleanup_file_uploads(upload_result, formatter)
                 await _mark_job_failed(job_id, str(e))
-                formatter.complete(
+                _complete_failure(
+                    formatter,
                     OperationResult(
                         success=False,
                         duration_seconds=time.time() - start_time,
@@ -694,10 +701,8 @@ async def _run_single(
                         job_id=job_id,
                         error=str(e),
                         error_code="PROVIDER_TRACKING_FAILED",
-                    )
+                    ),
                 )
-                emitter.fail_task(op, "provider_tracking_failed")
-                return
 
             except ProviderAuthError as e:
                 # Auth errors: skip provider entirely, don't retry same provider
@@ -729,7 +734,8 @@ async def _run_single(
                     source="cli.run.ambiguous_provider_timeout",
                 )
                 await _mark_job_failed(job_id, f"Provider outcome uncertain: {e}")
-                formatter.complete(
+                _complete_failure(
+                    formatter,
                     OperationResult(
                         success=False,
                         duration_seconds=time.time() - start_time,
@@ -737,10 +743,8 @@ async def _run_single(
                         job_id=job_id,
                         error="Provider outcome is uncertain; automatic fallback was suppressed",
                         error_code="AMBIGUOUS_PROVIDER_OUTCOME",
-                    )
+                    ),
                 )
-                emitter.fail_task(op, "ambiguous_provider_outcome")
-                return
 
             except CoreProviderError as e:
                 # Generic provider error or unavailable: immediate fallback
@@ -756,7 +760,8 @@ async def _run_single(
                         source="cli.run.ambiguous_provider_error",
                     )
                     await _mark_job_failed(job_id, f"Provider outcome uncertain: {e}")
-                    formatter.complete(
+                    _complete_failure(
+                        formatter,
                         OperationResult(
                             success=False,
                             duration_seconds=time.time() - start_time,
@@ -764,9 +769,8 @@ async def _run_single(
                             job_id=job_id,
                             error="Provider outcome is uncertain; automatic fallback was suppressed",
                             error_code="AMBIGUOUS_PROVIDER_OUTCOME",
-                        )
+                        ),
                     )
-                    emitter.fail_task(op, "ambiguous_provider_outcome")
                     return
                 # Tool-rejection defense: if the model rejected the web-search
                 # tool, retry the SAME provider/model once without it instead
@@ -815,10 +819,9 @@ async def _run_single(
                     ),
                     error_code="PROVIDER_ERROR",
                 )
-                formatter.complete(result)
                 emitter.fail_task(op, str(last_error))
                 await _mark_job_failed(job_id, f"{current_provider}/{current_model} failed: {last_error}")
-                return
+                _complete_failure(formatter, result)
 
             # Get fallback from router
             fallback = router.get_fallback(current_provider, current_model, reason=str(last_error))
@@ -847,10 +850,9 @@ async def _run_single(
                     error=f"All providers failed. Last error: {last_error}",
                     error_code="ALL_PROVIDERS_FAILED",
                 )
-                formatter.complete(result)
                 emitter.fail_task(op, "all_providers_failed")
                 await _mark_job_failed(job_id, f"All providers failed. Last error: {last_error}")
-                return
+                _complete_failure(formatter, result)
 
             fallback_provider, fallback_model = fallback
             live_status.update(f"Fallback to {fallback_provider}/{fallback_model}...")
@@ -892,9 +894,8 @@ async def _run_single(
             error=f"Exhausted all fallback attempts. Last error: {last_error}",
             error_code="FALLBACK_EXHAUSTED",
         )
-        formatter.complete(result)
         emitter.fail_task(op, "fallback_exhausted")
-        return
+        _complete_failure(formatter, result)
 
     # Complete top-level span
     actual_cost = 0.0
@@ -905,7 +906,9 @@ async def _run_single(
         emitter.complete_task(op)
 
     # Save trace (always, for later `deepr research trace` viewing)
-    trace_path = Path(f"data/traces/research_{job_id[:12]}.json")
+    from deepr.config import runtime_data_path
+
+    trace_path = runtime_data_path("traces") / f"research_{job_id[:12]}.json"
     try:
         emitter.save_trace(trace_path)
     except Exception as exc:
@@ -1115,7 +1118,7 @@ def _handle_missing_tools_error(job_id: str | None, model: str, formatter: Outpu
         error=f"{model} requires at least one tool (web search, code interpreter, or file upload)",
         error_code="MISSING_TOOLS",
     )
-    formatter.complete(result)
+    _complete_failure(formatter, result)
 
 
 async def _handle_background_job(

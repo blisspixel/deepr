@@ -37,12 +37,24 @@ def _set_test_spend_caps(monkeypatch: pytest.MonkeyPatch, limit: float) -> None:
 
 from deepr.cli.commands.run import (
     TraceFlags,
+    _complete_failure,
     _save_and_show_full_trace,
     _show_trace_explain,
     _show_trace_timeline,
     estimate_cost,
     run,
 )
+from deepr.cli.output import OperationResult, OutputContext, OutputFormatter, OutputMode
+
+
+def test_complete_failure_exits_nonzero() -> None:
+    formatter = OutputFormatter(OutputContext(mode=OutputMode.JSON))
+    with pytest.raises(SystemExit) as exc:
+        _complete_failure(
+            formatter,
+            OperationResult(success=False, duration_seconds=1.0, cost_usd=0.0, error="nope"),
+        )
+    assert exc.value.code == 1
 
 
 class TestEstimateCost:

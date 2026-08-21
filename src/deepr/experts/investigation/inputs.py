@@ -617,7 +617,7 @@ def _parse_docx_xml(document_xml: bytes, *, display_path: str) -> Any:
     if b"<!doctype" in lowered or b"<!entity" in lowered:
         raise InvestigationContractError("DOCX document XML declarations are not supported")
     try:
-        return ElementTree.fromstring(document_xml)
+        return ElementTree.fromstring(document_xml)  # noqa: S314 - DOCTYPE/ENTITY already refused above
     except ElementTree.ParseError as exc:
         raise InvestigationContractError(f"DOCX document XML is invalid: {display_path}") from exc
 

@@ -5,12 +5,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
 
 from deepr.cli.commands.mcp import mcp
 from deepr.mcp.host_install import (
     HOST_BRIEF_SCHEMA,
     HOST_INSTALL_SCHEMA,
+    HostInstallError,
     build_host_brief,
     build_mcp_json_document,
     build_server_spec,
@@ -67,6 +69,23 @@ def test_write_mcp_json_merges_existing_servers(tmp_path: Path) -> None:
     assert "other" in doc["mcpServers"]
     assert "deepr" in doc["mcpServers"]
     assert doc["mcpServers"]["deepr"]["args"] == ["mcp", "serve"]
+
+
+def test_write_mcp_json_refuses_unreadable_existing_config(tmp_path: Path) -> None:
+    project = tmp_path / "proj"
+    project.mkdir()
+    existing = project / ".mcp.json"
+    existing.write_text("{trailing comma,}", encoding="utf-8")
+    Path(tmp_path / "deepr").write_text("", encoding="utf-8")
+    plan = plan_host_install(
+        project_dir=project,
+        deepr_command=str(tmp_path / "deepr"),
+        data_dir=str(tmp_path / "data"),
+        use_python_module=False,
+    )
+    with pytest.raises(HostInstallError, match="unreadable"):
+        write_mcp_json(plan, merge=True)
+    assert existing.read_text(encoding="utf-8") == "{trailing comma,}"
 
 
 def test_build_host_brief_includes_restart_and_local_rules() -> None:

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.0] - 2026-08-21
+
 ### Added
 
 - Added a network-free, `$0` OKF 0.2 conformance validator backed by a pinned
@@ -81,6 +83,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   until its image, mount, network, and runtime identity are validated.
 
 ### Fixed
+
+- Unreadable or oversized `beliefs.json` is no longer treated as an empty
+  graph. Later writes refuse instead of replacing surviving claims.
+- `deepr mcp install-host` fails closed on an unreadable `.mcp.json` and writes
+  the merged file atomically.
+- Expired provider-reconciliation no longer marks a job failed when the
+  reservation cannot be restored unless a conservative unreserved freeze
+  succeeds. The same freeze is retried from `_handle_failure` after a restore
+  exception.
+- `deepr run` failure envelopes exit 1 after printing JSON `status:error`.
+- Dashboard static, trace, and benchmark path checks use parent-chain
+  containment instead of string prefixes.
+- JSONL durable appends serialize concurrent writers with a sibling lock.
+- Investigation create retries an incomplete run directory. Status and inspect
+  JSON omit local filesystem paths. Learning apply stops after a failed expert
+  write and reports `partial` with a non-zero CLI exit.
+- `deepr migrate` defaults to the configured reports root. Research traces write
+  under the runtime data root.
+- Reserved Windows device names (`CON`, `NUL`, `COM1`, and similar) are
+  rejected as expert slugs, identifiers, job ids, and storage filenames.
+- MCP tool errors redact provider keys before they are returned to the host.
+- Webhook and instruction-signing HMAC comparisons treat malformed signatures
+  as invalid instead of raising.
 
 - Restored fail-closed production blocks for Codex, Grok Build, and Antigravity
   plan adapters. Hardened argument builders remain defense-in-depth fixtures;

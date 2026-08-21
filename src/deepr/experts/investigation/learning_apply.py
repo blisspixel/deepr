@@ -223,14 +223,25 @@ def _preflight_selected_entries(
     return prepared, None
 
 
+def _apply_failure_reasons(result: dict[str, Any]) -> list[str]:
+    summary = result.get("summary", {}) if isinstance(result, dict) else {}
+    reasons = summary.get("failure_reasons") if isinstance(summary, dict) else None
+    collected = [str(reason) for reason in reasons] if isinstance(reasons, list) else []
+    status = str(summary.get("status") or "") if isinstance(summary, dict) else ""
+    if status in {"blocked", "failed", "error"} and status not in collected:
+        collected.append(status)
+    return collected
+
+
 def _apply_prepared(
     prepared: list[dict[str, Any]],
     *,
     dry_run: bool,
     profile_store: ExpertStore,
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], list[str]]:
     """Apply a completely preflighted set while roster locks are held."""
     results: list[dict[str, Any]] = []
+    halted: list[str] = []
     for item in prepared:
         result = item["preview"]
         if not dry_run and item["no_op"]:
@@ -247,7 +258,11 @@ def _apply_prepared(
                 advance_knowledge_freshness(item["profile"], datetime.now(UTC))
                 profile_store.save(item["profile"])
         results.append({"expert_name": item["expert_name"], "channel": item["channel"], "result": result})
-    return results
+        if not dry_run:
+            halted = _apply_failure_reasons(result)
+            if halted:
+                break
+    return results, halted
 
 
 def _no_op_result(preview: dict[str, Any], *, dry_run: bool) -> dict[str, Any]:
@@ -323,13 +338,16 @@ def apply_investigation_learning(
         )
         if failure:
             return _blocked_result(run_id, failure)
-        results = _apply_prepared(prepared, dry_run=dry_run, profile_store=profile_store)
+        results, halted = _apply_prepared(prepared, dry_run=dry_run, profile_store=profile_store)
 
     planned = sum(int(item["preview"].get("summary", {}).get("planned_write_count", 0) or 0) for item in prepared)
     applied = sum(int(item["result"].get("summary", {}).get("applied_write_count", 0) or 0) for item in results)
     already = sum(int(item["result"].get("summary", {}).get("already_applied_count", 0) or 0) for item in results)
     no_op_envelopes = sum(1 for item in prepared if item["no_op"])
-    status = _apply_status(prepared=prepared, dry_run=dry_run, applied=applied, already=already)
+    if halted and not dry_run:
+        status = "partial" if applied else "blocked"
+    else:
+        status = _apply_status(prepared=prepared, dry_run=dry_run, applied=applied, already=already)
     return {
         "schema_version": "deepr-investigation-learning-apply-v1",
         "kind": "deepr.expert.investigation_learning_apply",
@@ -352,7 +370,7 @@ def apply_investigation_learning(
             "planned_write_count": planned,
             "applied_write_count": applied,
             "already_applied_count": already,
-            "failure_reasons": [],
+            "failure_reasons": halted,
         },
         "results": results,
     }

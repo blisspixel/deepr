@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from deepr.utils.security import sanitize_log_message
+
 
 @dataclass
 class ToolError:
@@ -44,9 +46,10 @@ class ToolError:
             retry_after = details.get("retry_after") if isinstance(details, dict) else None
             if not isinstance(retry_after, int):
                 retry_after = None
+        raw = message if message is not None else str(getattr(exc, "message", exc))
         return cls(
             error_code=error_code,
-            message=message if message is not None else str(getattr(exc, "message", exc)),
+            message=sanitize_log_message(raw),
             category=category if isinstance(category, str) else "internal",
             retryable=retryable,
             retry_after=retry_after,
@@ -66,7 +69,7 @@ def make_tool_error(
     """Build the canonical dictionary representation returned by MCP tools."""
     return ToolError(
         error_code=code,
-        message=message,
+        message=sanitize_log_message(message),
         retry_hint=retry_hint,
         fallback_suggestion=fallback,
         category=category,

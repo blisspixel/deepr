@@ -1,6 +1,6 @@
 # Deepr Threat Model
 
-Status: current with Deepr v2.49.1. Last reviewed: 2026-08-13.
+Status: current with Deepr v2.50.0. Last reviewed: 2026-08-21.
 
 This document is the repository-scoped threat model for Deepr. It is intended
 for security reviews, design reviews, and future bug discovery. It should stay
@@ -367,7 +367,7 @@ Existing controls:
   applied evidence, and freezes on non-clean or failed apply. Paid account
   evidence is non-authoritative unless a provider-specific authenticated source
   verifier and current account, scope, and credential resolver both succeed.
-  No production provider account-control adapter is installed in v2.49, so
+  No production provider account-control adapter is installed in v2.50, so
   metered dispatch remains blocked. A funded Deepr wallet cannot change that
   result: it is local spend authority, not proof that provider overage is
   impossible.

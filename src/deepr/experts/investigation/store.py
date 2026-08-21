@@ -94,7 +94,9 @@ class InvestigationStore:
                 if existing["plan_sha256"] != validated["plan_sha256"]:
                     raise InvestigationStorageError("run id already belongs to a different plan")
                 return self.load_state(run_id)
-            path.mkdir(parents=False, exist_ok=False)
+            # exist_ok lets a crash between mkdir and plan.json retry the same
+            # run id instead of raising FileExistsError on an incomplete dir.
+            path.mkdir(parents=False, exist_ok=True)
             atomic_write_json(plan_path, validated, sort_keys=True, fsync=True)
             state = {
                 "schema_version": "deepr-investigation-state-v1",

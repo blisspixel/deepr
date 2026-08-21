@@ -91,9 +91,11 @@ class ExpertChatSessionFactory(Protocol):
 
 
 def _make_error(code: str, message: str, *, category: str = "internal") -> dict[str, Any]:
+    from deepr.utils.security import sanitize_log_message
+
     return {
         "error_code": code,
-        "message": message,
+        "message": sanitize_log_message(message),
         "category": category,
         "retryable": False,
     }

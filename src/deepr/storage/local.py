@@ -50,6 +50,12 @@ class LocalStorage(StorageBackend):
         if not job_id or re.fullmatch(r"[A-Za-z0-9_-]+", job_id) is None:
             error = InvalidInputError("Job id must contain only letters, numbers, hyphens, and underscores")
             raise StorageError(message=f"Invalid job_id: {error}", storage_type="local", original_error=error)
+        from deepr.utils.security import reserved_windows_device_stem
+
+        device = reserved_windows_device_stem(job_id)
+        if device is not None:
+            error = InvalidInputError(f"Job id uses reserved Windows device name {device}")
+            raise StorageError(message=f"Invalid job_id: {error}", storage_type="local", original_error=error)
         return job_id
 
     def _validate_filename(self, filename: str) -> str:
@@ -73,6 +79,15 @@ class LocalStorage(StorageBackend):
         if "/" in filename or "\\" in filename or ".." in filename:
             raise StorageError(
                 message=f"Invalid filename contains path components: {filename}",
+                storage_type="local",
+                original_error=None,
+            )
+        from deepr.utils.security import reserved_windows_device_stem
+
+        device = reserved_windows_device_stem(filename)
+        if device is not None:
+            raise StorageError(
+                message=f"Invalid filename uses reserved Windows device name {device}",
                 storage_type="local",
                 original_error=None,
             )
