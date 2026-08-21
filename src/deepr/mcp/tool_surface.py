@@ -107,6 +107,25 @@ def register_bridge_tool_schemas(registry: ToolRegistry) -> None:
             cost_tier="free",
         )
     )
+    for name, action in (
+        ("deepr_resume_task", "Resume a paused durable task from its latest checkpoint."),
+        ("deepr_pause_task", "Pause a running durable task and retain its latest checkpoint."),
+    ):
+        registry.register(
+            ToolSchema(
+                name=name,
+                description=action,
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "task_id": {"type": "string", "description": "Durable task identifier"},
+                    },
+                    "required": ["task_id"],
+                },
+                category="tasks",
+                cost_tier="free",
+            )
+        )
     registry.register(
         ToolSchema(
             name="deepr_install_skill",

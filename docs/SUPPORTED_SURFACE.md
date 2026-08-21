@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.49.2 current main, 2026-08-20. This document defines what users and host
+Status: v2.49.2 current main, 2026-08-21. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -24,10 +24,12 @@ hard stop with overage disabled are also mandatory for dispatch. An open
 postpaid account remains blocked even with wallet credits. MCP,
 schedules, loops, and automatic fallback ignore the local wallet.
 
-The Expert Hub has an explicit 25-expert flagship tier and a complete standard
-tier. Its readiness field reports only whether durable presentation structure
-exists: a portrait, standpoint, position, studied finding, and retained
-source. It does not certify correctness, importance, or expert quality.
+The Expert Hub has a user-curated flagship tier and a complete standard tier.
+The pictured maintainer reference fleet currently selects 25 flagship experts;
+a clean install does not seed that roster or guarantee that count. Its readiness
+field reports only whether durable presentation structure exists: a portrait,
+standpoint, position, studied finding, and retained source. It does not certify
+correctness, importance, or expert quality.
 
 **Historical v2.47.0 attended authority is superseded by the v2.49.0 wallet.** A person at the CLI could issue a typed,
 expiring grant with a non-configurable $2 total maximum, then run the supported
@@ -46,11 +48,14 @@ This matters to the portability contract below, so it is stated here rather
 than only in the changelog. Nothing is lost and nothing needs converting by
 hand: `deepr expert migrate` moves an expert in place, dry run by default, and
 every reader resolves the old path when only the old path exists, so an
-un-migrated expert stays fully readable. All 57 experts in the reference fleet
-were migrated and verified field by field against a pre-migration backup with
-zero differences. `beliefs/` and `knowledge/` are v1 storage and are untouched.
+un-migrated expert stays fully readable. The maintainer's 57-expert reference
+fleet was migrated and verified field by field against a pre-migration backup
+with zero differences; that count is evidence from one local fleet, not an
+installed product invariant. `beliefs/` and `knowledge/` are v1 storage and are
+untouched.
 
-**v2.44.0 added the expert study surface as experimental**: retained corpus
+**Development later shipped in v2.45.0 added the expert study surface as
+experimental**: retained corpus
 (`corpus/index.jsonl` plus content-addressed sources), the multi-lens study pass,
 coverage reporting, and the notebook render. These are additive; existing belief
 stores are untouched and keep working. The study pass proposes findings and never
@@ -649,10 +654,17 @@ must not be described as usable capacity.
   marginal-cost, or process-safety gates.
 - Multi-account capacity pools are planned after a single-account mechanism is
   complete.
-- Host-specific Agent Plugin installation recipes, remote MCP routes, steering,
-  and external computer control remain planned. They require independently
-  validated host capability profiles and cannot widen the shipped local
-  read-only package boundary.
+- Host-specific profiles, remote MCP routes, steering, and external computer
+  control remain planned. The first local fixtures target OpenClaw stable
+  `v2026.7.1-2` through explicit MCP plus a skill, DeepSeek Harness
+  `dsh-v0.1.1-rc.2`, and Grok Build 1.0.6. OpenClaw native Agent Plugins support
+  remains a separate `v2026.8.1-beta.2` prerelease evidence lane. Manual Grok
+  Bot installation is a valid future host path, but no public Bot lifecycle API
+  is claimed. NemoClaw `v0.0.113` with its pinned OpenShell 0.0.106 remains a
+  reference-only remote profile. Every path requires independently validated
+  host capability evidence and cannot widen the shipped local read-only package
+  boundary. See
+  [external-harness-investigation-bridge.md](design/external-harness-investigation-bridge.md).
 - OKF 0.2 export and offline form validation ship under
   `deepr-okf-profile-v2`. Import remains permissive, untrusted, and
   verification-gated. Runtime computation execution and attestation do not

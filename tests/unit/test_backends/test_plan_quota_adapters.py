@@ -134,27 +134,11 @@ class TestRegistry:
         assert adapter.execution_block_reason
 
     def test_read_capable_native_tool_backends_never_run_unconfined(self):
-        """Blocked, or confined at dispatch. Never neither.
-
-        The invariant is that no backend with live file and shell tools sees an
-        untrusted prompt with those tools available. An execution block is one
-        way to satisfy it; stripping the tools in the argv is the other, and is
-        strictly better because the backend stays usable.
-        """
+        """Every adapter with an unproven native-tool surface stays blocked."""
         for backend_id in ("codex", "kiro", "grok", "antigravity"):
             adapter = get_adapter(backend_id)
             assert adapter is not None, backend_id
-            if adapter.execution_block_reason:
-                continue
-            argv = " ".join(adapter.argv_builder("prompt.txt", None))
-            if "--disallowed-tools" in argv:
-                for tool in ("bash", "edit", "write", "read"):
-                    assert tool in argv, f"{backend_id} does not strip {tool}"
-                continue
-            # No tool-allowlist flag on this CLI, so the sandbox is the
-            # confinement. It satisfies the same invariant by a different
-            # route: the tools exist and cannot write or reach the network.
-            assert "--sandbox" in argv, f"{backend_id} runs with native tools live"
+            assert adapter.execution_block_reason, backend_id
 
     def test_codex_sandbox_is_read_only_and_offline(self):
         argv = " ".join(get_adapter("codex").argv_builder("prompt.txt", None))
@@ -163,19 +147,14 @@ class TestRegistry:
         assert 'approval_policy="never"' in argv
 
     def test_antigravity_cannot_edit_or_run_a_terminal(self):
-        """agy has no tool allowlist, so both available levers are pulled.
-
-        Removing its execution block without these left the invariant
-        unsatisfied rather than satisfied another way: a retrieved prompt
-        reached live file and shell tools.
-        """
+        """Blocked transport keeps all available defense-in-depth flags."""
         argv = " ".join(get_adapter("antigravity").argv_builder("prompt.txt", None))
         assert "--sandbox" in argv
         assert "--mode plan" in argv
         assert "--dangerously-skip-permissions" not in argv
 
     def test_grok_strips_its_tools_and_web_access(self):
-        """Pins the confinement that replaced grok's execution block."""
+        """Blocked transport still strips known tools as defense in depth."""
         argv = " ".join(get_adapter("grok").argv_builder("prompt.txt", None))
         assert "--disable-web-search" in argv
         assert "--disallowed-tools" in argv

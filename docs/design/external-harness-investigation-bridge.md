@@ -1,6 +1,6 @@
 # External Harness Bridge for Expert Investigations
 
-Status: proposed boundary refinement, researched 2026-08-20. No remote
+Status: proposed boundary refinement, researched 2026-08-21. No remote
 investigation bridge or direct Grok Bot integration is shipped by this note.
 
 Read [AGENTIC_BALANCE.md](../plans/AGENTIC_BALANCE.md),
@@ -48,26 +48,43 @@ Deepr. Sources: [overview](https://docs.x.ai/grok-bot/overview),
 [computer](https://docs.x.ai/grok-bot/computer-and-apps), and
 [security](https://docs.x.ai/grok-bot/approvals-security-and-privacy).
 
-Grok Build supports project MCP configuration and workflow files that can
-coordinate parallel agents with verification. That makes Grok Build a
-plausible host for Deepr's MCP tools. It does not make its hidden children or
-tools eligible Deepr capacity. Sources:
-[MCP servers](https://docs.x.ai/build/features/mcp-servers) and
+Agent Plugins now lists Grok Bot as a compatible client for Agent Skills and
+stdio, Streamable HTTP, and legacy SSE MCP. This makes manual Deepr plugin or
+MCP installation a real host target. It does not add a public Bot lifecycle API
+or make the shared VM a Deepr security boundary. Source:
+[compatible clients](https://agent-plugins.org/compatible-clients).
+
+Grok Build 1.0.6 supports project MCP configuration in `.grok/config.toml`,
+resolved-configuration evidence through `grok inspect --json`, and workflow
+files that can coordinate parallel agents with verification. Controlled host
+evidence must disable auto-update and bind the inspected executable version.
+The documented MCP configuration has no exact tool filter, so Deepr's scoped
+server surface remains authoritative. It does not make Grok Build's hidden
+children or tools eligible Deepr capacity. Sources:
+[settings](https://docs.x.ai/build/settings),
+[MCP servers](https://docs.x.ai/build/features/mcp-servers),
+[headless operation](https://docs.x.ai/build/cli/headless-scripting), and
 [workflows](https://x.ai/news/workflows).
 
 No documented public Grok Bot management API was found in the official Grok
-Bot material reviewed on 2026-08-20. A direct Bot adapter is therefore not a
-current implementation target. Grok Build can be evaluated as an MCP host, and
-a Grok Bot user can supervise that host manually, but Deepr must not claim
-automated Bot creation, routing, or takeover support without a published and
-testable interface.
+Bot material reviewed on 2026-08-21. Automated Bot creation, routing, takeover,
+and routine management are therefore not current implementation targets. A
+Grok Bot operator may install or supervise a Deepr plugin or MCP connection
+manually, but Deepr must not claim automated lifecycle support without a
+published and testable interface. Grok Bot also lacks a documented per-product
+spend cap, so its host controls cannot replace Deepr's zero-spend or bounded
+server-side authority. Source:
+[team controls](https://docs.x.ai/grok-bot/teams-and-enterprises).
 
 ### DeepSeek Harness
 
-DeepSeek Harness is a developer preview built around replaceable plugins and
-profiles. Its append-only session log drives resume, fork, search, replay, and
-UI trajectory projections. Its MCP client maps remote server tools into the
-host tool registry. These are strong evidence for two narrow Deepr additions:
+DeepSeek Harness `dsh-v0.1.1-rc.2` is a developer preview built around
+replaceable plugins and profiles. Its append-only session log drives resume,
+fork, search, replay, and UI trajectory projections. Its MCP client maps remote
+server tools into the host tool registry. A Deepr profile should fail on MCP
+startup errors instead of silently degrading. Harness tool restriction is a
+visibility mechanism, not Deepr authorization. These are strong evidence for
+two narrow Deepr additions:
 
 - a versioned host profile with an exact tool allowlist; and
 - replayable UI or chat projections over Deepr's authoritative event journal.
@@ -76,42 +93,48 @@ Deepr should not copy the Cordis plugin kernel, record private model reasoning,
 or let plugins replace budget, evidence, or memory authority. The Harness is in
 developer preview and states that its APIs will continue to evolve. Sources:
 [product overview](https://deepseek.com/harness/en/),
-[architecture](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/architecture.md),
+[release](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.1-rc.2),
+[architecture](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.1.1-rc.2/docs/architecture.md),
 and
-[MCP client](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/mcp/mcp-client/README.md).
+[MCP client](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.1.1-rc.2/packages/mcp/mcp-client/README.md).
 
 ### OpenClaw
 
-OpenClaw is an external gateway, channel, session, workspace, tool, skill, and
-agent runtime. Its current configuration supports stdio and remote MCP servers,
-per-server timeouts, tool include and exclude filters, OAuth identity posture,
-TLS controls, and per-agent projection. Its sandbox, tool policy, and elevated
-execution controls are intentionally distinct.
+OpenClaw stable `v2026.7.1-2` is an external gateway, channel, session,
+workspace, tool, skill, and agent runtime. Its configuration supports stdio and
+remote MCP servers, per-server timeouts, tool include and exclude filters,
+OAuth identity posture, TLS controls, and per-agent projection. Its sandbox,
+tool policy, and elevated execution controls are intentionally distinct.
 
-That makes OpenClaw a practical first host integration. The first Deepr recipe
-should use MCP plus the existing exported `SKILL.md`, with an exact observer
-tool allowlist. A Deepr-specific OpenClaw plugin is unnecessary until MCP and a
-skill cannot express a measured requirement. Sources:
+That makes OpenClaw a practical first host integration. The first stable Deepr
+profile should use explicit MCP plus the existing exported `SKILL.md`, with an
+exact observer tool allowlist. Native Agent Plugins support appears only in
+prerelease `v2026.8.1-beta.2`, so it belongs in a separate prerelease evidence
+lane until a stable release carries the capability. In either lane, the host
+still needs an installed `deepr-mcp` executable. Sources:
+[stable release](https://github.com/openclaw/openclaw/releases/tag/v2026.7.1-2),
 [MCP configuration](https://docs.openclaw.ai/gateway/configuration-reference),
 [tool policy](https://docs.openclaw.ai/tools), and
-[sandboxing](https://docs.openclaw.ai/sandboxing).
+[prerelease](https://github.com/openclaw/openclaw/releases/tag/v2026.8.1-beta.2).
 
 ### NemoClaw and OpenShell
 
-NVIDIA documents NemoClaw as a reference stack for running supported harnesses,
-including OpenClaw, inside OpenShell sandboxes with network, filesystem,
-process, inference, snapshot, and lifecycle controls. Its managed MCP flow keeps
-the secret value outside sandbox configuration and resolves a credential alias
-at egress.
+NVIDIA NemoClaw `v0.0.113` pins OpenShell 0.0.106 as the supported boundary,
+even though a newer standalone OpenShell release exists. It runs supported
+harnesses, including OpenClaw, inside sandboxes with network, filesystem,
+process, inference, snapshot, and lifecycle controls. Its managed MCP flow
+accepts authenticated HTTPS Streamable HTTP, keeps the secret value outside
+sandbox configuration, and resolves a credential alias at egress.
 
 NemoClaw is therefore a deployment and isolation profile for an external host,
 not a Deepr runtime dependency. A first recipe should connect a NemoClaw
 sandbox to Deepr's HTTP MCP endpoint using a dedicated scoped key and explicit
-egress rule. It should be labeled WSL or Linux reference integration until
-validated on a supported host. Sources:
-[overview](https://docs.nvidia.com/nemoclaw/latest/about/overview.html),
-[repository](https://github.com/NVIDIA/NemoClaw), and
-[managed MCP](https://docs.nvidia.com/nemoclaw/latest/user-guide/openclaw/manage-sandboxes/mcp-servers/add-an-mcp-server).
+egress rule. It remains reference-only until Deepr validates that exact
+NemoClaw and OpenShell pair, including its managed-MCP path and release
+exceptions. Sources:
+[release](https://github.com/NVIDIA/NemoClaw/releases/tag/v0.0.113),
+[OpenShell pin](https://github.com/NVIDIA/NemoClaw/blob/v0.0.113/scripts/install-openshell.sh), and
+[managed MCP](https://docs.nvidia.com/nemoclaw/latest/user-guide/openclaw/manage-sandboxes/mcp-servers/about-managed-mcp-servers).
 
 ### Other hosts and protocols
 
@@ -445,12 +468,15 @@ through the package with byte-reproducible output and no secret material.
 
 ### Bridge 3: contracts and drift audit
 
+Status: active. The 2026-08-21 re-audit restored explicit production blocks
+for Codex, Grok Build, and Antigravity. Contract publication remains pending.
+
 - Publish zero-call schemas for host profile, capability snapshot, control
   evidence, event page, artifact metadata page, follow-up, and fork lineage.
 - Add fixture validation proving projections cannot mutate a run or imply
   semantic acceptance.
-- Resolve Grok plan-adapter documentation and runtime drift by either restoring
-  the block or proving an exact-empty ambient capability set under tests.
+- Keep every non-Claude plan adapter blocked until its exact ambient capability
+  set, provider identity, and marginal-cost posture are proven before dispatch.
 
 Gate: all contracts are versioned, bounded, path-safe, backward-compatible, and
 accepted by the approach and supported-surface documents.
@@ -473,14 +499,19 @@ reconstructs the same visible lifecycle without changing canonical state.
 
 ### Bridge 5: popular host conformance
 
-- Prefer the conformant Agent Plugin package where a host supports it.
+- Prefer the conformant Agent Plugin package only where a stable host release
+  supports it. Keep prerelease support in a separate evidence lane.
 - Generate an offline observer profile and exact configuration fragment for
-  OpenClaw, DeepSeek Harness, Grok Build, and Codex where needed.
-- Treat NemoClaw plus OpenShell as a remote isolation recipe after HTTP auth,
-  egress, and endpoint-cost prerequisites pass.
+  OpenClaw `v2026.7.1-2`, DeepSeek Harness `dsh-v0.1.1-rc.2`, Grok Build 1.0.6,
+  and Codex where needed. Test OpenClaw Agent Plugins separately against
+  prerelease `v2026.8.1-beta.2` until the feature reaches stable.
+- Treat NemoClaw `v0.0.113` plus its pinned OpenShell 0.0.106 as a remote
+  isolation recipe after HTTP auth, egress, and endpoint-cost prerequisites
+  pass. Do not substitute a newer standalone OpenShell release.
 - Record host version, transport, exact tool inventory, validation evidence,
   and `reference`, `fixture_validated`, or `live_validated` status.
-- Do not claim direct Grok Bot automation or supported public hosting.
+- Allow a manual Grok Bot Agent Plugin or MCP host profile, but do not claim Bot
+  lifecycle automation or supported public hosting.
 
 Gate: every advertised host claim has a reproducible fixture or live evidence;
 reference-only recipes remain labeled as such.

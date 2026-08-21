@@ -144,13 +144,8 @@ class TestAdmitPlan:
         assert r.exit_code == 0, r.output
 
     def test_admit_choice_restricted_to_auto_routable(self):
-        """Only backends provable non-metered and read-confined can auto-route.
-
-        codex, grok and antigravity left this list once their tools could be
-        stripped at dispatch, which is the property the refusal existed to
-        protect rather than the refusal itself.
-        """
-        for backend in ("opencode", "kiro", "copilot"):
+        """Only a backend with complete execution proof can auto-route."""
+        for backend in ("codex", "opencode", "kiro", "grok", "antigravity", "copilot"):
             r = CliRunner().invoke(capacity, ["admit-plan", backend])
             assert r.exit_code != 0, backend
 
@@ -458,26 +453,25 @@ class TestProbeFleet:
         assert payload["selected_count"] == 1
         assert payload["results"][0]["backend"] == "claude"
 
-    def test_explicit_unconfined_experimental_backend_is_refused(self, monkeypatch):
-        """kiro stays refused: its read tools cannot be confined at dispatch.
+    def test_explicit_unproven_native_tool_backends_are_refused(self, monkeypatch):
+        for backend, executable in (
+            ("codex", "codex"),
+            ("kiro", "kiro-cli"),
+            ("grok", "grok"),
+            ("antigravity", "agy"),
+        ):
+            _clean_env(monkeypatch)
+            _stub_path(monkeypatch, executable)
+            _stub_probe(monkeypatch, ok=True, reply="OK")
 
-        codex, grok and antigravity are deliberately absent. They carry the
-        same class of native tools and are now confined in their argv instead
-        of blocked, so asserting a refusal for them would pin the block rather
-        than the property the block exists to protect.
-        """
-        _clean_env(monkeypatch)
-        _stub_path(monkeypatch, "kiro-cli")
-        _stub_probe(monkeypatch, ok=True, reply="OK")
+            r = CliRunner().invoke(capacity, ["probe-fleet", "--backend", backend, "--json"])
 
-        r = CliRunner().invoke(capacity, ["probe-fleet", "--backend", "kiro", "--json"])
-
-        assert r.exit_code == 1, r.output
-        payload = json.loads(r.output)
-        assert payload["ok_count"] == 0
-        assert payload["failed_count"] == 1
-        assert [result["backend"] for result in payload["results"]] == ["kiro"]
-        assert "confined" in payload["results"][0]["error"]
+            assert r.exit_code == 1, (backend, r.output)
+            payload = json.loads(r.output)
+            assert payload["ok_count"] == 0
+            assert payload["failed_count"] == 1
+            assert [result["backend"] for result in payload["results"]] == [backend]
+            assert "execution is disabled" in payload["results"][0]["error"]
 
     def test_explicit_metered_backend_is_blocked_by_default(self, monkeypatch):
         _clean_env(monkeypatch)

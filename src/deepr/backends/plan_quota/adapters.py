@@ -268,10 +268,9 @@ def validate_model_identifier(model: str) -> str:
 
 def _codex_argv(prompt: str, model: str | None) -> list[str]:
     # `codex exec` is the non-interactive subcommand; stdout = final message,
-    # stderr = progress. Confined at dispatch: the read-only sandbox permits no
-    # writes and no execution outside it, and approvals are off so nothing can
-    # prompt its way past that. Network is disabled too, so a retrieved prompt
-    # cannot talk back out.
+    # stderr = progress. These flags are defense in depth for transport tests,
+    # not execution authority: the CLI still retains native read and shell tools
+    # and Deepr cannot prove an exact empty ambient capability set before launch.
     args = [
         "codex",
         "exec",
@@ -354,12 +353,9 @@ def _grok_argv(prompt_path: str, model: str | None) -> list[str]:
     # `--prompt-file <path>` is the only headless-safe delivery. The client writes
     # the prompt to the temp file at prompt_path.
     #
-    # Tools are stripped rather than trusted. A study or brief prompt carries
-    # retrieved web text, which is untrusted input that may contain
-    # instructions aimed at whatever reads it. Deepr wants one thing from this
-    # dispatch - text back - so every built-in that could touch the machine is
-    # removed and web access is turned off. Verified on this build: the answer
-    # returns clean with all of them gone.
+    # The deny list and disabled web search are defense in depth only. A deny
+    # list cannot prove that a newer CLI has no additional ambient tools, so the
+    # production adapter remains blocked before process construction.
     args = ["grok", "--no-auto-update", "--no-alt-screen", "--disable-web-search"]
     args += ["--disallowed-tools", ",".join(_GROK_DENIED_TOOLS)]
     args = _append_model(args, "--model", model)
@@ -372,13 +368,9 @@ def _antigravity_argv(prompt: str, model: str | None) -> list[str]:
     # because the non-TTY stdout-drop bug (June 2026) leaves captured stdout
     # empty on exit 0; the client treats empty output as an error.
     #
-    # `--sandbox` and `--mode plan` are the confinement. agy has no tool
-    # allowlist flag, so the two available levers are used instead: sandbox
-    # restricts the terminal, and plan mode cannot apply edits. Without both,
-    # a retrieved prompt reaches live file and shell tools, which is the thing
-    # the old execution block existed to prevent - removing the block without
-    # adding these left the invariant unsatisfied rather than satisfied by a
-    # different route.
+    # `--sandbox` and `--mode plan` are defense in depth. They do not prove an
+    # empty native-tool surface or contain transcript side effects, so the
+    # production adapter remains blocked before process construction.
     args = _append_model(["agy"], "--model", model)
     args += ["--sandbox", "--mode", "plan", "--disable-slash-commands", "--output-format", "text"]
     return [*args, "-p", prompt]
@@ -409,7 +401,10 @@ _ADAPTERS: tuple[PlanQuotaAdapter, ...] = (
         error_channel_exhaustion_signals=("you've hit your usage limit",),
         enabled_by_default=False,
         stdin_prompt=True,
-        value_note="visible/read-only; confined at dispatch by a read-only sandbox with no approvals and no network",
+        execution_block_reason=(
+            "Codex native read and shell tools cannot be reduced to an exact empty capability set before dispatch"
+        ),
+        value_note="visible/read-only; native tools are not proven absent before dispatch",
     ),
     PlanQuotaAdapter(
         backend_id="claude",
@@ -491,11 +486,15 @@ _ADAPTERS: tuple[PlanQuotaAdapter, ...] = (
         enabled_by_default=False,
         experimental=True,
         prompt_is_file=True,
+        execution_block_reason=(
+            "Grok Build native tool confinement, subscription automation policy, and exact non-metered posture "
+            "cannot be proven before dispatch"
+        ),
         tos_note=(
             "subscription (SuperGrok/X Premium+) headless use is ToS gray-zone; xAI steers "
             "automation to the metered API key. Verify the exhaustion signature on your build."
         ),
-        value_note="visible/read-only; built-in tools stripped at dispatch and web access off",
+        value_note="visible/read-only; deny-list confinement and non-metered posture are not sufficient proof",
     ),
     PlanQuotaAdapter(
         backend_id="antigravity",
@@ -511,12 +510,16 @@ _ADAPTERS: tuple[PlanQuotaAdapter, ...] = (
         experimental=True,
         needs_pty=True,
         answer_from_transcript=True,
+        execution_block_reason=(
+            "Antigravity native tools and transcript side effects cannot be confined for untrusted prompts, "
+            "and headless automation policy remains unproven"
+        ),
         tos_note=(
             "automated/headless use is ToS gray-zone amid an active account-ban wave; "
             "the CLI also drops stdout under a non-TTY pipe (June 2026), so the answer is "
             "recovered from its transcript file. Use at your own risk."
         ),
-        value_note="Google AI plan weekly compute cap, hard-stop (no overage)",
+        value_note="visible/read-only; native tools, transcript side effects, and automation policy are unproven",
     ),
     PlanQuotaAdapter(
         backend_id="copilot",

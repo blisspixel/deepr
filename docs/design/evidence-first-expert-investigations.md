@@ -116,7 +116,7 @@ following boundary:
 The implementation composes these primitives without creating a second belief
 store, a second cost system, or a hidden agent runtime.
 
-## Research basis through 2026-08-20
+## Research basis through 2026-08-21
 
 The strongest current evidence favors centralized, selective collaboration:
 
@@ -140,14 +140,15 @@ The strongest current evidence favors centralized, selective collaboration:
   [Grok Bot security](https://docs.x.ai/grok-bot/approvals-security-and-privacy),
   [Grok Build MCP](https://docs.x.ai/build/features/mcp-servers), and
   [Grok Build workflows](https://x.ai/news/workflows).
-- DeepSeek Harness's append-only session projection, OpenClaw's filtered MCP
-  client, and NemoClaw's sandboxed managed-MCP path strengthen the case for a
-  versioned observer profile and replayable event projection. They do not
+- DeepSeek Harness `dsh-v0.1.1-rc.2` append-only session projection, OpenClaw
+  stable `v2026.7.1-2` filtered MCP client, and NemoClaw `v0.0.113` with its
+  pinned OpenShell 0.0.106 managed-MCP path strengthen the case for a versioned
+  observer profile and replayable event projection. They do not
   justify replacing the investigation state machine or moving credentials and
   computer workspaces into Deepr. Sources:
   [DeepSeek Harness](https://deepseek.com/harness/en/),
   [OpenClaw MCP](https://docs.openclaw.ai/gateway/configuration-reference), and
-  [NemoClaw managed MCP](https://docs.nvidia.com/nemoclaw/latest/user-guide/openclaw/manage-sandboxes/mcp-servers/add-an-mcp-server).
+  [NemoClaw managed MCP](https://docs.nvidia.com/nemoclaw/latest/user-guide/openclaw/manage-sandboxes/mcp-servers/about-managed-mcp-servers).
 - Anthropic's production research system uses a lead agent to delegate
   breadth-first searches to parallel subagents, then adds citation processing.
   It reports a substantial internal quality gain and roughly 15 times the token

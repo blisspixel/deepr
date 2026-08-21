@@ -39,6 +39,9 @@ from deepr.observability.cost_ledger import CostLedger
 @pytest.fixture(autouse=True)
 def _enable_blocked_adapters_for_transport_unit_tests(monkeypatch):
     """Keep transport tests isolated from production adapter admission policy."""
+    from deepr.backends.plan_quota import transcript_dispatch
+
+    monkeypatch.setattr(transcript_dispatch, "transcript_snapshot", lambda *_args, **_kwargs: {})
     for adapter in REGISTRY.values():
         for variable in adapter.metered_env_vars:
             monkeypatch.delenv(variable, raising=False)
@@ -48,6 +51,32 @@ def _enable_blocked_adapters_for_transport_unit_tests(monkeypatch):
             backend_id,
             replace(REGISTRY[backend_id], execution_block_reason=""),
         )
+
+
+@pytest.mark.parametrize("backend_id", ["codex", "grok", "antigravity"])
+def test_blocked_production_adapter_refuses_before_runner_or_ledger(tmp_path, backend_id):
+    called = False
+
+    async def runner(*_args, **_kwargs):
+        nonlocal called
+        called = True
+        raise AssertionError("blocked adapter reached the runner")
+
+    adapter = replace(get_adapter(backend_id), execution_block_reason="unproven production capability boundary")
+    quota_path = tmp_path / "quota.jsonl"
+    cost_path = tmp_path / "cost.jsonl"
+
+    with pytest.raises(PlanQuotaError, match="execution is disabled"):
+        PlanQuotaChatClient(
+            adapter,
+            runner=runner,
+            quota_ledger_path=quota_path,
+            cost_ledger_path=cost_path,
+        )
+
+    assert called is False
+    assert not quota_path.exists()
+    assert not cost_path.exists()
 
 
 def _runner(

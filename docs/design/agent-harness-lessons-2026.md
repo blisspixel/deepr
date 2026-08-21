@@ -1,6 +1,6 @@
 # Agent Harness Lessons for Deepr
 
-Status: researched roadmap design, updated 2026-08-20. Nothing in this document is
+Status: researched roadmap design, updated 2026-08-21. Nothing in this document is
 shipped merely because it is described here.
 
 The current Deepr-specific integration decision is
@@ -24,13 +24,16 @@ safe.
   backends behind one personal-agent gateway
   ([repository](https://github.com/NousResearch/hermes-agent),
   [release](https://github.com/NousResearch/hermes-agent/releases/tag/v2026.7.7)).
-- OpenClaw 2026.6.6, released 2026-06-12, emphasizes an always-on local
+- OpenClaw stable `v2026.7.1-2`, released 2026-08-04, emphasizes an always-on local
   gateway, scoped skills, session snapshots, device pairing, sandboxing,
   prepared approvals, fail-closed execution, and release-integrity evidence
   ([repository](https://github.com/openclaw/openclaw),
   [security model](https://github.com/openclaw/openclaw/blob/main/docs/gateway/security/index.md),
   [skills](https://github.com/openclaw/openclaw/blob/main/docs/tools/skills.md),
-  [release](https://github.com/openclaw/openclaw/releases/tag/v2026.6.6)).
+  [release](https://github.com/openclaw/openclaw/releases/tag/v2026.7.1-2)).
+  Agent Plugins support is currently limited to prerelease
+  `v2026.8.1-beta.2`, so stable integration must use explicit MCP plus a skill
+  ([prerelease](https://github.com/openclaw/openclaw/releases/tag/v2026.8.1-beta.2)).
 - Pi v0.73.1, released 2026-05-07, keeps the harness composable across model
   APIs, core loop, TUI, SDK, and JSON-RPC. Its session model distinguishes
   steering from follow-up input and supports abort recovery, trees, and forks
@@ -54,24 +57,31 @@ safe.
   experience, not the shared authority model
   ([overview](https://docs.x.ai/grok-bot/overview),
   [security](https://docs.x.ai/grok-bot/approvals-security-and-privacy)).
-- Grok Build supports MCP configuration and reusable workflows with parallel
-  agents and verification. It is therefore a plausible external Deepr host,
-  separately from any eligibility as a Deepr plan-capacity adapter
+- Grok Bot is now listed as an Agent Plugins client, making manual package or
+  MCP installation a real host target. No public Bot lifecycle API is
+  documented, so automated creation, routing, takeover, and routine management
+  remain outside the implementation target
+  ([compatible clients](https://agent-plugins.org/compatible-clients)).
+- Grok Build 1.0.6 supports MCP configuration and reusable workflows with
+  parallel agents and verification. Its inspected executable version and
+  disabled auto-update state must be evidence, and its lack of an exact MCP
+  tool filter leaves Deepr authorization authoritative. It is a plausible
+  external Deepr host, separately from any eligibility as plan capacity
   ([MCP](https://docs.x.ai/build/features/mcp-servers),
   [workflows](https://x.ai/news/workflows)).
-- DeepSeek Harness developer preview makes capabilities profile-composed
+- DeepSeek Harness `dsh-v0.1.1-rc.2` makes capabilities profile-composed
   plugins and reconstructs resume, fork, search, replay, and UI views from an
   append-only session log. Deepr should adopt the narrower host-profile and
   projection seams, not the general plugin kernel or private-reasoning log
   ([overview](https://deepseek.com/harness/en/),
-  [architecture](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/architecture.md)).
+  [architecture](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.1.1-rc.2/docs/architecture.md)).
 - OpenClaw now documents remote and stdio MCP servers with tool filters and
-  distinct sandbox, tool-policy, and elevated-execution controls. NemoClaw adds
-  an OpenShell deployment profile with sandbox, egress, credential-alias,
-  snapshot, and lifecycle controls. Both are practical external host targets,
-  not Deepr runtime dependencies
+  distinct sandbox, tool-policy, and elevated-execution controls. NemoClaw
+  `v0.0.113` pins OpenShell 0.0.106 for its managed-MCP boundary. Both are
+  practical external host targets, not Deepr runtime dependencies, and the
+  NemoClaw pair remains reference-only until Deepr validates it
   ([OpenClaw MCP](https://docs.openclaw.ai/gateway/configuration-reference),
-  [NemoClaw overview](https://docs.nvidia.com/nemoclaw/latest/about/overview.html)).
+  [NemoClaw release](https://github.com/NVIDIA/NemoClaw/releases/tag/v0.0.113)).
 
 ## Adopt
 
