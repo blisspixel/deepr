@@ -17,9 +17,11 @@ subscription quota, with no automatic fallback to a paid API.
   <img src="assets/expert-hub.png" width="100%" alt="Deepr Expert Hub showing the 25-expert flagship roster with portraits, standpoints, positions, studied findings, and retained sources" />
 </p>
 
-The flagship view keeps the selected 25 experts in focus while preserving the
-complete roster. Each card exposes the expert's standpoint, positions, studied
-findings, retained sources, and readiness from durable state.
+The pictured maintainer fleet keeps its selected 25 flagship experts in focus
+while preserving its complete roster. Flagship membership is user-curated local
+state, not a 25-expert clean-install guarantee. Each card exposes the expert's
+standpoint, positions, studied findings, retained sources, and readiness from
+durable state.
 
 ## Turn evidence into reusable judgment
 

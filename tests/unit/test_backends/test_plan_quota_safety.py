@@ -73,21 +73,18 @@ class TestDetectAuthMode:
         assert detect_auth_mode(get_adapter("opencode"), {"OPENAI_API_KEY": "sk-x"}) == AuthMode.UNKNOWN
 
     def test_other_adapters_remain_blocked_by_their_own_gates(self):
-        """Every other adapter is either blocked or confined at dispatch.
-
-        grok, antigravity and codex are confined rather than blocked, which is
-        strictly better: the invariant holds and the backend stays usable.
-        test_plan_quota_adapters pins the confinement itself.
-        """
-        confined = {"grok", "antigravity", "codex"}
+        """Explicit selection cannot override incomplete capability proof."""
         for backend_id in ("codex", "grok", "kiro", "opencode", "antigravity"):
             adapter = get_adapter(backend_id)
             assert adapter is not None
-            if backend_id in confined:
-                argv = " ".join(adapter.argv_builder("p.txt", None))
-                assert "--disallowed-tools" in argv or "--sandbox" in argv, backend_id
-                continue
             assert adapter.execution_block_reason, f"{backend_id} lost its execution block"
+
+    def test_blocked_native_tool_adapters_fail_before_dispatch(self):
+        for backend_id in ("codex", "grok", "antigravity"):
+            decision = evaluate_plan_quota_safety(get_adapter(backend_id), env={})
+            assert not decision.safe, backend_id
+            assert decision.auth_mode == AuthMode.PLAN
+            assert "execution is disabled" in decision.reason
 
 
 class TestSafetyGate:
@@ -144,15 +141,11 @@ class TestSafetyGate:
         assert "native read tools" in d.reason
         assert "explicit read allowlist" in d.reason
 
-    def test_codex_is_safe_once_its_sandbox_confines_the_tools(self):
-        """Codex was gated on native tools; it now runs read-only and offline.
-
-        The gate existed to stop an untrusted prompt reaching live file and
-        shell tools. An OS sandbox satisfies that as well as a tool allowlist
-        does, so the refusal was pinning the mechanism rather than the property.
-        """
+    def test_codex_read_only_sandbox_does_not_replace_exact_tool_proof(self):
+        """A sandbox narrows effects but does not prove an empty tool surface."""
         d = evaluate_plan_quota_safety(get_adapter("codex"), env={})
-        assert d.safe, d.reason
+        assert not d.safe
+        assert "native read and shell tools" in d.reason
 
     def test_opencode_unknown_stored_auth_is_blocked(self):
         d = evaluate_plan_quota_safety(get_adapter("opencode"), env={})

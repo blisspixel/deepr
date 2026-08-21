@@ -30,10 +30,10 @@ cmd.exe and stops the argv Deepr built from being the argv that runs. The
 resolved path is required to sit under the shim's own directory and to be a
 real .exe, which is what keeps this an allowlist rather than a search.
 
-An installed CLI missing from this table is not blocked because it is unsafe;
-it is blocked because nobody has pointed at its native binary yet. Codex was
-in exactly that state - fully confined at dispatch, quota available, and
-unreachable."""
+    An installed CLI missing from this table is blocked because nobody has
+    pointed at its native binary yet. A listed native binary only establishes
+    argv-safe process launch. It does not grant adapter execution authority or
+    prove tool, billing, or policy confinement."""
 
 
 @dataclass(frozen=True)

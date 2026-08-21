@@ -77,9 +77,17 @@ async def test_read_only_discovery_uses_effective_registered_surface(
     registered = {tool.name for tool in read_only_server.registry.all_tools()}
     available = read_only_server.available_tool_names()
 
-    assert {"deepr_get_task_progress", "deepr_list_recoverable_tasks"} <= registered
+    assert len(registered) == 36
+    assert {
+        "deepr_get_task_progress",
+        "deepr_list_recoverable_tasks",
+        "deepr_pause_task",
+        "deepr_resume_task",
+    } <= registered
     assert available <= registered
+    assert len(available) == 10
     assert "deepr_research" not in available
+    assert {"deepr_pause_task", "deepr_resume_task"}.isdisjoint(available)
 
     full_list = await _handle_tools_list(read_only_server, {"_fullList": True})
     assert {tool["name"] for tool in full_list["tools"]} == available

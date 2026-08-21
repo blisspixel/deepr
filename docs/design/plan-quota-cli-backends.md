@@ -301,7 +301,7 @@ which CLI answered best.
 
 | Concern | Setting |
 |---|---|
-| auth-mode detection, metered-adapter cost-lifecycle gate, exhaustion and attempt-outcome accounting, redacted tail diagnostics, quota+cost ledger writes, argv construction, tool lockdown (`--deny-tool`/read-only sandbox), scratch cwd | **workflow** (deterministic, gated) |
+| auth-mode detection, metered-adapter cost-lifecycle gate, exhaustion and attempt-outcome accounting, redacted tail diagnostics, quota+cost ledger writes, argv construction, defense-in-depth CLI flags, scratch cwd | **workflow** (deterministic, gated) |
 | the research answer and the extracted beliefs | **agent** (model), then through the existing absorb gates: confidence floor, source-trust ceiling (research-derived = tertiary, capped), contradiction + dedup verdicts |
 
 The plan CLI is an answer generator on the cheap-capacity side of the waterfall;
@@ -315,7 +315,8 @@ high-confidence belief.
   auto-routing rung light up only when the candidate backend has observed
   headroom. The shared snapshot contract exists, and Codex, Claude Code, and
   Grok now write `VENDOR_REPORTED` ledger events from metadata-only
-  refreshes. Next probe: Antigravity as explicit-only metadata visibility.
+  refreshes. A future Antigravity probe is metadata visibility only and cannot
+  grant execution authority.
 - `deepr capacity` detection ids are exe-based (`kiro-cli`, `agy`) while
   execution ids are canonical (`kiro`, `antigravity`); the capacity quota display
   for those two does not yet join to execution-recorded usage. Cosmetic.
@@ -347,10 +348,12 @@ high-confidence belief.
   `answer_from_transcript=True` and the client uses this invocation-correlated
   result instead of stdout.
   Validated end to end 2026-06-25: `probe_plan_quota(antigravity)` returned the
-  expected reply in ~5.5s on plan auth. Antigravity stays explicit-only and ToS
-  gray-zone (active ban wave) despite working. Grok transport was previously
-  validated, but current execution is blocked and its policy remains gray. A ConPTY wrapper remains a possible alternative if
-  the transcript path ever changes.
+  expected reply in about 5.5 seconds on plan auth. That is historical
+  transport evidence only. Current Antigravity execution is blocked because
+  native tools and transcript side effects are not confined, and its headless
+  policy remains unproven. Grok transport was also previously validated, but
+  current execution is blocked and its policy remains gray. A ConPTY wrapper
+  remains a possible transport fixture if the transcript path ever changes.
 - OpenCode is BYO-provider and now fails closed as `unknown` before dispatch. A
   future adapter needs a trustworthy per-run provider identity, stored
   credential classification, marginal-cost proof, and native-tool confinement

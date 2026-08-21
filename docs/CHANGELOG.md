@@ -54,8 +54,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   profiles, OpenClaw, DeepSeek Harness, Grok Build, Codex, NemoClaw and
   OpenShell, lineage-only steering, and external workspace evidence. Optional
   MCP extensions remain deferred until the core bridge exposes a measured gap.
+- Reconciled the active roadmap into one dependency-ordered version ladder and
+  refreshed host evidence against current official OpenClaw, DeepSeek Harness,
+  Grok Build, Grok Bot, NemoClaw, and OpenShell releases. Stable, prerelease,
+  fixture-validated, and reference-only claims remain distinct.
 
 ### Fixed
+
+- Restored fail-closed production blocks for Codex, Grok Build, and Antigravity
+  plan adapters. Hardened argument builders remain defense-in-depth fixtures;
+  only Claude Code currently satisfies Deepr's native-tool and authenticated
+  paid-extra-usage-off gates.
+- Registered the existing pause and resume task handlers in MCP discovery,
+  restoring the documented 36-tool catalog while keeping both write-class
+  tools outside read-only profiles.
+- Updated the blocking dependency-audit environment to pip 26.2 after
+  `PYSEC-2026-3721` made the runner-provided pip 26.1.2 fail the clean audit.
 
 - The installed `deepr-mcp` entrypoint no longer imports optional DOCX and
   Azure storage implementations during startup. The local read-only Agent
@@ -639,14 +653,14 @@ gives an expert a way to decide what to read.
 - House style is enforced rather than requested: en dashes, em dashes and curly
   quotes are normalized out of brief fields.
 
-## [2.44.0] - 2026-08-05
+### Expert v2 development included in 2.45.0
 
 Experts stop being fact ledgers. This release lands the first executable slice of
 the v2 expert architecture: an expert now keeps the material it learned from, can
 read that material several ways, and renders what it found as a notebook rather
 than a confidence-sorted bullet list.
 
-### Added
+#### Added
 
 - **Corpus retention** (`deepr.experts.corpus_store`): sources are kept
   content-addressed under the expert, with origin identity, publisher, and trust
@@ -672,7 +686,7 @@ than a confidence-sorted bullet list.
   reading order - how it works, what breaks, where sources disagree, what is
   missing - with confidence off the headline and coverage stated in the body.
 
-### Fixed
+#### Fixed
 
 - Belief dedup routing was polarity-blind, so "X ships in v2" and "X does not
   ship in v2" scored as near-identical. Combined with the new provenance merge,
@@ -690,7 +704,7 @@ than a confidence-sorted bullet list.
   define, and did not say that the step it runs is metered-gated and fails
   closed while paid dispatch is frozen.
 
-### Documentation
+#### Documentation
 
 - [Expert v2 architecture](design/expert-v2-architecture.md): an expert is a
   maintained corpus, study notes derived from it, positions it will defend, and a
@@ -702,7 +716,7 @@ than a confidence-sorted bullet list.
   tradecraft) with what they support, what they contradict, and what not to
   build. Includes findings that went against choices already made here.
 
-### Known limitations
+#### Known limitations
 
 - Perspective lenses are provisional. Two independent studies found expert
   personas do not improve factual accuracy; the claim that they surface
@@ -712,9 +726,9 @@ than a confidence-sorted bullet list.
   calibration harness has not produced a non-degenerate curve. Do not read a
   confidence value as a probability.
 
-## [Previously unreleased]
+### Earlier development included in 2.45.0
 
-### Fixed
+#### Fixed
 
 - A2A lightweight HTTP transport no longer labels non-2xx responses as
   `OK`, and incomplete or timed-out request bodies/headers return explicit
@@ -725,7 +739,7 @@ than a confidence-sorted bullet list.
 - Dependency audit: `cryptography` 50.0.0 and frontend npm high-severity
   advisory fixes (`brace-expansion`, `socket.io-parser`).
 
-### Changed
+#### Changed
 
 - Research Studio surfaces a paid-API-freeze banner, blocks submit while frozen,
   and steers operators to local/plan expert workflows.
