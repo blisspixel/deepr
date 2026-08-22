@@ -14,7 +14,7 @@ from deepr.cli.colors import (
 from deepr.queue.base import JobStatus
 from deepr.queue.local_queue import SQLiteQueue
 from deepr.services.job_provider import create_job_provider
-from deepr.services.provider_completion import finalize_provider_completion
+from deepr.services.provider_completion import reconcile_provider_job
 from deepr.services.provider_status import (
     classify_provider_status,
     provider_exception_name,
@@ -78,12 +78,30 @@ async def _show_status(job_id: str):
                     response = await provider.get_status(job.provider_job_id)
                     provider_status = classify_provider_status(response.status)
 
-                    if provider_status == "completed":
-                        console.print("[success]Provider reports: COMPLETED[/success] [dim](local DB was stale)[/dim]")
-                        click.echo("Use 'deepr jobs get " + job_id + "' to retrieve results\n")
-                    elif terminal_error := terminal_provider_error(provider_status):
-                        console.print(f"[error]{terminal_error}[/error] [dim](local DB was stale)[/dim]")
-                        click.echo("Local lifecycle reconciliation is still pending.\n")
+                    if provider_status == "completed" or terminal_provider_error(provider_status):
+                        from deepr.storage import create_storage as _create_storage
+
+                        storage = _create_storage("local")
+                        updated = await reconcile_provider_job(
+                            queue=queue,
+                            storage=storage,
+                            provider=provider,
+                            job=job,
+                            response=response,
+                            source="cli.jobs.status",
+                        )
+                        if updated is not None:
+                            job = updated
+                        if job.status == JobStatus.COMPLETED:
+                            console.print(
+                                "[success]Provider reports: COMPLETED[/success] [dim](local DB was stale)[/dim]"
+                            )
+                            click.echo("Use 'deepr jobs get " + job_id + "' to retrieve results\n")
+                        else:
+                            console.print(
+                                f"[error]{job.last_error or terminal_provider_error(provider_status)}[/error] "
+                                "[dim](local lifecycle closed)[/dim]\n"
+                            )
                     elif provider_status == "unsupported":
                         click.echo("Warning: Provider returned an unsupported status; the job remains active.\n")
                     else:
@@ -189,9 +207,9 @@ async def _get_results(job_id: str):
             response = await provider.get_status(job.provider_job_id)
             provider_status = classify_provider_status(response.status)
 
-            if provider_status == "completed":
+            if provider_status == "completed" or terminal_provider_error(provider_status):
                 storage = create_storage("local")
-                job = await finalize_provider_completion(
+                updated = await reconcile_provider_job(
                     queue=queue,
                     storage=storage,
                     provider=provider,
@@ -199,11 +217,14 @@ async def _get_results(job_id: str):
                     response=response,
                     source="cli.jobs.get",
                 )
+                if updated is None:
+                    click.echo("Local lifecycle reconciliation is still pending.")
+                    return
+                job = updated
+                if job.status != JobStatus.COMPLETED:
+                    console.print(f"[error]{job.last_error or terminal_provider_error(provider_status)}[/error]")
+                    return
                 console.print("[success]Retrieved and finalized results from provider[/success]")
-            elif terminal_error := terminal_provider_error(provider_status):
-                console.print(f"[error]{terminal_error}[/error]")
-                click.echo("Local lifecycle reconciliation is still pending.")
-                return
             elif provider_status == "unsupported":
                 click.echo("Warning: Provider returned an unsupported status; the job remains active.")
                 return
@@ -273,21 +294,14 @@ async def _refresh_job_statuses(queue, jobs):
                 response = await provider.get_status(job.provider_job_id)
                 provider_status = classify_provider_status(response.status)
 
-                if provider_status == "completed":
-                    await finalize_provider_completion(
+                if provider_status == "completed" or terminal_provider_error(provider_status):
+                    await reconcile_provider_job(
                         queue=queue,
                         storage=storage,
                         provider=provider,
                         job=job,
                         response=response,
                         source="cli.jobs.list_refresh",
-                    )
-
-                elif terminal_error := terminal_provider_error(provider_status):
-                    logger.warning(
-                        "Provider terminal state for job %s awaits lifecycle reconciliation: %s",
-                        job.id,
-                        terminal_error,
                     )
                 elif provider_status == "unsupported":
                     logger.warning("Provider returned an unsupported status for job %s; tracking continues", job.id)

@@ -179,16 +179,18 @@ async def _get_results(job_id: str, output_context: OutputContext | None = None)
             # Check status at provider
             response = await provider.get_status(job.provider_job_id)
 
-            if response.status == "completed":
-                if output_context.mode == OutputMode.VERBOSE:
+            from deepr.services.provider_completion import reconcile_provider_job
+            from deepr.services.provider_status import classify_provider_status, terminal_provider_error
+
+            provider_status = classify_provider_status(response.status)
+            if provider_status == "completed" or terminal_provider_error(provider_status):
+                if output_context.mode == OutputMode.VERBOSE and provider_status == "completed":
                     click.echo("Found completed results at provider! Downloading...")
 
                 storage = create_storage(
                     config.get("storage", "local"), base_path=config.get("results_dir", "data/reports")
                 )
-                from deepr.services.provider_completion import finalize_provider_completion
-
-                job = await finalize_provider_completion(
+                job = await reconcile_provider_job(
                     queue=queue,
                     storage=storage,
                     provider=provider,
@@ -196,26 +198,18 @@ async def _get_results(job_id: str, output_context: OutputContext | None = None)
                     response=response,
                     source="cli.status.get",
                 )
+                if job is None:
+                    return
+                if job.status != JobStatus.COMPLETED:
+                    error_msg = str(job.last_error or terminal_provider_error(provider_status) or "Unknown error")
+                    if output_context.mode == OutputMode.JSON:
+                        print(json.dumps({"status": "error", "error": f"Job failed at provider: {error_msg}"}))
+                    elif output_context.mode != OutputMode.QUIET:
+                        click.echo(f"Job failed at provider: {error_msg}")
+                    return
 
                 if output_context.mode == OutputMode.VERBOSE:
                     click.echo("Results downloaded successfully!")
-
-            elif response.status == "failed":
-                error_msg = str(response.error) if response.error else "Unknown error"
-                if output_context.mode == OutputMode.JSON:
-                    print(json.dumps({"status": "error", "error": f"Job failed at provider: {error_msg}"}))
-                elif output_context.mode != OutputMode.QUIET:
-                    click.echo(f"Job failed at provider: {error_msg}")
-                from deepr.services.provider_completion import finalize_provider_failure
-
-                await finalize_provider_failure(
-                    queue=queue,
-                    provider=provider,
-                    job=job,
-                    response=response,
-                    source="cli.status.get_failure",
-                )
-                return
 
             else:
                 if output_context.mode == OutputMode.JSON:
@@ -357,28 +351,16 @@ async def _refresh_job_statuses(queue, jobs):
                 provider = create_provider(job.provider, api_key=api_key)
                 response = await provider.get_status(job.provider_job_id)
 
-                if response.status == "completed":
-                    from deepr.services.provider_completion import finalize_provider_completion
+                from deepr.services.provider_completion import reconcile_provider_job
 
-                    await finalize_provider_completion(
-                        queue=queue,
-                        storage=storage,
-                        provider=provider,
-                        job=job,
-                        response=response,
-                        source="cli.status.list_refresh",
-                    )
-
-                elif response.status == "failed":
-                    from deepr.services.provider_completion import finalize_provider_failure
-
-                    await finalize_provider_failure(
-                        queue=queue,
-                        provider=provider,
-                        job=job,
-                        response=response,
-                        source="cli.status.list_refresh_failure",
-                    )
+                await reconcile_provider_job(
+                    queue=queue,
+                    storage=storage,
+                    provider=provider,
+                    job=job,
+                    response=response,
+                    source="cli.status.list_refresh",
+                )
 
                 # If still queued/processing, leave it (no update needed)
 

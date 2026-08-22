@@ -198,6 +198,26 @@ class TestAuthentication:
         assert wrong.status_code == 401
         assert allowed.status_code == 200
 
+    def test_openapi_docs_require_token_when_configured(self, client):
+        import sys
+
+        app_module = sys.modules["deepr.api.app"]
+        with patch.object(app_module, "_api_token", "secret-token"):
+            docs = client.get("/api/docs")
+            spec = client.get("/apispec_1.json")
+            static = client.get("/flasgger_static/swagger-ui.css")
+            health = client.get("/api/health")
+            allowed = client.get(
+                "/api/docs",
+                headers={"Authorization": "Bearer secret-token"},
+            )
+
+        assert docs.status_code == 401
+        assert spec.status_code == 401
+        assert static.status_code == 401
+        assert health.status_code == 404
+        assert allowed.status_code != 401
+
     def test_unsafe_loopback_opt_in_does_not_allow_remote_peer(self, client):
         import sys
 

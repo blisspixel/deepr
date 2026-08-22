@@ -149,19 +149,22 @@ async def test_cli_cancelled_job_retries_cost_closure_without_provider(monkeypat
 
 
 @pytest.mark.asyncio
-async def test_cli_refresh_reports_incomplete_without_claiming_local_closure(monkeypatch, caplog):
+async def test_cli_refresh_closes_incomplete_provider_status(monkeypatch, caplog):
     queue = MagicMock()
-    queue.update_status = AsyncMock(return_value=True)
     provider = MagicMock()
     provider.get_status = AsyncMock(return_value=MagicMock(status="incomplete", error="secret\nforged"))
     monkeypatch.setattr("deepr.config.load_config", MagicMock(return_value={"provider": "openai"}))
     monkeypatch.setattr(jobs_module, "create_job_provider", MagicMock(return_value=provider))
     monkeypatch.setattr("deepr.storage.create_storage", MagicMock(return_value=MagicMock()))
+    reconcile = AsyncMock(
+        return_value=ResearchJob(id="job-1234567890", prompt="Research cancellation", status=JobStatus.FAILED)
+    )
+    monkeypatch.setattr(jobs_module, "reconcile_provider_job", reconcile)
 
     await jobs_module._refresh_job_statuses(queue, [_processing_job()])
 
-    queue.update_status.assert_not_awaited()
-    assert "awaits lifecycle reconciliation" in caplog.text
+    reconcile.assert_awaited_once()
+    assert reconcile.await_args.kwargs["source"] == "cli.jobs.list_refresh"
     assert "secret" not in caplog.text
 
 

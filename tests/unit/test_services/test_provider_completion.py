@@ -13,6 +13,7 @@ from deepr.services.provider_completion import (
     conservative_completion_cost,
     finalize_provider_completion,
     finalize_provider_failure,
+    reconcile_provider_job,
 )
 
 
@@ -278,6 +279,111 @@ async def test_failure_settles_missing_usage_before_terminal_state() -> None:
 
 
 @pytest.mark.asyncio
+async def test_reconcile_closes_incomplete_provider_status() -> None:
+    job = ResearchJob(
+        id="job-incomplete",
+        prompt="research",
+        status=JobStatus.PROCESSING,
+        provider_job_id="provider-job",
+    )
+    updated = ResearchJob(id=job.id, prompt=job.prompt, status=JobStatus.FAILED, last_error="incomplete")
+    queue = MagicMock(
+        update_results=AsyncMock(return_value=True),
+        update_status=AsyncMock(return_value=True),
+        get_job=AsyncMock(return_value=updated),
+    )
+    response = SimpleNamespace(status="incomplete", usage=None, error="")
+
+    with (
+        patch(
+            "deepr.services.provider_completion.restore_research_cost_reservation",
+            return_value=MagicMock(estimated_cost=0.5),
+        ),
+        patch("deepr.services.provider_completion.settle_research_cost"),
+        patch(
+            "deepr.services.provider_completion.reconcile_research_cost_from_ledger",
+            return_value=True,
+        ),
+    ):
+        result = await reconcile_provider_job(
+            queue=queue,
+            storage=MagicMock(),
+            provider=MagicMock(),
+            job=job,
+            response=response,
+            source="test.incomplete",
+        )
+
+    assert result is updated
+    queue.update_status.assert_awaited_once_with(
+        job.id,
+        JobStatus.FAILED,
+        error="Provider returned an incomplete research result",
+    )
+
+
+@pytest.mark.asyncio
+async def test_reconcile_marks_provider_cancelled_as_cancelled() -> None:
+    job = ResearchJob(
+        id="job-cancelled",
+        prompt="research",
+        status=JobStatus.PROCESSING,
+        provider_job_id="provider-job",
+    )
+    updated = ResearchJob(id=job.id, prompt=job.prompt, status=JobStatus.CANCELLED)
+    queue = MagicMock(
+        update_results=AsyncMock(return_value=True),
+        update_status=AsyncMock(return_value=True),
+        get_job=AsyncMock(return_value=updated),
+    )
+    response = SimpleNamespace(status="cancelled", usage=None, error="")
+
+    with (
+        patch(
+            "deepr.services.provider_completion.restore_research_cost_reservation",
+            return_value=MagicMock(estimated_cost=0.5),
+        ),
+        patch("deepr.services.provider_completion.settle_research_cost"),
+        patch(
+            "deepr.services.provider_completion.reconcile_research_cost_from_ledger",
+            return_value=True,
+        ),
+    ):
+        result = await reconcile_provider_job(
+            queue=queue,
+            storage=MagicMock(),
+            provider=MagicMock(),
+            job=job,
+            response=response,
+            source="test.cancelled",
+        )
+
+    assert result is updated
+    queue.update_status.assert_awaited_once_with(
+        job.id,
+        JobStatus.CANCELLED,
+        error="Provider reported research cancellation",
+    )
+
+
+@pytest.mark.asyncio
+async def test_reconcile_leaves_in_progress_jobs_untouched() -> None:
+    job = ResearchJob(id="job-running", prompt="research", status=JobStatus.PROCESSING)
+    queue = MagicMock(update_status=AsyncMock())
+    result = await reconcile_provider_job(
+        queue=queue,
+        storage=MagicMock(),
+        provider=MagicMock(),
+        job=job,
+        response=SimpleNamespace(status="in_progress"),
+        source="test.in_progress",
+    )
+
+    assert result is None
+    queue.update_status.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_completion_closes_cost_and_cleanup_before_terminal_state() -> None:
     job = ResearchJob(
         id="job-1",
@@ -340,7 +446,10 @@ async def test_completion_persists_reserved_ceiling_when_usage_is_missing() -> N
     )
     storage = MagicMock(save_report=AsyncMock(return_value=SimpleNamespace(url="report.md")))
     reservation = MagicMock(estimated_cost=0.75)
-    response = SimpleNamespace(output=[], usage=None)
+    response = SimpleNamespace(
+        output=[{"type": "message", "content": [{"type": "output_text", "text": "result"}]}],
+        usage=None,
+    )
 
     with (
         patch(
@@ -373,6 +482,68 @@ async def test_completion_persists_reserved_ceiling_when_usage_is_missing() -> N
         report_paths={"markdown": "report.md"},
         cost=0.75,
         tokens_used=0,
+    )
+
+
+@pytest.mark.asyncio
+async def test_empty_completion_settles_cost_and_marks_failed() -> None:
+    job = ResearchJob(
+        id="job-empty",
+        prompt="complete",
+        status=JobStatus.PROCESSING,
+        provider_job_id="provider-job",
+    )
+    updated = ResearchJob(id=job.id, prompt=job.prompt, status=JobStatus.FAILED)
+    queue = MagicMock(
+        update_results=AsyncMock(return_value=True),
+        update_status=AsyncMock(return_value=True),
+        get_job=AsyncMock(return_value=updated),
+    )
+    storage = MagicMock(save_report=AsyncMock())
+    reservation = MagicMock(estimated_cost=0.75)
+    response = SimpleNamespace(output=[], usage=None)
+
+    with (
+        patch(
+            "deepr.services.provider_completion.restore_research_cost_reservation",
+            return_value=reservation,
+        ),
+        patch("deepr.services.provider_completion.settle_research_cost") as settle,
+        patch(
+            "deepr.services.provider_completion.reconcile_research_cost_from_ledger",
+            return_value=True,
+        ),
+        patch(
+            "deepr.cli.commands.run_submission.cleanup_persisted_uploads",
+            new=AsyncMock(return_value=True),
+        ),
+    ):
+        result = await finalize_provider_completion(
+            queue=queue,
+            storage=storage,
+            provider=MagicMock(),
+            job=job,
+            response=response,
+            source="test.empty_completion",
+        )
+
+    assert result is updated
+    storage.save_report.assert_not_awaited()
+    settle.assert_called_once()
+    assert settle.call_args.kwargs["actual_cost"] is None
+    queue.update_results.assert_awaited_once_with(
+        job.id,
+        report_paths={},
+        cost=0.75,
+        tokens_used=0,
+    )
+    queue.update_status.assert_awaited_once_with(
+        job.id,
+        JobStatus.FAILED,
+        error=(
+            "Provider reported completion but no report content was extracted; "
+            "cost settled conservatively and no artifact was saved"
+        ),
     )
 
 

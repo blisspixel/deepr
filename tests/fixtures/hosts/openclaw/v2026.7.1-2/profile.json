@@ -105,7 +105,7 @@
     "server_command": "deepr-mcp",
     "source_revision": null,
     "source_revision_status": "not_collected",
-    "version": "2.50.2"
+    "version": "2.50.3"
   },
   "evidence": {
     "config_document_revision": "2b41702024a76a89b1a6d0c15caff967fde8d93d",
