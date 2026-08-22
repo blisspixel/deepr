@@ -8,6 +8,7 @@ import pytest
 
 from deepr.experts.parent_budget_store import (
     DurableParentBudget,
+    _apply_consumed_event,
     load_parent_budget_events,
     open_gated_lifecycle_budget,
     replay_parent_budget,
@@ -90,6 +91,18 @@ def _complete_envelope(**overrides: object) -> dict[str, object]:
     }
     base.update(overrides)
     return base
+
+
+def test_consume_replay_preserves_zero_settled_usd(tmp_path: Path) -> None:
+    durable = DurableParentBudget.open(
+        surface="fill_gaps",
+        parent_ceiling_usd=1.0,
+        run_id="run-zero-consume",
+        path=tmp_path / "parent_budget_transactions.jsonl",
+    )
+    child = durable.admit_child(operation="gap", max_usd=0.4, child_id="c0")
+    _apply_consumed_event(durable.parent, {"child_id": child.child_id, "settled_usd": 0.0})
+    assert durable.parent.children["c0"].settled_usd == pytest.approx(0.0)
 
 
 def test_open_requires_complete_contract_when_requested(tmp_path: Path) -> None:

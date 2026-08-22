@@ -306,6 +306,10 @@ async def generate_portrait(
     safe_name = "".join(c if c.isalnum() or c in "-_ " else "" for c in name).strip().replace(" ", "-").lower()
     if not safe_name:
         safe_name = "portrait"
+    from deepr.utils.security import reserved_windows_device_stem
+
+    if reserved_windows_device_stem(safe_name):
+        safe_name = f"expert-{safe_name}"
     filename = f"{safe_name}.png"
     filepath = out / filename
     archive_path = await asyncio.to_thread(_write_portrait_file, filepath, image_bytes)

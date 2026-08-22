@@ -106,6 +106,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - MCP tool errors redact provider keys before they are returned to the host.
 - Webhook and instruction-signing HMAC comparisons treat malformed signatures
   as invalid instead of raising.
+- Unreadable concept or edge graph files are no longer treated as empty.
+  Later indexing refuses to overwrite the surviving files.
+- Cost dashboard cache flush no longer treats a swallowed save error as
+  success and drop the in-memory buffer.
+- Cost daily-total property tests no longer fail when a recording loop
+  crosses UTC midnight.
+- Web research completion settles the reservation before the queue result
+  write so `job:{id}:completion` cannot be stolen and leave a hold open.
+- Belief event logs use the interprocess JSONL append lock, snapshots fsync,
+  and a malformed edge fails closed instead of being dropped on the next save.
+- Investigation create retries when `plan.json` exists without `state.json`.
+  Artifact keys reject Windows reserved device names.
+- Nested dashboard routes serve the SPA as HTTP 200. Portrait files prefix
+  reserved Windows device stems and the static portrait route rejects them.
+- Parent-budget consume replay preserves a real `$0` settlement instead of
+  substituting the child ceiling.
 
 - Restored fail-closed production blocks for Codex, Grok Build, and Antigravity
   plan adapters. Hardened argument builders remain defense-in-depth fixtures;

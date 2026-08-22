@@ -24,6 +24,7 @@ from deepr.experts.investigation.models import (
     validate_plan,
 )
 from deepr.utils.atomic_io import append_jsonl_durable, atomic_write_bytes, atomic_write_json
+from deepr.utils.security import reserved_windows_device_stem
 
 _RUN_ID_RE = re.compile(r"^inv_[a-z0-9_]{4,80}$")
 _ARTIFACT_COMPONENT_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,99}$")
@@ -50,7 +51,7 @@ def _safe_run_id(value: Any) -> str:
 
 def _artifact_component(value: str, *, field_name: str) -> str:
     normalized = value.strip().lower()
-    if not _ARTIFACT_COMPONENT_RE.fullmatch(normalized):
+    if not _ARTIFACT_COMPONENT_RE.fullmatch(normalized) or reserved_windows_device_stem(normalized):
         raise InvestigationStorageError(f"invalid artifact {field_name}")
     return normalized
 
@@ -93,11 +94,13 @@ class InvestigationStore:
                 existing = self.load_plan(run_id)
                 if existing["plan_sha256"] != validated["plan_sha256"]:
                     raise InvestigationStorageError("run id already belongs to a different plan")
-                return self.load_state(run_id)
-            # exist_ok lets a crash between mkdir and plan.json retry the same
-            # run id instead of raising FileExistsError on an incomplete dir.
-            path.mkdir(parents=False, exist_ok=True)
-            atomic_write_json(plan_path, validated, sort_keys=True, fsync=True)
+                if (path / "state.json").exists():
+                    return self.load_state(run_id)
+            else:
+                # exist_ok lets a crash between mkdir and plan.json retry the same
+                # run id instead of raising FileExistsError on an incomplete dir.
+                path.mkdir(parents=False, exist_ok=True)
+                atomic_write_json(plan_path, validated, sort_keys=True, fsync=True)
             state = {
                 "schema_version": "deepr-investigation-state-v1",
                 "kind": "deepr.expert.investigation_state",

@@ -662,7 +662,7 @@ class TestSubgraphCache:
         assert "node1" in result.node_ids
 
     def test_load_handles_memory_error_in_edges_file(self, tmp_path):
-        """Graph load should recover from MemoryError in persisted edges."""
+        """Graph load should fail closed on MemoryError in persisted edges."""
         storage_dir = tmp_path / "graph"
         storage_dir.mkdir(parents=True, exist_ok=True)
         (storage_dir / "edges.json").write_text("[]", encoding="utf-8")
@@ -672,6 +672,9 @@ class TestSubgraphCache:
 
         assert graph is not None
         assert len(graph.edges) == 0
+        with pytest.raises(RuntimeError, match="unreadable graph"):
+            graph.save()
+        assert (storage_dir / "edges.json").read_text(encoding="utf-8") == "[]"
 
     def test_get_stats(self, tmp_path):
         """Test getting cache statistics."""
@@ -897,8 +900,22 @@ class TestKnowledgeGraph:
         assert len(graph2.concepts) == 2
         assert len(graph2.edges) == 1
 
+    def test_unreadable_graph_refuses_overwrite(self, tmp_path):
+        """Corrupt graph files must not be replaced by a later save."""
+        storage_dir = tmp_path / "graph"
+        storage_dir.mkdir(parents=True, exist_ok=True)
+        corrupt = "{not-json"
+        (storage_dir / "concepts.json").write_text(corrupt, encoding="utf-8")
+
+        graph = KnowledgeGraph(expert_name="test_expert", storage_dir=storage_dir)
+        graph.add_concept(Concept(text="should not persist"))
+
+        with pytest.raises(RuntimeError, match="unreadable graph"):
+            graph.save()
+        assert (storage_dir / "concepts.json").read_text(encoding="utf-8") == corrupt
+
     def test_load_handles_memory_error_in_edges_file(self, tmp_path):
-        """Graph load should recover from MemoryError in persisted edges."""
+        """Graph load should fail closed on MemoryError in persisted edges."""
         storage_dir = tmp_path / "graph"
         storage_dir.mkdir(parents=True, exist_ok=True)
         (storage_dir / "edges.json").write_text("[]", encoding="utf-8")
@@ -908,6 +925,9 @@ class TestKnowledgeGraph:
 
         assert graph is not None
         assert len(graph.edges) == 0
+        with pytest.raises(RuntimeError, match="unreadable graph"):
+            graph.save()
+        assert (storage_dir / "edges.json").read_text(encoding="utf-8") == "[]"
 
     def test_get_stats(self, tmp_path):
         """Test getting graph statistics."""
@@ -1026,7 +1046,7 @@ Deep learning uses multiple layers of neural networks.
         assert isinstance(complex_query, bool)
 
     def test_load_handles_memory_error_in_edges_file(self, tmp_path):
-        """Graph load should recover from MemoryError in persisted edges."""
+        """Graph load should fail closed on MemoryError in persisted edges."""
         storage_dir = tmp_path / "graph"
         storage_dir.mkdir(parents=True, exist_ok=True)
         (storage_dir / "edges.json").write_text("[]", encoding="utf-8")
@@ -1036,6 +1056,9 @@ Deep learning uses multiple layers of neural networks.
 
         assert graph is not None
         assert len(graph.edges) == 0
+        with pytest.raises(RuntimeError, match="unreadable graph"):
+            graph.save()
+        assert (storage_dir / "edges.json").read_text(encoding="utf-8") == "[]"
 
     def test_get_stats(self, tmp_path):
         """Test getting LazyGraphRAG statistics."""

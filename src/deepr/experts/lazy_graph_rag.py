@@ -1393,15 +1393,12 @@ class KnowledgeGraph:
         Args:
             expert_name: Name of the expert
             storage_dir: Directory for persistence
-            max_edges: Hard safety cap on total edges. A backstop against
-                runaway edge growth (the O(C^2) co-occurrence blow-up that once
-                produced multi-GB edge files); once reached, new distinct edges
-                are dropped with a one-time warning. Generous enough that a
-                healthy graph never hits it.
+            max_edges: Hard cap on total edges; extra distinct edges are dropped.
         """
         self.expert_name = expert_name
         self.max_edges = max_edges
         self._edge_cap_warned = False
+        self._unreadable = False
 
         if storage_dir is None:
             from deepr.experts.paths import canonical_expert_dir
@@ -1620,46 +1617,43 @@ class KnowledgeGraph:
         return [concept for _, concept in scored[:top_k]]
 
     def save(self):
-        """Persist graph to disk (atomic writes)."""
+        """Persist graph to disk (atomic writes). Unreadable loads refuse."""
+        if self._unreadable:
+            raise RuntimeError(f"refusing to overwrite unreadable graph for {self.expert_name}")
         from deepr.utils.atomic_io import atomic_write_json
 
         atomic_write_json(self.storage_dir / "concepts.json", [c.to_dict() for c in self.concepts.values()])
         atomic_write_json(self.storage_dir / "edges.json", [e.to_dict() for e in self.edges.values()])
 
     def _load(self):
-        """Load graph from disk.
-
-        Falls back to an empty graph when persisted files are corrupted
-        or too large to load in available memory.
-        """
-        # Load concepts
-        concepts_path = self.storage_dir / "concepts.json"
-        if concepts_path.exists():
+        """Load graph from disk. Unreadable files fail closed; save cannot clobber them."""
+        self._unreadable = False
+        loaded: dict[str, list] = {}
+        for name in ("concepts.json", "edges.json"):
+            path = self.storage_dir / name
+            if not path.exists():
+                loaded[name] = []
+                continue
             try:
-                with open(concepts_path, encoding="utf-8") as f:
-                    concepts_data = json.load(f)
-            except (json.JSONDecodeError, OSError, MemoryError) as e:
-                logger.warning("Failed to load concepts graph for %s: %s", self.expert_name, e)
-                concepts_data = []
-            for data in concepts_data:
-                concept = Concept.from_dict(data)
-                self.concepts[concept.id] = concept
-                self._text_index[concept.text.lower()] = concept.id
-
-        # Load edges
-        edges_path = self.storage_dir / "edges.json"
-        if edges_path.exists():
-            try:
-                with open(edges_path, encoding="utf-8") as f:
-                    edges_data = json.load(f)
-            except (json.JSONDecodeError, OSError, MemoryError) as e:
-                logger.warning("Failed to load edges graph for %s: %s", self.expert_name, e)
-                edges_data = []
-            for data in edges_data:
-                edge = Edge.from_dict(data)
-                self.edges[edge.id] = edge
-                self.adjacency[edge.source_id].append((edge.target_id, edge))
-                self.adjacency[edge.target_id].append((edge.source_id, edge))
+                with open(path, encoding="utf-8") as handle:
+                    payload = json.load(handle)
+            except (json.JSONDecodeError, OSError, MemoryError) as exc:
+                logger.error("Failed to load %s for %s: %s", name, self.expert_name, exc)
+                self._unreadable = True
+                return
+            if not isinstance(payload, list):
+                self._unreadable = True
+                return
+            loaded[name] = payload
+        for data in loaded["concepts.json"]:
+            concept = Concept.from_dict(data)
+            self.concepts[concept.id] = concept
+            self._text_index[concept.text.lower()] = concept.id
+        for data in loaded["edges.json"]:
+            edge = Edge.from_dict(data)
+            self.edges[edge.id] = edge
+            self.adjacency[edge.source_id].append((edge.target_id, edge))
+            self.adjacency[edge.target_id].append((edge.source_id, edge))
 
     def get_stats(self) -> dict[str, Any]:
         """Get graph statistics.

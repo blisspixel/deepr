@@ -1243,10 +1243,13 @@ class TestCostDashboardEdgeCases:
             dashboard.record("research", "openai", small_cost)
 
         expected_total = small_cost * num_entries
-        actual_total = dashboard.get_daily_total()
-
-        # Allow small floating-point tolerance
+        actual_total = sum(entry.cost for entry in dashboard.entries)
         assert abs(actual_total - expected_total) < 0.0001
+        by_date: dict = {}
+        for entry in dashboard.entries:
+            by_date[entry.date] = by_date.get(entry.date, 0.0) + entry.cost
+        for day, total in by_date.items():
+            assert abs(dashboard.get_daily_total(day) - total) < 0.0001
 
     def test_atomic_write_temp_file_cleanup(self, temp_storage):
         """Temp files should be cleaned up after successful save."""

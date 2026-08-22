@@ -143,6 +143,22 @@ class TestLocalImageProvider:
         assert (tmp_path / "portable-data" / "portraits" / "portable-expert.png").read_bytes() == b"NEWPORTRAIT"
 
     @pytest.mark.asyncio
+    async def test_generate_portrait_prefixes_windows_device_names(self, monkeypatch, tmp_path):
+        output_dir = tmp_path / "portraits"
+        monkeypatch.setenv("DEEPR_LOCAL_IMAGE_URL", "http://localhost:8188")
+        monkeypatch.setattr(P, "_require_attested_local_image_capacity", lambda: None)
+
+        async def fake_generate_local(_prompt):
+            return b"DEVICEPORTRAIT"
+
+        monkeypatch.setattr(P, "_generate_local", fake_generate_local)
+
+        url = await P.generate_portrait("CON", provider="local", output_dir=output_dir)
+
+        assert url == "/portraits/expert-con.png"
+        assert (output_dir / "expert-con.png").read_bytes() == b"DEVICEPORTRAIT"
+
+    @pytest.mark.asyncio
     async def test_generate_portrait_archives_existing_file_before_replacement(self, monkeypatch, tmp_path):
         output_dir = tmp_path / "portraits"
         output_dir.mkdir()

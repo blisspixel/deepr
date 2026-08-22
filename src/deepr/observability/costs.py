@@ -870,9 +870,7 @@ class CostDashboard:
             "monthly_limit": self.monthly_limit,
         }
 
-        # Atomic write using the shared helper (tempfile + os.replace +
-        # Windows retry). The previous ad-hoc ``.tmp`` pattern raced with
-        # Windows indexers and could leave .tmp orphans.
+        # Atomic write via tempfile + os.replace (Windows retry in helper).
         try:
             if not self.storage_path.parent.exists():
                 logger.debug("Cost data directory no longer exists, skipping save")
@@ -881,7 +879,8 @@ class CostDashboard:
 
             atomic_write_json(self.storage_path, data)
         except OSError as e:
-            logger.debug(f"Failed to save cost data: {e}")
+            logger.debug("Failed to save cost data: %s", e)
+            raise
 
     def _load_cache_state(self, data: dict[str, Any]) -> None:
         """Load dashboard-owned state (triggered alerts, user-set limits) from

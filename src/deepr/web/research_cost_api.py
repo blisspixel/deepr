@@ -332,6 +332,12 @@ class WebResearchCostCoordinator:
         Report paths are recorded whenever a report was saved, even when
         the provider returned no usage payload.
         """
+        # Settle before queue result writes. Both use job:{id}:completion;
+        # writing the queue row first steals that key as research_job and
+        # leaves the durable hold open after settlement conflicts.
+        self.settle_job(job, actual_cost=actual_cost, tokens=tokens or 0)
+        if not self.reconcile_completed_job(job):
+            raise RuntimeError(f"Canonical cost settlement missing for completed job {job.id}")
         if report_saved:
             loop.run_until_complete(
                 queue.update_results(
@@ -341,7 +347,9 @@ class WebResearchCostCoordinator:
                     tokens_used=tokens,
                 )
             )
-        elif actual_cost is not None or tokens is not None:
+            loop.run_until_complete(queue.update_status(job_id=job.id, status=JobStatus.COMPLETED))
+            return
+        if actual_cost is not None or tokens is not None:
             loop.run_until_complete(
                 queue.update_results(
                     job_id=job.id,
@@ -350,22 +358,16 @@ class WebResearchCostCoordinator:
                     tokens_used=tokens,
                 )
             )
-        self.safe_settle_job(job, actual_cost=actual_cost, tokens=tokens or 0)
-        if not self.reconcile_completed_job(job):
-            raise RuntimeError(f"Canonical cost settlement missing for completed job {job.id}")
-        if report_saved:
-            loop.run_until_complete(queue.update_status(job_id=job.id, status=JobStatus.COMPLETED))
-        else:
-            loop.run_until_complete(
-                queue.update_status(
-                    job_id=job.id,
-                    status=JobStatus.FAILED,
-                    error=(
-                        "Provider reported completion but no report content was extracted; "
-                        "cost settled conservatively and no artifact was saved"
-                    ),
-                )
+        loop.run_until_complete(
+            queue.update_status(
+                job_id=job.id,
+                status=JobStatus.FAILED,
+                error=(
+                    "Provider reported completion but no report content was extracted; "
+                    "cost settled conservatively and no artifact was saved"
+                ),
             )
+        )
 
     def settle_job(self, job: Any, *, actual_cost: float | None, tokens: int) -> None:
         """Settle actual cost, or the reserved estimate when usage is absent."""
