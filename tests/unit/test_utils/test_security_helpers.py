@@ -99,7 +99,7 @@ class TestIsContainedPath:
         child = tmp_path / "dist" / "index.html"
         child.parent.mkdir()
         child.write_text("ok", encoding="utf-8")
-        assert is_contained_path(child, tmp_path / "dist") is True
+        assert is_contained_path(child.resolve(), (tmp_path / "dist").resolve()) is True
 
     def test_prefix_sibling_is_not_contained(self, tmp_path):
         base = tmp_path / "dist"
@@ -107,7 +107,7 @@ class TestIsContainedPath:
         base.mkdir()
         sibling.parent.mkdir()
         sibling.write_text("no", encoding="utf-8")
-        assert is_contained_path(sibling, base) is False
+        assert is_contained_path(sibling.resolve(), base.resolve()) is False
 
 
 class TestIsBlockedIp:

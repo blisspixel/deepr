@@ -568,14 +568,15 @@ def safe_path_within(base: str | Path, *parts: str) -> Path:
     return candidate
 
 
-def is_contained_path(path: str | Path, base: str | Path) -> bool:
-    """Return True when resolved ``path`` is ``base`` or a descendant of it.
+def is_contained_path(path: Path, base: Path) -> bool:
+    """Return True when ``path`` is ``base`` or a descendant of it.
 
-    Uses ``relative_to`` instead of string prefix matching so a base such as
-    ``.../dist`` cannot authorize ``.../dist-backup``.
+    Callers must pass already-resolved paths. Uses ``relative_to`` instead of
+    string prefix matching so a base such as ``.../dist`` cannot authorize
+    ``.../dist-backup``.
     """
     try:
-        Path(path).resolve(strict=False).relative_to(Path(base).resolve(strict=False))
-    except (OSError, RuntimeError, ValueError):
+        path.relative_to(base)
+    except ValueError:
         return False
     return True

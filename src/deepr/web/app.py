@@ -541,7 +541,7 @@ def fallback_to_spa(e):
             joined = safe_join(str(_frontend_dist.resolve()), *parts)
             if joined:
                 resolved = Path(joined)
-                if resolved.is_file() and is_contained_path(resolved, _frontend_dist):
+                if resolved.is_file() and is_contained_path(resolved, _frontend_dist.resolve()):
                     return send_from_directory(str(_frontend_dist), Path(*parts).as_posix())
     return render_template("index.html")
 
@@ -2906,7 +2906,7 @@ def get_benchmark(filename):
             return jsonify({"error": "Invalid filename"}), 400
 
         filepath = (_BENCHMARK_DIR / filename).resolve()
-        if not is_contained_path(filepath, _BENCHMARK_DIR):
+        if not is_contained_path(filepath, _BENCHMARK_DIR.resolve()):
             return jsonify({"error": "Invalid filename"}), 400
 
         if not filepath.exists():
