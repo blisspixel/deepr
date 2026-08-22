@@ -238,3 +238,36 @@ def test_pinned_get_refuses_redirect_following_before_resolution(monkeypatch):
 
     with pytest.raises(ValueError, match="caller-managed redirects"):
         pinned_http.pinned_get("https://example.com/check", allow_redirects=True)
+
+
+def test_pinned_head_uses_request_method_and_owns_session(monkeypatch):
+    sessions = []
+
+    class FakeSession:
+        def __init__(self):
+            self.trust_env = True
+            self.methods = []
+            sessions.append(self)
+
+        def mount(self, prefix, adapter):
+            self.adapter = adapter
+
+        def request(self, method, url, headers, **kwargs):
+            self.methods.append(method)
+            assert method == "HEAD"
+            assert url == "https://example.com/check"
+            assert headers == {"Host": "example.com"}
+            assert kwargs["allow_redirects"] is False
+            return SimpleNamespace(close=lambda: None, is_redirect=False, url=url, headers={})
+
+        def close(self):
+            self.closed = True
+
+    monkeypatch.setattr(pinned_http, "resolve_safe_url_ips", lambda url, allow_private: ("93.184.216.34",))
+    monkeypatch.setattr(pinned_http.requests, "Session", FakeSession)
+
+    response = pinned_http.pinned_head("https://example.com/check", allow_redirects=False)
+    pinned_http.close_pinned_response(response)
+
+    assert sessions[0].methods == ["HEAD"]
+    assert sessions[0].closed is True

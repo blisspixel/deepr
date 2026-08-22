@@ -27,6 +27,7 @@ from typing import Any, Literal
 
 from deepr.config import load_config
 from deepr.mcp.request_context import MCPRequestIdentity
+from deepr.utils.security import reserved_windows_device_stem
 
 from .expert_resources import ExpertResourceManager
 from .job_manager import JobManager
@@ -227,8 +228,8 @@ class MCPResourceHandler:
             final.md - Full research report (markdown)
             summary.json - Report metadata (cost, model, sources)
         """
-        job_dir = self._reports_base / job_id
-        if not job_dir.resolve().is_relative_to(self._reports_base.resolve()):
+        job_dir = self._job_artifact_dir(job_id)
+        if job_dir is None:
             return ResourceResponse(uri=uri, data=None, error=f"Invalid job_id: {job_id}")
 
         if subresource == "final.md":
@@ -275,8 +276,8 @@ class MCPResourceHandler:
             search_trace.json - Search queries and results for provenance
             decisions.md - Human-readable decision log
         """
-        job_dir = self._reports_base / job_id
-        if not job_dir.resolve().is_relative_to(self._reports_base.resolve()):
+        job_dir = self._job_artifact_dir(job_id)
+        if job_dir is None:
             return ResourceResponse(uri=uri, data=None, error=f"Invalid job_id: {job_id}")
 
         file_map = {
@@ -299,6 +300,15 @@ class MCPResourceHandler:
                     return ResourceResponse(uri=uri, data=None, error=str(e))
 
         return ResourceResponse(uri=uri, data=None, error=f"Log '{subresource}' not found for job: {job_id}")
+
+    def _job_artifact_dir(self, job_id: str) -> Path | None:
+        """Join a job id under the reports root, refusing device names and escapes."""
+        if reserved_windows_device_stem(job_id):
+            return None
+        job_dir = self._reports_base / job_id
+        if not job_dir.resolve().is_relative_to(self._reports_base.resolve()):
+            return None
+        return job_dir
 
     def _read_expert_resource(self, expert_id: str, subresource: str, uri: str) -> ResourceResponse:
         """Read an expert resource."""

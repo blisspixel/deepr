@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.2] - 2026-08-22
+
+### Fixed
+
+- Google grounding redirect hops now connect through pinned addresses instead
+  of an unpinned HEAD after a DNS precheck.
+- Belief stores refuse writes when `events.jsonl` is ahead of, or unreadable
+  relative to, `beliefs.json`. Event appends are blocked on an unreadable store.
+- Investigation learning apply snapshots profile, tracker, and audit files as
+  well as beliefs. Exceptions restore the same snapshot. A halted apply reports
+  `blocked` rather than `partial`.
+- Generated portraits require the dashboard secret when `DEEPR_API_KEY` is set.
+  Authenticated API responses set an HttpOnly cookie so browser images still
+  load. Portraits stay public when no secret is configured.
+- MCP report and log resource ids reject reserved Windows device names.
+- Document upload rejects reserved Windows device names and non-files.
+
 ## [2.50.1] - 2026-08-22
 
 ### Fixed

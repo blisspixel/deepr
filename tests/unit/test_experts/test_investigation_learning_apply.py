@@ -213,10 +213,81 @@ def test_learning_apply_rolls_back_writes_when_a_later_channel_fails(monkeypatch
         store=_FakeRunStore(tmp_path),
     )
 
-    assert result["summary"]["status"] == "partial"
+    assert result["summary"]["status"] == "blocked"
+    assert result["summary"]["applied_write_count"] == 0
     assert result["contract"]["operator_confirmed_apply"] is False
     assert "should roll back" not in belief_store.storage_path.read_text(encoding="utf-8")
     assert belief_store.storage_path.read_text(encoding="utf-8") == original
+    assert "should roll back" not in {belief.claim for belief in belief_store.beliefs.values()}
+
+
+def test_learning_apply_rolls_back_when_apply_raises(monkeypatch, tmp_path) -> None:
+    from deepr.experts.beliefs import Belief, BeliefStore
+
+    belief_store = BeliefStore(expert_name="TKG", storage_dir=tmp_path / "tkg")
+    belief_store.add_belief(Belief(claim="original", confidence=0.9, domain="d"))
+    original = belief_store.storage_path.read_text(encoding="utf-8")
+    profile = SimpleNamespace(name="TKG")
+
+    class _Profiles:
+        def load(self, name: str):
+            return profile
+
+        def find_existing_dir(self, name: str):
+            return tmp_path / "experts" / "tkg"
+
+        def save(self, value) -> None:
+            raise RuntimeError("profile save failed")
+
+    @contextmanager
+    def _lock(name: str, verb: str):
+        yield True
+
+    def _apply(envelope, store, *, gap_tracker, dry_run):
+        if dry_run:
+            return {
+                "contract": {"writes_graph": False},
+                "summary": {
+                    "status": "dry_run",
+                    "planned_write_count": 1,
+                    "applied_write_count": 0,
+                    "already_applied_count": 0,
+                    "failure_reasons": [],
+                },
+            }
+        store.add_belief(Belief(claim="should roll back", confidence=0.8, domain="d"))
+        return {
+            "contract": {"writes_graph": True},
+            "summary": {
+                "status": "applied",
+                "planned_write_count": 0,
+                "applied_write_count": 1,
+                "already_applied_count": 0,
+                "failure_reasons": [],
+            },
+        }
+
+    monkeypatch.setattr("deepr.experts.investigation.learning_apply.ExpertStore", _Profiles)
+    monkeypatch.setattr("deepr.experts.investigation.learning_apply.BeliefStore", lambda name: belief_store)
+    monkeypatch.setattr("deepr.experts.investigation.learning_apply.MetaCognitionTracker", lambda name: object())
+    monkeypatch.setattr("deepr.experts.investigation.learning_apply.expert_verb_lock", _lock)
+    monkeypatch.setattr(
+        "deepr.experts.investigation.learning_apply.verify_graph_commit_provenance",
+        lambda *args, **kwargs: SimpleNamespace(valid=True, failure_reasons=()),
+    )
+    monkeypatch.setattr("deepr.experts.investigation.learning_apply.apply_graph_commit_envelope", _apply)
+
+    result = apply_investigation_learning(
+        "inv_fixture",
+        dry_run=False,
+        store=_FakeRunStore(tmp_path),
+    )
+
+    assert result["summary"]["status"] == "blocked"
+    assert result["summary"]["failure_reasons"] == ["apply_exception:RuntimeError"]
+    assert result["contract"]["operator_confirmed_apply"] is False
+    assert belief_store.storage_path.read_text(encoding="utf-8") == original
+    assert "should roll back" not in {belief.claim for belief in belief_store.beliefs.values()}
 
 
 def test_learning_apply_treats_producer_blocked_empty_channel_as_no_op(monkeypatch, tmp_path) -> None:

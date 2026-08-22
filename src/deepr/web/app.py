@@ -15,7 +15,7 @@ from functools import partial
 from pathlib import Path
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify, render_template, request, send_from_directory
+from flask import Flask, g, jsonify, render_template, request, send_from_directory
 from flask_cors import CORS
 from flask_socketio import SocketIO
 from werkzeug.utils import safe_join, secure_filename
@@ -24,8 +24,10 @@ from deepr.config import runtime_data_path
 from deepr.security.http_auth import (
     SharedSecretDecision,
     check_shared_secret,
+    dashboard_cookie_token,
     env_flag,
     presented_http_secret,
+    presented_secret_from_dashboard_cookie,
 )
 from deepr.services.provider_completion import authoritative_completion_usage
 
@@ -56,6 +58,7 @@ _frontend_dist = Path(__file__).parent / "frontend" / "dist"
 # into the unsafe loopback compatibility mode.
 _API_KEY = os.getenv("DEEPR_API_KEY", "").strip()
 _ALLOW_UNAUTHENTICATED_LOOPBACK = env_flag("DEEPR_WEB_ALLOW_UNAUTHENTICATED_LOOPBACK")
+_DASHBOARD_COOKIE = "deepr_dashboard"
 _CORS_ORIGINS = [
     origin.strip() for origin in os.getenv("DEEPR_CORS_ORIGINS", "http://localhost:5000").split(",") if origin.strip()
 ]
@@ -103,30 +106,43 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Authentication middleware
 # ---------------------------------------------------------------------------
+def _presented_dashboard_secret() -> str:
+    presented = presented_http_secret(
+        request.headers.get("Authorization", ""),
+        request.headers.get("X-Api-Key", ""),
+    )
+    if presented:
+        return presented
+    return presented_secret_from_dashboard_cookie(
+        cookie_value=request.cookies.get(_DASHBOARD_COOKIE, ""),
+        configured_secret=_API_KEY,
+    )
+
+
 @app.before_request
 def _check_auth():
     """
-    Require API key on sensitive API routes.
+    Require API key on sensitive API routes and generated portraits.
 
     Tokenless loopback compatibility requires a separate explicit opt-in.
+    Browser <img> tags send the HttpOnly dashboard cookie set after API auth.
     """
-    # Skip auth for non-API routes (SPA, static assets, health check)
-    if not request.path.startswith("/api/"):
-        return
     if request.path == "/api/health":
+        return
+    if not (request.path.startswith("/api/") or request.path.startswith("/portraits/")):
         return
     decision = check_shared_secret(
         configured_secret=_API_KEY,
-        presented_secret=presented_http_secret(
-            request.headers.get("Authorization", ""),
-            request.headers.get("X-Api-Key", ""),
-        ),
+        presented_secret=_presented_dashboard_secret(),
         allow_unauthenticated_loopback=_ALLOW_UNAUTHENTICATED_LOOPBACK,
         remote_addr=request.remote_addr,
     )
     if decision is SharedSecretDecision.ALLOW:
+        g.set_dashboard_cookie = True
         return
     if decision is SharedSecretDecision.NOT_CONFIGURED:
+        if request.path.startswith("/portraits/"):
+            return
         return jsonify(
             {
                 "error": "Dashboard authentication is not configured",
@@ -134,6 +150,21 @@ def _check_auth():
             }
         ), 503
     return jsonify({"error": "Unauthorized"}), 401
+
+
+@app.after_request
+def _attach_dashboard_cookie(response):
+    if getattr(g, "set_dashboard_cookie", False):
+        token = dashboard_cookie_token(_API_KEY)
+        if token:
+            response.set_cookie(
+                _DASHBOARD_COOKIE,
+                token,
+                httponly=True,
+                samesite="Lax",
+                path="/",
+            )
+    return response
 
 
 # ---------------------------------------------------------------------------

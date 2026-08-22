@@ -3,8 +3,10 @@
 from deepr.security.http_auth import (
     SharedSecretDecision,
     check_shared_secret,
+    dashboard_cookie_token,
     env_flag,
     presented_http_secret,
+    presented_secret_from_dashboard_cookie,
 )
 
 
@@ -72,6 +74,17 @@ def test_missing_configuration_needs_explicit_loopback_opt_in() -> None:
 def test_http_secret_prefers_bearer_header() -> None:
     assert presented_http_secret("Bearer bearer", "header") == "bearer"
     assert presented_http_secret("Basic ignored", "header") == "header"
+
+
+def test_dashboard_cookie_token_matches_only_the_configured_secret() -> None:
+    token = dashboard_cookie_token("dashboard-secret")
+    assert token
+    assert presented_secret_from_dashboard_cookie(cookie_value=token, configured_secret="dashboard-secret") == (
+        "dashboard-secret"
+    )
+    assert presented_secret_from_dashboard_cookie(cookie_value=token, configured_secret="other") == ""
+    assert presented_secret_from_dashboard_cookie(cookie_value="tampered", configured_secret="dashboard-secret") == ""
+    assert dashboard_cookie_token("") == ""
 
 
 def test_env_flag_requires_explicit_truthy_value(monkeypatch) -> None:

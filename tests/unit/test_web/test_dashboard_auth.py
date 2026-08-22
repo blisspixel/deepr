@@ -57,3 +57,37 @@ def test_explicit_tokenless_loopback_mode_preserves_local_dashboard_access(clien
     response = client.get("/api/cost/limits", environ_base={"REMOTE_ADDR": "127.0.0.1"})
 
     assert response.status_code == 200
+
+
+def test_portraits_stay_public_when_dashboard_auth_is_not_configured(client, monkeypatch, tmp_path) -> None:
+    portraits = tmp_path / "portraits"
+    portraits.mkdir()
+    (portraits / "fixture-expert.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    monkeypatch.setattr(web_app, "_API_KEY", "")
+    monkeypatch.setattr(web_app, "_ALLOW_UNAUTHENTICATED_LOOPBACK", False)
+    monkeypatch.setattr(web_app, "runtime_data_path", lambda name: portraits if name == "portraits" else tmp_path / name)
+
+    response = client.get("/portraits/fixture-expert.png")
+
+    assert response.status_code == 200
+
+
+def test_portraits_require_dashboard_secret_when_configured(client, monkeypatch, tmp_path) -> None:
+    portraits = tmp_path / "portraits"
+    portraits.mkdir()
+    (portraits / "fixture-expert.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    monkeypatch.setattr(web_app, "_API_KEY", "dashboard-test-secret")
+    monkeypatch.setattr(web_app, "_ALLOW_UNAUTHENTICATED_LOOPBACK", False)
+    monkeypatch.setattr(web_app, "runtime_data_path", lambda name: portraits if name == "portraits" else tmp_path / name)
+
+    rejected = client.get("/portraits/fixture-expert.png")
+    accepted = client.get(
+        "/portraits/fixture-expert.png",
+        headers={"Authorization": "Bearer dashboard-test-secret"},
+    )
+    cookied = client.get("/portraits/fixture-expert.png")
+
+    assert rejected.status_code == 401
+    assert accepted.status_code == 200
+    assert cookied.status_code == 200
+    assert "deepr_dashboard=" in accepted.headers.get("Set-Cookie", "")

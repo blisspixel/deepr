@@ -160,6 +160,12 @@ class TestDocumentManagerUpload:
             await doc_manager.upload_documents(["../secrets.env"], mock_provider)
 
     @pytest.mark.asyncio
+    async def test_upload_rejects_windows_device_name(self, doc_manager, mock_provider):
+        with pytest.raises(ValueError, match="reserved Windows device name"):
+            await doc_manager.upload_documents(["CON"], mock_provider)
+        mock_provider.upload_document.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_upload_empty_list(self, doc_manager, mock_provider):
         """Test uploading empty file list."""
         file_ids = await doc_manager.upload_documents([], mock_provider)

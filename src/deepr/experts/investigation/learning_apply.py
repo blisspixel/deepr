@@ -235,23 +235,74 @@ def _apply_failure_reasons(result: dict[str, Any]) -> list[str]:
     return collected
 
 
-def _belief_file_snapshot(store: Any) -> list[tuple[Path, bytes | None]]:
-    snapshots: list[tuple[Path, bytes | None]] = []
-    for attr in ("storage_path", "events_path"):
-        path = getattr(store, attr, None)
-        if not isinstance(path, Path):
-            continue
-        snapshots.append((path, path.read_bytes() if path.exists() else None))
+def _file_snapshot(path: Path | None) -> list[tuple[Path, bytes | None]]:
+    if not isinstance(path, Path):
+        return []
+    return [(path, path.read_bytes() if path.exists() else None)]
+
+
+def _expert_apply_snapshot(item: dict[str, Any], profile_store: ExpertStore) -> list[tuple[Path, bytes | None]]:
+    store = item["belief_store"]
+    snapshots = _file_snapshot(getattr(store, "storage_path", None))
+    snapshots.extend(_file_snapshot(getattr(store, "events_path", None)))
+    snapshots.extend(_file_snapshot(getattr(store, "mutation_audit_path", None)))
+    snapshots.extend(_file_snapshot(getattr(item.get("tracker"), "meta_file", None)))
+    profile = item.get("profile")
+    profile_name = getattr(profile, "name", None)
+    if isinstance(profile_name, str) and hasattr(profile_store, "_get_profile_path"):
+        try:
+            snapshots.extend(_file_snapshot(profile_store._get_profile_path(profile_name)))
+        except (OSError, ValueError, TypeError):
+            pass
     return snapshots
 
 
-def _restore_belief_file_snapshot(snapshots: list[tuple[Path, bytes | None]]) -> None:
+def _restore_file_snapshot(snapshots: list[tuple[Path, bytes | None]]) -> None:
     for path, payload in snapshots:
         if payload is None:
             if path.exists():
                 path.unlink()
             continue
         atomic_write_bytes(path, payload, fsync=True)
+
+
+def _reload_restored_item(item: dict[str, Any], profile_store: ExpertStore) -> None:
+    store = item.get("belief_store")
+    if store is not None and hasattr(store, "_load"):
+        if hasattr(store, "beliefs"):
+            store.beliefs.clear()
+        if hasattr(store, "edges"):
+            store.edges.clear()
+        if hasattr(store, "changes"):
+            store.changes.clear()
+        if hasattr(store, "domain_index"):
+            store.domain_index.clear()
+        store._load()
+    tracker = item.get("tracker")
+    if tracker is not None and hasattr(tracker, "_load"):
+        tracker._load()
+    profile = item.get("profile")
+    profile_name = getattr(profile, "name", None)
+    if isinstance(profile_name, str) and hasattr(profile_store, "load"):
+        try:
+            item["profile"] = profile_store.load(profile_name)
+        except (OSError, ValueError, TypeError):
+            pass
+
+
+def _rollback_apply(
+    *,
+    snapshot: list[tuple[Path, bytes | None]],
+    taken: list[list[tuple[Path, bytes | None]]],
+    prepared: list[dict[str, Any]],
+    profile_store: ExpertStore,
+) -> None:
+    if snapshot:
+        _restore_file_snapshot(snapshot)
+    for previous in reversed(taken):
+        _restore_file_snapshot(previous)
+    for item in prepared:
+        _reload_restored_item(item, profile_store)
 
 
 def _apply_prepared(
@@ -270,25 +321,38 @@ def _apply_prepared(
         if not dry_run and item["no_op"]:
             result = _no_op_result(result, dry_run=False)
         elif not dry_run:
-            snapshot = _belief_file_snapshot(item["belief_store"])
-            result = apply_graph_commit_envelope(
-                item["envelope"],
-                item["belief_store"],
-                gap_tracker=item["tracker"],
-                dry_run=False,
-            )
-            factual_write = item["channel"] == "facts" and result.get("contract", {}).get("writes_graph") is True
-            if factual_write:
-                advance_knowledge_freshness(item["profile"], datetime.now(UTC))
-                profile_store.save(item["profile"])
+            snapshot = _expert_apply_snapshot(item, profile_store)
+            try:
+                result = apply_graph_commit_envelope(
+                    item["envelope"],
+                    item["belief_store"],
+                    gap_tracker=item["tracker"],
+                    dry_run=False,
+                )
+                factual_write = item["channel"] == "facts" and result.get("contract", {}).get("writes_graph") is True
+                if factual_write:
+                    advance_knowledge_freshness(item["profile"], datetime.now(UTC))
+                    profile_store.save(item["profile"])
+            except Exception as exc:
+                _rollback_apply(
+                    snapshot=snapshot,
+                    taken=taken,
+                    prepared=prepared,
+                    profile_store=profile_store,
+                )
+                halted = [f"apply_exception:{type(exc).__name__}"]
+                results.append({"expert_name": item["expert_name"], "channel": item["channel"], "result": result})
+                break
         results.append({"expert_name": item["expert_name"], "channel": item["channel"], "result": result})
         if not dry_run:
             halted = _apply_failure_reasons(result)
             if halted:
-                if snapshot:
-                    _restore_belief_file_snapshot(snapshot)
-                for previous in reversed(taken):
-                    _restore_belief_file_snapshot(previous)
+                _rollback_apply(
+                    snapshot=snapshot,
+                    taken=taken,
+                    prepared=prepared,
+                    profile_store=profile_store,
+                )
                 break
             if snapshot:
                 taken.append(snapshot)
@@ -375,7 +439,8 @@ def apply_investigation_learning(
     already = sum(int(item["result"].get("summary", {}).get("already_applied_count", 0) or 0) for item in results)
     no_op_envelopes = sum(1 for item in prepared if item["no_op"])
     if halted and not dry_run:
-        status = "partial" if applied else "blocked"
+        status = "blocked"
+        applied = 0
     else:
         status = _apply_status(prepared=prepared, dry_run=dry_run, applied=applied, already=already)
     return {

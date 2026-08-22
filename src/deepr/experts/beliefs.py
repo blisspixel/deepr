@@ -14,6 +14,7 @@ from urllib.parse import urlsplit
 
 from deepr.experts import mutation_audit as audit
 from deepr.experts.belief_edges import EDGE_TYPES, Edge, normalized_edge_temporal_context
+from deepr.experts.belief_event_wal import event_log_conflicts_with_snapshot
 from deepr.experts.maker_checker import strongest_grounding_event
 from deepr.utils.atomic_io import append_jsonl_durable, atomic_write_json
 
@@ -557,6 +558,10 @@ class BeliefStore:
         operation: str | None = None,
     ) -> None:
         """Record a belief change in both the legacy window and event log."""
+        if self.read_only:
+            raise BeliefStoreError("read-only belief store cannot be saved")
+        if self._unreadable:
+            raise BeliefStoreError("refusing to overwrite unreadable belief store")
         if change.timestamp.tzinfo is None:
             change.timestamp = change.timestamp.replace(tzinfo=UTC)
         if self.changes:
@@ -1386,6 +1391,8 @@ class BeliefStore:
     def _load(self):
         self._unreadable = False
         if not self.storage_path.exists():
+            if event_log_conflicts_with_snapshot(self.events_path, snapshot_exists=False, latest_change=None):
+                self._unreadable = True
             return
         try:
             if self.storage_path.stat().st_size > 50 * 1024 * 1024:
@@ -1399,10 +1406,8 @@ class BeliefStore:
             logger.error("Failed to load beliefs from %s: %s. Refusing writes.", self.storage_path, exc)
             return
         self.beliefs = {bid: Belief.from_dict(bdata) for bid, bdata in data.get("beliefs", {}).items()}
-        # Rebuild domain index
         for belief in self.beliefs.values():
             self._index_belief(belief)
-        # Load typed edges
         for edata in data.get("edges", []):
             try:
                 edge = Edge.from_dict(edata)
@@ -1411,10 +1416,7 @@ class BeliefStore:
                 logger.error("Malformed edge in %s: %s. Refusing writes.", self.storage_path, exc)
                 return
             self.edges[edge.key()] = edge
-        # One-time, idempotent migration (TKG step 2): legacy
-        # contradictions_with lists become typed contradicts edges. Key-based
-        # dedup makes re-running free; the legacy field stays in sync (both
-        # directions are already recorded on the beliefs) for one release.
+        # Migrate legacy contradictions_with lists to typed contradicts edges.
         migrated = 0
         for belief in self.beliefs.values():
             for other_id in belief.contradictions_with:
@@ -1426,8 +1428,6 @@ class BeliefStore:
         if migrated and not self.read_only:
             logger.info("Migrated %d contradictions_with pair(s) to typed edges for %s", migrated, self.expert_name)
             self._save()
-        # Load changes (canonical from_dict carries the optional
-        # bi-temporal/snapshot fields; absent fields default to None)
         for cdata in data.get("changes", []):
             try:
                 self.changes.append(BeliefChange.from_dict(cdata))
@@ -1435,6 +1435,9 @@ class BeliefStore:
                 self._unreadable = True
                 logger.error("Malformed change record in %s: %s. Refusing writes.", self.storage_path, exc)
                 return
+        latest = self.changes[-1].timestamp if self.changes else None
+        if event_log_conflicts_with_snapshot(self.events_path, snapshot_exists=True, latest_change=latest):
+            self._unreadable = True
 
 
 from deepr.experts.semantic_recall import install_belief_store_recall_methods as _install_recall_methods

@@ -127,6 +127,16 @@ class TestMCPResourceHandler:
         assert not response.success
         assert "Invalid resource URI" in response.error
 
+    def test_read_report_rejects_windows_device_job_id(self, handler, tmp_path):
+        device_dir = tmp_path / "reports" / "CON"
+        device_dir.mkdir(parents=True)
+        (device_dir / "final_report.md").write_text("should not be read", encoding="utf-8")
+
+        response = handler.read_resource("deepr://reports/CON/final.md")
+
+        assert not response.success
+        assert response.data is None
+
     def test_read_nonexistent_job(self, handler):
         """Should return error for nonexistent job."""
         response = handler.read_resource("deepr://campaigns/nonexistent/status")
