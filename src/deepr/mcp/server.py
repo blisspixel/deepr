@@ -770,7 +770,10 @@ class DeeprMCPServer:
                 if not expert:
                     return _make_error("EXPERT_NOT_FOUND", f"Expert '{expert_name}' not found")
 
-                report_text = ContextIndex().get_report_content(report_id, max_chars=100000)
+                state = self.resource_handler.jobs.get_state(report_id)
+                if not current_mcp_request_can_access_owner(state.owner_id if state else None):
+                    return _make_error("REPORT_NOT_FOUND", f"No report found for id '{report_id}'")
+                report_text = ContextIndex().get_report_content(report_id, max_chars=100000, allow_prefix=False)
                 if not report_text:
                     return _make_error("REPORT_NOT_FOUND", f"No report found for id '{report_id}'")
 

@@ -62,7 +62,7 @@ _DASHBOARD_COOKIE = "deepr_dashboard"
 _CORS_ORIGINS = [
     origin.strip() for origin in os.getenv("DEEPR_CORS_ORIGINS", "http://localhost:5000").split(",") if origin.strip()
 ]
-_SOCKETIO_CORS_ORIGINS = _CORS_ORIGINS if os.getenv("DEEPR_CORS_ORIGINS") else None
+_SOCKETIO_CORS_ORIGINS = _CORS_ORIGINS
 _MAX_PROMPT_LENGTH = 50_000  # characters
 _MAX_BATCH_SIZE = 50
 _MAX_QUERY_LIMIT = 1000
@@ -2031,8 +2031,11 @@ def get_expert_conversation(name, session_id):
         decoded_name, err = _decode_expert_name(name)
         if err:
             return err
-        # Guard against path traversal: session_id flows into a file path.
-        if not re.match(r"^[\w\-]+$", session_id):
+        from deepr.utils.security import validate_identifier
+
+        try:
+            validate_identifier(session_id, kind="session id")
+        except ValueError:
             return jsonify({"error": "Invalid session_id"}), 400
         store = ExpertStore(str(_experts_dir))
         conversations_dir = store.get_conversations_dir(decoded_name)
@@ -2071,8 +2074,11 @@ def delete_expert_conversation(name, session_id):
         decoded_name, err = _decode_expert_name(name)
         if err:
             return err
-        # Guard against path traversal: session_id flows into a file path.
-        if not re.match(r"^[\w\-]+$", session_id):
+        from deepr.utils.security import validate_identifier
+
+        try:
+            validate_identifier(session_id, kind="session id")
+        except ValueError:
             return jsonify({"error": "Invalid session_id"}), 400
         store = ExpertStore(str(_experts_dir))
         conversations_dir = store.get_conversations_dir(decoded_name)

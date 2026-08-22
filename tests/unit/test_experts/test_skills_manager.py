@@ -101,6 +101,21 @@ class TestSkillManagerInit:
         mgr = SkillManager(expert_name=None)
         assert mgr.list_all() == []
 
+    def test_windows_device_expert_name_skips_expert_local(self, tmp_path, monkeypatch):
+        builtin = tmp_path / "builtin"
+        global_ = tmp_path / "global"
+        builtin.mkdir()
+        global_.mkdir()
+        monkeypatch.setattr(manager_mod, "_BUILTIN_DIR", builtin)
+        monkeypatch.setattr(manager_mod, "_USER_GLOBAL_DIR", global_)
+        device_skills = tmp_path / "data" / "experts" / "CON" / "skills"
+        _create_skill_dir(device_skills, "device-skill")
+        monkeypatch.chdir(tmp_path)
+
+        mgr = SkillManager(expert_name="CON")
+
+        assert mgr.get_skill("device-skill") is None
+
 
 # ---------------------------------------------------------------------------
 # _scan_tier

@@ -32,6 +32,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Web completion writes the accounted settlement amount onto the queue row
   when provider usage is missing.
 - Expert chat session ids reject reserved Windows device names.
+- MCP absorb requires owner access and an exact report id, so a scoped key
+  cannot pull another owner's report through a job-id prefix.
+- Shared-secret compares treat length mismatch as unauthorized instead of
+  raising. Socket.IO CORS uses the same origin list as REST. Dashboard
+  conversation GET/DELETE reject reserved Windows device names. Skill
+  discovery skips reserved Windows expert-name segments.
 
 ## [2.50.1] - 2026-08-22
 

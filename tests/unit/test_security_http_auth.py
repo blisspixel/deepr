@@ -31,6 +31,17 @@ def test_configured_secret_requires_exact_match() -> None:
     )
 
 
+def test_wrong_length_secret_is_unauthorized_not_an_error() -> None:
+    decision = check_shared_secret(
+        configured_secret="expected-secret",
+        presented_secret="short",
+        allow_unauthenticated_loopback=False,
+        remote_addr="127.0.0.1",
+    )
+    assert decision is SharedSecretDecision.UNAUTHORIZED
+    assert presented_secret_from_dashboard_cookie(cookie_value="x", configured_secret="expected-secret") == ""
+
+
 def test_malformed_non_ascii_secret_fails_closed() -> None:
     decision = check_shared_secret(
         configured_secret="expected",

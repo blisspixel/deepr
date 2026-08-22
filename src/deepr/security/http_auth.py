@@ -51,7 +51,7 @@ def presented_secret_from_dashboard_cookie(*, cookie_value: str, configured_secr
         return ""
     try:
         valid = hmac.compare_digest(cookie_value, expected)
-    except TypeError:
+    except (TypeError, ValueError):
         return ""
     return configured_secret if valid else ""
 
@@ -72,6 +72,6 @@ def check_shared_secret(
         return SharedSecretDecision.UNAUTHORIZED
     try:
         valid = hmac.compare_digest(presented_secret, configured_secret)
-    except TypeError:
+    except (TypeError, ValueError):
         valid = False
     return SharedSecretDecision.ALLOW if valid else SharedSecretDecision.UNAUTHORIZED

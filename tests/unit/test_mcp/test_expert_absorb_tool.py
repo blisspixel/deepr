@@ -110,6 +110,22 @@ class TestAbsorbTool:
         assert result.get("error_code") == "EXPERT_NOT_FOUND"
 
     @pytest.mark.asyncio
+    async def test_scoped_key_cannot_absorb_another_owner_report(self, mock_server):
+        mock_server.store.load = MagicMock(return_value=MagicMock(name="Test Expert"))
+        mock_server.resource_handler.jobs.get_state.return_value = MagicMock(owner_id="owner-b")
+        with (
+            patch("deepr.mcp.server.current_mcp_request_can_access_owner", return_value=False),
+            patch("deepr.services.context_index.ContextIndex") as mock_idx,
+        ):
+            result = await mock_server.expert_absorb(
+                expert_name="Test Expert",
+                report_id="other-job",
+                **_METERED_AUTH,
+            )
+        assert result.get("error_code") == "REPORT_NOT_FOUND"
+        mock_idx.return_value.get_report_content.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_missing_report(self, mock_server):
         mock_server.store.load = MagicMock(return_value=MagicMock(name="Test Expert"))
         with patch("deepr.services.context_index.ContextIndex") as mock_idx:

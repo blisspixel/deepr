@@ -59,6 +59,17 @@ def test_explicit_tokenless_loopback_mode_preserves_local_dashboard_access(clien
     assert response.status_code == 200
 
 
+def test_conversation_routes_reject_windows_device_session_ids(client, monkeypatch) -> None:
+    monkeypatch.setattr(web_app, "_check_auth", lambda: None)
+    monkeypatch.setattr(web_app, "_decode_expert_name", lambda name: ("fixture", None))
+
+    loaded = client.get("/api/experts/fixture/conversations/CON")
+    deleted = client.delete("/api/experts/fixture/conversations/NUL")
+
+    assert loaded.status_code == 400
+    assert deleted.status_code == 400
+
+
 def test_portraits_stay_public_when_dashboard_auth_is_not_configured(client, monkeypatch, tmp_path) -> None:
     portraits = tmp_path / "portraits"
     portraits.mkdir()
