@@ -264,9 +264,12 @@ jobs:
           uv sync --frozen --extra dev
           uv run python -m build
 
-      - name: Verify wheel contains dashboard assets
+      - name: Verify Python distribution contents
         working-directory: ${{ github.workspace }}
-        run: python scripts/check_wheel_frontend.py "$(find dist -maxdepth 1 -name '*.whl' -print -quit)"
+        run: |
+          python scripts/check_wheel_frontend.py \
+            "$(find dist -maxdepth 1 -name '*.whl' -print -quit)" \
+            "$(find dist -maxdepth 1 -name '*.tar.gz' -print -quit)"
 
   test:
     runs-on: ubuntu-latest

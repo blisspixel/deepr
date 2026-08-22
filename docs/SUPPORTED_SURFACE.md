@@ -1,11 +1,17 @@
 # Supported Surface
 
-Status: v2.50.4 current main, 2026-08-22. This document defines what users and host
+Status: v2.50.5 current main, 2026-08-22. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
 path is structurally complete but remains execution-blocked without verified
 provider prepaid-no-overage or hard-stop evidence.
+
+**v2.50.5 bounds acquisition proposals before execution.** Model-proposed
+search plans accept only strings, remove case-insensitive duplicates, and run
+at most four queries per arm. An empty topic makes no completion call. REST
+rate-limit responses use a positive numeric retry delay, and release builds
+verify that local frontend dependencies do not enter either distribution.
 
 **v2.48.0 makes expert consultation local or plan-only.** CLI consultation
 uses confined local Ollama by default. An explicit plan may execute only after

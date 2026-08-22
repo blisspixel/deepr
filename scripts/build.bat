@@ -24,6 +24,8 @@ if errorlevel 1 exit /b 1
 
 for %%W in (dist\*.whl) do python scripts\check_wheel_frontend.py "%%W"
 if errorlevel 1 exit /b 1
+for %%S in (dist\*.tar.gz) do python scripts\check_wheel_frontend.py "%%S"
+if errorlevel 1 exit /b 1
 
 echo.
 echo Build complete! Distribution packages are in dist/

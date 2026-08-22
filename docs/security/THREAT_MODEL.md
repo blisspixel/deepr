@@ -1,6 +1,6 @@
 # Deepr Threat Model
 
-Status: current with Deepr v2.50.4. Last reviewed: 2026-08-22.
+Status: current with Deepr v2.50.5. Last reviewed: 2026-08-22.
 
 This document is the repository-scoped threat model for Deepr. It is intended
 for security reviews, design reviews, and future bug discovery. It should stay
@@ -96,7 +96,9 @@ The main boundaries are:
 - **Model output to durable writes.** Provider and plan outputs may propose
   claims, edges, gaps, hypotheses, stance, or self-model updates. They cannot
   directly mutate canonical memory without schema, verifier, review, budget,
-  and apply gates.
+  and apply gates. Proposed acquisition queries are string-only, deduplicated,
+  and capped per search arm before execution; empty topics make no completion
+  call, and fallback records omit provider exception messages.
 - **Local-only surface to reachable network service.** Web, MCP HTTP, and A2A
   endpoints are low risk on loopback and high risk when reachable without
   scoped credentials, budgets, and rate limits.
