@@ -1,6 +1,6 @@
 # Deepr Threat Model
 
-Status: current with Deepr v2.50.5. Last reviewed: 2026-08-22.
+Status: current with Deepr v2.50.6. Last reviewed: 2026-08-22.
 
 This document is the repository-scoped threat model for Deepr. It is intended
 for security reviews, design reviews, and future bug discovery. It should stay
@@ -318,6 +318,9 @@ Relevant attacker stories:
 - A legacy ledger, reservation database, checkout cap, or canonical source
   registry is truncated or restored to an older state so past exposure
   disappears.
+- A malformed quota observation crashes free-capacity selection, reports
+  non-finite usage, makes an unavailable plan look empty, or restores a stale
+  cached snapshot after a failed forced refresh.
 
 Existing controls:
 
@@ -355,6 +358,10 @@ Existing controls:
   before process construction.
 - `src/deepr/backends/plan_quota/client.py` records `$0` Deepr cost events and
   quota observations for plan CLI calls and probes.
+- Optional quota-tool observations accept only object-shaped provider and
+  window records with finite percentages and reset times. Percentages are
+  clamped, unavailable plans have no headroom, missing windows remain neutral,
+  and forced refresh failure clears the prior cache without dispatching work.
 - Registry pricing and provider-specific usage settlement account for cached
   token buckets, canonical queued-model rates, and provable paid-tool calls.
   Missing or inconsistent response model, token, tool, or settlement evidence
@@ -406,6 +413,10 @@ Relevant attacker stories:
 - A generated guide or manifest writes bearer tokens into tracked files.
 - A local artifact overwrites existing paid output without warning.
 - A sandbox ID uses path traversal to read or write outside its workspace.
+- Two report IDs share a shortened readable suffix and one job reads,
+  overwrites, or deletes the other's files.
+- Retention mistakes the campaign container for an old report directory and
+  removes fresh campaign data.
 
 Existing controls:
 
@@ -416,6 +427,10 @@ Existing controls:
   limits, and artifact write locations.
 - Local storage and report storage validate job IDs and filenames before
   constructing local or blob-backed paths.
+- Readable report lookup verifies the complete job ID stored in authoritative
+  metadata. Trusted metadata fields cannot be overridden, the internal sidecar
+  name is reserved, report replacement is atomic, and retention evaluates
+  individual report ages without deleting the campaign container.
 - MCP guide and registration-manifest flows redact bearer secrets from
   generated files.
 - Portrait writes default to the runtime data root and archive the existing

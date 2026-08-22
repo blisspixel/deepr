@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.6] - 2026-08-22
+
+### Changed
+
+- Local report writes replace complete files atomically. Report enumeration
+  includes campaign reports, preserves authoritative job IDs, and excludes the
+  internal metadata sidecar. Retention now removes only reports older than the
+  requested threshold and reports the number of user-facing files removed.
+- Optional plan-quota observations accept only bounded, finite schema values.
+  Missing quota windows remain neutral during routing rather than appearing
+  fully unused.
+
+### Fixed
+
+- Human-readable report directories verify the full stored job identity before
+  reuse, so two job IDs with the same shortened suffix cannot overwrite or
+  retrieve each other's files. Caller metadata can no longer replace trusted
+  job, filename, content type, size, or creation fields.
+- Fresh campaign data is no longer removed by local retention cleanup. Negative
+  retention values fail before touching files, old files in a mixed-age job can
+  be removed independently, and the internal `metadata.json` name is reserved.
+- Non-string prompts no longer break report saves, and invalid metadata is
+  rejected before an existing report can be replaced.
+- Malformed quota-tool JSON cannot escape the no-raise availability boundary,
+  a failed forced refresh cannot revive stale capacity, unavailable plans sort
+  with zero headroom, and usage percentages are clamped to their valid range.
+- The MCP client circuit breaker reports a recovered half-open state as not
+  open, matching its availability and health state.
+
 ## [2.50.5] - 2026-08-22
 
 ### Changed

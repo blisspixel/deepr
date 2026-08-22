@@ -19,6 +19,7 @@ the plan that was about to cap.
 from __future__ import annotations
 
 import json
+import math
 import shutil
 import subprocess
 import time
@@ -53,6 +54,10 @@ class PlanHeadroom:
     @property
     def headroom(self) -> float:
         """Fraction of the tightest window still available, 0.0 to 1.0."""
+        if not self.ok:
+            return 0.0
+        if not self.window_label:
+            return 0.5
         return max(0.0, min(1.0, (100.0 - self.used_percent) / 100.0))
 
     @property
@@ -68,37 +73,67 @@ class PlanHeadroom:
         return f"{self.provider}: {self.used_percent:.0f}% of {self.window_label} used, resets in {minutes}m"
 
 
+def _finite_float(value: object) -> float | None:
+    """Return a finite numeric value without accepting booleans."""
+    if isinstance(value, bool):
+        return None
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return None
+    return result if math.isfinite(result) else None
+
+
 def _tightest_window(windows: list[dict[str, Any]], now: float) -> tuple[float, str, float]:
     """The window closest to its cap, since that is the one that will bind."""
     best = (0.0, "", 0.0)
-    for window in windows or []:
-        try:
-            used = float(window.get("used_percent", 0.0) or 0.0)
-        except (TypeError, ValueError):
+    for window in windows:
+        used = _finite_float(window.get("used_percent", 0.0))
+        if used is None:
             continue
+        used = max(0.0, min(100.0, used))
         if used >= best[0]:
-            resets = float(window.get("resets_at", now) or now) - now
-            best = (used, str(window.get("label", "")), max(0.0, resets))
+            resets_at = _finite_float(window.get("resets_at", now))
+            resets = (resets_at if resets_at is not None else now) - now
+            label = window.get("label", "")
+            best = (used, label if isinstance(label, str) else "", max(0.0, resets))
     return best
 
 
-def parse_snapshot(payload: dict[str, Any], *, now: float | None = None) -> dict[str, PlanHeadroom]:
+def parse_snapshot(payload: object, *, now: float | None = None) -> dict[str, PlanHeadroom]:
     """Turn a quotabot snapshot into per-provider headroom."""
-    moment = now if now is not None else time.time()
+    moment = _finite_float(now) if now is not None else time.time()
+    if moment is None:
+        moment = time.time()
     out: dict[str, PlanHeadroom] = {}
-    for entry in payload.get("providers") or []:
-        provider = str(entry.get("provider", "")).strip().lower()
+    if not isinstance(payload, dict):
+        return out
+    entries = payload.get("providers")
+    if not isinstance(entries, list):
+        return out
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        raw_provider = entry.get("provider")
+        if not isinstance(raw_provider, str):
+            continue
+        provider = raw_provider.strip().lower()
         if not provider:
             continue
-        windows = entry.get("windows") or []
+        raw_windows = entry.get("windows")
+        windows = (
+            [window for window in raw_windows if isinstance(window, dict)] if isinstance(raw_windows, list) else []
+        )
         used, label, resets = _tightest_window(windows, moment)
+        raw_ok = entry.get("ok", True)
+        raw_plan = entry.get("plan", "")
         out[provider] = PlanHeadroom(
             provider=provider,
-            ok=bool(entry.get("ok", True)),
+            ok=raw_ok if isinstance(raw_ok, bool) else False,
             used_percent=used,
             window_label=label,
             resets_in_s=resets,
-            plan=str(entry.get("plan") or ""),
+            plan=raw_plan if isinstance(raw_plan, str) else "",
             windows=windows,
         )
     return out
@@ -111,9 +146,20 @@ def read_headroom(*, force: bool = False, timeout_s: float = 25.0) -> dict[str, 
     much is left, which is the state it was already in, not a reason to stop.
     """
     global _cache
-    now = time.time()
-    if not force and _cache is not None and now - _cache[0] < _CACHE_TTL_S:
+    cache_now = time.monotonic()
+    if not force and _cache is not None and cache_now - _cache[0] < _CACHE_TTL_S:
         return _cache[1]
+
+    # A forced or expired refresh replaces the old observation. If discovery
+    # now fails, the stale snapshot must not silently reappear on the next call.
+    _cache = None
+    if (
+        isinstance(timeout_s, bool)
+        or not isinstance(timeout_s, (int, float))
+        or not math.isfinite(timeout_s)
+        or timeout_s <= 0
+    ):
+        return {}
 
     # Fixed argv with no interpolation, and the executable is resolved rather
     # than left to PATH order at spawn time. Nothing from a corpus, a prompt or
@@ -133,14 +179,14 @@ def read_headroom(*, force: bool = False, timeout_s: float = 25.0) -> dict[str, 
     except (OSError, subprocess.SubprocessError):
         return {}
 
-    if completed.returncode != 0 or not completed.stdout.strip():
+    if completed.returncode != 0 or not isinstance(completed.stdout, str) or not completed.stdout.strip():
         return {}
     try:
-        parsed = parse_snapshot(json.loads(completed.stdout), now=now)
+        parsed = parse_snapshot(json.loads(completed.stdout), now=time.time())
     except (json.JSONDecodeError, TypeError, ValueError):
         return {}
 
-    _cache = (now, parsed)
+    _cache = (cache_now, parsed)
     return parsed
 
 

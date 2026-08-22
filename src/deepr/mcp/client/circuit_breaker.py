@@ -69,7 +69,7 @@ class CircuitBreaker:
     @property
     def is_open(self) -> bool:
         """True if circuit is in OPEN state (not half-open)."""
-        return self._state == CircuitState.OPEN
+        return self.state == CircuitState.OPEN
 
     def is_available(self) -> bool:
         """Check if a call can be attempted.

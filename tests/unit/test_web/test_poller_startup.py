@@ -670,7 +670,15 @@ def test_finalize_completed_job_settles_before_queue_result_write():
         return True
 
     loop = MagicMock()
-    loop.run_until_complete.side_effect = lambda _awaitable: order.append("queue") or True
+
+    def run_until_complete(awaitable):
+        # The loop is mocked for ordering, so explicitly close the coroutine
+        # that a real event loop would consume.
+        awaitable.close()
+        order.append("queue")
+        return True
+
+    loop.run_until_complete.side_effect = run_until_complete
     queue = MagicMock()
     queue.update_results = AsyncMock()
     queue.update_status = AsyncMock()

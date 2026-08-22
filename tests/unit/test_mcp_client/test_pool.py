@@ -42,6 +42,14 @@ class TestCircuitState:
         cs._opened_at = 0.0
         assert cs.is_available()
 
+    def test_recovered_half_open_state_is_not_reported_as_open(self):
+        cs = _CircuitState(threshold=1, recovery_seconds=60.0)
+        cs.record_failure()
+        cs._opened_at = 0.0
+
+        assert cs.state.value == "half-open"
+        assert not cs.is_open
+
 
 class TestMCPClientPool:
     def _make_profile(self, name: str) -> MCPClientProfile:

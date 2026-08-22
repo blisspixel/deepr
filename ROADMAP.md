@@ -364,7 +364,14 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.5)
+## Current Status (v2.50.6)
+
+**Shipped in v2.50.6 (see docs/CHANGELOG.md):** readable report directories
+verify complete stored job identity, authoritative metadata cannot be replaced
+by caller fields, report replacement is atomic, campaign listing and retention
+follow the same report contract, and malformed optional quota observations fail
+closed without reviving stale capacity. MCP circuit health now agrees with its
+recovered half-open state.
 
 **Shipped in v2.50.5 (see docs/CHANGELOG.md):** REST rate limits return a
 standards-valid retry delay without claiming every HTTP 429 is a limiter
@@ -1049,7 +1056,7 @@ the gate for that version is proven.
 | **v2.47** (shipped, grant superseded) | Expert v2 web surface, local portraits, and the original attended `$2` grant | The new expert state needed a real interface; attended spend needed a first narrow proof | Twelve read-only v2 routes and local portrait path shipped; the grant was replaced in v2.49 |
 | **v2.48** (shipped) | Local-first consult plus the 2026-08-13 provider model and pricing refresh | Consultation must not inherit metered authority; estimates must follow current official catalogs | Consult blocks API paths; GPT-5.6, Grok 4.6, Claude 5, and current Gemini posture registered |
 | **v2.49** (shipped) | Persistent metered-spend wallet, independent job ceilings, and a curated flagship expert roster | Operators need chosen total exposure without a universal $2 research limit; the main roster must show developed experts | Wallet and verified provider boundaries both apply; no refill or overdraft; 25 explicit flagship experts have inspectable structure |
-| **v2.50** (shipped, 2.50.5 patch) | Standards foundation plus fail-closed spend, storage, authentication, scoped remote access, bounded acquisition, and terminal-state handling | Format truth must precede distribution; spend, identity, and durable state must fail closed after the first release | Offline pinned fixtures pass; OKF remains derived and verification-gated; completion receipts cannot leave a hold; scoped key mutations preserve concurrent updates; model-proposed searches cannot multiply work beyond the per-arm ceiling |
+| **v2.50** (shipped, 2.50.6 patch) | Standards foundation plus fail-closed spend, identity-bound storage, authentication, scoped remote access, bounded acquisition, and terminal-state handling | Format truth must precede distribution; spend, identity, and durable state must fail closed after the first release | Offline pinned fixtures pass; OKF remains derived and verification-gated; completion receipts cannot leave a hold; scoped key mutations preserve concurrent updates; report lookup verifies full stored identity; model-proposed searches cannot multiply work beyond the per-arm ceiling |
 | **v2.51** (in progress) | Read-only MCP investigation projection tools over the shipped builders | Hosts need bounded, replayable, owner-scoped observation before they receive control authority | Completion still requires MCP `run_id` and cursor tools that wrap those builders, remain content-free, and deny cross-run access |
 | **v2.52** | Fixture-validated OpenClaw, DeepSeek Harness, Grok Build, Codex, and manual Grok Bot profiles | Portable packaging is primary; host fragments are compatibility paths and Bot lifecycle automation remains unavailable | Every advertised host claim names exact versions, tools, transport, runtime dependency, and validation evidence |
 | **v2.53** | Shared durable parent transaction, maximum-charge contract, scoped HTTP authority, then NemoClaw remote-isolation proof | Remote mutation and isolation depend on spend, identity, credential, and endpoint truth | Retry and crash tests cannot overshoot the parent ceiling or duplicate effects; NemoClaw remains reference-only until live evidence passes |

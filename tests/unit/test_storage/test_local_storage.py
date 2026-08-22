@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import os
 import time
+from datetime import datetime
+from pathlib import Path
 
 import pytest
 
@@ -29,6 +32,11 @@ class TestValidation:
 
     def test_filename_ok(self, storage):
         assert storage._validate_filename("report.md") == "report.md"
+
+    @pytest.mark.parametrize("filename", ["metadata.json", "METADATA.JSON", "Metadata.Json"])
+    def test_internal_metadata_filename_is_reserved(self, storage, filename):
+        with pytest.raises(StorageError):
+            storage._validate_filename(filename)
 
     @pytest.mark.parametrize("job_id", ["_job", "job_", "job__id"])
     def test_valid_underscore_job_ids_are_preserved(self, storage, job_id):
@@ -137,6 +145,99 @@ class TestSaveGetList:
     async def test_list_reports_unknown_job_empty(self, storage):
         assert await storage.list_reports("ffffffff-0000-0000-0000-000000000000") == []
 
+    @pytest.mark.asyncio
+    async def test_colliding_readable_suffixes_remain_isolated(self, storage):
+        first_id = "11111111-2222-3333-4444-deadbeef0000"
+        second_id = "99999999-8888-7777-6666-deadbeef9999"
+        metadata = {"prompt": "Identical topic"}
+
+        await storage.save_report(first_id, "report.md", b"first", "text/markdown", metadata)
+        await storage.save_report(second_id, "report.md", b"second", "text/markdown", metadata)
+
+        assert await storage.get_report(first_id, "report.md") == b"first"
+        assert await storage.get_report(second_id, "report.md") == b"second"
+        assert storage._get_job_dir(first_id) != storage._get_job_dir(second_id)
+
+    @pytest.mark.asyncio
+    async def test_authoritative_metadata_fields_cannot_be_overridden(self, storage):
+        job_id = "trusted00-0000-1111-2222-333344445555"
+        saved = await storage.save_report(
+            job_id,
+            "report.md",
+            b"trusted",
+            "text/markdown",
+            {
+                "prompt": "Metadata integrity",
+                "job_id": "spoofed-job",
+                "filename": "spoofed.txt",
+                "content_type": "application/x-spoofed",
+                "size_bytes": 999999,
+                "created_at": "not-a-date",
+            },
+        )
+
+        metadata = json.loads((Path(saved.url).parent / "metadata.json").read_text(encoding="utf-8"))
+        assert metadata["job_id"] == job_id
+        assert metadata["filename"] == "report.md"
+        assert metadata["content_type"] == "text/markdown"
+        assert metadata["size_bytes"] == len(b"trusted")
+        datetime.fromisoformat(metadata["created_at"])
+
+    @pytest.mark.asyncio
+    async def test_non_string_prompt_uses_legacy_directory_without_crashing(self, storage):
+        job_id = "prompt00-0000-1111-2222-333344445555"
+        await storage.save_report(
+            job_id,
+            "report.md",
+            b"body",
+            "text/markdown",
+            {"prompt": {"unexpected": "object"}},
+        )
+
+        assert await storage.get_report(job_id, "report.md") == b"body"
+        assert storage._get_job_dir(job_id).name == job_id
+
+    @pytest.mark.asyncio
+    async def test_invalid_metadata_does_not_replace_existing_report(self, storage):
+        job_id = "atomic00-0000-1111-2222-333344445555"
+        await storage.save_report(job_id, "report.md", b"original", "text/markdown")
+
+        with pytest.raises(StorageError):
+            await storage.save_report(
+                job_id,
+                "report.md",
+                b"replacement",
+                "text/markdown",
+                {"not_json": object()},
+            )
+
+        assert await storage.get_report(job_id, "report.md") == b"original"
+
+    @pytest.mark.asyncio
+    async def test_list_all_reports_excludes_internal_metadata_and_includes_campaigns(self, storage):
+        regular_id = "regular0-0000-1111-2222-333344445555"
+        campaign_id = "campaign-freshcampaign"
+        await storage.save_report(
+            regular_id,
+            "regular.md",
+            b"regular",
+            "text/markdown",
+            {"prompt": "Regular report"},
+        )
+        await storage.save_report(
+            campaign_id,
+            "campaign.md",
+            b"campaign",
+            "text/markdown",
+            {"prompt": "Campaign report"},
+        )
+
+        reports = await storage.list_reports()
+        assert sorted((report.job_id, report.filename) for report in reports) == [
+            (campaign_id, "campaign.md"),
+            (regular_id, "regular.md"),
+        ]
+
 
 class TestDeleteAndUrl:
     @pytest.mark.asyncio
@@ -193,3 +294,48 @@ class TestCleanup:
         jid = "new10000-0000-1111-2222-333344445555"
         await storage.save_report(jid, "report.md", b"x", "text/markdown", {"prompt": "p"})
         assert await storage.cleanup_old_reports(days=30) == 0
+
+    @pytest.mark.asyncio
+    async def test_cleanup_preserves_fresh_campaigns(self, storage):
+        old_id = "old20000-0000-1111-2222-333344445555"
+        campaign_id = "campaign-freshcleanup"
+        await storage.save_report(old_id, "old.md", b"old", "text/markdown", {"prompt": "Old report"})
+        await storage.save_report(
+            campaign_id,
+            "fresh.md",
+            b"fresh",
+            "text/markdown",
+            {"prompt": "Fresh campaign"},
+        )
+
+        old_timestamp = time.time() - 40 * 86400
+        old_report = storage._get_report_path(old_id, "old.md")
+        os.utime(old_report, (old_timestamp, old_timestamp))
+        os.utime(old_report.parent / "metadata.json", (old_timestamp, old_timestamp))
+
+        assert await storage.cleanup_old_reports(days=30) == 1
+        assert await storage.get_report(campaign_id, "fresh.md") == b"fresh"
+        assert storage.campaigns_path.is_dir()
+
+    @pytest.mark.asyncio
+    async def test_cleanup_removes_only_old_reports_from_mixed_job(self, storage):
+        job_id = "mixed000-0000-1111-2222-333344445555"
+        await storage.save_report(job_id, "old.md", b"old", "text/markdown")
+        await storage.save_report(job_id, "fresh.md", b"fresh", "text/markdown")
+        old_timestamp = time.time() - 40 * 86400
+        old_report = storage._get_report_path(job_id, "old.md")
+        os.utime(old_report, (old_timestamp, old_timestamp))
+
+        assert await storage.cleanup_old_reports(days=30) == 1
+        assert not await storage.report_exists(job_id, "old.md")
+        assert await storage.get_report(job_id, "fresh.md") == b"fresh"
+
+    @pytest.mark.asyncio
+    async def test_cleanup_rejects_negative_retention(self, storage):
+        job_id = "safe0000-0000-1111-2222-333344445555"
+        await storage.save_report(job_id, "fresh.md", b"fresh", "text/markdown")
+
+        with pytest.raises(StorageError):
+            await storage.cleanup_old_reports(days=-1)
+
+        assert await storage.get_report(job_id, "fresh.md") == b"fresh"
