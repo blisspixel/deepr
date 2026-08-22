@@ -107,6 +107,32 @@ def test_store_create_retries_incomplete_run_directory(tmp_path: Path) -> None:
     assert store.load_plan("inv_store_test") == plan
 
 
+def test_store_create_retries_after_plan_without_state(tmp_path: Path) -> None:
+    store = InvestigationStore(tmp_path / "runs")
+    plan = _plan(tmp_path)
+    created = store.create(plan)
+    run_dir = store.run_dir("inv_store_test")
+    (run_dir / "state.json").unlink()
+    (run_dir / "control.json").unlink()
+    (run_dir / "events.jsonl").unlink()
+
+    retried = store.create(copy.deepcopy(plan))
+
+    assert retried["run_id"] == created["run_id"]
+    assert store.load_state("inv_store_test")["plan_sha256"] == plan["plan_sha256"]
+
+
+def test_artifact_component_rejects_windows_device_names(tmp_path: Path) -> None:
+    store = InvestigationStore(tmp_path / "runs")
+    store.create(_plan(tmp_path))
+    with pytest.raises(InvestigationStorageError, match="invalid artifact"):
+        store.write_artifact("inv_store_test", phase="nul", key="note", payload={"ok": True}, max_disk_bytes=1_000_000)
+    with pytest.raises(InvestigationStorageError, match="invalid artifact"):
+        store.write_artifact(
+            "inv_store_test", phase="notes", key="com1.txt", payload={"ok": True}, max_disk_bytes=1_000_000
+        )
+
+
 def test_store_state_uses_optimistic_versions(tmp_path: Path) -> None:
     store = InvestigationStore(tmp_path / "runs")
     state = store.create(_plan(tmp_path))

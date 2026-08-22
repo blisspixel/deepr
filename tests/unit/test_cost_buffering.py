@@ -12,8 +12,9 @@ Properties: 7 (Flush Triggers), 8 (Retention on Failure)
 
 import tempfile
 import threading
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from hypothesis import HealthCheck, given, settings
@@ -24,6 +25,17 @@ from deepr.observability.costs import (
     COST_FLUSH_INTERVAL,
     BufferedCostDashboard,
 )
+
+
+def _assert_recorded_costs_queryable(dashboard: BufferedCostDashboard, expected_total: float) -> None:
+    """Daily totals must partition recorded costs even across a UTC date change."""
+    assert abs(sum(entry.cost for entry in dashboard.entries) - expected_total) < 0.0001
+    by_date: dict[date, float] = {}
+    for entry in dashboard.entries:
+        by_date[entry.date] = by_date.get(entry.date, 0.0) + entry.cost
+    for day, total in by_date.items():
+        assert abs(dashboard.get_daily_total(day) - total) < 0.0001
+
 
 # =============================================================================
 # Test Strategies
@@ -329,10 +341,8 @@ class TestCostBufferFlushTriggersProperty:
             # All entries should still be in memory
             assert len(dashboard.entries) == num_entries
 
-            # Daily total should reflect all entries
-            expected_total = num_entries * 0.01
-            actual_total = dashboard.get_daily_total()
-            assert abs(actual_total - expected_total) < 0.0001
+            # Daily totals should reflect all entries, even if recording crossed UTC midnight.
+            _assert_recorded_costs_queryable(dashboard, num_entries * 0.01)
 
 
 # =============================================================================
@@ -477,10 +487,8 @@ class TestCostBufferRetentionOnFailureProperty:
             # Entries should still be in memory for queries
             assert len(dashboard.entries) == num_entries
 
-            # Daily total should still work
-            expected_total = num_entries * 0.01
-            actual_total = dashboard.get_daily_total()
-            assert abs(actual_total - expected_total) < 0.0001
+            # Daily totals should still work, even if recording crossed UTC midnight.
+            _assert_recorded_costs_queryable(dashboard, num_entries * 0.01)
 
 
 # =============================================================================
@@ -557,6 +565,17 @@ class TestBufferedCostDashboardThreadSafety:
 
         assert len(errors) == 0, f"Errors during concurrent flushing: {errors}"
         assert dashboard.buffer_count == 0
+
+    def test_flush_retains_buffer_when_atomic_write_fails(self, temp_storage):
+        """A real save OSError must keep buffered entries for retry."""
+        dashboard = BufferedCostDashboard(storage_path=temp_storage, buffer_size=1000, flush_interval=3600)
+        dashboard.record("research", "openai", 0.01)
+        assert dashboard.buffer_count == 1
+
+        with patch("deepr.utils.atomic_io.atomic_write_json", side_effect=OSError("disk full")):
+            assert dashboard.flush() is False
+
+        assert dashboard.buffer_count == 1
 
 
 # =============================================================================

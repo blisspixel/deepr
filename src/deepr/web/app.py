@@ -31,7 +31,7 @@ from deepr.services.provider_completion import authoritative_completion_usage
 
 # Shared sync-to-async bridge, retaining the historical local alias.
 from deepr.utils.async_runner import run_async_command as run_async
-from deepr.utils.security import is_contained_path, is_loopback_bind_host
+from deepr.utils.security import is_contained_path, is_loopback_bind_host, reserved_windows_device_stem
 from deepr.web import action_safety, council_api
 from deepr.web.expert_chat_contract import BrowserChatContractError, parse_browser_expert_chat_request  # noqa: F401
 from deepr.web.expert_chat_rest import (
@@ -537,13 +537,19 @@ def fallback_to_spa(e):
     relative = request.path.lstrip("/")
     if relative:
         parts = Path(relative).parts
-        if parts and not any(part in ("", ".", "..") for part in parts):
+        if (
+            parts
+            and not any(part in ("", ".", "..") for part in parts)
+            and not any(reserved_windows_device_stem(part) for part in parts)
+        ):
             joined = safe_join(str(_frontend_dist.resolve()), *parts)
             if joined:
                 resolved = Path(joined)
                 if resolved.is_file() and is_contained_path(resolved, _frontend_dist.resolve()):
                     return send_from_directory(str(_frontend_dist), Path(*parts).as_posix())
-    return render_template("index.html")
+    # Flask 404 handlers keep status 404 unless a code is set. Nested SPA
+    # routes must be a 200 document so refresh and client routing work.
+    return render_template("index.html"), 200
 
 
 def _ensure_utc(dt: datetime) -> datetime:
@@ -1893,7 +1899,7 @@ def generate_expert_portrait(name):
 @app.route("/portraits/<filename>")
 def serve_portrait(filename):
     """Serve a generated portrait image."""
-    if not filename.endswith(".png"):
+    if not filename.endswith(".png") or reserved_windows_device_stem(filename):
         return jsonify({"error": "Invalid file type"}), 400
     portraits_dir = runtime_data_path("portraits")
     return send_from_directory(str(portraits_dir.resolve()), filename)

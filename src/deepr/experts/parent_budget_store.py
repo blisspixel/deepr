@@ -94,7 +94,8 @@ def _apply_consumed_event(parent: ParentBudgetTransaction, event: Mapping[str, A
     child = parent.children.get(child_id)
     if child is None:
         raise ParentBudgetError(f"missing child {child_id!r} for consume replay")
-    child.settled_usd = float(event.get("settled_usd") or child.max_usd)
+    settled = event.get("settled_usd")
+    child.settled_usd = float(child.max_usd if settled is None else settled)
     child.state = ChildCallState.CONSUMED
     if event.get("freeze"):
         parent.state = ParentBudgetState.FROZEN

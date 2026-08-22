@@ -636,6 +636,51 @@ def test_web_completion_uses_canonical_usage_before_settlement(monkeypatch):
     emitted.assert_called_once()
 
 
+def test_finalize_completed_job_settles_before_queue_result_write():
+    coordinator = WebResearchCostCoordinator(None, None)
+    order: list[str] = []
+
+    def settle_job(job, *, actual_cost, tokens):
+        order.append("settle")
+
+    def reconcile_completed_job(job):
+        order.append("reconcile")
+        return True
+
+    loop = MagicMock()
+    loop.run_until_complete.side_effect = lambda _awaitable: order.append("queue") or True
+    queue = MagicMock()
+    queue.update_results = AsyncMock()
+    queue.update_status = AsyncMock()
+    coordinator.settle_job = settle_job  # type: ignore[method-assign]
+    coordinator.reconcile_completed_job = reconcile_completed_job  # type: ignore[method-assign]
+
+    coordinator.finalize_completed_job(
+        loop=loop,
+        queue=queue,
+        job=SimpleNamespace(id="job-settle-first"),
+        actual_cost=0.4,
+        tokens=10,
+        report_saved=True,
+    )
+
+    assert order[:2] == ["settle", "reconcile"]
+    assert "queue" in order
+
+
+def test_spa_nested_route_is_http_200(client, monkeypatch):
+    monkeypatch.setattr(web_app, "render_template", lambda *_args, **_kwargs: "spa")
+    response = client.get("/experts/fixture-expert")
+    assert response.status_code == 200
+    assert response.get_data(as_text=True) == "spa"
+
+
+def test_portrait_route_rejects_windows_device_name(client, monkeypatch):
+    monkeypatch.setattr(web_app, "_check_auth", lambda: None)
+    response = client.get("/portraits/CON.png")
+    assert response.status_code == 400
+
+
 def test_web_terminal_cleanup_factory_uses_recorded_provider(monkeypatch):
     from deepr.queue.base import JobStatus, ResearchJob
 

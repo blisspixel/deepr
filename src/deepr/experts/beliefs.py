@@ -3,10 +3,8 @@
 import json
 import logging
 import math
-import os
 import re
 import threading
-from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import Enum
@@ -17,7 +15,7 @@ from urllib.parse import urlsplit
 from deepr.experts import mutation_audit as audit
 from deepr.experts.belief_edges import EDGE_TYPES, Edge, normalized_edge_temporal_context
 from deepr.experts.maker_checker import strongest_grounding_event
-from deepr.utils.atomic_io import atomic_write_json
+from deepr.utils.atomic_io import append_jsonl_durable, atomic_write_json
 
 logger = logging.getLogger(__name__)
 
@@ -568,11 +566,7 @@ class BeliefStore:
 
         self.changes.append(change)
         with self._lock:
-            with open(self.events_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(change.to_dict(), ensure_ascii=True) + "\n")
-                f.flush()
-                with suppress(OSError):
-                    os.fsync(f.fileno())
+            append_jsonl_durable(self.events_path, change.to_dict(), fsync=True)
             audit_entry = audit.build_mutation_audit_entry(
                 expert=self.expert_name,
                 actor=actor,
@@ -1386,6 +1380,7 @@ class BeliefStore:
                 "beliefs": {bid: b.to_dict() for bid, b in self.beliefs.items()},
                 "changes": [c.to_dict() for c in self.changes[-100:]],
             },
+            fsync=True,
         )
 
     def _load(self):
@@ -1411,9 +1406,10 @@ class BeliefStore:
         for edata in data.get("edges", []):
             try:
                 edge = Edge.from_dict(edata)
-            except (KeyError, ValueError) as exc:
-                logger.warning("Skipping malformed edge in %s: %s", self.storage_path, exc)
-                continue
+            except (KeyError, TypeError, ValueError) as exc:
+                self._unreadable = True
+                logger.error("Malformed edge in %s: %s. Refusing writes.", self.storage_path, exc)
+                return
             self.edges[edge.key()] = edge
         # One-time, idempotent migration (TKG step 2): legacy
         # contradictions_with lists become typed contradicts edges. Key-based
