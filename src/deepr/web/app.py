@@ -10,7 +10,6 @@ import re
 import sys
 import threading
 import time
-from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from functools import partial
 from pathlib import Path
@@ -19,7 +18,7 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request, send_from_directory
 from flask_cors import CORS
 from flask_socketio import SocketIO
-from werkzeug.utils import secure_filename
+from werkzeug.utils import safe_join, secure_filename
 
 from deepr.config import runtime_data_path
 from deepr.security.http_auth import (
@@ -537,10 +536,13 @@ def fallback_to_spa(e):
     # Serve static files from dist if they exist (with path traversal protection)
     relative = request.path.lstrip("/")
     if relative:
-        with suppress(OSError, ValueError):
-            resolved = (_frontend_dist / relative).resolve()
-            if resolved.is_file() and is_contained_path(resolved, _frontend_dist):
-                return send_from_directory(str(_frontend_dist), relative)
+        parts = Path(relative).parts
+        if parts and not any(part in ("", ".", "..") for part in parts):
+            joined = safe_join(str(_frontend_dist.resolve()), *parts)
+            if joined:
+                resolved = Path(joined)
+                if resolved.is_file() and is_contained_path(resolved, _frontend_dist):
+                    return send_from_directory(str(_frontend_dist), Path(*parts).as_posix())
     return render_template("index.html")
 
 
