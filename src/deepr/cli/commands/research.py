@@ -491,46 +491,18 @@ def cancel(job_id: str, yes: bool):
         from deepr.config import load_config
         from deepr.providers import create_provider
         from deepr.queue import create_queue
-        from deepr.queue.base import JobStatus
 
         config = load_config()
         db_path = config.get("queue_db_path", "queue/research_queue.db")
         _ensure_parent_dir(db_path)
         queue = create_queue("local", db_path=db_path)
         provider = create_provider(config.get("provider", "openai"), api_key=config.get("api_key"))
-
-        async def cancel_job():
-            full_id = await _resolve_job_id(queue, job_id)
-            if not full_id:
-                return None, "Job not found"
-            job = await queue.get_job(full_id)
-            if not job:
-                return None, "Job not found"
-            if job.status is JobStatus.COMPLETED:
-                return job, "Job already completed"
-            if job.status is JobStatus.FAILED:
-                return job, "Job already failed"
-            return job, None
-
-        async def do_cancel(job):
-            from deepr.services.research_cancellation import cancel_reserved_research
-
-            outcome = await cancel_reserved_research(
-                queue=queue,
-                provider=provider,
-                job=job,
-                default_provider=str(config.get("provider", "openai")),
-                source=f"cli.research.cancel.{job.id}",
-            )
-            if not outcome.queue_cancelled:
-                raise click.ClickException("Job cancellation could not be confirmed; local state was unchanged")
-            if not outcome.confirmed:
-                raise click.ClickException("Job was cancelled, but cost or cleanup closure could not be confirmed")
+        default_provider = str(config.get("provider", "openai"))
 
         loop = asyncio.new_event_loop()
         try:
             asyncio.set_event_loop(loop)
-            job, error = loop.run_until_complete(cancel_job())
+            job, error = loop.run_until_complete(research_support.lookup_cancellable_job(queue, job_id))
             if error:
                 print_error(error)
                 raise click.Abort()
@@ -547,7 +519,7 @@ def cancel(job_id: str, yes: bool):
                 return
 
             print_success("Cancelling job...")
-            loop.run_until_complete(do_cancel(job))
+            loop.run_until_complete(research_support.close_research_cancel(queue, provider, job, default_provider))
             print_success("Job cancelled successfully!")
         finally:
             loop.close()
