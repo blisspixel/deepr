@@ -95,6 +95,13 @@ class InvestigationStore:
                 if existing["plan_sha256"] != validated["plan_sha256"]:
                     raise InvestigationStorageError("run id already belongs to a different plan")
                 if (path / "state.json").exists():
+                    if not (path / "control.json").exists():
+                        atomic_write_json(
+                            path / "control.json",
+                            {"requested": "run", "revision": 1, "updated_at": utc_now()},
+                            sort_keys=True,
+                            fsync=True,
+                        )
                     return self.load_state(run_id)
             else:
                 # exist_ok lets a crash between mkdir and plan.json retry the same

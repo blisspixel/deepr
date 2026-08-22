@@ -27,7 +27,11 @@ class DocumentManager:
         file_ids = []
 
         for path_str in file_paths:
+            if path_str.startswith(("http://", "https://", "file:")):
+                raise ValueError(f"Document path must be a local file, not a URL: {path_str}")
             path = Path(path_str)
+            if ".." in path.parts:
+                raise ValueError(f"Document path must not contain parent segments: {path}")
 
             # Validate file exists (non-blocking for async context)
             if not await asyncio.to_thread(path.exists):

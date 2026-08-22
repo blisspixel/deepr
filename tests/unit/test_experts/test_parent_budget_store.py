@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -91,6 +92,29 @@ def _complete_envelope(**overrides: object) -> dict[str, object]:
     }
     base.update(overrides)
     return base
+
+
+def test_settle_replay_refuses_missing_actual_usd(tmp_path: Path) -> None:
+    path = tmp_path / "parent_budget_transactions.jsonl"
+    durable = DurableParentBudget.open(
+        surface="fill_gaps",
+        parent_ceiling_usd=1.0,
+        run_id="run-missing-actual",
+        path=path,
+    )
+    durable.admit_child(operation="gap", max_usd=0.4, child_id="c1")
+    durable.mark_dispatch("c1")
+    events = load_parent_budget_events(path)
+    events.append(
+        {
+            "event_type": "settled",
+            "run_id": "run-missing-actual",
+            "child_id": "c1",
+        }
+    )
+    path.write_text("\n".join(json.dumps(event) for event in events) + "\n", encoding="utf-8")
+    with pytest.raises(ParentBudgetError, match="missing actual_usd"):
+        replay_parent_budget("run-missing-actual", path)
 
 
 def test_consume_replay_preserves_zero_settled_usd(tmp_path: Path) -> None:

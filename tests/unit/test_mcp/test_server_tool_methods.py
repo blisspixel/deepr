@@ -144,6 +144,21 @@ class TestDeeprResearch:
         assert "Internal address blocked" in out["message"]
 
     @pytest.mark.asyncio
+    async def test_local_file_path_is_rejected(self, mock_server):
+        cost_safety = MagicMock()
+        cost_safety.check_operation.return_value = (True, "", None)
+        with patch("deepr.experts.cost_safety.get_cost_safety_manager", return_value=cost_safety):
+            out = await mock_server.deepr_research(
+                prompt="p",
+                model="o4-mini",
+                files=[r"C:\secrets\.env"],
+                budget=1.0,
+                allow_metered_api=True,
+                confirm_metered_cost=True,
+            )
+        assert out["error_code"] == "PATH_BLOCKED"
+
+    @pytest.mark.asyncio
     async def test_missing_provider_api_key(self, mock_server):
         cost_safety = MagicMock()
         cost_safety.check_operation.return_value = (True, "", None)

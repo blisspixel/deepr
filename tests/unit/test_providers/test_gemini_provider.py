@@ -16,6 +16,7 @@ from deepr.providers.gemini_provider import (
     GeminiProvider,
     _is_deep_research_model,
 )
+from deepr.utils.security import SSRFError
 from tests.unit.test_providers._provider_authority import submit_adapter
 
 
@@ -694,7 +695,13 @@ class TestCitationUrlResolution:
         mock_client = AsyncMock()
         mock_client.head.side_effect = [redirect_response, final_response]
 
-        with patch("httpx.AsyncClient") as mock_cls, patch("deepr.utils.security.is_safe_url", return_value=True):
+        with (
+            patch("httpx.AsyncClient") as mock_cls,
+            patch(
+                "deepr.providers.grounding_redirect.resolve_safe_url_ips",
+                return_value=("93.184.216.34",),
+            ),
+        ):
             mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
             mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
 
@@ -722,8 +729,8 @@ class TestCitationUrlResolution:
         with (
             patch("httpx.AsyncClient") as mock_cls,
             patch(
-                "deepr.utils.security.is_safe_url",
-                side_effect=[True, False],
+                "deepr.providers.grounding_redirect.resolve_safe_url_ips",
+                side_effect=[("93.184.216.34",), SSRFError("blocked")],
             ),
         ):
             mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)

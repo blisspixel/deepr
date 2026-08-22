@@ -235,6 +235,19 @@ class TestBeliefStore:
             store.add_belief(Belief(claim="Python is great", confidence=0.9, domain="programming"))
         assert path.read_text(encoding="utf-8") == original
 
+    def test_malformed_change_record_refuses_overwrite(self, tmp_path):
+        storage_dir = tmp_path / "beliefs"
+        storage_dir.mkdir()
+        path = storage_dir / "beliefs.json"
+        original = '{"beliefs": {}, "edges": [], "changes": [{"not": "a-change"}]}'
+        path.write_text(original, encoding="utf-8")
+
+        store = BeliefStore(expert_name="test", storage_dir=storage_dir)
+        assert store._unreadable is True
+        with pytest.raises(BeliefStoreError, match="unreadable"):
+            store.add_belief(Belief(claim="Python is great", confidence=0.9, domain="programming"))
+        assert path.read_text(encoding="utf-8") == original
+
     def test_read_only_store_cannot_save(self, tmp_path):
         store = BeliefStore(expert_name="test", storage_dir=tmp_path / "beliefs", read_only=True)
         with pytest.raises(BeliefStoreError, match="read-only"):

@@ -122,6 +122,18 @@ def test_store_create_retries_after_plan_without_state(tmp_path: Path) -> None:
     assert store.load_state("inv_store_test")["plan_sha256"] == plan["plan_sha256"]
 
 
+def test_store_create_repairs_missing_control_sidecar(tmp_path: Path) -> None:
+    store = InvestigationStore(tmp_path / "runs")
+    plan = _plan(tmp_path)
+    created = store.create(plan)
+    (store.run_dir("inv_store_test") / "control.json").unlink()
+
+    retried = store.create(copy.deepcopy(plan))
+
+    assert retried["run_id"] == created["run_id"]
+    assert (store.run_dir("inv_store_test") / "control.json").is_file()
+
+
 def test_artifact_component_rejects_windows_device_names(tmp_path: Path) -> None:
     store = InvestigationStore(tmp_path / "runs")
     store.create(_plan(tmp_path))

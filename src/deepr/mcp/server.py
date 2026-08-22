@@ -899,18 +899,24 @@ class DeeprMCPServer:
                     retry_hint=f"Set budget >= ${cost_estimate:.2f}",
                 )
 
-            # SSRF: validate any user-provided file URLs
+            # SSRF: only public HTTP(S) URLs. Local paths would be opened as
+            # files once storage accounting is enabled.
             if files:
                 for f in files:
-                    if f.startswith(("http://", "https://")):
-                        try:
-                            self.ssrf_protector.validate_url(f)
-                        except ValueError as ssrf_err:
-                            return _make_error(
-                                "SSRF_BLOCKED",
-                                str(ssrf_err),
-                                fallback="Only public URLs are allowed as file sources",
-                            )
+                    if not f.startswith(("http://", "https://")):
+                        return _make_error(
+                            "PATH_BLOCKED",
+                            "Local filesystem paths are not accepted as research file sources",
+                            fallback="Provide an https URL, not a local path",
+                        )
+                    try:
+                        self.ssrf_protector.validate_url(f)
+                    except ValueError as ssrf_err:
+                        return _make_error(
+                            "SSRF_BLOCKED",
+                            str(ssrf_err),
+                            fallback="Only public URLs are allowed as file sources",
+                        )
 
             # Create provider instance
             api_key = self._get_api_key(provider)

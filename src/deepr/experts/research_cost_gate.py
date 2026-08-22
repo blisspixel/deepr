@@ -675,8 +675,17 @@ def reconcile_research_cost_from_ledger(reservation: ResearchCostReservation | N
         return False
     store = ResearchReservationStore()
     store.active_cost()
-    if reservation is not None and not store.is_active(reservation.reservation_id):
-        reservation.manager.refund_reservation(reservation.reservation_id)
+    if reservation is None:
+        return True
+    if store.is_active(reservation.reservation_id):
+        return False
+    # Sqlite is already settled from the completion receipt. Clear the
+    # process-local hold even if provider work ran; refund() no-ops on a
+    # non-active row and otherwise would refuse because work may have billed.
+    reservation.manager.refund_reservation(
+        reservation.reservation_id,
+        provider_work_did_not_run=True,
+    )
     return True
 
 
