@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.5] - 2026-08-22
+
+### Changed
+
+- Python distribution verification now checks the wheel and source archive,
+  rejects unsafe or generated frontend members, and runs as part of the main
+  CI workflow. Source distributions retain the deterministic frontend archive
+  without copying local `node_modules` content.
+
+### Fixed
+
+- REST API rate-limit responses use a valid positive `Retry-After` delay in
+  seconds. The rate-limit response handler applies only to Flask-Limiter
+  exceptions, so unrelated HTTP 429 responses are no longer misclassified.
+- Model-proposed acquisition plans accept only string queries, deduplicate
+  them case-insensitively, and cap every search arm at four queries. Empty
+  topics do not call a completion backend, and fallback reasons expose only
+  an exception class rather than potentially sensitive provider text.
+
 ## [2.50.4] - 2026-08-22
 
 ### Changed

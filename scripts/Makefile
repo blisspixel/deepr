@@ -31,7 +31,7 @@ build: clean
 	cd src/deepr/web/frontend && npm ci && npm run build
 	python scripts/build_frontend_archive.py
 	python -m build
-	python scripts/check_wheel_frontend.py $$(ls dist/*.whl | head -n 1)
+	python scripts/check_wheel_frontend.py $$(ls dist/*.whl | head -n 1) $$(ls dist/*.tar.gz | head -n 1)
 
 publish-pypi-manual: build
 	@echo "Manual PyPI publication requested; GitHub Releases is the current release channel."

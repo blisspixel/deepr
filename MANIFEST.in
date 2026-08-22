@@ -1,2 +1,3 @@
 include src/deepr/py.typed
 include src/deepr/web/frontend/frontend-dist.zip
+prune src/deepr/web/frontend/node_modules

@@ -124,18 +124,29 @@ def assemble_proposed_plan(parsed: dict[str, Any], topic: str) -> AcquisitionPla
     plan = AcquisitionPlan(topic=" ".join(topic.split()))
     plan.search_key = plan.topic
     raw = parsed.get("queries") if isinstance(parsed.get("queries"), dict) else parsed
+    seen_queries: set[str] = set()
 
     for arm in ARMS:
         items = (raw or {}).get(arm) or []
         if not isinstance(items, list):
             continue
+        accepted = 0
         for item in items[: _PER_ARM * 2]:
-            text = " ".join(str(item).split())
+            if not isinstance(item, str):
+                continue
+            text = " ".join(item.split())
             if not text or len(text) > _MAX_QUERY_CHARS:
                 continue
             if arm != ARM_DESCRIPTIVE and echoes_topic(text, topic):
                 continue
+            query_key = text.casefold()
+            if query_key in seen_queries:
+                continue
             plan.queries.append(AcquisitionQuery(text=text, arm=arm, rationale=_ARM_BRIEFS[arm]))
+            seen_queries.add(query_key)
+            accepted += 1
+            if accepted == _PER_ARM:
+                break
     return plan
 
 
@@ -155,16 +166,20 @@ async def propose_plan(
     """Ask a model to write the plan, then check the structure held."""
     from deepr.experts.study import extract_json_object
 
+    clean_topic = " ".join(topic.split())
+    if not clean_topic:
+        return templated_fallback("", "the topic was empty")
+
     try:
-        raw = await completion(build_proposal_prompt(topic, known_terms))
+        raw = await completion(build_proposal_prompt(clean_topic, known_terms))
     except Exception as exc:
-        return templated_fallback(topic, f"the query proposal call failed ({str(exc)[:80]})")
+        return templated_fallback(clean_topic, f"the query proposal call failed ({type(exc).__name__})")
 
     parsed, error = extract_json_object(raw)
     if parsed is None:
-        return templated_fallback(topic, f"the query proposal did not return usable JSON ({error})")
+        return templated_fallback(clean_topic, f"the query proposal did not return usable JSON ({error})")
 
-    plan = assemble_proposed_plan(parsed, topic)
+    plan = assemble_proposed_plan(parsed, clean_topic)
     if missing := [arm for arm in _REQUIRED_ARMS if not plan.by_arm(arm)]:
-        return templated_fallback(topic, f"the proposal left {', '.join(missing)} empty")
+        return templated_fallback(clean_topic, f"the proposal left {', '.join(missing)} empty")
     return plan

@@ -8,9 +8,12 @@ Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6
 """
 
 import logging
+import time
+from math import ceil
 
 from flask import Flask, jsonify, request
 from flask_limiter import Limiter
+from flask_limiter.errors import RateLimitExceeded
 from flask_limiter.util import get_remote_address
 
 from deepr.core.constants import (
@@ -50,8 +53,8 @@ def create_limiter(app: Flask) -> Limiter:
         strategy="moving-window",
     )
 
-    @app.errorhandler(429)
-    def ratelimit_handler(e):
+    @app.errorhandler(RateLimitExceeded)
+    def ratelimit_handler(_error: RateLimitExceeded):
         """Handle rate limit exceeded errors.
 
         Logs the rate limit event and returns a structured JSON response
@@ -61,18 +64,20 @@ def create_limiter(app: Flask) -> Limiter:
             - 2.2: Return HTTP 429 with Retry-After header
             - 2.5: Log rate limit events with client identifier and endpoint
         """
-        logger.warning(f"Rate limit exceeded: {request.remote_addr} on {request.endpoint}")
+        current_limit = limiter.current_limit
+        retry_after = max(1, ceil(current_limit.reset_at - time.time())) if current_limit is not None else 1
+        logger.warning("Rate limit exceeded: %s on %s", request.remote_addr, request.endpoint)
         return (
             jsonify(
                 {
                     "error": True,
                     "error_code": "RATE_LIMIT_EXCEEDED",
                     "message": "Too many requests. Please try again later.",
-                    "retry_after": e.description,
+                    "retry_after": retry_after,
                 }
             ),
             429,
-            {"Retry-After": str(e.description)},
+            {"Retry-After": str(retry_after)},
         )
 
     return limiter

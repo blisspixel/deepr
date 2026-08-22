@@ -18,7 +18,7 @@ import importlib.util
 from pathlib import Path
 
 import pytest
-from flask import Flask
+from flask import Flask, abort
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
@@ -50,32 +50,7 @@ def test_app():
     app = Flask(__name__)
     app.config["TESTING"] = True
 
-    # Create limiter with very low limits for testing
-    limiter = Limiter(
-        app=app,
-        key_func=get_remote_address,
-        default_limits=["200 per day"],
-        storage_uri="memory://",
-        strategy="moving-window",
-    )
-
-    # Register the 429 error handler
-    @app.errorhandler(429)
-    def ratelimit_handler(e):
-        from flask import jsonify
-
-        return (
-            jsonify(
-                {
-                    "error": True,
-                    "error_code": "RATE_LIMIT_EXCEEDED",
-                    "message": "Too many requests. Please try again later.",
-                    "retry_after": e.description,
-                }
-            ),
-            429,
-            {"Retry-After": str(e.description)},
-        )
+    limiter = create_limiter(app)
 
     # Create test endpoints with different rate limits
     @app.route("/api/jobs", methods=["POST"])
@@ -92,6 +67,10 @@ def test_app():
     @limiter.limit("2 per minute")  # Low limit for testing
     def list_jobs():
         return {"jobs": []}, 200
+
+    @app.route("/api/manual-too-many", methods=["GET"])
+    def manual_too_many():
+        abort(429, description="Upstream capacity is unavailable")
 
     return app, limiter
 
@@ -186,10 +165,7 @@ class TestRetryAfterHeader:
         assert "Retry-After" in response.headers, "429 response must include Retry-After header"
 
     def test_retry_after_header_has_value(self, client):
-        """Test that Retry-After header contains a meaningful value.
-
-        Note: Flask-Limiter may return the rate limit description or a numeric value
-        depending on configuration. Both are valid per HTTP spec.
+        """Test that Retry-After uses the HTTP delay-seconds form.
 
         **Validates: Requirements 2.2**
         """
@@ -202,11 +178,15 @@ class TestRetryAfterHeader:
 
         retry_after = response.headers.get("Retry-After")
         assert retry_after is not None, "Retry-After header must be present"
-        assert len(retry_after) > 0, "Retry-After header must not be empty"
+        assert retry_after.isascii() and retry_after.isdigit()
+        assert int(retry_after) > 0
 
-        # The value should either be numeric or contain rate limit info
-        # Both are acceptable per HTTP spec (RFC 7231 allows delay-seconds or HTTP-date)
-        # Flask-Limiter uses the rate limit description which is informative
+    def test_manual_429_is_not_misclassified_as_a_rate_limit(self, client):
+        response = client.get("/api/manual-too-many")
+
+        assert response.status_code == 429
+        assert response.get_json(silent=True) is None
+        assert "Retry-After" not in response.headers
 
 
 # =============================================================================
@@ -290,6 +270,8 @@ class TestRateLimitResponseStructure:
 
         data = response.get_json()
         assert "retry_after" in data, "Response must include 'retry_after' field"
+        assert isinstance(data["retry_after"], int)
+        assert data["retry_after"] > 0
 
     def test_429_response_complete_structure(self, client):
         """Test that 429 response has all required fields.
