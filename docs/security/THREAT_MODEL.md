@@ -1,6 +1,6 @@
 # Deepr Threat Model
 
-Status: current with Deepr v2.50.0. Last reviewed: 2026-08-21.
+Status: current with Deepr v2.50.4. Last reviewed: 2026-08-22.
 
 This document is the repository-scoped threat model for Deepr. It is intended
 for security reviews, design reviews, and future bug discovery. It should stay
@@ -218,7 +218,9 @@ Existing controls:
   and `UNRESTRICTED` modes.
 - `src/deepr/mcp/security/scoped_keys.py` stores scoped key hashes, supports
   revocation, expert allowlists, per-key budgets, rate limits, argument hashes,
-  and remote audit records.
+  and remote audit records. Expert-scoped keys deny global discovery and
+  generic research without an expert target. Key-store mutations serialize the
+  complete read-modify-write transaction across processes.
 - `src/deepr/mcp/transport/http.py` refuses unauthenticated public binds by
   default, accepts bearer or `X-Api-Key` auth, enforces concurrency limits,
   applies scoped-key authorization, applies rate and budget decisions, and

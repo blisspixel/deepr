@@ -622,6 +622,8 @@ def _validate_expert_name(name: str) -> str | None:
         return "Name contains invalid characters"
     if not _SAFE_NAME_RE.match(name):
         return "Name contains invalid characters"
+    if reserved_windows_device_stem(name):
+        return "Name uses a reserved Windows device name"
     return None
 
 

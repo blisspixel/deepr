@@ -9,16 +9,21 @@ import math
 import os
 import secrets
 import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+
+from filelock import FileLock
 
 from deepr.mcp.security.tool_allowlist import (
     REMOTE_METERED_SPEND_METADATA_KEY,
     ResearchMode,
     ToolAllowlist,
 )
+from deepr.utils.atomic_io import atomic_write_json
 
 KEY_SCHEMA_VERSION = "deepr-mcp-key-v1"
 AUDIT_SCHEMA_VERSION = "deepr-mcp-remote-audit-v1"
@@ -27,6 +32,7 @@ _HASH_ALGORITHM = "pbkdf2_sha256"
 _HASH_ITERATIONS = 210_000
 _EXPERT_ARG_NAMES = ("expert_name", "name", "experts")
 _ALLOWLIST_INJECTED_EXPERT_TOOLS = frozenset({"deepr_consult_experts", "deepr_start_expert_conversation"})
+_UNSCOPED_SPEND_TOOLS = frozenset({"deepr_research"})
 _BUDGET_ARGUMENT_TOOLS = frozenset(
     {
         "deepr_agentic_research",
@@ -343,8 +349,8 @@ class ScopedMCPKeyStore:
             budget_limit_usd=budget_limit_usd,
             rate_limit_per_minute=rate_limit_per_minute,
         )
-        with self._lock:
-            records = {item.key_id: item for item in self.list_keys()}
+        with self._mutation_guard():
+            records = {item.key_id: item for item in self._read_records()}
             if resolved_id in records:
                 raise ValueError(f"MCP key already exists: {resolved_id}")
             records[record.key_id] = record
@@ -352,6 +358,9 @@ class ScopedMCPKeyStore:
         return resolved_secret, record
 
     def list_keys(self) -> list[ScopedMCPKeyRecord]:
+        return self._read_records()
+
+    def _read_records(self) -> list[ScopedMCPKeyRecord]:
         if not self.path.exists():
             return []
         raw = json.loads(self.path.read_text(encoding="utf-8"))
@@ -365,8 +374,8 @@ class ScopedMCPKeyStore:
     def authenticate(self, secret: str | None) -> ScopedMCPKeyContext | None:
         if not secret:
             return None
-        with self._lock:
-            records = self.list_keys()
+        with self._mutation_guard():
+            records = self._read_records()
             for index, record in enumerate(records):
                 if record.revoked or not _verify_secret(secret, record.secret_hash):
                     continue
@@ -387,8 +396,8 @@ class ScopedMCPKeyStore:
         return None
 
     def revoke(self, key_id: str) -> bool:
-        with self._lock:
-            records = self.list_keys()
+        with self._mutation_guard():
+            records = self._read_records()
             changed = False
             updated: list[ScopedMCPKeyRecord] = []
             for record in records:
@@ -411,12 +420,17 @@ class ScopedMCPKeyStore:
                 self._write_records(updated)
             return changed
 
-    def _write_records(self, records: list[ScopedMCPKeyRecord]) -> None:
+    @contextmanager
+    def _mutation_guard(self) -> Iterator[None]:
+        """Serialize complete key-store mutations across threads and processes."""
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = self.path.with_suffix(f"{self.path.suffix}.tmp")
+        lock_path = self.path.with_suffix(self.path.suffix + ".lock")
+        with self._lock, FileLock(str(lock_path), timeout=10):
+            yield
+
+    def _write_records(self, records: list[ScopedMCPKeyRecord]) -> None:
         payload = [record.to_dict() for record in sorted(records, key=lambda item: item.key_id)]
-        tmp_path.write_text(json.dumps(payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
-        tmp_path.replace(self.path)
+        atomic_write_json(self.path, payload, fsync=True)
 
 
 def _extract_requested_experts(arguments: dict[str, Any]) -> tuple[str, ...]:
@@ -474,6 +488,20 @@ def authorize_scoped_mcp_tool_call(
             return ScopedMCPAuthzDecision(
                 allowed=False,
                 reason="Expert-scoped keys cannot list every expert",
+                error_code="EXPERT_SCOPE_REQUIRED",
+                requested_experts=requested_experts,
+            )
+        if tool_name in _UNSCOPED_SPEND_TOOLS:
+            return ScopedMCPAuthzDecision(
+                allowed=False,
+                reason="Expert-scoped keys cannot run unscoped research",
+                error_code="EXPERT_SCOPE_REQUIRED",
+                requested_experts=requested_experts,
+            )
+        if tool_name == "deepr_list_skills" and not requested_experts:
+            return ScopedMCPAuthzDecision(
+                allowed=False,
+                reason="Expert-scoped skill listing must name an allowlisted expert",
                 error_code="EXPERT_SCOPE_REQUIRED",
                 requested_experts=requested_experts,
             )

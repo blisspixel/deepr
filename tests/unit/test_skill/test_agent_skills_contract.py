@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from deepr import __version__ as DEEPR_VERSION
 from deepr.skills.contract import validate_agent_skill
 
 
@@ -19,7 +20,7 @@ def test_repository_skill_matches_pinned_contract() -> None:
     result = validate_agent_skill(Path("skills/deepr-research/SKILL.md"))
 
     assert result.valid, result.violations
-    assert result.fields["metadata"]["deepr-version"] == "2.50.3"
+    assert result.fields["metadata"]["deepr-version"] == DEEPR_VERSION
     assert result.fields["metadata"]["deepr-mcp-server"] == "deepr"
 
 

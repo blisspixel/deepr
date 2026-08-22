@@ -2,7 +2,7 @@
 
 The checked-in Terraform file has an impossible version constraint and is
 mechanically inert. The historical Cloud Run design remains available in
-version control. Hosted GCP MCP is not supported in v2.40.
+version control. Hosted GCP MCP is not supported in the current release.
 
 Cloud Run, Cloud Storage, build, logging, networking, and related services can
 create charges outside Deepr's cost ledger. The scoped MCP key budget controls
