@@ -52,6 +52,11 @@ class TestValidateExpertNameComponent:
     def test_safe_name_allowed(self):
         assert _validate_expert_name_component("my_expert_v1") is None
 
+    def test_reserved_windows_device_rejected(self):
+        assert "reserved Windows" in (_validate_expert_name_component("CON") or "")
+        assert "reserved Windows" in (_validate_expert_name_component("nul.txt") or "")
+        assert "reserved Windows" in (_validate_expert_name_component("COM1") or "")
+
 
 class TestListSkills:
     @pytest.mark.asyncio
@@ -59,6 +64,12 @@ class TestListSkills:
         out = await _list_skills("../etc/passwd")
         assert out["error_code"] == "INVALID_PARAMS"
         assert "illegal path" in out["message"]
+
+    @pytest.mark.asyncio
+    async def test_rejects_windows_device_name(self):
+        out = await _list_skills("CON")
+        assert out["error_code"] == "INVALID_PARAMS"
+        assert "reserved Windows" in out["message"]
 
     @pytest.mark.asyncio
     async def test_returns_skill_listing_for_known_expert(self):

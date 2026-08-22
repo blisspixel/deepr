@@ -1401,8 +1401,12 @@ def _validate_expert_name_component(value: str) -> str | None:
     # PurePath splits an absolute path into a non-empty anchor.
     from pathlib import PurePath
 
+    from deepr.utils.security import reserved_windows_device_stem
+
     if PurePath(value).is_absolute() or PurePath(value).anchor:
         return "expert_name cannot be an absolute path"
+    if reserved_windows_device_stem(value):
+        return "expert_name uses a reserved Windows device name"
     return None
 
 

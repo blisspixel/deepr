@@ -134,11 +134,34 @@ class TestSQLiteQueue:
 
         assert await queue.cancel_active_job(sample_job.id) is True
         assert await queue.cancel_active_job(sample_job.id) is False
+        assert await queue.update_status(sample_job.id, JobStatus.COMPLETED) is False
+        cancelled = await queue.get_job(sample_job.id)
+        assert cancelled is not None
+        assert cancelled.status == JobStatus.CANCELLED
+
+    async def test_update_status_does_not_clobber_completed_jobs(self, queue, sample_job):
+        await queue.enqueue(sample_job)
+
+        assert await queue.update_status(sample_job.id, JobStatus.PROCESSING) is True
         assert await queue.update_status(sample_job.id, JobStatus.COMPLETED) is True
+        assert await queue.update_status(sample_job.id, JobStatus.FAILED, error="late") is False
+        assert await queue.update_status(sample_job.id, JobStatus.CANCELLED) is False
+        assert await queue.cancel_job(sample_job.id) is False
         assert await queue.cancel_active_job(sample_job.id) is False
         completed = await queue.get_job(sample_job.id)
         assert completed is not None
         assert completed.status == JobStatus.COMPLETED
+        assert completed.last_error is None
+
+    async def test_update_status_can_set_provider_job_id_while_processing(self, queue, sample_job):
+        await queue.enqueue(sample_job)
+
+        assert await queue.update_status(sample_job.id, JobStatus.PROCESSING) is True
+        assert await queue.update_status(sample_job.id, JobStatus.PROCESSING, provider_job_id="p-1") is True
+        processing = await queue.get_job(sample_job.id)
+        assert processing is not None
+        assert processing.status == JobStatus.PROCESSING
+        assert processing.provider_job_id == "p-1"
 
     async def test_clear_cleanup_metadata_preserves_public_annotations(self, queue):
         job = ResearchJob(
@@ -520,6 +543,21 @@ class TestSQLiteQueueAdvanced:
         await queue.update_status(job.id, JobStatus.COMPLETED)
         retrieved = await queue.get_job(job.id)
         assert retrieved.completed_at is not None
+
+    async def test_failed_and_cancelled_status_set_completed_at(self, queue):
+        failed = ResearchJob(id="fail-stamp", prompt="fail")
+        cancelled = ResearchJob(id="cancel-stamp", prompt="cancel")
+        await queue.enqueue(failed)
+        await queue.enqueue(cancelled)
+        assert await queue.update_status(failed.id, JobStatus.FAILED, error="boom") is True
+        assert await queue.update_status(cancelled.id, JobStatus.CANCELLED) is True
+        failed_row = await queue.get_job(failed.id)
+        cancelled_row = await queue.get_job(cancelled.id)
+        assert failed_row is not None and failed_row.completed_at is not None
+        assert cancelled_row is not None and cancelled_row.completed_at is not None
+        assert await queue.cleanup_old_jobs(days=0) >= 2
+        assert await queue.get_job(failed.id) is None
+        assert await queue.get_job(cancelled.id) is None
 
     async def test_partial_id_lookup(self, queue):
         """get_job supports partial ID prefix matching."""

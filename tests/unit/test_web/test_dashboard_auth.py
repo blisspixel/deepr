@@ -76,7 +76,9 @@ def test_portraits_stay_public_when_dashboard_auth_is_not_configured(client, mon
     (portraits / "fixture-expert.png").write_bytes(b"\x89PNG\r\n\x1a\n")
     monkeypatch.setattr(web_app, "_API_KEY", "")
     monkeypatch.setattr(web_app, "_ALLOW_UNAUTHENTICATED_LOOPBACK", False)
-    monkeypatch.setattr(web_app, "runtime_data_path", lambda name: portraits if name == "portraits" else tmp_path / name)
+    monkeypatch.setattr(
+        web_app, "runtime_data_path", lambda name: portraits if name == "portraits" else tmp_path / name
+    )
 
     response = client.get("/portraits/fixture-expert.png")
 
@@ -89,7 +91,9 @@ def test_portraits_require_dashboard_secret_when_configured(client, monkeypatch,
     (portraits / "fixture-expert.png").write_bytes(b"\x89PNG\r\n\x1a\n")
     monkeypatch.setattr(web_app, "_API_KEY", "dashboard-test-secret")
     monkeypatch.setattr(web_app, "_ALLOW_UNAUTHENTICATED_LOOPBACK", False)
-    monkeypatch.setattr(web_app, "runtime_data_path", lambda name: portraits if name == "portraits" else tmp_path / name)
+    monkeypatch.setattr(
+        web_app, "runtime_data_path", lambda name: portraits if name == "portraits" else tmp_path / name
+    )
 
     rejected = client.get("/portraits/fixture-expert.png")
     accepted = client.get(
@@ -101,4 +105,30 @@ def test_portraits_require_dashboard_secret_when_configured(client, monkeypatch,
     assert rejected.status_code == 401
     assert accepted.status_code == 200
     assert cookied.status_code == 200
-    assert "deepr_dashboard=" in accepted.headers.get("Set-Cookie", "")
+    cookie = accepted.headers.get("Set-Cookie", "")
+    assert "deepr_dashboard=" in cookie
+    assert "HttpOnly" in cookie
+    assert "Secure" not in cookie
+
+
+def test_dashboard_cookie_is_secure_on_https(client, monkeypatch, tmp_path) -> None:
+    portraits = tmp_path / "portraits"
+    portraits.mkdir()
+    (portraits / "fixture-expert.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    monkeypatch.setattr(web_app, "_API_KEY", "dashboard-test-secret")
+    monkeypatch.setattr(web_app, "_ALLOW_UNAUTHENTICATED_LOOPBACK", False)
+    monkeypatch.setattr(
+        web_app, "runtime_data_path", lambda name: portraits if name == "portraits" else tmp_path / name
+    )
+
+    accepted = client.get(
+        "/portraits/fixture-expert.png",
+        headers={"Authorization": "Bearer dashboard-test-secret"},
+        base_url="https://localhost",
+    )
+
+    assert accepted.status_code == 200
+    cookie = accepted.headers.get("Set-Cookie", "")
+    assert "deepr_dashboard=" in cookie
+    assert "HttpOnly" in cookie
+    assert "Secure" in cookie

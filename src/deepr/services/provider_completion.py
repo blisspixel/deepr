@@ -14,7 +14,13 @@ from deepr.providers.base import UsageStats
 from deepr.providers.dispatch_authority import canonical_provider_key
 from deepr.providers.registry_pricing import get_resolved_model_capability
 from deepr.queue.base import JobStatus, ResearchJob
+from deepr.services.provider_status import classify_provider_status, terminal_provider_error
 from deepr.services.research_bounds import ResearchRequestBoundsError, research_tool_usage_cost
+
+_EMPTY_COMPLETION_ERROR = (
+    "Provider reported completion but no report content was extracted; "
+    "cost settled conservatively and no artifact was saved"
+)
 
 
 def _response_content(response: Any) -> str:
@@ -26,6 +32,33 @@ def _response_content(response: Any) -> str:
             if item.get("type") in {"output_text", "text"} and item.get("text"):
                 content += str(item["text"]) + "\n"
     return content
+
+
+async def _save_completion_report(*, storage: Any, job: ResearchJob, response: Any) -> str | None:
+    """Persist a markdown report only when the provider returned extractable text."""
+    content = _response_content(response)
+    if not content.strip():
+        return None
+    report = await storage.save_report(
+        job_id=job.id,
+        filename="report.md",
+        content=content.encode("utf-8"),
+        content_type="text/markdown",
+        metadata={
+            "prompt": job.prompt,
+            "model": job.model,
+            "status": "completed",
+            "provider_job_id": job.provider_job_id,
+        },
+    )
+    return str(report.url)
+
+
+async def _publish_completion_status(queue: Any, job_id: str, report_url: str | None) -> bool:
+    """Mark empty provider completions FAILED after cost settlement."""
+    if report_url:
+        return await queue.update_status(job_id, JobStatus.COMPLETED)
+    return await queue.update_status(job_id, JobStatus.FAILED, error=_EMPTY_COMPLETION_ERROR)
 
 
 def _usage_int(usage: Any, field: str) -> int | None:
@@ -215,18 +248,7 @@ async def finalize_provider_completion(
     source: str,
 ) -> ResearchJob:
     """Persist results, cost, cleanup, and terminal state in safety order."""
-    report = await storage.save_report(
-        job_id=job.id,
-        filename="report.md",
-        content=_response_content(response).encode("utf-8"),
-        content_type="text/markdown",
-        metadata={
-            "prompt": job.prompt,
-            "model": job.model,
-            "status": "completed",
-            "provider_job_id": job.provider_job_id,
-        },
-    )
+    report_url = await _save_completion_report(storage=storage, job=job, response=response)
     cost, tokens = authoritative_completion_usage(job, response)
     reservation = restore_research_cost_reservation(
         job_id=job.id,
@@ -255,7 +277,7 @@ async def finalize_provider_completion(
         )
     if not await queue.update_results(
         job.id,
-        report_paths={"markdown": str(report.url)},
+        report_paths={"markdown": report_url} if report_url else {},
         cost=accounted_cost,
         tokens_used=tokens,
     ):
@@ -271,11 +293,11 @@ async def finalize_provider_completion(
     has_cleanup_metadata = bool(metadata.get("provider_file_ids") or metadata.get("vector_store_id"))
     if has_cleanup_metadata and not await queue.clear_cleanup_metadata(job.id):
         raise RuntimeError("provider cleanup state was not persisted")
-    if not await queue.update_status(job.id, JobStatus.COMPLETED):
+    if not await _publish_completion_status(queue, job.id, report_url):
         raise RuntimeError("queue rejected provider completion status")
     updated = await queue.get_job(job.id)
     if updated is None:
-        raise RuntimeError("completed job disappeared from the queue")
+        raise RuntimeError("terminal job disappeared from the queue")
     return cast(ResearchJob, updated)
 
 
@@ -333,8 +355,12 @@ async def finalize_provider_failure(
             raise RuntimeError("provider resource cleanup was not confirmed")
         if not await queue.clear_cleanup_metadata(job.id):
             raise RuntimeError("provider cleanup state was not persisted")
-    error = str(getattr(response, "error", "") or "Unknown provider error")
-    if not await queue.update_status(job.id, JobStatus.FAILED, error=error):
+    classified = classify_provider_status(getattr(response, "status", None))
+    error = str(getattr(response, "error", "") or "").strip() or (
+        terminal_provider_error(classified) or "Unknown provider error"
+    )
+    terminal_status = JobStatus.CANCELLED if classified == "cancelled" else JobStatus.FAILED
+    if not await queue.update_status(job.id, terminal_status, error=error):
         raise RuntimeError("queue rejected provider failure status")
     updated = await queue.get_job(job.id)
     if updated is None:
@@ -342,9 +368,46 @@ async def finalize_provider_failure(
     return cast(ResearchJob, updated)
 
 
+async def reconcile_provider_job(
+    *,
+    queue: Any,
+    storage: Any,
+    provider: Any,
+    job: ResearchJob,
+    response: Any,
+    source: str,
+) -> ResearchJob | None:
+    """Close a local job when the provider snapshot is terminal.
+
+    Returns the updated job for completed, failed, cancelled, expired, and
+    incomplete provider states. Returns None while the job is still in
+    progress or the provider status is unsupported.
+    """
+    provider_status = classify_provider_status(getattr(response, "status", None))
+    if provider_status == "completed":
+        return await finalize_provider_completion(
+            queue=queue,
+            storage=storage,
+            provider=provider,
+            job=job,
+            response=response,
+            source=source,
+        )
+    if terminal_provider_error(provider_status):
+        return await finalize_provider_failure(
+            queue=queue,
+            provider=provider,
+            job=job,
+            response=response,
+            source=source,
+        )
+    return None
+
+
 __all__ = [
     "authoritative_completion_usage",
     "conservative_completion_cost",
     "finalize_provider_completion",
     "finalize_provider_failure",
+    "reconcile_provider_job",
 ]

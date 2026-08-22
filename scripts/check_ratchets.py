@@ -26,7 +26,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 # ceilings: the count may fall (then lower the baseline) but never rise.
 BASELINES: dict[str, int] = {
     "C901": 134,  # functions over the mccabe complexity cap (max-complexity 10)
-    "S": 55,  # flake8-bandit security findings
+    "S": 54,  # flake8-bandit security findings
 }
 
 

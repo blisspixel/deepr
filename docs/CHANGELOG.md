@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.3] - 2026-08-21
+
+### Fixed
+
+- Queue-sync provider completion now matches the worker: empty extractable
+  content settles conservatively and marks FAILED instead of saving a blank
+  `report.md` as COMPLETED.
+- CLI job get/list/status and `deepr queue sync` close incomplete, expired,
+  cancelled, and failed provider snapshots instead of leaving the local job
+  PROCESSING with an open hold.
+- The dashboard poller pages every PROCESSING job, matching the worker, so
+  older jobs are not starved once the backlog exceeds one page.
+- SQLite `update_status` refuses to rewrite COMPLETED, FAILED, or CANCELLED
+  rows, so a late cancel or failure cannot clobber terminal history.
+- Failed and cancelled queue rows record `completed_at`, so cleanup can age
+  them out.
+- REST `/api/docs`, `/apispec_1.json`, and `/flasgger_static` require the API
+  token when `DEEPR_API_TOKEN` is set. Health stays public.
+- MCP expert names reject reserved Windows device names at the validator,
+  not only inside skill discovery.
+- Dashboard auth cookies set `Secure` on HTTPS responses. Local HTTP
+  dashboards keep working.
+- The REST API debug server cannot enable the Werkzeug debugger on a
+  non-loopback bind.
+
 ## [2.50.2] - 2026-08-22
 
 ### Fixed

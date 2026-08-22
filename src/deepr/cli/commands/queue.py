@@ -6,6 +6,38 @@ from deepr.cli.async_runner import run_async_command
 from deepr.cli.colors import console, print_error, print_section_header, print_success, print_warning
 
 
+async def _apply_queue_sync_snapshot(*, queue_svc, storage, provider, job, response):
+    """Close or advance one local job from a provider status snapshot."""
+    from deepr.queue.base import JobStatus
+    from deepr.services.provider_completion import reconcile_provider_job
+    from deepr.services.provider_status import classify_provider_status, terminal_provider_error
+
+    provider_status = classify_provider_status(response.status)
+    if provider_status == "completed" or terminal_provider_error(provider_status):
+        updated = await reconcile_provider_job(
+            queue=queue_svc,
+            storage=storage,
+            provider=provider,
+            job=job,
+            response=response,
+            source="cli.queue.sync",
+        )
+        if updated is not None and updated.status != job.status:
+            if updated.status == JobStatus.COMPLETED:
+                console.print("   [success]Status changed to COMPLETED[/success]")
+            else:
+                console.print(f"   [error]Status changed to {updated.status.value.upper()}[/error]")
+            return updated
+        console.print("   No change")
+        return None
+    if provider_status == "in_progress" and job.status != JobStatus.PROCESSING:
+        console.print("   Status changed to PROCESSING")
+        await queue_svc.update_status(job.id, JobStatus.PROCESSING)
+        return job
+    console.print("   No change")
+    return None
+
+
 @click.group()
 def queue():
     """Manage job queue."""
@@ -265,43 +297,15 @@ def sync():
                     # Check status at provider
                     response = await provider.get_status(job.provider_job_id)
                     click.echo(f"                  | Provider: {response.status.upper()}")
-
-                    # Update if status changed
-                    if response.status == "completed" and job.status != JobStatus.COMPLETED:
-                        console.print("   [success]Status changed to COMPLETED[/success]")
-
-                        from deepr.services.provider_completion import finalize_provider_completion
-
-                        await finalize_provider_completion(
-                            queue=queue_svc,
-                            storage=storage,
-                            provider=provider,
-                            job=job,
-                            response=response,
-                            source="cli.queue.sync",
-                        )
-                        synced.append(job)
-
-                    elif response.status == "failed" and job.status != JobStatus.FAILED:
-                        console.print("   [error]Status changed to FAILED[/error]")
-                        from deepr.services.provider_completion import finalize_provider_failure
-
-                        await finalize_provider_failure(
-                            queue=queue_svc,
-                            provider=provider,
-                            job=job,
-                            response=response,
-                            source="cli.queue.sync_failure",
-                        )
-                        synced.append(job)
-
-                    elif response.status == "in_progress" and job.status != JobStatus.PROCESSING:
-                        console.print("   Status changed to PROCESSING")
-                        await queue_svc.update_status(job.id, JobStatus.PROCESSING)
-                        synced.append(job)
-
-                    else:
-                        console.print("   No change")
+                    updated = await _apply_queue_sync_snapshot(
+                        queue_svc=queue_svc,
+                        storage=storage,
+                        provider=provider,
+                        job=job,
+                        response=response,
+                    )
+                    if updated is not None:
+                        synced.append(updated)
 
                 except Exception as e:
                     console.print(f"   [error]Error: {e}[/error]")

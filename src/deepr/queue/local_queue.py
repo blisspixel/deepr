@@ -518,7 +518,7 @@ class SQLiteQueue(QueueBackend):
     def _update_status_sync(
         self, job_id: str, status: JobStatus, error: str | None, provider_job_id: str | None
     ) -> bool:
-        """Synchronous status update."""
+        """Synchronous status update. Terminal rows are left unchanged."""
         conn = sqlite3.connect(self.db_path)
         try:
             cursor = conn.cursor()
@@ -539,14 +539,25 @@ class SQLiteQueue(QueueBackend):
                 updates.append("started_at = COALESCE(started_at, ?)")
                 values.append(datetime.now(UTC).isoformat())
 
-            if status == JobStatus.COMPLETED:
-                updates.append("completed_at = ?")
+            if status in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED):
+                updates.append("completed_at = COALESCE(completed_at, ?)")
                 values.append(datetime.now(UTC).isoformat())
 
             values.append(job_id)
+            values.extend(
+                (
+                    JobStatus.COMPLETED.value,
+                    JobStatus.FAILED.value,
+                    JobStatus.CANCELLED.value,
+                )
+            )
 
             # `updates` is built from trusted internal status flags; all values are parameterized (including job_id).
-            cursor.execute(f"UPDATE research_queue SET {', '.join(updates)} WHERE id = ?", values)
+            # Terminal rows stay immutable so a late cancel, failure, or retry cannot rewrite history.
+            cursor.execute(
+                f"UPDATE research_queue SET {', '.join(updates)} WHERE id = ? AND status NOT IN (?, ?, ?)",
+                values,
+            )
 
             success = cursor.rowcount > 0
             conn.commit()

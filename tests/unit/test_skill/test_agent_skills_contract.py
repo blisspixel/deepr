@@ -19,7 +19,7 @@ def test_repository_skill_matches_pinned_contract() -> None:
     result = validate_agent_skill(Path("skills/deepr-research/SKILL.md"))
 
     assert result.valid, result.violations
-    assert result.fields["metadata"]["deepr-version"] == "2.50.2"
+    assert result.fields["metadata"]["deepr-version"] == "2.50.3"
     assert result.fields["metadata"]["deepr-mcp-server"] == "deepr"
 
 

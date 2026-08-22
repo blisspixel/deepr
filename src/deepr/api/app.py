@@ -77,9 +77,7 @@ _ALLOWED_MODELS = {
 @app.before_request
 def _check_auth():
     """Require bearer auth, with an explicit tokenless loopback escape hatch."""
-    if request.path in ("/health", "/api/health", "/api/docs", "/apispec_1.json"):
-        return
-    if request.path.startswith("/flasgger_static"):
+    if request.path in ("/health", "/api/health"):
         return
     decision = http_auth.check_shared_secret(
         configured_secret=_api_token,
@@ -1003,10 +1001,10 @@ def get_cost_summary():
 
 
 if __name__ == "__main__":
-    debug = os.getenv("DEEPR_DEBUG", "").lower() in ("1", "true", "yes")
     host = os.getenv("DEEPR_HOST", "127.0.0.1")
     port = int(os.getenv("DEEPR_PORT", "5000") or "5000")
     loopback = is_loopback_bind_host(host)
+    debug = os.getenv("DEEPR_DEBUG", "").lower() in ("1", "true", "yes") and loopback
     if not _api_token and (not loopback or not _allow_unauthenticated_loopback):
         import sys as _sys
 

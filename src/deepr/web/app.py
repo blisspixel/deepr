@@ -162,6 +162,7 @@ def _attach_dashboard_cookie(response):
                 token,
                 httponly=True,
                 samesite="Lax",
+                secure=request.is_secure,
                 path="/",
             )
     return response
@@ -379,11 +380,27 @@ def _run_poller_loop():
         time.sleep(_POLL_INTERVAL)
 
 
+def _list_processing_jobs(loop):
+    """Page through every PROCESSING job, matching the worker poller."""
+    page_size = 100
+    jobs = []
+    offset = 0
+    while True:
+        page = loop.run_until_complete(queue.list_jobs(status=JobStatus.PROCESSING, limit=page_size, offset=offset))
+        if not page:
+            break
+        jobs.extend(page)
+        if len(page) < page_size:
+            break
+        offset += page_size
+    return jobs
+
+
 def _poll_once():
     """One poll cycle: check all PROCESSING jobs using a single event loop."""
     loop = asyncio.new_event_loop()
     try:
-        jobs = loop.run_until_complete(queue.list_jobs(status=JobStatus.PROCESSING, limit=100))
+        jobs = _list_processing_jobs(loop)
         if not jobs:
             return
         logger.info("Poller: checking %d processing jobs", len(jobs))

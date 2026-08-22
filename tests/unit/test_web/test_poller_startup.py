@@ -710,6 +710,34 @@ def test_portrait_route_rejects_windows_device_name(client, monkeypatch):
     assert response.status_code == 400
 
 
+def test_poll_once_pages_every_processing_job(monkeypatch):
+    from deepr.queue.base import JobStatus
+
+    first_page = [SimpleNamespace(id=f"job-{index}") for index in range(100)]
+    second_page = [SimpleNamespace(id="job-oldest")]
+    offsets: list[int] = []
+
+    async def list_jobs(*, status, limit, offset=0):
+        offsets.append(offset)
+        assert status is JobStatus.PROCESSING
+        assert limit == 100
+        if offset == 0:
+            return first_page
+        if offset == 100:
+            return second_page
+        return []
+
+    checked: list[str] = []
+    monkeypatch.setattr(web_app, "queue", SimpleNamespace(list_jobs=list_jobs))
+    monkeypatch.setattr(web_app, "_check_job", lambda _loop, job: checked.append(job.id))
+
+    web_app._poll_once()
+
+    assert offsets == [0, 100]
+    assert len(checked) == 101
+    assert checked[-1] == "job-oldest"
+
+
 def test_web_terminal_cleanup_factory_uses_recorded_provider(monkeypatch):
     from deepr.queue.base import JobStatus, ResearchJob
 
