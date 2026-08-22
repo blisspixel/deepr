@@ -20,8 +20,10 @@ from deepr.utils.security import (
     PathTraversalError,
     SSRFError,
     is_blocked_ip,
+    is_contained_path,
     is_loopback_bind_host,
     is_safe_url,
+    reserved_windows_device_stem,
     resolve_all_ips,
     resolve_safe_url_ips,
     sanitize_log_message,
@@ -29,6 +31,7 @@ from deepr.utils.security import (
     validate_api_key,
     validate_file_extension,
     validate_file_size,
+    validate_identifier,
     validate_path,
     validate_prompt_length,
     validate_url,
@@ -75,6 +78,36 @@ class TestValidatePath:
         f = tmp_path / "sub" / "f"
         out = validate_path(str(f), tmp_path)
         assert str(out).startswith(str(tmp_path))
+
+
+class TestReservedWindowsDeviceNames:
+    @pytest.mark.parametrize("name", ["CON", "nul", "COM1", "lpt9", "con.txt", "NUL.json"])
+    def test_reserved_stems_are_detected(self, name):
+        assert reserved_windows_device_stem(name) is not None
+
+    def test_ordinary_names_are_allowed(self):
+        assert reserved_windows_device_stem("console") is None
+        assert reserved_windows_device_stem("notes.txt") is None
+
+    def test_validate_identifier_rejects_device_names(self):
+        with pytest.raises(ValueError, match="reserved Windows device"):
+            validate_identifier("CON")
+
+
+class TestIsContainedPath:
+    def test_descendant_is_contained(self, tmp_path):
+        child = tmp_path / "dist" / "index.html"
+        child.parent.mkdir()
+        child.write_text("ok", encoding="utf-8")
+        assert is_contained_path(child.resolve(), (tmp_path / "dist").resolve()) is True
+
+    def test_prefix_sibling_is_not_contained(self, tmp_path):
+        base = tmp_path / "dist"
+        sibling = tmp_path / "dist-backup" / "secret.js"
+        base.mkdir()
+        sibling.parent.mkdir()
+        sibling.write_text("no", encoding="utf-8")
+        assert is_contained_path(sibling.resolve(), base.resolve()) is False
 
 
 class TestIsBlockedIp:

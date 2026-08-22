@@ -128,6 +128,14 @@ class TestToolError:
         assert d["retryable"] is False
         assert "fallback_suggestion" not in d
 
+    def test_make_error_redacts_provider_keys(self):
+        d = _make_error(
+            "INTERNAL_ERROR",
+            "Incorrect API key provided: sk-proj-abcdefghijklmnopqrstuvwxyz",
+        )
+        assert "sk-proj-" not in d["message"]
+        assert "[REDACTED]" in d["message"]
+
     def test_make_error_with_classification(self):
         d = _make_error("RATE_LIMIT", "slow down", category="provider", retryable=True, retry_after=30)
         assert d["category"] == "provider"

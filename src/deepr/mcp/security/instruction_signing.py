@@ -168,8 +168,10 @@ class InstructionSigner:
         # Compute expected signature
         expected = self._compute_signature(canonical)
 
-        # Constant-time comparison
-        is_valid = hmac.compare_digest(signed.signature, expected)
+        try:
+            is_valid = hmac.compare_digest(signed.signature, expected)
+        except (TypeError, ValueError):
+            is_valid = False
 
         # Track nonce if valid
         if is_valid and check_nonce:

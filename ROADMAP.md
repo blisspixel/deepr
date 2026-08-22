@@ -364,7 +364,13 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.49.2 plus unreleased fixes)
+## Current Status (v2.50.0)
+
+**Shipped in v2.50.0 (see docs/CHANGELOG.md):** OKF 0.2 derived export and
+mechanical form check, contained Agent Plugin packaging, a reference-only
+OpenClaw host profile, zero-call investigation projection builders, and
+fail-closed data-loss and security fixes. Paid dispatch remains blocked
+without a provider account-control verifier.
 
 **Shipped in v2.49.2 (see docs/CHANGELOG.md):** the README again leads with
 the expert product, current Expert Hub and profile captures are published, and
@@ -384,7 +390,7 @@ overdrafts, refills, or claims to be provider credit. Verified provider-side
 prepaid or hard-stop controls are independently mandatory for dispatch, and
 calendar ceilings apply at the same time, with the tightest boundary winning. Unattended work and expert
 consultation still cannot use wallet authority.
-No production provider account-control verifier ships in v2.49, so a funded
+No production provider account-control verifier ships in v2.50, so a funded
 wallet does not enable a call against an open postpaid account. The transaction
 is complete; provider-side execution authority remains deliberately absent.
 
@@ -445,8 +451,8 @@ are rendered locally from each expert's own account of how it wants to look.
 **Where the honest gaps are.** The corpus accumulates; the understanding does
 not. Every `study` recomputes findings and every `brief` overwrites the last,
 so an expert that has existed for six months has read more than a new one but
-has not learned more. There is still no evaluation, so "better" remains an
-opinion: the one control-arm comparison run against a bare prompt was close on
+has not learned more. Evaluation surfaces exist; held-out proof that an expert
+is better remains an opinion: the one control-arm comparison run against a bare prompt was close on
 a well-known topic, and Deepr's demonstrated margin is checkability and
 specificity rather than knowledge.
 
@@ -1013,8 +1019,8 @@ the gate for that version is proven.
 | **v2.47** (shipped, grant superseded) | Expert v2 web surface, local portraits, and the original attended `$2` grant | The new expert state needed a real interface; attended spend needed a first narrow proof | Twelve read-only v2 routes and local portrait path shipped; the grant was replaced in v2.49 |
 | **v2.48** (shipped) | Local-first consult plus the 2026-08-13 provider model and pricing refresh | Consultation must not inherit metered authority; estimates must follow current official catalogs | Consult blocks API paths; GPT-5.6, Grok 4.6, Claude 5, and current Gemini posture registered |
 | **v2.49** (shipped) | Persistent metered-spend wallet, independent job ceilings, and a curated flagship expert roster | Operators need chosen total exposure without a universal $2 research limit; the main roster must show developed experts | Wallet and verified provider boundaries both apply; no refill or overdraft; 25 explicit flagship experts have inspectable structure |
-| **v2.50** (implemented on main, unreleased) | Standards foundation: OKF 0.2 migration, Agent Skill validation, Agent Plugin 1.0.0 packaging, and clean offline installation proof | Format truth must precede distribution, and distribution must precede host-specific adapters | Offline pinned fixtures pass; OKF remains derived and verification-gated; package containment, reproducible installation, and secret absence are proven |
-| **v2.51** (in progress) | Versioned host, capability, control, event, and artifact contracts plus read-only MCP investigation projection | Hosts need bounded, replayable, owner-scoped observation before they receive control authority | Host-profile plus zero-call projection schemas and local builders are implemented; completion still requires MCP `run_id` and cursor tools that wrap those builders, remain content-free, and deny cross-run access |
+| **v2.50** (shipped) | Standards foundation: OKF 0.2 migration, Agent Skill validation, Agent Plugin 1.0.0 packaging, host-profile reference, investigation projection builders, and fail-closed data-loss/security fixes | Format truth must precede distribution, and distribution must precede host-specific adapters | Offline pinned fixtures pass; OKF remains derived and verification-gated; package containment, reproducible installation, and secret absence are proven |
+| **v2.51** (in progress) | Read-only MCP investigation projection tools over the shipped builders | Hosts need bounded, replayable, owner-scoped observation before they receive control authority | Completion still requires MCP `run_id` and cursor tools that wrap those builders, remain content-free, and deny cross-run access |
 | **v2.52** | Fixture-validated OpenClaw, DeepSeek Harness, Grok Build, Codex, and manual Grok Bot profiles | Portable packaging is primary; host fragments are compatibility paths and Bot lifecycle automation remains unavailable | Every advertised host claim names exact versions, tools, transport, runtime dependency, and validation evidence |
 | **v2.53** | Shared durable parent transaction, maximum-charge contract, scoped HTTP authority, then NemoClaw remote-isolation proof | Remote mutation and isolation depend on spend, identity, credential, and endpoint truth | Retry and crash tests cannot overshoot the parent ceiling or duplicate effects; NemoClaw remains reference-only until live evidence passes |
 | **v2.54** | Lineage-only follow-up, fork, pause, resume, cancel, and separately approved remote start | Control follows observation and authority, never precedes them | Every transition is idempotent, hash-bound, race-tested, and reconstructible from the canonical journal |
@@ -3370,7 +3376,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.49.2 plus the unreleased fixes listed in the changelog. This roadmap keeps
+v2.50.0. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 

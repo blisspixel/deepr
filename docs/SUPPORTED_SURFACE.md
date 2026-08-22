@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.49.2 current main, 2026-08-21. This document defines what users and host
+Status: v2.50.0 current main, 2026-08-21. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -718,8 +718,8 @@ If development stops, users keep these portable artifacts:
   perspective state, and can be regenerated.
 - Deepr OKF-profile bundles from `deepr expert export-okf`, including
   `index.md`, `log.md`, concept pages, citations, gaps, and contested claims.
-  They are portable Markdown/YAML derived views, but v2.49 does not claim OKF
-  0.2 conformance.
+  They are portable Markdown/YAML derived views. v2.50 ships a mechanical OKF
+  0.2 form check; it does not claim full specification conformance.
 - Published JSON Schemas under `docs/schemas/` for handoff, expert self-models,
   metacognitive monitor proposals, reviewed monitor promotion, loop status, OKF
   profile mapping, expert memory cards, compiler envelopes, A2A task envelopes,

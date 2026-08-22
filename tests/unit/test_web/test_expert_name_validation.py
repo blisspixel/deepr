@@ -20,6 +20,7 @@ os.environ.setdefault("OPENAI_API_KEY", "sk-test-dummy-key")
 
 import deepr.web.app as web_app
 from deepr.experts.paths import expert_slug
+from deepr.utils.security import InvalidInputError
 from deepr.web.app import _decode_expert_name, _validate_expert_name
 
 
@@ -55,6 +56,15 @@ def test_path_traversal_still_rejected():
     assert _validate_expert_name("../etc/passwd") is not None
     assert _validate_expert_name("a/b") is not None
     assert _validate_expert_name("a\\b") is not None
+
+
+def test_reserved_windows_device_names_rejected():
+    with pytest.raises(InvalidInputError, match="reserved Windows device"):
+        expert_slug("CON")
+    with web_app.app.app_context():
+        decoded, error = _decode_expert_name("NUL")
+    assert decoded is None
+    assert error is not None
 
 
 def test_decode_returns_the_canonical_storage_slug():

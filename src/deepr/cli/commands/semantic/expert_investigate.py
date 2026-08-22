@@ -160,7 +160,6 @@ def _status_payload(store: InvestigationStore, run_id: str) -> dict[str, Any]:
         "control": store.load_control(run_id),
         "artifact_count": len(state.get("artifacts", {})),
         "errors": state.get("errors", []),
-        "run_dir": str(store.run_dir(run_id)),
     }
 
 
@@ -189,7 +188,7 @@ def _inspection_payload(store: InvestigationStore, run_id: str) -> dict[str, Any
     }
 
 
-def _render_status(payload: dict[str, Any]) -> None:
+def _render_status(payload: dict[str, Any], *, run_dir: str | None = None) -> None:
     click.echo(f"Run id: {payload['run_id']}")
     click.echo(f"State: {payload['state']}")
     click.echo(f"Phase: {payload['phase']}")
@@ -198,7 +197,8 @@ def _render_status(payload: dict[str, Any]) -> None:
     click.echo(f"Page fetches: {payload['usage']['page_fetches']}")
     click.echo(f"Provider cost: ${float(payload['usage']['cost_usd']):.2f}")
     click.echo(f"Artifacts: {payload['artifact_count']}")
-    click.echo(f"Run directory: {payload['run_dir']}")
+    display_dir = run_dir or str(InvestigationStore().run_dir(str(payload["run_id"])))
+    click.echo(f"Run directory: {display_dir}")
     if payload["errors"]:
         click.echo(f"Last stop: {payload['errors'][-1]['error_type']}: {payload['errors'][-1]['message']}")
 
@@ -223,20 +223,18 @@ def _render_learning(payload: dict[str, Any], learning: dict[str, Any]) -> None:
         envelope = entry.get("graph_commit_envelope_artifact")
         ready_writes = int(entry.get("ready_write_count", 0) or 0)
         if envelope and ready_writes > 0:
-            full_path = Path(payload["status"]["run_dir"]) / str(envelope)
             click.echo(
                 f"    Preview apply: deepr expert apply-graph-commit {json.dumps(entry.get('expert_name'))} "
-                f"{json.dumps(str(full_path))} --dry-run --json"
+                f"{json.dumps(str(envelope))} --dry-run --json"
             )
         elif envelope:
             click.echo("    No applicable graph writes passed the automatic verifier.")
         perspective_envelope = entry.get("perspective_graph_commit_envelope_artifact")
         perspective_ready = int(entry.get("perspective_ready_write_count", 0) or 0)
         if perspective_envelope and perspective_ready > 0:
-            full_path = Path(payload["status"]["run_dir"]) / str(perspective_envelope)
             click.echo(
                 "    Preview perspective apply: deepr expert apply-graph-commit "
-                f"{json.dumps(entry.get('expert_name'))} {json.dumps(str(full_path))} --dry-run --json"
+                f"{json.dumps(entry.get('expert_name'))} {json.dumps(str(perspective_envelope))} --dry-run --json"
             )
         elif perspective_envelope:
             click.echo("    No non-factual perspective proposal passed the model form and testability check.")
@@ -527,7 +525,7 @@ def investigate_apply_learning(
         _emit_json(result)
     else:
         _render_learning_apply(result)
-    if result.get("summary", {}).get("status") == "blocked":
+    if result.get("summary", {}).get("status") in {"blocked", "partial"}:
         raise click.exceptions.Exit(2)
 
 

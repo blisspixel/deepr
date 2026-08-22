@@ -16,12 +16,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from deepr.utils.security import sanitize_name, validate_path
+from deepr.utils.security import InvalidInputError, reserved_windows_device_stem, sanitize_name, validate_path
 
 
 def expert_slug(name: str) -> str:
     """The filesystem-safe, case-stable directory name for an expert."""
-    return sanitize_name(name).lower()
+    slug = sanitize_name(name).lower()
+    device = reserved_windows_device_stem(slug)
+    if device is not None:
+        raise InvalidInputError(f"expert name {name!r} uses reserved Windows device name {device}")
+    return slug
 
 
 def canonical_expert_dir(name: str, base_path: Path | None = None) -> Path:

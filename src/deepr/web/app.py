@@ -10,7 +10,6 @@ import re
 import sys
 import threading
 import time
-from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from functools import partial
 from pathlib import Path
@@ -19,7 +18,7 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request, send_from_directory
 from flask_cors import CORS
 from flask_socketio import SocketIO
-from werkzeug.utils import secure_filename
+from werkzeug.utils import safe_join, secure_filename
 
 from deepr.config import runtime_data_path
 from deepr.security.http_auth import (
@@ -32,7 +31,7 @@ from deepr.services.provider_completion import authoritative_completion_usage
 
 # Shared sync-to-async bridge, retaining the historical local alias.
 from deepr.utils.async_runner import run_async_command as run_async
-from deepr.utils.security import is_loopback_bind_host
+from deepr.utils.security import is_contained_path, is_loopback_bind_host
 from deepr.web import action_safety, council_api
 from deepr.web.expert_chat_contract import BrowserChatContractError, parse_browser_expert_chat_request  # noqa: F401
 from deepr.web.expert_chat_rest import (
@@ -57,7 +56,9 @@ _frontend_dist = Path(__file__).parent / "frontend" / "dist"
 # into the unsafe loopback compatibility mode.
 _API_KEY = os.getenv("DEEPR_API_KEY", "").strip()
 _ALLOW_UNAUTHENTICATED_LOOPBACK = env_flag("DEEPR_WEB_ALLOW_UNAUTHENTICATED_LOOPBACK")
-_CORS_ORIGINS = os.getenv("DEEPR_CORS_ORIGINS", "http://localhost:5000").split(",")
+_CORS_ORIGINS = [
+    origin.strip() for origin in os.getenv("DEEPR_CORS_ORIGINS", "http://localhost:5000").split(",") if origin.strip()
+]
 _SOCKETIO_CORS_ORIGINS = _CORS_ORIGINS if os.getenv("DEEPR_CORS_ORIGINS") else None
 _MAX_PROMPT_LENGTH = 50_000  # characters
 _MAX_BATCH_SIZE = 50
@@ -535,10 +536,13 @@ def fallback_to_spa(e):
     # Serve static files from dist if they exist (with path traversal protection)
     relative = request.path.lstrip("/")
     if relative:
-        with suppress(OSError, ValueError):
-            resolved = (_frontend_dist / relative).resolve()
-            if resolved.is_file() and str(resolved).startswith(str(_frontend_dist.resolve())):
-                return send_from_directory(str(_frontend_dist), relative)
+        parts = Path(relative).parts
+        if parts and not any(part in ("", ".", "..") for part in parts):
+            joined = safe_join(str(_frontend_dist.resolve()), *parts)
+            if joined:
+                resolved = Path(joined)
+                if resolved.is_file() and is_contained_path(resolved, _frontend_dist.resolve()):
+                    return send_from_directory(str(_frontend_dist), Path(*parts).as_posix())
     return render_template("index.html")
 
 
@@ -2652,7 +2656,7 @@ def get_trace(job_id):
             return jsonify({"error": "Invalid job_id"}), 400
         trace_dir = runtime_data_path("traces").resolve()
         trace_path = (trace_dir / f"{job_id}_trace.json").resolve()
-        if not str(trace_path).startswith(str(trace_dir)):
+        if not is_contained_path(trace_path, trace_dir):
             return jsonify({"error": "Invalid job_id"}), 400
         if trace_path.exists():
             import json
@@ -2674,7 +2678,7 @@ def get_trace_temporal(job_id):
             return jsonify({"error": "Invalid job_id"}), 400
         trace_dir = runtime_data_path("traces").resolve()
         trace_path = (trace_dir / f"{job_id}_trace.json").resolve()
-        if not str(trace_path).startswith(str(trace_dir)):
+        if not is_contained_path(trace_path, trace_dir):
             return jsonify({"error": "Invalid job_id"}), 400
         if trace_path.exists():
             import json
@@ -2902,7 +2906,7 @@ def get_benchmark(filename):
             return jsonify({"error": "Invalid filename"}), 400
 
         filepath = (_BENCHMARK_DIR / filename).resolve()
-        if not str(filepath).startswith(str(_BENCHMARK_DIR.resolve())):
+        if not is_contained_path(filepath, _BENCHMARK_DIR.resolve()):
             return jsonify({"error": "Invalid filename"}), 400
 
         if not filepath.exists():

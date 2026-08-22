@@ -268,7 +268,8 @@ class JobPoller:
             )
             return
 
-        reservation_lookup_failed = False
+        accounting_state = "the unresolved reservation remains held and blocks paid dispatch"
+        reservation = None
         try:
             reservation = restore_research_cost_reservation(
                 job_id=job.id,
@@ -277,13 +278,8 @@ class JobPoller:
                 model=str(job.model),
             )
         except Exception:
-            reservation = None
-            reservation_lookup_failed = True
             logger.exception("Could not restore cost authority for expired reconciliation job %s", job.id)
-        accounting_state = "the unresolved reservation remains held and blocks paid dispatch"
-        if reservation_lookup_failed:
-            accounting_state = "cost accounting is unresolved, so paid dispatch remains frozen"
-        elif reservation is None and job.provider_job_id:
+        if reservation is None and job.provider_job_id:
             try:
                 record_unreserved_research_cost(
                     job_id=job.id,
@@ -295,13 +291,17 @@ class JobPoller:
                 )
                 accounting_state = "the configured ceiling was recorded conservatively"
             except Exception:
+                logger.exception("Could not freeze paid dispatch for expired reconciliation job %s", job.id)
                 accounting_state = "cost accounting is unresolved, so paid dispatch remains frozen"
+                return
+        elif reservation is None:
+            accounting_state = "cost accounting is unresolved, so paid dispatch remains frozen"
+            return
         error = (
             f"{base_error}; provider cancellation was not confirmed; {accounting_state}; "
             "manual provider-account reconciliation is required"
         )
-        if not await self.queue.update_status(job_id=job.id, status=JobStatus.FAILED, error=error):
-            logger.error("Failed to persist expired reconciliation state for job %s", job.id)
+        await self._handle_failure(job, error)
 
     async def _handle_queued_job(self, job: ResearchJob) -> None:
         """Cancel a provider job only after it has remained queued too long."""
@@ -471,9 +471,29 @@ class JobPoller:
                     raise RuntimeError(f"Canonical cost settlement missing for terminal job {job.id}")
             except Exception:
                 logger.exception("Failed to close provider cost for failed job %s", job.id)
-                if not terminal_on_cleanup_failure:
+                provider_job_id = job.provider_job_id if isinstance(job.provider_job_id, str) else ""
+                if provider_job_id:
+                    try:
+                        record_unreserved_research_cost(
+                            job_id=job.id,
+                            provider=str(getattr(job, "provider", "") or ""),
+                            model=str(job.model),
+                            actual_cost=None,
+                            request_id=provider_job_id,
+                            source="worker.poller._handle_failure",
+                        )
+                    except Exception:
+                        logger.exception(
+                            "Failed to freeze paid dispatch after cost-closure failure for job %s",
+                            job.id,
+                        )
+                        if not terminal_on_cleanup_failure:
+                            return
+                        error = f"{error}; cost accounting remains unresolved and paid dispatch is frozen"
+                elif not terminal_on_cleanup_failure:
                     return
-                error = f"{error}; cost accounting remains unresolved and paid dispatch is frozen"
+                else:
+                    error = f"{error}; cost accounting remains unresolved and paid dispatch is frozen"
 
             from ..cli.commands.run_submission import cleanup_persisted_uploads
 

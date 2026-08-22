@@ -94,6 +94,19 @@ def test_store_create_state_events_and_control_are_durable(tmp_path: Path) -> No
     assert events[0]["event_type"] == "run_created"
 
 
+def test_store_create_retries_incomplete_run_directory(tmp_path: Path) -> None:
+    store = InvestigationStore(tmp_path / "runs")
+    plan = _plan(tmp_path)
+    incomplete = store.run_dir("inv_store_test")
+    incomplete.mkdir(parents=True)
+
+    created = store.create(plan)
+
+    assert created["run_id"] == "inv_store_test"
+    assert (incomplete / "plan.json").is_file()
+    assert store.load_plan("inv_store_test") == plan
+
+
 def test_store_state_uses_optimistic_versions(tmp_path: Path) -> None:
     store = InvestigationStore(tmp_path / "runs")
     state = store.create(_plan(tmp_path))

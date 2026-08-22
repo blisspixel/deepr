@@ -27,8 +27,13 @@ def _verify_signature(payload: bytes, signature: str, secret: str) -> bool:
     Returns:
         True if signature is valid
     """
+    if not isinstance(signature, str) or not isinstance(secret, str):
+        return False
     expected = hmac.new(secret.encode("utf-8"), payload, hashlib.sha256).hexdigest()
-    return hmac.compare_digest(f"sha256={expected}", signature)
+    try:
+        return hmac.compare_digest(f"sha256={expected}", signature)
+    except (TypeError, ValueError):
+        return False
 
 
 def _extract_job_id(data: dict[str, Any]) -> str | None:

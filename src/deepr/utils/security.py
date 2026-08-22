@@ -15,6 +15,11 @@ logger = logging.getLogger(__name__)
 # be used to traverse out of an intended directory.
 _SLUG_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$")
 _UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+WINDOWS_DEVICE_NAMES = frozenset(
+    {"CON", "PRN", "AUX", "NUL"}
+    | {f"COM{number}" for number in range(1, 10)}
+    | {f"LPT{number}" for number in range(1, 10)}
+)
 
 
 class SecurityError(Exception):
@@ -450,6 +455,18 @@ def sanitize_log_message(message: str) -> str:
     return sanitized
 
 
+def reserved_windows_device_stem(value: str) -> str | None:
+    """Return the reserved Win32 device stem if ``value`` would map to one.
+
+    ``CON``, ``NUL``, ``COM1.txt``, and ``lpt9`` are devices on Windows even
+    with a suffix. Using them as path segments can hang or discard writes.
+    """
+    if not isinstance(value, str) or not value:
+        return None
+    stem = value.rstrip(" .").split(".", 1)[0].upper()
+    return stem if stem in WINDOWS_DEVICE_NAMES else None
+
+
 def validate_identifier(value: str, *, kind: str = "identifier") -> str:
     """Validate a user-supplied identifier used as a single path segment.
 
@@ -498,6 +515,9 @@ def validate_identifier(value: str, *, kind: str = "identifier") -> str:
             f"{kind} {value!r} is not a valid slug or UUID "
             "(allowed: letters, digits, '-', '_', '.' - not leading/trailing)"
         )
+    device = reserved_windows_device_stem(value)
+    if device is not None:
+        raise ValueError(f"{kind} {value!r} uses reserved Windows device name {device}")
     return value
 
 
@@ -546,3 +566,17 @@ def safe_path_within(base: str | Path, *parts: str) -> Path:
         raise ValueError(f"path {candidate} escapes base directory {base_real}")
 
     return candidate
+
+
+def is_contained_path(path: Path, base: Path) -> bool:
+    """Return True when ``path`` is ``base`` or a descendant of it.
+
+    Callers must pass already-resolved paths. Uses ``relative_to`` instead of
+    string prefix matching so a base such as ``.../dist`` cannot authorize
+    ``.../dist-backup``.
+    """
+    try:
+        path.relative_to(base)
+    except ValueError:
+        return False
+    return True

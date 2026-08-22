@@ -343,6 +343,59 @@ class TestJobPoller:
         )
 
     @pytest.mark.asyncio
+    async def test_expire_records_unreserved_cost_when_restore_fails(self, poller):
+        job = ResearchJob(
+            id="expired-restore-fail",
+            prompt="test",
+            model="o3-deep-research",
+            provider="openai",
+            provider_job_id="provider-job",
+            status=JobStatus.PROCESSING,
+            submitted_at=datetime.now(UTC) - timedelta(minutes=20),
+        )
+        poller.provider.cancel_job = AsyncMock(return_value=False)
+        poller._handle_failure = AsyncMock()
+
+        with (
+            patch(
+                "deepr.worker.poller.restore_research_cost_reservation",
+                side_effect=RuntimeError("reservation metadata unreadable"),
+            ),
+            patch("deepr.worker.poller.record_unreserved_research_cost", return_value=5.0) as record,
+        ):
+            await poller._expire_provider_reconciliation(job, "stalled")
+
+        record.assert_called_once()
+        poller._handle_failure.assert_awaited_once()
+        poller.queue.update_status.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_expire_does_not_mark_failed_when_freeze_fails(self, poller):
+        job = ResearchJob(
+            id="expired-freeze-fail",
+            prompt="test",
+            model="o3-deep-research",
+            provider="openai",
+            provider_job_id="provider-job",
+            status=JobStatus.PROCESSING,
+            submitted_at=datetime.now(UTC) - timedelta(minutes=20),
+        )
+        poller.provider.cancel_job = AsyncMock(return_value=False)
+        poller._handle_failure = AsyncMock()
+
+        with (
+            patch("deepr.worker.poller.restore_research_cost_reservation", return_value=None),
+            patch(
+                "deepr.worker.poller.record_unreserved_research_cost",
+                side_effect=RuntimeError("freeze unavailable"),
+            ),
+        ):
+            await poller._expire_provider_reconciliation(job, "stalled")
+
+        poller._handle_failure.assert_not_awaited()
+        poller.queue.update_status.assert_not_awaited()
+
+    @pytest.mark.asyncio
     async def test_handle_failure_retains_active_state_when_cost_closure_fails(self, poller):
         mock_job = ResearchJob(
             id="cost-open",
@@ -352,9 +405,15 @@ class TestJobPoller:
         )
         poller.queue.update_status = AsyncMock()
 
-        with patch(
-            "deepr.worker.poller.restore_research_cost_reservation",
-            side_effect=RuntimeError("ledger unavailable"),
+        with (
+            patch(
+                "deepr.worker.poller.restore_research_cost_reservation",
+                side_effect=RuntimeError("ledger unavailable"),
+            ),
+            patch(
+                "deepr.worker.poller.record_unreserved_research_cost",
+                side_effect=RuntimeError("freeze unavailable"),
+            ),
         ):
             await poller._handle_failure(mock_job, "Provider cancelled", status=JobStatus.CANCELLED)
 

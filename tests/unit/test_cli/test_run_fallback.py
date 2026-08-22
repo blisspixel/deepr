@@ -236,18 +236,20 @@ class TestFallbackOnTimeout:
             emitter.save_trace.return_value = None
             mock_emitter_cls.return_value = emitter
 
-            await _run_single(
-                "test query",
-                "o4-mini-deep-research",
-                "openai",
-                False,
-                False,
-                (),
-                None,
-                True,
-                _make_output_context(),
-            )
+            with pytest.raises(SystemExit) as exc:
+                await _run_single(
+                    "test query",
+                    "o4-mini-deep-research",
+                    "openai",
+                    False,
+                    False,
+                    (),
+                    None,
+                    True,
+                    _make_output_context(),
+                )
 
+            assert exc.value.code == 1
             assert len(calls) == 1
             assert calls[0] == ("openai", "o4-mini-deep-research")
             router.get_fallback.assert_not_called()
@@ -329,19 +331,21 @@ class TestNoFallbackFlag:
             emitter.save_trace.return_value = None
             mock_emitter_cls.return_value = emitter
 
-            await _run_single(
-                "test query",
-                "o4-mini-deep-research",
-                "openai",
-                False,
-                False,
-                (),
-                None,
-                True,
-                _make_output_context(),
-                no_fallback=True,
-            )
+            with pytest.raises(SystemExit) as exc:
+                await _run_single(
+                    "test query",
+                    "o4-mini-deep-research",
+                    "openai",
+                    False,
+                    False,
+                    (),
+                    None,
+                    True,
+                    _make_output_context(),
+                    no_fallback=True,
+                )
 
+            assert exc.value.code == 1
             # Only one attempt, no fallback
             assert calls == ["openai"]
             # Router should NOT have been asked for fallback
@@ -544,18 +548,20 @@ class TestMaxFallbackAttempts:
             emitter.save_trace.return_value = None
             mock_emitter_cls.return_value = emitter
 
-            await _run_single(
-                "test query",
-                "o4-mini-deep-research",
-                "openai",
-                False,
-                False,
-                (),
-                None,
-                True,
-                _make_output_context(),
-            )
+            with pytest.raises(SystemExit) as exc:
+                await _run_single(
+                    "test query",
+                    "o4-mini-deep-research",
+                    "openai",
+                    False,
+                    False,
+                    (),
+                    None,
+                    True,
+                    _make_output_context(),
+                )
 
+            assert exc.value.code == 1
             # 1 initial + MAX_FALLBACK_ATTEMPTS fallbacks = 4 total attempts
             assert len(calls) == 1 + MAX_FALLBACK_ATTEMPTS
 

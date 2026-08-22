@@ -99,6 +99,7 @@ def install_host(
           --expert "Meshtastic LoRa Mesh Automation" --json
     """
     from deepr.mcp.host_install import (
+        HostInstallError,
         build_host_brief,
         plan_host_install,
         run_claude_mcp_add,
@@ -124,7 +125,10 @@ def install_host(
     }
 
     if not dry_run:
-        path = write_mcp_json(plan, merge=not no_merge)
+        try:
+            path = write_mcp_json(plan, merge=not no_merge)
+        except HostInstallError as exc:
+            raise click.ClickException(str(exc)) from exc
         result["wrote_mcp_json"] = True
         result["mcp_json_path"] = str(path)
         if not skip_claude_cli:

@@ -14,10 +14,18 @@ import tempfile
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from deepr.experts.beliefs import Belief, BeliefChange, BeliefStore, ConflictResolution, SharedBeliefStore
+from deepr.experts.beliefs import (
+    Belief,
+    BeliefChange,
+    BeliefStore,
+    BeliefStoreError,
+    ConflictResolution,
+    SharedBeliefStore,
+)
 
 # =============================================================================
 # Unit Tests: Belief Dataclass
@@ -200,6 +208,24 @@ class TestBeliefStore:
         assert store.expert_name == "test_expert"
         assert len(store.beliefs) == 0
         assert store.conflict_resolution == ConflictResolution.HIGHER_CONFIDENCE
+
+    def test_corrupt_store_refuses_overwrite(self, tmp_path):
+        storage_dir = tmp_path / "beliefs"
+        storage_dir.mkdir()
+        path = storage_dir / "beliefs.json"
+        path.write_text("{not valid json", encoding="utf-8")
+
+        store = BeliefStore(expert_name="test", storage_dir=storage_dir)
+        assert store._unreadable is True
+        original = path.read_text(encoding="utf-8")
+        with pytest.raises(BeliefStoreError, match="unreadable"):
+            store.add_belief(Belief(claim="Python is great", confidence=0.9, domain="programming"))
+        assert path.read_text(encoding="utf-8") == original
+
+    def test_read_only_store_cannot_save(self, tmp_path):
+        store = BeliefStore(expert_name="test", storage_dir=tmp_path / "beliefs", read_only=True)
+        with pytest.raises(BeliefStoreError, match="read-only"):
+            store._save()
 
     def test_add_belief(self, tmp_path):
         """Test adding a belief to store."""

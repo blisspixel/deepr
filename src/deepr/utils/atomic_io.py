@@ -146,20 +146,24 @@ def append_jsonl_durable(
     and process exit truncates it. The cost ledger and routing log are
     declared canonical sources of truth - they need to survive crashes.
 
-    The caller is responsible for any cross-process serialization (e.g. a
-    lock around concurrent appenders).
+    Concurrent callers are serialized with a sibling ``*.append.lock`` so
+    two processes cannot interleave JSON lines.
     """
+    from filelock import FileLock
+
     target = Path(path)
     parent = target.parent
     if parent and not parent.exists():
         parent.mkdir(parents=True, exist_ok=True)
 
     line = json.dumps(record, default=default) + "\n"
-    with open(target, "a", encoding=encoding) as f:
-        f.write(line)
-        if fsync:
-            f.flush()
-            os.fsync(f.fileno())
+    lock_path = target.with_name(f"{target.name}.append.lock")
+    with FileLock(str(lock_path), timeout=30):
+        with open(target, "a", encoding=encoding) as f:
+            f.write(line)
+            if fsync:
+                f.flush()
+                os.fsync(f.fileno())
 
 
 __all__ = [

@@ -235,3 +235,53 @@ def test_apply_learning_refuses_noninteractive_write_without_yes(monkeypatch) ->
     assert result.exit_code == 2
     assert "requires interactive confirmation or --yes" in result.output
     assert apply.call_count == 1
+
+
+def test_status_json_omits_local_run_directory(monkeypatch) -> None:
+    payload = {
+        "run_id": "inv_cli_test",
+        "plan_sha256": "a" * 64,
+        "state": "completed",
+        "phase": "complete",
+        "version": 1,
+        "usage": {
+            "generation_calls": 1,
+            "search_queries": 0,
+            "page_fetches": 0,
+            "cost_usd": 0.0,
+        },
+        "remaining": {},
+        "control": {"requested": "run", "revision": 1},
+        "artifact_count": 0,
+        "errors": [],
+    }
+    monkeypatch.setattr(
+        "deepr.cli.commands.semantic.expert_investigate._status_payload",
+        lambda store, run_id: payload,
+    )
+    result = CliRunner().invoke(cli, ["expert", "investigate", "status", "inv_cli_test", "--json"])
+    assert result.exit_code == 0, result.output
+    body = json.loads(result.output)
+    assert "run_dir" not in body
+    assert "run_dir" not in json.dumps(body)
+
+
+def test_apply_learning_exits_nonzero_on_partial(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "deepr.cli.commands.semantic.expert_investigate.apply_investigation_learning",
+        lambda *args, **kwargs: {
+            "summary": {
+                "status": "partial",
+                "dry_run": False,
+                "planned_write_count": 2,
+                "applied_write_count": 1,
+                "failure_reasons": ["apply_failed"],
+            },
+            "results": [],
+        },
+    )
+    result = CliRunner().invoke(
+        cli,
+        ["expert", "investigate", "apply-learning", "inv_cli_test", "--yes", "--json"],
+    )
+    assert result.exit_code == 2

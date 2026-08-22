@@ -37,12 +37,24 @@ def _set_test_spend_caps(monkeypatch: pytest.MonkeyPatch, limit: float) -> None:
 
 from deepr.cli.commands.run import (
     TraceFlags,
+    _complete_failure,
     _save_and_show_full_trace,
     _show_trace_explain,
     _show_trace_timeline,
     estimate_cost,
     run,
 )
+from deepr.cli.output import OperationResult, OutputContext, OutputFormatter, OutputMode
+
+
+def test_complete_failure_exits_nonzero() -> None:
+    formatter = OutputFormatter(OutputContext(mode=OutputMode.JSON))
+    with pytest.raises(SystemExit) as exc:
+        _complete_failure(
+            formatter,
+            OperationResult(success=False, duration_seconds=1.0, cost_usd=0.0, error="nope"),
+        )
+    assert exc.value.code == 1
 
 
 class TestEstimateCost:
@@ -172,18 +184,19 @@ class TestRunSingleAsync:
                         mock_queue_instance.get_job = AsyncMock(return_value=None)
                         mock_queue_class.return_value = mock_queue_instance
 
-                        # This should not raise
-                        await _run_single(
-                            query="Test query",
-                            model="o4-mini-deep-research",
-                            provider="openai",
-                            no_web=False,
-                            no_code=False,
-                            upload=(),
-                            limit=None,
-                            yes=True,  # Skip confirmation
-                            output_context=output_context,
-                        )
+                        with pytest.raises(SystemExit) as exc:
+                            await _run_single(
+                                query="Test query",
+                                model="o4-mini-deep-research",
+                                provider="openai",
+                                no_web=False,
+                                no_code=False,
+                                upload=(),
+                                limit=None,
+                                yes=True,  # Skip confirmation
+                                output_context=output_context,
+                            )
+                        assert exc.value.code == 1
 
     @pytest.mark.asyncio
     async def test_run_submission_persists_durable_ceiling_metadata(self, tmp_path, monkeypatch):
@@ -282,18 +295,20 @@ class TestRunSingleAsync:
             patch("deepr.cli.commands.run._check_budget", return_value=True),
             patch("deepr.cli.commands.run._reserve_job_submission", new_callable=AsyncMock) as reserve,
         ):
-            await _run_single(
-                query="Test query",
-                model="o4-mini-deep-research",
-                provider="openai",
-                no_web=True,
-                no_code=True,
-                upload=(),
-                limit=None,
-                yes=True,
-                output_context=OutputContext(mode=OutputMode.QUIET),
-            )
+            with pytest.raises(SystemExit) as exc:
+                await _run_single(
+                    query="Test query",
+                    model="o4-mini-deep-research",
+                    provider="openai",
+                    no_web=True,
+                    no_code=True,
+                    upload=(),
+                    limit=None,
+                    yes=True,
+                    output_context=OutputContext(mode=OutputMode.QUIET),
+                )
 
+        assert exc.value.code == 1
         reserve.assert_not_awaited()
 
     @pytest.mark.asyncio

@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.49.2-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.49.2)
+[![Version](https://img.shields.io/badge/version-2.50.0-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.0)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -63,7 +63,7 @@ paid overage disabled are also mandatory for dispatch. Deepr verifies both
 layers and applies the tighter boundary. A soft budget alert on an open
 postpaid account is not a hard stop and remains execution-blocked. MCP, schedules,
 loops, consultation, and automatic routing cannot use wallet authority.
-No production provider account-control verifier ships in v2.49, so actual paid
+No production provider account-control verifier ships in v2.50, so actual paid
 dispatch remains blocked even after local wallet funding. The wallet and
 attended transaction are ready for a future authenticated verifier; they are
 not a bypass for today's quarantine.

@@ -23,6 +23,10 @@ DEFAULT_BUDGET = 0
 DEFAULT_MAX_ELAPSED_SECONDS = 600
 
 
+class HostInstallError(RuntimeError):
+    """Raised when host MCP config cannot be merged without destroying it."""
+
+
 @dataclass(frozen=True)
 class HostMcpServerSpec:
     """stdio MCP server block for Claude Code / Cursor-style hosts."""
@@ -178,18 +182,25 @@ def write_mcp_json(plan: HostInstallPlan, *, merge: bool = True) -> Path:
     if merge and path.exists():
         try:
             existing = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            existing = {}
-        if isinstance(existing, dict):
-            servers = existing.get("mcpServers")
-            if not isinstance(servers, dict):
-                servers = {}
-            incoming = document.get("mcpServers") or {}
-            if isinstance(incoming, dict):
-                servers = {**servers, **incoming}
-            existing["mcpServers"] = servers
-            document = existing
-    path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+        except (OSError, json.JSONDecodeError, UnicodeError) as exc:
+            raise HostInstallError(f"existing {path} is unreadable; refusing to overwrite host MCP config") from exc
+        if not isinstance(existing, dict):
+            raise HostInstallError(f"existing {path} is not a JSON object; refusing to overwrite host MCP config")
+        servers = existing.get("mcpServers")
+        if servers is None:
+            servers = {}
+        elif not isinstance(servers, dict):
+            raise HostInstallError(
+                f"existing {path} has a non-object mcpServers value; refusing to overwrite host MCP config"
+            )
+        incoming = document.get("mcpServers") or {}
+        if isinstance(incoming, dict):
+            servers = {**servers, **incoming}
+        existing["mcpServers"] = servers
+        document = existing
+    from deepr.utils.atomic_io import atomic_write_json
+
+    atomic_write_json(path, document, indent=2, fsync=True)
     return path
 
 

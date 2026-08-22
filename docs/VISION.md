@@ -6,7 +6,7 @@
 
 Transform research from isolated queries into cumulative understanding. Build systems that learn and improve over time.
 
-## Current State (v2.49.1)
+## Current State (v2.50.0)
 
 What works today:
 - Write-free bounded provider-research preview and offline billing

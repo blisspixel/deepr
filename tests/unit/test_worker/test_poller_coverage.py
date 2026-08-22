@@ -269,8 +269,8 @@ class TestCheckJobStatus:
         poller.queue.update_status = AsyncMock(return_value=True)
         with patch("deepr.worker.poller.restore_research_cost_reservation", return_value=MagicMock()):
             await poller._check_job_status(_job(submitted_at=old))
-        poller._handle_failure.assert_not_awaited()
-        poller.queue.update_status.assert_awaited_once()
+        poller._handle_failure.assert_awaited_once()
+        poller.queue.update_status.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_provider_reconciliation_hard_cap_stops_status_polling(self, poller):
@@ -278,27 +278,27 @@ class TestCheckJobStatus:
         job = _job(submitted_at=old)
         poller.provider.get_status = AsyncMock()
         poller.provider.cancel_job = AsyncMock(return_value=False)
-        poller.queue.update_status = AsyncMock(return_value=True)
+        poller._handle_failure = AsyncMock()
         with patch("deepr.worker.poller.restore_research_cost_reservation", return_value=MagicMock()):
             await poller._check_job_status(job)
 
         poller.provider.get_status.assert_not_awaited()
         poller.provider.cancel_job.assert_awaited_once_with("prov_1")
-        poller.queue.update_status.assert_awaited_once()
-        assert "manual provider-account reconciliation" in poller.queue.update_status.await_args.kwargs["error"]
+        poller._handle_failure.assert_awaited_once()
+        assert "manual provider-account reconciliation" in poller._handle_failure.await_args.args[1]
 
     @pytest.mark.asyncio
     async def test_expired_reconciliation_never_repeats_external_cancel(self, poller):
         old = datetime.now(UTC) - timedelta(hours=25)
         job = _job(submitted_at=old)
         poller.provider.cancel_job = AsyncMock(return_value=False)
-        poller.queue.update_status = AsyncMock(return_value=False)
+        poller._handle_failure = AsyncMock()
         with patch("deepr.worker.poller.restore_research_cost_reservation", return_value=MagicMock()):
             await poller._check_job_status(job)
             await poller._check_job_status(job)
 
         poller.provider.cancel_job.assert_awaited_once_with("prov_1")
-        assert poller.queue.update_status.await_count == 2
+        assert poller._handle_failure.await_count == 2
 
     @pytest.mark.asyncio
     async def test_naive_submitted_at_gets_utc(self, poller):
