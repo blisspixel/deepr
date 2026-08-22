@@ -23,6 +23,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from deepr.utils.security import reserved_windows_device_stem
+
 logger = logging.getLogger(__name__)
 
 
@@ -63,7 +65,11 @@ def parse_resource_uri(uri: str) -> ResourceURI | None:
     if not match:
         return None
 
-    return ResourceURI(resource_type=match.group("type"), resource_id=match.group("id"), subresource=match.group("sub"))
+    resource_id = match.group("id")
+    if reserved_windows_device_stem(resource_id):
+        return None
+
+    return ResourceURI(resource_type=match.group("type"), resource_id=resource_id, subresource=match.group("sub"))
 
 
 @dataclass

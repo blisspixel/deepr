@@ -679,76 +679,61 @@ class TestCitationUrlResolution:
 
     @pytest.mark.asyncio
     async def test_redirect_url_resolved(self):
-        """Google redirect URLs are resolved via httpx."""
+        """Google redirect URLs are resolved through pinned HEAD hops."""
         redirect_url = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc123"
         final_url = "https://real-source.com/article"
-        redirect_response = httpx.Response(
-            302,
-            headers={"location": final_url},
-            request=httpx.Request("HEAD", redirect_url),
-        )
-        final_response = httpx.Response(
-            200,
-            request=httpx.Request("HEAD", final_url),
-        )
-
-        mock_client = AsyncMock()
-        mock_client.head.side_effect = [redirect_response, final_response]
+        redirect_response = MagicMock(is_redirect=True, url=redirect_url, headers={"location": final_url})
+        final_response = MagicMock(is_redirect=False, url=final_url, headers={})
 
         with (
-            patch("httpx.AsyncClient") as mock_cls,
+            patch(
+                "deepr.providers.grounding_redirect.pinned_head",
+                side_effect=[redirect_response, final_response],
+            ) as mock_head,
+            patch("deepr.providers.grounding_redirect.close_pinned_response") as mock_close,
             patch(
                 "deepr.providers.grounding_redirect.resolve_safe_url_ips",
                 return_value=("93.184.216.34",),
             ),
         ):
-            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-
             result = await GeminiProvider.resolve_redirect_url(redirect_url)
-            assert result == final_url
-            assert mock_client.head.await_args_list == [call(redirect_url), call(final_url)]
-            mock_cls.assert_called_once_with(
-                follow_redirects=False,
-                timeout=10.0,
-                trust_env=False,
-            )
+
+        assert result == final_url
+        assert mock_head.call_args_list == [call(redirect_url, timeout=10.0), call(final_url, timeout=10.0)]
+        assert mock_close.call_count == 2
 
     @pytest.mark.asyncio
     async def test_redirect_url_blocks_unsafe_hop_before_second_request(self):
         redirect_url = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc123"
         unsafe_url = "http://127.0.0.1/private"
-        redirect_response = httpx.Response(
-            302,
-            headers={"location": unsafe_url},
-            request=httpx.Request("HEAD", redirect_url),
-        )
-        mock_client = AsyncMock()
-        mock_client.head.return_value = redirect_response
+        redirect_response = MagicMock(is_redirect=True, url=redirect_url, headers={"location": unsafe_url})
+
+        def pinned_head(url, timeout=10.0):
+            if url == unsafe_url:
+                raise SSRFError("blocked")
+            return redirect_response
 
         with (
-            patch("httpx.AsyncClient") as mock_cls,
-            patch(
-                "deepr.providers.grounding_redirect.resolve_safe_url_ips",
-                side_effect=[("93.184.216.34",), SSRFError("blocked")],
-            ),
+            patch("deepr.providers.grounding_redirect.pinned_head", side_effect=pinned_head) as mock_head,
+            patch("deepr.providers.grounding_redirect.close_pinned_response") as mock_close,
         ):
-            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-
             result = await GeminiProvider.resolve_redirect_url(redirect_url)
 
         assert result == redirect_url
-        mock_client.head.assert_awaited_once_with(redirect_url)
+        assert mock_head.call_args_list == [call(redirect_url, timeout=10.0), call(unsafe_url, timeout=10.0)]
+        mock_close.assert_called_once_with(redirect_response)
 
     @pytest.mark.asyncio
     async def test_redirect_url_fallback_on_error(self):
         """On error, returns original URL as fallback."""
         redirect_url = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc123"
 
-        with patch("httpx.AsyncClient", side_effect=httpx.NetworkError("Connection failed")):
+        with patch(
+            "deepr.providers.grounding_redirect.pinned_head",
+            side_effect=httpx.NetworkError("Connection failed"),
+        ):
             result = await GeminiProvider.resolve_redirect_url(redirect_url)
-            assert result == redirect_url  # Falls back to original
+            assert result == redirect_url
 
 
 @pytest.mark.asyncio

@@ -2,9 +2,9 @@
 name: deepr-research
 description: Inspect Deepr readiness, discover bounded MCP capabilities, and consult persistent domain expert state. Use for research planning, source and evidence review, knowledge gaps, confidence, provenance, and current read-only Deepr capability discovery.
 license: Apache-2.0
-compatibility: Requires deepr-research 2.50.1 and the packaged local stdio MCP server.
+compatibility: Requires deepr-research 2.50.2 and the packaged local stdio MCP server.
 metadata:
-  deepr-version: "2.50.1"
+  deepr-version: "2.50.2"
   deepr-mcp-server: deepr
   deepr-capability-profile: read-only
 ---

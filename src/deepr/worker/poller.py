@@ -383,28 +383,29 @@ class JobPoller:
             logger.info(f"Job {job.id} completed, saving results")
 
             content = _response_content(response)
+            report_saved = bool(content.strip())
+            if report_saved:
+                await self.storage.save_report(
+                    job_id=job.id,
+                    filename="report.md",
+                    content=content.encode("utf-8"),
+                    content_type="text/markdown",
+                    metadata={
+                        "prompt": job.prompt,
+                        "model": job.model,
+                        "status": "completed",
+                        "provider_job_id": job.provider_job_id,
+                    },
+                )
 
-            # Save to storage
-            await self.storage.save_report(
-                job_id=job.id,
-                filename="report.md",
-                content=content.encode("utf-8"),
-                content_type="text/markdown",
-                metadata={
-                    "prompt": job.prompt,
-                    "model": job.model,
-                    "status": "completed",
-                    "provider_job_id": job.provider_job_id,
-                },
-            )
-
-            # Extract cost and tokens
             cost, tokens = authoritative_completion_usage(job, response)
             reservation, cost = self._record_completion_cost(job, cost=cost, tokens=tokens)
 
-            # Update queue with results
             results_updated = await self.queue.update_results(
-                job_id=job.id, report_paths={"markdown": "report.md"}, cost=cost, tokens_used=tokens
+                job_id=job.id,
+                report_paths={"markdown": "report.md"} if report_saved else {},
+                cost=cost,
+                tokens_used=tokens,
             )
             if not results_updated:
                 raise RuntimeError(f"Queue update_results failed for job {job.id}")
@@ -413,16 +414,30 @@ class JobPoller:
 
             await self._cleanup_completed_job(job)
 
-            # Mark as completed
-            status_updated = await self.queue.update_status(job.id, JobStatus.COMPLETED)
-            if not status_updated:
-                raise RuntimeError(f"Queue update_status(COMPLETED) failed for job {job.id}")
+            if report_saved:
+                status_updated = await self.queue.update_status(job.id, JobStatus.COMPLETED)
+                if not status_updated:
+                    raise RuntimeError(f"Queue update_status(COMPLETED) failed for job {job.id}")
+            else:
+                status_updated = await self.queue.update_status(
+                    job.id,
+                    JobStatus.FAILED,
+                    error=(
+                        "Provider reported completion but no report content was extracted; "
+                        "cost settled conservatively and no artifact was saved"
+                    ),
+                )
+                if not status_updated:
+                    raise RuntimeError(f"Queue update_status(FAILED) failed for job {job.id}")
             # The job is no longer eligible for completion retries. Release the
             # in-process dedup key so a long-running poller does not retain one
             # string for every job it has ever completed.
             self._cost_controller_recorded_job_ids.discard(str(job.id))
 
-            logger.info("Job %s completed successfully (cost: $%.4f)", job.id, cost or 0.0)
+            if report_saved:
+                logger.info("Job %s completed successfully (cost: $%.4f)", job.id, cost or 0.0)
+            else:
+                logger.error("Job %s billed as complete but produced no report content", job.id)
 
         except Exception:
             logger.exception("Error handling completion for job %s", job.id)

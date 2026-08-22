@@ -294,6 +294,12 @@ async def handle_load(session: ExpertChatSession, args: str, context: dict) -> C
     if not sid:
         return CommandResult(output="Usage: /load <session_id>", success=False)
     try:
+        from deepr.utils.security import validate_identifier
+
+        validate_identifier(sid, kind="session id")
+    except ValueError:
+        return CommandResult(output="Invalid session id", success=False)
+    try:
         from deepr.experts.profile import ExpertStore
 
         store = ExpertStore()

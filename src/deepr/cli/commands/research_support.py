@@ -27,6 +27,42 @@ def ensure_parent_dir(path: str) -> None:
         os.makedirs(parent, exist_ok=True)
 
 
+async def lookup_cancellable_job(queue: Any, job_id: str) -> tuple[Any, str | None]:
+    """Resolve a job that is still eligible for operator cancel."""
+    from deepr.queue.base import JobStatus
+
+    full_id = await resolve_job_id(queue, job_id)
+    if not full_id:
+        return None, "Job not found"
+    job = await queue.get_job(full_id)
+    if not job:
+        return None, "Job not found"
+    if job.status is JobStatus.COMPLETED:
+        return job, "Job already completed"
+    if job.status is JobStatus.FAILED:
+        return job, "Job already failed"
+    return job, None
+
+
+async def close_research_cancel(queue: Any, provider: Any, job: Any, default_provider: str) -> None:
+    """Cancel one research job and fail closed if queue or cost did not close."""
+    import click
+
+    from deepr.services.research_cancellation import cancel_reserved_research
+
+    outcome = await cancel_reserved_research(
+        queue=queue,
+        provider=provider,
+        job=job,
+        default_provider=default_provider,
+        source=f"cli.research.cancel.{job.id}",
+    )
+    if not outcome.queue_cancelled:
+        raise click.ClickException("Job cancellation could not be confirmed; local state was unchanged")
+    if not outcome.confirmed:
+        raise click.ClickException("Job was cancelled, but cost or cleanup closure could not be confirmed")
+
+
 async def resolve_job_id(queue: Any, maybe_prefix: str) -> str | None:
     """Resolve a full job ID or an unambiguous prefix from the queue."""
     if len(maybe_prefix) >= 32:

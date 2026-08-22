@@ -491,47 +491,18 @@ def cancel(job_id: str, yes: bool):
         from deepr.config import load_config
         from deepr.providers import create_provider
         from deepr.queue import create_queue
-        from deepr.queue.base import JobStatus
 
         config = load_config()
         db_path = config.get("queue_db_path", "queue/research_queue.db")
         _ensure_parent_dir(db_path)
         queue = create_queue("local", db_path=db_path)
         provider = create_provider(config.get("provider", "openai"), api_key=config.get("api_key"))
+        default_provider = str(config.get("provider", "openai"))
 
-        async def cancel_job():
-            full_id = await _resolve_job_id(queue, job_id)
-            if not full_id:
-                return None, "Job not found"
-            job = await queue.get_job(full_id)
-            if not job:
-                return None, "Job not found"
-            if job.status is JobStatus.COMPLETED:
-                return job, "Job already completed"
-            if job.status is JobStatus.FAILED:
-                return job, "Job already failed"
-            return job, None
-
-        async def do_cancel(job):
-            if job.provider_job_id:
-                try:
-                    await provider.cancel_job(job.provider_job_id)
-                    console.print("[success]Cancelled at provider[/success]")
-                except Exception as e:
-                    console.print(f"   Warning: Could not cancel at provider: {e}")
-            await queue.update_status(job_id=job.id, status=JobStatus.FAILED, error="Cancelled by user")
-
-        # Single event loop spans the lookup AND the cancel so the
-        # sqlite queue / aiohttp provider connections opened during
-        # lookup stay valid for the cancel call. The previous
-        # ``asyncio.run`` per step closed the loop between them,
-        # binding any reused stateful objects to a now-closed loop
-        # and intermittently raising "got Future attached to a
-        # different loop".
         loop = asyncio.new_event_loop()
         try:
             asyncio.set_event_loop(loop)
-            job, error = loop.run_until_complete(cancel_job())
+            job, error = loop.run_until_complete(research_support.lookup_cancellable_job(queue, job_id))
             if error:
                 print_error(error)
                 raise click.Abort()
@@ -548,7 +519,7 @@ def cancel(job_id: str, yes: bool):
                 return
 
             print_success("Cancelling job...")
-            loop.run_until_complete(do_cancel(job))
+            loop.run_until_complete(research_support.close_research_cancel(queue, provider, job, default_provider))
             print_success("Job cancelled successfully!")
         finally:
             loop.close()

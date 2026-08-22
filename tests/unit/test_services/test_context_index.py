@@ -243,6 +243,8 @@ class TestExplicitContext:
         result = context_index.get_report_by_job_id("test-job")
         assert result is not None
         assert result.job_id == metadata["job_id"]
+        assert context_index.get_report_by_job_id("test-job", allow_prefix=False) is None
+        assert context_index.get_report_by_job_id(metadata["job_id"], allow_prefix=False) is not None
 
     def test_get_report_content(self, context_index, sample_report):
         """Test getting report content for context injection."""

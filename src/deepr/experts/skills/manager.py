@@ -40,9 +40,11 @@ class SkillManager:
             # would scan ``data/etc/skills`` (or whatever the traversal
             # target resolves to) for skill manifests.
             try:
-                from deepr.utils.security import sanitize_name
+                from deepr.utils.security import reserved_windows_device_stem, sanitize_name
 
                 safe_name = sanitize_name(expert_name)
+                if reserved_windows_device_stem(safe_name):
+                    raise ValueError("reserved Windows device name")
             except Exception:
                 logger.warning("Skipping expert-local skills for invalid name %r", expert_name)
                 return

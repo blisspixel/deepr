@@ -4,6 +4,7 @@ import asyncio
 from pathlib import Path
 
 from ..providers.base import DeepResearchProvider, VectorStore
+from ..utils.security import reserved_windows_device_stem
 
 
 class DocumentManager:
@@ -32,12 +33,12 @@ class DocumentManager:
             path = Path(path_str)
             if ".." in path.parts:
                 raise ValueError(f"Document path must not contain parent segments: {path}")
+            if any(reserved_windows_device_stem(part) for part in path.parts):
+                raise ValueError(f"Document path uses a reserved Windows device name: {path}")
 
-            # Validate file exists (non-blocking for async context)
-            if not await asyncio.to_thread(path.exists):
+            if not await asyncio.to_thread(path.is_file):
                 raise FileNotFoundError(f"Document not found: {path}")
 
-            # Upload to provider
             file_id = await provider.upload_document(str(path))
             file_ids.append(file_id)
 

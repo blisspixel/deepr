@@ -739,6 +739,14 @@ class DeeprMCPServer:
 
         return await self._expert_absorb_authorized(expert_name, report_id, min_confidence, dry_run, ceiling)
 
+    def _owned_absorb_report_text(self, report_id: str) -> str | None:
+        from deepr.services.context_index import ContextIndex
+
+        state = self.resource_handler.jobs.get_state(report_id)
+        if not current_mcp_request_can_access_owner(state.owner_id if state else None):
+            return None
+        return ContextIndex().get_report_content(report_id, max_chars=100000, allow_prefix=False)
+
     async def _expert_absorb_authorized(
         self,
         expert_name: str,
@@ -754,7 +762,6 @@ class DeeprMCPServer:
             ReportAbsorberError,
             absorption_result_cost,
         )
-        from deepr.services.context_index import ContextIndex
 
         with expert_verb_lock(expert_name, "absorb") as acquired:
             if not acquired:
@@ -769,8 +776,7 @@ class DeeprMCPServer:
                 expert = self.store.load(expert_name)
                 if not expert:
                     return _make_error("EXPERT_NOT_FOUND", f"Expert '{expert_name}' not found")
-
-                report_text = ContextIndex().get_report_content(report_id, max_chars=100000)
+                report_text = self._owned_absorb_report_text(report_id)
                 if not report_text:
                     return _make_error("REPORT_NOT_FOUND", f"No report found for id '{report_id}'")
 

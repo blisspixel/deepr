@@ -75,6 +75,41 @@ def pinned_get(
     **kwargs: Any,
 ) -> requests.Response:
     """GET without redirects through prevalidated addresses and optional failover."""
+    return _pinned_send(
+        "GET",
+        url,
+        address_failover=address_failover,
+        redact_request_target=redact_request_target,
+        **kwargs,
+    )
+
+
+def pinned_head(
+    url: str,
+    *,
+    address_failover: bool = True,
+    redact_request_target: bool = False,
+    **kwargs: Any,
+) -> requests.Response:
+    """HEAD without redirects through prevalidated addresses and optional failover."""
+    return _pinned_send(
+        "HEAD",
+        url,
+        address_failover=address_failover,
+        redact_request_target=redact_request_target,
+        **kwargs,
+    )
+
+
+def _pinned_send(
+    method: str,
+    url: str,
+    *,
+    address_failover: bool = True,
+    redact_request_target: bool = False,
+    **kwargs: Any,
+) -> requests.Response:
+    """Issue one method without redirects through prevalidated addresses."""
     if kwargs.get("allow_redirects", False):
         raise ValueError("pinned fetches require caller-managed redirects")
     kwargs["allow_redirects"] = False
@@ -85,6 +120,7 @@ def pinned_get(
     headers["Host"] = parsed.netloc
     last_error: requests.RequestException | None = None
     attempted_addresses = addresses if address_failover else addresses[:1]
+    verb = method.upper()
     for address in attempted_addresses:
         session = requests.Session()
         session.trust_env = False
@@ -99,7 +135,10 @@ def pinned_get(
         )
         redaction_token = _REDACT_REQUEST_TARGET.set(redact_request_target)
         try:
-            response = session.get(url, headers=headers, **kwargs)
+            if verb == "GET":
+                response = session.get(url, headers=headers, **kwargs)
+            else:
+                response = session.request(verb, url, headers=headers, **kwargs)
         except requests.RequestException as exc:
             last_error = exc
             session.close()

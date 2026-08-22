@@ -303,7 +303,7 @@ class StreamingHttpTransport:
             return False
         try:
             return hmac.compare_digest(provided, token)
-        except TypeError:
+        except (TypeError, ValueError):
             return False
 
     def _authenticate_request(self, request: "web.Request") -> tuple[ScopedMCPKeyContext | None, web.Response | None]:

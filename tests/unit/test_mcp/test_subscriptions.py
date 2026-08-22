@@ -79,6 +79,8 @@ class TestResourceURI:
         assert parse_resource_uri("deepr://unknown/id/sub") is None
         assert parse_resource_uri("deepr://campaigns/") is None
         assert parse_resource_uri("") is None
+        assert parse_resource_uri("deepr://reports/CON/final.md") is None
+        assert parse_resource_uri("deepr://logs/NUL/search_trace.json") is None
 
     def test_uri_reconstruction(self):
         """URI should reconstruct correctly."""

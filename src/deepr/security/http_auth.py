@@ -7,9 +7,12 @@ access unless an operator explicitly enabled loopback-only compatibility.
 
 from __future__ import annotations
 
+import hashlib
 import hmac
 import os
 from enum import Enum
+
+_DASHBOARD_COOKIE_SALT = b"deepr-dashboard-cookie-v1"
 
 from deepr.utils.security import is_loopback_bind_host
 
@@ -34,6 +37,25 @@ def presented_http_secret(authorization: str, api_key: str = "") -> str:
     return api_key
 
 
+def dashboard_cookie_token(configured_secret: str) -> str:
+    """Derive an HttpOnly cookie value from the dashboard shared secret."""
+    if not configured_secret:
+        return ""
+    return hmac.new(configured_secret.encode("utf-8"), _DASHBOARD_COOKIE_SALT, hashlib.sha256).hexdigest()
+
+
+def presented_secret_from_dashboard_cookie(*, cookie_value: str, configured_secret: str) -> str:
+    """Return the configured secret when the dashboard cookie matches."""
+    expected = dashboard_cookie_token(configured_secret)
+    if not expected or not cookie_value:
+        return ""
+    try:
+        valid = hmac.compare_digest(cookie_value, expected)
+    except (TypeError, ValueError):
+        return ""
+    return configured_secret if valid else ""
+
+
 def check_shared_secret(
     *,
     configured_secret: str,
@@ -50,6 +72,6 @@ def check_shared_secret(
         return SharedSecretDecision.UNAUTHORIZED
     try:
         valid = hmac.compare_digest(presented_secret, configured_secret)
-    except TypeError:
+    except (TypeError, ValueError):
         valid = False
     return SharedSecretDecision.ALLOW if valid else SharedSecretDecision.UNAUTHORIZED

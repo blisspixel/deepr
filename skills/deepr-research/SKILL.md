@@ -6,7 +6,7 @@ description: |
   analysis, a research cost preview, a domain expert or expert council, or
   inspection of durable beliefs, gaps, confidence, and provenance.
 metadata:
-  deepr-version: "2.50.1"
+  deepr-version: "2.50.2"
   deepr-mcp-server: "deepr"
 ---
 

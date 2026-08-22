@@ -736,13 +736,14 @@ class ContextIndex:
 
         return filtered
 
-    def get_report_by_job_id(self, job_id: str) -> SearchResult | None:
+    def get_report_by_job_id(self, job_id: str, *, allow_prefix: bool = True) -> SearchResult | None:
         """Get a specific report by job ID.
 
         Used by --context flag (6.3) to fetch explicit context.
 
         Args:
             job_id: The job ID to look up (can be prefix)
+            allow_prefix: When False, only an exact job_id match is returned.
 
         Returns:
             SearchResult if found, None otherwise
@@ -762,11 +763,14 @@ class ContextIndex:
         # Escape SQL LIKE wildcards in the caller-controlled prefix so a value
         # like "%" or "_" is treated literally and cannot match every/any
         # report. The backslash is the ESCAPE character.
-        like_prefix = job_id.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        cursor.execute(
-            "SELECT * FROM reports WHERE job_id = ? OR job_id LIKE ? ESCAPE '\\'",
-            (job_id, f"{like_prefix}%"),
-        )
+        if allow_prefix:
+            like_prefix = job_id.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            cursor.execute(
+                "SELECT * FROM reports WHERE job_id = ? OR job_id LIKE ? ESCAPE '\\'",
+                (job_id, f"{like_prefix}%"),
+            )
+        else:
+            cursor.execute("SELECT * FROM reports WHERE job_id = ?", (job_id,))
         row = cursor.fetchone()
         conn.close()
 
@@ -784,7 +788,7 @@ class ContextIndex:
             summary=row["summary"],
         )
 
-    def get_report_content(self, job_id: str, max_chars: int = 8000) -> str | None:
+    def get_report_content(self, job_id: str, max_chars: int = 8000, *, allow_prefix: bool = True) -> str | None:
         """Get the content of a report for context injection.
 
         Args:
@@ -794,7 +798,7 @@ class ContextIndex:
         Returns:
             Report content as string, or None if not found
         """
-        result = self.get_report_by_job_id(job_id)
+        result = self.get_report_by_job_id(job_id, allow_prefix=allow_prefix)
         if not result:
             return None
 
