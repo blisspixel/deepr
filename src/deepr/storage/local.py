@@ -1,11 +1,14 @@
 """Local filesystem storage implementation."""
 
+import json
 import re
 import shutil
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from deepr.utils.atomic_io import atomic_write_bytes, atomic_write_json
 from deepr.utils.security import InvalidInputError, PathTraversalError
 
 from .base import ReportMetadata, StorageBackend, StorageError
@@ -70,7 +73,13 @@ class LocalStorage(StorageBackend):
         Raises:
             StorageError: If filename contains directory separators
         """
-        if not filename or not filename.strip() or filename in {".", ".."} or "\x00" in filename:
+        if (
+            not filename
+            or not filename.strip()
+            or filename in {".", ".."}
+            or "\x00" in filename
+            or filename.casefold() == "metadata.json"
+        ):
             raise StorageError(
                 message=f"Invalid filename: {filename!r}",
                 storage_type="local",
@@ -106,7 +115,7 @@ class LocalStorage(StorageBackend):
         return len(cls._readable_lookup_suffix(job_id)) >= 8
 
     def _find_readable_dir(self, root: Path, job_id: str, *, skip_campaigns: bool = False) -> Path | None:
-        """Find a generated readable directory by its stable suffix."""
+        """Find a generated readable directory with matching stored identity."""
         if not root.exists() or not self._can_use_readable_dirname(job_id):
             return None
 
@@ -117,8 +126,49 @@ class LocalStorage(StorageBackend):
             if skip_campaigns and dir_path.name == "campaigns":
                 continue
             if dir_path.name.endswith(suffix):
-                return dir_path
+                try:
+                    safe_dir = self._ensure_within_base(job_id, dir_path)
+                except StorageError:
+                    continue
+                if self._stored_job_id(safe_dir) == job_id:
+                    return safe_dir
         return None
+
+    @staticmethod
+    def _stored_job_id(job_dir: Path) -> str | None:
+        """Read the authoritative job id from a report directory, if valid."""
+        try:
+            payload = json.loads((job_dir / "metadata.json").read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError, UnicodeError):
+            return None
+        if not isinstance(payload, dict):
+            return None
+        job_id = payload.get("job_id")
+        return job_id if isinstance(job_id, str) and job_id else None
+
+    def _iter_job_dirs(self) -> Iterator[Path]:
+        """Yield regular and campaign job directories without the campaign container."""
+        for entry in self.base_path.iterdir():
+            if not entry.is_dir():
+                continue
+            if entry.name != "campaigns":
+                yield self._ensure_within_base(entry.name, entry)
+                continue
+            campaigns_root = self._ensure_within_base("campaigns", entry)
+            for campaign_dir in campaigns_root.iterdir():
+                if campaign_dir.is_dir():
+                    yield self._ensure_within_base(campaign_dir.name, campaign_dir)
+
+    def _iter_report_files(self, job_dir: Path) -> Iterator[Path]:
+        """Yield user-facing report files while excluding internal metadata."""
+        for report_path in job_dir.iterdir():
+            if report_path.name == "metadata.json" or report_path.is_symlink() or not report_path.is_file():
+                continue
+            try:
+                report_path.resolve().relative_to(self.base_path.resolve())
+            except ValueError:
+                continue
+            yield report_path
 
     def _ensure_within_base(self, job_id: str, job_dir: Path) -> Path:
         """Resolve and validate a job directory without allowing path escape."""
@@ -259,38 +309,59 @@ class LocalStorage(StorageBackend):
             job_dir = self._get_job_dir(job_id)
 
             # If directory doesn't exist, create with readable name
-            if not job_dir.exists() and metadata and "prompt" in metadata and self._can_use_readable_dirname(job_id):
-                prompt = metadata["prompt"]
+            prompt = metadata.get("prompt") if metadata else None
+            if (
+                not job_dir.exists()
+                and isinstance(prompt, str)
+                and prompt.strip()
+                and self._can_use_readable_dirname(job_id)
+            ):
                 is_campaign = job_id.startswith("campaign-")
                 readable_name = self._create_readable_dirname(job_id, prompt, is_campaign)
 
                 # Use campaigns subfolder for campaigns
                 if is_campaign:
-                    job_dir = self.campaigns_path / readable_name
+                    readable_dir = self.campaigns_path / readable_name
                 else:
-                    job_dir = self.base_path / readable_name
+                    readable_dir = self.base_path / readable_name
+
+                # A shortened suffix is for readability, not identity. If the
+                # candidate belongs to another job, keep the collision-free
+                # direct path selected by _get_job_dir.
+                if not readable_dir.exists() or self._stored_job_id(readable_dir) == job_id:
+                    job_dir = self._ensure_within_base(job_id, readable_dir)
+
+            validated_filename = self._validate_filename(filename)
+            report_path = job_dir / validated_filename
+            metadata_content: dict[str, Any] | None = None
+            if metadata:
+                metadata_content = {
+                    **metadata,
+                    "job_id": job_id,
+                    "created_at": datetime.now(UTC).isoformat(),
+                    "filename": validated_filename,
+                    "content_type": content_type,
+                    "size_bytes": len(content),
+                }
+                try:
+                    json.dumps(metadata_content)
+                except (TypeError, ValueError) as exc:
+                    raise StorageError(
+                        message="Invalid report metadata: values must be JSON serializable",
+                        storage_type="local",
+                        original_error=exc,
+                    ) from exc
 
             # Create directory
             job_dir.mkdir(parents=True, exist_ok=True)
 
-            # Write report file (validate filename to prevent path traversal)
-            validated_filename = self._validate_filename(filename)
-            report_path = job_dir / validated_filename
-            report_path.write_bytes(content)
+            # Replace complete files atomically so readers never observe a
+            # partial report while a repeated save is in progress.
+            atomic_write_bytes(report_path, content)
 
             # Save metadata.json if metadata provided
-            if metadata:
+            if metadata_content is not None:
                 metadata_path = job_dir / "metadata.json"
-                metadata_content = {
-                    "job_id": job_id,
-                    "created_at": datetime.now(UTC).isoformat(),
-                    "filename": filename,
-                    "content_type": content_type,
-                    "size_bytes": len(content),
-                    **metadata,  # Include all additional metadata
-                }
-                from deepr.utils.atomic_io import atomic_write_json
-
                 atomic_write_json(metadata_path, metadata_content)
 
             # Get file stats
@@ -342,14 +413,32 @@ class LocalStorage(StorageBackend):
                 if not job_dir.exists():
                     return []
 
-                for report_path in job_dir.iterdir():
-                    if report_path.is_file():
+                for report_path in self._iter_report_files(job_dir):
+                    stat = report_path.stat()
+                    format_ext = report_path.suffix.lstrip(".")
+
+                    reports.append(
+                        ReportMetadata(
+                            job_id=job_id,
+                            filename=report_path.name,
+                            format=format_ext,
+                            size_bytes=stat.st_size,
+                            created_at=datetime.fromtimestamp(stat.st_mtime, tz=UTC),
+                            url=str(report_path),
+                            content_type=self.get_content_type(report_path.name),
+                        )
+                    )
+            else:
+                # List all reports
+                for job_dir in self._iter_job_dirs():
+                    stored_job_id = self._stored_job_id(job_dir) or job_dir.name
+                    for report_path in self._iter_report_files(job_dir):
                         stat = report_path.stat()
                         format_ext = report_path.suffix.lstrip(".")
 
                         reports.append(
                             ReportMetadata(
-                                job_id=job_id,
+                                job_id=stored_job_id,
                                 filename=report_path.name,
                                 format=format_ext,
                                 size_bytes=stat.st_size,
@@ -358,26 +447,6 @@ class LocalStorage(StorageBackend):
                                 content_type=self.get_content_type(report_path.name),
                             )
                         )
-            else:
-                # List all reports
-                for job_dir in self.base_path.iterdir():
-                    if job_dir.is_dir():
-                        for report_path in job_dir.iterdir():
-                            if report_path.is_file():
-                                stat = report_path.stat()
-                                format_ext = report_path.suffix.lstrip(".")
-
-                                reports.append(
-                                    ReportMetadata(
-                                        job_id=job_dir.name,
-                                        filename=report_path.name,
-                                        format=format_ext,
-                                        size_bytes=stat.st_size,
-                                        created_at=datetime.fromtimestamp(stat.st_mtime, tz=UTC),
-                                        url=str(report_path),
-                                        content_type=self.get_content_type(report_path.name),
-                                    )
-                                )
 
             return reports
 
@@ -434,28 +503,28 @@ class LocalStorage(StorageBackend):
 
     async def cleanup_old_reports(self, days: int = 30) -> int:
         """Delete reports older than specified days."""
+        if isinstance(days, bool) or not isinstance(days, int) or days < 0:
+            error = InvalidInputError("Retention days must be a non-negative integer")
+            raise StorageError(message=f"Invalid retention: {error}", storage_type="local", original_error=error)
         try:
             cutoff_date = datetime.now(UTC) - timedelta(days=days)
             deleted_count = 0
 
-            for job_dir in self.base_path.iterdir():
-                if not job_dir.is_dir():
-                    continue
+            for job_dir in self._iter_job_dirs():
+                report_files = list(self._iter_report_files(job_dir))
+                for report_path in report_files:
+                    mtime = datetime.fromtimestamp(report_path.stat().st_mtime, tz=UTC)
+                    if mtime < cutoff_date:
+                        report_path.unlink()
+                        deleted_count += 1
 
-                # Check if all files in job directory are old
-                all_old = True
-                for report_path in job_dir.iterdir():
-                    if report_path.is_file():
-                        mtime = datetime.fromtimestamp(report_path.stat().st_mtime, tz=UTC)
-                        if mtime >= cutoff_date:
-                            all_old = False
-                            break
-
-                # Delete entire job directory if all files are old
-                if all_old:
-                    file_count = len(list(job_dir.iterdir()))
-                    shutil.rmtree(job_dir)
-                    deleted_count += file_count
+                if report_files and not any(self._iter_report_files(job_dir)):
+                    (job_dir / "metadata.json").unlink(missing_ok=True)
+                    try:
+                        job_dir.rmdir()
+                    except OSError:
+                        # Preserve directories containing unrecognized files.
+                        pass
 
             return deleted_count
 

@@ -1,11 +1,19 @@
 # Supported Surface
 
-Status: v2.50.5 current main, 2026-08-22. This document defines what users and host
+Status: v2.50.6 current main, 2026-08-22. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
 path is structurally complete but remains execution-blocked without verified
 provider prepaid-no-overage or hard-stop evidence.
+
+**v2.50.6 keeps local report identity and retention deterministic.** Readable
+directory lookup verifies the complete stored job ID, trusted metadata fields
+cannot be replaced by caller metadata, and report files are replaced atomically.
+Listing includes campaign reports without exposing internal metadata sidecars.
+Retention operates per report, preserves fresh campaigns, and rejects negative
+thresholds. Optional quota observations treat malformed or non-finite values as
+unavailable and cannot restore a stale snapshot after a failed forced refresh.
 
 **v2.50.5 bounds acquisition proposals before execution.** Model-proposed
 search plans accept only strings, remove case-insensitive duplicates, and run
