@@ -669,9 +669,10 @@ def test_finalize_completed_job_settles_before_queue_result_write():
 
 
 def test_spa_nested_route_is_http_200(client, monkeypatch):
-    monkeypatch.setattr(web_app, "_check_auth", lambda: None)
+    monkeypatch.setattr(web_app, "render_template", lambda *_args, **_kwargs: "spa")
     response = client.get("/experts/fixture-expert")
     assert response.status_code == 200
+    assert response.get_data(as_text=True) == "spa"
 
 
 def test_portrait_route_rejects_windows_device_name(client, monkeypatch):
