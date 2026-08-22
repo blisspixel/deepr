@@ -61,7 +61,8 @@ def test_path_traversal_still_rejected():
 def test_reserved_windows_device_names_rejected():
     with pytest.raises(InvalidInputError, match="reserved Windows device"):
         expert_slug("CON")
-    decoded, error = _decode_expert_name("NUL")
+    with web_app.app.app_context():
+        decoded, error = _decode_expert_name("NUL")
     assert decoded is None
     assert error is not None
 
