@@ -79,17 +79,23 @@ def sanitize_string(value: str, max_length: int = 1000) -> str:
 
 
 def validate_api_key(request) -> bool:
-    """Validate API key from request headers."""
+    """Validate API key from request headers. Missing secrets deny access."""
+    import hmac
+
     if not API_KEY:
-        return True  # No API key configured, allow all
+        return False
+
+    def _matches(provided: str) -> bool:
+        try:
+            return hmac.compare_digest(provided, API_KEY)
+        except (TypeError, ValueError):
+            return False
 
     auth_header = request.headers.get("Authorization", "")
-    if auth_header.startswith("Bearer "):
-        token = auth_header[7:]
-        return token == API_KEY
-
+    if isinstance(auth_header, str) and auth_header.startswith("Bearer ") and _matches(auth_header[7:]):
+        return True
     api_key_header = request.headers.get("X-Api-Key", "")
-    return api_key_header == API_KEY
+    return isinstance(api_key_header, str) and _matches(api_key_header)
 
 
 def response(status_code: int, body: dict):

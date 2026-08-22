@@ -80,14 +80,15 @@ UUID_PATTERN = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-
 
 
 def get_api_key() -> str:
-    """Retrieve API key from Key Vault (cached)."""
+    """Retrieve API key from Key Vault (cached). Empty or vault errors stay uncached."""
     global _api_key_cache
-    if _api_key_cache is None:
-        try:
-            secret = kv_client.get_secret("deepr-api-key")
-            _api_key_cache = secret.value
-        except Exception:
-            _api_key_cache = ""
+    if _api_key_cache:
+        return _api_key_cache
+    secret = kv_client.get_secret("deepr-api-key")
+    value = getattr(secret, "value", None)
+    if not isinstance(value, str) or not value:
+        raise RuntimeError("deepr-api-key is empty")
+    _api_key_cache = value
     return _api_key_cache
 
 
@@ -106,18 +107,27 @@ def sanitize_string(value: str, max_length: int = 1000) -> str:
 
 
 def validate_api_key(req: func.HttpRequest) -> bool:
-    """Validate API key from request headers."""
-    api_key = get_api_key()
+    """Validate API key from request headers. Missing secrets deny access."""
+    import hmac
+
+    try:
+        api_key = get_api_key()
+    except Exception:
+        return False
     if not api_key:
-        return True  # No API key configured, allow all
+        return False
+
+    def _matches(provided: str) -> bool:
+        try:
+            return hmac.compare_digest(provided, api_key)
+        except (TypeError, ValueError):
+            return False
 
     auth_header = req.headers.get("Authorization", "")
-    if auth_header.startswith("Bearer "):
-        token = auth_header[7:]
-        return token == api_key
-
+    if isinstance(auth_header, str) and auth_header.startswith("Bearer ") and _matches(auth_header[7:]):
+        return True
     api_key_header = req.headers.get("X-Api-Key", "")
-    return api_key_header == api_key
+    return isinstance(api_key_header, str) and _matches(api_key_header)
 
 
 def response(status_code: int, body: dict) -> func.HttpResponse:

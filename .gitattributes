@@ -4,3 +4,4 @@ src/deepr/web/frontend/frontend-dist.zip binary
 docs/schemas/vendor/** text eol=lf
 docs/standards/** text eol=lf
 packages/deepr-agent-plugin/** text eol=lf
+tests/fixtures/hosts/** text eol=lf

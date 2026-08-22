@@ -1,6 +1,6 @@
 # Deployment References
 
-Deepr v2.40 is CLI and local first. The files under `deploy/` are architecture
+Deepr is CLI and local first. The files under `deploy/` are architecture
 references and local validation fixtures. They are not a supported cloud
 deployment surface.
 
@@ -37,7 +37,9 @@ cost.
 
 The hosted research handlers independently reject submission before request
 parsing, job writes, queue writes, or provider construction. They do not solve
-cloud infrastructure billing.
+cloud infrastructure billing. Protected legacy endpoints also fail closed when
+their API secret is missing, empty, or unreadable; health checks and CORS
+preflight remain public.
 
 ## Future hosted acceptance gate
 

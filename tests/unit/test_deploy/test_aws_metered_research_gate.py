@@ -37,10 +37,15 @@ class _ClientError(Exception):
     """Minimal botocore ClientError stand-in for dependency-free module loading."""
 
 
+class _BotoCoreError(Exception):
+    """Minimal botocore base error stand-in for dependency-free module loading."""
+
+
 def _load(path: Path, name: str, monkeypatch: pytest.MonkeyPatch) -> ModuleType:
     monkeypatch.setitem(sys.modules, "boto3", _Boto3Stub())
     botocore = ModuleType("botocore")
     exceptions = ModuleType("botocore.exceptions")
+    exceptions.BotoCoreError = _BotoCoreError  # type: ignore[attr-defined]
     exceptions.ClientError = _ClientError  # type: ignore[attr-defined]
     botocore.exceptions = exceptions  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "botocore", botocore)
@@ -50,6 +55,21 @@ def _load(path: Path, name: str, monkeypatch: pytest.MonkeyPatch) -> ModuleType:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def test_api_auth_fails_closed_for_missing_or_malformed_secret(monkeypatch: pytest.MonkeyPatch) -> None:
+    api = _load(API_HANDLER, "deepr_aws_api_auth_test", monkeypatch)
+    event = {"headers": {"Authorization": "Bearer secret"}}
+
+    monkeypatch.setattr(api, "get_secrets", lambda: {})
+    assert api.validate_api_key(event) is False
+    monkeypatch.setattr(api, "get_secrets", lambda: {"DEEPR_API_KEY": 123})
+    assert api.validate_api_key(event) is False
+    monkeypatch.setattr(api, "get_secrets", MagicMock(side_effect=_BotoCoreError("unavailable")))
+    assert api.validate_api_key(event) is False
+    monkeypatch.setattr(api, "get_secrets", lambda: {"DEEPR_API_KEY": "secret"})
+    assert api.validate_api_key(event) is True
+    assert api.validate_api_key({"headers": {"Authorization": 123}}) is False
 
 
 def test_api_rejects_submission_before_parsing_or_durable_writes(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -147,7 +167,7 @@ def test_api_and_worker_publish_the_same_dependency_local_gate(monkeypatch: pyte
 def test_aws_validation_proves_the_gate_without_enqueuing_a_job() -> None:
     script = AWS_VALIDATE.read_text(encoding="utf-8")
 
-    assert "BLOCKED: hosted cloud validation is reference-only in v2.40" in script
+    assert "BLOCKED: hosted cloud validation is reference-only in the current release" in script
     assert "cannot enforce the operator's total dollar ceiling" in script
     assert "cannot contact AWS, an HTTP endpoint, or a provider" in script
     assert "exit 2" in script

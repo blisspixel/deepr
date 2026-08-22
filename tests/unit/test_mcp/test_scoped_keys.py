@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 
 import pytest
 
+import deepr.mcp.security.scoped_keys as scoped_keys_module
 from deepr.mcp.search.registry import create_default_registry
 from deepr.mcp.security.scoped_keys import (
     RemoteMCPAuditEvent,
@@ -66,6 +70,37 @@ class TestScopedMCPKeyStore:
         else:
             raise AssertionError("duplicate key id was accepted")
 
+    def test_concurrent_store_mutation_reloads_after_interprocess_lock(self, tmp_path, monkeypatch):
+        path = tmp_path / "keys.json"
+        entered_lock = threading.Event()
+        release_lock = threading.Event()
+
+        class PausingFileLock:
+            def __init__(self, _path, *, timeout):
+                assert timeout == 10
+
+            def __enter__(self):
+                entered_lock.set()
+                assert release_lock.wait(timeout=5)
+                return self
+
+            def __exit__(self, exc_type, exc, traceback):
+                return False
+
+        monkeypatch.setattr(scoped_keys_module, "FileLock", PausingFileLock)
+        monkeypatch.setattr(scoped_keys_module, "_hash_secret", lambda _secret: "test-hash")
+        store = ScopedMCPKeyStore(path)
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(store.create_key, "second", secret="second-secret")
+            assert entered_lock.wait(timeout=5)
+            first = scoped_keys_module.ScopedMCPKeyRecord(key_id="first", secret_hash="test-hash")
+            path.write_text(json.dumps([first.to_dict()]), encoding="utf-8")
+            release_lock.set()
+            future.result(timeout=5)
+
+        assert [record.key_id for record in store.list_keys()] == ["first", "second"]
+
 
 class TestScopedMCPAuthorization:
     def test_read_only_key_blocks_sensitive_and_write_tools(self):
@@ -112,6 +147,37 @@ class TestScopedMCPAuthorization:
         assert outside.error_code == "EXPERT_SCOPE_DENIED"
         assert not list_all.allowed
         assert list_all.error_code == "EXPERT_SCOPE_REQUIRED"
+
+    def test_expert_allowlist_blocks_unscoped_research_and_skill_listing(self):
+        context = ScopedMCPKeyContext("agent", ResearchMode.UNRESTRICTED, ("alpha",))
+
+        research = authorize_scoped_mcp_tool_call(context, "deepr_research", {"prompt": "q", "_approved": True})
+        skills = authorize_scoped_mcp_tool_call(context, "deepr_list_skills", {})
+        owned_skills = authorize_scoped_mcp_tool_call(context, "deepr_list_skills", {"expert_name": "alpha"})
+
+        assert not research.allowed
+        assert research.error_code == "EXPERT_SCOPE_REQUIRED"
+        assert not skills.allowed
+        assert skills.error_code == "EXPERT_SCOPE_REQUIRED"
+        assert owned_skills.allowed
+
+    def test_expert_allowlist_constrains_agentic_research_by_required_expert(self):
+        context = ScopedMCPKeyContext("agent", ResearchMode.UNRESTRICTED, ("alpha",))
+
+        owned = authorize_scoped_mcp_tool_call(
+            context,
+            "deepr_agentic_research",
+            {"goal": "q", "expert_name": "alpha", "_approved": True},
+        )
+        other = authorize_scoped_mcp_tool_call(
+            context,
+            "deepr_agentic_research",
+            {"goal": "q", "expert_name": "beta", "_approved": True},
+        )
+
+        assert owned.allowed
+        assert not other.allowed
+        assert other.error_code == "EXPERT_SCOPE_DENIED"
 
     def test_expert_allowlist_constrains_consult_auto_selection(self):
         context = ScopedMCPKeyContext("agent", ResearchMode.UNRESTRICTED, ("alpha",))

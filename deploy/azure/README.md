@@ -1,7 +1,7 @@
 # Azure Research Service Reference
 
 This directory contains an inert placeholder plus legacy handler source for
-architecture review. It is not a supported deployment surface in v2.40. The
+architecture review. It is not a supported deployment surface in the current release. The
 deployable template remains available only in version control history.
 
 The historical design included Container Apps, Functions, storage,

@@ -2,7 +2,7 @@
 
 The checked-in CloudFormation file is mechanically inert. The historical design
 for ECS Fargate, HTTPS load balancing, and durable EFS state remains available
-in version control. Hosted AWS MCP is not supported in v2.40.
+in version control. Hosted AWS MCP is not supported in the current release.
 
 Fargate, the load balancer, EFS, CloudWatch, networking, certificates, and
 related services can create charges outside Deepr's cost ledger. The scoped MCP

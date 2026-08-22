@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import importlib.util
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -15,6 +16,15 @@ def _source(relative: str) -> str:
 def _function(relative: str, name: str) -> ast.FunctionDef:
     tree = ast.parse(_source(relative))
     return next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == name)
+
+
+def _shared_security_module():
+    path = REPO_ROOT / "deploy/shared/deepr_api_common/security.py"
+    spec = importlib.util.spec_from_file_location("test_deepr_api_common_security", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_env_loader_never_evaluates_values() -> None:
@@ -51,6 +61,36 @@ def test_legacy_azure_setup_fails_closed_without_cloud_or_file_operations() -> N
         command not in source
         for command in ("subprocess", "az group", "storage account create", "servicebus", "write_text", "input(")
     )
+
+
+def test_cloud_api_key_validators_fail_closed_when_secret_is_missing() -> None:
+    validate_api_key_from_headers = _shared_security_module().validate_api_key_from_headers
+
+    assert validate_api_key_from_headers("Bearer secret", "secret", "") is False
+    assert validate_api_key_from_headers(None, None, "") is False
+    assert validate_api_key_from_headers("Bearer secret", None, "secret") is True
+    assert validate_api_key_from_headers(123, object(), "secret") is False
+    assert validate_api_key_from_headers("Bearer 123", None, 123) is False
+    for relative in (
+        "deploy/azure/functions/function_app.py",
+        "deploy/gcp/functions/main.py",
+        "deploy/aws/src/api/handler.py",
+    ):
+        source = _source(relative)
+        assert "allow all" not in source
+        function_source = ast.get_source_segment(source, _function(relative, "validate_api_key")) or ""
+        assert "compare_digest" in function_source
+        assert "isinstance" in function_source
+        assert "return False" in function_source
+    azure_loader = (
+        ast.get_source_segment(
+            source := _source("deploy/azure/functions/function_app.py"),
+            _function("deploy/azure/functions/function_app.py", "get_api_key"),
+        )
+        or ""
+    )
+    assert '_api_key_cache = ""' not in azure_loader
+    assert "raise RuntimeError" in azure_loader
 
 
 def test_azure_and_gcp_submission_gates_precede_payload_and_queue_work() -> None:

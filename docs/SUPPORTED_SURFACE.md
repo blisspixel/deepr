@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.50.3 current main, 2026-08-21. This document defines what users and host
+Status: v2.50.4 current main, 2026-08-22. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -765,6 +765,10 @@ source text through the verified absorb path.
 - Remote MCP endpoints must use HTTPS outside loopback, scoped keys per agent,
   budget ceilings, deterministic estimates for metered tools, rate limits, and
   concurrency caps, plus audit review before widening key mode.
+- An expert allowlist is a hard data and execution boundary. It denies global
+  expert and skill discovery and generic research that has no expert target;
+  expert-targeted calls must name only allowlisted experts. Key creation,
+  authentication timestamps, and revocation are serialized across processes.
 - Edge ingress recipes must stay stateless pass-through guards. Scoped-key
   enforcement, budgets, rate limits, audit logs, and provider credentials stay
   on the Deepr origin.
