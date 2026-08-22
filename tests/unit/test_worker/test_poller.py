@@ -129,7 +129,7 @@ class TestJobPoller:
 
         mock_resp = MagicMock()
         mock_resp.status = "completed"
-        mock_resp.output = []
+        mock_resp.output = [{"type": "message", "content": [{"text": "Result text"}]}]
         mock_resp.usage = MagicMock(cost=1.0, total_tokens=5000)
         poller.provider.get_status.return_value = mock_resp
 
@@ -202,6 +202,34 @@ class TestJobPoller:
         await poller._handle_completion(mock_job, mock_resp)
         poller.storage.save_report.assert_called_once()
         poller.queue.update_results.assert_called_once()
+        poller.queue.update_status.assert_awaited_once_with("comp-job", JobStatus.COMPLETED)
+
+    @pytest.mark.asyncio
+    async def test_handle_completion_empty_report_fails_after_settlement(self, poller):
+        mock_job = MagicMock()
+        mock_job.id = "empty-job"
+        mock_job.prompt = "Test prompt"
+        mock_job.model = "o3"
+        mock_job.provider = "openai"
+        mock_job.provider_job_id = "pj"
+        mock_job.metadata = {}
+        mock_resp = MagicMock()
+        mock_resp.output = []
+        mock_resp.usage = MagicMock(cost=0.4, total_tokens=10)
+        reservation = MagicMock(estimated_cost=0.5)
+
+        with (
+            patch("deepr.worker.poller.restore_research_cost_reservation", return_value=reservation),
+            patch("deepr.worker.poller.settle_research_cost"),
+        ):
+            await poller._handle_completion(mock_job, mock_resp)
+
+        poller.storage.save_report.assert_not_called()
+        poller.queue.update_results.assert_awaited_once()
+        assert poller.queue.update_results.await_args.kwargs["report_paths"] == {}
+        status_call = poller.queue.update_status.await_args
+        assert status_call.args[0] == "empty-job"
+        assert status_call.args[1] == JobStatus.FAILED
 
     @pytest.mark.asyncio
     async def test_handle_completion_settles_persisted_cost_reservation(self, poller):
@@ -429,7 +457,7 @@ class TestJobPoller:
         mock_job.provider_job_id = "pj"
 
         mock_resp = MagicMock()
-        mock_resp.output = []
+        mock_resp.output = [{"type": "message", "content": [{"text": "Result text"}]}]
         mock_resp.usage = None
         poller.storage.save_report.side_effect = Exception("Storage down")
 

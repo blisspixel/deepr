@@ -346,7 +346,7 @@ class WebResearchCostCoordinator:
         # Settle before queue result writes. Both use job:{id}:completion;
         # writing the queue row first steals that key as research_job and
         # leaves the durable hold open after settlement conflicts.
-        self.settle_job(job, actual_cost=actual_cost, tokens=tokens or 0)
+        accounted_cost = self.settle_job(job, actual_cost=actual_cost, tokens=tokens or 0)
         if not self.reconcile_completed_job(job):
             raise RuntimeError(f"Canonical cost settlement missing for completed job {job.id}")
         if report_saved:
@@ -354,18 +354,18 @@ class WebResearchCostCoordinator:
                 queue.update_results(
                     job_id=job.id,
                     report_paths={"markdown": "report.md"},
-                    cost=actual_cost,
+                    cost=accounted_cost,
                     tokens_used=tokens,
                 )
             )
             loop.run_until_complete(queue.update_status(job_id=job.id, status=JobStatus.COMPLETED))
             return
-        if actual_cost is not None or tokens is not None:
+        if accounted_cost is not None or tokens is not None:
             loop.run_until_complete(
                 queue.update_results(
                     job_id=job.id,
                     report_paths={},
-                    cost=actual_cost,
+                    cost=accounted_cost,
                     tokens_used=tokens,
                 )
             )
@@ -380,7 +380,7 @@ class WebResearchCostCoordinator:
             )
         )
 
-    def settle_job(self, job: Any, *, actual_cost: float | None, tokens: int) -> None:
+    def settle_job(self, job: Any, *, actual_cost: float | None, tokens: int) -> float | None:
         """Settle actual cost, or the reserved estimate when usage is absent."""
         reservation = self._take(job)
         request_id = str(getattr(job, "provider_job_id", "") or "")
@@ -392,8 +392,8 @@ class WebResearchCostCoordinator:
                 request_id=request_id,
                 source="web.poller._handle_completion",
             )
-            return
-        record_unreserved_research_cost(
+            return float(actual_cost) if actual_cost is not None else reservation.estimated_cost
+        return record_unreserved_research_cost(
             job_id=str(job.id),
             provider=str(getattr(job, "provider", "") or "openai"),
             model=str(getattr(job, "model", "") or ""),

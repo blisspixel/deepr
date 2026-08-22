@@ -99,14 +99,52 @@ async def test_stale_queued_job_is_cancelled_and_refunded() -> None:
     )
     queue = MagicMock(
         get_job=AsyncMock(return_value=job),
-        cancel_job=AsyncMock(return_value=True),
+        cancel_queued_submission=AsyncMock(return_value=True),
     )
 
     count = await reconcile_research_cost_reservations(queue, default_provider="openai")
 
     assert count == 1
-    queue.cancel_job.assert_awaited_once_with("queued-orphan")
+    queue.cancel_queued_submission.assert_awaited_once_with("queued-orphan")
     assert store.active_cost() == 0.0
+
+
+@pytest.mark.asyncio
+async def test_stale_queued_job_is_not_refunded_after_dispatch_claim() -> None:
+    reservation = reserve_research_cost(
+        job_id="queued-raced",
+        provider="openai",
+        model="test-model",
+        estimate=CostEstimate(0.1, 0.3, 0.2, "test-model", "test"),
+        max_cost_per_job=1.0,
+        max_daily_cost=2.0,
+        max_monthly_cost=5.0,
+        manager=CostSafetyManager(),
+    )
+    store = ResearchReservationStore()
+    with sqlite3.connect(store.path) as connection:
+        connection.execute(
+            "UPDATE research_cost_reservations SET created_at = ? WHERE reservation_id = ?",
+            ((datetime.now(UTC) - timedelta(minutes=20)).isoformat(), reservation.reservation_id),
+        )
+    job = ResearchJob(
+        id=reservation.job_id,
+        prompt="test",
+        model="test-model",
+        status=JobStatus.QUEUED,
+        metadata=reservation.metadata(),
+    )
+    queue = MagicMock(
+        get_job=AsyncMock(return_value=job),
+        cancel_queued_submission=AsyncMock(return_value=False),
+        cancel_job=AsyncMock(return_value=True),
+    )
+
+    count = await reconcile_research_cost_reservations(queue, default_provider="openai")
+
+    assert count == 0
+    queue.cancel_job.assert_not_awaited()
+    assert store.active_cost() == pytest.approx(0.3)
 
 
 @pytest.mark.asyncio

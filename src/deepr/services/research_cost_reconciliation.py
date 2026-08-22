@@ -42,7 +42,7 @@ async def _refund_stale_queued_reservation(
     default_provider: str,
 ) -> int:
     """Cancel and refund one stale job that provably never reached a provider."""
-    if age < timedelta(minutes=15) or not await queue.cancel_job(job.id):
+    if age < timedelta(minutes=15) or not await queue.cancel_queued_submission(job.id):
         return 0
     refund_research_cost(
         ResearchCostReservation(

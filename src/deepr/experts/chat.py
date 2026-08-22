@@ -2413,14 +2413,16 @@ Budget remaining: ${budget_remaining:.2f}
         Returns:
             Session ID
         """
-        import re
         import uuid
 
         if not session_id:
             session_id = f"{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
 
-        # Sanitize session_id to prevent path traversal
-        if not re.match(r"^[\w\-]+$", session_id):
+        from deepr.utils.security import validate_identifier
+
+        try:
+            validate_identifier(session_id, kind="session id")
+        except ValueError:
             session_id = f"{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
 
         # Get conversations directory

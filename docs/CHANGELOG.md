@@ -23,6 +23,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   load. Portraits stay public when no secret is configured.
 - MCP report and log resource ids reject reserved Windows device names.
 - Document upload rejects reserved Windows device names and non-files.
+- Stale-hold reconciliation cancels only still-queued submissions, so a
+  dispatch race cannot refund after the provider has accepted work.
+- `deepr research cancel` closes the reservation through the same cost-safe
+  canceller as `deepr jobs cancel`.
+- Worker empty provider completions settle conservatively and mark FAILED
+  instead of COMPLETED with a blank report.
+- Web completion writes the accounted settlement amount onto the queue row
+  when provider usage is missing.
+- Expert chat session ids reject reserved Windows device names.
 
 ## [2.50.1] - 2026-08-22
 

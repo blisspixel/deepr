@@ -513,21 +513,20 @@ def cancel(job_id: str, yes: bool):
             return job, None
 
         async def do_cancel(job):
-            if job.provider_job_id:
-                try:
-                    await provider.cancel_job(job.provider_job_id)
-                    console.print("[success]Cancelled at provider[/success]")
-                except Exception as e:
-                    console.print(f"   Warning: Could not cancel at provider: {e}")
-            await queue.update_status(job_id=job.id, status=JobStatus.FAILED, error="Cancelled by user")
+            from deepr.services.research_cancellation import cancel_reserved_research
 
-        # Single event loop spans the lookup AND the cancel so the
-        # sqlite queue / aiohttp provider connections opened during
-        # lookup stay valid for the cancel call. The previous
-        # ``asyncio.run`` per step closed the loop between them,
-        # binding any reused stateful objects to a now-closed loop
-        # and intermittently raising "got Future attached to a
-        # different loop".
+            outcome = await cancel_reserved_research(
+                queue=queue,
+                provider=provider,
+                job=job,
+                default_provider=str(config.get("provider", "openai")),
+                source=f"cli.research.cancel.{job.id}",
+            )
+            if not outcome.queue_cancelled:
+                raise click.ClickException("Job cancellation could not be confirmed; local state was unchanged")
+            if not outcome.confirmed:
+                raise click.ClickException("Job was cancelled, but cost or cleanup closure could not be confirmed")
+
         loop = asyncio.new_event_loop()
         try:
             asyncio.set_event_loop(loop)

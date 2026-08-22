@@ -368,8 +368,8 @@ reliable product, not a four-language architecture diagram.
 
 **Shipped in v2.50.2 (see docs/CHANGELOG.md):** pinned grounding HEAD, belief
 event-log fail-closed, complete learning-apply rollback, authenticated
-portraits when a dashboard secret is configured, MCP Windows device-name
-refusals, and document device-name path checks.
+portraits when a dashboard secret is configured, MCP and chat Windows
+device-name refusals, atomic stale-hold cancel, and empty-completion fail.
 
 **Shipped in v2.50.1 (see docs/CHANGELOG.md):** remaining fail-closed holes
 after v2.50.0: in-memory spend-hold release after a completion receipt, web
