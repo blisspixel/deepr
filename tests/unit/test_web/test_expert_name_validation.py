@@ -61,10 +61,20 @@ def test_path_traversal_still_rejected():
 def test_reserved_windows_device_names_rejected():
     with pytest.raises(InvalidInputError, match="reserved Windows device"):
         expert_slug("CON")
+    assert _validate_expert_name("CON") is not None
     with web_app.app.app_context():
         decoded, error = _decode_expert_name("NUL")
     assert decoded is None
     assert error is not None
+
+
+def test_create_expert_rejects_windows_device_name(monkeypatch):
+    web_app.app.config.update(TESTING=True)
+    monkeypatch.setattr(web_app, "_check_auth", lambda: None)
+    client = web_app.app.test_client()
+    response = client.post("/api/experts", json={"name": "CON", "description": "x", "domain": "y"})
+    assert response.status_code == 400
+    assert "reserved Windows" in (response.get_json() or {}).get("error", "")
 
 
 def test_decode_returns_the_canonical_storage_slug():

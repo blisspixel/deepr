@@ -2,7 +2,7 @@
 
 Deepr can expose its inbound MCP server over Streamable HTTP from a local
 machine or local Docker container. This is the supported background-service
-shape in v2.40. Hosted cloud infrastructure is not supported.
+shape in the current release. Hosted cloud infrastructure is not supported.
 
 ## Request path
 

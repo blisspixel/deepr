@@ -15,7 +15,7 @@ from decimal import Decimal
 from typing import Any
 
 import boto3
-from botocore.exceptions import ClientError
+from botocore.exceptions import BotoCoreError, ClientError
 
 # Configure logging
 logger = logging.getLogger()
@@ -80,29 +80,31 @@ def get_secrets() -> dict:
 
 
 def validate_api_key(event: dict) -> bool:
-    """Validate API key from request headers."""
-    secrets_data = get_secrets()
-    expected_key = secrets_data.get("DEEPR_API_KEY", "")
+    """Validate API key from request headers. Missing secrets deny access."""
+    import hmac
 
-    if not expected_key:
-        return True  # No key configured, allow all
+    try:
+        secrets_data = get_secrets()
+        expected_key = secrets_data.get("DEEPR_API_KEY", "")
+    except (AttributeError, BotoCoreError, ClientError, KeyError, TypeError, ValueError):
+        return False
+    if not isinstance(expected_key, str) or not expected_key:
+        return False
+
+    def _matches(provided: str) -> bool:
+        try:
+            return hmac.compare_digest(provided, expected_key)
+        except (TypeError, ValueError):
+            return False
 
     headers = event.get("headers", {}) or {}
-    # Headers may be case-insensitive depending on API Gateway config
+    if not isinstance(headers, dict):
+        return False
     auth_header = headers.get("Authorization", headers.get("authorization", ""))
-    api_key_header = headers.get("X-Api-Key", headers.get("x-api-key", ""))
-
-    # Check Bearer token
-    if auth_header and auth_header.startswith("Bearer "):
-        token = auth_header[7:]
-        if token == expected_key:
-            return True
-
-    # Check X-Api-Key header
-    if api_key_header == expected_key:
+    if isinstance(auth_header, str) and auth_header.startswith("Bearer ") and _matches(auth_header[7:]):
         return True
-
-    return False
+    api_key_header = headers.get("X-Api-Key", headers.get("x-api-key", ""))
+    return isinstance(api_key_header, str) and _matches(api_key_header)
 
 
 def validate_job_id(job_id: str) -> bool:

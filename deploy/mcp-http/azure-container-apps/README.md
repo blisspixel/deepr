@@ -2,7 +2,7 @@
 
 The checked-in Bicep file is deliberately invalid and mechanically inert. The
 historical Container Apps and Azure Files design remains available in version
-control. Hosted Azure MCP is not supported in v2.40.
+control. Hosted Azure MCP is not supported in the current release.
 
 Container Apps, storage, Log Analytics, networking, and related services can
 create charges outside Deepr's cost ledger. The scoped MCP key budget controls

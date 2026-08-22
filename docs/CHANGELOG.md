@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.4] - 2026-08-22
+
+### Changed
+
+- Tightened the README around the product, capacity boundary, install path,
+  quick start, and documentation index. Protocol and packaging detail now
+  lives in the linked supported-surface and MCP guides.
+- Agent Plugin package metadata and archive naming now follow the package
+  version. Deployment references use durable current-release wording instead
+  of presenting the old v2.40 label as current.
+
+### Fixed
+
+- Expert-scoped MCP keys cannot submit generic research or enumerate the
+  global skill catalog. Calls that name an allowlisted expert remain available,
+  including the required expert on agentic research.
+- Scoped MCP key creation, authentication timestamps, and revocation now lock
+  the complete read-modify-write transaction across processes. Concurrent
+  operations cannot silently discard another key-store update.
+- Legacy AWS, Azure, GCP, and shared hosted-API validators fail closed when an
+  API secret is absent, empty, or unreadable. Secret comparisons use the
+  constant-time helper and malformed values are treated as unauthorized.
+- Dashboard expert creation rejects reserved Windows device names at request
+  validation, before any storage path is constructed.
+
 ## [2.50.3] - 2026-08-21
 
 ### Fixed

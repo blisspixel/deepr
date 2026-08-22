@@ -98,7 +98,9 @@ def test_hosted_mcp_docs_state_reference_only_cost_boundary() -> None:
         "cloudflare-worker",
     ):
         readme = (DEPLOY_DIR / directory / "README.md").read_text(encoding="utf-8")
-        assert "not supported in v2.40" in readme or "not a supported deployment surface in v2.40" in readme
+        assert "not supported in the current release" in readme or (
+            "not a supported deployment surface in the current release" in readme
+        )
         assert "outside Deepr's cost ledger" in readme
         assert "Do not" in readme
         assert "`$5` guarantee" in readme

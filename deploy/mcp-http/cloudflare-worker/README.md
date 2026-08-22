@@ -2,7 +2,7 @@
 
 The checked-in Worker and Wrangler files are mechanically inert. The historical
 edge-proxy design remains available in version control. Cloudflare ingress is
-not a supported deployment surface in v2.40.
+not a supported deployment surface in the current release.
 
 Worker requests, routes, logs, DNS, and the origin can create charges outside
 Deepr's cost ledger. Those infrastructure charges remain outside Deepr's cost ledger.

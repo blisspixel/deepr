@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.50.3-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.3)
+[![Version](https://img.shields.io/badge/version-2.50.4-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.4)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -110,38 +110,21 @@ deepr expert make "My Domain Expert" --local -d "The decisions this expert suppo
 deepr expert consult "What should we decide next?" --expert "My Domain Expert"
 ```
 
-See [Quick Start](docs/QUICK_START.md), [Supported Surface](docs/SUPPORTED_SURFACE.md),
-and the [MCP Agent Guide](docs/MCP_AGENT_TEST_GUIDE.md) for workflows across the
-current 36 MCP tools. The MCP server implements the final `2026-07-28`
-protocol revision (stateless per-request negotiation, `server/discover`,
-`subscriptions/listen`, Streamable HTTP header and Origin validation) while
-still serving legacy `initialize`-era clients on both transports. Operators can
-prove the offline host-interop posture with `deepr mcp conformance` (`$0`, no
-network, no model).
-
-The portability roadmap follows the published [Agent Plugins 1.0.0
-specification](https://agent-plugins.org/specification) and containment contract. OKF
-export remains a derived view over Deepr's canonical belief and
-provenance stores. Export and `$0` validation now target the hard bundle rules
-in the current [Open Knowledge Format 0.2
-specification](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md),
-while import remains untrusted and verification-gated. Agent Plugin packaging
-is now available as a contained, stdio-only, capability-read-only package
-foundation under `packages/deepr-agent-plugin`. Its schemas and Agent Skill are
-validated offline, its spend ceilings are fixed at zero, and its archive build
-is byte reproducible. `deepr mcp host-profile openclaw` now emits a
-deterministic, config-only reference for stable OpenClaw `v2026.7.1-2`. It uses
-the exact ten-tool read-only catalog, explicit contained data roots, and zero
-primary and legacy spend ceilings. The command does not install OpenClaw,
-change host configuration, inspect credentials, or claim live validation.
-Independent host conformance, additional profiles, remote routes, steering,
-and external computer control remain gated in [Roadmap](ROADMAP.md).
+See [Quick Start](docs/QUICK_START.md) and [Supported Surface](docs/SUPPORTED_SURFACE.md)
+for current workflows. The [MCP Agent Guide](docs/MCP_AGENT_TEST_GUIDE.md)
+covers the 36 MCP tools, dual-era `2026-07-28` protocol, and
+`deepr mcp conformance`. Portable packaging, OKF export, and the OpenClaw
+host-profile reference are documented in [Supported Surface](docs/SUPPORTED_SURFACE.md).
 
 ## Documentation
 
 - [Approach contract](docs/APPROACH.md) - what the method claims, refuses, and leaves experimental
 - [Supported Surface](docs/SUPPORTED_SURFACE.md) - what currently runs
+- [Install](docs/INSTALL.md)
+- [Quick Start](docs/QUICK_START.md)
+- [Capacity and Cost](docs/CAPACITY.md)
 - [Experts](docs/EXPERTS.md)
+- [MCP Agent Guide](docs/MCP_AGENT_TEST_GUIDE.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Models](docs/MODELS.md)
 - [Threat Model](docs/security/THREAT_MODEL.md)
