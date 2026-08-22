@@ -266,8 +266,19 @@ class WebResearchCostCoordinator:
                 request_id=provider_job_id,
                 source="web.poller._handle_failure",
             )
+        elif provider_job_id:
+            record_unreserved_research_cost(
+                job_id=str(job.id),
+                provider=str(getattr(job, "provider", "") or "openai"),
+                model=str(getattr(job, "model", "") or ""),
+                actual_cost=None,
+                request_id=provider_job_id,
+                source="web.poller._handle_failure",
+            )
         else:
             refund_research_cost(reservation)
+        if provider_job_id and not reconcile_research_cost_from_ledger(reservation, job_id=str(job.id)):
+            raise RuntimeError(f"Canonical cost settlement missing for terminal job {job.id}")
 
     async def cancel_job(self, *, queue: Any, job: Any, provider_factory: Callable[[], Any]) -> bool:
         """Close provider, queue, and reservation state in safety order."""

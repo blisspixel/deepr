@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextlib import ExitStack
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from deepr.experts.beliefs import BeliefStore
@@ -14,6 +15,7 @@ from deepr.experts.knowledge_freshness import advance_knowledge_freshness
 from deepr.experts.loop_lock import expert_verb_lock
 from deepr.experts.metacognition import MetaCognitionTracker
 from deepr.experts.profile import ExpertStore
+from deepr.utils.atomic_io import atomic_write_bytes
 
 
 class InvestigationLearningApplyError(RuntimeError):
@@ -233,6 +235,25 @@ def _apply_failure_reasons(result: dict[str, Any]) -> list[str]:
     return collected
 
 
+def _belief_file_snapshot(store: Any) -> list[tuple[Path, bytes | None]]:
+    snapshots: list[tuple[Path, bytes | None]] = []
+    for attr in ("storage_path", "events_path"):
+        path = getattr(store, attr, None)
+        if not isinstance(path, Path):
+            continue
+        snapshots.append((path, path.read_bytes() if path.exists() else None))
+    return snapshots
+
+
+def _restore_belief_file_snapshot(snapshots: list[tuple[Path, bytes | None]]) -> None:
+    for path, payload in snapshots:
+        if payload is None:
+            if path.exists():
+                path.unlink()
+            continue
+        atomic_write_bytes(path, payload, fsync=True)
+
+
 def _apply_prepared(
     prepared: list[dict[str, Any]],
     *,
@@ -242,11 +263,14 @@ def _apply_prepared(
     """Apply a completely preflighted set while roster locks are held."""
     results: list[dict[str, Any]] = []
     halted: list[str] = []
+    taken: list[list[tuple[Path, bytes | None]]] = []
     for item in prepared:
         result = item["preview"]
+        snapshot: list[tuple[Path, bytes | None]] = []
         if not dry_run and item["no_op"]:
             result = _no_op_result(result, dry_run=False)
         elif not dry_run:
+            snapshot = _belief_file_snapshot(item["belief_store"])
             result = apply_graph_commit_envelope(
                 item["envelope"],
                 item["belief_store"],
@@ -261,7 +285,13 @@ def _apply_prepared(
         if not dry_run:
             halted = _apply_failure_reasons(result)
             if halted:
+                if snapshot:
+                    _restore_belief_file_snapshot(snapshot)
+                for previous in reversed(taken):
+                    _restore_belief_file_snapshot(previous)
                 break
+            if snapshot:
+                taken.append(snapshot)
     return results, halted
 
 
@@ -356,7 +386,7 @@ def apply_investigation_learning(
             "model_calls": False,
             "cost_usd": 0.0,
             "human_reviewed": False,
-            "operator_confirmed_apply": not dry_run,
+            "operator_confirmed_apply": bool(not dry_run and not halted),
             "facts_require_source_verifier": True,
             "perspectives_are_non_factual": True,
             "perspective_truth_or_novelty_verified": False,

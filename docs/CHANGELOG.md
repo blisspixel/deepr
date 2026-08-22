@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.1] - 2026-08-22
+
+### Fixed
+
+- Ledger completion receipts now clear the process-local spend hold after the
+  durable reservation is already settled. `refund_reservation` no longer keeps
+  billed work in memory because provider work may have run.
+- Web job failure matches the worker closer: missing reservation with a
+  provider job id records unreserved spend and reconciles instead of refunding
+  nothing.
+- Investigation learning apply snapshots belief files before writes and
+  restores them if a later envelope fails. `operator_confirmed_apply` is false
+  on a partial halt.
+- Investigation create repairs a missing `control.json` sidecar without
+  resetting an existing planned state.
+- MCP `deepr_research` `files` reject local filesystem paths. Document upload
+  rejects URL and parent-segment paths.
+- Google grounding redirects resolve through `resolve_safe_url_ips` per hop.
+- Nested dashboard `/assets/` misses return HTTP 404 instead of SPA HTML.
+- Parent-budget replay requires money fields instead of treating missing
+  amounts as `$0`.
+- Malformed belief change records fail closed instead of being dropped on the
+  next save.
+
 ## [2.50.0] - 2026-08-21
 
 ### Added

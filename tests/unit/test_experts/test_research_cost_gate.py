@@ -21,6 +21,7 @@ from deepr.experts.research_cost_gate import (
     ResearchCostBlocked,
     ResearchCostReservation,
     ResearchCostSettlementError,
+    reconcile_research_cost_from_ledger,
     record_unreserved_research_cost,
     refund_research_cost,
     reserve_configured_cost_ceiling,
@@ -177,6 +178,26 @@ def test_active_cost_reconciles_existing_canonical_completion_without_duplicate_
     events = CostLedger().get_events()
     assert len(events) == 1
     assert events[0].cost_usd == pytest.approx(0.25)
+
+
+def test_reconcile_releases_in_memory_hold_after_completion_receipt() -> None:
+    manager = CostSafetyManager()
+    reservation = _reserve(manager, "job-reconcile-hold", 0.8)
+    manager.mark_provider_work_may_have_run(reservation.reservation_id)
+    CostLedger().record_event(
+        operation="research_job",
+        provider="openai",
+        model="test-model",
+        cost_usd=0.25,
+        task_id=reservation.job_id,
+        source="test.reconcile_hold",
+        idempotency_key=f"job:{reservation.job_id}:completion",
+    )
+
+    assert reservation.reservation_id in manager._reservations
+    assert reconcile_research_cost_from_ledger(reservation, job_id=reservation.job_id) is True
+    assert reservation.reservation_id not in manager._reservations
+    assert ResearchReservationStore().is_active(reservation.reservation_id) is False
 
 
 def test_conservative_settlement_is_not_labeled_as_reported_actual_cost() -> None:

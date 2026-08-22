@@ -153,6 +153,13 @@ class TestDocumentManagerUpload:
             await doc_manager.upload_documents(["/nonexistent/path/file.txt"], mock_provider)
 
     @pytest.mark.asyncio
+    async def test_upload_rejects_url_and_parent_segments(self, doc_manager, mock_provider):
+        with pytest.raises(ValueError, match="not a URL"):
+            await doc_manager.upload_documents(["https://example.com/doc.pdf"], mock_provider)
+        with pytest.raises(ValueError, match="parent segments"):
+            await doc_manager.upload_documents(["../secrets.env"], mock_provider)
+
+    @pytest.mark.asyncio
     async def test_upload_empty_list(self, doc_manager, mock_provider):
         """Test uploading empty file list."""
         file_ids = await doc_manager.upload_documents([], mock_provider)

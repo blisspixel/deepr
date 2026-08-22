@@ -1431,8 +1431,10 @@ class BeliefStore:
         for cdata in data.get("changes", []):
             try:
                 self.changes.append(BeliefChange.from_dict(cdata))
-            except (KeyError, ValueError) as exc:
-                logger.warning("Skipping malformed change record in %s: %s", self.storage_path, exc)
+            except (KeyError, TypeError, ValueError) as exc:
+                self._unreadable = True
+                logger.error("Malformed change record in %s: %s. Refusing writes.", self.storage_path, exc)
+                return
 
 
 from deepr.experts.semantic_recall import install_belief_store_recall_methods as _install_recall_methods

@@ -89,6 +89,18 @@ def load_parent_budget_events(path: Path | None = None) -> list[dict[str, Any]]:
     return events
 
 
+def _required_money(event: Mapping[str, Any], key: str) -> float:
+    if key not in event or event[key] is None:
+        raise ParentBudgetError(f"parent budget event is missing {key}")
+    try:
+        value = float(event[key])
+    except (TypeError, ValueError) as exc:
+        raise ParentBudgetError(f"parent budget event {key} is not a number") from exc
+    if value < 0:
+        raise ParentBudgetError(f"parent budget event {key} must be non-negative")
+    return value
+
+
 def _apply_consumed_event(parent: ParentBudgetTransaction, event: Mapping[str, Any]) -> None:
     child_id = str(event.get("child_id") or "")
     child = parent.children.get(child_id)
@@ -110,7 +122,7 @@ def _apply_replay_event(parent: ParentBudgetTransaction, event: Mapping[str, Any
     if event_type == "child_admitted":
         parent.admit_child(
             operation=str(event.get("operation") or ""),
-            max_usd=float(event.get("max_usd") or 0),
+            max_usd=_required_money(event, "max_usd"),
             child_id=child_id,
             metadata=dict(event.get("metadata") or {}),
         )
@@ -119,7 +131,7 @@ def _apply_replay_event(parent: ParentBudgetTransaction, event: Mapping[str, Any
         parent.mark_dispatch(child_id)
         return
     if event_type == "settled":
-        parent.settle_child(child_id, float(event.get("actual_usd") or 0))
+        parent.settle_child(child_id, _required_money(event, "actual_usd"))
         return
     if event_type == "consumed":
         _apply_consumed_event(parent, event)
@@ -147,7 +159,7 @@ def replay_parent_budget(run_id: str, path: Path | None = None) -> ParentBudgetT
         if str(event.get("event_type") or "") == "opened":
             parent = open_parent_budget_transaction(
                 surface=str(event.get("surface") or ""),
-                parent_ceiling_usd=float(event.get("parent_ceiling_usd") or 0),
+                parent_ceiling_usd=_required_money(event, "parent_ceiling_usd"),
                 run_id=target,
             )
             continue

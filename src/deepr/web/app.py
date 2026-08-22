@@ -531,7 +531,7 @@ def index():
 def fallback_to_spa(e):
     """Serve index.html for unknown routes so client-side routing works."""
     # Don't catch missing API routes - return 404 JSON for those
-    if request.path.startswith("/api/"):
+    if request.path.startswith("/api/") or request.path.startswith("/assets/"):
         return jsonify({"error": "Not found"}), 404
     # Serve static files from dist if they exist (with path traversal protection)
     relative = request.path.lstrip("/")
@@ -1899,7 +1899,13 @@ def generate_expert_portrait(name):
 @app.route("/portraits/<filename>")
 def serve_portrait(filename):
     """Serve a generated portrait image."""
-    if not filename.endswith(".png") or reserved_windows_device_stem(filename):
+    from deepr.utils.security import InvalidInputError, validate_identifier
+
+    if not filename.endswith(".png"):
+        return jsonify({"error": "Invalid file type"}), 400
+    try:
+        validate_identifier(Path(filename).stem, kind="portrait filename")
+    except (InvalidInputError, ValueError):
         return jsonify({"error": "Invalid file type"}), 400
     portraits_dir = runtime_data_path("portraits")
     return send_from_directory(str(portraits_dir.resolve()), filename)

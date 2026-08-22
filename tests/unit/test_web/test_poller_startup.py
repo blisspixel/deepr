@@ -599,6 +599,28 @@ def test_web_unreserved_unknown_cost_preserves_none_for_conservative_settlement(
     assert record.call_args.kwargs["actual_cost"] is None
 
 
+def test_web_fail_job_records_unreserved_when_reservation_is_missing(monkeypatch):
+    coordinator = WebResearchCostCoordinator(None, None)
+    record = MagicMock()
+    reconcile = MagicMock(return_value=True)
+    monkeypatch.setattr("deepr.web.research_cost_api.restore_research_cost_reservation", MagicMock(return_value=None))
+    monkeypatch.setattr("deepr.web.research_cost_api.record_unreserved_research_cost", record)
+    monkeypatch.setattr("deepr.web.research_cost_api.reconcile_research_cost_from_ledger", reconcile)
+    job = SimpleNamespace(
+        id="job-fail-unreserved",
+        provider="openai",
+        provider_job_id="provider-job",
+        model="o3-deep-research",
+        metadata={},
+    )
+
+    coordinator.fail_job(job)
+
+    record.assert_called_once()
+    assert record.call_args.kwargs["job_id"] == "job-fail-unreserved"
+    reconcile.assert_called_once()
+
+
 def test_web_completion_uses_canonical_usage_before_settlement(monkeypatch):
     from deepr.queue.base import JobStatus, ResearchJob
 
@@ -673,6 +695,13 @@ def test_spa_nested_route_is_http_200(client, monkeypatch):
     response = client.get("/experts/fixture-expert")
     assert response.status_code == 200
     assert response.get_data(as_text=True) == "spa"
+
+
+def test_missing_frontend_asset_is_http_404(client, monkeypatch):
+    monkeypatch.setattr(web_app, "render_template", lambda *_args, **_kwargs: "spa")
+    response = client.get("/assets/index-missing.js")
+    assert response.status_code == 404
+    assert response.get_data(as_text=True) != "spa"
 
 
 def test_portrait_route_rejects_windows_device_name(client, monkeypatch):

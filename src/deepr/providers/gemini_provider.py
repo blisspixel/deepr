@@ -20,8 +20,6 @@ from enum import Enum
 from types import SimpleNamespace
 from typing import Any, cast
 
-import httpx
-
 _GENAI_IMPORT_ERROR: Exception | None
 try:
     from google import genai
@@ -58,7 +56,6 @@ logger = logging.getLogger(__name__)
 
 # Gemini Deep Research Agent identifier
 DEEP_RESEARCH_AGENT = "deep-research-pro-preview-12-2025"
-_MAX_GROUNDING_REDIRECT_HOPS = 5
 
 
 class _FallbackThinkingConfig:
@@ -811,39 +808,9 @@ class GeminiProvider(DeepResearchProvider):
     @staticmethod
     async def resolve_redirect_url(url: str, timeout: float = 10.0) -> str:
         """Resolve a Google grounding URL through a bounded, validated redirect chain."""
-        try:
-            parsed_url = httpx.URL(url)
-        except httpx.InvalidURL:
-            return url
-        if parsed_url.host != "vertexaisearch.cloud.google.com" or not parsed_url.path.startswith(
-            "/grounding-api-redirect/"
-        ):
-            return url
+        from deepr.providers.grounding_redirect import resolve_grounding_redirect_url
 
-        try:
-            from deepr.utils.security import is_safe_url
-
-            current_url = url
-            async with httpx.AsyncClient(follow_redirects=False, timeout=timeout, trust_env=False) as client:
-                for redirect_count in range(_MAX_GROUNDING_REDIRECT_HOPS + 1):
-                    if not is_safe_url(current_url):
-                        logger.warning("SSRF: redirect resolved to blocked URL: %s", current_url)
-                        return url
-                    response = await client.head(current_url)
-                    if not response.is_redirect:
-                        return str(response.url)
-                    if redirect_count >= _MAX_GROUNDING_REDIRECT_HOPS:
-                        logger.warning("Grounding redirect exceeded %d hops", _MAX_GROUNDING_REDIRECT_HOPS)
-                        return url
-                    location = response.headers.get("location")
-                    if not location:
-                        logger.warning("Grounding redirect response omitted Location")
-                        return url
-                    current_url = str(httpx.URL(current_url).join(location))
-            return url
-        except (httpx.TimeoutException, httpx.NetworkError, httpx.HTTPError, httpx.InvalidURL) as e:
-            logger.debug("Failed to resolve redirect for %s: %s", url, e)
-            return url
+        return await resolve_grounding_redirect_url(url, timeout=timeout)
 
     # =========================================================================
     # Adaptive polling interval
