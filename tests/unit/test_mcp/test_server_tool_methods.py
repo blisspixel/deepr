@@ -302,6 +302,36 @@ class TestCheckStatus:
         assert out["cost_so_far"] == 0.25
 
     @pytest.mark.asyncio
+    async def test_terminal_status_does_not_poll_stale_provider(self, mock_server):
+        state = _state(phase=JobPhase.CANCELLED, cost=0.4, progress=1.0)
+        mock_server.resource_handler.jobs.get_state.return_value = state
+        provider = MagicMock()
+        provider.get_status = AsyncMock(return_value=_provider_response(status="in_progress", cost=0.2))
+        mock_server.active_jobs["j1"] = {"provider_instance": provider}
+
+        out = await mock_server.deepr_check_status("j1")
+
+        assert out["status"] == "cancelled"
+        assert out["cost_so_far"] == 0.4
+        provider.get_status.assert_not_awaited()
+        mock_server.resource_handler.jobs.update_phase.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_status_race_returns_terminal_canonical_state(self, mock_server):
+        initial = _state(phase=JobPhase.EXECUTING, cost=0.3)
+        cancelled = _state(phase=JobPhase.CANCELLED, cost=0.4, progress=1.0)
+        mock_server.resource_handler.jobs.get_state.return_value = initial
+        mock_server.resource_handler.jobs.update_phase.return_value = cancelled
+        provider = MagicMock()
+        provider.get_status = AsyncMock(return_value=_provider_response(status="in_progress", cost=0.2))
+        mock_server.active_jobs["j1"] = {"provider_instance": provider}
+
+        out = await mock_server.deepr_check_status("j1")
+
+        assert out["status"] == "cancelled"
+        assert out["cost_so_far"] == 0.4
+
+    @pytest.mark.asyncio
     async def test_scoped_key_cannot_poll_another_owners_job(self, mock_server):
         victim = MCPRequestIdentity.http_scoped_key(
             key_id="victim",

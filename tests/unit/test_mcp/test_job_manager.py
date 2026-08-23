@@ -5,6 +5,7 @@ Validates: Requirements 3.2, 3.3, 3.6, 3B.4, 3B.6
 """
 
 import asyncio
+import math
 import sys
 from pathlib import Path
 
@@ -133,6 +134,25 @@ class TestJobManager:
         assert beliefs.beliefs == []
 
     @pytest.mark.asyncio
+    async def test_duplicate_job_id_is_rejected_without_replacing_state(self, manager):
+        await manager.create_job(job_id="test_123", goal="Original goal")
+
+        with pytest.raises(ValueError, match="already exists"):
+            await manager.create_job(job_id="test_123", goal="Replacement goal")
+
+        plan = manager.get_plan("test_123")
+        assert plan is not None
+        assert plan.goal == "Original goal"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("estimated_cost", [math.nan, math.inf, -math.inf, -0.01, True])
+    async def test_create_job_rejects_invalid_estimated_cost(self, manager, estimated_cost):
+        with pytest.raises(ValueError, match="estimated_cost"):
+            await manager.create_job(job_id="test_123", goal="Test", estimated_cost=estimated_cost)
+
+        assert manager.get_state("test_123") is None
+
+    @pytest.mark.asyncio
     async def test_update_phase(self, manager):
         """update_phase should change job state."""
         await manager.create_job(job_id="test_123", goal="Test")
@@ -167,6 +187,52 @@ class TestJobManager:
         assert result is None
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("terminal_phase", [JobPhase.COMPLETED, JobPhase.FAILED, JobPhase.CANCELLED])
+    async def test_terminal_phase_cannot_be_resurrected(self, manager, terminal_phase):
+        await manager.create_job(job_id="test_123", goal="Test")
+        terminal = await manager.update_phase("test_123", terminal_phase, progress=1.0, cost_so_far=0.4)
+
+        stale = await manager.update_phase("test_123", JobPhase.EXECUTING, progress=0.5, cost_so_far=0.2)
+
+        assert stale is terminal
+        assert stale.phase is terminal_phase
+        assert stale.progress == 1.0
+        assert stale.cost_so_far == 0.4
+
+    @pytest.mark.asyncio
+    async def test_same_terminal_phase_can_refresh_settlement(self, manager):
+        await manager.create_job(job_id="test_123", goal="Test")
+        await manager.update_phase("test_123", JobPhase.COMPLETED, progress=1.0, cost_so_far=0.4)
+
+        state = await manager.update_phase("test_123", JobPhase.COMPLETED, cost_so_far=0.5)
+
+        assert state is not None
+        assert state.phase is JobPhase.COMPLETED
+        assert state.cost_so_far == 0.5
+
+    @pytest.mark.asyncio
+    async def test_accumulated_cost_cannot_decrease(self, manager):
+        await manager.create_job(job_id="test_123", goal="Test")
+        await manager.update_phase("test_123", JobPhase.EXECUTING, cost_so_far=0.5)
+
+        state = await manager.update_phase("test_123", JobPhase.EXECUTING, cost_so_far=0.2)
+
+        assert state is not None
+        assert state.cost_so_far == 0.5
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("field,value", [("progress", math.nan), ("progress", math.inf), ("progress", True), ("cost_so_far", math.nan), ("cost_so_far", math.inf), ("cost_so_far", -0.01), ("cost_so_far", True)])
+    async def test_update_phase_rejects_invalid_numbers_before_mutation(self, manager, field, value):
+        await manager.create_job(job_id="test_123", goal="Test")
+
+        with pytest.raises(ValueError, match=field):
+            await manager.update_phase("test_123", JobPhase.EXECUTING, **{field: value})
+
+        state = manager.get_state("test_123")
+        assert state is not None
+        assert state.phase is JobPhase.QUEUED
+
+    @pytest.mark.asyncio
     async def test_add_belief(self, manager):
         """add_belief should add to job beliefs."""
         await manager.create_job(job_id="test_123", goal="Test")
@@ -195,6 +261,18 @@ class TestJobManager:
 
         # Average of 0.8 and 0.6
         assert beliefs.confidence == pytest.approx(0.7, rel=0.01)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("confidence", [math.nan, math.inf, -math.inf, -0.01, 1.01, True])
+    async def test_add_belief_rejects_invalid_confidence(self, manager, confidence):
+        await manager.create_job(job_id="test_123", goal="Test")
+
+        with pytest.raises(ValueError, match="confidence"):
+            await manager.add_belief("test_123", "Invalid", confidence)
+
+        beliefs = manager.get_beliefs("test_123")
+        assert beliefs is not None
+        assert beliefs.beliefs == []
 
     @pytest.mark.asyncio
     async def test_update_plan(self, manager):

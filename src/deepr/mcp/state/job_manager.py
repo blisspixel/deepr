@@ -6,12 +6,70 @@ Uses asyncio.create_task for background execution to avoid blocking.
 """
 
 import asyncio
+import math
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any
 
 from .subscriptions import SubscriptionManager
+
+_TERMINAL_PHASES = frozenset({"completed", "failed", "cancelled"})
+
+
+def _finite_number(
+    value: object,
+    *,
+    field_name: str,
+    minimum: float,
+    maximum: float | None = None,
+) -> float:
+    """Return a bounded finite number, rejecting booleans and JSON non-values."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{field_name} must be a finite number")
+    normalized = float(value)
+    if not math.isfinite(normalized):
+        raise ValueError(f"{field_name} must be a finite number")
+    if normalized < minimum or (maximum is not None and normalized > maximum):
+        bounds = f"between {minimum} and {maximum}" if maximum is not None else f"at least {minimum}"
+        raise ValueError(f"{field_name} must be {bounds}")
+    return normalized
+
+
+def _normalized_progress(value: float | None) -> float | None:
+    """Normalize an optional progress value while rejecting JSON non-values."""
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        raise ValueError("progress must be a finite number")
+    return max(0.0, min(1.0, float(value)))
+
+
+def _apply_phase_update(
+    state: "JobState",
+    phase: "JobPhase",
+    *,
+    progress: float | None,
+    active_tasks: list[str] | None,
+    cost_so_far: float | None,
+    estimated_remaining: str | None,
+    error: str | None,
+) -> None:
+    """Apply an already validated phase update to a job state."""
+    state.phase = phase
+    state.updated_at = datetime.now()
+    if progress is not None:
+        state.progress = progress
+    if phase.value in _TERMINAL_PHASES:
+        state.active_tasks = []
+    elif active_tasks is not None:
+        state.active_tasks = active_tasks
+    if cost_so_far is not None:
+        state.cost_so_far = max(state.cost_so_far, cost_so_far)
+    if estimated_remaining is not None:
+        state.estimated_remaining = estimated_remaining
+    if error is not None:
+        state.error = error
 
 
 class JobPhase(Enum):
@@ -271,7 +329,14 @@ class JobManager:
         Returns:
             Initial JobState
         """
+        normalized_estimated_cost = _finite_number(
+            estimated_cost,
+            field_name="estimated_cost",
+            minimum=0.0,
+        )
         async with self._lock:
+            if job_id in self._jobs:
+                raise ValueError(f"Job {job_id!r} already exists")
             state = JobState(
                 job_id=job_id,
                 phase=JobPhase.QUEUED,
@@ -281,7 +346,11 @@ class JobManager:
             self._jobs[job_id] = state
 
             plan = JobPlan(
-                job_id=job_id, goal=goal, model=model, estimated_cost=estimated_cost, estimated_time=estimated_time
+                job_id=job_id,
+                goal=goal,
+                model=model,
+                estimated_cost=normalized_estimated_cost,
+                estimated_time=estimated_time,
             )
             self._plans[job_id] = plan
 
@@ -317,24 +386,27 @@ class JobManager:
         Returns:
             Updated JobState or None if job not found
         """
+        normalized_progress = _normalized_progress(progress)
+        normalized_cost = (
+            _finite_number(cost_so_far, field_name="cost_so_far", minimum=0.0) if cost_so_far is not None else None
+        )
+
         async with self._lock:
             if job_id not in self._jobs:
                 return None
 
             state = self._jobs[job_id]
-            state.phase = phase
-            state.updated_at = datetime.now()
-
-            if progress is not None:
-                state.progress = max(0.0, min(1.0, progress))
-            if active_tasks is not None:
-                state.active_tasks = active_tasks
-            if cost_so_far is not None:
-                state.cost_so_far = cost_so_far
-            if estimated_remaining is not None:
-                state.estimated_remaining = estimated_remaining
-            if error is not None:
-                state.error = error
+            if state.phase.value in _TERMINAL_PHASES and phase is not state.phase:
+                return state
+            _apply_phase_update(
+                state,
+                phase,
+                progress=normalized_progress,
+                active_tasks=active_tasks,
+                cost_so_far=normalized_cost,
+                estimated_remaining=estimated_remaining,
+                error=error,
+            )
 
         # Emit update in background
         self._schedule_emit(job_id)
@@ -358,8 +430,20 @@ class JobManager:
             if job_id not in self._beliefs:
                 return False
 
+            normalized_confidence = _finite_number(
+                confidence,
+                field_name="confidence",
+                minimum=0.0,
+                maximum=1.0,
+            )
             beliefs = self._beliefs[job_id]
-            beliefs.beliefs.append({"text": belief, "confidence": confidence, "added_at": datetime.now().isoformat()})
+            beliefs.beliefs.append(
+                {
+                    "text": belief,
+                    "confidence": normalized_confidence,
+                    "added_at": datetime.now().isoformat(),
+                }
+            )
 
             if source:
                 beliefs.sources.append(source)

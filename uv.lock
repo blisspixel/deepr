@@ -882,7 +882,7 @@ wheels = [
 
 [[package]]
 name = "deepr-research"
-version = "2.50.6"
+version = "2.50.7"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },

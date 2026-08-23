@@ -1,6 +1,6 @@
 # Deepr Threat Model
 
-Status: current with Deepr v2.50.6. Last reviewed: 2026-08-22.
+Status: current with Deepr v2.50.7. Last reviewed: 2026-08-22.
 
 This document is the repository-scoped threat model for Deepr. It is intended
 for security reviews, design reviews, and future bug discovery. It should stay
@@ -212,6 +212,12 @@ Relevant attacker stories:
   returned artifact.
 - A host asks for API synthesis while omitting an explicit budget or metered
   approval.
+- A stale provider observation revives a completed, failed, or cancelled job,
+  or lowers the accumulated cost after settlement.
+- A malformed dependency graph leaves tasks waiting forever, while a status-only
+  cancellation allows the underlying coroutine to continue producing effects.
+- An overbroad wildcard resource URI receives events outside the intended
+  campaign or expert resource.
 
 Existing controls:
 
@@ -229,6 +235,19 @@ Existing controls:
   records remote calls.
 - `src/deepr/mcp/consult_validation.py` validates consult artifacts for schema,
   trace linkage, capacity posture, forbidden secrets, and no-metered fallback.
+- `src/deepr/mcp/state/job_manager.py` rejects non-finite state values, prevents
+  transitions out of terminal phases, clears terminal active-task state, and
+  keeps accumulated cost monotonic. Status polling returns canonical terminal
+  state without consulting a stale provider.
+- `src/deepr/mcp/state/persistence.py` migrates legacy local schemas, updates
+  parent rows without cascade-replacing nested state, validates related job
+  identities before a transaction, and serializes access to the shared SQLite
+  connection.
+- `src/deepr/mcp/state/async_dispatcher.py` validates task identities,
+  coroutines, dependency references, and acyclic ordering before execution.
+  Cancellation reaches every tracked runner across concurrent batches.
+- `src/deepr/mcp/state/subscriptions.py` accepts wildcard subscriptions only
+  for canonical campaign and expert base URIs with safe identifiers.
 - `src/deepr/a2a/consult_tasks.py` returns `METERED_API_DISABLED` for API-backed
   A2A consult synthesis before consult work. Positive budgets and legacy
   consent flags cannot lift the block.

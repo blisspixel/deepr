@@ -9,13 +9,14 @@ Storage location: data/mcp_jobs.db (alongside reports/)
 
 import json
 import sqlite3
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from deepr.config import runtime_data_path
 
-from .job_manager import JobBeliefs, JobPhase, JobPlan, JobState
+from .job_manager import HypothesisRecord, JobBeliefs, JobPhase, JobPlan, JobState, TemporalFindingRecord
 
 
 def _default_mcp_jobs_db() -> Path:
@@ -35,6 +36,7 @@ class JobPersistence:
     def __init__(self, db_path: Path | None = None):
         self._db_path = db_path or _default_mcp_jobs_db()
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.RLock()
         self._conn = sqlite3.connect(
             str(self._db_path),
             check_same_thread=False,
@@ -56,7 +58,8 @@ class JobPersistence:
                 started_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 metadata_json TEXT NOT NULL DEFAULT '{}',
-                owner_id TEXT
+                owner_id TEXT,
+                active_tasks_json TEXT NOT NULL DEFAULT '[]'
             );
 
             CREATE TABLE IF NOT EXISTS job_plans (
@@ -72,12 +75,21 @@ class JobPersistence:
                 job_id TEXT PRIMARY KEY REFERENCES jobs(job_id) ON DELETE CASCADE,
                 beliefs_json TEXT NOT NULL DEFAULT '[]',
                 sources_json TEXT NOT NULL DEFAULT '[]',
-                confidence REAL NOT NULL DEFAULT 0.0
+                confidence REAL NOT NULL DEFAULT 0.0,
+                temporal_findings_json TEXT NOT NULL DEFAULT '[]',
+                hypothesis_history_json TEXT NOT NULL DEFAULT '[]'
             );
         """)
         columns = {str(row[1]) for row in self._conn.execute("PRAGMA table_info(jobs)").fetchall()}
         if "owner_id" not in columns:
             self._conn.execute("ALTER TABLE jobs ADD COLUMN owner_id TEXT")
+        if "active_tasks_json" not in columns:
+            self._conn.execute("ALTER TABLE jobs ADD COLUMN active_tasks_json TEXT NOT NULL DEFAULT '[]'")
+        belief_columns = {str(row[1]) for row in self._conn.execute("PRAGMA table_info(job_beliefs)").fetchall()}
+        if "temporal_findings_json" not in belief_columns:
+            self._conn.execute("ALTER TABLE job_beliefs ADD COLUMN temporal_findings_json TEXT NOT NULL DEFAULT '[]'")
+        if "hypothesis_history_json" not in belief_columns:
+            self._conn.execute("ALTER TABLE job_beliefs ADD COLUMN hypothesis_history_json TEXT NOT NULL DEFAULT '[]'")
         self._conn.commit()
 
     # ------------------------------------------------------------------ #
@@ -87,19 +99,34 @@ class JobPersistence:
     def save_job(self, state: JobState, plan: JobPlan | None = None, beliefs: JobBeliefs | None = None) -> None:
         """Save or update a job and its related data atomically.
 
-        Uses the connection as a context manager so all three INSERTs
-        either commit together or roll back. The previous implementation
-        emitted one ``commit()`` at the end, but a crash between the
-        ``jobs`` write and the ``job_plans`` write could leave the
-        job row without its plan / beliefs.
+        Related records omitted by the caller remain unchanged. Every supplied
+        record must belong to the state job before the transaction begins.
         """
+        if plan is not None and plan.job_id != state.job_id:
+            raise ValueError(f"plan job_id {plan.job_id!r} does not match state job_id {state.job_id!r}")
+        if beliefs is not None and beliefs.job_id != state.job_id:
+            raise ValueError(f"beliefs job_id {beliefs.job_id!r} does not match state job_id {state.job_id!r}")
+
         now = datetime.now().isoformat()
-        with self._conn:
+        active_tasks_json = json.dumps(state.active_tasks, default=str)
+        metadata_json = json.dumps(state.metadata, default=str)
+        with self._lock, self._conn:
             self._conn.execute(
-                """INSERT OR REPLACE INTO jobs
+                """INSERT INTO jobs
                    (job_id, phase, progress, cost_so_far, estimated_remaining, error,
-                    started_at, updated_at, metadata_json, owner_id)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    started_at, updated_at, metadata_json, owner_id, active_tasks_json)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(job_id) DO UPDATE SET
+                       phase = excluded.phase,
+                       progress = excluded.progress,
+                       cost_so_far = excluded.cost_so_far,
+                       estimated_remaining = excluded.estimated_remaining,
+                       error = excluded.error,
+                       started_at = excluded.started_at,
+                       updated_at = excluded.updated_at,
+                       metadata_json = excluded.metadata_json,
+                       owner_id = excluded.owner_id,
+                       active_tasks_json = excluded.active_tasks_json""",
                 (
                     state.job_id,
                     state.phase.value,
@@ -109,16 +136,23 @@ class JobPersistence:
                     state.error,
                     state.started_at.isoformat(),
                     now,
-                    json.dumps(state.metadata, default=str),
+                    metadata_json,
                     state.owner_id,
+                    active_tasks_json,
                 ),
             )
 
-            if plan:
+            if plan is not None:
                 self._conn.execute(
-                    """INSERT OR REPLACE INTO job_plans
+                    """INSERT INTO job_plans
                        (job_id, goal, steps_json, estimated_cost, estimated_time, model)
-                       VALUES (?, ?, ?, ?, ?, ?)""",
+                       VALUES (?, ?, ?, ?, ?, ?)
+                       ON CONFLICT(job_id) DO UPDATE SET
+                           goal = excluded.goal,
+                           steps_json = excluded.steps_json,
+                           estimated_cost = excluded.estimated_cost,
+                           estimated_time = excluded.estimated_time,
+                           model = excluded.model""",
                     (
                         plan.job_id,
                         plan.goal,
@@ -129,50 +163,58 @@ class JobPersistence:
                     ),
                 )
 
-            if beliefs:
+            if beliefs is not None:
                 self._conn.execute(
-                    """INSERT OR REPLACE INTO job_beliefs
-                       (job_id, beliefs_json, sources_json, confidence)
-                       VALUES (?, ?, ?, ?)""",
+                    """INSERT INTO job_beliefs
+                       (job_id, beliefs_json, sources_json, confidence,
+                        temporal_findings_json, hypothesis_history_json)
+                       VALUES (?, ?, ?, ?, ?, ?)
+                       ON CONFLICT(job_id) DO UPDATE SET
+                           beliefs_json = excluded.beliefs_json,
+                           sources_json = excluded.sources_json,
+                           confidence = excluded.confidence,
+                           temporal_findings_json = excluded.temporal_findings_json,
+                           hypothesis_history_json = excluded.hypothesis_history_json""",
                     (
                         beliefs.job_id,
                         json.dumps(beliefs.beliefs, default=str),
                         json.dumps(beliefs.sources, default=str),
                         beliefs.confidence,
+                        json.dumps([record.to_dict() for record in beliefs.temporal_findings]),
+                        json.dumps([record.to_dict() for record in beliefs.hypothesis_history]),
                     ),
                 )
 
     def load_job(self, job_id: str) -> tuple[JobState, JobPlan | None, JobBeliefs | None] | None:
         """Load a job and its related data."""
-        row = self._conn.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,)).fetchone()
-        if not row:
-            return None
+        with self._lock:
+            row = self._conn.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,)).fetchone()
+            if not row:
+                return None
+            plan_row = self._conn.execute("SELECT * FROM job_plans WHERE job_id = ?", (job_id,)).fetchone()
+            beliefs_row = self._conn.execute("SELECT * FROM job_beliefs WHERE job_id = ?", (job_id,)).fetchone()
 
         state = self._row_to_state(row)
-
-        plan_row = self._conn.execute("SELECT * FROM job_plans WHERE job_id = ?", (job_id,)).fetchone()
         plan = self._row_to_plan(plan_row) if plan_row else None
-
-        beliefs_row = self._conn.execute("SELECT * FROM job_beliefs WHERE job_id = ?", (job_id,)).fetchone()
         beliefs = self._row_to_beliefs(beliefs_row) if beliefs_row else None
-
         return state, plan, beliefs
 
     def list_jobs(self, phase: str | None = None) -> list[JobState]:
         """List all jobs, optionally filtered by phase."""
-        if phase:
-            rows = self._conn.execute(
-                "SELECT * FROM jobs WHERE phase = ? ORDER BY updated_at DESC",
-                (phase,),
-            ).fetchall()
-        else:
-            rows = self._conn.execute("SELECT * FROM jobs ORDER BY updated_at DESC").fetchall()
+        with self._lock:
+            if phase:
+                rows = self._conn.execute(
+                    "SELECT * FROM jobs WHERE phase = ? ORDER BY updated_at DESC",
+                    (phase,),
+                ).fetchall()
+            else:
+                rows = self._conn.execute("SELECT * FROM jobs ORDER BY updated_at DESC").fetchall()
         return [self._row_to_state(r) for r in rows]
 
     def delete_job(self, job_id: str) -> bool:
         """Delete a job and its related data (cascades)."""
-        cursor = self._conn.execute("DELETE FROM jobs WHERE job_id = ?", (job_id,))
-        self._conn.commit()
+        with self._lock, self._conn:
+            cursor = self._conn.execute("DELETE FROM jobs WHERE job_id = ?", (job_id,))
         return cursor.rowcount > 0
 
     def mark_incomplete_as_failed(self) -> int:
@@ -184,15 +226,16 @@ class JobPersistence:
         terminal_markers = ",".join("?" for _ in terminal)
         now = datetime.now().isoformat()
 
-        cursor = self._conn.execute(
-            f"""UPDATE jobs
-                SET phase = 'failed',
-                    error = 'Server restarted while job was in progress',
-                    updated_at = ?
-                WHERE phase NOT IN ({terminal_markers})""",
-            (now, *terminal),
-        )
-        self._conn.commit()
+        with self._lock, self._conn:
+            cursor = self._conn.execute(
+                f"""UPDATE jobs
+                    SET phase = 'failed',
+                        error = 'Server restarted while job was in progress',
+                        updated_at = ?,
+                        active_tasks_json = '[]'
+                    WHERE phase NOT IN ({terminal_markers})""",
+                (now, *terminal),
+            )
         return cursor.rowcount
 
     # ------------------------------------------------------------------ #
@@ -213,6 +256,7 @@ class JobPersistence:
             updated_at,
             metadata_json,
             owner_id,
+            active_tasks_json,
         ) = row
         return JobState(
             job_id=job_id,
@@ -223,6 +267,7 @@ class JobPersistence:
             error=error,
             started_at=datetime.fromisoformat(started_at),
             updated_at=datetime.fromisoformat(updated_at),
+            active_tasks=json.loads(active_tasks_json) if active_tasks_json else [],
             owner_id=owner_id,
             metadata=json.loads(metadata_json) if metadata_json else {},
         )
@@ -243,14 +288,30 @@ class JobPersistence:
     @staticmethod
     def _row_to_beliefs(row: tuple[Any, ...]) -> JobBeliefs:
         """Convert a database row to a JobBeliefs."""
-        (job_id, beliefs_json, sources_json, confidence) = row
+        (
+            job_id,
+            beliefs_json,
+            sources_json,
+            confidence,
+            temporal_findings_json,
+            hypothesis_history_json,
+        ) = row
         return JobBeliefs(
             job_id=job_id,
             beliefs=json.loads(beliefs_json) if beliefs_json else [],
             sources=json.loads(sources_json) if sources_json else [],
             confidence=confidence,
+            temporal_findings=[
+                TemporalFindingRecord(**record)
+                for record in (json.loads(temporal_findings_json) if temporal_findings_json else [])
+            ],
+            hypothesis_history=[
+                HypothesisRecord(**record)
+                for record in (json.loads(hypothesis_history_json) if hypothesis_history_json else [])
+            ],
         )
 
     def close(self) -> None:
         """Close the database connection."""
-        self._conn.close()
+        with self._lock:
+            self._conn.close()
