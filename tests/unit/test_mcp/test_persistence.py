@@ -8,6 +8,7 @@ Validates:
 - Data integrity across save/load cycles
 """
 
+import sqlite3
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -16,7 +17,14 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from deepr.mcp.state.job_manager import JobBeliefs, JobPhase, JobPlan, JobState
+from deepr.mcp.state.job_manager import (
+    HypothesisRecord,
+    JobBeliefs,
+    JobPhase,
+    JobPlan,
+    JobState,
+    TemporalFindingRecord,
+)
 from deepr.mcp.state.persistence import JobPersistence
 
 
@@ -98,6 +106,70 @@ class TestSchema:
         db1.close()
         db2.close()
 
+    def test_migrates_legacy_runtime_state_columns(self, tmp_path):
+        """Existing databases gain lossless runtime-state columns."""
+        db_path = tmp_path / "legacy.db"
+        connection = sqlite3.connect(db_path)
+        connection.executescript("""
+            CREATE TABLE jobs (
+                job_id TEXT PRIMARY KEY,
+                phase TEXT NOT NULL DEFAULT 'queued',
+                progress REAL NOT NULL DEFAULT 0.0,
+                cost_so_far REAL NOT NULL DEFAULT 0.0,
+                estimated_remaining TEXT,
+                error TEXT,
+                started_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                owner_id TEXT
+            );
+            CREATE TABLE job_plans (
+                job_id TEXT PRIMARY KEY REFERENCES jobs(job_id) ON DELETE CASCADE,
+                goal TEXT NOT NULL DEFAULT '',
+                steps_json TEXT NOT NULL DEFAULT '[]',
+                estimated_cost REAL NOT NULL DEFAULT 0.0,
+                estimated_time TEXT NOT NULL DEFAULT 'unknown',
+                model TEXT NOT NULL DEFAULT 'o4-mini'
+            );
+            CREATE TABLE job_beliefs (
+                job_id TEXT PRIMARY KEY REFERENCES jobs(job_id) ON DELETE CASCADE,
+                beliefs_json TEXT NOT NULL DEFAULT '[]',
+                sources_json TEXT NOT NULL DEFAULT '[]',
+                confidence REAL NOT NULL DEFAULT 0.0
+            );
+            INSERT INTO jobs (
+                job_id, phase, started_at, updated_at, metadata_json
+            ) VALUES (
+                'legacy', 'completed', '2025-01-01T00:00:00',
+                '2025-01-01T00:00:00', '{}'
+            );
+            INSERT INTO job_beliefs (
+                job_id, beliefs_json, sources_json, confidence
+            ) VALUES ('legacy', '[]', '[]', 0.5);
+        """)
+        connection.commit()
+        connection.close()
+
+        persistence = JobPersistence(db_path=db_path)
+        try:
+            job_columns = {row[1] for row in persistence._conn.execute("PRAGMA table_info(jobs)").fetchall()}
+            belief_columns = {
+                row[1] for row in persistence._conn.execute("PRAGMA table_info(job_beliefs)").fetchall()
+            }
+            assert "active_tasks_json" in job_columns
+            assert "temporal_findings_json" in belief_columns
+            assert "hypothesis_history_json" in belief_columns
+
+            loaded = persistence.load_job("legacy")
+            assert loaded is not None
+            state, _plan, beliefs = loaded
+            assert state.active_tasks == []
+            assert beliefs is not None
+            assert beliefs.temporal_findings == []
+            assert beliefs.hypothesis_history == []
+        finally:
+            persistence.close()
+
 
 # ------------------------------------------------------------------ #
 # CRUD: save and load
@@ -154,6 +226,108 @@ class TestSaveLoad:
         state, _, _ = result
         assert state.phase == JobPhase.COMPLETED
         assert state.progress == 1.0
+
+    def test_state_only_update_preserves_existing_plan_and_beliefs(
+        self,
+        db,
+        sample_state,
+        sample_plan,
+        sample_beliefs,
+    ):
+        """Updating parent state must not cascade-delete related records."""
+        db.save_job(sample_state, plan=sample_plan, beliefs=sample_beliefs)
+
+        sample_state.phase = JobPhase.COMPLETED
+        sample_state.progress = 1.0
+        db.save_job(sample_state)
+
+        loaded = db.load_job(sample_state.job_id)
+        assert loaded is not None
+        state, plan, beliefs = loaded
+        assert state.phase == JobPhase.COMPLETED
+        assert plan is not None
+        assert plan.goal == sample_plan.goal
+        assert beliefs is not None
+        assert beliefs.beliefs == sample_beliefs.beliefs
+
+    def test_active_tasks_roundtrip(self, db, sample_state):
+        sample_state.active_tasks = ["Search primary sources", "Check citations"]
+
+        db.save_job(sample_state)
+
+        loaded = db.load_job(sample_state.job_id)
+        assert loaded is not None
+        state, _plan, _beliefs = loaded
+        assert state.active_tasks == sample_state.active_tasks
+
+    def test_temporal_belief_state_survives_restart(self, tmp_path, sample_state, sample_beliefs):
+        db_path = tmp_path / "temporal.db"
+        sample_beliefs.temporal_findings = [
+            TemporalFindingRecord(
+                id="finding-1",
+                text="The standard changed",
+                phase=2,
+                confidence=0.8,
+                finding_type="update",
+                timestamp="2025-01-02T03:04:05",
+                source="https://example.test/source",
+            )
+        ]
+        sample_beliefs.hypothesis_history = [
+            HypothesisRecord(
+                id="hypothesis-1",
+                current_text="Adoption will increase",
+                confidence=0.6,
+                phase_created=2,
+                evolution_count=1,
+                status="active",
+            )
+        ]
+
+        first = JobPersistence(db_path=db_path)
+        first.save_job(sample_state, beliefs=sample_beliefs)
+        first.close()
+
+        second = JobPersistence(db_path=db_path)
+        try:
+            loaded = second.load_job(sample_state.job_id)
+            assert loaded is not None
+            _state, _plan, beliefs = loaded
+            assert beliefs is not None
+            assert beliefs.temporal_findings == sample_beliefs.temporal_findings
+            assert beliefs.hypothesis_history == sample_beliefs.hypothesis_history
+        finally:
+            second.close()
+
+    def test_rejects_plan_for_a_different_job_before_mutation(self, db, sample_state):
+        other_state = JobState(job_id="job_002")
+        original_plan = JobPlan(job_id="job_002", goal="Keep this plan")
+        db.save_job(other_state, plan=original_plan)
+        mismatched = JobPlan(job_id="job_002", goal="Wrongly replace another job")
+
+        with pytest.raises(ValueError, match="plan job_id"):
+            db.save_job(sample_state, plan=mismatched)
+
+        loaded = db.load_job("job_002")
+        assert loaded is not None
+        _state, plan, _beliefs = loaded
+        assert plan is not None
+        assert plan.goal == original_plan.goal
+
+    def test_rejects_beliefs_for_a_different_job_before_mutation(self, db, sample_state):
+        other_state = JobState(job_id="job_002")
+        original_beliefs = JobBeliefs(job_id="job_002", beliefs=[{"text": "keep"}])
+        db.save_job(other_state, beliefs=original_beliefs)
+        mismatched = JobBeliefs(job_id="job_002", beliefs=[{"text": "replace"}])
+
+        with pytest.raises(ValueError, match="beliefs job_id"):
+            db.save_job(sample_state, beliefs=mismatched)
+
+        loaded = db.load_job("job_002")
+        assert loaded is not None
+        _state, _plan, beliefs = loaded
+        assert beliefs is not None
+        assert beliefs.beliefs == original_beliefs.beliefs
 
     def test_datetime_roundtrip(self, db, sample_state):
         """Datetime values should survive save/load cycle."""

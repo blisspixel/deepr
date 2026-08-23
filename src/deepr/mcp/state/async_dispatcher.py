@@ -154,10 +154,110 @@ class AsyncTaskDispatcher:
         Args:
             max_concurrent: Maximum concurrent tasks (default from constants)
         """
-        self.max_concurrent = max_concurrent or MAX_CONCURRENT_TASKS
+        resolved_max = MAX_CONCURRENT_TASKS if max_concurrent is None else max_concurrent
+        if isinstance(resolved_max, bool) or not isinstance(resolved_max, int) or resolved_max <= 0:
+            raise ValueError("max_concurrent must be a positive integer")
+        self.max_concurrent = resolved_max
         self._semaphore = asyncio.Semaphore(self.max_concurrent)
-        self._active_tasks: dict[str, DispatchedTask] = {}
+        self._active_tasks: dict[int, DispatchedTask] = {}
+        self._runner_tasks: set[asyncio.Task[Any]] = set()
         self._cancel_event = asyncio.Event()
+
+    @staticmethod
+    def _close_task_coroutines(tasks: list[dict[str, Any]]) -> None:
+        """Close every unstarted coroutine in a rejected task collection."""
+        closed: set[int] = set()
+        for task_spec in tasks:
+            coroutine = task_spec.get("coro")
+            identity = id(coroutine)
+            close = getattr(coroutine, "close", None)
+            if identity not in closed and callable(close):
+                close()
+                closed.add(identity)
+
+    @staticmethod
+    def _validated_task_ids(tasks: list[dict[str, Any]]) -> list[str]:
+        """Return unique non-empty task IDs."""
+        task_ids: list[str] = []
+        for task_spec in tasks:
+            task_id = task_spec.get("id")
+            if not isinstance(task_id, str) or not task_id:
+                raise ValueError("Task id must be a non-empty string")
+            if task_id in task_ids:
+                raise ValueError(f"Duplicate task id: {task_id!r}")
+            if not isinstance(task_spec.get("coro"), Coroutine):
+                raise ValueError(f"Task {task_id!r} must provide a coroutine")
+            task_ids.append(task_id)
+        return task_ids
+
+    @staticmethod
+    def _validate_dependency_references(
+        task_ids: list[str],
+        dependencies: dict[str, list[str]],
+    ) -> None:
+        """Require dependency declarations to reference known tasks exactly once."""
+        known = set(task_ids)
+        unknown_keys = set(dependencies) - known
+        if unknown_keys:
+            raise ValueError(f"Dependencies declared for unknown task: {sorted(unknown_keys)[0]!r}")
+        for task_id, required in dependencies.items():
+            if not isinstance(required, list):
+                raise ValueError(f"Dependencies for task {task_id!r} must be a list")
+            if len(required) != len(set(required)):
+                raise ValueError(f"Task {task_id!r} contains duplicate dependencies")
+            unknown = set(required) - known
+            if unknown:
+                raise ValueError(f"Task {task_id!r} depends on unknown task {sorted(unknown)[0]!r}")
+
+    @staticmethod
+    def _validate_dependency_dag(
+        task_ids: list[str],
+        dependencies: dict[str, list[str]],
+    ) -> None:
+        """Reject dependency cycles before any task starts."""
+        visiting: set[str] = set()
+        visited: set[str] = set()
+
+        def visit(task_id: str) -> None:
+            if task_id in visiting:
+                raise ValueError(f"Dependency cycle includes task {task_id!r}")
+            if task_id in visited:
+                return
+            visiting.add(task_id)
+            for dependency_id in dependencies.get(task_id, []):
+                visit(dependency_id)
+            visiting.remove(task_id)
+            visited.add(task_id)
+
+        for task_id in task_ids:
+            visit(task_id)
+
+    @classmethod
+    def _validate_tasks(
+        cls,
+        tasks: list[dict[str, Any]],
+        dependencies: dict[str, list[str]] | None = None,
+    ) -> None:
+        """Validate task identities and an optional dependency DAG before execution."""
+        try:
+            task_ids = cls._validated_task_ids(tasks)
+            if dependencies is None:
+                return
+            cls._validate_dependency_references(task_ids, dependencies)
+            cls._validate_dependency_dag(task_ids, dependencies)
+        except (TypeError, ValueError):
+            cls._close_task_coroutines(tasks)
+            raise
+
+    def _track_runner(self) -> asyncio.Task[Any] | None:
+        runner = asyncio.current_task()
+        if runner is not None:
+            self._runner_tasks.add(runner)
+        return runner
+
+    def _untrack_runner(self, runner: asyncio.Task[Any] | None) -> None:
+        if runner is not None:
+            self._runner_tasks.discard(runner)
 
     async def _report_progress(
         self,
@@ -265,8 +365,8 @@ class AsyncTaskDispatcher:
                 if not awaitable.done():
                     awaitable.cancel()
             await asyncio.gather(*awaitables, return_exceptions=True)
-            for task_id in dispatched:
-                self._active_tasks.pop(task_id, None)
+            for task in dispatched.values():
+                self._active_tasks.pop(id(task), None)
             raise
 
     async def dispatch(
@@ -290,6 +390,7 @@ class AsyncTaskDispatcher:
         Returns:
             DispatchResult with all task results
         """
+        self._validate_tasks(tasks)
         start_time = _utc_now()
         self._cancel_event.clear()
 
@@ -302,10 +403,11 @@ class AsyncTaskDispatcher:
                 metadata=task_spec.get("metadata", {}),
             )
             dispatched[task.id] = task
-            self._active_tasks[task.id] = task
+            self._active_tasks[id(task)] = task
 
         # Execute all tasks concurrently
         async def run_task(task: DispatchedTask) -> None:
+            runner = self._track_runner()
             try:
                 async with self._semaphore:
                     if self._cancel_event.is_set():
@@ -322,6 +424,8 @@ class AsyncTaskDispatcher:
                     )
             except asyncio.CancelledError:
                 self._cancel_pending_task(task)
+            finally:
+                self._untrack_runner(runner)
 
         # Run all tasks
         aws = [asyncio.create_task(run_task(task)) for task in dispatched.values()]
@@ -341,8 +445,8 @@ class AsyncTaskDispatcher:
         cancelled_count = sum(1 for t in dispatched.values() if t.status == DispatchStatus.CANCELLED)
 
         # Clean up
-        for task_id in dispatched:
-            self._active_tasks.pop(task_id, None)
+        for task in dispatched.values():
+            self._active_tasks.pop(id(task), None)
 
         return DispatchResult(
             tasks=dispatched,
@@ -372,6 +476,7 @@ class AsyncTaskDispatcher:
         Returns:
             DispatchResult with all task results
         """
+        self._validate_tasks(tasks, dependencies)
         start_time = _utc_now()
         self._cancel_event.clear()
 
@@ -387,7 +492,7 @@ class AsyncTaskDispatcher:
                 metadata=task_spec.get("metadata", {}),
             )
             dispatched[task_id] = task
-            self._active_tasks[task_id] = task
+            self._active_tasks[id(task)] = task
 
         # Track completed tasks
         completed_tasks: set[str] = set()
@@ -414,6 +519,7 @@ class AsyncTaskDispatcher:
             return True
 
         async def run_task(task: DispatchedTask) -> None:
+            runner = self._track_runner()
             try:
                 # Wait for dependencies before acquiring the concurrency slot.
                 # Holding the semaphore while awaiting a dependency that itself
@@ -450,6 +556,8 @@ class AsyncTaskDispatcher:
             except asyncio.CancelledError:
                 self._cancel_pending_task(task)
                 completion_events[task.id].set()
+            finally:
+                self._untrack_runner(runner)
 
         # Run all tasks (dependency waiting happens inside run_task)
         aws = [run_task(task) for task in dispatched.values()]
@@ -479,8 +587,8 @@ class AsyncTaskDispatcher:
         cancelled_count = sum(1 for t in dispatched.values() if t.status == DispatchStatus.CANCELLED)
 
         # Clean up
-        for task_id in dispatched:
-            self._active_tasks.pop(task_id, None)
+        for task in dispatched.values():
+            self._active_tasks.pop(id(task), None)
 
         return DispatchResult(
             tasks=dispatched,
@@ -498,6 +606,12 @@ class AsyncTaskDispatcher:
                 if task.status in {DispatchStatus.PENDING, DispatchStatus.BLOCKED}:
                     task.close_unstarted_coro()
                 task.status = DispatchStatus.CANCELLED
+        current = asyncio.current_task()
+        runners = [runner for runner in self._runner_tasks if runner is not current and not runner.done()]
+        for runner in runners:
+            runner.cancel()
+        if runners:
+            await asyncio.gather(*runners, return_exceptions=True)
 
     def get_active_tasks(self) -> list[DispatchedTask]:
         """Get all currently active tasks."""

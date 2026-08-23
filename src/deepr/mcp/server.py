@@ -1028,6 +1028,16 @@ class DeeprMCPServer:
             if not current_mcp_request_can_access_owner(state.owner_id if state else None):
                 return _make_error("JOB_NOT_FOUND", f"Job '{job_id}' not found")
 
+            terminal = {JobPhase.COMPLETED, JobPhase.FAILED, JobPhase.CANCELLED}
+            if state is not None and state.phase in terminal:
+                return {
+                    "job_id": job_id,
+                    "status": state.phase.value,
+                    "progress": state.progress,
+                    "cost_so_far": state.cost_so_far,
+                    "started_at": state.started_at.isoformat(),
+                }
+
             job_cache = self.active_jobs.get(job_id, {})
             provider_instance = job_cache.get("provider_instance")
 
@@ -1045,20 +1055,26 @@ class DeeprMCPServer:
                         "queued": JobPhase.QUEUED,
                     }
                     provider_phase = phase_map.get(response.status, JobPhase.EXECUTING)
-                    await self.resource_handler.jobs.update_phase(
+                    synced_state = await self.resource_handler.jobs.update_phase(
                         job_id,
                         provider_phase,
                         cost_so_far=cost_so_far,
                     )
                     self.resource_handler.persist_job(job_id)
 
+                    canonical_status = response.status
+                    canonical_cost = cost_so_far
+                    if synced_state is not None and synced_state.phase in terminal:
+                        canonical_status = synced_state.phase.value
+                        canonical_cost = synced_state.cost_so_far
+
                     from deepr.mcp.artifacts import inject_artifact_ids
 
                     return inject_artifact_ids(
                         {
                             "job_id": job_id,
-                            "status": response.status,
-                            "cost_so_far": cost_so_far,
+                            "status": canonical_status,
+                            "cost_so_far": canonical_cost,
                             "submitted_at": job_cache.get("submitted_at"),
                         },
                         job_id=job_id,

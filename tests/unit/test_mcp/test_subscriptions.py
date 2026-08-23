@@ -155,6 +155,23 @@ class TestSubscriptionManager:
             await manager.subscribe("invalid_uri", callback)
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "uri",
+        [
+            "invalid_uri",
+            "deepr://campaigns/CON/*",
+            "deepr://unknown/abc/*",
+            "deepr://campaigns/abc/status/*",
+        ],
+    )
+    async def test_subscribe_invalid_wildcard_uri_raises(self, manager, uri):
+        async def callback(data):
+            pass
+
+        with pytest.raises(ValueError, match="Invalid resource URI"):
+            await manager.subscribe(uri, callback, wildcard=True)
+
+    @pytest.mark.asyncio
     async def test_unsubscribe_removes_subscription(self, manager):
         """Unsubscribe should remove the subscription."""
 

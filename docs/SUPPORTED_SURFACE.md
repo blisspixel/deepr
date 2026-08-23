@@ -1,11 +1,21 @@
 # Supported Surface
 
-Status: v2.50.6 current main, 2026-08-22. This document defines what users and host
+Status: v2.50.7 current main, 2026-08-22. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
 path is structurally complete but remains execution-blocked without verified
 provider prepaid-no-overage or hard-stop evidence.
+
+**v2.50.7 keeps MCP job state and task execution monotonic.** SQLite persistence
+migrates legacy databases in place and preserves plans, active tasks, temporal
+findings, and hypothesis history when a caller saves only one part of a job.
+Finished jobs cannot be revived by a stale provider observation, accumulated
+cost cannot decrease, and progress, cost, confidence, and estimates reject
+non-finite JSON values before mutation. Task dispatch validates identities,
+coroutines, dependency references, and dependency cycles before work starts;
+global cancellation stops running work across concurrent batches. Wildcard
+subscriptions are limited to canonical campaign and expert base resources.
 
 **v2.50.6 keeps local report identity and retention deterministic.** Readable
 directory lookup verifies the complete stored job ID, trusted metadata fields
@@ -163,6 +173,12 @@ must not be described as usable capacity.
   `server/discover`, `subscriptions/listen`, Streamable HTTP header/Origin
   rules) while continuing to serve legacy `initialize`-era clients
   (`2025-06-18`, `2025-03-26`, `2024-11-05`) on both transports.
+  Local job persistence migrates legacy schemas without replacing parent rows,
+  retains nested plans and belief history across partial saves, and marks
+  interrupted jobs failed with no active tasks after restart. Terminal job
+  state is monotonic against stale provider polling. Dependency dispatch
+  rejects unknown references and cycles before execution, and cancellation
+  stops tracked running coroutines rather than changing status alone.
 - Published Agent Plugins 1.0.0 package foundation under
   `packages/deepr-agent-plugin`. The package uses an installed `deepr-mcp`
   stdio executable, a spec-conformant Agent Skill, explicit state roots beneath

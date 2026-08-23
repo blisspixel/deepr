@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.50.6-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.6)
+[![Version](https://img.shields.io/badge/version-2.50.7-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.7)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -136,7 +136,7 @@ host-profile reference are documented in [Supported Surface](docs/SUPPORTED_SURF
 
 ```bash
 uv pip install -e ".[dev,full]"
-pytest tests/unit/ --ignore=tests/data -q
+python -m pytest tests/unit/ --ignore=tests/data -q
 ruff check src/deepr/
 ruff format --check src/deepr/
 python scripts/check_file_sizes.py

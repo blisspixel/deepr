@@ -160,19 +160,25 @@ class SubscriptionManager:
         Raises:
             ValueError: If URI is invalid
         """
-        # Validate URI format
-        parsed = parse_resource_uri(uri)
-        if not parsed and not wildcard:
-            # For wildcard, allow base URIs
-            if not re.match(r"^deepr://(campaigns|experts)/[a-zA-Z0-9_-]+/\*$", uri):
+        if wildcard:
+            wildcard_match = re.fullmatch(
+                r"deepr://(?P<type>campaigns|experts)/(?P<id>[a-zA-Z0-9_-]+)/\*",
+                uri,
+            )
+            if not wildcard_match or reserved_windows_device_stem(wildcard_match.group("id")):
                 raise ValueError(f"Invalid resource URI: {uri}")
+            subscription_uri = uri[:-2]
+        else:
+            if parse_resource_uri(uri) is None:
+                raise ValueError(f"Invalid resource URI: {uri}")
+            subscription_uri = uri
 
         sub_id = f"sub_{uuid.uuid4().hex[:12]}"
 
         async with self._lock:
             subscription = Subscription(
                 id=sub_id,
-                uri=uri.rstrip("/*") if wildcard else uri,
+                uri=subscription_uri,
                 callback=callback,
                 wildcard=wildcard,
                 owner_id=owner_id,

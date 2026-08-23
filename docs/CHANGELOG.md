@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.7] - 2026-08-22
+
+### Changed
+
+- MCP job persistence migrates legacy SQLite databases in place and retains
+  active tasks, temporal findings, and hypothesis history across restarts.
+  State-only saves preserve existing plans and beliefs, and shared connection
+  access is serialized.
+- Async task dispatch validates batch identities, required coroutines,
+  dependency references, dependency cycles, and concurrency limits before any
+  work starts. Cancellation now stops every tracked runner, including same-ID
+  tasks in simultaneous batches.
+
+### Fixed
+
+- Updating an MCP job no longer replaces its parent SQLite row and cascades
+  away the stored plan or beliefs. Related records with a mismatched job ID are
+  rejected before a transaction begins.
+- Duplicate job creation cannot silently overwrite live state. Terminal jobs
+  cannot be revived by a stale provider poll, accumulated cost cannot decrease,
+  and terminal state cannot retain obsolete active tasks.
+- Estimated cost, live cost, progress, and belief confidence reject booleans,
+  negative values where invalid, and non-finite values before mutation.
+- Missing task coroutines, duplicate task IDs, unknown dependencies, and cycles
+  fail without leaking unawaited work or waiting indefinitely. Cancelling a
+  running dispatch now stops the underlying coroutine instead of changing only
+  its reported status.
+- Wildcard resource subscriptions reject unknown resource types, nested paths,
+  reserved device names, and malformed URIs instead of bypassing normal URI
+  validation.
+
 ## [2.50.6] - 2026-08-22
 
 ### Changed
