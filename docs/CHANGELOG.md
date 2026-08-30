@@ -16,9 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   consult on explicit local capacity. Metered previews remain visibly separate
   and production paid dispatch remains blocked.
 - The roadmap now puts the shipped blinded four-arm longitudinal value review
-  before wider public surface, keeps immutable falsifier predictions as the
-  next implementation, and marks v2.51 projection work design-gated until run
-  ownership is stronger than knowledge of a `run_id`.
+  before wider public surface, moves next to resolving prospective predictions
+  against later grounded material without a learning controller, and marks
+  v2.51 projection work design-gated until run ownership is stronger than
+  knowledge of a `run_id`.
 - Documentation consistency now derives the package version from build
   metadata and rejects stale release-facing version claims.
 - Two planned design contracts now define exact-evidence interchange, a
