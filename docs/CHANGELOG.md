@@ -25,6 +25,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   candidate-only semantic firewall, complete Position justification history,
   and the held-out value gate required before Deepr adds a first-class Argument
   store. No new import, ontology, or mutation surface is claimed as shipped.
+- Brief synthesis can register prospective falsifier predictions with an
+  observable criterion and ISO check date. The fields are immutable position
+  history and cannot be backdated before the position was formed.
+- `deepr expert experience` adds a bounded, `$0`, read-only view of registered
+  predictions, consult trace metadata, and corrected operator-attested
+  outcomes. It does not infer semantic links, judge outcome quality, or apply
+  learning changes.
+- README and expert guidance now frame beliefs, sources, and graphs as the
+  expert's cognitive infrastructure. The product target is demonstrable
+  improvement in judgment through study, predictions, observed outcomes, and
+  review-gated revision.
 
 ### Fixed
 

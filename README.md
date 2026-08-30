@@ -16,6 +16,13 @@ keep changing. Instead of rebuilding context for every run, they consult the
 same inspectable expert state through the CLI or MCP and can see what changed,
 what supports a position, and what remains unknown.
 
+Beliefs, sources, graphs, and notes are the expert's cognitive infrastructure,
+not the product definition. The product goal is an expert that develops through
+study, judgment, prospective predictions, observed outcomes, and review-gated
+revision, then performs better on future problems. Deepr now preserves those
+inputs as inspectable records; automatic outcome-driven learning and
+longitudinal proof of better judgment remain roadmap work.
+
 ## Build a durable expert fleet
 
 <p align="center">

@@ -436,6 +436,40 @@ def load_consult_traces(*, path: Path | None = None, limit: int = 50) -> list[di
     return records[-limit:]
 
 
+def load_consult_traces_by_id(
+    trace_ids: set[str],
+    *,
+    path: Path | None = None,
+) -> list[dict[str, Any]]:
+    """Load only explicitly requested trace identities with bounded memory."""
+    requested = {str(trace_id).strip() for trace_id in trace_ids if str(trace_id).strip()}
+    if len(requested) > 100:
+        raise ValueError("at most 100 consult trace ids may be requested")
+    resolved = _trace_path(path)
+    if not requested or not resolved.exists():
+        return []
+
+    records: list[dict[str, Any]] = []
+    matches_per_id: dict[str, int] = {}
+    with resolved.open(encoding="utf-8") as f:
+        for line in f:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                parsed = json.loads(stripped)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(parsed, dict):
+                continue
+            trace_id = str(parsed.get("trace_id", ""))
+            if trace_id not in requested or matches_per_id.get(trace_id, 0) >= 2:
+                continue
+            records.append(parsed)
+            matches_per_id[trace_id] = matches_per_id.get(trace_id, 0) + 1
+    return records
+
+
 def _check_names_by_status(trace: dict[str, Any], statuses: set[str]) -> list[str]:
     names: list[str] = []
     for check in trace.get("checks", []) or []:

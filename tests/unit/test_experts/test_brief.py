@@ -1,6 +1,7 @@
 """The brief: lands somewhere, cites why, keeps what it could not resolve."""
 
 import json
+from datetime import date
 
 import pytest
 
@@ -80,6 +81,8 @@ _GOOD = {
             "stance": "Mostly, under stated conditions.",
             "reasoning": "Two independent origins report it.",
             "would_change_my_mind": "A controlled result showing the reverse.",
+            "falsifier_resolution_criterion": "The controlled result reports the reverse direction.",
+            "falsifier_resolution_date": "2099-01-15",
             "supported_by": ["failure-1"],
             "unresolved_dissent": "One source disputes the magnitude.",
             "confidence_basis": "two origins, consistent",
@@ -108,6 +111,16 @@ class TestPromptContract:
         assert "would_change_my_mind" in prompt
         assert "supported_by" in prompt
         assert "assertion" in prompt
+
+    def test_prompt_registers_predictions_prospectively(self):
+        prompt = build_brief_prompt(
+            _result([_finding("F1")]),
+            expert_name="E",
+            as_of_date=date(2026, 8, 30),
+        )
+        assert "falsifier_resolution_criterion" in prompt
+        assert "falsifier_resolution_date" in prompt
+        assert "2026-08-30" in prompt
 
     def test_prompt_forbids_averaging_dissent(self):
         prompt = build_brief_prompt(_result([_finding("F1")]), expert_name="E")
@@ -153,6 +166,15 @@ class TestPromptContract:
         assert "UNVERIFIED" in prompt
 
 
+class TestPositionCompatibility:
+    def test_prediction_fields_do_not_change_legacy_positional_constructor_order(self):
+        position = Position("Q", "S", "R", "F", ["finding-1"])
+
+        assert position.supported_by == ["finding-1"]
+        assert position.falsifier_resolution_criterion == ""
+        assert position.falsifier_resolution_date == ""
+
+
 class TestAssemble:
     def test_positions_keep_only_real_citations(self, corpus):
         """A citation naming no real finding cannot answer 'why do you think that'."""
@@ -168,6 +190,40 @@ class TestAssemble:
             _GOOD, expert_name="E", result=_result([_finding("Silent restore failure")]), corpus=corpus
         )
         assert brief.positions[0].unresolved_dissent
+
+    def test_registered_prediction_survives_assembly(self, corpus):
+        brief = assemble_brief(
+            _GOOD, expert_name="E", result=_result([_finding("Silent restore failure")]), corpus=corpus
+        )
+        position = brief.positions[0]
+        assert position.is_registered_prediction
+        assert position.falsifier_resolution_date == "2099-01-15"
+
+    def test_invalid_prediction_date_is_not_registered(self, corpus):
+        payload = json.loads(json.dumps(_GOOD))
+        payload["positions"][0]["falsifier_resolution_date"] = "next quarter"
+
+        brief = assemble_brief(
+            payload, expert_name="E", result=_result([_finding("Silent restore failure")]), corpus=corpus
+        )
+
+        assert brief.positions[0].falsifier_resolution_date == ""
+        assert not brief.positions[0].is_registered_prediction
+
+    def test_retroactive_prediction_date_is_not_registered(self, corpus):
+        payload = json.loads(json.dumps(_GOOD))
+        payload["positions"][0]["falsifier_resolution_date"] = "2026-08-29"
+
+        brief = assemble_brief(
+            payload,
+            expert_name="E",
+            result=_result([_finding("Silent restore failure")]),
+            corpus=corpus,
+            as_of_date=date(2026, 8, 30),
+        )
+
+        assert brief.positions[0].falsifier_resolution_date == ""
+        assert not brief.positions[0].is_registered_prediction
 
     def test_positions_without_a_stance_are_dropped(self, corpus):
         payload = json.loads(json.dumps(_GOOD))
@@ -430,6 +486,14 @@ class TestRender:
             _GOOD, expert_name="E", result=_result([_finding("Silent restore failure")]), corpus=corpus
         )
         assert "Does not resolve" in render_brief(brief)
+
+    def test_registered_prediction_check_is_rendered(self, corpus):
+        brief = assemble_brief(
+            _GOOD, expert_name="E", result=_result([_finding("Silent restore failure")]), corpus=corpus
+        )
+        rendered = render_brief(brief)
+        assert "Check on 2099-01-15" in rendered
+        assert "reports the reverse direction" in rendered
 
     def test_settled_section_tells_the_reader_to_skip(self, corpus):
         brief = assemble_brief(

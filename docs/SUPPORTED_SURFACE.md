@@ -137,6 +137,15 @@ must not be described as usable capacity.
   does not verify reviewer identity or claim human authorship. These artifacts
   make purpose and later results inspectable but never authorize spend,
   knowledge writes, routing changes, or external actions.
+- Brief positions may register prospective predictions with an observable
+  falsifier criterion and ISO check date. The position ledger preserves each
+  prediction with the exact position version that made it. `deepr expert
+  experience NAME` builds a bounded `$0`, read-only derived view over position
+  history, consult trace metadata, and corrected outcome observations. It does
+  not accept a ledger or outcome from another expert and does not expose trace
+  content unless the stored expert roster matches. It does not decide whether
+  a prediction fired, infer whether advice was good, link an outcome to a
+  prediction by meaning, or apply a learning change.
 - `deepr eval expert-value` template generation and review aggregation. The
   evaluator binds a complete four-arm matrix to the exact operator-attested
   blueprint and frozen source-world hashes, reports separate quality, risk,

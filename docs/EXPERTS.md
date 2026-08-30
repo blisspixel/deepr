@@ -13,6 +13,12 @@ into canonical beliefs, concepts, hypotheses, stance, original ideas,
 provenance refs, temporal graph edges, contradiction signals, gap backlogs, freshness watchlists, and
 regenerated digest, memory-card, or handoff views.
 
+Those records are infrastructure. The product target is an expert that develops
+through study, judgment, prospective prediction, observed outcomes, and
+review-gated revision, then transfers what it learned to future problems.
+Accumulated state, graph size, and recall are not substitutes for measured
+improvement in judgment.
+
 Every serious expert should start with an explicitly unreviewed blueprint draft
 that names its proposed mission, non-goals, real decision use cases, source
 policy, update cadence, and held-out acceptance cases. A zero-call preflight
@@ -88,6 +94,8 @@ deepr expert consult "What evidence is missing?" --expert "Azure Architect" --pl
 # Record the later observed decision result without changing expert knowledge.
 deepr expert record-outcome "Azure Architect" --decision-id migration-2026 --summary "Choose the migration architecture" --result mixed --observation "Availability improved, but recovery time missed its target." --attested-by operator
 deepr expert outcomes "Azure Architect"
+# Join registered predictions, consult metadata, and current outcome observations in a read-only view.
+deepr expert experience "Azure Architect"
 
 # Regenerate the expert's derived memory card for humans and host agents
 deepr expert memory-card "Azure Architect" --write

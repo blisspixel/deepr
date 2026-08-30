@@ -548,9 +548,10 @@ blinded, randomized semantic review, exact frozen source worlds, and explicit
 operator attestation. Publish the workbook, bound artifacts, and separate
 false-support, stale-memory, transfer, effort, cost, and outcome measures. This
 is validation of the current product, not authority to tune a default. The next
-implementation remains immutable falsifier predictions below. Read-only MCP
-investigation projection stays design-gated until run ownership is stronger
-than knowledge of a `run_id`.
+implementation is resolving prospective predictions against later grounded
+material without applying a learning controller. Read-only MCP investigation
+projection stays design-gated until run ownership is stronger than knowledge
+of a `run_id`.
 
 0. **Close the standards foundation before widening distribution.** The three
    current targets have separate jobs: OKF 0.2 carries selected knowledge,
@@ -629,22 +630,14 @@ than knowledge of a `run_id`.
    **Findings are still rebuilt wholesale.** Positions were the urgent half -
    they carry the falsifiers - but a finding ledger is the same shape and is
    what `study` needs before it can run unattended.
-3. **Freeze falsifiers as predictions.** Now unblocked, and next. This is also
-   the consolidation pass a sibling project already runs nightly - see
-   [what-ai-proxy-teaches-deepr.md](docs/design/what-ai-proxy-teaches-deepr.md),
-   which argues the safe version consolidates *questions and falsifier
-   outcomes* rather than conversation content, because a pass that promotes
-   what came up in chat would manufacture claims with no source behind them.
-   [Why](docs/design/the-feedback-signal.md) A resolution criterion and a
-   resolution date, immutable once written. This starts a clock that cannot be
-   started retroactively, so it is worth doing before the mechanism that reads
-   it exists.
-4. **Resolve them against later material, and record the discrepancy only.**
+3. **Resolve prospective predictions against later material, and record the
+   discrepancy only.** Brief synthesis now registers the immutable criterion
+   and check date, and `deepr expert experience` exposes the due predictions.
    The signal is the gap between an ex ante position and a later grounded
    outcome; see [the-feedback-signal.md](docs/design/the-feedback-signal.md).
    Deliberately no controller in the first pass - adjusting confidence against
    an unvalidated signal is how a system optimises the wrong thing quietly.
-5. **Preserve and explain complete position justification.** Close the current
+4. **Preserve and explain complete position justification.** Close the current
    ledger fidelity gap before adding a separate Argument store: rationale,
    confidence basis, resolution, source-root counts, assumptions,
    counterevidence, and revision signals must participate in version identity.
@@ -653,7 +646,7 @@ than knowledge of a `run_id`.
    join only after their own staging and verification gates pass. A first-class
    Argument remains eval-gated. Design:
    [position-justification-and-explanation.md](docs/design/position-justification-and-explanation.md).
-6. **Prototype exact-evidence interchange and the semantic firewall in shadow.**
+5. **Prototype exact-evidence interchange and the semantic firewall in shadow.**
    Start with only immutable source assertions, beliefs, exact anchors, and a
    write-free relation classifier. The first measured question is whether
    `same_as_existing` corroboration can be preserved without a duplicate belief
@@ -663,12 +656,12 @@ than knowledge of a `run_id`.
    RDF, no sibling dependency, no canonical graph migration, and no paid call.
    Design:
    [epistemic-interchange-and-semantic-firewall.md](docs/design/epistemic-interchange-and-semantic-firewall.md).
-7. **A point-in-time read.** `history_of(thread)` first, then `as_of(t)`, with
+6. **A point-in-time read.** `history_of(thread)` first, then `as_of(t)`, with
    `current()` as the zero-argument default. The wall-clock decay bug is
    closed: `get_current_confidence(as_of=...)` evaluates at the requested
    instant, and digest / OKF / `what_changed` pass that instant. The
    remaining work is the read API itself (`current()` as the default).
-8. **Then, and only then, unattended operation** for the stages that already
+7. **Then, and only then, unattended operation** for the stages that already
    pass the reversibility test - `source`, `study`, `graph`, `viva` - with a
    quota preflight rather than a schedule. Two runs died mid-flight on quota
    exhaustion in a single session; a loop that does not model remaining

@@ -29,6 +29,7 @@ from deepr.experts.consult_traces import (
     build_consult_trace,
     build_consult_trace_candidates,
     load_consult_traces,
+    load_consult_traces_by_id,
     record_consult_trace,
     review_consult_traces,
 )
@@ -440,6 +441,42 @@ def test_load_consult_traces_returns_newest_valid_records(tmp_path):
     loaded = load_consult_traces(path=path, limit=1)
 
     assert [record["input"]["question"] for record in loaded] == ["second"]
+
+
+def test_load_consult_traces_by_id_scans_old_records_with_bounded_memory(tmp_path):
+    path = tmp_path / "consult_traces.jsonl"
+    records = [
+        build_consult_trace(
+            question=f"question {index}",
+            requested_experts=[],
+            max_experts=3,
+            budget=0.0,
+            trace_id=f"trace:{index}",
+        )
+        for index in range(4)
+    ]
+    path.write_text("\n".join(json.dumps(record) for record in records) + "\n", encoding="utf-8")
+
+    loaded = load_consult_traces_by_id({"trace:0", "trace:3"}, path=path)
+
+    assert [record["trace_id"] for record in loaded] == ["trace:0", "trace:3"]
+
+
+def test_load_consult_traces_by_id_rejects_unbounded_identity_sets(tmp_path):
+    with pytest.raises(ValueError, match="at most 100"):
+        load_consult_traces_by_id({f"trace:{index}" for index in range(101)}, path=tmp_path / "unused.jsonl")
+
+
+def test_load_consult_traces_by_id_keeps_at_most_two_matches_per_identity(tmp_path):
+    path = tmp_path / "consult_traces.jsonl"
+    path.write_text(
+        "".join(json.dumps({"trace_id": "repeated", "ordinal": index}) + "\n" for index in range(150)),
+        encoding="utf-8",
+    )
+
+    records = load_consult_traces_by_id({"repeated"}, path=path)
+
+    assert [record["ordinal"] for record in records] == [0, 1]
 
 
 def test_build_consult_trace_candidates_flags_failed_and_low_context_traces():
