@@ -242,6 +242,10 @@ def _render_position_block(index: int, position: Position) -> list[str]:
         lines.append(f"   Does not resolve: {position.unresolved_dissent}")
     if position.would_change_my_mind:
         lines.append(f"   Would change my mind: {position.would_change_my_mind}")
+        if position.is_registered_prediction:
+            lines.append(
+                f"   Scheduled check {position.falsifier_resolution_date}: {position.falsifier_resolution_criterion}"
+            )
     else:
         lines.append("   No falsifier stated: treat as assertion, not judgment.")
     if position.is_single_origin:

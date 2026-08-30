@@ -72,12 +72,12 @@ def detect_research_mode(prompt: str) -> str:
     "--upload",
     "-u",
     multiple=True,
-    help="Provider file context (gated in v2.36 until storage lifecycle costs are bounded)",
+    help="Provider file context (gated until storage lifecycle costs are bounded)",
 )
 @click.option(
     "--scrape",
     "-s",
-    help="Scrape into provider file context (gated in v2.36; company --scrape-only remains available)",
+    help="Scrape into provider file context (gated; company --scrape-only remains available)",
 )
 @click.option(
     "--limit",
@@ -102,9 +102,14 @@ def detect_research_mode(prompt: str) -> str:
 @click.option(
     "--no-fallback",
     is_flag=True,
-    help="Compatibility flag; automatic metered provider fallback is disabled in v2.36",
+    help="Compatibility flag; automatic metered provider fallback is disabled",
 )
-@click.option("--auto", "auto_mode", is_flag=True, help="Smart routing based on query complexity (cost-effective)")
+@click.option(
+    "--auto",
+    "auto_mode",
+    is_flag=True,
+    help="Preview routing based on query complexity; it does not authorize metered dispatch",
+)
 @click.option("--batch", type=click.Path(exists=True), help="File with queries (one per line, .txt or .json)")
 @click.option(
     "--preview",
@@ -141,48 +146,41 @@ def research(
     prefer_speed: bool,
     output_context: OutputContext,
 ):
-    """Run research with automatic mode detection.
+    """Preview bounded metered research requests without dispatch.
 
-    Automatically detects whether you need focused research or documentation
-    research based on your query. You can override with --mode.
+    The current production metered path fails before provider construction.
+    Use --preview to inspect the exact provider, model, tools, and maximum
+    request envelope. Local and safety-eligible plan expert workflows remain
+    executable through the expert commands.
 
+    \b
     AUTO MODE (--auto):
-        Smart routing based on query complexity. Routes simple queries to
-        cheap/fast models and complex queries to deep research models.
-        The routing score is not a spend ceiling. Preview reports the hard
-        request envelope used for admission.
+        Advisory routing for preview. The score is not a spend ceiling;
+        admission uses the displayed hard request envelope.
+        deepr research --auto --preview "What is Python?"
 
-        deepr research --auto "What is Python?"      # -> current cheapest capable model
-        deepr research --auto --preview "Analyze Tesla"
-
+    \b
     BATCH MODE (--auto --batch):
-        Process multiple queries from a file with optimal routing per query.
-
+        Preview routing for every query in a file.
         deepr research --auto --batch queries.txt --preview
+        Metered execution stays gated without one durable parent reservation.
 
-        Metered batch execution is gated in v2.36 until every nested call is
-        bound to one durable parent reservation.
-
+    \b
     PREVIEW MODE (--preview):
-        Show the planned model, provider, and estimated cost without
-        executing. Works with or without --auto. Useful for confirming
-        spend before kicking off an expensive deep research job.
-
-        deepr research --auto --preview "Analyze Tesla"
+        Show the model, provider, and maximum without dispatch. Works with or
+        without --auto.
         deepr research -m o3-deep-research --preview "Quantum computing trends"
 
+    \b
     COMPANY RESEARCH MODE:
         deepr research company "<company_name>" "<website>"
-
         Use --scrape-only for the shipped local capture path. Provider-backed
-        file handoff is gated in v2.36 until storage lifecycle costs share the
-        research reservation.
+        file handoff stays gated until storage lifecycle costs share the request.
 
-    GENERAL RESEARCH EXAMPLES:
-        deepr research "Analyze AI code editor market 2025"
-        deepr research "Document the authentication flow" --mode docs
-        deepr research "Latest quantum computing trends" -m o3-deep-research
-        deepr research "Query" --provider xai -m grok-4.3 --no-web --no-code
+    \b
+    BOUNDED PREVIEW EXAMPLES:
+        deepr research "Analyze AI code editor market" --provider openai --model o4-mini-deep-research --preview
+        deepr research "Compare routes" --auto --preview
     """
     from deepr.cli.validation import validate_budget, validate_prompt, validate_upload_files
 
@@ -482,16 +480,14 @@ def team(
     perspectives: int,
     yes: bool,
 ):
-    """Analyze a question from multiple perspectives (dream team).
+    """Inspect the gated legacy multi-perspective research surface.
 
-    Uses Six Thinking Hats methodology to analyze the question from different
-    angles simultaneously. Perfect for complex decisions, strategic questions,
-    or situations that need diverse viewpoints.
+    Production metered team execution is blocked before provider construction.
+    For executable multi-expert judgment, use `deepr expert consult` with local
+    Ollama or an explicit safety-eligible plan backend.
 
-    Examples:
-        deepr team "Should we pivot to enterprise?"
-        deepr team "Evaluate merger opportunity" --perspectives 8
-        deepr team "Technology decision" -m o3-deep-research
+    Example:
+        deepr expert consult "Should we pivot to enterprise?" --expert "Market Expert" --local
     """
     click.echo(f"[Team Mode: {perspectives} perspectives analyzing in parallel]")
     run_async_command(_run_team(question, model, perspectives, yes), runner=asyncio.run)
@@ -504,7 +500,7 @@ def team(
 @click.option("--model", "-m", help="Model (default: grok-4.3)")
 @click.option("--verbose", "-v", is_flag=True, help="Show detailed reasoning")
 def check(claim: str, sources: str | None, provider: str | None, model: str | None, verbose: bool):
-    """Verify a factual claim (metered path gated in v2.36).
+    """Verify a factual claim (metered path gated in the current release).
 
     Uses a cost-effective model to verify facts and return a structured
     verdict with confidence level and supporting evidence.

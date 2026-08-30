@@ -10,6 +10,9 @@ from pydantic import ValidationError
 
 from deepr.cli.colors import print_info, print_success
 from deepr.cli.commands.semantic.experts import expert
+from deepr.experts.consult_traces import load_consult_traces_by_id
+from deepr.experts.experience import build_experience_view, trace_ids_for_experience
+from deepr.experts.expert_layout import hold_history_path
 from deepr.experts.outcomes import (
     ExpertOutcomeDraft,
     ExpertOutcomeStore,
@@ -18,6 +21,7 @@ from deepr.experts.outcomes import (
     OutcomeStorageError,
     build_outcome_summary,
 )
+from deepr.experts.position_ledger import LedgerUnreadableError, load_ledger
 from deepr.experts.profile import ExpertStore
 
 
@@ -145,4 +149,52 @@ def list_outcomes(name: str, limit: int, json_output: bool) -> None:
         click.echo(f"  {item['outcome_id']} [{item['result']}] {item['decision_id']}: {item['decision_summary']}")
 
 
-__all__ = ["list_outcomes", "record_outcome"]
+@expert.command(name="experience")
+@click.argument("name")
+@click.option("--limit", type=click.IntRange(1, 100), default=20, show_default=True)
+@click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
+def show_experience(name: str, limit: int, json_output: bool) -> None:
+    """Join predictions, consultations, and outcomes without changing expert state."""
+    expert_name = _require_expert(name)
+    try:
+        outcomes = ExpertOutcomeStore().load_all(expert_name)
+        trace_ids = trace_ids_for_experience(outcomes, limit=limit)
+        traces = load_consult_traces_by_id(trace_ids)
+        ledger = load_ledger(hold_history_path(expert_name), expert_name=expert_name)
+        payload = build_experience_view(
+            expert_name,
+            outcomes=outcomes,
+            traces=traces,
+            position_ledger=ledger,
+            limit=limit,
+        )
+    except (LedgerUnreadableError, OutcomeStorageError, OSError, ValueError) as exc:
+        raise click.ClickException(f"Could not build experience view: {exc}") from exc
+
+    if json_output:
+        click.echo(_json_dump(payload))
+        return
+
+    counts = payload["counts"]
+    click.echo(f"Expert experience: {expert_name}")
+    click.echo(f"Current outcome cases: {counts['current_outcomes']} ({counts['returned_cases']} shown)")
+    click.echo(
+        "Registered predictions: "
+        f"{counts['registered_predictions']} "
+        f"({counts['due_predictions']} due, {counts['scheduled_predictions']} scheduled)"
+    )
+    if payload["cases"]:
+        click.echo("Recent cases:")
+        for case in payload["cases"]:
+            consult_status = case["consult"]["status"]
+            click.echo(
+                f"  {case['outcome_id']} [{case['result']}] {case['decision_summary']} (consult {consult_status})"
+            )
+    if payload["predictions"]:
+        click.echo("Predictions to revisit:")
+        for prediction in payload["predictions"]:
+            click.echo(f"  {prediction['resolution_date']} [{prediction['due_status']}] {prediction['question']}")
+    click.echo("This derived view makes no quality verdict and applies no learning change.")
+
+
+__all__ = ["list_outcomes", "record_outcome", "show_experience"]

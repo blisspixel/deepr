@@ -9,7 +9,8 @@ from unittest.mock import MagicMock
 from click.testing import CliRunner
 
 from deepr.cli.main import cli
-from deepr.experts.outcomes import ExpertOutcomeStore
+from deepr.experts.outcomes import ExpertOutcomeDraft, ExpertOutcomeStore
+from deepr.experts.position_ledger import PositionLedger, PositionVersion
 
 
 def _patch_stores(monkeypatch, tmp_path) -> ExpertOutcomeStore:
@@ -32,6 +33,7 @@ def test_outcome_commands_are_registered() -> None:
 
     assert runner.invoke(cli, ["expert", "record-outcome", "--help"]).exit_code == 0
     assert runner.invoke(cli, ["expert", "outcomes", "--help"]).exit_code == 0
+    assert runner.invoke(cli, ["expert", "experience", "--help"]).exit_code == 0
 
 
 def test_record_and_list_outcome_json(tmp_path, monkeypatch) -> None:
@@ -111,3 +113,63 @@ def test_record_outcome_requires_an_existing_expert(monkeypatch) -> None:
 
     assert result.exit_code != 0
     assert "not found" in result.output
+
+
+def test_experience_command_joins_outcomes_and_predictions(tmp_path, monkeypatch) -> None:
+    store = _patch_stores(monkeypatch, tmp_path)
+    trace = {
+        "trace_id": "trace:123",
+        "status": "completed",
+        "recorded_at": "2026-07-01T00:00:00+00:00",
+        "input": {"question": "Which architecture?", "question_hash": "a" * 64},
+        "output": {"experts_consulted": ["Platform Expert"]},
+    }
+    monkeypatch.setattr(
+        "deepr.cli.commands.semantic.expert_outcomes.load_consult_traces_by_id",
+        lambda trace_ids: [trace] if trace_ids == {"trace:123"} else [],
+    )
+    ledger_path = tmp_path / "hold" / "history.json"
+    ledger_path.parent.mkdir(parents=True)
+    ledger = PositionLedger(
+        expert_name="Platform Expert",
+        versions=[
+            PositionVersion(
+                thread_id="thread-1",
+                version_id="version-1",
+                question="Will it work?",
+                stance="Likely.",
+                would_change_my_mind="A failed deployment.",
+                falsifier_resolution_criterion="The deployment fails its acceptance test.",
+                falsifier_resolution_date="2027-01-01",
+                recorded_at="2026-07-01T00:00:00+00:00",
+            )
+        ],
+    )
+    ledger_path.write_text(json.dumps(ledger.to_dict()), encoding="utf-8")
+    monkeypatch.setattr(
+        "deepr.cli.commands.semantic.expert_outcomes.hold_history_path",
+        lambda _name: ledger_path,
+    )
+    store.record(
+        ExpertOutcomeDraft.model_validate(
+            {
+                "expert_name": "Platform Expert",
+                "decision_id": "decision-1",
+                "decision_summary": "Choose the architecture",
+                "result": "mixed",
+                "observation": "The deployment worked with one recovery issue.",
+                "observed_at": "2026-07-15T00:00:00+00:00",
+                "attested_by": "operator",
+                "consult_trace_id": "trace:123",
+            }
+        ),
+        outcome_id="outcome-1",
+    )
+
+    result = CliRunner().invoke(cli, ["expert", "experience", "Platform Expert", "--json"])
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["cases"][0]["consult"]["status"] == "matched"
+    assert payload["counts"]["registered_predictions"] == 1
+    assert payload["contract"]["automatic_learning"] is False

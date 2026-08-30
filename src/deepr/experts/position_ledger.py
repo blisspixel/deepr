@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -108,6 +109,8 @@ class PositionVersion:
     be total or `as_of` at that instant is ambiguous. Keeping a real timestamp
     plus a counter beats the alternative already in this codebase, which nudges
     the timestamp forward a microsecond and makes it a lie."""
+    falsifier_resolution_criterion: str = ""
+    falsifier_resolution_date: str = ""
 
     @property
     def is_live(self) -> bool:
@@ -128,6 +131,8 @@ class PositionVersion:
             likelihood=str(data.get("likelihood") or ""),
             confidence=str(data.get("confidence") or ""),
             would_change_my_mind=str(data.get("would_change_my_mind") or ""),
+            falsifier_resolution_criterion=str(data.get("falsifier_resolution_criterion") or ""),
+            falsifier_resolution_date=str(data.get("falsifier_resolution_date") or ""),
             unresolved_dissent=str(data.get("unresolved_dissent") or ""),
             supported_by=list(data.get("supported_by") or []),
             recorded_at=str(data.get("recorded_at") or ""),
@@ -140,35 +145,65 @@ class PositionVersion:
         )
 
 
-def _content_of(position: Any) -> str:
+def _prospective_resolution_date(position: Any, *, recorded_at: str) -> str:
+    value = str(getattr(position, "falsifier_resolution_date", "") or "").strip()
+    if not value:
+        return ""
+    try:
+        resolution_date = datetime.fromisoformat(value).date()
+        formation_date = datetime.fromisoformat(recorded_at).date()
+    except ValueError:
+        return ""
+    return resolution_date.isoformat() if resolution_date >= formation_date else ""
+
+
+def _content_of(position: Any, *, falsifier_resolution_date: str | None = None) -> str:
     """What makes one statement different from another.
 
     The question is excluded on purpose - it is the thread identity, and
     including it would make every version differ from every other only because
     they share a subject.
     """
+    criterion = str(getattr(position, "falsifier_resolution_criterion", "") or "")
+    resolution_date = (
+        falsifier_resolution_date
+        if falsifier_resolution_date is not None
+        else str(getattr(position, "falsifier_resolution_date", "") or "")
+    )
     parts = [
         str(getattr(position, "stance", "") or ""),
         str(getattr(position, "likelihood", "") or ""),
         str(getattr(position, "confidence", "") or ""),
         str(getattr(position, "would_change_my_mind", "") or ""),
-        str(getattr(position, "unresolved_dissent", "") or ""),
-        ",".join(sorted(str(f) for f in (getattr(position, "supported_by", None) or []))),
     ]
+    # Preserve legacy version identity when the additive prediction fields are
+    # empty. Otherwise every old position would look revised on its first brief
+    # after upgrade even though its judgment had not changed.
+    if criterion or resolution_date:
+        parts.extend((criterion, resolution_date))
+    parts.extend(
+        (
+            str(getattr(position, "unresolved_dissent", "") or ""),
+            ",".join(sorted(str(f) for f in (getattr(position, "supported_by", None) or []))),
+        )
+    )
     return "\n\x00".join(parts)
 
 
 def version_from_position(position: Any, *, at: str, corpus_fingerprint: str = "", seq: int = 0) -> PositionVersion:
     """Turn a freshly briefed position into a recordable version."""
     question = str(getattr(position, "question", "") or "")
+    resolution_date = _prospective_resolution_date(position, recorded_at=at)
     return PositionVersion(
         thread_id=position_thread_id(question),
-        version_id=version_id(_content_of(position)),
+        version_id=version_id(_content_of(position, falsifier_resolution_date=resolution_date)),
         question=question,
         stance=str(getattr(position, "stance", "") or ""),
         likelihood=str(getattr(position, "likelihood", "") or ""),
         confidence=str(getattr(position, "confidence", "") or ""),
         would_change_my_mind=str(getattr(position, "would_change_my_mind", "") or ""),
+        falsifier_resolution_criterion=str(getattr(position, "falsifier_resolution_criterion", "") or ""),
+        falsifier_resolution_date=resolution_date,
         unresolved_dissent=str(getattr(position, "unresolved_dissent", "") or ""),
         supported_by=[str(f) for f in (getattr(position, "supported_by", None) or [])],
         recorded_at=at,

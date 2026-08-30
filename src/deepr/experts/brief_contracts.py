@@ -118,10 +118,23 @@ class Position:
     """Retained sources behind the cited findings."""
     distinct_roots: int = 0
     """Distinct publishers behind those sources. This is the number that counts."""
+    falsifier_resolution_criterion: str = ""
+    """The observable test used later to decide whether the falsifier fired."""
+    falsifier_resolution_date: str = ""
+    """The prospective ISO date on which the falsifier should next be checked."""
 
     @property
     def is_falsifiable(self) -> bool:
         return bool(self.would_change_my_mind.strip())
+
+    @property
+    def is_registered_prediction(self) -> bool:
+        """Whether this position can be checked prospectively rather than in hindsight."""
+        return bool(
+            self.is_falsifiable
+            and self.falsifier_resolution_criterion.strip()
+            and self.falsifier_resolution_date.strip()
+        )
 
     @property
     def is_grounded(self) -> bool:
@@ -158,6 +171,7 @@ class Position:
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
         data["is_falsifiable"] = self.is_falsifiable
+        data["is_registered_prediction"] = self.is_registered_prediction
         data["is_grounded"] = self.is_grounded
         data["is_single_origin"] = self.is_single_origin
         data["likelihood_band"] = list(self.likelihood_band) if self.likelihood_band else None
@@ -171,6 +185,8 @@ def _position_from(data: dict[str, Any]) -> Position:
         stance=data.get("stance", ""),
         reasoning=data.get("reasoning", ""),
         would_change_my_mind=data.get("would_change_my_mind", ""),
+        falsifier_resolution_criterion=data.get("falsifier_resolution_criterion", ""),
+        falsifier_resolution_date=data.get("falsifier_resolution_date", ""),
         supported_by=list(data.get("supported_by") or []),
         unresolved_dissent=data.get("unresolved_dissent", ""),
         confidence_basis=data.get("confidence_basis", ""),

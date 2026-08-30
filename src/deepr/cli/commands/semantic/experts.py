@@ -2911,7 +2911,7 @@ def refresh_expert(name: str, synthesize: bool, yes: bool):
     "-b",
     type=float,
     default=5.0,
-    help="Legacy session budget; metered chat execution is gated in v2.36.",
+    help="Legacy session budget; metered chat execution is currently gated.",
 )
 @click.option(
     "--no-research",
@@ -2922,7 +2922,7 @@ def refresh_expert(name: str, synthesize: bool, yes: bool):
 def chat_with_expert(name: str, budget: float | None, no_research: bool):
     """Compatibility command for legacy metered expert chat.
 
-    This command fails closed before session or provider construction in v2.36.
+    This command fails closed before session or provider construction.
     Use `expert consult QUESTION -e NAME --local` or an explicit plan backend.
     """
     _require_metered_expert_cli(

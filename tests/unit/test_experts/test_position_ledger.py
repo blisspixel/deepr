@@ -21,9 +21,11 @@ from deepr.experts.position_ledger import (
     REASON_REVISED,
     LedgerUnreadableError,
     PositionLedger,
+    PositionVersion,
     load_ledger,
     record_brief,
 )
+from deepr.experts.record_identity import position_thread_id, version_id
 from deepr.experts.record_time import END_OF_TIME, utc_now
 
 JAN = "2026-01-01T00:00:00+00:00"
@@ -31,16 +33,37 @@ JUN = "2026-06-01T00:00:00+00:00"
 DEC = "2026-12-01T00:00:00+00:00"
 
 
-def _position(question, *, stance="it holds", likelihood="likely", falsifier="a counterexample", supported=("f1",)):
+def _position(
+    question,
+    *,
+    stance="it holds",
+    likelihood="likely",
+    falsifier="a counterexample",
+    criterion="",
+    resolution_date="",
+    supported=("f1",),
+):
     return SimpleNamespace(
         question=question,
         stance=stance,
         likelihood=likelihood,
         confidence="moderate",
         would_change_my_mind=falsifier,
+        falsifier_resolution_criterion=criterion,
+        falsifier_resolution_date=resolution_date,
         unresolved_dissent="",
         supported_by=list(supported),
     )
+
+
+class TestPositionVersionCompatibility:
+    def test_prediction_fields_do_not_change_legacy_positional_constructor_order(self):
+        version = PositionVersion("thread", "version", "Q", "S", "likely", "moderate", "F", "D", ["f1"])
+
+        assert version.unresolved_dissent == "D"
+        assert version.supported_by == ["f1"]
+        assert version.falsifier_resolution_criterion == ""
+        assert version.falsifier_resolution_date == ""
 
 
 class TestAThreadSurvivesARebrief:
@@ -98,6 +121,38 @@ class TestAThreadSurvivesARebrief:
         assert ledger.live[0].stance == "second"
         assert ledger.stats()["versions"] == 2
 
+    def test_registered_prediction_is_immutable_across_a_revision(self):
+        ledger = PositionLedger(expert_name="E")
+        record_brief(
+            ledger,
+            [_position("Q", criterion="Metric exceeds 10.", resolution_date="2026-06-01")],
+            at=JAN,
+        )
+        record_brief(
+            ledger,
+            [_position("Q", criterion="Metric exceeds 20.", resolution_date="2026-12-01")],
+            at=JUN,
+        )
+
+        history = ledger.history_of(ledger.versions[0].thread_id)
+        assert len(history) == 2
+        assert history[0].falsifier_resolution_criterion == "Metric exceeds 10."
+        assert history[0].falsifier_resolution_date == "2026-06-01"
+        assert history[1].falsifier_resolution_criterion == "Metric exceeds 20."
+        assert history[1].falsifier_resolution_date == "2026-12-01"
+
+    def test_retroactive_prediction_date_is_not_registered(self):
+        ledger = PositionLedger(expert_name="E")
+
+        record_brief(
+            ledger,
+            [_position("Q", criterion="Metric exceeds 10.", resolution_date="2025-12-31")],
+            at=JAN,
+        )
+
+        assert ledger.live[0].falsifier_resolution_criterion == "Metric exceeds 10."
+        assert ledger.live[0].falsifier_resolution_date == ""
+
 
 class TestAnIdenticalRestatementIsNotAVersion:
     def test_restating_the_same_position_adds_no_version(self):
@@ -133,6 +188,42 @@ class TestAnIdenticalRestatementIsNotAVersion:
         record_brief(ledger, [_position("Does X hold?")], at=JAN)
         record_brief(ledger, [_position("does x hold")], at=JUN)
 
+        assert len(ledger.versions) == 1
+
+    def test_empty_prediction_fields_preserve_legacy_version_identity(self):
+        position = _position("Q")
+        legacy_content = "\n\x00".join(
+            [
+                position.stance,
+                position.likelihood,
+                position.confidence,
+                position.would_change_my_mind,
+                position.unresolved_dissent,
+                ",".join(position.supported_by),
+            ]
+        )
+        ledger = PositionLedger(
+            expert_name="E",
+            versions=[
+                PositionVersion(
+                    thread_id=position_thread_id(position.question),
+                    version_id=version_id(legacy_content),
+                    question=position.question,
+                    stance=position.stance,
+                    likelihood=position.likelihood,
+                    confidence=position.confidence,
+                    would_change_my_mind=position.would_change_my_mind,
+                    unresolved_dissent=position.unresolved_dissent,
+                    supported_by=position.supported_by,
+                    recorded_at=JAN,
+                )
+            ],
+        )
+
+        changed = record_brief(ledger, [position], at=JUN)
+
+        assert changed["unchanged"] == 1
+        assert changed["revised"] == 0
         assert len(ledger.versions) == 1
 
 

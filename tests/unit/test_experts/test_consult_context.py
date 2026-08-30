@@ -14,6 +14,7 @@ from deepr.experts.consult_context import (
     build_consult_context,
     load_brief,
     rank_positions,
+    render_consult_packet,
     render_standing_header,
 )
 from deepr.experts.corpus_store import CorpusStore
@@ -88,6 +89,8 @@ def brief():
             stance="Yes, above roughly fifty clusters.",
             reasoning="Measured deployments report it.",
             would_change_my_mind="A deployment above fifty clusters showing flat latency.",
+            falsifier_resolution_criterion="Measured latency remains flat above fifty clusters.",
+            falsifier_resolution_date="2099-01-15",
             supported_by=["failure-1"],
             likelihood="likely",
             confidence="moderate",
@@ -224,6 +227,21 @@ class TestBriefRoundTrip:
         assert loaded.positions[0].likelihood == "likely"
         assert loaded.positions[0].would_change_my_mind
         assert loaded.positions[0].supported_by == ["failure-1"]
+        assert loaded.positions[0].is_registered_prediction
+
+    def test_registered_prediction_is_available_during_consult(self, brief):
+        context = build_consult_context(
+            expert_name="E",
+            question="latency above fifty clusters",
+            brief=brief,
+            result=None,
+            corpus=None,
+        )
+
+        rendered = render_consult_packet(context)
+
+        assert "Scheduled check 2099-01-15" in rendered
+        assert "Measured latency remains flat" in rendered
 
     def test_a_missing_brief_is_absence_not_an_error(self, tmp_path):
         assert load_brief(tmp_path / "nope.json") is None

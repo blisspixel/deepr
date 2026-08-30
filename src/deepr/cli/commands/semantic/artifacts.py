@@ -12,7 +12,7 @@ from deepr.cli.commands.research_safety import require_metered_interface, requir
 
 @click.group()
 def make():
-    """Create artifacts from research (metered generation gated in v2.36).
+    """Create artifacts from research (metered generation currently gated).
 
     Generate documentation, strategic analysis, and other artifacts
     from research results.
@@ -59,7 +59,7 @@ def make_docs(
     output: str | None,
     yes: bool,
 ):
-    """Generate structured documentation (metered path gated in v2.36).
+    """Generate structured documentation (metered path currently gated).
 
     Creates comprehensive documentation with inline citations from research
     sources. Supports multiple output formats and can incorporate existing
@@ -374,7 +374,7 @@ def make_strategy(
     output: str | None,
     yes: bool,
 ):
-    """Generate strategic analysis (metered path gated in v2.36).
+    """Generate strategic analysis (metered path currently gated).
 
     Creates business-focused strategic synthesis with executive summary,
     key findings, recommendations, risks, and timeline.
@@ -574,17 +574,15 @@ Use clear, professional business writing. Target audience: executive leadership 
 
 @click.group()
 def agentic():
-    """Autonomous multi-step research workflows.
+    """Inspect legacy autonomous research commands.
 
-    Execute complex research goals through Plan-Execute-Review cycles
-    without manual orchestration.
+    Production metered multi-step execution is blocked before provider
+    construction until every nested call shares one durable parent ceiling.
+    Use local expert study, brief, consult, and investigation workflows for
+    executable bounded work.
 
-    COMMANDS:
-      deepr agentic research "topic" --goal "goal"  Autonomous research
-
-    EXAMPLES:
-      deepr agentic research "Fabric ALZ governance" --goal "produce reference docs"
-      deepr agentic research "Cloud migration" --goal "create checklist" --rounds 3
+    SAFE START:
+      deepr expert next "Expert Name"
     """
     pass
 
@@ -618,25 +616,13 @@ def agentic_research(
     resume: bool,
     yes: bool,
 ):
-    """Execute autonomous multi-step research, gated in v2.36.
+    """Inspect the gated autonomous multi-step research surface.
 
-    Runs Plan-Execute-Review cycles to achieve complex research goals.
-    Each cycle:
-    1. PLAN: Analyze goal and create research plan
-    2. EXECUTE: Run research tasks from the plan
-    3. REVIEW: Evaluate progress and decide next steps
+    Production metered execution is blocked before provider construction until
+    every nested call shares one durable parent ceiling.
 
-    Intermediate results are saved automatically, allowing resume if interrupted.
-
-    EXAMPLES:
-      # Basic agentic research
-      deepr agentic research "Fabric ALZ governance" --goal "produce reference docs"
-
-      # With budget and round limits
-      deepr agentic research "Cloud migration" --goal "create checklist" -r 5 -b 20
-
-      # Resume interrupted session
-      deepr agentic research "Topic" --goal "Goal" --resume
+    SAFE ALTERNATIVE:
+      deepr expert next "Expert Name"
     """
     from deepr.cli.validation import validate_budget, validate_prompt
 

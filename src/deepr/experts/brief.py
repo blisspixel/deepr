@@ -30,6 +30,7 @@ The model call is injected, so the whole builder is unit-testable at $0.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from datetime import UTC, date, datetime
 from typing import Any
 
 from deepr.experts.brief_contracts import (
@@ -51,6 +52,10 @@ _MAX_FINDINGS_IN_PROMPT = 120
 _MAX_FIELD_CHARS = 600
 _LIKELIHOOD_CHOICES = ", ".join(f'"{term}"' for term in LIKELIHOOD_BANDS)
 _CONFIDENCE_CHOICES = ", ".join(f'"{level}"' for level in CONFIDENCE_LEVELS)
+
+
+def _utc_today() -> date:
+    return datetime.now(UTC).date()
 
 
 def _render_finding(finding: StudyFinding) -> str:
@@ -111,13 +116,19 @@ def _prior_positions_block(prior: list[Any]) -> str:
 
 
 def build_brief_prompt(
-    result: StudyResult, *, expert_name: str, domain: str = "", prior_positions: list[Any] | None = None
+    result: StudyResult,
+    *,
+    expert_name: str,
+    domain: str = "",
+    prior_positions: list[Any] | None = None,
+    as_of_date: date | None = None,
 ) -> str:
     """Assemble the synthesis prompt from independent findings."""
     findings = result.findings[:_MAX_FINDINGS_IN_PROMPT]
     rendered = "\n".join(_render_finding(f) for f in findings)
     contested = [f for f in result.findings if f.lens == "contention"]
     prior_block = _prior_positions_block(list(prior_positions or []))
+    today = (as_of_date or _utc_today()).isoformat()
 
     dissent_note = (
         f"\n{len(contested)} finding(s) came from the contention lens, which looks for disagreement "
@@ -141,6 +152,12 @@ Rules that make this honest rather than confident-sounding:
 - Every position must state an observation that would overturn it. Name something someone could
   actually go and check: a measurement, a document, a result. "If new evidence emerges" is not a
   falsifier, because nobody can check it. A position with no falsifier is an assertion.
+- Turn a falsifier into a prospective prediction when a responsible check can be named. Set
+  "falsifier_resolution_criterion" to the observable yes/no test and
+  "falsifier_resolution_date" to the next date it should be checked in YYYY-MM-DD form. Today is
+  {today}; never use an earlier date. If the evidence supports no responsible check date, leave
+  both fields empty rather than inventing precision. A falsifier without both fields remains a
+  falsifier, but it is not a registered prediction.
 - "likelihood" and "confidence" are different things and must not be mixed. "likelihood" is how
   likely the stance is true. "confidence" is how sound your basis for saying so is. A claim can
   be a coin flip on excellent evidence, or near-certain on thin evidence.
@@ -170,7 +187,9 @@ Return JSON only, no prose outside it, with this shape:
   "positions": [
     {{"question": "", "stance": "", "reasoning": "",
       "likelihood": "", "confidence": "", "resolution": "single",
-      "would_change_my_mind": "", "supported_by": ["finding id, e.g. contention-4"],
+      "would_change_my_mind": "", "falsifier_resolution_criterion": "",
+      "falsifier_resolution_date": "YYYY-MM-DD",
+      "supported_by": ["finding id, e.g. contention-4"],
       "unresolved_dissent": "", "confidence_basis": ""}}
   ],
   "state": {{"settled": [""], "live": [""], "unknown": [""]}},
@@ -216,6 +235,20 @@ substitution happens here where it cannot be declined."""
 
 def _text(value: Any) -> str:
     return " ".join(str(value or "").translate(_TYPOGRAPHY).split())
+
+
+def _iso_date(value: Any, *, not_before: date) -> str:
+    """Keep only an exact ISO calendar date.
+
+    This guards form, not meaning. The model still owns which future observation
+    matters and when it would be responsible to check it.
+    """
+    text = _text(value)
+    try:
+        parsed = date.fromisoformat(text)
+    except ValueError:
+        return ""
+    return parsed.isoformat() if parsed >= not_before else ""
 
 
 def build_credibility(corpus: CorpusStore) -> list[SourceCredibility]:
@@ -268,7 +301,13 @@ def provenance_for(finding_ids: list[str], result: StudyResult, corpus: CorpusSt
     return len(shas), len(origins)
 
 
-def _positions_from(raw_positions: Any, *, result: StudyResult, corpus: CorpusStore) -> list[Position]:
+def _positions_from(
+    raw_positions: Any,
+    *,
+    result: StudyResult,
+    corpus: CorpusStore,
+    as_of_date: date,
+) -> list[Position]:
     """Build positions, keeping only citations that name a real finding.
 
     A position citing something that does not exist cannot answer "why do you
@@ -287,6 +326,11 @@ def _positions_from(raw_positions: Any, *, result: StudyResult, corpus: CorpusSt
                 stance=_text(raw.get("stance")),
                 reasoning=_text(raw.get("reasoning")),
                 would_change_my_mind=_text(raw.get("would_change_my_mind")),
+                falsifier_resolution_criterion=_text(raw.get("falsifier_resolution_criterion")),
+                falsifier_resolution_date=_iso_date(
+                    raw.get("falsifier_resolution_date"),
+                    not_before=as_of_date,
+                ),
                 supported_by=cited,
                 unresolved_dissent=_text(raw.get("unresolved_dissent")),
                 confidence_basis=_text(raw.get("confidence_basis")),
@@ -306,11 +350,17 @@ def assemble_brief(
     expert_name: str,
     result: StudyResult,
     corpus: CorpusStore,
+    as_of_date: date | None = None,
 ) -> ExpertBrief:
     """Turn a parsed synthesis into a brief, keeping only verifiable citations."""
     known_ids = {f.finding_id for f in result.findings if f.finding_id}
 
-    positions = _positions_from(parsed.get("positions"), result=result, corpus=corpus)
+    positions = _positions_from(
+        parsed.get("positions"),
+        result=result,
+        corpus=corpus,
+        as_of_date=as_of_date or _utc_today(),
+    )
 
     questions = [
         AnticipatedQuestion(
@@ -374,7 +424,14 @@ async def build_brief(
         )
         return brief
 
-    prompt = build_brief_prompt(result, expert_name=expert_name, domain=domain, prior_positions=prior_positions)
+    today = _utc_today()
+    prompt = build_brief_prompt(
+        result,
+        expert_name=expert_name,
+        domain=domain,
+        prior_positions=prior_positions,
+        as_of_date=today,
+    )
     try:
         raw = await completion(prompt)
     except Exception as exc:
@@ -389,7 +446,13 @@ async def build_brief(
         brief.limitations.append(f"Synthesis did not return usable JSON ({error}). Began: {snippet!r}")
         return brief
 
-    return assemble_brief(parsed, expert_name=expert_name, result=result, corpus=corpus)
+    return assemble_brief(
+        parsed,
+        expert_name=expert_name,
+        result=result,
+        corpus=corpus,
+        as_of_date=today,
+    )
 
 
 def _short(title: str, limit: int = 90) -> str:
@@ -442,6 +505,10 @@ def _render_position(index: int, position: Position, titles: dict[str, str]) -> 
         lines.append(f"   - **Does not resolve**: {position.unresolved_dissent}")
     if position.would_change_my_mind:
         lines.append(f"   - Would change my mind: {position.would_change_my_mind}")
+        if position.is_registered_prediction:
+            lines.append(
+                f"   - Check on {position.falsifier_resolution_date}: {position.falsifier_resolution_criterion}"
+            )
         if position.falsifier_is_decorative:
             lines.append("   - **That falsifier names nothing observable**, so nothing can check it.")
     else:

@@ -73,9 +73,9 @@ are visible without any new measurement.
 | Piece | State |
 |---|---|
 | Positions register what would overturn them | **exists** (`would_change_my_mind`, with a decorative-falsifier check) |
-| An append-only outcomes log | **exists**, operator-attested, **zero consumers** |
+| An append-only outcomes log | **exists**, operator-attested, read by the experience view but by no semantic resolver or controller |
 | Durable position identity so a falsifier survives a re-brief | **built** - a position keeps its identity and history across a re-brief |
-| A resolution *criterion* and a resolution *date* on each falsifier | **missing** |
+| A resolution *criterion* and a resolution *date* on each falsifier | **built** - prospective fields are preserved in position-version identity and exposed through the read-only experience view |
 | Anything that checks whether a falsifier fired | **missing** |
 | A rule for what a fired falsifier does to the position | **missing** |
 
@@ -94,7 +94,9 @@ work.
 1. **Freeze the falsifier when the position is formed.** Add a resolution
    criterion (what observation counts) and a resolution date (when to look).
    Immutable once written; a falsifier that can be edited after the evidence
-   arrives is not a prediction.
+   arrives is not a prediction. This step now exists in the position ledger:
+   dates before formation are refused, and `deepr expert experience` exposes
+   registered predictions without resolving them or applying learning.
 2. **Resolve mechanically on acquisition.** When new material lands, check the
    registered criteria against it. Deterministic where the criterion is
    checkable, and otherwise a single bounded model call whose job is only "did

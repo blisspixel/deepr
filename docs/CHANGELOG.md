@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.8] - 2026-08-30
+
+### Changed
+
+- README, Quick Start, root help, research help, and local profile creation now
+  teach the shortest complete expert path: create, retain, study, brief, then
+  consult on explicit local capacity. Metered previews remain visibly separate
+  and production paid dispatch remains blocked.
+- The roadmap now puts the shipped blinded four-arm longitudinal value review
+  before wider public surface, keeps immutable falsifier predictions as the
+  next implementation, and marks v2.51 projection work design-gated until run
+  ownership is stronger than knowledge of a `run_id`.
+- Documentation consistency now derives the package version from build
+  metadata and rejects stale release-facing version claims.
+- Two planned design contracts now define exact-evidence interchange, a
+  candidate-only semantic firewall, complete Position justification history,
+  and the held-out value gate required before Deepr adds a first-class Argument
+  store. No new import, ontology, or mutation surface is claimed as shipped.
+- Brief synthesis can register prospective falsifier predictions with an
+  observable criterion and ISO check date. The fields are immutable position
+  history and cannot be backdated before the position was formed.
+- `deepr expert experience` adds a bounded, `$0`, read-only view of registered
+  predictions, consult trace metadata, and corrected operator-attested
+  outcomes. It does not infer semantic links, judge outcome quality, or apply
+  learning changes.
+- README and expert guidance now frame beliefs, sources, and graphs as the
+  expert's cognitive infrastructure. The product target is demonstrable
+  improvement in judgment through study, predictions, observed outcomes, and
+  review-gated revision.
+
+### Fixed
+
+- Creating a local expert no longer sends a new user toward consultation before
+  the profile has retained evidence, grounded findings, and a consultable
+  brief.
+- Gated research, team, agentic, and legacy chat help no longer advertises
+  blocked metered invocations as executable examples or labels current behavior
+  with the stale v2.36 release number.
+- Release history now records that v2.50.1 had no published tag, GitHub Release,
+  or artifact set and first reached users in v2.50.2.
+- A no-network onboarding regression verifies every documented CLI verb and
+  proves that a cited retained passage reaches grounded consult context without
+  constructing a provider.
+
 ## [2.50.7] - 2026-08-22
 
 ### Changed
@@ -167,7 +211,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   raising. Dashboard conversation GET/DELETE reject reserved Windows device
   names. Skill discovery skips reserved Windows expert-name segments.
 
-## [2.50.1] - 2026-08-22
+## [2.50.1] - 2026-08-22 (not published)
+
+No `v2.50.1` tag, GitHub Release, or artifact set was published. These changes
+first reached a published release in v2.50.2.
 
 ### Fixed
 

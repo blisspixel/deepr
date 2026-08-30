@@ -1,7 +1,7 @@
 ﻿# Quick Start Guide
 
-Complete local setup in about 5 minutes. Optional bounded provider previews are
-write-free and make no paid request.
+Set up local capacity, build one consultable expert from a source you trust,
+and optionally preview a bounded provider request without dispatch.
 
 ---
 
@@ -78,10 +78,91 @@ If at least one intended capacity path is ready, continue.
 
 ---
 
+## Build Your First Expert
+
+Creating a profile is not learning. The shortest complete local loop is:
+create the profile, retain evidence, study it, form a brief, then consult the
+stored view.
+
+### 1. Create the Local Profile
+
+```bash
+deepr expert make "Web Dev Expert" --local -d "Decisions about reliable web platform architecture"
+```
+
+This creates identity and storage only. It does not claim the expert has
+learned anything.
+
+### 2. Retain A Trusted Source
+
+Save one UTF-8 source you are allowed to use as `source.md`, then run:
+
+```bash
+deepr expert retain "Web Dev Expert" ./source.md --title "Trusted starting source"
+```
+
+Retention is content-addressed and idempotent. It makes the source re-readable
+and preserves the passage behind later findings.
+
+### 3. Study The Evidence
+
+```bash
+deepr expert study "Web Dev Expert" --local
+```
+
+Study runs independent reading lenses on local Ollama capacity and saves cited
+findings. It does not write findings into the belief store or claim they are
+verified conclusions.
+
+### 4. Form A Consultable Brief
+
+```bash
+deepr expert brief "Web Dev Expert" --local
+```
+
+The brief forms positions from grounded findings, keeps dissent visible, and
+records what would change each position. The retained corpus and structured
+state remain authoritative.
+
+### 5. Consult The Expert
+
+```bash
+deepr expert consult "What should I verify next?" --expert "Web Dev Expert" --local
+```
+
+This is a one-shot bounded consult over stored expert state followed by one
+synthesis call. With several `--expert` options, Deepr selects one stored-state
+packet per expert, but the experts do not exchange turns and the consult does
+not write beliefs or graph state. Use `--output FILE` to save the complete
+artifact explicitly. See [Three Expert Council And Learning Workflow](THREE_EXPERT_COUNCIL.md)
+for a three-domain example and strict `$5` monthly cap.
+
+All five steps avoid paid API calls. `study`, `brief`, and `consult` require an
+available local Ollama model. Use `deepr capacity` when local capacity is not
+ready.
+
+### Optional: Define Purpose And Acceptance Cases
+
+For a long-lived expert, review a blueprint before or after creating the local
+profile:
+
+```bash
+deepr expert blueprint "Web Dev Expert" --template --output expert-blueprint.json
+# Edit the mission, decision use cases, source policy, and acceptance cases.
+deepr expert blueprint "Web Dev Expert" --from-file expert-blueprint.json --output expert-blueprint-preflight.json
+# Apply only after actual review; the resulting operator identity is not verified.
+deepr expert blueprint "Web Dev Expert" --from-file expert-blueprint.json --apply --attested-by operator
+```
+
+The template and preflight are explicitly unreviewed and non-authoritative.
+Preflight validates structure, normalization, hashing, and the review checklist
+at `$0`.
+
+---
+
 ## Optional Bounded API Preview
 
 Skip this section when you want only local or explicit plan expert workflows.
-Those paths are covered under Domain Experts below.
 
 ### Set Budget Protection
 
@@ -102,6 +183,7 @@ deepr research "What are the top 3 programming languages for web development in 
 ```
 
 This will:
+
 1. Show the exact hard request maximum without spending.
 2. Validate whether the provider, model, tools, and payload have a finite envelope.
 3. Make no provider request and write no paid result.
@@ -114,47 +196,14 @@ funded wallet, a finite job ceiling, and provider-authenticated prepaid or hard
 stop evidence. No such production account-control adapter ships today. Local
 and safety-eligible plan workflows remain available.
 
----
-
-## Next Steps
-
-### Preview Batch Routing at $0
+### Preview Batch Routing At $0
 
 ```bash
 deepr research --auto --batch queries.txt --preview
 ```
 
-Metered batch and multi-phase execution are gated until every nested
-call belongs to one durable parent reservation.
-
-### Create a Domain Expert
-
-```bash
-deepr expert blueprint "Web Dev Expert" --template --output expert-blueprint.json
-# Edit the mission, decision use cases, source policy, and acceptance cases.
-deepr expert blueprint "Web Dev Expert" --from-file expert-blueprint.json --output expert-blueprint-preflight.json
-# Apply only after actual review; the resulting operator identity is not verified.
-deepr expert blueprint "Web Dev Expert" --from-file expert-blueprint.json --apply --attested-by operator
-deepr expert make "Web Dev Expert" --local --files "./docs/*.md"
-```
-
-The template and preflight are explicitly unreviewed and non-authoritative.
-Preflight performs strict structural validation, normalization, hashing, and a
-review checklist at `$0`. After an operator attests that review occurred, copy
-your documents into a local expert profile without a provider call.
-
-### Consult an Expert
-
-```bash
-deepr expert consult "What should I verify next?" --expert "Web Dev Expert" --local
-```
-
-This is a one-shot bounded consult over stored expert state followed by one
-synthesis call. With several `--expert` options, Deepr selects one stored-state
-packet per expert, but the experts do not exchange turns and the consult does
-not write beliefs or graph state. Use `--output FILE` to save the complete
-artifact explicitly. See [Three Expert Council And Learning Workflow](THREE_EXPERT_COUNCIL.md)
-for a three-domain example and strict `$5` monthly cap.
+Metered batch and multi-phase execution are gated until every nested call
+belongs to one durable parent reservation.
 
 ### Prepare A Longitudinal Value Review
 
@@ -278,20 +327,26 @@ Or check [GitHub Issues](https://github.com/blisspixel/deepr/issues).
 Complete workflow from zero to expert:
 
 ```bash
-# 1. Set budget
-deepr budget set 2
+# 1. Inspect executable capacity
+deepr capacity
 
-# 2. Preview a bounded premium request without dispatch
-deepr research "Python async/await best practices" --provider openai --model o4-mini-deep-research --preview
-
-# 3. Create and maintain a local expert
+# 2. Create a local expert profile
 deepr expert make "Python Async Expert" --local -d "Python asynchronous system design"
 
-# 4. Ask for the safest next learning or repair actions at $0
-deepr expert next "Python Async Expert"
+# 3. Retain one trusted UTF-8 source
+deepr expert retain "Python Async Expert" ./source.md --title "Trusted asyncio source"
+
+# 4. Extract cited findings on local capacity
+deepr expert study "Python Async Expert" --local
+
+# 5. Form the inspectable view the consult will use
+deepr expert brief "Python Async Expert" --local
 
 # 6. Consult the expert on local capacity
 deepr expert consult "Which asyncio pitfalls matter most?" --expert "Python Async Expert" --local
+
+# 7. Optionally preview a bounded premium request without dispatch
+deepr research "Python async/await best practices" --provider openai --model o4-mini-deep-research --preview
 ```
 
 ---
@@ -307,11 +362,11 @@ deepr expert consult "Which asyncio pitfalls matter most?" --expert "Python Asyn
 
 ## Tips for Success
 
-1. **Start small** - Use `deepr research` with small budgets first
+1. **Start from evidence you trust** - Retain one source, study it, brief it, then consult
 2. **Be specific** - Vague prompts produce vague results (see [EXAMPLES.md](EXAMPLES.md))
 3. **Add useful capacity** - Configure only the provider keys, admitted local models, or explicit plan backends you intend to use
 4. **Monitor costs** - Check `deepr costs show` regularly
-5. **Use `--auto --preview` first** - Routing is advisory until the selected request clears exact admission
+5. **Preview every metered request** - Routing is advisory and production dispatch remains gated
 6. **Build experts gradually** - Start with local documents, then use local or explicit plan maintenance
 7. **Keep metered chat gated** - Use local or explicit plan query and consult paths
 8. **Switch devices sequentially** - If `DEEPR_DATA_DIR` is synced, stop Deepr services, use one writer at a time, and wait for sync before changing devices

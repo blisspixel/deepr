@@ -1,11 +1,20 @@
 # Supported Surface
 
-Status: v2.50.7 current main, 2026-08-22. This document defines what users and host
+Status: v2.50.8 current main, 2026-08-30. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
 path is structurally complete but remains execution-blocked without verified
 provider prepaid-no-overage or hard-stop evidence.
+
+**v2.50.8 makes the first local expert path complete and testable.** README,
+Quick Start, root help, research help, and local profile creation now direct an
+operator through profile creation, trusted source retention, local study,
+grounded brief creation, and local consultation. The path constructs no paid
+provider and retains the cited source passage in the consult context. Gated
+metered research, team, agentic, and chat help no longer present blocked
+invocations as runnable examples. No execution authority widened in this
+release.
 
 **v2.50.7 keeps MCP job state and task execution monotonic.** SQLite persistence
 migrates legacy databases in place and preserves plans, active tasks, temporal
@@ -128,6 +137,15 @@ must not be described as usable capacity.
   does not verify reviewer identity or claim human authorship. These artifacts
   make purpose and later results inspectable but never authorize spend,
   knowledge writes, routing changes, or external actions.
+- Brief positions may register prospective predictions with an observable
+  falsifier criterion and ISO check date. The position ledger preserves each
+  prediction with the exact position version that made it. `deepr expert
+  experience NAME` builds a bounded `$0`, read-only derived view over position
+  history, consult trace metadata, and corrected outcome observations. It does
+  not accept a ledger or outcome from another expert and does not expose trace
+  content unless the stored expert roster matches. It does not decide whether
+  a prediction fired, infer whether advice was good, link an outcome to a
+  prediction by meaning, or apply a learning change.
 - `deepr eval expert-value` template generation and review aggregation. The
   evaluator binds a complete four-arm matrix to the exact operator-attested
   blueprint and frozen source-world hashes, reports separate quality, risk,
