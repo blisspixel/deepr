@@ -45,6 +45,8 @@
 | [Level 5/6 Expert Maturity](docs/design/level-5-6-expert-maturity.md) | Concrete gates for bounded self-improving experts, self-models, metacognitive monitoring, and the expert-fleet control plane |
 | [Expert Next Actions](docs/design/expert-next-actions.md) | `$0` structural guidance from current expert evidence to the next safe command |
 | [Expert Purpose And Value Loop](docs/design/expert-purpose-and-value-loop.md) | Reviewed purpose, held-out acceptance cases, human outcome observations, and the longitudinal proof plan |
+| [Epistemic Interchange And Semantic Firewall](docs/design/epistemic-interchange-and-semantic-firewall.md) | Exact evidence handoff, candidate-only admission, and a measured write-free typed-relation compiler |
+| [Position Justification And Explanation](docs/design/position-justification-and-explanation.md) | Full-fidelity judgment history, backward evidence traversal, and the evaluation gate for first-class arguments |
 | [Multi-Device Expert Continuity](docs/design/multi-device-expert-continuity.md) | Sequential portability contract and staged device-partitioned event design |
 | [Expert Event Memory V2](docs/design/expert-event-memory-v2.md) | Proposed bitemporal event authority, replay, forgetting, and replica convergence |
 | [Historically Grounded Perspectives](docs/design/historically-grounded-perspectives.md) | Sourced great-mind lenses without impersonation or invented memory |
@@ -364,7 +366,16 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.7)
+## Current Status (v2.50.8)
+
+**Shipped in v2.50.8 (see docs/CHANGELOG.md):** the first-run path now reaches
+a consultable local expert instead of stopping at an empty profile. README,
+Quick Start, root help, command help, and post-create guidance agree on retain,
+study, brief, then consult. A no-network regression proves that a retained
+passage survives into grounded consult context without constructing a provider.
+Release-history and version drift now fail the documentation consistency gate,
+the four-arm value proof is the immediate evidence loop, and v2.51 remains
+design-gated until observation authority binds more than a known `run_id`.
 
 **Shipped in v2.50.7 (see docs/CHANGELOG.md):** MCP job persistence now keeps
 plans, active tasks, temporal findings, and hypothesis history intact across
@@ -407,11 +418,12 @@ event-log fail-closed, complete learning-apply rollback, authenticated
 portraits when a dashboard secret is configured, MCP and chat Windows
 device-name refusals, atomic stale-hold cancel, and empty-completion fail.
 
-**Shipped in v2.50.1 (see docs/CHANGELOG.md):** remaining fail-closed holes
-after v2.50.0: in-memory spend-hold release after a completion receipt, web
-failure settlement matching the worker, learning-apply rollback, investigation
-control sidecar repair, MCP local-path refusal, and grounding-redirect IP
-checks.
+**Committed as v2.50.1 but first published in v2.50.2 (see
+docs/CHANGELOG.md):** remaining fail-closed holes after v2.50.0: in-memory
+spend-hold release after a completion receipt, web failure settlement matching
+the worker, learning-apply rollback, investigation control sidecar repair, MCP
+local-path refusal, and grounding-redirect IP checks. No v2.50.1 tag, GitHub
+Release, or artifact set was published.
 
 **Shipped in v2.50.0 (see docs/CHANGELOG.md):** OKF 0.2 derived export and
 mechanical form check, contained Agent Plugin packaging, a reference-only
@@ -530,6 +542,16 @@ naming: a module with tests is not a shipped feature.
 calendar, and the sequence is derived from what blocks what rather than from
 what looks appetising.
 
+**Immediate evidence loop before widening the public surface:** run one
+flagship expert through the shipped four-arm longitudinal value workbook with
+blinded, randomized semantic review, exact frozen source worlds, and explicit
+operator attestation. Publish the workbook, bound artifacts, and separate
+false-support, stale-memory, transfer, effort, cost, and outcome measures. This
+is validation of the current product, not authority to tune a default. The next
+implementation remains immutable falsifier predictions below. Read-only MCP
+investigation projection stays design-gated until run ownership is stronger
+than knowledge of a `run_id`.
+
 0. **Close the standards foundation before widening distribution.** The three
    current targets have separate jobs: OKF 0.2 carries selected knowledge,
    Agent Plugins 1.0.0 packages Agent Skills and MCP declarations, and MCP
@@ -622,12 +644,31 @@ what looks appetising.
    outcome; see [the-feedback-signal.md](docs/design/the-feedback-signal.md).
    Deliberately no controller in the first pass - adjusting confidence against
    an unvalidated signal is how a system optimises the wrong thing quietly.
-5. **A point-in-time read.** `history_of(thread)` first, then `as_of(t)`, with
+5. **Preserve and explain complete position justification.** Close the current
+   ledger fidelity gap before adding a separate Argument store: rationale,
+   confidence basis, resolution, source-root counts, assumptions,
+   counterevidence, and revision signals must participate in version identity.
+   Then expose one `$0`, read-only `explain-position` projection from current
+   judgment through beliefs to the best available evidence roots. Exact anchors
+   join only after their own staging and verification gates pass. A first-class
+   Argument remains eval-gated. Design:
+   [position-justification-and-explanation.md](docs/design/position-justification-and-explanation.md).
+6. **Prototype exact-evidence interchange and the semantic firewall in shadow.**
+   Start with only immutable source assertions, beliefs, exact anchors, and a
+   write-free relation classifier. The first measured question is whether
+   `same_as_existing` corroboration can be preserved without a duplicate belief
+   or false support. Upstream findings and relationships remain
+   `candidate_only`; deterministic code owns form, provenance, allowed type
+   pairs, and apply authority while local calibrated judgment owns meaning. No
+   RDF, no sibling dependency, no canonical graph migration, and no paid call.
+   Design:
+   [epistemic-interchange-and-semantic-firewall.md](docs/design/epistemic-interchange-and-semantic-firewall.md).
+7. **A point-in-time read.** `history_of(thread)` first, then `as_of(t)`, with
    `current()` as the zero-argument default. The wall-clock decay bug is
    closed: `get_current_confidence(as_of=...)` evaluates at the requested
    instant, and digest / OKF / `what_changed` pass that instant. The
    remaining work is the read API itself (`current()` as the default).
-6. **Then, and only then, unattended operation** for the stages that already
+8. **Then, and only then, unattended operation** for the stages that already
    pass the reversibility test - `source`, `study`, `graph`, `viva` - with a
    quota preflight rather than a schedule. Two runs died mid-flight on quota
    exhaustion in a single session; a loop that does not model remaining
@@ -1066,8 +1107,8 @@ the gate for that version is proven.
 | **v2.47** (shipped, grant superseded) | Expert v2 web surface, local portraits, and the original attended `$2` grant | The new expert state needed a real interface; attended spend needed a first narrow proof | Twelve read-only v2 routes and local portrait path shipped; the grant was replaced in v2.49 |
 | **v2.48** (shipped) | Local-first consult plus the 2026-08-13 provider model and pricing refresh | Consultation must not inherit metered authority; estimates must follow current official catalogs | Consult blocks API paths; GPT-5.6, Grok 4.6, Claude 5, and current Gemini posture registered |
 | **v2.49** (shipped) | Persistent metered-spend wallet, independent job ceilings, and a curated flagship expert roster | Operators need chosen total exposure without a universal $2 research limit; the main roster must show developed experts | Wallet and verified provider boundaries both apply; no refill or overdraft; 25 explicit flagship experts have inspectable structure |
-| **v2.50** (shipped, 2.50.7 patch) | Standards foundation plus fail-closed spend, identity-bound storage, authentication, scoped remote access, bounded acquisition, and terminal-state handling | Format truth must precede distribution; spend, identity, and durable state must fail closed after the first release | Offline pinned fixtures pass; OKF remains derived and verification-gated; completion receipts cannot leave a hold; MCP job state survives partial saves and restarts; terminal phases cannot be resurrected; report lookup verifies full stored identity; model-proposed searches cannot multiply work beyond the per-arm ceiling |
-| **v2.51** (in progress) | Read-only MCP investigation projection tools over the shipped builders | Hosts need bounded, replayable, owner-scoped observation before they receive control authority | Completion still requires MCP `run_id` and cursor tools that wrap those builders, remain content-free, and deny cross-run access |
+| **v2.50** (shipped, 2.50.8 patch) | Standards foundation plus fail-closed spend, identity-bound storage, authentication, scoped remote access, bounded acquisition, terminal-state handling, and a complete first-run expert path | Format truth must precede distribution; spend, identity, durable state, and public guidance must fail closed after the first release | Offline pinned fixtures pass; OKF remains derived and verification-gated; completion receipts cannot leave a hold; MCP job state survives partial saves and restarts; terminal phases cannot be resurrected; report lookup verifies full stored identity; model-proposed searches cannot multiply work beyond the per-arm ceiling; documented onboarding reaches grounded consult context without paid dispatch |
+| **v2.51** (design-gated) | Read-only MCP investigation projection tools over the shipped builders | Hosts need bounded, replayable, owner-scoped observation before they receive control authority | Choose and document either local-stdio-only ownership or a durable revocable observation grant binding the caller, `run_id`, and expert roster. Knowledge of a `run_id` is not authorization. Only then add cursor tools that remain content-free and deny cross-run access |
 | **v2.52** | Fixture-validated OpenClaw, DeepSeek Harness, Grok Build, Codex, and manual Grok Bot profiles | Portable packaging is primary; host fragments are compatibility paths and Bot lifecycle automation remains unavailable | Every advertised host claim names exact versions, tools, transport, runtime dependency, and validation evidence |
 | **v2.53** | Shared durable parent transaction, maximum-charge contract, scoped HTTP authority, then NemoClaw remote-isolation proof | Remote mutation and isolation depend on spend, identity, credential, and endpoint truth | Retry and crash tests cannot overshoot the parent ceiling or duplicate effects; NemoClaw remains reference-only until live evidence passes |
 | **v2.54** | Lineage-only follow-up, fork, pause, resume, cancel, and separately approved remote start | Control follows observation and authority, never precedes them | Every transition is idempotent, hash-bound, race-tested, and reconstructible from the canonical journal |
@@ -1976,7 +2017,7 @@ over-reach for a solo project; Letta/MemOS already own the "OS" label).
   - [x] Automatic re-research on the gaps reflection identifies (2026-06-11): `deepr expert reflect NAME REPORT --execute-followups [--budget X]` runs the emitted follow-up queries through the gap-fill engine (same budget discipline: run ceiling, skip-not-fail, verification-gated absorb with contradiction flagging) - reflection stops being advisory exactly when the report needs reinforcement. Opt-in flag + confirmation; never runs as a side effect of plain reflect.
 - [ ] Graph-structured expert memory (design: [docs/design/temporal-knowledge-graph.md](docs/design/temporal-knowledge-graph.md)) (the temporal knowledge graph - what makes an expert a *perspective*, not a corpus):
   - Framing: a corpus is what was read; a perspective is what is *believed* - claims with calibrated confidence, provenance, recency, known gaps, and open conflicts. RAG gives a host agent retrieval over content; a Deepr expert gives it an epistemic state it can interrogate. The temporal dimension is what elevates the graph beyond content: beliefs have trajectories (strengthening, decaying, contested, revised), and the graph remembers *when* and *why* each shift happened. That unlocks queries no document store can answer: "why do you believe X" (inference chain), "what changed since I last consulted you" (perspective delta), "what is currently contested" (open contradiction pairs with both sides' evidence), "what would change your mind" (the support/contradict structure around a belief), and "what do you know you don't know" (the gap backlog as negative knowledge - an expert that says "I have nothing on Y" is refusing hallucinated authority).
-  - [x] Knowledge graph with typed edges (supports, contradicts, enables, derived_from) - shipped v2.14 (canonical-key dedup, provenance accumulation, symmetric contradicts, idempotent migration of legacy `contradictions_with`). Typed *nodes* stay deliberately implicit (`source_type` already distinguishes fact/signal/inference) until a concrete query needs more.
+  - [x] Knowledge graph with typed edges (supports, contradicts, enables, derived_from) - shipped v2.14 (canonical-key dedup, provenance accumulation, symmetric contradicts, idempotent migration of legacy `contradictions_with`). Typed *nodes* stayed deliberately implicit (`source_type` already distinguishes fact/signal/inference) until a concrete query needed more. Backward traversal from position to belief to source assertion to exact evidence is now that query, but implementation remains a `$0`, write-free shadow experiment until the admission and relation evals pass. Design: [docs/design/epistemic-interchange-and-semantic-firewall.md](docs/design/epistemic-interchange-and-semantic-firewall.md).
   - [x] Temporal awareness: confidence trajectories (belief event log, v2.14), staleness detection (health-check), refresh triggers (sync cadence)
   - [x] Inference chains: `deepr expert why` / `deepr_explain_belief` (v2.14) - depth-bounded, cycle-safe walk to evidence roots with confidence trajectory
   - [x] Contradiction detection: new evidence that conflicts with existing beliefs surfaces automatically (contradiction-as-signal absorb path + contested view + health-check merge; conflicts become belief-revision candidates with contradiction edges, not silent drops)
@@ -3423,7 +3464,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.0. This roadmap keeps
+v2.50.8. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 

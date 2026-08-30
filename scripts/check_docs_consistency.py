@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import re
 import sys
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -84,12 +85,85 @@ def builtin_skill_count() -> int:
     return sum(1 for _ in skills_dir.glob("*/skill.yaml"))
 
 
+def project_version() -> str:
+    """Return the package version from the build metadata authority."""
+    data = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    return str(data["project"]["version"])
+
+
 FACTS = {
     "tests": count_test_functions,
     "coverage": coverage_gate,
     "mcp_tools": mcp_tool_count,
     "skills": builtin_skill_count,
 }
+
+
+@dataclass(frozen=True)
+class VersionCheck:
+    path: str
+    pattern: str
+    label: str
+    first_only: bool = False
+
+
+VERSION_CHECKS: list[VersionCheck] = [
+    VersionCheck("src/deepr/__init__.py", r'__version__\s*=\s*"([0-9]+\.[0-9]+\.[0-9]+)"', "package"),
+    VersionCheck(
+        "uv.lock",
+        r'(?s)\[\[package\]\]\s+name\s*=\s*"deepr-research"\s+version\s*=\s*"([0-9]+\.[0-9]+\.[0-9]+)"',
+        "lockfile package",
+    ),
+    VersionCheck("README.md", r"badge/version-([0-9]+\.[0-9]+\.[0-9]+)-blue", "README badge"),
+    VersionCheck("README.md", r"releases/tag/v([0-9]+\.[0-9]+\.[0-9]+)", "README release link"),
+    VersionCheck("ROADMAP.md", r"## Current Status \(v([0-9]+\.[0-9]+\.[0-9]+)\)", "roadmap status"),
+    VersionCheck(
+        "ROADMAP.md",
+        r"Current main is\s+v([0-9]+\.[0-9]+\.[0-9]+)\.",
+        "roadmap current main",
+    ),
+    VersionCheck(
+        "docs/SUPPORTED_SURFACE.md",
+        r"Status: v([0-9]+\.[0-9]+\.[0-9]+) current main",
+        "supported surface",
+    ),
+    VersionCheck(
+        "docs/security/THREAT_MODEL.md",
+        r"Status: current with Deepr v([0-9]+\.[0-9]+\.[0-9]+)",
+        "threat model",
+    ),
+    VersionCheck(
+        "packages/deepr-agent-plugin/plugin.json",
+        r'"version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)"',
+        "Agent Plugin manifest",
+    ),
+    VersionCheck(
+        "packages/deepr-agent-plugin/skills/deepr-research/SKILL.md",
+        r"Requires deepr-research ([0-9]+\.[0-9]+\.[0-9]+)",
+        "packaged skill compatibility",
+    ),
+    VersionCheck(
+        "packages/deepr-agent-plugin/skills/deepr-research/SKILL.md",
+        r'deepr-version:\s*"([0-9]+\.[0-9]+\.[0-9]+)"',
+        "packaged skill metadata",
+    ),
+    VersionCheck(
+        "skills/deepr-research/SKILL.md",
+        r'deepr-version:\s*"([0-9]+\.[0-9]+\.[0-9]+)"',
+        "root skill metadata",
+    ),
+    VersionCheck(
+        "tests/fixtures/hosts/openclaw/v2026.7.1-2/profile.json",
+        r'"version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)"',
+        "OpenClaw fixture",
+    ),
+    VersionCheck(
+        "docs/CHANGELOG.md",
+        r"^## \[([0-9]+\.[0-9]+\.[0-9]+)\]",
+        "latest changelog release",
+        first_only=True,
+    ),
+]
 
 
 # --------------------------------------------------------------------------- #
@@ -128,6 +202,7 @@ def _to_int(raw: str) -> int:
 def main() -> int:
     failures: list[str] = []
     values = {name: fn() for name, fn in FACTS.items()}
+    version = project_version()
 
     for check in CHECKS:
         file_path = REPO_ROOT / check.path
@@ -155,11 +230,26 @@ def main() -> int:
                     f"only {actual} (a '+' floor must be <= the real count)"
                 )
 
+    for check in VERSION_CHECKS:
+        file_path = REPO_ROOT / check.path
+        if not file_path.exists():
+            failures.append(f"{check.path}: file not found")
+            continue
+        matches = re.findall(check.pattern, file_path.read_text(encoding="utf-8"), flags=re.MULTILINE)
+        if not matches:
+            failures.append(f"{check.path}: version pattern for {check.label} matched nothing")
+            continue
+        observed = matches[:1] if check.first_only else matches
+        for stated in observed:
+            if stated != version:
+                failures.append(f"{check.path}: {check.label} states {stated}, package has {version}")
+
     print("Derived from source:")
     print(f"  test functions : {values['tests']}")
     print(f"  coverage gate  : {values['coverage']}%")
     print(f"  MCP tools      : {values['mcp_tools']}")
     print(f"  built-in skills: {values['skills']}")
+    print(f"  package version: {version}")
     print()
 
     if failures:
@@ -170,7 +260,7 @@ def main() -> int:
         print("Fix the doc, or update the canonical source if the number changed.")
         return 1
 
-    print(f"OK: {len(CHECKS)} doc references consistent with source.")
+    print(f"OK: {len(CHECKS) + len(VERSION_CHECKS)} doc references consistent with source.")
     return 0
 
 

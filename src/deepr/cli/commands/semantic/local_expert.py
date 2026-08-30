@@ -41,9 +41,12 @@ def make_local_expert_profile(
     click.echo(f"Provider: {profile.provider}")
     click.echo(f"Model: {profile.model}")
     click.echo(f"Documents: {profile.total_documents}")
-    click.echo("\nNext:")
-    click.echo(f'  deepr expert subscribe "{profile.name}" "{description or profile.name}"')
-    click.echo(f'  deepr expert sync "{profile.name}" --local --fresh-context -y')
+    click.echo("\nNext, build a consultable view from evidence you trust:")
+    click.echo(f'  deepr expert retain "{profile.name}" ./source.md --title "Trusted starting source"')
+    click.echo(f'  deepr expert study "{profile.name}" --local')
+    click.echo(f'  deepr expert brief "{profile.name}" --local')
+    click.echo(f'  deepr expert consult "What should we decide next?" --expert "{profile.name}" --local')
+    click.echo("\nFor fresh web context, use subscribe plus sync after reviewing the topic and capacity plan.")
     return profile
 
 

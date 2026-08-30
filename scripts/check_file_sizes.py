@@ -40,7 +40,6 @@ GRANDFATHERED: dict[str, int] = {
     "deepr/cli/commands/prep.py": 1094,
     "deepr/cli/commands/research.py": 1049,
     "deepr/api/app.py": 1028,
-    "deepr/cli/commands/semantic/artifacts.py": 1012,
 }
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent

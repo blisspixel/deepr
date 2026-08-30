@@ -1,14 +1,14 @@
 """
-Deepr CLI - Modern command-line interface for research automation.
+Deepr CLI - Persistent domain experts from bounded, auditable research.
 
 Command Structure: deepr <verb> <noun> [options]
 
 Examples:
-    deepr research submit "Your research prompt"
-    deepr research status <job-id>
-    deepr queue list
-    deepr prep plan "Meeting scenario"
-    deepr costs estimate "Research prompt"
+    deepr capacity
+    deepr expert next "Expert Name"
+    deepr expert consult "What changed?" --expert "Expert Name" --local
+    deepr research "Your question" --provider openai --model o4-mini-deep-research --preview
+    deepr costs show
 
 Interactive Mode:
     deepr interactive
@@ -25,10 +25,10 @@ from deepr import __version__
 from deepr.cli.color_policy import apply_no_color
 
 # The panel-review finding behind this split: 40+ top-level commands buried
-# the three verbs most users need. Help shows these first, in this order;
+# the small set of verbs most users need. Help shows these first, in this order;
 # everything else lands under "Advanced commands". Behavior is unchanged -
 # every command works exactly as before, this only shapes --help output.
-_CORE_COMMAND_ORDER = ["research", "expert", "costs", "doctor", "web"]
+_CORE_COMMAND_ORDER = ["expert", "capacity", "research", "costs", "doctor", "web"]
 _CORE_COMMANDS = set(_CORE_COMMAND_ORDER)
 
 
@@ -51,7 +51,7 @@ _COMMAND_SPECS: dict[str, _LazyCommandSpec] = {
     "agentic": _LazyCommandSpec(
         "deepr.cli.commands.semantic",
         "agentic",
-        "Autonomous multi-step research workflows.",
+        "Inspect legacy autonomous research commands (metered execution gated).",
     ),
     "analytics": _LazyCommandSpec(
         "deepr.cli.commands.analytics",
@@ -67,7 +67,7 @@ _COMMAND_SPECS: dict[str, _LazyCommandSpec] = {
     "capacity": _LazyCommandSpec(
         "deepr.cli.commands.capacity",
         "capacity",
-        "Show available research capacity (local, plan quota,...",
+        "Inspect local, plan-quota, and gated metered capacity.",
     ),
     "check": _LazyCommandSpec(
         "deepr.cli.commands.semantic",
@@ -77,7 +77,7 @@ _COMMAND_SPECS: dict[str, _LazyCommandSpec] = {
     "completion": _LazyCommandSpec(
         "deepr.cli.commands.completion",
         "completion",
-        "Output a tab-completion script for SHELL (bash, zsh, or...",
+        "Generate shell tab completion.",
     ),
     "config": _LazyCommandSpec(
         "deepr.cli.commands.config",
@@ -113,7 +113,7 @@ _COMMAND_SPECS: dict[str, _LazyCommandSpec] = {
     "doctor": _LazyCommandSpec(
         "deepr.cli.commands.doctor",
         "doctor",
-        "Run diagnostics to check Deepr configuration and...",
+        "Verify configuration and executable capacity.",
     ),
     "eval": _LazyCommandSpec(
         "deepr.cli.commands.eval",
@@ -149,7 +149,7 @@ _COMMAND_SPECS: dict[str, _LazyCommandSpec] = {
     "init": _LazyCommandSpec(
         "deepr.cli.commands.init",
         "init",
-        "Guided first-run setup: detect keys, write .env, set a...",
+        "Configure Deepr through a guided first run.",
     ),
     "interactive": _LazyCommandSpec(
         "deepr.cli.commands.interactive",
@@ -164,13 +164,13 @@ _COMMAND_SPECS: dict[str, _LazyCommandSpec] = {
     "knowledge": _LazyCommandSpec(
         "deepr.cli.commands.vector",
         "vector",
-        "Manage knowledge bases (vector stores) for experts and...",
+        "Manage expert vector stores and knowledge bases.",
     ),
     "l": _LazyCommandSpec("deepr.cli.commands.status", "list_alias", "List research jobs.", True),
     "learn": _LazyCommandSpec(
         "deepr.cli.commands.semantic",
         "learn",
-        "Learn about a topic through multi-phase research.",
+        "Inspect legacy multi-phase research (metered execution gated).",
     ),
     "list": _LazyCommandSpec("deepr.cli.commands.status", "list_jobs", "List research jobs.", True),
     "make": _LazyCommandSpec(
@@ -197,12 +197,12 @@ _COMMAND_SPECS: dict[str, _LazyCommandSpec] = {
     "research": _LazyCommandSpec(
         "deepr.cli.commands.semantic",
         "research",
-        "Run research with automatic mode detection.",
+        "Preview bounded metered research requests without dispatch.",
     ),
     "route": _LazyCommandSpec(
         "deepr.cli.commands.route",
         "route",
-        "Inspect deterministic routing decisions before dispatching...",
+        "Explain routing decisions before dispatch.",
     ),
     "run": _LazyCommandSpec(
         "deepr.cli.commands.run",
@@ -224,7 +224,7 @@ _COMMAND_SPECS: dict[str, _LazyCommandSpec] = {
     "team": _LazyCommandSpec(
         "deepr.cli.commands.semantic",
         "team",
-        "Analyze a question from multiple perspectives (dream team).",
+        "Inspect legacy multi-perspective research (metered execution gated).",
     ),
     "templates": _LazyCommandSpec(
         "deepr.cli.commands.templates",
@@ -239,7 +239,7 @@ _COMMAND_SPECS: dict[str, _LazyCommandSpec] = {
     "vector": _LazyCommandSpec(
         "deepr.cli.commands.vector",
         "vector",
-        "Manage knowledge bases (vector stores) for experts and...",
+        "Manage expert vector stores and knowledge bases.",
     ),
     "web": _LazyCommandSpec(
         "deepr.cli.commands.web",
@@ -324,14 +324,18 @@ class SectionedGroup(click.Group):
 @click.version_option(version=__version__, prog_name="Deepr")
 def cli():
     """
-    Deepr - Research automation platform.
+    Deepr - Persistent domain experts from bounded, auditable research.
 
     \b
-    Most workflows need three commands:
-      deepr research "your question" --budget 2    Run research (budget is a ceiling, not a price)
+    Start with the executable expert path:
+      deepr capacity                               Inspect local and plan capacity
+      deepr expert next "Expert Name"             See the safest $0 next action
       deepr expert consult "question" -e "Expert Name" --local
-                                                    Consult stored expert state at $0
-      deepr costs show                             See exactly what you have spent
+                                                   Consult stored expert state at $0
+
+    \b
+    Metered research is preview-only in the current release:
+      deepr research "your question" --provider openai --model o4-mini-deep-research --preview
 
     \b
     deepr doctor verifies your setup. Everything else lives under

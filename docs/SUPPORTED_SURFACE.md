@@ -1,11 +1,20 @@
 # Supported Surface
 
-Status: v2.50.7 current main, 2026-08-22. This document defines what users and host
+Status: v2.50.8 current main, 2026-08-30. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
 path is structurally complete but remains execution-blocked without verified
 provider prepaid-no-overage or hard-stop evidence.
+
+**v2.50.8 makes the first local expert path complete and testable.** README,
+Quick Start, root help, research help, and local profile creation now direct an
+operator through profile creation, trusted source retention, local study,
+grounded brief creation, and local consultation. The path constructs no paid
+provider and retains the cited source passage in the consult context. Gated
+metered research, team, agentic, and chat help no longer present blocked
+invocations as runnable examples. No execution authority widened in this
+release.
 
 **v2.50.7 keeps MCP job state and task execution monotonic.** SQLite persistence
 migrates legacy databases in place and preserves plans, active tasks, temporal

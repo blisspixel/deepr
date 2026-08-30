@@ -3,13 +3,18 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.50.7-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.7)
+[![Version](https://img.shields.io/badge/version-2.50.8-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.8)
 
 **Persistent domain experts built from bounded, auditable research.**
 
 Deepr turns research into durable beliefs, gaps, contradictions, confidence,
 citations, provenance, and outcomes. It prefers owned local models, then proven
 subscription quota, with no automatic fallback to a paid API.
+
+Deepr is for people and agent teams making recurring decisions in domains that
+keep changing. Instead of rebuilding context for every run, they consult the
+same inspectable expert state through the CLI or MCP and can see what changed,
+what supports a position, and what remains unknown.
 
 ## Build a durable expert fleet
 
@@ -51,33 +56,16 @@ open check.
 | Plan quota | Uses an existing subscription only when authentication, tool confinement, remaining quota, and disabled paid overage are proven. Claude Code is the current executable adapter. Successful work records $0 at the margin. |
 | Metered API | No automatic fallback. The attended absorb path requires verified provider prepaid-no-overage or a hard provider ceiling, plus a cumulative Deepr wallet, a separate finite job ceiling, explicit confirmation, and a durable reservation. Other metered surfaces remain gated. |
 
-A wallet is one cumulative drawdown across provider calls and time windows, not
-a per-request allowance. The operator chooses its size, whether `$2`, `$50`, or
-`$200`, and every settled API dollar plus every active paid hold consumes it.
-There is no overdraft, automatic refill, or universal `$2` job maximum. Every
-job still needs its own narrower confirmed ceiling.
-
-Wallet funding is local Deepr authorization. It does not buy or verify provider
-credits. Provider-side prepaid credits or a provider-enforced hard stop with
-paid overage disabled are also mandatory for dispatch. Deepr verifies both
-layers and applies the tighter boundary. A soft budget alert on an open
-postpaid account is not a hard stop and remains execution-blocked. MCP, schedules,
-loops, consultation, and automatic routing cannot use wallet authority.
-No production provider account-control verifier ships in v2.50, so actual paid
-dispatch remains blocked even after local wallet funding. The wallet and
-attended transaction are ready for a future authenticated verifier; they are
-not a bypass for today's quarantine.
+A local wallet is cumulative operator authorization, not provider credit. Paid
+dispatch also requires authenticated proof of provider-side prepaid capacity or
+a hard stop with overage disabled. No production account-control verifier ships
+in v2.50, so metered execution remains blocked and cannot be enabled by funding
+a wallet, setting a budget, or approving a prompt.
 
 ```bash
-# Keep the active example's independent calendar ceiling conservative.
-# In .env: DEEPR_MAX_COST_PER_MONTH=5.00
-deepr budget credits add --amount 200.00 --reason "Bound this API campaign"
-# This remains blocked unless capacity status proves a provider hard stop.
-deepr expert absorb "My Domain Expert" --file report.md --api --budget 4.00
-deepr budget status
-deepr costs show
+deepr capacity
+deepr research "A bounded premium question" --provider openai --model o4-mini-deep-research --preview
 deepr costs doctor
-deepr budget credits clear
 ```
 
 See [Capacity and Cost](docs/CAPACITY.md) for billing reconciliation and the
@@ -107,8 +95,16 @@ deepr init
 deepr doctor --skip-connectivity
 deepr capacity
 deepr expert make "My Domain Expert" --local -d "The decisions this expert supports"
-deepr expert consult "What should we decide next?" --expert "My Domain Expert"
+deepr expert retain "My Domain Expert" ./source.md --title "Trusted starting source"
+deepr expert study "My Domain Expert" --local
+deepr expert brief "My Domain Expert" --local
+deepr expert consult "What should we decide next?" --expert "My Domain Expert" --local
 ```
+
+Save one UTF-8 source you trust as `source.md` before running the retain step.
+Creating a profile is not learning: retain makes the evidence re-readable,
+study extracts cited findings, and brief forms the inspectable view that the
+consult actually uses. These commands make no paid API call.
 
 See [Quick Start](docs/QUICK_START.md) and [Supported Surface](docs/SUPPORTED_SURFACE.md)
 for current workflows. The [MCP Agent Guide](docs/MCP_AGENT_TEST_GUIDE.md)
