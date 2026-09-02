@@ -22,7 +22,7 @@ from deepr.experts.maximum_charge_contract import ABSOLUTE_DEEPR_CEILING_USD
 from deepr.utils.pinned_http import close_pinned_response, pinned_get
 
 OPENROUTER_KEY_CHECK_KIND = "deepr.providers.openrouter_key_control_observation"
-OPENROUTER_KEY_CHECK_SCHEMA_VERSION = "deepr-openrouter-key-control-v1"
+OPENROUTER_KEY_CHECK_SCHEMA_VERSION = "deepr-openrouter-key-control-v2"
 OPENROUTER_CURRENT_KEY_URL = "https://openrouter.ai/api/v1/key"
 
 _MAX_RESPONSE_BYTES = 64 * 1024
@@ -56,13 +56,13 @@ class _ParsedOpenRouterKey:
     is_free_tier: bool
     is_management_key: bool
     is_provisioning_key: bool
-    limit: float
-    remaining: float
+    limit: float | None
+    remaining: float | None
     usage: float
     usage_monthly: float
     byok_usage: float
     byok_usage_monthly: float
-    limit_reset: str
+    limit_reset: str | None
     expires_at: str | None
     expiration_failure: str | None
 
@@ -84,7 +84,7 @@ class OpenRouterKeyControlObservation:
     usage_monthly_usd: float | None
     byok_usage_usd: float | None
     byok_usage_monthly_usd: float | None
-    limit_reset: str
+    limit_reset: str | None
     include_byok_in_limit: bool | None
     expires_at: str | None
     observed_at: str
@@ -254,6 +254,12 @@ def _money(value: object, *, field_name: str, positive: bool = False) -> float:
     return amount
 
 
+def _optional_money(value: object, *, field_name: str, positive: bool = False) -> float | None:
+    if value is None:
+        return None
+    return _money(value, field_name=field_name, positive=positive)
+
+
 def _utc_expiration(value: str | None, observed_at: datetime) -> tuple[str | None, str | None]:
     if value is None:
         return None, None
@@ -287,13 +293,13 @@ def _parse_key_data(document: FetchedOpenRouterKeyDocument) -> _ParsedOpenRouter
         is_free_tier=_boolean(data.get("is_free_tier"), field_name="is_free_tier"),
         is_management_key=_boolean(data.get("is_management_key"), field_name="is_management_key"),
         is_provisioning_key=_boolean(data.get("is_provisioning_key"), field_name="is_provisioning_key"),
-        limit=_money(data.get("limit"), field_name="limit", positive=True),
-        remaining=_money(data.get("limit_remaining"), field_name="limit_remaining"),
+        limit=_optional_money(data.get("limit"), field_name="limit", positive=True),
+        remaining=_optional_money(data.get("limit_remaining"), field_name="limit_remaining"),
         usage=_money(data.get("usage"), field_name="usage"),
         usage_monthly=_money(data.get("usage_monthly"), field_name="usage_monthly"),
         byok_usage=_money(data.get("byok_usage"), field_name="byok_usage"),
         byok_usage_monthly=_money(data.get("byok_usage_monthly"), field_name="byok_usage_monthly"),
-        limit_reset=_text(data.get("limit_reset"), field_name="limit_reset"),
+        limit_reset=_optional_text(data.get("limit_reset"), field_name="limit_reset"),
         expires_at=expires_at,
         expiration_failure=expiration_failure,
     )
@@ -320,7 +326,7 @@ def _invalid_key_observation(
         usage_monthly_usd=None,
         byok_usage_usd=None,
         byok_usage_monthly_usd=None,
-        limit_reset="",
+        limit_reset=None,
         include_byok_in_limit=None,
         expires_at=None,
         observed_at=document.observed_at.astimezone(UTC).isoformat(),
@@ -356,6 +362,12 @@ def _key_limit_failures(
     maximum_limit: float,
 ) -> list[str]:
     failures: list[str] = []
+    if key.limit is None:
+        failures.append("current key has no finite USD limit")
+    if key.remaining is None:
+        failures.append("current key has no finite remaining limit")
+    if key.limit is None or key.remaining is None:
+        return failures
     if key.limit > maximum_limit + _MONEY_TOLERANCE:
         failures.append(f"current key limit ${key.limit:.6f} exceeds Deepr maximum ${maximum_limit:.6f}")
     if key.remaining > key.limit + _MONEY_TOLERANCE:

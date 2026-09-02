@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.11] - 2026-09-02
+
+### Fixed
+
+- The authenticated OpenRouter current-key parser now accepts the provider's
+  officially valid nullable `limit`, `limit_remaining`, and `limit_reset`
+  fields. The v2 sanitized observation preserves `null`, reports missing or
+  non-monthly limit authority as ineligible, and no longer renders an absent
+  limit as `$0.00`.
+
+### Changed
+
+- The roadmap now begins with one dependency-gated release sequence. v2.51
+  proves longitudinal expert value, v2.52 resolves predictions into reviewed
+  learning proposals with distinct world-valid and observation times, and
+  v2.53 completes the durable parent transaction and disabled OpenRouter proof
+  before host observation and control widen. Release gates explicitly contain
+  no calendar estimates.
+- A zero-inference live validation passed all seven OpenRouter public route
+  checks and bounded Qwen 3.8 Flash and Claude Sonnet 5 previews. The sanitized
+  current-key check reached an explicit policy verdict after the nullable-field
+  fix. No inference or paid request was made, and dispatch remains blocked.
+
 ## [2.50.10] - 2026-09-01
 
 ### Fixed
@@ -54,8 +77,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   releases. It prioritizes settled terminal semantics, typed control delivery,
   bounded model-visible output with exact durable recall, progress-based stall
   detection, and compaction-recall evaluation before broader orchestration.
-- Python 3.15 is not yet added to the support matrix. Its 2026-09-01 release
-  candidate probe is blocked by missing Windows `lxml` wheels in the full
+- Python 3.15 is not yet added to the support matrix. A Windows probe on
+  2026-09-01 against 3.15.0rc1 was blocked by missing `lxml` wheels in the full
   dependency set; 3.12, 3.13, and 3.14 remain the blocking tested window.
 
 ### Fixed

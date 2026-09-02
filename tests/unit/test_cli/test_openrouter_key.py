@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -150,6 +151,26 @@ def test_key_check_returns_nonzero_for_ineligible_controls(monkeypatch: pytest.M
     assert payload["control_eligible"] is False
     assert payload["failures"] == ["remaining headroom is too small"]
     assert payload["dispatch_authorized"] is False
+
+
+def test_key_check_does_not_render_an_absent_limit_as_zero(monkeypatch: pytest.MonkeyPatch) -> None:
+    observation = replace(
+        _observation(eligible=False),
+        limit_usd=None,
+        limit_remaining_usd=None,
+        limit_reset=None,
+    )
+    monkeypatch.setattr(
+        "deepr.cli.commands.openrouter_key.inspect_openrouter_key",
+        lambda api_key, required_headroom_usd: observation,
+    )
+
+    result = CliRunner().invoke(providers, ["openrouter-key-check"], input=_API_KEY + "\n")
+
+    assert result.exit_code == 1
+    assert "Monthly key limit: not set" in result.output
+    assert "Remaining key limit: not set" in result.output
+    assert "Monthly key limit: $0.00" not in result.output
 
 
 def test_key_check_reports_transport_error_without_secret(monkeypatch: pytest.MonkeyPatch) -> None:

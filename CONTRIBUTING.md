@@ -102,6 +102,28 @@ The repository stays tidy by rule, not by cleanup:
   Actions and remove payment authority at the GitHub account or organization.
   A GitHub budget alert alone is not a hard real-time stop.
 
+## Version and release progression
+
+The [active release plan](ROADMAP.md#active-release-plan) assigns one coherent
+outcome and one evidence gate to each minor version. It is not a timeline. Do
+not add day, sprint, week, quarter, or release-date estimates to active plans.
+
+1. Keep incomplete work under `Unreleased`; do not bump versions to signal
+   progress.
+2. Use a patch for a compatible defect, security correction, dependency update,
+   packaging fix, or documentation correction. A patch cannot add spend,
+   mutation, or remote-control authority.
+3. Use a minor version only after its named promotion gate passes. If the gate
+   fails, preserve the evidence and keep the surface experimental or blocked.
+4. When the candidate is complete, update the package, plugin, fixtures,
+   lockfile, release docs, and changelog to one exact version. Run the full
+   Definition of Done before merging.
+5. Tag only the exact green `main` commit. Build and verify the release
+   artifacts, publish the matching GitHub Release, validate the public
+   installer, and confirm the installed CLI reports that version.
+6. Record a failed live validation in the roadmap and fix it in the next patch.
+   Never move or reuse a published tag to hide the finding.
+
 ## Code style
 
 - **Formatter / linter**: ruff (line length 120). Pre-commit enforces it.

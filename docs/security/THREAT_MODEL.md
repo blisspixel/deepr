@@ -1,6 +1,6 @@
 # Deepr Threat Model
 
-Status: current with Deepr v2.50.10. Last reviewed: 2026-09-01.
+Status: current with Deepr v2.50.11. Last reviewed: 2026-09-02.
 
 This document is the repository-scoped threat model for Deepr. It is intended
 for security reviews, design reviews, and future bug discovery. It should stay
@@ -400,8 +400,11 @@ Existing controls:
   the bounded checkout-local key without exporting it. It does not unquarantine
   or export the value or pass it to a child
   process. It makes one bounded read-only request without ambient proxy or
-  redirects, and returns only sanitized limit evidence. Both checks explicitly
-  deny dispatch authority, and no OpenRouter inference client is constructed.
+  redirects, and returns only sanitized limit evidence. Nullable provider
+  controls are preserved as `null` and fail policy eligibility without being
+  rendered as zero or rejected before the actual posture can be assessed. Both
+  checks explicitly deny dispatch authority, and no OpenRouter inference client
+  is constructed.
   A future adapter also needs authenticated proof of no applicable BYOK or
   enforced paid workspace defaults. It must reject cache HIT/MISS, non-default
   service tiers, BYOK, pipeline stages, searches, fetches, media, presets, and

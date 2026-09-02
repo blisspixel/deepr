@@ -1,6 +1,6 @@
 # Model Selection Guide
 
-Status: current with Deepr v2.50.10. Last reviewed: 2026-09-01.
+Status: current with Deepr v2.50.11. Last reviewed: 2026-09-02.
 
 The source of truth for model IDs, pricing estimates, context windows, and
 routing metadata is [src/deepr/providers/registry.py](../src/deepr/providers/registry.py),
@@ -11,7 +11,7 @@ change faster than prose, so treat this document as an operating guide, not a
 billing authority.
 
 Direct-provider model docs checked through 2026-08-13. OpenRouter route and
-current-key docs were checked through 2026-09-01:
+current-key docs were checked through 2026-09-02:
 
 - OpenAI Models and Pricing:
   <https://developers.openai.com/api/docs/models>,
@@ -388,6 +388,9 @@ Default posture:
   reconciling usage counters, and a live expiry when one is configured. Its
   sanitized result always reports incomplete billing reconciliation and no
   dispatch authority.
+- OpenRouter permits nullable limit and reset controls. The v2 sanitized
+  observation preserves an observed `null`, reports missing or non-monthly
+  authority as ineligible, and never renders an absent limit as zero spend.
 - A future shared-capacity adapter must prove that no applicable BYOK key or
   account-enforced paid plugin exists. It must require direct, one-attempt,
   non-BYOK router metadata with no pipeline stage, default or null service tier,
