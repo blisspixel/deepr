@@ -114,17 +114,10 @@ class RegistryModel:
 
 def load_registry() -> dict[str, RegistryModel]:
     """Load current model registry."""
-    import importlib.util
-
-    registry_path = SRC_ROOT / "deepr" / "providers" / "registry.py"
-    spec = importlib.util.spec_from_file_location("registry", registry_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"Could not load model registry from {registry_path}")
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    from deepr.providers.registry import MODEL_CAPABILITIES
 
     registry = {}
-    for key, cap in mod.MODEL_CAPABILITIES.items():
+    for key, cap in MODEL_CAPABILITIES.items():
         registry[key] = RegistryModel(
             key=key,
             provider=cap.provider,

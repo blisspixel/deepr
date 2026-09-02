@@ -115,6 +115,18 @@ class TestAliasResolution:
         assert provider_matches_model_contract("azure", "openai") is True
         assert provider_matches_model_contract("azure-foundry", "openai") is False
 
+    def test_openrouter_slug_resolves_to_gateway_contract(self):
+        capability = get_resolved_model_capability("qwen/qwen3.8-flash")
+
+        assert capability is not None
+        assert capability.provider == "openrouter"
+        assert capability.preview_only is True
+        assert get_resolved_model_contract_identity("qwen/qwen3.8-flash") == (
+            "openrouter",
+            "qwen/qwen3.8-flash",
+        )
+        assert provider_matches_model_contract("openrouter", capability.provider) is True
+
 
 class TestPartialMatchOrdering:
     def test_flash_lite_does_not_match_flash(self):

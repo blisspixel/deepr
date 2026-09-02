@@ -2642,10 +2642,11 @@ def validate_citations_cmd(name: str):
 @expert.command(name="discover-gaps")
 @click.argument("name")
 def discover_gaps_cmd(name: str):
-    """Discover knowledge gaps by analyzing claim coverage.
+    """Compatibility surface for legacy metered gap discovery.
 
-    Uses embedding-based clustering to find thin knowledge areas,
-    then generates gap questions for under-represented topics.
+    Production execution is quarantined before provider construction because
+    the legacy workflow has no shared durable parent transaction. Use
+    ``deepr expert next NAME`` for current structural guidance.
 
     EXAMPLES:
       deepr expert discover-gaps "Python Expert"

@@ -10,6 +10,19 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+EXPECTED_READ_ONLY_TOOLS = {
+    "deepr_capabilities",
+    "deepr_check_status",
+    "deepr_get_expert_info",
+    "deepr_get_result",
+    "deepr_get_task_progress",
+    "deepr_list_experts",
+    "deepr_list_recoverable_tasks",
+    "deepr_list_skills",
+    "deepr_status",
+    "deepr_tool_search",
+}
+
 
 def _tree_digest(root: Path) -> str:
     digest = hashlib.sha256()
@@ -129,11 +142,11 @@ def main() -> int:
     if [response.get("id") for response in responses] != [1, 2, 3, 4, 5]:
         raise RuntimeError("stdout was not a clean five-response JSON-RPC stream")
     initial = {tool["name"] for tool in responses[1]["result"]["tools"]}
-    if initial != {"deepr_tool_search"}:
-        raise RuntimeError("ordinary Agent Plugin discovery did not return the gateway-only surface")
+    if initial != EXPECTED_READ_ONLY_TOOLS:
+        raise RuntimeError("ordinary Agent Plugin discovery did not return the exact read-only surface")
     advertised = {tool["name"] for tool in responses[2]["result"]["tools"]}
-    if len(advertised) != 10 or "deepr_research" in advertised:
-        raise RuntimeError("read-only discovery advertised a blocked research tool")
+    if advertised != EXPECTED_READ_ONLY_TOOLS or advertised != initial:
+        raise RuntimeError("full discovery disagreed with the exact read-only surface")
     status = json.loads(responses[3]["result"]["content"][0]["text"])
     if status["security"]["research_mode"] != "read_only":
         raise RuntimeError("installed bridge did not enter read-only mode")

@@ -14,6 +14,7 @@ import pytest
 from jsonschema import Draft202012Validator
 
 from deepr.mcp.contained_env import build_contained_read_only_env
+from deepr.mcp.host_profile import V1_READ_ONLY_TOOLS
 from deepr.skills.agent_plugin import build_agent_plugin, validate_agent_plugin
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -73,8 +74,10 @@ def test_mcp_profile_is_local_read_only_and_zero_spend() -> None:
     assert server["cwd"] == "${PLUGIN_DATA}"
     assert env["DEEPR_RESEARCH_MODE"] == "read_only"
     assert env["DEEPR_MCP_AUTO_APPROVE"] == "0"
-    assert env["DEEPR_MCP_ADVERTISE_FULL_TOOL_LIST"] == "0"
-    assert env == build_contained_read_only_env("${PLUGIN_DATA}")
+    assert env["DEEPR_MCP_ADVERTISE_FULL_TOOL_LIST"] == "1"
+    assert env == build_contained_read_only_env("${PLUGIN_DATA}", advertise_full_tool_list=True)
+    assert len(V1_READ_ONLY_TOOLS) == 10
+    assert "deepr_research" not in V1_READ_ONLY_TOOLS
     assert all(env[name] == "0" for name in env if "MAX_COST" in name or name.endswith("_LIMIT"))
     assert all(
         value.startswith("${PLUGIN_DATA}/deepr")

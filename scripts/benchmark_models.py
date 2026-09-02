@@ -740,13 +740,10 @@ _AZURE_API_VERSION = "2024-10-01-preview"
 
 
 def load_registry():
-    """Load current model registry via importlib."""
-    spec = importlib.util.spec_from_file_location(
-        "registry", PROJECT_ROOT / "src" / "deepr" / "providers" / "registry.py"
-    )
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod.MODEL_CAPABILITIES
+    """Load the current model registry through its package imports."""
+    from deepr.providers.registry import MODEL_CAPABILITIES
+
+    return MODEL_CAPABILITIES
 
 
 def warn_if_newer_models_available() -> None:
@@ -911,6 +908,8 @@ def estimate_eval_cost(model_key: str, prompt: EvalPrompt, registry: dict) -> fl
     capability = registry.get(lookup_key) or registry.get(model_key)
     if not capability:
         raise BenchmarkBudgetExceeded(f"Model {model_key!r} has no trusted pricing metadata")
+    if getattr(capability, "preview_only", False):
+        raise BenchmarkBudgetExceeded(f"Model {model_key!r} is preview-only and cannot enter paid evaluation")
 
     model_name = model_key.split("/", 1)[-1]
     if model_name in _UNBOUNDED_NATIVE_RESEARCH_NAMES:

@@ -239,6 +239,14 @@ def test_unpriced_and_uncapped_models_fail_closed(benchmark_module):
 
     with pytest.raises(BenchmarkBudgetExceeded, match="trusted pricing"):
         benchmark_module.estimate_eval_cost("openai/unknown", prompt, {})
+    preview_capability = capability()
+    preview_capability.preview_only = True
+    with pytest.raises(BenchmarkBudgetExceeded, match="preview-only"):
+        benchmark_module.estimate_eval_cost(
+            "openrouter/qwen/qwen3.8-flash",
+            prompt,
+            {"openrouter/qwen/qwen3.8-flash": preview_capability},
+        )
     with pytest.raises(BenchmarkBudgetExceeded, match="request-level spend ceiling"):
         benchmark_module.estimate_eval_cost(
             "openai/o3-deep-research",

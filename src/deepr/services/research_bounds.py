@@ -243,6 +243,7 @@ def bounded_research_cost_estimate(
     *,
     request: ResearchRequest,
     provider: str,
+    allow_preview_only: bool = False,
 ) -> CostEstimate:
     """Return a maximum cost that covers every permitted provider dispatch."""
     serialized_bytes = validate_research_request_bounds(request)
@@ -281,6 +282,11 @@ def bounded_research_cost_estimate(
             f"the registry assigns it to {capability.provider!r}",
             code="research_provider_model_mismatch",
         )
+    if capability.preview_only and not allow_preview_only:
+        raise ResearchRequestBoundsError(
+            f"Research provider {provider_key!r} is visible for bounded previews but has no executable adapter",
+            code="research_provider_preview_only",
+        )
     if capability.deprecated:
         successor = f"; use successor {capability.successor!r}" if capability.successor else ""
         raise ResearchRequestBoundsError(
@@ -312,7 +318,20 @@ def bounded_research_cost_estimate(
         request.model,
         cached_input_tokens=0,
     )
-    maximum = token_cost_per_request * request.max_provider_requests + tool_cost
+    # OpenRouter prompt-cache writes are a separate, model-specific marginal
+    # charge that its provider-routing max_price does not cap. Preview-only
+    # routes therefore reserve a deliberately conservative full-input write in
+    # addition to ordinary no-cache input, even when the provider may charge
+    # one bucket instead of both. Executable adapters remain blocked.
+    cache_write_cost_per_request = 0.0
+    if capability.preview_only and capability.provider == "openrouter":
+        if capability.cache_write_cost_per_1m is None:
+            raise ResearchRequestBoundsError(
+                "OpenRouter preview lacks a finite cache-write price contract",
+                code="research_cache_write_pricing_unavailable",
+            )
+        cache_write_cost_per_request = (input_tokens / 1_000_000) * capability.cache_write_cost_per_1m
+    maximum = (token_cost_per_request + cache_write_cost_per_request) * request.max_provider_requests + tool_cost
     if not math.isfinite(maximum) or maximum < 0:
         raise ResearchRequestBoundsError(
             "Research cost envelope is not finite",
@@ -326,7 +345,7 @@ def bounded_research_cost_estimate(
         reasoning=(
             f"Hard envelope: {input_tokens} input tokens + {request.max_output_tokens} output tokens "
             f"x {request.max_provider_requests} provider request(s), {request.max_tool_calls} tool-call ceiling, "
-            f"{serialized_bytes} serialized bytes"
+            f"{serialized_bytes} serialized bytes, ${cache_write_cost_per_request:.6f} cache-write reserve/request"
         ),
     )
 

@@ -8,6 +8,7 @@ from deepr.cli.async_runner import run_async_command
 from deepr.cli.colors import console, print_error, print_header, print_key_value
 from deepr.cli.commands.research_safety import (
     bounded_admission_estimate,
+    require_dispatchable_admission,
     require_metered_interface,
     require_parent_budget,
     require_storage,
@@ -59,7 +60,7 @@ def detect_research_mode(prompt: str) -> str:
     "--provider",
     "-p",
     default=None,
-    type=click.Choice(["openai", "azure", "gemini", "xai"]),
+    type=click.Choice(["openai", "azure", "gemini", "xai", "openrouter"]),
     help="Research provider (defaults: deep-research=openai, general=xai)",
 )
 @click.option("--no-web", is_flag=True, help="Disable web search")
@@ -333,6 +334,7 @@ def research(
         )
         return
 
+    require_dispatchable_admission(query, provider, model, no_web, no_code)
     # Handle scraping if requested
     if scrape:
         if output_context.mode == OutputMode.VERBOSE:
@@ -864,6 +866,7 @@ def _run_auto_research(
         model=decision.model,
         no_web=no_web,
         no_code=no_code,
+        allow_preview_only=dry_run,
     )
 
     # Display routing decision.
@@ -954,6 +957,7 @@ def _print_explicit_preview(
         model=model,
         no_web=no_web,
         no_code=no_code,
+        allow_preview_only=True,
     )
 
     if output_context.mode == OutputMode.JSON:

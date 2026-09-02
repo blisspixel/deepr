@@ -102,7 +102,7 @@ class ModelRouter:
         # Import registry lazily to avoid circular imports
         from deepr.providers.registry import MODEL_CAPABILITIES
 
-        self.capabilities = MODEL_CAPABILITIES
+        self.capabilities = {key: cap for key, cap in MODEL_CAPABILITIES.items() if not cap.preview_only}
 
         # Load benchmark rankings for OpenAI model selection
         use_benchmark_routing = os.getenv("DEEPR_USE_BENCHMARK_ROUTING", "true").lower() in {"1", "true", "yes", "on"}

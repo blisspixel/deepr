@@ -52,7 +52,7 @@
 | [Historically Grounded Perspectives](docs/design/historically-grounded-perspectives.md) | Sourced great-mind lenses without impersonation or invented memory |
 | [Epistemic Simulation Experts](docs/design/epistemic-simulation-experts.md) | Branch-scoped speculative lenses with isolated memory authority, graph-aware context, and held-out evaluation |
 | [Epistemic Simulation Evaluation](docs/design/epistemic-simulation-evaluation.md) | Identity ablation, counterfactual transfer, belief revision, evidence contracts, and outcome gates for reasoning lenses |
-| [Agent Harness Lessons 2026](docs/design/agent-harness-lessons-2026.md) | Hermes, OpenClaw, Pi, OpenHands, Goose, and Letta patterns relevant to Deepr |
+| [Agent Harness Lessons 2026](docs/design/agent-harness-lessons-2026.md) | Hermes, OpenClaw, OpenCode, Pi, OpenHands, Goose, and Letta patterns relevant to Deepr |
 | [External Harness Investigation Bridge](docs/design/external-harness-investigation-bridge.md) | Projection-first Grok Build, DeepSeek Harness, OpenClaw, NemoClaw, Codex, and workspace-host integration without moving orchestration authority into Deepr |
 | [Evidence-Gated Polyglot Evolution](docs/design/evidence-gated-polyglot-evolution.md) | Measured Python-first performance plan and explicit Rust, Go, Mojo, and free-threading extraction gates |
 | [Architecture](docs/ARCHITECTURE.md) | Technical details, security, observability |
@@ -366,7 +366,26 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.8)
+## Current Status (v2.50.9)
+
+**Shipped in v2.50.9 (see docs/CHANGELOG.md):** OpenRouter has a dated catalog
+of seven exact cross-family model slugs for write-free research previews. The
+entries are excluded from automatic and expert routing and paid execution fails
+before reservation. A pinned, no-key public metadata check proves one exact
+upstream endpoint tag, bounded parameter and context support, every reachable
+prompt, completion, and cache-write price override, plus the proposed
+no-fallback routing-policy digest. The request posture disables OpenRouter
+response caching and forbids explicit prompt-cache controls, paid server
+features, and background execution. Preview estimates reserve a full-input
+cache write in addition to ordinary input. A separate current-key check uses a
+hidden prompt by default, with an explicit checkout-local `.env` option, and
+binds the credential used for a read-only request to a finite monthly limit,
+BYOK-inclusive usage, and remaining headroom. Both return
+`dispatch_authorized=false`; neither is final billing reconciliation. This does
+not change the immediate evidence loop below. Executable OpenRouter work remains
+behind the v2.53 maximum-charge and provider authority gate, including exact
+response identity, durable parent adoption, ambiguous-outcome handling, all
+provider usage buckets, and append-only usage settlement.
 
 **Shipped in v2.50.8 (see docs/CHANGELOG.md):** the first-run path now reaches
 a consultable local expert instead of stopping at an empty profile. README,
@@ -553,6 +572,14 @@ material without applying a learning controller. Read-only MCP investigation
 projection stays design-gated until run ownership is stronger than knowledge
 of a `run_id`.
 
+The OpenRouter preview catalog and non-authorizing provider proofs are
+intentionally adjacent work, not the next product milestone. They broaden model
+comparison and validate route and key-control inputs without inference spend or
+mutation. Their cache-write proof closes a hidden-price class without claiming
+that OpenRouter's prompt/completion `max_price` caps cache writes. Executable
+gateway routing still waits for the v2.53 parent adoption, response
+verification, and settlement work.
+
 0. **Close the standards foundation before widening distribution.** The three
    current targets have separate jobs: OKF 0.2 carries selected knowledge,
    Agent Plugins 1.0.0 packages Agent Skills and MCP declarations, and MCP
@@ -712,6 +739,17 @@ file authority. Known gaps in the shipped pieces: `expert improve` has no tests
 and its `--execute` path calls the metered-gated `discover-gaps`; the four new
 CLI commands have no CLI-level tests; there is no `reclassify` command despite
 earlier notes implying one.
+
+**Live validation finding (2026-09-01, Temporal Knowledge Graphs dogfood):**
+the grounded brief explicitly listed Graphiti/Zep, contradiction-driven edge
+invalidation, confidence trajectories, and production dual-time mapping as
+unknown, while the structured expert state reported zero open gaps. The legacy
+`expert discover-gaps` help also implied an executable clustering workflow even
+though its metered path is quarantined. The help contract and CLI regression
+were fixed in v2.50.9. Promoting brief-level unknowns into structured gaps
+remains active work: model judgment must propose the semantic mapping, and a
+reviewed graph commit must apply it. Do not replace that missing loop with a
+lexical verdict.
 
 **Unreleased living-expert research stack + diverse councils:**
 
@@ -1100,10 +1138,10 @@ the gate for that version is proven.
 | **v2.47** (shipped, grant superseded) | Expert v2 web surface, local portraits, and the original attended `$2` grant | The new expert state needed a real interface; attended spend needed a first narrow proof | Twelve read-only v2 routes and local portrait path shipped; the grant was replaced in v2.49 |
 | **v2.48** (shipped) | Local-first consult plus the 2026-08-13 provider model and pricing refresh | Consultation must not inherit metered authority; estimates must follow current official catalogs | Consult blocks API paths; GPT-5.6, Grok 4.6, Claude 5, and current Gemini posture registered |
 | **v2.49** (shipped) | Persistent metered-spend wallet, independent job ceilings, and a curated flagship expert roster | Operators need chosen total exposure without a universal $2 research limit; the main roster must show developed experts | Wallet and verified provider boundaries both apply; no refill or overdraft; 25 explicit flagship experts have inspectable structure |
-| **v2.50** (shipped, 2.50.8 patch) | Standards foundation plus fail-closed spend, identity-bound storage, authentication, scoped remote access, bounded acquisition, terminal-state handling, and a complete first-run expert path | Format truth must precede distribution; spend, identity, durable state, and public guidance must fail closed after the first release | Offline pinned fixtures pass; OKF remains derived and verification-gated; completion receipts cannot leave a hold; MCP job state survives partial saves and restarts; terminal phases cannot be resurrected; report lookup verifies full stored identity; model-proposed searches cannot multiply work beyond the per-arm ceiling; documented onboarding reaches grounded consult context without paid dispatch |
+| **v2.50** (shipped, 2.50.9 patch) | Standards foundation plus fail-closed spend, identity-bound storage, authentication, scoped remote access, bounded acquisition, terminal-state handling, a complete first-run expert path, and bounded OpenRouter comparison | Format truth must precede distribution; spend, identity, durable state, public guidance, and gateway route truth must fail closed after the first release | Offline pinned fixtures pass; OKF remains derived and verification-gated; completion receipts cannot leave a hold; MCP job state survives partial saves and restarts; terminal phases cannot be resurrected; report lookup verifies full stored identity; model-proposed searches cannot multiply work beyond the per-arm ceiling; documented onboarding reaches grounded consult context without paid dispatch; OpenRouter previews prove exact route and price caps while execution remains blocked |
 | **v2.51** (design-gated) | Read-only MCP investigation projection tools over the shipped builders | Hosts need bounded, replayable, owner-scoped observation before they receive control authority | Choose and document either local-stdio-only ownership or a durable revocable observation grant binding the caller, `run_id`, and expert roster. Knowledge of a `run_id` is not authorization. Only then add cursor tools that remain content-free and deny cross-run access |
-| **v2.52** | Fixture-validated OpenClaw, DeepSeek Harness, Grok Build, Codex, and manual Grok Bot profiles | Portable packaging is primary; host fragments are compatibility paths and Bot lifecycle automation remains unavailable | Every advertised host claim names exact versions, tools, transport, runtime dependency, and validation evidence |
-| **v2.53** | Shared durable parent transaction, maximum-charge contract, scoped HTTP authority, then NemoClaw remote-isolation proof | Remote mutation and isolation depend on spend, identity, credential, and endpoint truth | Retry and crash tests cannot overshoot the parent ceiling or duplicate effects; NemoClaw remains reference-only until live evidence passes |
+| **v2.52** | Fixture-validated OpenClaw, DeepSeek Harness, Grok Build, Codex, and manual Grok Bot profiles | Portable packaging is primary; host fragments are compatibility paths and Bot lifecycle automation remains unavailable | OpenClaw stable `v2026.8.2` is the first Agent Plugin lane; every advertised host claim names exact versions, tools, transport, runtime dependency, and validation evidence |
+| **v2.53** | Shared durable parent transaction, maximum-charge contract, scoped HTTP authority, provider-gateway proof, then NemoClaw remote-isolation proof | Remote mutation, gateway dispatch, and isolation depend on spend, identity, credential, endpoint, and upstream-route truth | Retry and crash tests cannot overshoot the parent ceiling or duplicate effects; OpenRouter's non-authorizing route and current-key observations must be joined to exact response identity, parent settlement, and final billing reconciliation before dispatch; NemoClaw remains reference-only until live evidence passes |
 | **v2.54** | Lineage-only follow-up, fork, pause, resume, cancel, and separately approved remote start | Control follows observation and authority, never precedes them | Every transition is idempotent, hash-bound, race-tested, and reconstructible from the canonical journal |
 | **v2.55** | External workspace evidence bundles and selectively negotiated MCP extensions | Computer-produced evidence and protocol convenience arrive only after core boundaries hold | Tainted artifacts remain evidence-only; each Tasks, Skills-over-MCP, or Apps adapter removes a measured limitation without becoming authority |
 | **v3.0** | Portable, evidence-gated expert maturity (Level 5/6 gates, multi-device continuity, honest Supported Surface) | 3.0 is a contract freeze, not a feature dump | Approach + Supported Surface + capacity classes stable; paid path either proven safe or still honestly frozen |
@@ -1404,7 +1442,7 @@ overshoot is the design standard, not a closed story.
 18. **Device-partitioned expert continuity** - after deterministic event replay, add read-only sync health, immutable per-device journals, idempotent union, quarantine, tombstones, and explicit conflict artifacts before claiming concurrent edits. Separate machine-bound operational state from the concurrent expert event exchange. Never let storage convergence decide semantic belief, stance, hypothesis, or policy conflicts. Why: generic cloud sync preserves conflicting files but cannot merge an evolving expert's meaning. Design: [multi-device-expert-continuity.md](docs/design/multi-device-expert-continuity.md).
 19. **Historically grounded perspective lenses** - define `deepr-historical-perspective-v1` with persistent AI disclosure, institutional-source provenance, historical cutoff, contested interpretations, temporal bridge labels, non-impersonation, and a Why this perspective inspector. Pilot Leonardo and Beethoven only after the held-out acceptance harness exists. No identity claims, invented memories, fabricated quotations, voice cloning, or canonical writes from fictional dramatization. Why: great-mind perspectives can make expert consultation memorable and useful only when historical record, interpretation, and modern synthesis remain visibly distinct. Design: [historically-grounded-perspectives.md](docs/design/historically-grounded-perspectives.md).
 20. **Epistemic simulation experts** - define `deepr-epistemic-simulation-v1` and a `$0`, read-only five-arm acceptance fixture before adding a persona catalog or live deliberation. Separate factual, perspective, simulation, episodic, and governance authority; scope every counterfactual node and edge to an immutable branch; preserve alternative hypotheses and prior-to-posterior belief deltas; compile task-shaped graph paths with assumptions, dissent, temporal change, and Why this lens provenance; blind identity during adjudication; and prohibit simulation-to-fact writes. Start with one Leonardo-informed historical lens and one five-years-forward scenario lens only after anonymous-method, counterfactual-transfer, private-evidence, revision, negative-transfer, and held-out outcome gates pass. Why: exceptional insight can come from coherent unverified hypotheses and deliberately different priors, but only lane isolation, branch integrity, and outcome-grounded evaluation keep imagination from becoming synthetic evidence. Design: [epistemic-simulation-experts.md](docs/design/epistemic-simulation-experts.md). Evaluation: [epistemic-simulation-evaluation.md](docs/design/epistemic-simulation-evaluation.md). Proposed authority: [ADR 0006](docs/decisions/0006-epistemic-simulation-memory-authority.md).
-21. **Harness-grade run control plane** - the first closed `deepr-mcp-host-profile-v1` contract and deterministic OpenClaw stable reference now ship. They derive the ten-tool surface from the runtime registry and read-only allowlist, request standard full-catalog discovery, pin exact upstream source evidence, set all primary and legacy spend ceilings to zero, and remain reference-only. Zero-call investigation capability snapshots, control-evidence records, status projections, event pages, and artifact metadata pages now exist as local builders. Next expose those builders as MCP `run_id` and cursor reads, then add profiles for NemoClaw, DeepSeek Harness, Grok Build, and Codex. Host profiles remain derived reference artifacts, not installers or live-support claims. Why: current harnesses show that reproducibility and authority must be explicit before adding more surfaces. Designs: [agent-harness-lessons-2026.md](docs/design/agent-harness-lessons-2026.md) and [external-harness-investigation-bridge.md](docs/design/external-harness-investigation-bridge.md).
+21. **Harness-grade run control plane** - the first closed `deepr-mcp-host-profile-v1` contract and deterministic OpenClaw reference now ship. They derive the ten-tool surface from the runtime registry and read-only allowlist, request standard full-catalog discovery, pin exact upstream source evidence, set all primary and legacy spend ceilings to zero, and remain reference-only. The portable Agent Plugin also exposes those ten safe tools through ordinary discovery, but stable OpenClaw `v2026.8.2` still needs the isolated gateway fixture before a support claim. Zero-call investigation capability snapshots, control-evidence records, status projections, event pages, and artifact metadata pages now exist as local builders. Next expose those builders as MCP `run_id` and cursor reads, then add profiles for NemoClaw, DeepSeek Harness, Grok Build, and Codex. Host profiles remain derived reference artifacts, not installers or live-support claims. Why: current harnesses show that reproducibility and authority must be explicit before adding more surfaces. Designs: [agent-harness-lessons-2026.md](docs/design/agent-harness-lessons-2026.md) and [external-harness-investigation-bridge.md](docs/design/external-harness-investigation-bridge.md).
 22. **Steering, fork lineage, and verified skill candidates** - keep an active investigation plan immutable. Pause and cancel request typed lifecycle transitions; semantic redirection creates a separately admitted follow-up or checkpoint fork with explicit parent lineage and a bound remaining or fresh capacity envelope. Promote learned skills only through isolated replay, held-out improvement, negative-transfer checks, and reviewed activation. Why: responsive long-running agents and learning skills are valuable, but neither may bypass the evidence and authority boundaries. Designs: [agent-harness-lessons-2026.md](docs/design/agent-harness-lessons-2026.md) and [external-harness-investigation-bridge.md](docs/design/external-harness-investigation-bridge.md).
 
 The Phase 4c `$0` read-only structured-consultation evidence gate is a child of
@@ -3457,7 +3495,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.8. This roadmap keeps
+v2.50.9. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 

@@ -17,7 +17,7 @@ from deepr.services.research_bounds import (
 
 @pytest.fixture(autouse=True)
 def _no_provider_keys(monkeypatch) -> None:
-    for name in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "XAI_API_KEY"):
+    for name in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "XAI_API_KEY", "OPENROUTER_API_KEY"):
         monkeypatch.delenv(name, raising=False)
 
 
@@ -279,6 +279,76 @@ def test_azure_accepts_openai_model_contracts() -> None:
     estimate = bounded_research_cost_estimate(request=request, provider="azure")
 
     assert estimate.max_cost > 0
+
+
+def test_openrouter_exact_model_can_be_priced_only_for_preview() -> None:
+    request = ResearchRequest(
+        prompt="Research",
+        model="qwen/qwen3.8-flash",
+        system_message="Test",
+        max_input_tokens=8_192,
+        max_output_tokens=1_000,
+        max_provider_requests=1,
+    )
+
+    estimate = bounded_research_cost_estimate(
+        request=request,
+        provider="openrouter",
+        allow_preview_only=True,
+    )
+
+    # Ordinary input and a full-input cache write are both reserved.
+    assert estimate.max_cost == pytest.approx(0.0033372)
+    assert "cache-write reserve/request" in estimate.reasoning
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        "openai/gpt-5.6-sol",
+        "anthropic/claude-sonnet-5",
+        "google/gemini-3.6-flash",
+        "x-ai/grok-4.6",
+        "qwen/qwen3.8-flash",
+        "moonshotai/kimi-k3",
+        "deepseek/deepseek-v4-flash-0731",
+    ],
+)
+def test_every_openrouter_preview_full_envelope_stays_within_absolute_ceiling(model: str) -> None:
+    request = ResearchRequest(
+        prompt="Research",
+        model=model,
+        system_message="Test",
+        max_input_tokens=128_000,
+        max_output_tokens=16_000,
+        max_provider_requests=3,
+    )
+
+    estimate = bounded_research_cost_estimate(
+        request=request,
+        provider="openrouter",
+        allow_preview_only=True,
+    )
+
+    assert 0 < estimate.max_cost <= 5.0
+    assert estimate.expected_cost == estimate.max_cost
+
+
+def test_openrouter_dispatch_envelope_fails_closed() -> None:
+    request = ResearchRequest(
+        prompt="Research",
+        model="qwen/qwen3.8-flash",
+        system_message="Test",
+        max_input_tokens=8_192,
+        max_output_tokens=1_000,
+        max_provider_requests=1,
+    )
+
+    with pytest.raises(ResearchRequestBoundsError) as raised:
+        bounded_research_cost_estimate(request=request, provider="openrouter")
+
+    assert raised.value.code == "research_provider_preview_only"
+    assert "no executable adapter" in str(raised.value)
 
 
 @pytest.mark.parametrize("model", ["gemini-3-pro-preview", "gemini-3.1-flash-lite-preview"])

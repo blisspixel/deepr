@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.9] - 2026-09-01
+
+### Added
+
+- OpenRouter now has a visible/read-only catalog of seven exact cross-family
+  model slugs for bounded `deepr research --preview` comparisons. The entries
+  are excluded from automatic and expert routing and from eval targets.
+- `deepr providers openrouter-check` validates the seven routes against bounded
+  public endpoint metadata without a key. It proves one exact upstream tag,
+  reachable prompt, completion, and cache-write bounds, required parameters,
+  context limits, and a stable no-fallback routing-policy digest. The proposed
+  request posture disables OpenRouter response caching and forbids explicit
+  prompt-cache controls and paid server features. Preview envelopes reserve a
+  full-input cache write in addition to ordinary input.
+- `deepr providers openrouter-key-check` accepts a key through a hidden prompt
+  by default. Explicit `--from-env` uses a quarantined process copy when
+  available or parses only `OPENROUTER_API_KEY` from the bounded checkout-local
+  `.env` without exporting it. It returns a sanitized, non-authorizing
+  observation of credential identity, BYOK-inclusive monthly limit, usage, and
+  remaining headroom. It makes no inference request, exposes no key argument,
+  never reads the local source without that flag, and never unquarantines or
+  exports the key or passes it to a child process.
+
+### Changed
+
+- README keeps the OpenRouter surface concise and links to the capacity guide,
+  exact model catalog, and design contract for operating detail.
+- The roadmap keeps the blinded four-arm longitudinal expert-value review as
+  the immediate product proof. Gateway execution remains sequenced behind the
+  v2.53 parent transaction, response identity, settlement, and reconciliation
+  gates.
+- Harness research pins current Hermes Agent, OpenClaw, OpenCode, and Pi
+  releases. It prioritizes settled terminal semantics, typed control delivery,
+  bounded model-visible output with exact durable recall, progress-based stall
+  detection, and compaction-recall evaluation before broader orchestration.
+
+### Fixed
+
+- The Agent Plugin's ordinary MCP discovery now advertises the exact ten
+  policy-filtered read-only tools needed by stable hosts. Paid and write tools
+  remain absent from discovery and independently denied at call time.
+- `expert discover-gaps --help` now states that it is a quarantined legacy
+  metered surface and points operators to `expert next` instead of implying
+  that the unavailable clustering workflow will execute.
+
+### Security
+
+- OpenRouter execution fails before reservation or provider construction.
+  The route and current-key checks both return `dispatch_authorized=false`.
+  Deepr cannot enable the adapter until exact response identity, durable parent
+  adoption, ambiguous-outcome handling, complete provider-usage accounting,
+  append-only settlement, and final billing reconciliation are complete.
+
 ## [2.50.8] - 2026-08-30
 
 ### Changed

@@ -27,6 +27,7 @@ class TestModelCapabilities:
         assert "xai/grok-4-6" in MODEL_CAPABILITIES
         assert "xai/grok-build-0-1" in MODEL_CAPABILITIES
         assert "xai/grok-4-20-reasoning" in MODEL_CAPABILITIES
+        assert "openrouter/qwen/qwen3.8-flash" in MODEL_CAPABILITIES
 
     def test_all_capabilities_valid(self):
         """Test that all model capabilities have required fields."""
@@ -76,7 +77,8 @@ class TestModelCapabilities:
 
         # Should be cheaper than all other models
         for cap in MODEL_CAPABILITIES.values():
-            assert cheapest.cost_per_query <= cap.cost_per_query
+            if not cap.preview_only:
+                assert cheapest.cost_per_query <= cap.cost_per_query
 
     def test_get_fastest_model(self):
         """Test getting the fastest model."""
@@ -85,7 +87,8 @@ class TestModelCapabilities:
 
         # Should be faster than all other models
         for cap in MODEL_CAPABILITIES.values():
-            assert fastest.latency_ms <= cap.latency_ms
+            if not cap.preview_only:
+                assert fastest.latency_ms <= cap.latency_ms
 
     def test_get_largest_context_model(self):
         """Test getting model with largest context window."""
@@ -94,7 +97,8 @@ class TestModelCapabilities:
 
         # Should have largest context window
         for cap in MODEL_CAPABILITIES.values():
-            assert largest.context_window >= cap.context_window
+            if not cap.preview_only:
+                assert largest.context_window >= cap.context_window
 
         # xAI Grok 4.1 has 2M context (largest in registry)
         assert largest.provider == "xai"
@@ -192,6 +196,19 @@ class TestModelCapabilities:
     def test_limited_access_flash_cyber_is_not_public_capacity(self):
         """CodeMender-only Flash Cyber must not appear as a Gemini API model."""
         assert get_model_capability("gemini", "gemini-3.5-flash-cyber") is None
+
+    def test_openrouter_catalog_is_preview_only_and_not_routable(self):
+        capability = get_model_capability("openrouter", "qwen/qwen3.8-flash")
+
+        assert capability is not None
+        assert capability.preview_only is True
+        assert capability.cache_write_cost_per_1m == pytest.approx(0.20)
+        assert capability.input_cost_per_1m == pytest.approx(0.15)
+        assert capability.output_cost_per_1m == pytest.approx(0.47)
+        assert all(model.provider != "openrouter" for model in get_models_by_specialization("reasoning"))
+        assert get_cheapest_model().provider != "openrouter"
+        assert get_fastest_model().provider != "openrouter"
+        assert get_largest_context_model().provider != "openrouter"
 
     def test_shutdown_gemini_preview_models_are_deprecated(self):
         """Current Google model docs list these preview IDs as shut down."""

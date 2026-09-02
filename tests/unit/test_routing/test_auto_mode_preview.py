@@ -122,3 +122,11 @@ class TestProvisionalQualityPrior:
 
         assert _estimate_quality(self._cap("test", "nopriors-frontier", 12.0)) == 0.78
         assert _estimate_quality(self._cap("test", "nopriors-cheap", 0.2)) == 0.50
+
+    def test_preview_only_models_are_excluded_from_provisional_rankings(self):
+        from deepr.routing.auto_mode import _enrich_with_provisional
+
+        rankings = _enrich_with_provisional(None)
+
+        assert rankings is not None
+        assert all(provider != "openrouter" for entries in rankings.values() for provider, _model, _q, _c in entries)

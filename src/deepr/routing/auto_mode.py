@@ -207,7 +207,7 @@ def _load_benchmark_rankings() -> dict[str, list[_RankingEntry]] | None:
         if "/" not in model_key:
             continue
         cap = MODEL_CAPABILITIES.get(model_key)
-        if cap is None or cap.deprecated:
+        if cap is None or cap.preview_only or cap.deprecated:
             continue
         for task_type, score in r.get("scores_by_type", {}).items():
             prev = model_scores[model_key].get(task_type, 0)
@@ -328,8 +328,8 @@ def _enrich_with_provisional(
     for model_key, cap in MODEL_CAPABILITIES.items():
         if model_key in benchmarked:
             continue
-        # Skip deprecated models - they shouldn't participate in routing
-        if cap.deprecated:
+        # Preview-only and deprecated models must not participate in routing.
+        if cap.preview_only or cap.deprecated:
             continue
 
         quality = _estimate_quality(cap)
@@ -417,7 +417,7 @@ _auto_eval_lock = threading.Lock()
 
 def _compute_registry_hash() -> str:
     """Compute a stable hash of all registry model keys."""
-    keys = sorted(MODEL_CAPABILITIES.keys())
+    keys = sorted(key for key, cap in MODEL_CAPABILITIES.items() if not cap.preview_only)
     return hashlib.sha256("|".join(keys).encode()).hexdigest()[
         :16
     ]  # stable short hash for registry change detection (sha256 for collision resistance)
@@ -774,7 +774,7 @@ class AutoModeRouter:
             if budget is not None and cost > budget:
                 continue
             cap = MODEL_CAPABILITIES.get(f"{provider}/{model}")
-            if cap is not None and cap.deprecated:
+            if cap is not None and (cap.preview_only or cap.deprecated):
                 continue
             # Skip deprecated models - route to successor if available
             dep = check_deprecation(model)
@@ -797,6 +797,8 @@ class AutoModeRouter:
 
         candidates: list[tuple[str, str, float]] = []
         for cap in MODEL_CAPABILITIES.values():
+            if cap.preview_only:
+                continue
             if self._is_provider_usable(cap.provider):
                 if budget is None or cap.cost_per_query <= budget:
                     if not cap.deprecated and check_deprecation(cap.model) is None:
@@ -813,7 +815,12 @@ class AutoModeRouter:
         # configured would receive an openai model the dispatcher
         # couldn't actually call.
         for cap in sorted(MODEL_CAPABILITIES.values(), key=lambda c: c.cost_per_query):
-            if self._is_provider_usable(cap.provider) and not cap.deprecated and check_deprecation(cap.model) is None:
+            if (
+                not cap.preview_only
+                and self._is_provider_usable(cap.provider)
+                and not cap.deprecated
+                and check_deprecation(cap.model) is None
+            ):
                 return (
                     cap.provider,
                     cap.model,
