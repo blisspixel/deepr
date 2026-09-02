@@ -1,11 +1,19 @@
 # Supported Surface
 
-Status: v2.50.8 current main, 2026-08-30. This document defines what users and host
+Status: v2.50.9 current main, 2026-09-01. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
 path is structurally complete but remains execution-blocked without verified
 provider prepaid-no-overage or hard-stop evidence.
+
+**v2.50.9 adds bounded OpenRouter comparison without paid dispatch.** Seven
+exact cross-family model slugs support write-free research previews. A no-key
+public route check and a hidden-prompt current-key control check produce
+sanitized, non-authorizing evidence without inference. Automatic routing,
+expert routing, evaluation, reservation, and provider construction remain
+blocked. Exact response identity, parent settlement, complete usage evidence,
+and final billing reconciliation remain required before execution can ship.
 
 **v2.50.8 makes the first local expert path complete and testable.** README,
 Quick Start, root help, research help, and local profile creation now direct an
@@ -632,6 +640,32 @@ must not be described as usable capacity.
 
 ## Visible Or Planned Only
 
+- OpenRouter has seven preview-only exact model slugs across OpenAI,
+  Anthropic, Google, xAI, Qwen, MoonshotAI, and DeepSeek. Use
+  `deepr research --provider openrouter --model qwen/qwen3.8-flash --preview`
+  for a write-free bounded request envelope. These entries are excluded from
+  automatic routing, expert routing, and eval targets. Omitting `--preview`
+  fails with `research_provider_preview_only` before reservation or provider
+  construction. `deepr providers openrouter-check` uses bounded public metadata
+  and no key to verify one selected endpoint metadata tag, reject additional
+  non-tier variants matched by a base tag, and bound reachable text-inference
+  price classes, required parameters, and context limits for each route. It
+  proposes response caching off, router metadata on, and forbids explicit
+  prompt-cache controls, fallbacks, service tiers, media, plugins, presets,
+  server tools, and background execution. Preview
+  estimates reserve a full-input cache write as an additional maximum charge.
+  `deepr providers openrouter-key-check` accepts a credential through a hidden
+  prompt by default. Explicit `--from-env` uses the quarantined process copy
+  when available or parses only `OPENROUTER_API_KEY` from the bounded
+  checkout-local `.env` without exporting it. It returns a sanitized
+  monthly-limit observation with zero inference requests. It never reads the
+  local source without that flag, unquarantines or exports the key, or passes it to a
+  child. Both checks state that dispatch remains
+  unauthorized because account-level BYOK and plugin controls, endpoint-tag
+  response proof, complete usage settlement, parent settlement, and final
+  billing reconciliation are not complete. No OpenRouter inference client is
+  built.
+  See [openrouter-metered-gateway.md](design/openrouter-metered-gateway.md).
 - Attended OpenAI report absorption through `deepr expert absorb --api` has a
   complete wallet, job reservation, exact-client, dispatch, and settlement
   transaction, but no production provider account-control verifier ships in
@@ -722,9 +756,12 @@ must not be described as usable capacity.
   acceptance. MCP observer tools, remote start, and control remain planned.
 - Additional host profiles, remote MCP routes, steering, and external computer
   control remain planned. The next local fixtures target DeepSeek Harness
-  `dsh-v0.1.1-rc.2`, and Grok Build 1.0.6. OpenClaw native Agent Plugins support
-  remains a separate `v2026.8.1-beta.2` prerelease evidence lane. Manual Grok
-  Bot installation is a valid future host path, but no public Bot lifecycle API
+  `dsh-v0.1.1-rc.2`, and Grok Build 1.0.6. OpenClaw Agent Plugins are stable in
+  upstream `v2026.8.2`, but Deepr has not fixture-validated that host. The
+  packaged server now exposes its exact ten policy-filtered read-only tools to
+  ordinary MCP discovery; this is package correctness, not an OpenClaw support
+  claim. Manual Grok Bot installation is a valid future host path, but no
+  public Bot lifecycle API
   is claimed. NemoClaw `v0.0.113` with its pinned OpenShell 0.0.106 remains a
   reference-only remote profile. Every path requires independently validated
   host capability evidence and cannot widen the shipped local read-only package

@@ -7,6 +7,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.9] - 2026-09-01
+
+### Added
+
+- OpenRouter now has a visible/read-only catalog of seven exact cross-family
+  model slugs for bounded `deepr research --preview` comparisons. The entries
+  are excluded from automatic and expert routing and from eval targets.
+- `deepr providers openrouter-check` validates the seven routes against bounded
+  public endpoint metadata without a key. It proves one currently matched
+  standard endpoint tag, rejects another non-tier variant under a base tag,
+  and bounds reachable prompt, completion, cache-read, cache-write, reasoning,
+  and fixed-request prices. Negative discount markups and unclassified pricing
+  fields fail closed. The proposed request posture disables OpenRouter response
+  caching, requests router metadata, and forbids explicit prompt-cache
+  controls, service tiers, media, fallbacks, and paid server features. Preview
+  envelopes reserve a full-input cache write in addition to ordinary input.
+- `deepr providers openrouter-key-check` accepts a key through a hidden prompt
+  by default. Explicit `--from-env` uses a quarantined process copy when
+  available or parses only `OPENROUTER_API_KEY` from the bounded checkout-local
+  `.env` without exporting it. It returns a sanitized, non-authorizing
+  observation of credential identity, BYOK-inclusive monthly limit, usage, and
+  remaining headroom. It makes no inference request, exposes no key argument,
+  never reads the local source without that flag, and never unquarantines or
+  exports the key or passes it to a child process.
+
+### Changed
+
+- README keeps the OpenRouter surface concise and links to the capacity guide,
+  exact model catalog, and design contract for operating detail.
+- The roadmap keeps the blinded four-arm longitudinal expert-value review as
+  the immediate product proof. Gateway execution remains sequenced behind the
+  v2.53 parent transaction, response identity, settlement, and reconciliation
+  gates.
+- Harness research pins current Hermes Agent, OpenClaw, OpenCode, and Pi
+  releases. It prioritizes settled terminal semantics, typed control delivery,
+  bounded model-visible output with exact durable recall, progress-based stall
+  detection, and compaction-recall evaluation before broader orchestration.
+- Python 3.15 is not yet added to the support matrix. Its 2026-09-01 release
+  candidate probe is blocked by missing Windows `lxml` wheels in the full
+  dependency set; 3.12, 3.13, and 3.14 remain the blocking tested window.
+
+### Fixed
+
+- The Agent Plugin's ordinary MCP discovery now advertises the exact ten
+  policy-filtered read-only tools needed by stable hosts. Paid and write tools
+  remain absent from discovery and independently denied at call time.
+- `expert discover-gaps --help` now states that it is a quarantined legacy
+  metered surface and points operators to `expert next` instead of implying
+  that the unavailable clustering workflow will execute.
+- The offline maximum-charge contract now uses an explicit registered
+  cache-write rate when one exists. OpenRouter cache writes for OpenAI,
+  Anthropic, and Qwen can no longer be underpriced as ordinary input.
+- Unit-test collection now isolates cost authority before importing application
+  modules, so a developer's registered checkout policy cannot make the no-key,
+  no-`.env` suite fail before its per-test fixtures run.
+
+### Security
+
+- The locked `pip` dependency is raised to 26.2.1, clearing
+  GHSA-qwm4-qh6w-59xr. CI now audits the exact frozen environment instead of
+  replacing the locked version immediately before the audit.
+- OpenRouter execution fails before reservation or provider construction.
+  The route and current-key checks both return `dispatch_authorized=false`.
+  Credential observations use a domain-separated scrypt fingerprint instead
+  of directly hashing the API key.
+  Deepr cannot enable the adapter until exact response identity, durable parent
+  adoption, ambiguous-outcome handling, complete provider-usage accounting,
+  append-only settlement, and final billing reconciliation are complete.
+- OpenRouter BYOK priority, account-enforced plugins, response-cache status,
+  retention posture, and service-tier identity are explicit future account and
+  response gates. Current metadata does not expose an exact endpoint tag.
+
 ## [2.50.8] - 2026-08-30
 
 ### Changed

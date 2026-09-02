@@ -16,6 +16,7 @@ _PROVIDER_DEFAULT_MODELS = {
     "gemini": "gemini-3.6-flash",
     "xai": "grok-4.6",
     "grok": "grok-4.6",
+    "openrouter": "openai/gpt-5.6-sol",
 }
 _BOUNDED_TOOL_PROVIDERS = frozenset({"openai", "azure"})
 

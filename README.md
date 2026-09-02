@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.50.8-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.8)
+[![Version](https://img.shields.io/badge/version-2.50.9-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.9)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -65,18 +65,30 @@ open check.
 
 A local wallet is cumulative operator authorization, not provider credit. Paid
 dispatch also requires authenticated proof of provider-side prepaid capacity or
-a hard stop with overage disabled. No production account-control verifier ships
-in v2.50, so metered execution remains blocked and cannot be enabled by funding
-a wallet, setting a budget, or approving a prompt.
+a hard stop with overage disabled. The current release ships no production
+account-control verifier, so metered execution remains blocked and cannot be
+enabled by funding a wallet, setting a budget, or approving a prompt.
 
 ```bash
 deepr capacity
 deepr research "A bounded premium question" --provider openai --model o4-mini-deep-research --preview
+deepr research "Compare model families" --provider openrouter --model qwen/qwen3.8-flash --preview
+deepr providers openrouter-check
 deepr costs doctor
 ```
 
-See [Capacity and Cost](docs/CAPACITY.md) for billing reconciliation and the
-complete no-surprise-spend contract.
+OpenRouter is visible/read-only for bounded comparison. Seven exact model slugs
+can be previewed, while automatic routing, expert routing, evaluation, and paid
+dispatch remain blocked. The public route check needs no key; the separate
+current-key check uses a hidden prompt by default and makes no inference
+request. An explicit checkout-local `.env` source is documented for local use.
+Neither check authorizes dispatch.
+
+See [Capacity and Cost](docs/CAPACITY.md) for the operating and billing
+boundary, [Models](docs/MODELS.md#openrouter-preview-catalog) for provider-route
+proposals and bounded price classes, and the
+[OpenRouter design note](docs/design/openrouter-metered-gateway.md) for the
+execution gates that remain.
 
 ## Install
 

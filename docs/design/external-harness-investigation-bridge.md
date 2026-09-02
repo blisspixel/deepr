@@ -1,6 +1,6 @@
 # External Harness Bridge for Expert Investigations
 
-Status: proposed boundary refinement, researched 2026-08-21. No remote
+Status: proposed boundary refinement, researched 2026-09-01. No remote
 investigation bridge or direct Grok Bot integration is shipped by this note.
 
 Read [AGENTIC_BALANCE.md](../plans/AGENTIC_BALANCE.md),
@@ -100,7 +100,7 @@ and
 
 ### OpenClaw
 
-OpenClaw stable `v2026.7.1-2` is an external gateway, channel, session,
+OpenClaw stable `v2026.8.2` is an external gateway, channel, session,
 workspace, tool, skill, and agent runtime. Its configuration supports stdio and
 remote MCP servers, per-server timeouts, tool include and exclude filters,
 OAuth configuration and token-storage posture, TLS controls, and a Codex app-server-specific agent
@@ -108,17 +108,24 @@ projection block. That block is not generic per-agent OpenClaw authority. Its
 sandbox, tool policy, and elevated execution controls are intentionally
 distinct.
 
-That makes OpenClaw a practical first host integration. The implemented stable
-reference uses explicit MCP with the exact ten-tool general read-only catalog.
+That makes OpenClaw a practical first host integration. The implemented
+`v2026.7.1-2` reference remains a pinned offline artifact. The conformant Agent
+Plugin now makes ordinary MCP `tools/list` advertise the exact ten-tool general
+read-only catalog because current OpenClaw materializes only tools returned by
+that standard call. Hosts may prefix raw MCP names as `deepr__<tool>`. The
+closed Agent Plugins MCP schema has no per-server tool filter, so Deepr's
+policy-filtered catalog and independent call-time denial remain authoritative.
 The later investigation observer profile should use the existing exported
-`SKILL.md` with its narrower three-tool allowlist. Native Agent Plugins support appears only in
-prerelease `v2026.8.1-beta.2`, so it belongs in a separate prerelease evidence
-lane until a stable release carries the capability. In either lane, the host
-still needs an installed `deepr-mcp` executable. Sources:
-[stable release](https://github.com/openclaw/openclaw/releases/tag/v2026.7.1-2),
+`SKILL.md` with its narrower three-tool allowlist. Native Agent Plugins support
+is stable upstream, but Deepr must not claim compatible execution until an
+isolated `v2026.8.2` gateway fixture proves discovery, calls, restart behavior,
+blocked tools, zero provider contact, and zero ledger delta. The host still
+needs an installed `deepr-mcp` executable. Sources:
+[stable release](https://github.com/openclaw/openclaw/releases/tag/v2026.8.2),
 [MCP configuration](https://docs.openclaw.ai/gateway/configuration-reference),
-[tool policy](https://docs.openclaw.ai/tools), and
-[prerelease](https://github.com/openclaw/openclaw/releases/tag/v2026.8.1-beta.2).
+[tool naming](https://github.com/openclaw/openclaw/blob/v2026.8.2/docs/plugins/bundles.md#tool-naming),
+[MCP catalog](https://github.com/openclaw/openclaw/blob/v2026.8.2/src/agents/agent-bundle-mcp-runtime.ts),
+and [tool materialization](https://github.com/openclaw/openclaw/blob/v2026.8.2/src/agents/agent-bundle-mcp-materialize.ts).
 
 ### NemoClaw and OpenShell
 
@@ -523,13 +530,16 @@ reconstructs the same visible lifecycle without changing canonical state.
 
 ### Bridge 5: popular host conformance
 
-- Prefer the conformant Agent Plugin package only where a stable host release
-  supports it. Keep prerelease support in a separate evidence lane.
+- Prefer the conformant Agent Plugin package only where an exact stable host
+  release passes Deepr's isolated evidence lane.
 - Retain the implemented reference-only OpenClaw `v2026.7.1-2` fragment, then
-  independently validate it against the exact pinned parser before promotion.
+  independently validate the Agent Plugin against stable `v2026.8.2` before
+  promotion. The fixture must use ordinary `tools/list`, observe the exact ten
+  `deepr__`-prefixed read-only tools, call status, deny paid and write tools,
+  survive restart, make zero external provider requests, and leave zero ledger
+  delta.
   Generate offline observer profiles and exact fragments for DeepSeek Harness
-  `dsh-v0.1.1-rc.2`, Grok Build 1.0.6, and Codex where needed. Test OpenClaw Agent Plugins separately against
-  prerelease `v2026.8.1-beta.2` until the feature reaches stable.
+  `dsh-v0.1.1-rc.2`, Grok Build 1.0.6, and Codex where needed.
 - Treat NemoClaw `v0.0.113` plus its pinned OpenShell 0.0.106 as a remote
   isolation recipe after HTTP auth, egress, and endpoint-cost prerequisites
   pass. Do not substitute a newer standalone OpenShell release.

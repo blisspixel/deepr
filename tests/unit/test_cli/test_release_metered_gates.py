@@ -12,7 +12,7 @@ from deepr.cli.commands.prep import prep
 from deepr.cli.commands.providers import benchmark
 from deepr.cli.commands.run import METERED_PROVIDER_FALLBACK_ENABLED, run
 from deepr.cli.commands.semantic.artifacts import agentic, make
-from deepr.cli.commands.semantic.experts import chat_with_expert
+from deepr.cli.commands.semantic.experts import chat_with_expert, discover_gaps_cmd
 from deepr.cli.commands.semantic.research import check
 from deepr.cli.commands.vector import vector
 
@@ -133,3 +133,12 @@ def test_interactive_expert_chat_is_gated_before_session_construction(monkeypatc
     assert result.exit_code == 1
     assert "temporarily disabled" in result.output.lower()
     assert "expert consult" in result.output
+
+
+def test_gap_discovery_help_discloses_quarantined_legacy_surface():
+    result = CliRunner().invoke(discover_gaps_cmd, ["--help"])
+
+    assert result.exit_code == 0, result.output
+    assert "legacy metered gap discovery" in result.output
+    assert "quarantined before provider construction" in result.output
+    assert "current structural guidance" in result.output

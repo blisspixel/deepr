@@ -11,6 +11,8 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from deepr.cli.commands.openrouter_catalog import openrouter_check
+from deepr.cli.commands.openrouter_key import openrouter_key_check
 from deepr.observability.provider_router import AutonomousProviderRouter
 
 console = Console()
@@ -20,6 +22,10 @@ console = Console()
 def providers():
     """Provider management and monitoring."""
     pass
+
+
+providers.add_command(openrouter_check)
+providers.add_command(openrouter_key_check)
 
 
 @providers.command()
@@ -514,7 +520,7 @@ def list():
     """List all available providers and models."""
     from deepr.providers.registry import MODEL_CAPABILITIES
 
-    table = Table(title="Available Providers & Models")
+    table = Table(title="Registered Providers & Models")
     table.add_column("Provider", style="cyan")
     table.add_column("Model")
     table.add_column("Specialization")
@@ -529,6 +535,9 @@ def list():
             model_display = f"[dim strikethrough]{cap.model}[/dim strikethrough] [red]\\[DEPRECATED][/red]"
             successor_info = f"-> {cap.successor}" if cap.successor else "No successor"
             status = f"[red]{successor_info}[/red]"
+        elif cap.preview_only:
+            model_display = cap.model
+            status = "[yellow]Preview only[/yellow]"
         else:
             model_display = cap.model
             status = "[green]Active[/green]"

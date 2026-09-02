@@ -47,6 +47,13 @@ class TestPreviewFlagShape:
         # works on the command line; verified separately below.
         assert "preview" in result.output.lower()
 
+    def test_provider_registry_labels_openrouter_preview_only(self, runner: CliRunner) -> None:
+        result = runner.invoke(cli, ["providers", "list"])
+
+        assert result.exit_code == 0, result.output
+        assert "openrouter" in result.output
+        assert "Preview" in result.output
+
 
 class TestPreviewExplicitModel:
     """``--preview`` on an explicit --model/--provider run."""
@@ -151,6 +158,67 @@ class TestPreviewExplicitModel:
         assert payload["provider"] == "gemini"
         assert payload["model"] == "gemini-3.6-flash"
         assert payload["tools"] == {"web_search": False, "code_interpreter": False}
+
+    def test_openrouter_preview_uses_exact_slug_and_disables_tools(self, runner: CliRunner) -> None:
+        result = runner.invoke(
+            cli,
+            [
+                "research",
+                "--preview",
+                "--json",
+                "--provider",
+                "openrouter",
+                "--model",
+                "qwen/qwen3.8-flash",
+                "Compare model families",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["provider"] == "openrouter"
+        assert payload["model"] == "qwen/qwen3.8-flash"
+        assert payload["tools"] == {"web_search": False, "code_interpreter": False}
+        assert payload["executed"] is False
+
+    def test_provider_only_openrouter_preview_uses_bounded_default(self, runner: CliRunner) -> None:
+        result = runner.invoke(
+            cli,
+            ["research", "--preview", "--json", "--provider", "openrouter", "Compare model families"],
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["model"] == "openai/gpt-5.6-sol"
+        assert payload["cost_estimate"]["max"] <= 5.0
+
+    def test_openrouter_model_slug_infers_provider(self, runner: CliRunner) -> None:
+        result = runner.invoke(
+            cli,
+            ["research", "--preview", "--json", "--model", "qwen/qwen3.8-flash", "Compare model families"],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert json.loads(result.output)["provider"] == "openrouter"
+
+    def test_openrouter_execution_refuses_before_reservation(self, runner: CliRunner) -> None:
+        with patch("deepr.cli.commands.run._reserve_job_submission") as reserve:
+            result = runner.invoke(
+                cli,
+                [
+                    "research",
+                    "--provider",
+                    "openrouter",
+                    "--model",
+                    "qwen/qwen3.8-flash",
+                    "Do not dispatch",
+                ],
+            )
+
+        assert result.exit_code != 0
+        assert "research_provider_preview_only" in result.output
+        assert "no executable adapter" in result.output
+        reserve.assert_not_called()
 
     def test_gemini_alias_without_provider_infers_provider_before_preview(self, runner: CliRunner) -> None:
         result = runner.invoke(

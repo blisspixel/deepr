@@ -1,14 +1,17 @@
 # Model Selection Guide
 
-Status: current with Deepr v2.50.0. Last reviewed: 2026-08-21.
+Status: current with Deepr v2.50.9. Last reviewed: 2026-09-01.
 
 The source of truth for model IDs, pricing estimates, context windows, and
-routing metadata is [src/deepr/providers/registry.py](../src/deepr/providers/registry.py).
+routing metadata is [src/deepr/providers/registry.py](../src/deepr/providers/registry.py),
+with the preview-only OpenRouter catalog in
+[src/deepr/providers/openrouter_catalog.py](../src/deepr/providers/openrouter_catalog.py).
 This guide explains how to use that registry safely. Provider docs and prices
 change faster than prose, so treat this document as an operating guide, not a
 billing authority.
 
-External model docs checked through 2026-08-13:
+Direct-provider model docs checked through 2026-08-13. OpenRouter route and
+current-key docs were checked through 2026-09-01:
 
 - OpenAI Models and Pricing:
   <https://developers.openai.com/api/docs/models>,
@@ -32,6 +35,14 @@ External model docs checked through 2026-08-13:
 - Azure OpenAI and Azure AI Foundry:
   <https://learn.microsoft.com/azure/foundry/foundry-models/concepts/models-sold-directly-by-azure>,
   <https://learn.microsoft.com/azure/ai-foundry/agents/overview>
+- OpenRouter models, provider routing, and current-key controls:
+  <https://openrouter.ai/docs/guides/overview/models>,
+  <https://openrouter.ai/docs/guides/routing/provider-selection>,
+  <https://openrouter.ai/docs/api/api-reference/api-keys/get-current-key>,
+  <https://openrouter.ai/docs/guides/features/router-metadata>,
+  <https://openrouter.ai/docs/cookbook/administration/usage-accounting>,
+  <https://openrouter.ai/docs/guides/overview/auth/byok>,
+  <https://openrouter.ai/docs/guides/features/service-tiers>
 
 ## 2026-08-13 Verification Matrix
 
@@ -42,6 +53,7 @@ External model docs checked through 2026-08-13:
 | Google Gemini | Google released Gemini 3.6 Flash and Gemini 3.5 Flash-Lite as GA production API models on 2026-07-21. The same launch limits Gemini 3.5 Flash Cyber to a CodeMender pilot for governments and trusted partners. | Both GA API models are registered with standard pricing, cached-input pricing, context metadata, and the new thinking-level request shape. Flash Cyber is deliberately absent. Managed Gemini Deep Research remains gated because its autonomous loop lacks a complete request ceiling. | Use the GA API models for explicit bounded requests. Do not represent Flash Cyber as selectable Gemini API capacity. |
 | xAI | Grok 4.6 launched on 2026-08-12. xAI also publishes Grok Build 0.1 and revived `grok-code-fast` aliases with current prices. | Grok 4.6 and Grok Build 0.1 are registered. Generic flagship aliases resolve to 4.6; quick routing can retain cheaper Grok 4.3. | Keep fast service tiers and server-side tools outside base estimates unless their separate charges are explicitly bounded. |
 | Azure AI Foundry | Microsoft lists GPT-5.6 Sol, Terra, and Luna, but availability and billing remain deployment, quota, region, and service-tier dependent. | Azure entries remain tested deployment targets, not mirrors of every public OpenAI model. | Do not promote a catalog listing into Azure routing without deployment-specific pricing and adapter verification. |
+| OpenRouter | Public endpoint metadata exposes provider tags, parameters, context, status, and price classes. A base provider tag can match non-tier variants. Router and generation metadata report provider display names, not the selected tag. BYOK can override ordering, while account defaults can force plugins. | Seven exact model slugs are preview-only. A no-key check requires one currently matched standard tag and bounded text-inference prices. An explicit-source check produces a sanitized key-control observation. Both deny dispatch authority. | Keep inference blocked until authenticated account controls exclude BYOK and paid defaults, the request and provider-route evidence are bound, total usage settles one durable parent, ambiguous outcomes freeze safely, and final billing reconciles. |
 
 ## Current External Watchlist
 
@@ -96,9 +108,9 @@ Pricing notes:
 
 - Run `python scripts/discover_models.py --show-registry` to see the local
   registry. This command is offline and does not call providers.
-- Run `deepr providers models` or `python scripts/discover_models.py` only when
-  you intentionally want live provider model-list checks. API discovery lists
-  model names only; most provider APIs do not expose pricing.
+- `deepr providers models` and live `python scripts/discover_models.py` remain
+  gated because endpoint, proxy, retry, and account cost cannot be proven. Use
+  official sources and an explicit reviewed registry change instead.
 - `python scripts/discover_models.py --llm` is gated before any model
   call. Restore it only with an exact estimate, explicit approval, durable
   reservation, and canonical settlement.
@@ -121,13 +133,14 @@ Pricing notes:
 
 ## Current Deepr Registry Snapshot
 
-The registry currently contains 65 models across OpenAI, Gemini, xAI,
-Anthropic, and Azure AI Foundry. The list below mirrors the registry on
-2026-08-13; run the command above for exact pricing and context values. The web
+The registry currently contains 72 models: 65 direct-provider contracts across
+OpenAI, Gemini, xAI, Anthropic, and Azure AI Foundry, plus seven preview-only
+OpenRouter routes. The list below mirrors the registry on 2026-08-31; run the
+offline command above for exact pricing and context values. The web
 Models page intentionally reports 48 active benchmarkable public text or
 research models because Azure AI Foundry entries are deployment targets, premium
-media entries are not chat capacity, and deprecated migration entries are hidden
-from new benchmark target lists.
+media entries are not chat capacity, and deprecated or preview-only entries are
+hidden from new benchmark target lists.
 
 ### OpenAI
 
@@ -311,6 +324,92 @@ Manual verification:
 - Extended and adaptive thinking:
   <https://platform.claude.com/docs/en/build-with-claude/extended-thinking>
 
+### OpenRouter Preview Catalog
+
+The current-key check uses a hidden prompt by default. For an explicit local
+workflow, put `OPENROUTER_API_KEY=...` in the checkout-local `.env` and add
+`--from-env`; Deepr uses a quarantined process copy when available or parses
+only that key from the bounded file without exporting it. It does not
+unquarantine or export the key, pass it to a child process, or construct an
+inference client. The repository ignores `.env`, but operators must still keep it out of
+backups, logs, screenshots, and shared archives. An OS credential store is the
+preferred future long-lived source.
+
+Registered provider-route proposals checked on 2026-09-01:
+
+| Model slug | Current endpoint metadata tag | Input / output cap per 1M | Cached input cap per 1M | Cache-write cap per 1M |
+|---|---|---:|---:|---:|
+| `openai/gpt-5.6-sol` | `openai` | `$2.00 / $10.00` | `$0.20` | `$2.50` |
+| `anthropic/claude-sonnet-5` | `anthropic` | `$2.00 / $10.00` | `$0.20` | `$4.00` |
+| `google/gemini-3.6-flash` | `google-ai-studio` | `$0.75 / $3.75` | `$0.075` | `$0.041667` |
+| `x-ai/grok-4.6` | `xai/zdr` | `$2.00 / $6.00` | `$0.50` | `$0.00` |
+| `qwen/qwen3.8-flash` | `alibaba` | `$0.15 / $0.47` | `$0.016` | `$0.20` |
+| `moonshotai/kimi-k3` | `moonshotai/mxfp4` | `$3.00 / $15.00` | `$0.30` | `$0.00` |
+| `deepseek/deepseek-v4-flash-0731` | `deepseek` | `$0.44 / $1.32` | `$0.014` | `$0.44` |
+
+Default posture:
+
+- The model argument uses the exact portion after `openrouter/`, such as
+  `qwen/qwen3.8-flash`.
+- Catalog rates define preview caps for the currently matched standard endpoint
+  tags above, not the lowest route across OpenRouter. Base tags can match
+  non-tier variants, so the check fails if another such record appears. The
+  DeepSeek caps conservatively cover every current time-dependent override
+  reachable by the 128K input envelope.
+- The checker bounds prompt, completion, cached input, cache-write, reasoning,
+  and fixed-request pricing. It rejects negative discount markups, malformed or
+  unknown pricing classes, and a fixed request charge above zero. Reasoning
+  tokens remain inside the completion-token ceiling and are not double counted.
+- The checker reads every reported cache-write price, including Claude's
+  one-hour rate. Where endpoint metadata omits the field, the documented xAI
+  and Moonshot free-write posture or DeepSeek prompt-equivalent rate is
+  explicit. A changed nonzero metadata rate fails the check.
+- OpenRouter's prompt/completion `max_price` fields do not cap cache writes.
+  Preview estimates therefore add a full-input cache-write reserve to ordinary
+  input, even when the upstream may charge only one bucket.
+- All tools are disabled. Automatic model routing, expert routing, benchmark
+  evaluation, model fallbacks, and provider fallbacks cannot select these
+  entries.
+- Execution is blocked before reservation and provider construction. A future
+  request must pin one upstream provider, disable fallback, require parameter
+  support, set `max_price` to no more than the registered prompt, completion,
+  and zero fixed-request rate, send `X-OpenRouter-Cache: false` and
+  `X-OpenRouter-Metadata: enabled`, and omit service tiers, media, explicit
+  prompt-cache controls, paid server features, and deprecated usage opt-ins.
+- `deepr providers openrouter-check` makes at most seven pinned public metadata
+  requests with no key, no redirects, no ambient proxy, bounded response bytes,
+  and strict duplicate-key rejection. This no-key endpoint behavior is observed,
+  not authenticated dispatch authority. The check fails nonzero if the matched
+  route set, status, reachable prices, required parameters, or context drift.
+- `deepr providers openrouter-key-check --required-headroom 5` prompts without
+  echo for one key. Add `--from-env` only to opt into the bounded local secret
+  source. The command makes one read-only current-key request and requires a
+  BYOK-inclusive monthly limit at or below `$5`, sufficient remaining headroom,
+  reconciling usage counters, and a live expiry when one is configured. Its
+  sanitized result always reports incomplete billing reconciliation and no
+  dispatch authority.
+- A future shared-capacity adapter must prove that no applicable BYOK key or
+  account-enforced paid plugin exists. It must require direct, one-attempt,
+  non-BYOK router metadata with no pipeline stage, default or null service tier,
+  no cache status, search, fetch, media, or preset, and matching response and
+  generation total cost. Neither metadata surface exposes the endpoint tag.
+
+Manual verification:
+
+- Model catalog: <https://openrouter.ai/docs/guides/overview/models>
+- Provider routing: <https://openrouter.ai/docs/guides/routing/provider-selection>
+- Router metadata: <https://openrouter.ai/docs/guides/features/router-metadata>
+- Usage accounting: <https://openrouter.ai/docs/cookbook/administration/usage-accounting>
+- BYOK routing: <https://openrouter.ai/docs/guides/overview/auth/byok>
+- Service tiers: <https://openrouter.ai/docs/guides/features/service-tiers>
+- Current-key limits:
+  <https://openrouter.ai/docs/api/api-reference/api-keys/get-current-key>
+- Generation usage metadata:
+  <https://openrouter.ai/docs/api/api-reference/generations/get-request-&-usage-metadata-for-a-generation>
+- Prompt caching: <https://openrouter.ai/docs/guides/best-practices/prompt-caching>
+- Response caching: <https://openrouter.ai/docs/guides/features/response-caching>
+- Design: [openrouter-metered-gateway.md](design/openrouter-metered-gateway.md)
+
 ### Azure AI Foundry and Azure OpenAI
 
 Environment variables:
@@ -367,8 +466,10 @@ Manual verification:
    local entries.
 3. Run `deepr providers models` for a live model-list diff only when provider
    keys are intentionally available.
-4. Update only `src/deepr/providers/registry.py` for model names, prices,
-   context windows, and routing metadata.
+4. Update `src/deepr/providers/registry.py` for direct-provider contracts or
+   `src/deepr/providers/openrouter_catalog.py` for preview-only OpenRouter
+   routes. Keep model names, prices, context windows, and routing metadata in
+   those registries.
 5. Add or update provider-adapter tests when a model needs changed API
    parameters, thinking controls, streaming behavior, tool policy, or usage
    settlement.

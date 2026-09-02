@@ -49,6 +49,7 @@ def bounded_admission_estimate(
     model: str,
     no_web: bool,
     no_code: bool,
+    allow_preview_only: bool = False,
 ) -> CostEstimate:
     """Build the exact finite request envelope used by dispatch admission."""
     from deepr.cli.commands.run_submission import build_bounded_cli_request
@@ -60,13 +61,23 @@ def bounded_admission_estimate(
         no_code=no_code,
     )
     try:
-        return bounded_research_cost_estimate(request=request, provider=provider)
+        return bounded_research_cost_estimate(
+            request=request,
+            provider=provider,
+            allow_preview_only=allow_preview_only,
+        )
     except ResearchRequestBoundsError as exc:
         raise _as_click_error(exc) from exc
 
 
+def require_dispatchable_admission(query: str, provider: str, model: str, no_web: bool, no_code: bool) -> None:
+    """Fail before side effects when an exact route is preview-only."""
+    bounded_admission_estimate(query=query, provider=provider, model=model, no_web=no_web, no_code=no_code)
+
+
 __all__ = [
     "bounded_admission_estimate",
+    "require_dispatchable_admission",
     "require_metered_interface",
     "require_parent_budget",
     "require_storage",

@@ -3218,6 +3218,7 @@ def get_model_registry():
                     "weaknesses": cap.weaknesses,
                     "deprecated": cap.deprecated,
                     "successor": cap.successor,
+                    "preview_only": cap.preview_only,
                 }
             )
         return jsonify({"models": models})

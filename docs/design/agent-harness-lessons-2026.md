@@ -1,6 +1,6 @@
 # Agent Harness Lessons for Deepr
 
-Status: researched roadmap design, updated 2026-08-21. Nothing in this document is
+Status: researched roadmap design, updated 2026-09-01. Nothing in this document is
 shipped merely because it is described here.
 
 The current Deepr-specific integration decision is
@@ -19,25 +19,34 @@ safe.
 
 ## Current landscape
 
-- Hermes Agent v0.18.1, released 2026-07-07, combines persistent recall,
+- Hermes Agent v0.21.0, released 2026-08-31, combines persistent recall,
   scheduling, isolated subagents, skill creation, and multiple execution
   backends behind one personal-agent gateway
   ([repository](https://github.com/NousResearch/hermes-agent),
-  [release](https://github.com/NousResearch/hermes-agent/releases/tag/v2026.7.7)).
-- OpenClaw stable `v2026.7.1-2`, released 2026-08-04, emphasizes an always-on local
+  [release](https://github.com/NousResearch/hermes-agent/releases/tag/v2026.8.31),
+  [commit](https://github.com/NousResearch/hermes-agent/commit/29112bef099274229cadff79cdff7bf7b99c4b77)).
+- OpenClaw stable `v2026.8.2`, released 2026-09-01, emphasizes an always-on local
   gateway, scoped skills, session snapshots, device pairing, sandboxing,
   prepared approvals, fail-closed execution, and release-integrity evidence
   ([repository](https://github.com/openclaw/openclaw),
   [security model](https://github.com/openclaw/openclaw/blob/main/docs/gateway/security/index.md),
   [skills](https://github.com/openclaw/openclaw/blob/main/docs/tools/skills.md),
-  [release](https://github.com/openclaw/openclaw/releases/tag/v2026.7.1-2)).
-  Agent Plugins support is currently limited to prerelease
-  `v2026.8.1-beta.2`, so stable integration must use explicit MCP plus a skill
-  ([prerelease](https://github.com/openclaw/openclaw/releases/tag/v2026.8.1-beta.2)).
-- Pi v0.73.1, released 2026-05-07, keeps the harness composable across model
+  [release](https://github.com/openclaw/openclaw/releases/tag/v2026.8.2),
+  [commit](https://github.com/openclaw/openclaw/commit/0965053fe6b9341776df147a6934b7485c60b5ca)).
+  Agent Plugins are stable upstream. Deepr's package remains unvalidated against
+  that exact host release until the isolated gateway fixture passes.
+- OpenCode v1.18.26 keeps provider, model, session, permission, plugin, and MCP
+  selection visible, but its broad coding-agent surface and configurable
+  providers are not a substitute for Deepr's spend and evidence authority
+  ([repository](https://github.com/anomalyco/opencode),
+  [release](https://github.com/anomalyco/opencode/releases/tag/v1.18.26),
+  [commit](https://github.com/anomalyco/opencode/commit/774cc7c1914e4329eefde5a669f938b0cf566661)).
+- Pi v0.84.4 keeps the harness composable across model
   APIs, core loop, TUI, SDK, and JSON-RPC. Its session model distinguishes
   steering from follow-up input and supports abort recovery, trees, and forks
   ([repository](https://github.com/earendil-works/pi),
+  [release](https://github.com/earendil-works/pi/releases/tag/v0.84.4),
+  [commit](https://github.com/earendil-works/pi/commit/b79e4cc834970cca69daebffab7df1da7d1e52c4),
   [session UX](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/README.md),
   [SDK](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/sdk.md)).
 - OpenHands described a harness, orchestrator, and control-plane split on
@@ -92,6 +101,33 @@ skills and tools, their sources and precedence, provider and model, capacity
 source, auth mode, context mode, approval policy, configuration hash, and
 schema versions. This makes run behavior explainable and replayable.
 
+Every child capability set must be a monotone subset of its parent snapshot.
+Child creation declares and validates the expected result schema before spawn,
+not after an unbounded transcript arrives.
+
+### Settled terminal semantics
+
+Keep `accepted`, `provider_finished`, `verified`, and `settled` distinct. A run
+is settled only when it has no active child, queued continuation, retry,
+unresolved hold, ambiguous provider attempt, pending artifact commit, pending
+verification, or pending learning decision. Completion prose cannot override
+that deterministic state.
+
+Control delivery also needs typed `queued`, `rejected`, `pending`, and `missed`
+outcomes. Durable result delivery is separate from durable execution.
+
+### Bounded visible output and exact durable recall
+
+Keep model-visible tool and child output bounded while retaining the complete
+result as a content-addressed durable artifact. Summaries and compaction are
+derived views bound to the exact source hash, never canonical replacements.
+Evaluate compaction by later evidence recall and decision quality, not only by
+token reduction.
+
+Stall detection should measure progress checkpoints and repeated state, not
+elapsed time alone. A long useful step and a short dead loop need different
+outcomes.
+
 ### Prepared approval artifacts
 
 An approval should bind the exact argv, working directory, model, auth mode,
@@ -108,6 +144,10 @@ Long-running Deepr work should distinguish:
 - cancel while restoring pending instructions;
 - fork from a checkpoint with explicit parent lineage;
 - inherit or reduce the parent budget, never silently reset it.
+
+Each instruction records its delivery disposition and deterministic merge
+position. A message that misses a child boundary must not be represented as
+applied.
 
 ### Verified skill candidates
 
@@ -139,6 +179,8 @@ consistency, security scans, CI checks, and adapter compatibility.
   and experts.
 - Reject treating a personal gateway as multi-tenant isolation.
 - Reject arbitrary auto-discovered executable extensions.
+- Reject plugins that silently override built-in tools or prepared approvals.
+- Reject hidden retries or an `--auto` mode that can widen authority.
 - Reject hidden telemetry, updates, or trajectory sharing.
 - Defer broad messaging, voice, and mobile gateways until identity,
   authorization, privacy, and delivery boundaries are designed.
@@ -149,12 +191,15 @@ consistency, security scans, CI checks, and adapter compatibility.
 
 ## Recommended order
 
-1. Run-start capability snapshots.
-2. Prepared approval artifacts.
-3. One control-plane evidence contract.
-4. Steering, follow-up, abort restoration, and fork lineage.
-5. Verified skill candidates after the held-out expert acceptance harness.
-6. Release-evidence manifest.
+1. Run-start capability snapshots and declared child result schemas.
+2. Settled terminal semantics plus typed control-delivery outcomes.
+3. Prepared approval artifacts.
+4. One control-plane evidence contract with bounded visible output and exact
+   durable recall.
+5. Progress-based stall detection and compaction-recall evaluation.
+6. Steering, follow-up, abort restoration, and fork lineage.
+7. Verified skill candidates after the held-out expert acceptance harness.
+8. Release-evidence manifest.
 
 This order improves reproducibility and user control before adding more
 execution surfaces.

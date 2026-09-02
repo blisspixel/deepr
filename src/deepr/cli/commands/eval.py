@@ -38,7 +38,7 @@ def _run_benchmark_script(
             cmd.append(flag)
     click.echo(f"Running: {' '.join(cmd)}")
     # Internal benchmark_models.py; CLI user-invoked, no untrusted command parts.
-    result = subprocess.run(cmd, check=False)
+    result = subprocess.run(cmd, check=False)  # noqa: S603 - fixed interpreter and internal script; model is validated.
     if result.returncode != 0:
         raise click.ClickException(f"Benchmark exited with status {result.returncode}")
 
@@ -844,7 +844,7 @@ def eval_status():
             for provider, model, _q, _c in entries:
                 benchmarked.add(f"{provider}/{model}")
 
-    all_models = sorted(MODEL_CAPABILITIES.keys())
+    all_models = sorted(key for key, cap in MODEL_CAPABILITIES.items() if not cap.preview_only)
     missing = [m for m in all_models if m not in benchmarked]
 
     click.echo(f"Registry models: {len(all_models)}")

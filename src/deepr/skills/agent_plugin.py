@@ -35,7 +35,7 @@ _EXPECTED_FILES = frozenset(
         "skills/deepr-research/references/capability_boundary.md",
     }
 )
-_EXPECTED_ENV = build_contained_read_only_env("${PLUGIN_DATA}")
+_EXPECTED_ENV = build_contained_read_only_env("${PLUGIN_DATA}", advertise_full_tool_list=True)
 _WINDOWS_DRIVE = re.compile(r"^[A-Za-z]:")
 _WINDOWS_DEVICES = re.compile(r"^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$", re.IGNORECASE)
 

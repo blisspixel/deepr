@@ -79,6 +79,7 @@ def _canonical_provider_name(provider: str) -> str:
         "googlegenai": "gemini",
         "grok": "xai",
         "openai": "openai",
+        "openrouter": "openrouter",
         "xai": "xai",
     }
     return aliases.get(collapsed, normalized)

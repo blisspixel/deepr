@@ -4,28 +4,8 @@ Defines capabilities, costs, and specializations for all supported models across
 Used by ModelRouter to make intelligent routing decisions.
 """
 
-from dataclasses import dataclass
-
-
-@dataclass
-class ModelCapability:
-    """Capability specification for a model."""
-
-    provider: str
-    model: str
-    cost_per_query: float  # Average cost in USD
-    latency_ms: int  # Average latency in milliseconds
-    context_window: int  # Max context window in tokens
-    specializations: list[str]  # Areas where this model excels
-    strengths: list[str]  # Key strengths
-    weaknesses: list[str]  # Known limitations
-    input_cost_per_1m: float = 0.0  # Cost per 1M input tokens (USD)
-    output_cost_per_1m: float = 0.0  # Cost per 1M output tokens (USD)
-    cached_input_cost_per_1m: float | None = None  # Cost per 1M cached input tokens (USD)
-    max_output_tokens: int | None = None  # Provider-documented output ceiling when verified
-    deprecated: bool = False  # Whether this model is deprecated
-    successor: str | None = None  # Model key to migrate to (e.g. "openai/gpt-4.1")
-
+from .model_capability import ModelCapability as ModelCapability
+from .openrouter_catalog import OPENROUTER_CAPABILITIES
 
 # Model capabilities registry
 MODEL_CAPABILITIES: dict[str, ModelCapability] = {
@@ -1219,6 +1199,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         output_cost_per_1m=5.00,
     ),
 }
+MODEL_CAPABILITIES.update(OPENROUTER_CAPABILITIES)
 
 
 def get_token_pricing(model: str, input_tokens: int | None = None) -> dict[str, float]:
@@ -1265,7 +1246,9 @@ def get_models_by_specialization(specialization: str) -> list[ModelCapability]:
     Returns:
         List of models with that specialization, sorted by cost
     """
-    matching = [cap for cap in MODEL_CAPABILITIES.values() if specialization in cap.specializations]
+    matching = [
+        cap for cap in MODEL_CAPABILITIES.values() if not cap.preview_only and specialization in cap.specializations
+    ]
     return sorted(matching, key=lambda x: x.cost_per_query)
 
 
@@ -1275,7 +1258,7 @@ def get_cheapest_model() -> ModelCapability:
     Returns:
         ModelCapability for cheapest model
     """
-    return min(MODEL_CAPABILITIES.values(), key=lambda x: x.cost_per_query)
+    return min((cap for cap in MODEL_CAPABILITIES.values() if not cap.preview_only), key=lambda x: x.cost_per_query)
 
 
 def get_fastest_model() -> ModelCapability:
@@ -1284,7 +1267,7 @@ def get_fastest_model() -> ModelCapability:
     Returns:
         ModelCapability for fastest model
     """
-    return min(MODEL_CAPABILITIES.values(), key=lambda x: x.latency_ms)
+    return min((cap for cap in MODEL_CAPABILITIES.values() if not cap.preview_only), key=lambda x: x.latency_ms)
 
 
 def get_largest_context_model() -> ModelCapability:
@@ -1293,4 +1276,4 @@ def get_largest_context_model() -> ModelCapability:
     Returns:
         ModelCapability for model with largest context
     """
-    return max(MODEL_CAPABILITIES.values(), key=lambda x: x.context_window)
+    return max((cap for cap in MODEL_CAPABILITIES.values() if not cap.preview_only), key=lambda x: x.context_window)

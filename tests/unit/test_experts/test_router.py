@@ -9,6 +9,14 @@ import pytest
 from deepr.experts.router import ModelConfig, ModelRouter
 
 
+def test_model_router_excludes_preview_only_catalog_entries():
+    router = ModelRouter()
+
+    assert router.capabilities
+    assert all(not capability.preview_only for capability in router.capabilities.values())
+    assert all(capability.provider != "openrouter" for capability in router.capabilities.values())
+
+
 class TestModelConfig:
     """Test ModelConfig dataclass."""
 

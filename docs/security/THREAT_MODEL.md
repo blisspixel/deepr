@@ -1,6 +1,6 @@
 # Deepr Threat Model
 
-Status: current with Deepr v2.50.8. Last reviewed: 2026-08-30.
+Status: current with Deepr v2.50.9. Last reviewed: 2026-09-01.
 
 This document is the repository-scoped threat model for Deepr. It is intended
 for security reviews, design reviews, and future bug discovery. It should stay
@@ -340,6 +340,11 @@ Relevant attacker stories:
 - A malformed quota observation crashes free-capacity selection, reports
   non-finite usage, makes an unavailable plan look empty, or restores a stale
   cached snapshot after a failed forced refresh.
+- A model gateway silently falls back to another model or upstream provider,
+  exceeds a dated price override, or bills a cache write outside its advertised
+  prompt and completion ceiling.
+- A caller mistakes a public route observation or sanitized current-key limit
+  observation for authority to make an inference request.
 
 Existing controls:
 
@@ -385,6 +390,22 @@ Existing controls:
   token buckets, canonical queued-model rates, and provable paid-tool calls.
   Missing or inconsistent response model, token, tool, or settlement evidence
   consumes the full reservation or freezes paid dispatch.
+- OpenRouter entries are preview-only and excluded from automatic routing,
+  expert routing, and evaluation. Their no-key catalog check requires one
+  currently matched standard endpoint metadata tag, rejects another non-tier
+  variant under a base route, rejects fallback, bounds every reachable
+  text-inference price class and discount, disables response caching, requests
+  router metadata, and forbids paid request features. The current-key check uses a hidden prompt by default. Explicit
+  `--from-env` uses the quarantined process copy when available or parses only
+  the bounded checkout-local key without exporting it. It does not unquarantine
+  or export the value or pass it to a child
+  process. It makes one bounded read-only request without ambient proxy or
+  redirects, and returns only sanitized limit evidence. Both checks explicitly
+  deny dispatch authority, and no OpenRouter inference client is constructed.
+  A future adapter also needs authenticated proof of no applicable BYOK or
+  enforced paid workspace defaults. It must reject cache HIT/MISS, non-default
+  service tiers, BYOK, pipeline stages, searches, fetches, media, presets, and
+  conflicting or missing total-cost evidence.
 - Paid research persists an internal random binding plus provider, model, job,
   ceiling, and frozen request digest. Only the durable dispatch transition can
   mint the opaque one-use task-local grant accepted by the non-overridable
