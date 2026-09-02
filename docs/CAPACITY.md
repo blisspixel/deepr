@@ -82,8 +82,9 @@ key through a hidden prompt by default. Explicit `--from-env` uses the
 quarantined process copy when available, otherwise it parses only
 `OPENROUTER_API_KEY` from the bounded checkout-local `.env` without exporting
 it. The command makes one read-only current-key
-request, binds a credential fingerprint, and requires a BYOK-inclusive monthly
-key limit no greater than `$5` with enough remaining headroom. It does not
+request, binds a domain-separated scrypt credential fingerprint, and requires
+a BYOK-inclusive monthly key limit no greater than `$5` with enough remaining
+headroom. It does not
 unquarantine or export the key, pass it to a child process, or inspect either
 local source without that flag. Neither check constructs an inference client or authorizes
 dispatch. A future adapter must still bind the same evidence to the exact

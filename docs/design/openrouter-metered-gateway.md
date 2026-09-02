@@ -72,9 +72,9 @@ The 2026-09-01 increment closes two prerequisites without enabling inference:
   already-quarantined process copy when available or parses only
   `OPENROUTER_API_KEY` from the bounded checkout-local `.env` without exporting
   it. It never unquarantines or exports that value or passes it to a child. The
-  command makes one authenticated read-only request to `/api/v1/key`, binds a local
-  credential fingerprint to the response, and emits only hashed account and
-  label references.
+  command makes one authenticated read-only request to `/api/v1/key`, binds a
+  deterministic domain-separated scrypt credential fingerprint to the
+  response, and emits only hashed account and label references.
 - The key observation requires a non-management, non-provisioning, paid-tier
   key with a BYOK-inclusive monthly limit at or below Deepr's `$5` ceiling,
   enough remaining headroom, consistent usage arithmetic, and a future expiry

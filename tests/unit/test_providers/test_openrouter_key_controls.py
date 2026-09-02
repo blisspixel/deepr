@@ -18,7 +18,17 @@ from deepr.providers.openrouter_key_controls import (
 
 _API_KEY = "sk-or-v1-" + "a" * 64
 _OBSERVED_AT = datetime(2026, 9, 1, 12, 0, tzinfo=UTC)
-_FINGERPRINT = "sha256:" + hashlib.sha256(_API_KEY.encode()).hexdigest()
+_FINGERPRINT = (
+    "scrypt:"
+    + hashlib.scrypt(
+        _API_KEY.encode(),
+        salt=b"deepr/openrouter/credential-fingerprint/v1",
+        n=2**14,
+        r=8,
+        p=1,
+        dklen=32,
+    ).hex()
+)
 
 
 def _payload(**changes: Any) -> dict[str, Any]:
@@ -147,10 +157,10 @@ def test_local_headroom_inputs_cannot_widen_the_absolute_ceiling(
     ("source_sha256", "fingerprint", "message"),
     [
         ("opaque", _FINGERPRINT, "source digest"),
-        ("b" * 64, "sha256:" + "G" * 64, "credential fingerprint"),
+        ("b" * 64, "scrypt:" + "G" * 64, "credential fingerprint"),
     ],
 )
-def test_local_evidence_bindings_require_exact_sha256_form(
+def test_local_evidence_bindings_require_exact_digest_forms(
     source_sha256: str,
     fingerprint: str,
     message: str,

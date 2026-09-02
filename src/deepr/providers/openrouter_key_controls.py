@@ -30,7 +30,8 @@ _MAX_KEY_BYTES = 512
 _MAX_TEXT_BYTES = 512
 _MONEY_TOLERANCE = 1e-6
 _SHA256_PATTERN = re.compile(r"^[a-f0-9]{64}$")
-_CREDENTIAL_FINGERPRINT_PATTERN = re.compile(r"^sha256:[a-f0-9]{64}$")
+_CREDENTIAL_FINGERPRINT_PATTERN = re.compile(r"^scrypt:[a-f0-9]{64}$")
+_CREDENTIAL_FINGERPRINT_SALT = b"deepr/openrouter/credential-fingerprint/v1"
 
 
 class OpenRouterKeyControlError(RuntimeError):
@@ -168,7 +169,17 @@ def _read_bounded_body(response: requests.Response) -> bytes:
 def fetch_openrouter_current_key(api_key: str) -> FetchedOpenRouterKeyDocument:
     """Fetch current-key controls with the exact prompted credential."""
     credential = _credential_bytes(api_key)
-    fingerprint = "sha256:" + hashlib.sha256(credential).hexdigest()
+    fingerprint = (
+        "scrypt:"
+        + hashlib.scrypt(
+            credential,
+            salt=_CREDENTIAL_FINGERPRINT_SALT,
+            n=2**14,
+            r=8,
+            p=1,
+            dklen=32,
+        ).hex()
+    )
     try:
         response = pinned_get(
             OPENROUTER_CURRENT_KEY_URL,

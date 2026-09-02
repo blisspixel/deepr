@@ -56,6 +56,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - OpenRouter execution fails before reservation or provider construction.
   The route and current-key checks both return `dispatch_authorized=false`.
+  Credential observations use a domain-separated scrypt fingerprint instead
+  of directly hashing the API key.
   Deepr cannot enable the adapter until exact response identity, durable parent
   adoption, ambiguous-outcome handling, complete provider-usage accounting,
   append-only settlement, and final billing reconciliation are complete.
