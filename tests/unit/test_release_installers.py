@@ -23,6 +23,16 @@ def test_installers_resolve_a_repository_release_wheel(relative_path: str) -> No
     assert "Add at least one API key" not in text
 
 
+def test_windows_installer_bootstraps_when_pipx_probe_raises() -> None:
+    text = (ROOT / "scripts/install.ps1").read_text(encoding="utf-8")
+
+    assert "function Test-PipxAvailable($PythonCommand)" in text
+    assert "& $PythonCommand -m pipx --version *> $null" in text
+    assert "catch {" in text
+    assert "return $false" in text
+    assert "if (-not (Test-PipxAvailable $python))" in text
+
+
 def test_makefile_exposes_only_explicit_manual_pypi_publication() -> None:
     text = (ROOT / "scripts/Makefile").read_text(encoding="utf-8")
 

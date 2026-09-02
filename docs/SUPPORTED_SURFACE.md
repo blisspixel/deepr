@@ -1,13 +1,13 @@
 # Supported Surface
 
-Status: v2.50.9 current main, 2026-09-01. This document defines what users and host
+Status: v2.50.10 current main, 2026-09-01. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
 path is structurally complete but remains execution-blocked without verified
 provider prepaid-no-overage or hard-stop evidence.
 
-**v2.50.9 adds bounded OpenRouter comparison without paid dispatch.** Seven
+**v2.50.9 added bounded OpenRouter comparison without paid dispatch.** Seven
 exact cross-family model slugs support write-free research previews. A no-key
 public route check and a hidden-prompt current-key control check produce
 sanitized, non-authorizing evidence without inference. Automatic routing,

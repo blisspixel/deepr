@@ -366,7 +366,19 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.9)
+## Current Status (v2.50.10)
+
+**Shipped in v2.50.10 (see docs/CHANGELOG.md):** the Windows release installer
+now handles a missing `pipx` module as an expected bootstrap condition under
+Windows PowerShell's terminating native-error behavior, installs `pipx`, and
+continues through the verified GitHub Release wheel path.
+
+- [x] **Live release validation finding (2026-09-01):** installing v2.50.9 on
+  this workstation stopped at the missing-`pipx` probe because
+  `ErrorActionPreference=Stop` promoted native stderr before the bootstrap
+  branch ran. Fixed with an explicit availability helper and regression check
+  in v2.50.10, then revalidated against the public v2.50.9 release metadata
+  and wheel.
 
 **Shipped in v2.50.9 (see docs/CHANGELOG.md):** OpenRouter has a dated catalog
 of seven exact cross-family model slugs for write-free research previews. The
@@ -1142,7 +1154,7 @@ the gate for that version is proven.
 | **v2.47** (shipped, grant superseded) | Expert v2 web surface, local portraits, and the original attended `$2` grant | The new expert state needed a real interface; attended spend needed a first narrow proof | Twelve read-only v2 routes and local portrait path shipped; the grant was replaced in v2.49 |
 | **v2.48** (shipped) | Local-first consult plus the 2026-08-13 provider model and pricing refresh | Consultation must not inherit metered authority; estimates must follow current official catalogs | Consult blocks API paths; GPT-5.6, Grok 4.6, Claude 5, and current Gemini posture registered |
 | **v2.49** (shipped) | Persistent metered-spend wallet, independent job ceilings, and a curated flagship expert roster | Operators need chosen total exposure without a universal $2 research limit; the main roster must show developed experts | Wallet and verified provider boundaries both apply; no refill or overdraft; 25 explicit flagship experts have inspectable structure |
-| **v2.50** (shipped, 2.50.9 patch) | Standards foundation plus fail-closed spend, identity-bound storage, authentication, scoped remote access, bounded acquisition, terminal-state handling, a complete first-run expert path, and bounded OpenRouter comparison | Format truth must precede distribution; spend, identity, durable state, public guidance, and gateway route truth must fail closed after the first release | Offline pinned fixtures pass; OKF remains derived and verification-gated; completion receipts cannot leave a hold; MCP job state survives partial saves and restarts; terminal phases cannot be resurrected; report lookup verifies full stored identity; model-proposed searches cannot multiply work beyond the per-arm ceiling; documented onboarding reaches grounded consult context without paid dispatch; OpenRouter previews prove one current provider-route proposal and bounded text price classes while execution remains blocked |
+| **v2.50** (shipped, 2.50.10 patch) | Standards foundation plus fail-closed spend, identity-bound storage, authentication, scoped remote access, bounded acquisition, terminal-state handling, a complete first-run expert path, and bounded OpenRouter comparison | Format truth must precede distribution; spend, identity, durable state, public guidance, and gateway route truth must fail closed after the first release | Offline pinned fixtures pass; OKF remains derived and verification-gated; completion receipts cannot leave a hold; MCP job state survives partial saves and restarts; terminal phases cannot be resurrected; report lookup verifies full stored identity; model-proposed searches cannot multiply work beyond the per-arm ceiling; documented onboarding reaches grounded consult context without paid dispatch; OpenRouter previews prove one current provider-route proposal and bounded text price classes while execution remains blocked |
 | **v2.51** (design-gated) | Read-only MCP investigation projection tools over the shipped builders | Hosts need bounded, replayable, owner-scoped observation before they receive control authority | Choose and document either local-stdio-only ownership or a durable revocable observation grant binding the caller, `run_id`, and expert roster. Knowledge of a `run_id` is not authorization. Only then add cursor tools that remain content-free and deny cross-run access |
 | **v2.52** | Fixture-validated OpenClaw, DeepSeek Harness, Grok Build, Codex, and manual Grok Bot profiles | Portable packaging is primary; host fragments are compatibility paths and Bot lifecycle automation remains unavailable | OpenClaw stable `v2026.8.2` is the first Agent Plugin lane; every advertised host claim names exact versions, tools, transport, runtime dependency, and validation evidence |
 | **v2.53** | Shared durable parent transaction, maximum-charge contract, scoped HTTP authority, provider-gateway proof, then NemoClaw remote-isolation proof | Remote mutation, gateway dispatch, and isolation depend on spend, identity, credential, endpoint, and upstream-route truth | Retry and crash tests cannot overshoot the parent ceiling or duplicate effects; OpenRouter's non-authorizing route and current-key observations must be joined to exact response identity, parent settlement, and final billing reconciliation before dispatch; NemoClaw remains reference-only until live evidence passes |
@@ -3505,7 +3517,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.9. This roadmap keeps
+v2.50.10. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 

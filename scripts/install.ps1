@@ -23,6 +23,18 @@ function Write-Ok($msg)   { Write-Host $msg -ForegroundColor Green }
 function Write-Warn($msg) { Write-Host $msg -ForegroundColor Yellow }
 function Write-Err($msg)  { Write-Host $msg -ForegroundColor Red }
 
+function Test-PipxAvailable($PythonCommand) {
+    try {
+        & $PythonCommand -m pipx --version *> $null
+        return ($LASTEXITCODE -eq 0)
+    } catch {
+        # Windows PowerShell can promote a missing module's native stderr to a
+        # terminating error when ErrorActionPreference is Stop. Missing pipx
+        # is an expected bootstrap condition, not an installer failure.
+        return $false
+    }
+}
+
 # --- Uninstall path ---------------------------------------------------------
 if ($Uninstall) {
     Write-Step "Uninstalling $Package ..."
@@ -88,8 +100,7 @@ $wheelUrl = [string]$asset.browser_download_url
 Write-Step "Resolved $releaseTag from GitHub Releases."
 
 # --- Ensure pipx ------------------------------------------------------------
-& $python -m pipx --version *> $null
-if ($LASTEXITCODE -ne 0) {
+if (-not (Test-PipxAvailable $python)) {
     Write-Step "pipx not found. Installing pipx ..."
     & $python -m pip install --user pipx --quiet
     if ($LASTEXITCODE -ne 0) {
