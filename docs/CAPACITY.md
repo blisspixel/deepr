@@ -71,13 +71,17 @@ fail before a vendor process starts.
 OpenRouter is a metered API gateway, not plan quota. Its current shipped surface
 is limited to exact-model previews with tools disabled and two non-authorizing
 checks. `deepr providers openrouter-check` makes at most seven pinned, public,
-no-key metadata requests and verifies exact upstream tags, reachable price
-overrides, parameter support, context bounds, and the separate cache-write cap.
-The proposed request posture disables OpenRouter response caching and forbids
-explicit prompt-cache controls, fallbacks, plugins, presets, server tools, and
-background execution. Because prompt/completion `max_price` does not cover
-cache writes, previews conservatively reserve a full-input cache write in
-addition to ordinary input. `deepr providers openrouter-key-check` accepts one
+no-key metadata requests and verifies the selected provider tag, rejects a
+base tag if it would admit another non-tier variant, and bounds reachable
+prompt, completion, cache-read, cache-write, reasoning, and fixed-request
+prices. Unclassified price fields and negative discount markups fail closed.
+Unauthenticated endpoint metadata is observed current behavior, not stable
+dispatch authority. The proposed request posture disables OpenRouter response
+caching, requests router metadata, and forbids explicit prompt-cache controls,
+fallbacks, service tiers, media, plugins, presets, server tools, and background
+execution. Because prompt/completion `max_price` does not cover cache writes,
+previews conservatively reserve a full-input cache write in addition to
+ordinary input. `deepr providers openrouter-key-check` accepts one
 key through a hidden prompt by default. Explicit `--from-env` uses the
 quarantined process copy when available, otherwise it parses only
 `OPENROUTER_API_KEY` from the bounded checkout-local `.env` without exporting
@@ -87,9 +91,13 @@ a BYOK-inclusive monthly key limit no greater than `$5` with enough remaining
 headroom. It does not
 unquarantine or export the key, pass it to a child process, or inspect either
 local source without that flag. Neither check constructs an inference client or authorizes
-dispatch. A future adapter must still bind the same evidence to the exact
-request and response, durable parent settlement, and final billing
-reconciliation. A successful smoke request alone is not sufficient evidence.
+dispatch. A future adapter must also prove that account defaults cannot force
+paid plugins, BYOK, response caching, a paid service tier, or a different
+retention posture. Router metadata must show direct routing, one attempt, no
+BYOK, and no pipeline stage, but it reports a provider display name rather than
+the endpoint tag. The exact request, durable parent settlement, total provider
+cost, ambiguous outcomes, and final billing reconciliation remain required. A
+successful smoke request alone is not sufficient evidence.
 
 | Adapter | Current execution posture | Why |
 |---|---|---|

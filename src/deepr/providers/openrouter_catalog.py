@@ -1,6 +1,6 @@
-"""Dated, preview-only OpenRouter model and exact-upstream catalog.
+"""Dated, preview-only OpenRouter model and provider-route catalog.
 
-Prices are proposed request caps for one pinned upstream endpoint per model,
+Prices are proposed request caps for one pinned provider route tag per model,
 checked against OpenRouter's public endpoint metadata on 2026-09-01.
 OpenRouter dispatch is not implemented.
 """
@@ -35,6 +35,7 @@ OPENROUTER_CAPABILITIES: dict[str, ModelCapability] = {
         weaknesses=["Preview only", "Catalog price and upstream availability can change"],
         input_cost_per_1m=2.00,
         output_cost_per_1m=10.00,
+        cached_input_cost_per_1m=0.20,
         cache_write_cost_per_1m=4.00,
         preview_only=True,
     ),
@@ -119,9 +120,10 @@ OPENROUTER_CAPABILITIES: dict[str, ModelCapability] = {
     ),
 }
 
-# Exact upstream endpoint tags proposed for the future gateway request. These
-# are not dispatch authority. The live write-free catalog check must prove the
-# endpoint still exists and fits the registered finite envelope.
+# Exact provider route tags proposed for the future gateway request. Base tags
+# exclude service-tier variants unless the request explicitly opts into them.
+# These are not dispatch authority. The live write-free catalog check must
+# prove the route still exists and fits the registered finite envelope.
 OPENROUTER_UPSTREAM_TAGS: dict[str, str] = {
     "openai/gpt-5.6-sol": "openai",
     "anthropic/claude-sonnet-5": "anthropic",
@@ -131,6 +133,16 @@ OPENROUTER_UPSTREAM_TAGS: dict[str, str] = {
     "moonshotai/kimi-k3": "moonshotai/mxfp4",
     "deepseek/deepseek-v4-flash-0731": "deepseek",
 }
+
+OPENROUTER_BASE_ROUTE_TAGS = frozenset(
+    {
+        "openai",
+        "anthropic",
+        "google-ai-studio",
+        "alibaba",
+        "deepseek",
+    }
+)
 
 # OpenRouter endpoint metadata currently reports explicit cache-write rates for
 # four routes. Its official prompt-caching guide documents free writes for xAI

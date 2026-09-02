@@ -11,6 +11,7 @@ making actual API calls or incurring costs.
 """
 
 import os
+import tempfile
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
@@ -33,6 +34,12 @@ _METERED_CREDENTIAL_ENV_VARS = (
     "ANTIGRAVITY_API_KEY",
     "KIRO_API_KEY",
 )
+
+# Test modules import application surfaces during collection, before autouse
+# fixtures can redirect cost state. Keep that phase away from a developer's
+# canonical ledger and any previously registered checkout-local spend policy.
+_COLLECTION_COST_ROOT = tempfile.TemporaryDirectory(prefix="deepr-pytest-costs-")
+os.environ["DEEPR_COST_DATA_DIR"] = _COLLECTION_COST_ROOT.name
 
 # Unit and property collection must be independent of developer credentials and
 # both workspace and per-user dotenv files. The integration subtree restores

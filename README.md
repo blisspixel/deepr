@@ -85,8 +85,8 @@ request. An explicit checkout-local `.env` source is documented for local use.
 Neither check authorizes dispatch.
 
 See [Capacity and Cost](docs/CAPACITY.md) for the operating and billing
-boundary, [Models](docs/MODELS.md#openrouter-preview-catalog) for exact routes
-and price caps, and the
+boundary, [Models](docs/MODELS.md#openrouter-preview-catalog) for provider-route
+proposals and bounded price classes, and the
 [OpenRouter design note](docs/design/openrouter-metered-gateway.md) for the
 execution gates that remain.
 

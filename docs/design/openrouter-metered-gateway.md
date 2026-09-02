@@ -38,17 +38,27 @@ advertised route would remain available.
 
 The 2026-09-01 increment closes two prerequisites without enabling inference:
 
-- Each preview model now names one exact upstream endpoint tag and prices that
-  endpoint rather than relying on the model-wide lowest price.
+- Each preview model now names one provider route tag and prices that
+  route rather than relying on the model-wide lowest price. A base provider
+  tag excludes service-tier variants unless the request explicitly opts into
+  one, but it is not immutable physical endpoint identity.
 - `deepr providers openrouter-check` fetches only the seven fixed public
   endpoint documents. It sends no credential, follows no redirects, ignores
   ambient proxies, pins validated public addresses to the original TLS name,
   caps each response at 2 MiB, rejects duplicate JSON keys, and checks exact
-  model and endpoint identity.
+  model and current endpoint metadata identity. This unauthenticated endpoint
+  access is observed behavior, not a stable authenticated API contract.
+- Base provider tags can match every non-tier variant under that provider. The
+  checker applies those routing semantics and fails if a proposal would admit
+  more than one standard endpoint metadata record. Opt-in `fast`, `flex`, and
+  `priority` service-tier records do not enter the standard route set.
 - The public proof covers endpoint status, the 128K input plus 16K output
   envelope, required `max_tokens` and `response_format` parameters, and every
-  conditional prompt, completion, and cache-write price override reachable by
-  that input ceiling.
+  reachable prompt, completion, cache-read, cache-write, reasoning, and fixed
+  request price override. Cache reads may not exceed the registered cached-input
+  cap, reasoning tokens may not exceed the completion cap, and fixed request
+  pricing must be zero. Negative discount markups, malformed discounts, and
+  unclassified price fields fail closed.
 - Every route has a finite cache-write ceiling and an explicit evidence source.
   The checker reads all endpoint `input_cache_write*` fields, including
   Claude's one-hour rate. When the endpoint omits them, it applies OpenRouter's
@@ -58,11 +68,17 @@ The 2026-09-01 increment closes two prerequisites without enabling inference:
 - The proof publishes a digest of the proposed provider object. That object has
   one `order` tag, the same one-entry `only` list,
   `allow_fallbacks=false`, `require_parameters=true`,
-  `data_collection=deny`, and prompt and completion `max_price` caps.
+  `data_collection=deny`, prompt and completion `max_price` caps, and a zero
+  fixed-request-price cap.
 - The proposed request posture sends `X-OpenRouter-Cache: false` to disable
-  OpenRouter response caching and forbids explicit prompt-cache controls,
-  fallback models, plugins, presets, server tools, and background execution.
-  Response caching and upstream prompt caching are separate mechanisms.
+  OpenRouter response caching and `X-OpenRouter-Metadata: enabled` to expose
+  the router's actual attempt, selected provider display identity, BYOK posture,
+  and material pipeline stages. Cache replays omit router metadata, so both headers are
+  required together. The request forbids explicit prompt-cache controls,
+  fallback models, media, plugins, presets, server tools, deprecated usage
+  opt-in parameters, and background execution. Usage is returned
+  automatically. Response caching and upstream prompt caching are separate
+  mechanisms.
 - Because OpenRouter's provider `max_price` object does not include a
   cache-write cap, Deepr's preview envelope adds a full-input cache-write charge
   to ordinary no-cache input. This remains conservative if the provider treats
@@ -80,6 +96,27 @@ The 2026-09-01 increment closes two prerequisites without enabling inference:
   enough remaining headroom, consistent usage arithmetic, and a future expiry
   when an expiry exists.
 
+`data_collection=deny` is not a zero-data-retention promise. A future adapter
+must expose the admitted retention posture. Adding `zdr=true` globally would
+make several registered first-party routes unavailable, so the preview does
+not silently add it. The `xai/zdr` tag is the only currently registered route
+whose name itself selects a ZDR variant.
+
+OpenRouter BYOK is a separate billing boundary. Applicable BYOK endpoints are
+prioritized ahead of shared capacity and cannot currently be disabled per
+request. The current-key `include_byok_in_limit` field can improve budget
+visibility, but it does not prove that the upstream provider account has a hard
+ceiling or that its separate bill is settled. Executable shared-capacity work
+therefore also requires an authenticated management observation proving that
+no applicable BYOK credential exists.
+
+Workspace defaults are another pre-dispatch boundary. Default plugins can run
+when the request omits them, and an administrator can prevent request-level
+overrides. A future adapter therefore needs fresh authenticated evidence for a
+dedicated workspace with no applicable default plugins, presets, routing
+defaults, or guardrails. Detecting a pipeline stage after the response is
+necessary for settlement, but it is too late to prevent a paid side effect.
+
 The public route proof and current-key observation both explicitly return
 `dispatch_authorized=false`. The key endpoint is not a final, complete billing
 statement, the generic account-control gate does not consume this observation,
@@ -92,19 +129,34 @@ properties for the exact attempt:
 
 1. The current credential resolves to the same key identity admitted by the
    account-control evidence.
-2. The current key reports a finite USD limit and enough `limit_remaining`,
-   with BYOK usage included if BYOK is allowed at all.
+2. The current key reports a finite USD limit and enough `limit_remaining`.
+   Authenticated management evidence proves no applicable BYOK credential can
+   override the shared-capacity route and no account or workspace default can
+   force a paid plugin, preset, route, service tier, or guardrail.
 3. The payload names one exact model slug, one allowed upstream provider,
    `allow_fallbacks=false`, `require_parameters=true`, and a `max_price` no
-   greater than Deepr's registered prompt/completion ceiling. It also sends the
-   response-cache disable header and contains none of the forbidden request
-   features or nested prompt-cache controls.
+   greater than Deepr's registered prompt, completion, and zero fixed-request
+   ceilings. It also sends both request headers and contains none of the
+   forbidden request features or nested prompt-cache controls.
 4. Model fallback aliases, automatic model routing, paid server tools,
-   plugins, web search, file storage, and background execution are absent.
-5. The response identifies the actual model and upstream provider, and every
-   reported prompt, completion, reasoning, cache read, cache write, tool, and
-   total-cost bucket settles the append-only Deepr ledger.
-6. Retry count, input, output, serialized bytes, and the full request graph
+   plugins, web search, media, file storage, response state, service tiers, and
+   background execution are absent.
+5. Router metadata reports the requested exact model, `strategy=direct`,
+   `attempt=1`, exactly one selected admitted provider/model, `is_byok=false`,
+   and no pipeline stage. The response and generation record agree on model and
+   provider display identity, but neither is claimed to expose the endpoint
+   tag. The served tier is `default` or null, `num_fetches=0`,
+   `num_search_results=0`, and no preset.
+6. Automatically returned usage is captured completely, but an absent detailed
+   field is unknown rather than zero. Immediate finite `usage.cost` is
+   mandatory, remains within the hold, and agrees with generation
+   `total_cost`. All present token, reasoning, cache, media, and tool details
+   plus response and generation identities settle the append-only Deepr ledger.
+   Deprecated usage opt-in parameters are not sent.
+7. `X-OpenRouter-Cache-Status` is absent. `HIT` is rejected because it strips
+   router metadata and zeroes usage; `MISS` is rejected because it proves
+   response caching was enabled and the response was stored.
+8. Retry count, input, output, serialized bytes, and the full request graph
    remain under one durable parent reservation.
 
 The current-key observation now binds the credential used for that read-only
@@ -122,10 +174,13 @@ The following work remains ordered behind v2.53:
 2. Construct one Deepr-owned client with zero SDK retries, no redirects, no
    ambient proxies, the official gateway endpoint, and the prompted credential
    fingerprint from a fresh control observation.
-3. Verify the immediate response and generation metadata report the admitted
-   exact model and upstream provider tag, no server tools, and no additional
-   fetches. Verify that response-cache and prompt-cache evidence matches the
-   admitted request posture.
+3. Verify router metadata and generation metadata against the complete
+   acceptance contract above. Use the `X-Generation-Id` response header for
+   post-mortem reconciliation when an error lacks router metadata. Verify that
+   response-cache and prompt-cache evidence matches the admitted request
+   posture. The official response schemas currently do not expose the selected
+   endpoint tag, so execution remains blocked until the composite route evidence
+   is sufficient for the reviewed provider-family contract.
 4. Settle reported total cost and provider receipt identifiers into both the
    child and append-only canonical ledger. Unknown or conflicting evidence must
    consume the full hold and freeze the parent for reconciliation.

@@ -391,16 +391,21 @@ Existing controls:
   Missing or inconsistent response model, token, tool, or settlement evidence
   consumes the full reservation or freezes paid dispatch.
 - OpenRouter entries are preview-only and excluded from automatic routing,
-  expert routing, and evaluation. Their no-key catalog check pins one exact
-  upstream tag, rejects fallback, verifies every reachable prompt, completion,
-  and cache-write price, disables response caching, and forbids paid request
-  features. The current-key check uses a hidden prompt by default. Explicit
+  expert routing, and evaluation. Their no-key catalog check requires one
+  currently matched standard endpoint metadata tag, rejects another non-tier
+  variant under a base route, rejects fallback, bounds every reachable
+  text-inference price class and discount, disables response caching, requests
+  router metadata, and forbids paid request features. The current-key check uses a hidden prompt by default. Explicit
   `--from-env` uses the quarantined process copy when available or parses only
   the bounded checkout-local key without exporting it. It does not unquarantine
   or export the value or pass it to a child
   process. It makes one bounded read-only request without ambient proxy or
   redirects, and returns only sanitized limit evidence. Both checks explicitly
   deny dispatch authority, and no OpenRouter inference client is constructed.
+  A future adapter also needs authenticated proof of no applicable BYOK or
+  enforced paid workspace defaults. It must reject cache HIT/MISS, non-default
+  service tiers, BYOK, pipeline stages, searches, fetches, media, presets, and
+  conflicting or missing total-cost evidence.
 - Paid research persists an internal random binding plus provider, model, job,
   ceiling, and frozen request digest. Only the durable dispatch transition can
   mint the opaque one-use task-local grant accepted by the non-overridable

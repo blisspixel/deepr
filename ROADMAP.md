@@ -371,11 +371,12 @@ reliable product, not a four-language architecture diagram.
 **Shipped in v2.50.9 (see docs/CHANGELOG.md):** OpenRouter has a dated catalog
 of seven exact cross-family model slugs for write-free research previews. The
 entries are excluded from automatic and expert routing and paid execution fails
-before reservation. A pinned, no-key public metadata check proves one exact
-upstream endpoint tag, bounded parameter and context support, every reachable
-prompt, completion, and cache-write price override, plus the proposed
-no-fallback routing-policy digest. The request posture disables OpenRouter
-response caching and forbids explicit prompt-cache controls, paid server
+before reservation. A pinned, no-key public metadata check proves one currently
+matched standard endpoint tag, rejects additional non-tier variants under a
+base tag, and bounds parameter, context, prompt, completion, cache-read,
+cache-write, reasoning, discount, and fixed-request pricing. The request
+posture disables OpenRouter response caching, requests router metadata, and
+forbids explicit prompt-cache controls, service tiers, media, paid server
 features, and background execution. Preview estimates reserve a full-input
 cache write in addition to ordinary input. A separate current-key check uses a
 hidden prompt by default, with an explicit checkout-local `.env` option, and
@@ -384,8 +385,9 @@ BYOK-inclusive usage, and remaining headroom. Both return
 `dispatch_authorized=false`; neither is final billing reconciliation. This does
 not change the immediate evidence loop below. Executable OpenRouter work remains
 behind the v2.53 maximum-charge and provider authority gate, including exact
-response identity, durable parent adoption, ambiguous-outcome handling, all
-provider usage buckets, and append-only usage settlement.
+response identity, account-level BYOK and plugin proof, durable parent adoption,
+ambiguous-outcome handling, provider total-cost evidence, and append-only usage
+settlement.
 
 **Shipped in v2.50.8 (see docs/CHANGELOG.md):** the first-run path now reaches
 a consultable local expert instead of stopping at an empty profile. README,
@@ -575,10 +577,12 @@ of a `run_id`.
 The OpenRouter preview catalog and non-authorizing provider proofs are
 intentionally adjacent work, not the next product milestone. They broaden model
 comparison and validate route and key-control inputs without inference spend or
-mutation. Their cache-write proof closes a hidden-price class without claiming
-that OpenRouter's prompt/completion `max_price` caps cache writes. Executable
-gateway routing still waits for the v2.53 parent adoption, response
-verification, and settlement work.
+mutation. Their text-inference proof closes cache-read, cache-write, reasoning,
+discount-markup, and fixed-request gaps without claiming that OpenRouter's
+`max_price` caps every price class. Executable gateway routing still waits for
+v2.53 parent adoption, clean account-default and no-BYOK proof, composite route
+and response evidence, mandatory total-cost settlement, and final billing
+reconciliation.
 
 0. **Close the standards foundation before widening distribution.** The three
    current targets have separate jobs: OKF 0.2 carries selected knowledge,
@@ -1138,7 +1142,7 @@ the gate for that version is proven.
 | **v2.47** (shipped, grant superseded) | Expert v2 web surface, local portraits, and the original attended `$2` grant | The new expert state needed a real interface; attended spend needed a first narrow proof | Twelve read-only v2 routes and local portrait path shipped; the grant was replaced in v2.49 |
 | **v2.48** (shipped) | Local-first consult plus the 2026-08-13 provider model and pricing refresh | Consultation must not inherit metered authority; estimates must follow current official catalogs | Consult blocks API paths; GPT-5.6, Grok 4.6, Claude 5, and current Gemini posture registered |
 | **v2.49** (shipped) | Persistent metered-spend wallet, independent job ceilings, and a curated flagship expert roster | Operators need chosen total exposure without a universal $2 research limit; the main roster must show developed experts | Wallet and verified provider boundaries both apply; no refill or overdraft; 25 explicit flagship experts have inspectable structure |
-| **v2.50** (shipped, 2.50.9 patch) | Standards foundation plus fail-closed spend, identity-bound storage, authentication, scoped remote access, bounded acquisition, terminal-state handling, a complete first-run expert path, and bounded OpenRouter comparison | Format truth must precede distribution; spend, identity, durable state, public guidance, and gateway route truth must fail closed after the first release | Offline pinned fixtures pass; OKF remains derived and verification-gated; completion receipts cannot leave a hold; MCP job state survives partial saves and restarts; terminal phases cannot be resurrected; report lookup verifies full stored identity; model-proposed searches cannot multiply work beyond the per-arm ceiling; documented onboarding reaches grounded consult context without paid dispatch; OpenRouter previews prove exact route and price caps while execution remains blocked |
+| **v2.50** (shipped, 2.50.9 patch) | Standards foundation plus fail-closed spend, identity-bound storage, authentication, scoped remote access, bounded acquisition, terminal-state handling, a complete first-run expert path, and bounded OpenRouter comparison | Format truth must precede distribution; spend, identity, durable state, public guidance, and gateway route truth must fail closed after the first release | Offline pinned fixtures pass; OKF remains derived and verification-gated; completion receipts cannot leave a hold; MCP job state survives partial saves and restarts; terminal phases cannot be resurrected; report lookup verifies full stored identity; model-proposed searches cannot multiply work beyond the per-arm ceiling; documented onboarding reaches grounded consult context without paid dispatch; OpenRouter previews prove one current provider-route proposal and bounded text price classes while execution remains blocked |
 | **v2.51** (design-gated) | Read-only MCP investigation projection tools over the shipped builders | Hosts need bounded, replayable, owner-scoped observation before they receive control authority | Choose and document either local-stdio-only ownership or a durable revocable observation grant binding the caller, `run_id`, and expert roster. Knowledge of a `run_id` is not authorization. Only then add cursor tools that remain content-free and deny cross-run access |
 | **v2.52** | Fixture-validated OpenClaw, DeepSeek Harness, Grok Build, Codex, and manual Grok Bot profiles | Portable packaging is primary; host fragments are compatibility paths and Bot lifecycle automation remains unavailable | OpenClaw stable `v2026.8.2` is the first Agent Plugin lane; every advertised host claim names exact versions, tools, transport, runtime dependency, and validation evidence |
 | **v2.53** | Shared durable parent transaction, maximum-charge contract, scoped HTTP authority, provider-gateway proof, then NemoClaw remote-isolation proof | Remote mutation, gateway dispatch, and isolation depend on spend, identity, credential, endpoint, and upstream-route truth | Retry and crash tests cannot overshoot the parent ceiling or duplicate effects; OpenRouter's non-authorizing route and current-key observations must be joined to exact response identity, parent settlement, and final billing reconciliation before dispatch; NemoClaw remains reference-only until live evidence passes |
@@ -1635,6 +1639,12 @@ The gate targets below are firm commitments, not a soft "raise it when convenien
 
 - [x] Raise Python floor to 3.12 (dropped 3.9/3.10/3.11); classifiers + ruff `target-version` (`py312`) + CI matrix updated; `uv.lock` regenerated
 - [x] Python 3.14 promoted to a **blocking** CI matrix entry (2026-06-11): the full `[dev,full]` extras install and the entire suite pass on 3.14, so the wheel-availability caveat that kept it non-blocking no longer applies. Full supported window: 3.12 / 3.13 / 3.14, all blocking.
+- [ ] Promote Python 3.15 only after its final release and the complete
+  `[dev,full]` dependency set installs on every supported OS. A 2026-09-01
+  Windows probe against 3.15.0rc1 stopped before Deepr tests because `lxml
+  6.1.1` had no CPython 3.15 wheel and its source build required external
+  `libxml2` headers. Re-run the full matrix when upstream wheels land; do not
+  describe the prerelease interpreter as supported meanwhile.
 - [x] Modernize syntax to the 3.12 baseline via Ruff autofix (PEP 604 `X | None`, `datetime.UTC`, exception/import aliases)
 - [x] Adopt `uv` in CI; commit `uv.lock` + `.python-version`
 - [x] Dependency update automation (pip + github-actions + npm, weekly)

@@ -37,7 +37,10 @@ def _document(
     tag: str | None = None,
     input_price: float | None = None,
     output_price: float | None = None,
+    cache_read_price: float | None = None,
     cache_write_price: float | None = None,
+    reasoning_price: float | None = None,
+    request_price: float | None = None,
     omit_cache_write_price: bool = False,
     status: int = 0,
     context_length: int = 1_050_000,
@@ -52,6 +55,13 @@ def _document(
         "prompt": _per_token(input_price if input_price is not None else capability.input_cost_per_1m),
         "completion": _per_token(output_price if output_price is not None else capability.output_cost_per_1m),
     }
+    pricing["input_cache_read"] = _per_token(
+        cache_read_price if cache_read_price is not None else capability.cached_input_cost_per_1m or 0.0
+    )
+    if reasoning_price is not None:
+        pricing["internal_reasoning"] = _per_token(reasoning_price)
+    if request_price is not None:
+        pricing["request"] = format(Decimal(str(request_price)), "f")
     if OPENROUTER_CACHE_WRITE_PRICE_SOURCES[model] == "endpoint_metadata" and not omit_cache_write_price:
         pricing["input_cache_write"] = _per_token(
             cache_write_price if cache_write_price is not None else capability.cache_write_cost_per_1m or 0.0
@@ -88,6 +98,7 @@ def test_routing_policies_pin_one_endpoint_and_disable_fallbacks() -> None:
             "max_price": {
                 "prompt": capability.input_cost_per_1m,
                 "completion": capability.output_cost_per_1m,
+                "request": 0.0,
             },
         }
 
@@ -98,11 +109,15 @@ def test_exact_catalog_route_is_eligible(model: str) -> None:
     assert proof.catalog_eligible is True
     assert proof.failures == ()
     assert proof.upstream_tag == OPENROUTER_UPSTREAM_TAGS[model]
+    assert proof.matched_endpoint_tags == (OPENROUTER_UPSTREAM_TAGS[model],)
     assert len(proof.routing_policy_sha256) == 64
     assert proof.to_dict()["dispatch_authorized"] is False
     assert proof.to_dict()["paid_requests"] == 0
     assert proof.observed_cache_write_cost_per_1m is not None
-    assert proof.to_dict()["proposed_response_cache_headers"] == {"X-OpenRouter-Cache": "false"}
+    assert proof.to_dict()["proposed_request_headers"] == {
+        "X-OpenRouter-Cache": "false",
+        "X-OpenRouter-Metadata": "enabled",
+    }
     assert "explicit_prompt_cache_control" in proof.to_dict()["forbidden_request_features"]
 
 
@@ -110,14 +125,36 @@ def test_route_requires_one_exact_upstream_tag() -> None:
     model = "openai/gpt-5.6-sol"
     missing = evaluate_openrouter_endpoint_document(model, _document(model, tag="azure"))
     assert missing.catalog_eligible is False
-    assert "one exact upstream tag" in missing.failures[0]
+    assert "one standard endpoint metadata record" in missing.failures[0]
 
     duplicate = _document(model)
     endpoint = duplicate.payload["data"]["endpoints"][0]  # type: ignore[index]
     duplicate = _document(model, extra_endpoints=[dict(endpoint)])
     proof = evaluate_openrouter_endpoint_document(model, duplicate)
     assert proof.catalog_eligible is False
-    assert "one exact upstream tag" in proof.failures[0]
+    assert "one standard endpoint metadata record" in proof.failures[0]
+
+
+def test_base_route_rejects_an_additional_non_tier_variant() -> None:
+    model = "openai/gpt-5.6-sol"
+    sibling = _document(model).payload["data"]["endpoints"][0]  # type: ignore[index]
+    proof = evaluate_openrouter_endpoint_document(
+        model,
+        _document(model, extra_endpoints=[{**sibling, "tag": "openai/us-east"}]),
+    )
+    assert proof.catalog_eligible is False
+    assert "one standard endpoint metadata record" in proof.failures[0]
+
+
+@pytest.mark.parametrize("suffix", ["fast", "flex", "priority"])
+def test_base_route_excludes_opt_in_service_tiers(suffix: str) -> None:
+    model = "openai/gpt-5.6-sol"
+    tier = _document(model).payload["data"]["endpoints"][0]  # type: ignore[index]
+    proof = evaluate_openrouter_endpoint_document(
+        model,
+        _document(model, extra_endpoints=[{**tier, "tag": f"openai/{suffix}"}]),
+    )
+    assert proof.catalog_eligible is True
 
 
 @pytest.mark.parametrize(
@@ -166,6 +203,30 @@ def test_route_fails_when_cache_write_price_exceeds_registered_cap() -> None:
     )
     assert proof.catalog_eligible is False
     assert any("cache-write price" in failure for failure in proof.failures)
+
+
+def test_route_fails_when_cache_read_price_exceeds_registered_cache_cap() -> None:
+    model = "openai/gpt-5.6-sol"
+    proof = evaluate_openrouter_endpoint_document(model, _document(model, cache_read_price=0.21))
+    assert proof.catalog_eligible is False
+    assert any("cache-read price" in failure for failure in proof.failures)
+
+
+@pytest.mark.parametrize(
+    ("changes", "failure"),
+    [
+        ({"reasoning_price": 10.01}, "reasoning price"),
+        ({"request_price": 0.001}, "fixed request price"),
+    ],
+)
+def test_route_fails_when_text_inference_price_bucket_exceeds_cap(
+    changes: dict[str, Any],
+    failure: str,
+) -> None:
+    model = "openai/gpt-5.6-sol"
+    proof = evaluate_openrouter_endpoint_document(model, _document(model, **changes))
+    assert proof.catalog_eligible is False
+    assert any(failure in item for item in proof.failures)
 
 
 def test_route_requires_metadata_cache_write_price_when_registered_as_source() -> None:
@@ -230,6 +291,43 @@ def test_reachable_override_uses_the_most_expensive_cache_write_price() -> None:
     assert proof.catalog_eligible is False
     assert proof.observed_cache_write_cost_per_1m == 3.0
     assert any("cache-write price" in failure for failure in proof.failures)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "failure"),
+    [
+        ("input_cache_read", _per_token(0.21), "cache-read price"),
+        ("internal_reasoning", _per_token(10.01), "reasoning price"),
+        ("request", "0.001", "fixed request price"),
+    ],
+)
+def test_reachable_override_checks_auxiliary_text_prices(field: str, value: str, failure: str) -> None:
+    model = "openai/gpt-5.6-sol"
+    proof = evaluate_openrouter_endpoint_document(
+        model,
+        _document(model, overrides=[{"min_prompt_tokens": 100_000, field: value}]),
+    )
+    assert proof.catalog_eligible is False
+    assert any(failure in item for item in proof.failures)
+
+
+@pytest.mark.parametrize("discount", [-0.1, 1.0, "0"])
+def test_route_rejects_unsafe_or_malformed_discount(discount: object) -> None:
+    model = "openai/gpt-5.6-sol"
+    document = _document(model)
+    document.payload["data"]["endpoints"][0]["pricing"]["discount"] = discount  # type: ignore[index]
+    proof = evaluate_openrouter_endpoint_document(model, document)
+    assert proof.catalog_eligible is False
+    assert "discount" in proof.failures[0]
+
+
+def test_route_rejects_unclassified_pricing_field() -> None:
+    model = "openai/gpt-5.6-sol"
+    document = _document(model)
+    document.payload["data"]["endpoints"][0]["pricing"]["new_billable_unit"] = "0.01"  # type: ignore[index]
+    proof = evaluate_openrouter_endpoint_document(model, document)
+    assert proof.catalog_eligible is False
+    assert "unclassified pricing field" in proof.failures[0]
 
 
 def test_unreachable_long_context_override_does_not_inflate_bounded_route() -> None:

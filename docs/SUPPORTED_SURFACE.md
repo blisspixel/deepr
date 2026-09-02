@@ -647,10 +647,12 @@ must not be described as usable capacity.
   automatic routing, expert routing, and eval targets. Omitting `--preview`
   fails with `research_provider_preview_only` before reservation or provider
   construction. `deepr providers openrouter-check` uses bounded public metadata
-  and no key to verify one exact upstream tag, reachable price overrides,
-  required parameters, context limits, and cache-write bounds for each route.
-  It proposes response caching off and forbids explicit prompt-cache controls,
-  fallbacks, plugins, presets, server tools, and background execution. Preview
+  and no key to verify one selected endpoint metadata tag, reject additional
+  non-tier variants matched by a base tag, and bound reachable text-inference
+  price classes, required parameters, and context limits for each route. It
+  proposes response caching off, router metadata on, and forbids explicit
+  prompt-cache controls, fallbacks, service tiers, media, plugins, presets,
+  server tools, and background execution. Preview
   estimates reserve a full-input cache write as an additional maximum charge.
   `deepr providers openrouter-key-check` accepts a credential through a hidden
   prompt by default. Explicit `--from-env` uses the quarantined process copy
@@ -659,9 +661,10 @@ must not be described as usable capacity.
   monthly-limit observation with zero inference requests. It never reads the
   local source without that flag, unquarantines or exports the key, or passes it to a
   child. Both checks state that dispatch remains
-  unauthorized because response identity, complete usage settlement, parent
-  settlement, and final billing reconciliation are not complete. No OpenRouter
-  inference client is built.
+  unauthorized because account-level BYOK and plugin controls, endpoint-tag
+  response proof, complete usage settlement, parent settlement, and final
+  billing reconciliation are not complete. No OpenRouter inference client is
+  built.
   See [openrouter-metered-gateway.md](design/openrouter-metered-gateway.md).
 - Attended OpenAI report absorption through `deepr expert absorb --api` has a
   complete wallet, job reservation, exact-client, dispatch, and settlement

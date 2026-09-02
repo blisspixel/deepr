@@ -15,12 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   model slugs for bounded `deepr research --preview` comparisons. The entries
   are excluded from automatic and expert routing and from eval targets.
 - `deepr providers openrouter-check` validates the seven routes against bounded
-  public endpoint metadata without a key. It proves one exact upstream tag,
-  reachable prompt, completion, and cache-write bounds, required parameters,
-  context limits, and a stable no-fallback routing-policy digest. The proposed
-  request posture disables OpenRouter response caching and forbids explicit
-  prompt-cache controls and paid server features. Preview envelopes reserve a
-  full-input cache write in addition to ordinary input.
+  public endpoint metadata without a key. It proves one currently matched
+  standard endpoint tag, rejects another non-tier variant under a base tag,
+  and bounds reachable prompt, completion, cache-read, cache-write, reasoning,
+  and fixed-request prices. Negative discount markups and unclassified pricing
+  fields fail closed. The proposed request posture disables OpenRouter response
+  caching, requests router metadata, and forbids explicit prompt-cache
+  controls, service tiers, media, fallbacks, and paid server features. Preview
+  envelopes reserve a full-input cache write in addition to ordinary input.
 - `deepr providers openrouter-key-check` accepts a key through a hidden prompt
   by default. Explicit `--from-env` uses a quarantined process copy when
   available or parses only `OPENROUTER_API_KEY` from the bounded checkout-local
@@ -42,6 +44,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   releases. It prioritizes settled terminal semantics, typed control delivery,
   bounded model-visible output with exact durable recall, progress-based stall
   detection, and compaction-recall evaluation before broader orchestration.
+- Python 3.15 is not yet added to the support matrix. Its 2026-09-01 release
+  candidate probe is blocked by missing Windows `lxml` wheels in the full
+  dependency set; 3.12, 3.13, and 3.14 remain the blocking tested window.
 
 ### Fixed
 
@@ -51,6 +56,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `expert discover-gaps --help` now states that it is a quarantined legacy
   metered surface and points operators to `expert next` instead of implying
   that the unavailable clustering workflow will execute.
+- The offline maximum-charge contract now uses an explicit registered
+  cache-write rate when one exists. OpenRouter cache writes for OpenAI,
+  Anthropic, and Qwen can no longer be underpriced as ordinary input.
+- Unit-test collection now isolates cost authority before importing application
+  modules, so a developer's registered checkout policy cannot make the no-key,
+  no-`.env` suite fail before its per-test fixtures run.
 
 ### Security
 
@@ -61,6 +72,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Deepr cannot enable the adapter until exact response identity, durable parent
   adoption, ambiguous-outcome handling, complete provider-usage accounting,
   append-only settlement, and final billing reconciliation are complete.
+- OpenRouter BYOK priority, account-enforced plugins, response-cache status,
+  retention posture, and service-tier identity are explicit future account and
+  response gates. Current metadata does not expose an exact endpoint tag.
 
 ## [2.50.8] - 2026-08-30
 

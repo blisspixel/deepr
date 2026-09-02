@@ -38,7 +38,11 @@ current-key docs were checked through 2026-09-01:
 - OpenRouter models, provider routing, and current-key controls:
   <https://openrouter.ai/docs/guides/overview/models>,
   <https://openrouter.ai/docs/guides/routing/provider-selection>,
-  <https://openrouter.ai/docs/api/api-reference/api-keys/get-current-key>
+  <https://openrouter.ai/docs/api/api-reference/api-keys/get-current-key>,
+  <https://openrouter.ai/docs/guides/features/router-metadata>,
+  <https://openrouter.ai/docs/cookbook/administration/usage-accounting>,
+  <https://openrouter.ai/docs/guides/overview/auth/byok>,
+  <https://openrouter.ai/docs/guides/features/service-tiers>
 
 ## 2026-08-13 Verification Matrix
 
@@ -49,7 +53,7 @@ current-key docs were checked through 2026-09-01:
 | Google Gemini | Google released Gemini 3.6 Flash and Gemini 3.5 Flash-Lite as GA production API models on 2026-07-21. The same launch limits Gemini 3.5 Flash Cyber to a CodeMender pilot for governments and trusted partners. | Both GA API models are registered with standard pricing, cached-input pricing, context metadata, and the new thinking-level request shape. Flash Cyber is deliberately absent. Managed Gemini Deep Research remains gated because its autonomous loop lacks a complete request ceiling. | Use the GA API models for explicit bounded requests. Do not represent Flash Cyber as selectable Gemini API capacity. |
 | xAI | Grok 4.6 launched on 2026-08-12. xAI also publishes Grok Build 0.1 and revived `grok-code-fast` aliases with current prices. | Grok 4.6 and Grok Build 0.1 are registered. Generic flagship aliases resolve to 4.6; quick routing can retain cheaper Grok 4.3. | Keep fast service tiers and server-side tools outside base estimates unless their separate charges are explicitly bounded. |
 | Azure AI Foundry | Microsoft lists GPT-5.6 Sol, Terra, and Luna, but availability and billing remain deployment, quota, region, and service-tier dependent. | Azure entries remain tested deployment targets, not mirrors of every public OpenAI model. | Do not promote a catalog listing into Azure routing without deployment-specific pricing and adapter verification. |
-| OpenRouter | Public endpoint metadata exposes exact upstream tags, per-endpoint parameters, context, status, base rates, and conditional price overrides. Default routing can still load-balance and fall back. The authenticated current-key endpoint exposes optional USD limit, remaining limit, reset period, BYOK inclusion, usage, account reference, and expiry. | Seven exact slugs are preview-only. A no-key check validates their proposed exact endpoints and an explicit-source check produces a sanitized key-control observation. Both deny dispatch authority. | Keep inference blocked until these observations bind the exact request and response, durable parent settlement, ambiguous outcomes, append-only usage evidence, and final billing reconciliation. |
+| OpenRouter | Public endpoint metadata exposes provider tags, parameters, context, status, and price classes. A base provider tag can match non-tier variants. Router and generation metadata report provider display names, not the selected tag. BYOK can override ordering, while account defaults can force plugins. | Seven exact model slugs are preview-only. A no-key check requires one currently matched standard tag and bounded text-inference prices. An explicit-source check produces a sanitized key-control observation. Both deny dispatch authority. | Keep inference blocked until authenticated account controls exclude BYOK and paid defaults, the request and provider-route evidence are bound, total usage settles one durable parent, ambiguous outcomes freeze safely, and final billing reconciles. |
 
 ## Current External Watchlist
 
@@ -331,9 +335,9 @@ inference client. The repository ignores `.env`, but operators must still keep i
 backups, logs, screenshots, and shared archives. An OS credential store is the
 preferred future long-lived source.
 
-Registered exact preview routes checked on 2026-09-01:
+Registered provider-route proposals checked on 2026-09-01:
 
-| Model slug | Exact upstream tag | Input / output cap per 1M | Cached input cap per 1M | Cache-write cap per 1M |
+| Model slug | Current endpoint metadata tag | Input / output cap per 1M | Cached input cap per 1M | Cache-write cap per 1M |
 |---|---|---:|---:|---:|
 | `openai/gpt-5.6-sol` | `openai` | `$2.00 / $10.00` | `$0.20` | `$2.50` |
 | `anthropic/claude-sonnet-5` | `anthropic` | `$2.00 / $10.00` | `$0.20` | `$4.00` |
@@ -347,9 +351,15 @@ Default posture:
 
 - The model argument uses the exact portion after `openrouter/`, such as
   `qwen/qwen3.8-flash`.
-- Catalog rates define preview caps for the exact upstream tags above, not the
-  lowest route across OpenRouter. The DeepSeek caps conservatively cover every
-  current time-dependent override reachable by the 128K input envelope.
+- Catalog rates define preview caps for the currently matched standard endpoint
+  tags above, not the lowest route across OpenRouter. Base tags can match
+  non-tier variants, so the check fails if another such record appears. The
+  DeepSeek caps conservatively cover every current time-dependent override
+  reachable by the 128K input envelope.
+- The checker bounds prompt, completion, cached input, cache-write, reasoning,
+  and fixed-request pricing. It rejects negative discount markups, malformed or
+  unknown pricing classes, and a fixed request charge above zero. Reasoning
+  tokens remain inside the completion-token ceiling and are not double counted.
 - The checker reads every reported cache-write price, including Claude's
   one-hour rate. Where endpoint metadata omits the field, the documented xAI
   and Moonshot free-write posture or DeepSeek prompt-equivalent rate is
@@ -362,13 +372,15 @@ Default posture:
   entries.
 - Execution is blocked before reservation and provider construction. A future
   request must pin one upstream provider, disable fallback, require parameter
-  support, set `max_price` to no more than the registered prompt/completion
-  rate, send `X-OpenRouter-Cache: false`, and omit explicit prompt-cache
-  controls and paid server features.
+  support, set `max_price` to no more than the registered prompt, completion,
+  and zero fixed-request rate, send `X-OpenRouter-Cache: false` and
+  `X-OpenRouter-Metadata: enabled`, and omit service tiers, media, explicit
+  prompt-cache controls, paid server features, and deprecated usage opt-ins.
 - `deepr providers openrouter-check` makes at most seven pinned public metadata
   requests with no key, no redirects, no ambient proxy, bounded response bytes,
-  and strict duplicate-key rejection. It fails nonzero if the exact tag, status,
-  reachable prices, required parameters, or bounded context drift.
+  and strict duplicate-key rejection. This no-key endpoint behavior is observed,
+  not authenticated dispatch authority. The check fails nonzero if the matched
+  route set, status, reachable prices, required parameters, or context drift.
 - `deepr providers openrouter-key-check --required-headroom 5` prompts without
   echo for one key. Add `--from-env` only to opt into the bounded local secret
   source. The command makes one read-only current-key request and requires a
@@ -376,15 +388,24 @@ Default posture:
   reconciling usage counters, and a live expiry when one is configured. Its
   sanitized result always reports incomplete billing reconciliation and no
   dispatch authority.
+- A future shared-capacity adapter must prove that no applicable BYOK key or
+  account-enforced paid plugin exists. It must require direct, one-attempt,
+  non-BYOK router metadata with no pipeline stage, default or null service tier,
+  no cache status, search, fetch, media, or preset, and matching response and
+  generation total cost. Neither metadata surface exposes the endpoint tag.
 
 Manual verification:
 
 - Model catalog: <https://openrouter.ai/docs/guides/overview/models>
 - Provider routing: <https://openrouter.ai/docs/guides/routing/provider-selection>
+- Router metadata: <https://openrouter.ai/docs/guides/features/router-metadata>
+- Usage accounting: <https://openrouter.ai/docs/cookbook/administration/usage-accounting>
+- BYOK routing: <https://openrouter.ai/docs/guides/overview/auth/byok>
+- Service tiers: <https://openrouter.ai/docs/guides/features/service-tiers>
 - Current-key limits:
   <https://openrouter.ai/docs/api/api-reference/api-keys/get-current-key>
 - Generation usage metadata:
-  <https://openrouter.ai/docs/api/api-reference/generations/get-generation>
+  <https://openrouter.ai/docs/api/api-reference/generations/get-request-&-usage-metadata-for-a-generation>
 - Prompt caching: <https://openrouter.ai/docs/guides/best-practices/prompt-caching>
 - Response caching: <https://openrouter.ai/docs/guides/features/response-caching>
 - Design: [openrouter-metered-gateway.md](design/openrouter-metered-gateway.md)

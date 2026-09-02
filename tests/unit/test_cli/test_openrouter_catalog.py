@@ -25,9 +25,13 @@ def _proof(*, eligible: bool = True) -> OpenRouterCatalogProof:
         failures=() if eligible else ("price drift",),
         observed_input_cost_per_1m=2.0,
         observed_output_cost_per_1m=10.0,
+        observed_cache_read_cost_per_1m=0.2,
         observed_cache_write_cost_per_1m=2.5,
+        observed_reasoning_cost_per_1m=10.0,
+        observed_request_cost_usd=0.0,
         registered_input_cap_per_1m=2.0,
         registered_output_cap_per_1m=10.0,
+        registered_cache_read_cap_per_1m=0.2,
         registered_cache_write_cap_per_1m=2.5,
         cache_write_price_source="endpoint_metadata",
         context_length=1_050_000,
@@ -36,6 +40,7 @@ def _proof(*, eligible: bool = True) -> OpenRouterCatalogProof:
         endpoint_status=0,
         source_sha256="a" * 64,
         routing_policy_sha256="b" * 64,
+        matched_endpoint_tags=("openai",),
     )
 
 
@@ -54,7 +59,7 @@ def test_openrouter_check_json_is_explicitly_non_authorizing(monkeypatch: pytest
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
     assert captured == [("openai/gpt-5.6-sol",)]
-    assert payload["schema_version"] == "deepr-openrouter-catalog-check-v1"
+    assert payload["schema_version"] == "deepr-openrouter-catalog-check-v2"
     assert payload["all_catalog_eligible"] is True
     assert payload["paid_requests"] == 0
     assert payload["api_key_loaded"] is False
@@ -66,9 +71,12 @@ def test_openrouter_check_json_is_explicitly_non_authorizing(monkeypatch: pytest
         "allow_fallbacks": False,
         "require_parameters": True,
         "data_collection": "deny",
-        "max_price": {"prompt": 2.0, "completion": 10.0},
+        "max_price": {"prompt": 2.0, "completion": 10.0, "request": 0.0},
     }
-    assert payload["proofs"][0]["proposed_response_cache_headers"] == {"X-OpenRouter-Cache": "false"}
+    assert payload["proofs"][0]["proposed_request_headers"] == {
+        "X-OpenRouter-Cache": "false",
+        "X-OpenRouter-Metadata": "enabled",
+    }
 
 
 def test_openrouter_check_defaults_to_every_registered_route(monkeypatch: pytest.MonkeyPatch) -> None:

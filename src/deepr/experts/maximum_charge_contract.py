@@ -217,6 +217,7 @@ def envelope_from_mapping(data: Mapping[str, Any]) -> MaximumChargeEnvelope:
 def _price_token_components(envelope: MaximumChargeEnvelope) -> dict[str, float]:
     from deepr.core.costs import CostEstimator
     from deepr.providers.registry import get_cached_input_pricing, get_token_pricing
+    from deepr.providers.registry_pricing import get_resolved_model_capability
 
     pricing = get_token_pricing(envelope.model, input_tokens=envelope.input_tokens)
     if not pricing or float(pricing.get("input", 0) or 0) <= 0 or float(pricing.get("output", 0) or 0) <= 0:
@@ -241,10 +242,15 @@ def _price_token_components(envelope: MaximumChargeEnvelope) -> dict[str, float]
         cache_rate = float(cached_rate)
     else:
         cache_rate = 0.0
-    # Cache writes are priced at least at full input rate when cache-specific
-    # write rates are not published separately (conservative upper bound).
+    capability = get_resolved_model_capability(envelope.model)
+    registered_write_rate = None if capability is None else capability.cache_write_cost_per_1m
+    write_rate = (
+        max(cache_rate, input_rate) if registered_write_rate is None else max(float(registered_write_rate), cache_rate)
+    )
+    # Use the explicit write rate when the registry publishes one. Otherwise a
+    # full-input fallback remains the conservative bound.
     components["cache_read_tokens"] = (envelope.cache_read_tokens / 1_000_000.0) * cache_rate
-    components["cache_write_tokens"] = (envelope.cache_write_tokens / 1_000_000.0) * max(cache_rate, input_rate)
+    components["cache_write_tokens"] = (envelope.cache_write_tokens / 1_000_000.0) * write_rate
     # Sanity: CostEstimator must agree that the model is known enough to price.
     _ = CostEstimator._get_pricing(envelope.model, input_tokens=envelope.input_tokens)
     return components

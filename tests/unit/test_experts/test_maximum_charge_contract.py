@@ -112,6 +112,19 @@ def test_rejects_cache_tokens_without_usable_bound_when_unpriced() -> None:
     assert verdict.failures
 
 
+def test_explicit_openrouter_cache_write_rate_is_not_underpriced() -> None:
+    verdict = evaluate_maximum_charge_contract(
+        _complete_envelope(
+            provider="openrouter",
+            model="anthropic/claude-sonnet-5",
+            cache_write_tokens=1_000_000,
+            parent_ceiling_usd=5.0,
+        )
+    )
+    assert verdict.complete is True
+    assert verdict.priced_components["cache_write_tokens"] == pytest.approx(4.0)
+
+
 def test_require_raises_on_incomplete() -> None:
     with pytest.raises(MaximumChargeContractError):
         require_complete_maximum_charge_contract(_complete_envelope(deepr_owned_client=False))
