@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.50.10-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.10)
+[![Version](https://img.shields.io/badge/version-2.50.11-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.11)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -82,7 +82,9 @@ can be previewed, while automatic routing, expert routing, evaluation, and paid
 dispatch remain blocked. The public route check needs no key; the separate
 current-key check uses a hidden prompt by default and makes no inference
 request. An explicit checkout-local `.env` source is documented for local use.
-Neither check authorizes dispatch.
+Officially valid nullable limit controls are reported honestly. A key without a
+monthly BYOK-inclusive limit of `$5` or less remains ineligible. Neither check
+authorizes dispatch.
 
 See [Capacity and Cost](docs/CAPACITY.md) for the operating and billing
 boundary, [Models](docs/MODELS.md#openrouter-preview-catalog) for provider-route
@@ -130,6 +132,17 @@ for current workflows. The [MCP Agent Guide](docs/MCP_AGENT_TEST_GUIDE.md)
 covers the 36 MCP tools, dual-era `2026-07-28` protocol, and
 `deepr mcp conformance`. Portable packaging, OKF export, and the OpenClaw
 host-profile reference are documented in [Supported Surface](docs/SUPPORTED_SURFACE.md).
+
+## Direction
+
+The next product milestone is v2.51: publish a blinded four-arm evaluation that
+tests whether a maintained expert improves repeated decisions over fresh
+research and simpler memory baselines. v2.52 then resolves prospective
+predictions against later grounded evidence without automatic learning. v2.53
+finishes the durable parent transaction and disabled OpenRouter adapter proof;
+the current repository policy still prohibits paid inference validation and
+production activation. See the dependency gates and later host-control sequence
+in the [active release plan](ROADMAP.md#active-release-plan).
 
 ## Documentation
 

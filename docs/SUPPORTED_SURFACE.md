@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.50.10 current main, 2026-09-01. This document defines what users and host
+Status: v2.50.11 current main, 2026-09-02. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -657,10 +657,12 @@ must not be described as usable capacity.
   `deepr providers openrouter-key-check` accepts a credential through a hidden
   prompt by default. Explicit `--from-env` uses the quarantined process copy
   when available or parses only `OPENROUTER_API_KEY` from the bounded
-  checkout-local `.env` without exporting it. It returns a sanitized
-  monthly-limit observation with zero inference requests. It never reads the
-  local source without that flag, unquarantines or exports the key, or passes it to a
-  child. Both checks state that dispatch remains
+  checkout-local `.env` without exporting it. It returns a sanitized limit
+  observation with zero inference requests. Official nullable limit and reset
+  fields remain visible as `null` and produce specific ineligibility reasons
+  instead of a malformed-response error or a false `$0.00` limit. It never
+  reads the local source without that flag, unquarantines or exports the key,
+  or passes it to a child. Both checks state that dispatch remains
   unauthorized because account-level BYOK and plugin controls, endpoint-tag
   response proof, complete usage settlement, parent settlement, and final
   billing reconciliation are not complete. No OpenRouter inference client is

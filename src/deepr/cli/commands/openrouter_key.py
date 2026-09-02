@@ -69,8 +69,10 @@ def openrouter_key_check(required_headroom: float, from_env: bool, json_output: 
         click.echo(json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False))
     else:
         click.echo(f"Control eligible: {str(observation.control_eligible).lower()}")
-        click.echo(f"Monthly key limit: ${observation.limit_usd or 0.0:.2f}")
-        click.echo(f"Remaining key limit: ${observation.limit_remaining_usd or 0.0:.2f}")
+        limit = "not set" if observation.limit_usd is None else f"${observation.limit_usd:.2f}"
+        remaining = "not set" if observation.limit_remaining_usd is None else f"${observation.limit_remaining_usd:.2f}"
+        click.echo(f"Monthly key limit: {limit}")
+        click.echo(f"Remaining key limit: {remaining}")
         click.echo(f"Required headroom: ${observation.required_headroom_usd:.2f}")
         click.echo(f"Maximum monthly limit: ${observation.maximum_monthly_limit_usd:.2f}")
         if observation.failures:

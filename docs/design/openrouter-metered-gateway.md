@@ -1,7 +1,7 @@
 # OpenRouter Metered Gateway
 
 Status: accepted for visible/read-only preview and proof increments, updated
-2026-09-01.
+2026-09-02.
 
 ## Problem
 
@@ -95,6 +95,10 @@ The 2026-09-01 increment closes two prerequisites without enabling inference:
   key with a BYOK-inclusive monthly limit at or below Deepr's `$5` ceiling,
   enough remaining headroom, consistent usage arithmetic, and a future expiry
   when an expiry exists.
+- The provider can validly return `null` for `limit`, `limit_remaining`, and
+  `limit_reset`. `deepr-openrouter-key-control-v2` preserves those nullable
+  values, treats them as insufficient hard-limit evidence, and renders them as
+  not set rather than `$0.00`.
 
 `data_collection=deny` is not a zero-data-retention promise. A future adapter
 must expose the admitted retention posture. Adding `zdr=true` globally would
@@ -121,6 +125,26 @@ The public route proof and current-key observation both explicitly return
 `dispatch_authorized=false`. The key endpoint is not a final, complete billing
 statement, the generic account-control gate does not consume this observation,
 and no OpenRouter inference client exists.
+
+## Live no-inference validation
+
+The 2026-09-02 validation exercised every shipped path without an inference
+request:
+
+- all seven public provider-route checks passed current endpoint, parameter,
+  context, and price-class validation;
+- the Qwen 3.8 Flash preview produced a `$0.15696` maximum envelope and the
+  Claude Sonnet 5 preview produced a `$2.784` maximum envelope, with web search
+  and Code Interpreter disabled;
+- the current-key endpoint returned a valid `limit_reset: null`. The v1 parser
+  incorrectly rejected it as non-text. The v2 parser now reaches the actual
+  posture verdict and reports a non-monthly reset, a limit above Deepr's `$5`
+  ceiling, and BYOK-excluded accounting as separate failures;
+- every result reported zero inference requests, zero paid requests, and no
+  dispatch authority.
+
+This validates discovery, parsing, pricing, and refusal behavior. It does not
+validate model answer quality, provider completion behavior, or final billing.
 
 ## Executable adapter requirements
 

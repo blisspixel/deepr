@@ -67,6 +67,51 @@ Roadmap items are not approach claims until they land in
 
 ---
 
+## Active Release Plan
+
+This is the governing delivery order. It is dependency-gated, not an estimate
+of elapsed time. Deepr does not publish sprint, day, week, quarter, or release
+date promises. A target advances only when its exit gate is supported by saved
+evidence. Parallel research may prepare design notes and fixtures, but it may
+not widen the shipped surface ahead of this sequence.
+
+| Target | User-visible outcome | Why it is next | Exit gate |
+| --- | --- | --- | --- |
+| **v2.50.11** (current) | The OpenRouter current-key check accepts officially valid nullable limit controls, reports an uncapped or non-monthly key honestly, and still denies dispatch. Release planning is visible at the front of the roadmap. | Live no-inference validation found that a valid `limit_reset: null` response was being rejected as malformed before account posture could be assessed. Compatibility and truthful diagnostics are patch work. | Nullable controls have regression coverage; the sanitized live check reaches a policy verdict; all seven public routes pass; Qwen and Claude previews remain finite and write-free; CI, release artifacts, and clean-install validation pass. |
+| **v2.51** | Publish one blinded four-arm longitudinal value evaluation for a flagship expert, comparing fresh research, static history, compiled expert state, and maintained expert state. | Deepr must demonstrate that persistent expert state improves repeated decisions before adding more control, memory, or host surface. | Frozen source worlds, randomized review assignment, bound artifacts, operator attestations, and separate false-support, stale-memory, transfer, effort, cost, and outcome measures are reproducible. No aggregate score selects a winner or changes a default. |
+| **v2.52** | Resolve prospective expert predictions against later grounded observations and emit review-required learning proposals. | The value evaluation can identify whether the product helps. Prediction resolution closes the next part of the learning loop by showing why a view held or failed without granting self-modifying authority. | Each resolution binds the original prediction, later source evidence, world-valid time, observation time, and reviewer judgment. Frozen temporal fixtures reconstruct the same historical state and expose late or contradictory evidence. Accepted proposals demonstrate held-out before-and-after benefit. No prediction result directly mutates beliefs, prompts, routing, skills, or policy. |
+| **v2.53** | Complete the shared durable parent transaction and an execution-ready but disabled OpenRouter adapter proof. | Provider routing cannot become useful paid capacity until one request graph has exact spend, identity, route, retry, cancellation, and settlement authority. | Fault injection cannot overshoot or duplicate effects; fixtures prove exact credential, request, provider, response, generation, cache, BYOK, plugin, and total-cost handling; ambiguous outcomes consume the hold and freeze reconciliation. The current repository rule still forbids a paid inference validation or production activation. |
+| **v2.54** | Expose owner-scoped, read-only investigation projections and validate exact host profiles for OpenClaw, DeepSeek Harness, Grok Build, Codex, and manual Grok Bot use. | Observation follows the value loop and authority substrate, while control still waits. Portable Agent Plugin packaging remains the primary lane. | Observation authority binds caller, `run_id`, expert roster, and cursor. Cross-run reads fail. Each host claim pins exact versions, tools, transport, runtime dependencies, and fixture or live `$0` evidence. |
+| **v2.55** | Add lineage-only follow-up, fork, pause, resume, cancel, and separately approved remote start. | Control can follow only after observation and ownership are proven. | Every transition is typed, idempotent, hash-bound, race-tested, budget-bound, and reconstructible from the canonical journal. |
+| **v2.56** | Admit bounded external workspace evidence and only the MCP extensions that remove a measured limitation. | Computer-produced evidence and protocol convenience must not become hidden authority. | Tainted artifacts remain evidence-only, derived views remain regenerable, and every Tasks, Skills-over-MCP, or Apps adapter has an explicit capability and authority boundary. |
+| **v3.0** | Freeze a portable, evidence-gated Level 5/6 expert contract. | Major-version stability should consolidate proven behavior, not collect unrelated features. | Approach, Supported Surface, capacity classes, migration guarantees, and multi-device continuity are stable. Any paid path is either independently proven and explicitly permitted or remains honestly frozen. |
+
+### Version and release discipline
+
+- Patch releases fix compatibility, safety, packaging, documentation, or
+  dependency defects. They do not add authority or silently widen execution.
+- Minor releases promote one coherent capability after its gate passes. A
+  failed gate keeps the capability experimental or blocked; it does not trigger
+  a date-driven release.
+- Work accumulates under `Unreleased`. The package, plugin, fixtures, release
+  docs, and lockfile receive one matching version only when the candidate is
+  complete. The changelog states the evidence and any remaining block.
+- The exact `main` commit must pass blocking CI before it is tagged. Build and
+  plugin artifacts are then verified, the GitHub Release points to that commit,
+  the public installer is exercised, and the installed CLI version is checked.
+  A failed live check becomes a roadmap finding and is fixed in a later patch.
+- Paid OpenRouter activation cannot be hidden inside v2.53. Under the current
+  hard rule, no paid inference call is allowed. If that rule is explicitly
+  revised after the complete proof, activation receives its own minor target
+  and requires a two-model validation under the smaller of the provider hard
+  limit, Deepr parent ceiling, and operator authorization.
+
+Detailed topic gates live in [Detailed Promotion Gates](#detailed-promotion-gates).
+Completed behavior lives in [the changelog](docs/CHANGELOG.md), not in the
+release sequence.
+
+---
+
 ## Architecture Layers
 
 Deepr is organized in three layers. When contributing, it helps to know which layer you're working in:
@@ -366,7 +411,21 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.10)
+## Current Status (v2.50.11)
+
+**Shipped in v2.50.11 (see docs/CHANGELOG.md):** the authenticated OpenRouter
+current-key observation now accepts the provider's documented nullable
+`limit`, `limit_remaining`, and `limit_reset` controls, preserves `null` in the
+versioned sanitized result, and reports missing limits as not set rather than
+`$0.00`. A key without the required monthly, BYOK-inclusive limit remains
+ineligible and dispatch remains blocked.
+
+- [x] **Live validation finding (2026-09-02):** a valid OpenRouter response with
+  `limit_reset: null` was rejected as malformed before Deepr could evaluate its
+  actual account posture. The v2 control observation now parses nullable
+  fields, returns the specific policy failures, and has regressions for both
+  structured JSON and human-readable output. The recheck made zero inference
+  requests and zero paid requests.
 
 **Shipped in v2.50.10 (see docs/CHANGELOG.md):** the Windows release installer
 now handles a missing `pipx` module as an expected bootstrap condition under
@@ -407,7 +466,7 @@ Quick Start, root help, command help, and post-create guidance agree on retain,
 study, brief, then consult. A no-network regression proves that a retained
 passage survives into grounded consult context without constructing a provider.
 Release-history and version drift now fail the documentation consistency gate,
-the four-arm value proof is the immediate evidence loop, and v2.51 remains
+the four-arm value proof is the immediate evidence loop, and v2.54 remains
 design-gated until observation authority binds more than a known `run_id`.
 
 **Shipped in v2.50.7 (see docs/CHANGELOG.md):** MCP job persistence now keeps
@@ -1135,38 +1194,15 @@ report can be written. External arm execution can still consume the capacity
 and cost recorded in the workbook. This closes the measurement path needed for
 longitudinal proof; it is not itself proof that an expert improved.
 
-### Next Order Of Operations
+## Detailed Promotion Gates
 
-The fleet-autopilot track (Phase 4d) is largely closed. The active edge is
-measured improvement in decisions over time, not more document chat or a larger
-memory surface. This order is **dependency-based and version-targeted**, not
-calendar-based. Do not schedule work by wall-clock estimates; advance only when
-the gate for that version is proven.
-
-#### Version ladder (current -> 3.0 and beyond)
-
-| Target | Focus | Why this order | Gate to call it done |
-| --- | --- | --- | --- |
-| **v2.43.x** (shipped) | Approach contract and offline dual-era MCP conformance | Host interop must be provable offline before more remote surface | `mcp conformance` and doctor preflight shipped; paid remained frozen |
-| **v2.44 development** (included in v2.45.0) | Retained expert corpus, study lenses, anchored findings, coverage, and notebook views | Experts needed re-readable evidence before they could hold an inspectable view | Content-addressed corpus and `$0` study proposal path shipped with v2.45.0; no separate v2.44 tag exists |
-| **v2.45** (shipped) | Honest corpus measurements, source cards, acquisition planning, and consult context | Retrieval counts and source repetition could not stand in for evidence quality | Independence, grounding, comparison, and scheduler failure states became observable |
-| **v2.46** (shipped) | Durable positions, self-account, viva, perspective graph, stage contracts, and key quarantine | An expert needed a standpoint and history before broader presentation or authority | Position and perspective state shipped; metered keys became absent by default |
-| **v2.47** (shipped, grant superseded) | Expert v2 web surface, local portraits, and the original attended `$2` grant | The new expert state needed a real interface; attended spend needed a first narrow proof | Twelve read-only v2 routes and local portrait path shipped; the grant was replaced in v2.49 |
-| **v2.48** (shipped) | Local-first consult plus the 2026-08-13 provider model and pricing refresh | Consultation must not inherit metered authority; estimates must follow current official catalogs | Consult blocks API paths; GPT-5.6, Grok 4.6, Claude 5, and current Gemini posture registered |
-| **v2.49** (shipped) | Persistent metered-spend wallet, independent job ceilings, and a curated flagship expert roster | Operators need chosen total exposure without a universal $2 research limit; the main roster must show developed experts | Wallet and verified provider boundaries both apply; no refill or overdraft; 25 explicit flagship experts have inspectable structure |
-| **v2.50** (shipped, 2.50.10 patch) | Standards foundation plus fail-closed spend, identity-bound storage, authentication, scoped remote access, bounded acquisition, terminal-state handling, a complete first-run expert path, and bounded OpenRouter comparison | Format truth must precede distribution; spend, identity, durable state, public guidance, and gateway route truth must fail closed after the first release | Offline pinned fixtures pass; OKF remains derived and verification-gated; completion receipts cannot leave a hold; MCP job state survives partial saves and restarts; terminal phases cannot be resurrected; report lookup verifies full stored identity; model-proposed searches cannot multiply work beyond the per-arm ceiling; documented onboarding reaches grounded consult context without paid dispatch; OpenRouter previews prove one current provider-route proposal and bounded text price classes while execution remains blocked |
-| **v2.51** (design-gated) | Read-only MCP investigation projection tools over the shipped builders | Hosts need bounded, replayable, owner-scoped observation before they receive control authority | Choose and document either local-stdio-only ownership or a durable revocable observation grant binding the caller, `run_id`, and expert roster. Knowledge of a `run_id` is not authorization. Only then add cursor tools that remain content-free and deny cross-run access |
-| **v2.52** | Fixture-validated OpenClaw, DeepSeek Harness, Grok Build, Codex, and manual Grok Bot profiles | Portable packaging is primary; host fragments are compatibility paths and Bot lifecycle automation remains unavailable | OpenClaw stable `v2026.8.2` is the first Agent Plugin lane; every advertised host claim names exact versions, tools, transport, runtime dependency, and validation evidence |
-| **v2.53** | Shared durable parent transaction, maximum-charge contract, scoped HTTP authority, provider-gateway proof, then NemoClaw remote-isolation proof | Remote mutation, gateway dispatch, and isolation depend on spend, identity, credential, endpoint, and upstream-route truth | Retry and crash tests cannot overshoot the parent ceiling or duplicate effects; OpenRouter's non-authorizing route and current-key observations must be joined to exact response identity, parent settlement, and final billing reconciliation before dispatch; NemoClaw remains reference-only until live evidence passes |
-| **v2.54** | Lineage-only follow-up, fork, pause, resume, cancel, and separately approved remote start | Control follows observation and authority, never precedes them | Every transition is idempotent, hash-bound, race-tested, and reconstructible from the canonical journal |
-| **v2.55** | External workspace evidence bundles and selectively negotiated MCP extensions | Computer-produced evidence and protocol convenience arrive only after core boundaries hold | Tainted artifacts remain evidence-only; each Tasks, Skills-over-MCP, or Apps adapter removes a measured limitation without becoming authority |
-| **v3.0** | Portable, evidence-gated expert maturity (Level 5/6 gates, multi-device continuity, honest Supported Surface) | 3.0 is a contract freeze, not a feature dump | Approach + Supported Surface + capacity classes stable; paid path either proven safe or still honestly frozen |
-| **3.x+** | Polyglot extraction, broader plan adapters, hosted MCP only after evidence | Widen only after quality, cost, and security evidence | Per-item gates in design notes; no global cheapest-first metered fallback |
-
-**Invariant across every version:** No Surprise Bills outranks features. Local
-`$0` and safety-eligible plan quota stay preferred. Effective paid authority
-remains `$0.00` unless both the attended v2.49 wallet path and provider-proof gates apply. Historical July 2026 ledger
-overshoot is the design standard, not a closed story.
+The [Active Release Plan](#active-release-plan) is the only delivery sequence.
+The numbered entries below are durable topic identifiers and prerequisite
+detail, not another priority list. No Surprise Bills outranks every topic.
+Local `$0` and safety-eligible plan quota stay preferred. Effective paid
+authority remains `$0.00` unless both the attended v2.49 wallet path and every
+provider-proof gate apply. Historical July 2026 ledger overshoot remains the
+design standard, not a closed story.
 
 0. **No Surprise Bills: spend caps that cannot be overshot (governing money
    invariant, outranks every feature and every version).** The July 2026
@@ -3517,14 +3553,13 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.10. This roadmap keeps
+v2.50.11. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 
-The active dependency ladder is
-[Next Order Of Operations](#next-order-of-operations). Completed release
-history and superseded planning live in the changelog and published Git
-references, not in a competing roadmap section.
+The active dependency ladder is [Active Release Plan](#active-release-plan).
+Completed release history and superseded planning live in the changelog and
+published Git references, not in a competing roadmap section.
 
 ---
 

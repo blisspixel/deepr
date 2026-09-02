@@ -118,8 +118,8 @@ def test_sdist_check_accepts_only_the_frontend_archive(tmp_path: Path):
     _write_sdist(
         sdist,
         (
-            "deepr_research-2.50.10/pyproject.toml",
-            "deepr_research-2.50.10/src/deepr/web/frontend/frontend-dist.zip",
+            "deepr_research-2.50.11/pyproject.toml",
+            "deepr_research-2.50.11/src/deepr/web/frontend/frontend-dist.zip",
         ),
     )
 
@@ -131,8 +131,8 @@ def test_sdist_check_rejects_frontend_dependency_files(tmp_path: Path):
     _write_sdist(
         sdist,
         (
-            "deepr_research-2.50.10/src/deepr/web/frontend/frontend-dist.zip",
-            "deepr_research-2.50.10/src/deepr/web/frontend/node_modules/pkg/tool.py",
+            "deepr_research-2.50.11/src/deepr/web/frontend/frontend-dist.zip",
+            "deepr_research-2.50.11/src/deepr/web/frontend/node_modules/pkg/tool.py",
         ),
     )
 
@@ -142,7 +142,7 @@ def test_sdist_check_rejects_frontend_dependency_files(tmp_path: Path):
 
 def test_sdist_check_rejects_duplicate_members(tmp_path: Path):
     sdist = tmp_path / "deepr.tar.gz"
-    archive_name = "deepr_research-2.50.10/src/deepr/web/frontend/frontend-dist.zip"
+    archive_name = "deepr_research-2.50.11/src/deepr/web/frontend/frontend-dist.zip"
     _write_sdist(sdist, (archive_name, archive_name))
 
     with pytest.raises(SystemExit, match="duplicate archive member"):

@@ -81,6 +81,8 @@ The reasoning behind contract-spanning choices, kept versioned with the code.
 
 ## Project direction
 
+- **[../ROADMAP.md#active-release-plan](../ROADMAP.md#active-release-plan)** -
+  dependency-gated version sequence with no calendar estimates.
 - **[../ROADMAP.md](../ROADMAP.md)** - Development priorities and status (single source of truth for active work)
 - **[INTEGRATIONS.md](INTEGRATIONS.md)** - First-party tool integrations (recon, distillr, primr)
 - **[AGENTIC_VISION.md](AGENTIC_VISION.md)** - Agentic architecture, A2A protocol, reflection, campaigns

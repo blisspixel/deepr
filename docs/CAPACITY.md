@@ -99,6 +99,13 @@ the endpoint tag. The exact request, durable parent settlement, total provider
 cost, ambiguous outcomes, and final billing reconciliation remain required. A
 successful smoke request alone is not sufficient evidence.
 
+OpenRouter can validly return `null` for `limit`, `limit_remaining`, or
+`limit_reset`. The v2 sanitized observation preserves those values as `null`
+and reports the missing hard limit or monthly reset as a policy failure. It does
+not misreport an absent limit as `$0.00`, and it does not treat a valid nullable
+response as malformed. A larger, daily, weekly, non-resetting, or BYOK-exclusive
+limit remains ineligible even when the account has enough prepaid credit.
+
 | Adapter | Current execution posture | Why |
 |---|---|---|
 | Claude Code | Executable; eligible for observed-quota auto-routing | Stored plan auth is classifiable. Every dispatch requires provider metadata proving paid extra usage is off, then uses safe mode with empty tool and MCP surfaces, no persistence, the included `sonnet` alias, and no API credential. |
