@@ -104,7 +104,6 @@ jobs:
         # `--ignore-vuln <ID>` rather than by disabling the gate.
         run: |
           uv sync --frozen --extra dev --extra full
-          uv pip install "pip==26.2"
           pip-audit --skip-editable
 
       - name: Generate SBOM (pinned dependency bill of materials)

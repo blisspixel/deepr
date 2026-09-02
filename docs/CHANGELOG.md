@@ -65,6 +65,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- The locked `pip` dependency is raised to 26.2.1, clearing
+  GHSA-qwm4-qh6w-59xr. CI now audits the exact frozen environment instead of
+  replacing the locked version immediately before the audit.
 - OpenRouter execution fails before reservation or provider construction.
   The route and current-key checks both return `dispatch_authorized=false`.
   Credential observations use a domain-separated scrypt fingerprint instead
