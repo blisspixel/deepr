@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.10] - 2026-09-01
+
+### Fixed
+
+- The Windows installer now treats a missing `pipx` module as the expected
+  bootstrap condition even when Windows PowerShell promotes the probe's native
+  stderr to a terminating error under `ErrorActionPreference=Stop`. It can now
+  install `pipx` and continue with the verified GitHub Release wheel on a clean
+  Python installation.
+
 ## [2.50.9] - 2026-09-01
 
 ### Added
