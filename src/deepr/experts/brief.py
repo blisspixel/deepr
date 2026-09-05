@@ -412,8 +412,13 @@ async def build_brief(
     completion: BriefCompletion,
     domain: str = "",
     prior_positions: list[Any] | None = None,
+    as_of_date: date | None = None,
 ) -> ExpertBrief:
-    """Synthesize one brief. Returns an empty brief rather than raising."""
+    """Synthesize one brief at the supplied cutoff or the current UTC date.
+
+    The same date governs the prompt and prediction registration even if the
+    completion crosses midnight. Returns an empty brief rather than raising.
+    """
     from deepr.experts.study import extract_json_object
 
     if not result.findings:
@@ -424,13 +429,13 @@ async def build_brief(
         )
         return brief
 
-    today = _utc_today()
+    effective_date = as_of_date or _utc_today()
     prompt = build_brief_prompt(
         result,
         expert_name=expert_name,
         domain=domain,
         prior_positions=prior_positions,
-        as_of_date=today,
+        as_of_date=effective_date,
     )
     try:
         raw = await completion(prompt)
@@ -451,7 +456,7 @@ async def build_brief(
         expert_name=expert_name,
         result=result,
         corpus=corpus,
-        as_of_date=today,
+        as_of_date=effective_date,
     )
 
 
