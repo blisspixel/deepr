@@ -1261,6 +1261,14 @@ longitudinal proof; it is not itself proof that an expert improved.
   bind effective model/context/memory state, and collect blinded answer reviews.
   Structural preparation does not satisfy the v2.51 value gate.
 
+### Shared chat inventory correction
+
+- [x] September 5, 2026: a command-level reproduction found blocked research
+  and stored skills advertised as available, an unsupported free-search claim,
+  and model-switch help for an inspection-only handler. Shared inventory,
+  mode, and model help now match their runtime limits. Regressions cover both
+  command prefixes and all modes without provider calls or tool execution.
+
 ## Detailed Promotion Gates
 
 The [Active Release Plan](#active-release-plan) is the only delivery sequence.

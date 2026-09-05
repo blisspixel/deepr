@@ -212,16 +212,17 @@ async def handle_model(session: ExpertChatSession, args: str, context: dict) -> 
 async def handle_tools(session: ExpertChatSession, args: str, context: dict) -> CommandResult:
     cfg = MODE_CONFIGS[session.chat_mode]
     allowed = cfg["tools"]
-    lines = [f"Tools available in **{session.chat_mode.value}** mode:"]
+    lines = [f"Configured tool inventory for **{session.chat_mode.value}** mode:"]
     for tool_name in allowed:
         desc = TOOL_DESCRIPTIONS.get(tool_name, tool_name)
         lines.append(f"  - {tool_name}: {desc}")
     if session.active_skills:
         lines.append("")
-        lines.append("Skill tools:")
+        lines.append("Skill inventory (execution blocked):")
         for skill in session.active_skills:
             for tool in skill.tools:
                 lines.append(f"  - {skill.name}/{tool.name}")
+    lines.extend(["", "Inventory only. Metered calls and skill execution are blocked. See deepr capacity."])
     return CommandResult(output="\n".join(lines))
 
 

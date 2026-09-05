@@ -497,14 +497,14 @@ The disabled interactive design includes slash commands, chat modes, and
 research triggers. CLI, web, and MCP API chat fail before provider dispatch;
 the capabilities below do not authorize metered execution.
 
-**Chat Modes** control how the expert responds:
+**Chat Modes** configure the retained interactive design:
 
 ```bash
-# In chat, switch modes with slash commands:
+# Shared command syntax for the gated design:
 /ask        # Quick answers, KB-only tools
-/research   # Default - all tools available
+/research   # Research tool configuration; execution gates still apply
 /advise     # Structured consulting-style recommendations
-/focus      # Always-on chain-of-thought reasoning
+/focus      # Requests Tree of Thoughts; does not prove execution
 ```
 
 **Slash Commands** (27 total, organized by category):
@@ -514,11 +514,17 @@ the capabilities below do not authorize metered execution.
 | Mode | `/ask`, `/research`, `/advise`, `/focus`, `/mode [name]` |
 | Session | `/clear`, `/compact`, `/remember <text>`, `/forget <idx>`, `/memories`, `/new` |
 | Reasoning | `/trace`, `/why`, `/decisions`, `/thinking [on/off]` |
-| Control | `/model [name]`, `/tools`, `/effort [low/med/high]`, `/budget [amount]` |
+| Control | `/model`, `/tools`, `/effort [low/med/high]`, `/budget [amount]` |
 | Management | `/save [name]`, `/load <id>`, `/export [md/json]`, `/council <query>`, `/plan <query>` |
 | Utility | `/help [cmd]`, `/status`, `/quit` |
 
 Use `/` prefix in web, `\` prefix in CLI.
+
+In the unreleased source checkout, `/tools` and `/help tools` describe a
+configured inventory. Stored skills remain visible with execution blocked;
+neither a listed tool nor a mode switch grants capacity. The handler makes no
+provider call. `/model` reports the configured model; a legacy name argument
+does not switch it. Interactive metered chat remains disabled.
 
 **Context Compaction** keeps sessions usable over long conversations:
 
