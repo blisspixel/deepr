@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { useParams, useNavigate, useSearchParams } from 'react-router'
+import { Link, useParams, useNavigate, useSearchParams } from 'react-router'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { cn, formatCurrency, formatRelativeTime } from '@/lib/utils'
 import { expertsApi } from '@/api/experts'
@@ -48,8 +48,9 @@ import { DetailSkeleton } from '@/components/ui/skeleton'
 import EmptyState from '@/components/shared/empty-state'
 import PartialQueryError from '@/components/shared/partial-query-error'
 import { ExpertPortrait } from '@/components/expert-portrait'
+import { localConsultPowerShellCommand, resolveExpertProfileTab, type ExpertProfileTab } from '@/lib/expert-profile-navigation'
 
-type TabKey = 'chat' | 'claims' | 'gaps' | 'decisions' | 'history' | 'skills'
+type TabKey = ExpertProfileTab
 
 function ConfidenceBar({ value }: { value: number }) {
   const pct = Math.round(value * 100)
@@ -145,10 +146,14 @@ const DECISION_TYPE_ICONS: Record<string, typeof GitBranch> = {
 
 export default function ExpertProfile() {
   const { name } = useParams<{ name: string }>()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
-  const initialTab = (searchParams.get('tab') as TabKey) || 'chat'
-  const [activeTab, setActiveTab] = useState<TabKey>(initialTab)
+  const activeTab = resolveExpertProfileTab(searchParams.get('tab'))
+  const setActiveTab = (tab: TabKey) => setSearchParams((current) => {
+    const next = new URLSearchParams(current)
+    next.set('tab', tab)
+    return next
+  })
   const [chatInput, setChatInput] = useState('')
   const [chatMessages, setChatMessages] = useState<ExpertChat[]>([])
   const [sessionId, setSessionId] = useState<string | null>(null)
@@ -170,7 +175,7 @@ export default function ExpertProfile() {
   const userScrolledRef = useRef(false)
   const streamingContentRef = useRef('')
 
-  const decodedName = decodeURIComponent(name || '')
+  const decodedName = name || ''
   const encodedName = encodeURIComponent(decodedName)
 
   // Reset chat when switching experts
@@ -362,7 +367,8 @@ export default function ExpertProfile() {
     enabled: activeTab === 'chat',
   })
   const chatMaxBudget = costLimits?.expert_chat_max ?? 0
-  const chatControlsLocked = socketSessionActive || isStreaming
+  const browserChatUnavailable = true
+  const chatControlsLocked = browserChatUnavailable || socketSessionActive || isStreaming
 
   useEffect(() => {
     if (chatControlsLocked || chatMaxBudget <= 0) return
@@ -504,6 +510,10 @@ export default function ExpertProfile() {
   })
 
   const prepareChatRequest = useCallback((message: string) => {
+    if (browserChatUnavailable) {
+      toast.info('Browser chat is unavailable. Use the local CLI consultation below the expert summary.')
+      return null
+    }
     const result = prepareBrowserExpertChatRequest({
       message,
       chatMode,
@@ -516,7 +526,7 @@ export default function ExpertProfile() {
       return null
     }
     return result.request
-  }, [chatBudgetInput, chatMaxBudget, chatMode, meteredChatConfirmed])
+  }, [browserChatUnavailable, chatBudgetInput, chatMaxBudget, chatMode, meteredChatConfirmed])
 
   const handleSendMessage = useCallback((e?: React.FormEvent) => {
     e?.preventDefault()
@@ -640,17 +650,17 @@ export default function ExpertProfile() {
     && chatMaxBudget > 0
     && numericChatBudget <= chatMaxBudget
   )
-  if (isLoading) return <DetailSkeleton />
+  if (isLoading) return <div role="status" aria-label="Loading expert"><DetailSkeleton /></div>
 
   if (isError) {
     return (
-      <div className="flex flex-col items-center justify-center h-[60vh] text-center">
+      <div role="alert" className="flex flex-col items-center justify-center min-h-[60vh] p-4 text-center">
         <AlertTriangle className="w-10 h-10 text-muted-foreground/40 mb-3" />
         <p className="text-lg font-medium text-foreground mb-1">Unable to load expert</p>
-        <p className="text-sm text-muted-foreground mb-4">Could not connect to the backend. Expert data will appear here once the server is running.</p>
+        <p className="text-sm text-muted-foreground mb-4">The expert could not be retrieved. Its saved knowledge may still be available; retry to inspect it.</p>
         <button
           onClick={() => refetch()}
-          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary-hover transition-colors"
         >
           Retry
         </button>
@@ -671,12 +681,12 @@ export default function ExpertProfile() {
   }
 
   const tabs: { key: TabKey; label: string }[] = [
-    { key: 'chat', label: 'Chat' },
     { key: 'claims', label: 'Claims' },
     { key: 'gaps', label: 'Knowledge Gaps' },
     { key: 'decisions', label: 'Decisions' },
     { key: 'history', label: 'History' },
     { key: 'skills', label: 'Skills' },
+    { key: 'chat', label: 'Chat (unavailable)' },
   ]
 
   const sortedClaims = claims
@@ -688,16 +698,16 @@ export default function ExpertProfile() {
     : []
 
   return (
-    <div className="flex flex-col h-[calc(100vh-7rem)] animate-fade-in">
+    <div className="flex min-h-full flex-col animate-fade-in">
       {/* Header */}
-      <div className="p-6 border-b space-y-4 shrink-0">
-        <button
-          onClick={() => navigate('/experts')}
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+      <div className="p-4 sm:p-6 border-b space-y-4 shrink-0">
+        <Link
+          to="/experts"
+          className="inline-flex items-center gap-1.5 rounded text-sm text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
         >
           <ArrowLeft className="w-4 h-4" />
           Experts
-        </button>
+        </Link>
 
         <div className="flex items-start gap-4">
           <div className="relative group/avatar shrink-0">
@@ -710,7 +720,7 @@ export default function ExpertProfile() {
             <button
               onClick={handlePortraitClick}
               disabled={portraitMutation.isPending}
-              className="absolute inset-0 rounded-lg bg-black/50 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity"
+              className="absolute inset-0 rounded-lg bg-black/50 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 focus-visible:opacity-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring transition-opacity"
               title={expert.portrait_url ? 'Replace portrait' : 'Generate portrait'}
             >
               {portraitMutation.isPending ? (
@@ -720,11 +730,11 @@ export default function ExpertProfile() {
               )}
             </button>
           </div>
-          <div className="flex-1">
-            <h1 className="text-xl font-semibold text-foreground">{expert.name}</h1>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl font-semibold text-foreground break-words">{expert.name}</h1>
             {expert.description && <p className="text-sm text-muted-foreground mt-0.5">{expert.description}</p>}
             <div className="flex flex-wrap items-center gap-4 mt-2 text-xs text-muted-foreground">
-              <span className="inline-flex items-center gap-1"><FileText className="w-3 h-3" />{expert.document_count} docs</span>
+              <span className="inline-flex items-center gap-1"><FileText className="w-3 h-3" />{expert.source_count ?? expert.document_count} {expert.source_count === undefined ? 'docs' : 'study sources'}</span>
               <span className="inline-flex items-center gap-1"><Lightbulb className="w-3 h-3" />{expert.studied_findings ?? 0} findings</span>
               <span className="inline-flex items-center gap-1"><Search className="w-3 h-3" />{expert.gap_count} gaps</span>
               <span className="inline-flex items-center gap-1"><DollarSign className="w-3 h-3" />{formatCurrency(expert.total_cost)}</span>
@@ -732,30 +742,48 @@ export default function ExpertProfile() {
             <div className="flex flex-wrap gap-2 mt-2">
               <button
                 className="inline-flex items-center gap-1.5 px-3 py-1 bg-primary/10 text-primary rounded text-xs font-medium hover:bg-primary/20 transition-colors"
-                onClick={() => { setActiveTab('claims'); toast.info('Use CLI: deepr expert validate-citations "' + decodedName + '"') }}
+                onClick={() => setActiveTab('claims')}
               >
                 <Shield className="w-3 h-3" />
-                Validate Citations
+                Inspect Claims
               </button>
               <button
                 className="inline-flex items-center gap-1.5 px-3 py-1 bg-primary/10 text-primary rounded text-xs font-medium hover:bg-primary/20 transition-colors"
-                onClick={() => { setActiveTab('gaps'); toast.info('Use CLI: deepr expert discover-gaps "' + decodedName + '"') }}
+                onClick={() => setActiveTab('gaps')}
               >
                 <Sparkles className="w-3 h-3" />
-                Discover Gaps
+                Inspect Gaps
               </button>
             </div>
           </div>
         </div>
 
+        <details className="rounded-lg border bg-muted/20 p-3 text-sm">
+          <summary className="cursor-pointer rounded font-medium focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">Consult locally with the CLI</summary>
+          <div className="mt-3 space-y-2">
+            <p className="text-muted-foreground">Run this in PowerShell on the machine holding this expert. Replace 'Your question' with what you want to know. Local consultation requires Ollama and a local model.</p>
+            <code className="block whitespace-pre-wrap break-all rounded border bg-background p-3 text-xs">{localConsultPowerShellCommand(decodedName)}</code>
+            <Button variant="outline" size="sm" onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(localConsultPowerShellCommand(decodedName))
+                toast.success('PowerShell command copied')
+              } catch {
+                toast.error('Copy unavailable. Select the command above and copy it manually.')
+              }
+            }}>Copy PowerShell command</Button>
+            <p className="text-xs text-muted-foreground">This copies text only. <Link to="/help" className="text-primary underline underline-offset-2">Local setup guidance</Link></p>
+          </div>
+        </details>
+
         {/* Tabs */}
-        <div className="flex gap-1 p-1 bg-secondary rounded-lg w-fit overflow-x-auto">
+        <div role="group" aria-label="Expert views" className="flex flex-wrap gap-1 p-1 bg-secondary rounded-lg w-fit max-w-full">
           {tabs.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
+              aria-pressed={activeTab === tab.key}
               className={cn(
-                'px-4 py-1.5 rounded-md text-xs font-medium transition-all',
+                'px-3 py-2 rounded-md text-xs font-medium transition-all focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
                 activeTab === tab.key
                   ? 'bg-background shadow-xs text-foreground'
                   : 'text-muted-foreground hover:text-foreground'
@@ -776,7 +804,7 @@ export default function ExpertProfile() {
               <div className="hidden md:flex w-56 border-r shrink-0 flex-col overflow-hidden">
                 <div className="p-3 border-b">
                   <Button size="sm" className="w-full" variant="outline" onClick={startNewChat}>
-                    New Chat
+                    Clear selection
                   </Button>
                 </div>
                 <div className="flex-1 overflow-auto">
@@ -784,12 +812,11 @@ export default function ExpertProfile() {
                     <div
                       key={conv.session_id}
                       className={cn(
-                        'px-3 py-2 border-b cursor-pointer hover:bg-muted/50 transition-colors group/conv',
+                        'px-3 py-2 border-b hover:bg-muted/50 transition-colors group/conv',
                         sessionId === conv.session_id && 'bg-muted',
                       )}
-                      onClick={() => loadConversation(conv.session_id)}
                     >
-                      <p className="text-xs text-foreground truncate">{conv.preview || 'Empty conversation'}</p>
+                      <button type="button" onClick={() => void loadConversation(conv.session_id)} aria-pressed={sessionId === conv.session_id} className="block w-full rounded py-1 text-left text-xs text-foreground truncate focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">{conv.preview || 'Empty conversation'}</button>
                       <div className="flex items-center justify-between mt-0.5">
                         <span className="text-[10px] text-muted-foreground">
                           {conv.message_count} msgs{conv.cost > 0 ? ` · ${formatCurrency(conv.cost)}` : ''}
@@ -801,7 +828,7 @@ export default function ExpertProfile() {
                               deleteConversationMutation.mutate(conv.session_id)
                             }
                           }}
-                          className="text-[10px] text-destructive opacity-0 group-hover/conv:opacity-100 transition-opacity"
+                          className="text-[10px] text-destructive opacity-0 group-hover/conv:opacity-100 focus-visible:opacity-100 transition-opacity"
                           aria-label="Delete conversation"
                         >
                           Delete
@@ -814,13 +841,29 @@ export default function ExpertProfile() {
             )}
             {/* Chat area */}
             <div className="flex-1 flex flex-col min-w-0">
+            <div role="status" className="m-4 rounded-lg border border-warning/40 bg-warning/5 p-3 text-sm">
+              <p className="font-medium">Browser chat is unavailable in this release.</p>
+              <p className="mt-1 text-muted-foreground">Saved conversations remain available for inspection. Open the local CLI handoff above to consult this expert with Ollama.</p>
+            </div>
+            {conversations && conversations.length > 0 && (
+              <label className="mx-4 mb-3 space-y-1 text-sm md:hidden">
+                <span className="block font-medium">Saved conversation</span>
+                <select aria-label="Saved conversation" value={sessionId ?? ''} onChange={(event) => {
+                  if (event.target.value) void loadConversation(event.target.value)
+                  else startNewChat()
+                }} className="w-full min-w-0 rounded-md border bg-background p-2 text-foreground">
+                  <option value="">Choose a saved conversation</option>
+                  {conversations.map((conversation) => <option key={conversation.session_id} value={conversation.session_id}>{conversation.preview || 'Empty conversation'}</option>)}
+                </select>
+              </label>
+            )}
             {isConversationsError && (
               <div className="p-4 pb-0">
                 <PartialQueryError
                   title={conversations ? 'Conversation history refresh failed' : 'Conversation history unavailable'}
                   description={conversations
                     ? 'Previously loaded conversations remain visible, but may be out of date.'
-                    : 'You can keep chatting, but saved conversations could not be loaded.'}
+                    : 'Saved conversations could not be loaded. Retry to inspect them.'}
                   onRetry={() => void refetchConversations()}
                   retrying={isConversationsFetching}
                 />
@@ -848,9 +891,9 @@ export default function ExpertProfile() {
                     FallbackIcon={MessageSquare}
                     fallbackClassName="bg-muted"
                   />
-                  <h3 className="text-sm font-medium text-foreground mb-1">Start a conversation</h3>
+                  <h3 className="text-sm font-medium text-foreground mb-1">No conversation selected</h3>
                   <p className="text-xs text-muted-foreground max-w-xs">
-                    Ask {expert.name} questions about their domain expertise.
+                    Inspect a saved conversation or use the local CLI consultation above.
                   </p>
                 </div>
               )}
@@ -996,7 +1039,7 @@ export default function ExpertProfile() {
               </div>
             )}
 
-            <div className="px-4 pt-3 border-t bg-muted/20 space-y-2">
+            <fieldset disabled={browserChatUnavailable} className="px-4 pt-3 border-t bg-muted/20 space-y-2">
               <div className="flex flex-wrap items-center gap-3 text-xs">
                 <label className="flex items-center gap-2">
                   <span className="font-medium text-foreground">Session ceiling</span>
@@ -1033,8 +1076,7 @@ export default function ExpertProfile() {
                   className="mt-0.5"
                 />
                 <span>
-                  I approve metered API chat up to this session ceiling. Browser chat currently
-                  supports API capacity only; use CLI or MCP for local and plan capacity.
+                  Metered browser chat is unavailable. Budget settings do not enable it.
                 </span>
               </label>
               {isCostLimitsError && (
@@ -1042,7 +1084,7 @@ export default function ExpertProfile() {
                   Cost limits could not be loaded, so metered browser chat is disabled.
                 </p>
               )}
-            </div>
+            </fieldset>
 
             {/* Input */}
             <form onSubmit={handleSendMessage} className="p-4 pt-3 flex gap-2 items-end relative">
@@ -1064,12 +1106,13 @@ export default function ExpertProfile() {
                 />
                 <Textarea
                   value={chatInput}
+                  disabled={browserChatUnavailable}
                   onChange={(e) => {
                     setChatInput(e.target.value)
                     setShowSlashMenu(/^\/\w*$/.test(e.target.value))
                   }}
                   onKeyDown={handleKeyDown}
-                  placeholder={`Ask ${expert.name} a question... (/ for commands)`}
+                  placeholder="Use the local CLI to consult this expert"
                   className="min-h-[40px] max-h-[200px]"
                   autoGrow
                   rows={1}
@@ -1095,7 +1138,8 @@ export default function ExpertProfile() {
                   type="submit"
                   size="icon"
                   disabled={
-                    !chatInput.trim()
+                    browserChatUnavailable
+                    || !chatInput.trim()
                     || (!chatInput.trim().startsWith('/') && !chatBudgetValid)
                   }
                   loading={chatMutation.isPending}

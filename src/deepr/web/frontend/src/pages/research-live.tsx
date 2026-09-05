@@ -88,7 +88,7 @@ export default function ResearchLive() {
         <p className="text-sm text-muted-foreground mb-4">Could not connect to the backend. Job data will appear here once the server is running.</p>
         <button
           onClick={() => refetch()}
-          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary-hover transition-colors"
         >
           Retry
         </button>
@@ -136,7 +136,7 @@ export default function ResearchLive() {
             </div>
             <button
               onClick={() => navigate(`/results/${job.id}`)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 shrink-0"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary-hover shrink-0"
             >
               View Result
               <ExternalLink className="w-4 h-4" />
@@ -325,7 +325,7 @@ export default function ResearchLive() {
                 <AlertDialogCancel>Keep Running</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={() => cancelMutation.mutate()}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive-hover"
                 >
                   Cancel Job
                 </AlertDialogAction>

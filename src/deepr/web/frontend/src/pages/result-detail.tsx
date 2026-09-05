@@ -113,7 +113,7 @@ export default function ResultDetail() {
         <p className="text-sm text-muted-foreground mb-4">Could not connect to the backend. Result data will appear here once the server is running.</p>
         <button
           onClick={() => refetch()}
-          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary-hover transition-colors"
         >
           Retry
         </button>
@@ -211,7 +211,7 @@ export default function ResultDetail() {
             <div className="relative" ref={exportRef}>
               <button
                 onClick={() => setShowExport(!showExport)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:bg-primary-hover transition-colors"
               >
                 <Download className="w-3.5 h-3.5" />
                 Export

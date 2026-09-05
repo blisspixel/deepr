@@ -13,24 +13,29 @@ export type Accent =
   | 'cyan'
 
 /**
- * Accent palette. Each entry carries a light and a dark HSL triple (matching the
- * `--primary` token format in index.css) so the chosen accent looks right in
- * both modes - a single value would be too dark in dark mode or too washed in
- * light mode. 'teal' is the default brand accent and clears the overrides so the
- * CSS defaults win. Keep this in sync with the inline FOUC map in index.html.
+ * Filled controls use opaque rest and hover colors with the theme's shared
+ * foreground. 'teal' clears all overrides so the CSS defaults win. Keep these
+ * values in sync with the synchronous appearance bootstrap in index.html.
  */
-export const ACCENTS: Record<Accent, { label: string; light: string; dark: string }> = {
-  teal: { label: 'Teal', light: '172 66% 30%', dark: '172 52% 48%' },
-  indigo: { label: 'Indigo', light: '243 55% 52%', dark: '243 72% 72%' },
-  blue: { label: 'Blue', light: '217 80% 47%', dark: '213 85% 66%' },
-  violet: { label: 'Violet', light: '262 60% 52%', dark: '263 78% 73%' },
-  emerald: { label: 'Emerald', light: '158 70% 32%', dark: '156 60% 48%' },
-  amber: { label: 'Amber', light: '32 90% 42%', dark: '38 92% 56%' },
-  rose: { label: 'Rose', light: '346 72% 48%', dark: '346 82% 66%' },
-  cyan: { label: 'Cyan', light: '191 82% 35%', dark: '189 78% 55%' },
+export const ACCENTS: Record<Accent, {
+  label: string
+  light: string
+  dark: string
+  lightHover: string
+  darkHover: string
+}> = {
+  teal: { label: 'Teal', light: '172 65% 27%', dark: '172 50% 48%', lightHover: '172 65% 23%', darkHover: '172 50% 55%' },
+  indigo: { label: 'Indigo', light: '243 55% 48%', dark: '243 72% 72%', lightHover: '243 55% 42%', darkHover: '243 72% 78%' },
+  blue: { label: 'Blue', light: '217 80% 40%', dark: '213 85% 66%', lightHover: '217 80% 34%', darkHover: '213 85% 73%' },
+  violet: { label: 'Violet', light: '262 60% 47%', dark: '263 78% 73%', lightHover: '262 60% 41%', darkHover: '263 78% 79%' },
+  emerald: { label: 'Emerald', light: '158 70% 25%', dark: '156 60% 48%', lightHover: '158 70% 21%', darkHover: '156 60% 56%' },
+  amber: { label: 'Amber', light: '32 90% 31%', dark: '38 92% 56%', lightHover: '32 90% 26%', darkHover: '38 92% 63%' },
+  rose: { label: 'Rose', light: '346 72% 41%', dark: '346 82% 66%', lightHover: '346 72% 35%', darkHover: '346 82% 73%' },
+  cyan: { label: 'Cyan', light: '191 82% 27%', dark: '189 78% 55%', lightHover: '191 82% 23%', darkHover: '189 78% 63%' },
 }
 
 const ACCENT_VARS = ['--primary', '--ring', '--sidebar-primary', '--sidebar-ring']
+const ACCENT_HOVER_VAR = '--primary-hover'
 
 interface UIState {
   sidebarCollapsed: boolean
@@ -63,11 +68,13 @@ function applyAppearance(theme: Theme, accent: Accent) {
   root.classList.toggle('dark', dark)
   root.classList.toggle('light', !dark)
 
-  if (accent === 'teal' || !ACCENTS[accent]) {
+  if (accent === 'teal' || !Object.prototype.hasOwnProperty.call(ACCENTS, accent)) {
     ACCENT_VARS.forEach((v) => root.style.removeProperty(v))
+    root.style.removeProperty(ACCENT_HOVER_VAR)
   } else {
     const value = dark ? ACCENTS[accent].dark : ACCENTS[accent].light
     ACCENT_VARS.forEach((v) => root.style.setProperty(v, value))
+    root.style.setProperty(ACCENT_HOVER_VAR, dark ? ACCENTS[accent].darkHover : ACCENTS[accent].lightHover)
   }
 }
 

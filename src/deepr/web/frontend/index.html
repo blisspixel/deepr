@@ -4,7 +4,8 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/deepr.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Deepr - Research Automation Platform</title>
+    <meta name="description" content="Persistent domain experts built from bounded, auditable research. Local knowledge, inspectable evidence, and explicit capacity." />
+    <title>Deepr - Persistent domain experts</title>
     <script>
       // Synchronous theme + accent application to prevent a flash of the wrong
       // colors (FOUC). Mirrors applyAppearance() in src/stores/ui-store.ts -
@@ -21,19 +22,20 @@
           root.classList.add(dark ? 'dark' : 'light');
 
           var ACCENTS = {
-            indigo:  ['243 55% 52%', '243 72% 72%'],
-            blue:    ['217 80% 47%', '213 85% 66%'],
-            violet:  ['262 60% 52%', '263 78% 73%'],
-            emerald: ['158 70% 32%', '156 60% 48%'],
-            amber:   ['32 90% 42%',  '38 92% 56%'],
-            rose:    ['346 72% 48%', '346 82% 66%'],
-            cyan:    ['191 82% 35%', '189 78% 55%']
+            indigo:  ['243 55% 48%', '243 72% 72%', '243 55% 42%', '243 72% 78%'],
+            blue:    ['217 80% 40%', '213 85% 66%', '217 80% 34%', '213 85% 73%'],
+            violet:  ['262 60% 47%', '263 78% 73%', '262 60% 41%', '263 78% 79%'],
+            emerald: ['158 70% 25%', '156 60% 48%', '158 70% 21%', '156 60% 56%'],
+            amber:   ['32 90% 31%',  '38 92% 56%', '32 90% 26%', '38 92% 63%'],
+            rose:    ['346 72% 41%', '346 82% 66%', '346 72% 35%', '346 82% 73%'],
+            cyan:    ['191 82% 27%', '189 78% 55%', '191 82% 23%', '189 78% 63%']
           };
-          var pair = ACCENTS[state.accent];
-          if (pair) {
+          if (Object.prototype.hasOwnProperty.call(ACCENTS, state.accent)) {
+            var pair = ACCENTS[state.accent];
             var value = dark ? pair[1] : pair[0];
             ['--primary', '--ring', '--sidebar-primary', '--sidebar-ring']
               .forEach(function(v) { root.style.setProperty(v, value); });
+            root.style.setProperty('--primary-hover', dark ? pair[3] : pair[2]);
           }
         } catch(e) {}
       })();

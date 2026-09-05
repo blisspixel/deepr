@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.50.12-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.12)
+[![Version](https://img.shields.io/badge/version-2.50.13-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.13)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -26,14 +26,15 @@ longitudinal proof of better judgment remain roadmap work.
 ## Build a durable expert fleet
 
 <p align="center">
-  <img src="assets/expert-hub.png" width="100%" alt="Deepr Expert Hub showing the 25-expert flagship roster with portraits, standpoints, positions, studied findings, and retained sources" />
+  <img src="assets/expert-hub.png" width="100%" alt="Deepr Expert Hub in an isolated validation workspace showing an existing temporal expert, a newly studied local expert, and an untrained web-created profile" />
 </p>
 
-The pictured maintainer fleet keeps its selected 25 flagship experts in focus
-while preserving its complete roster. Flagship membership is user-curated local
-state, not a 25-expert clean-install guarantee. Each card exposes the expert's
-standpoint, positions, studied findings, retained sources, and readiness from
-durable state.
+The pictured validation workspace contains an existing temporal expert, a new
+expert after local study, and an untrained profile created through the
+dashboard. Each card exposes positions, studied findings, source counts, and
+presentation readiness from durable state. Flagship membership is user-curated
+local state. These are real local workflow captures, not a clean-install roster
+or evidence of improved judgment. See the [validation record](docs/validation/local-workflows-2026-09-05.md).
 
 ## Turn evidence into reusable judgment
 

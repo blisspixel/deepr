@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { Activity, AlertTriangle, DollarSign } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -39,7 +40,7 @@ export default function StatusBar() {
   const overBudget = moneyKnown && costSummary.over_budget
   const paidApiFrozen = moneyKnown && costSummary.paid_api_frozen
   const spendWallet = moneyKnown && costSummary.authority_mode === 'spend_wallet'
-  const paidApiBlocked = !moneyKnown || paidApiFrozen
+  const paidApiBlocked = true
   const unresolvedHolds = moneyKnown ? costSummary.unresolved_holds : 0
   const monthlyCap = moneyKnown ? costSummary.effective_monthly_limit : 0
   const monthlyExposure = moneyKnown ? costSummary.exposure.monthly : 0
@@ -78,19 +79,30 @@ export default function StatusBar() {
       : isOnline
         ? 'API only'
         : 'Offline'
+  const exposureLabel = moneyKnown && spendWallet
+    ? `${formatCurrency(walletExposure)} / ${formatCurrency(walletCap)} | Month ${formatCurrency(monthlyExposure)} / ${formatCurrency(monthlyCap)}`
+    : moneyKnown
+      ? `${formatCurrency(monthlyExposure)} / ${formatCurrency(monthlyCap)}`
+      : 'UNKNOWN / UNKNOWN'
+  const accountingLabel = `${spendWallet ? 'API wallet' : 'Month exposure'}: ${exposureLabel}`
+  const blockingReason = !moneyKnown
+    ? 'Accounting is unknown; paid API dispatch remains blocked.'
+    : paidApiFrozen
+      ? costSummary.freeze_reason || 'Paid API dispatch is frozen.'
+      : 'Paid API dispatch is unavailable in this release, including when a local budget is funded.'
 
   return (
-    <div className="flex h-8 items-center justify-between gap-2 border-t bg-background px-2 text-[11px] text-muted-foreground sm:px-4">
+    <footer aria-label="Workspace status" className="flex min-h-8 shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t bg-background px-2 py-1 text-[11px] text-muted-foreground sm:px-4">
       {/* Left section */}
-      <div className="flex min-w-0 items-center gap-2 sm:gap-4">
-        <div className="flex items-center gap-1.5 whitespace-nowrap">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+        <div className="hidden items-center gap-1.5 whitespace-nowrap lg:flex">
           <Activity className="h-3 w-3" />
           <span>
-            {activeJobs} active job{activeJobs !== 1 ? 's' : ''}
+            {jobsOk ? `${activeJobs} active job${activeJobs !== 1 ? 's' : ''}` : 'Activity unknown'}
           </span>
         </div>
 
-        <div className="hidden items-center gap-1.5 sm:flex">
+        <div className="hidden items-center gap-1.5 xl:flex">
           <DollarSign className="h-3 w-3" />
           <span>Today: {moneyKnown ? formatCurrency(costSummary.exposure.daily) : 'UNKNOWN'}</span>
           {thresholdLabel && !paidApiFrozen && (
@@ -108,45 +120,25 @@ export default function StatusBar() {
           )}
         </div>
 
-        {/* Paid exposure vs the governing budget, always visible: the exact
-            number the approval gate uses, red when over. A $37.99 month once
-            showed nowhere until the bill arrived. */}
-        <div
+        <Link
+          to="/costs"
+          aria-label={`Open cost accounting. ${accountingLabel}. ${blockingReason}${unresolvedHolds > 0 ? ` ${unresolvedHolds} unresolved holds.` : ''}${overBudget ? ' Over budget.' : ''}`}
           className={cn(
-            'flex items-center gap-1.5 whitespace-nowrap',
+            'flex min-h-6 min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 rounded underline-offset-2 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
             overBudget && 'font-semibold text-destructive',
             (paidApiBlocked || unresolvedHolds > 0) && !overBudget && 'font-semibold text-warning'
           )}
-          title={
-            !moneyKnown
-              ? 'Canonical money state is unavailable; paid API dispatch must remain blocked'
-              : overBudget
-              ? `${spendWallet ? 'Wallet' : 'Monthly'} exposure exceeds the effective ceiling`
-              : paidApiFrozen
-                ? costSummary.freeze_reason || 'Paid API dispatch is frozen'
-                : spendWallet
-                  ? `Local wallet includes ${formatCurrency(costSummary.active_holds)} in active holds; provider prepaid status is separate`
-                  : `Includes ${formatCurrency(costSummary.active_holds)} in active holds`
-          }
+          title={blockingReason}
         >
-          {(overBudget || paidApiBlocked || unresolvedHolds > 0) && <AlertTriangle className="h-3 w-3" />}
-          <span>
-            {spendWallet ? 'API wallet' : 'Month exposure'}:{' '}
-            {moneyKnown && spendWallet
-              ? `${formatCurrency(walletExposure)} / ${formatCurrency(walletCap)} | Month ${formatCurrency(monthlyExposure)} / ${formatCurrency(monthlyCap)}`
-              : moneyKnown
-                ? `${formatCurrency(monthlyExposure)} / ${formatCurrency(monthlyCap)}`
-                : 'UNKNOWN / UNKNOWN'}
-            {!moneyKnown && ' PAID API BLOCKED'}
-            {paidApiFrozen && ' PAID API BLOCKED'}
-            {unresolvedHolds > 0 && ` ${unresolvedHolds} UNRESOLVED HOLD${unresolvedHolds === 1 ? '' : 'S'}`}
-            {overBudget && ' OVER BUDGET'}
-          </span>
-        </div>
+          <AlertTriangle aria-hidden="true" className="h-3 w-3 shrink-0" />
+          <span>PAID API BLOCKED</span>
+          <span className="xl:hidden">{!moneyKnown ? 'Costs unknown' : overBudget ? 'Over budget' : unresolvedHolds > 0 ? `${unresolvedHolds} holds` : 'Costs'}</span>
+          <span className="hidden xl:inline">{accountingLabel}{unresolvedHolds > 0 && ` ${unresolvedHolds} UNRESOLVED HOLD${unresolvedHolds === 1 ? '' : 'S'}`}{overBudget && ' OVER BUDGET'}</span>
+        </Link>
       </div>
 
       {/* Right section */}
-      <div role="status" aria-label={connectionLabel} className="flex min-w-0 items-center gap-1.5" title={connectionLabel}>
+      <div role="status" aria-label={connectionLabel} className="ml-auto flex shrink-0 items-center gap-1.5" title={connectionLabel}>
         <span
           aria-hidden="true"
           className={cn(
@@ -160,9 +152,9 @@ export default function StatusBar() {
                   : 'bg-destructive'
           )}
         />
-        <span className="sm:hidden">{compactConnectionLabel}</span>
-        <span className="hidden sm:inline">{connectionLabel}</span>
+        <span className="xl:hidden">{compactConnectionLabel}</span>
+        <span className="hidden xl:inline">{connectionLabel}</span>
       </div>
-    </div>
+    </footer>
   )
 }

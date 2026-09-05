@@ -78,7 +78,7 @@ not widen the shipped surface ahead of this sequence.
 
 | Target | User-visible outcome | Why it is next | Exit gate |
 | --- | --- | --- | --- |
-| **v2.50.12** (current) | Preserve cited source excerpts in consultation, keep first-world cases out of negative-transfer measures, and reconcile OpenRouter monthly controls against the correct usage period. | Evidence loss and measurement-period errors undermine the next value experiment. These compatible fixes prepare the existing product for meaningful validation. | Regression cases fail before the fixes and pass afterward; existing packet and spend ceilings hold; all seven public routes pass without inference; CI, release artifacts, and clean-install validation pass. |
+| **v2.50.13** (current) | Make the local expert workflow consistent across the dashboard, preserve study and longitudinal review evidence, and report failed quota probes correctly. | Live workflows exposed misleading state and evidence-loss defects. Correcting them makes the next value experiment usable and reviewable. | Failing regressions pass after the fixes; local expert creation, study, update, and two-perspective MCP consultation complete at $0; browser, coverage, CI, package, and public installer gates pass. |
 | **v2.51** | Publish one blinded four-arm longitudinal value evaluation for a flagship expert, comparing fresh research, static history, compiled expert state, and maintained expert state. | Deepr must demonstrate that persistent expert state improves repeated decisions before adding more control, memory, or host surface. | Frozen source worlds, randomized review assignment, bound artifacts, operator attestations, and separate false-support, stale-memory, transfer, effort, cost, and outcome measures are reproducible. No aggregate score selects a winner or changes a default. |
 | **v2.52** | Resolve prospective expert predictions against later grounded observations and emit review-required learning proposals. | The value evaluation can identify whether the product helps. Prediction resolution closes the next part of the learning loop by showing why a view held or failed without granting self-modifying authority. | Each resolution binds the original prediction, later source evidence, world-valid time, observation time, and reviewer judgment. Frozen temporal fixtures reconstruct the same historical state and expose late or contradictory evidence. Accepted proposals demonstrate held-out before-and-after benefit. No prediction result directly mutates beliefs, prompts, routing, skills, or policy. |
 | **v2.53** | Complete the shared durable parent transaction and an execution-ready but disabled OpenRouter adapter proof. | Provider routing cannot become useful paid capacity until one request graph has exact spend, identity, route, retry, cancellation, and settlement authority. | Fault injection cannot overshoot or duplicate effects; fixtures prove exact credential, request, provider, response, generation, cache, BYOK, plugin, and total-cost handling; ambiguous outcomes consume the hold and freeze reconciliation. The current repository rule still forbids a paid inference validation or production activation. |
@@ -412,14 +412,7 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.12)
-
-- [x] **Longitudinal validation findings (2026-09-05, Unreleased):** later
-  worlds dropped earlier invalidations from stale-reuse review; declared
-  executions could return to an earlier world; cached verification results
-  could describe changed evidence; and artifact paths collapsed repeated
-  spaces. Regression tests reproduce all four defects. The corrections
-  preserve separate semantic review and add no execution authority.
+## Current Status (v2.50.13)
 
 - [ ] **v2.51 preparation:** verify source entries inside frozen manifests,
   prepare equal source inventories for isolated arms, and bind blinded review
@@ -1858,11 +1851,20 @@ Goal: Deepr works as both MCP provider and consumer for real workflows, and spea
 
 See [docs/AGENTIC_VISION.md](docs/AGENTIC_VISION.md) for the full agentic architecture rationale.
 
-**The autopilot era validates the interop bet (June 2026 landscape).** Every major platform now ships always-on, long-running autonomous agents: Microsoft "Autopilots" (Scout on the Windows Agent Runtime, Work IQ API, Copilot Frontier), OpenAI AgentKit consolidating onto the Agents SDK + Workspace Agents (Connector Registry takes third-party MCP servers), Google Antigravity 2.0 (desktop/CLI/SDK + Managed Agents in the Gemini API + scheduled tasks), Amazon Bedrock AgentCore (managed harness, Memory, Observability, and *Payments* - agents autonomously paying for MCP servers and other agents), and Anthropic Managed Agents (MCP connectors, scheduled deployments). Deepr's position is unchanged and strengthened: it is the *knowledge role* these autopilots delegate to, never a competing orchestrator. Their persistence is shallow (session/long-term memory stores); a Deepr expert is calibrated epistemic state - which is exactly what an always-on agent checking in periodically needs (`what_changed` deltas, contested claims, gap backlogs). Three consequences for sequencing:
+**Historical June 2026 hosting rationale, superseded by the active release plan.**
+Earlier research considered hosted harnesses as consumers of expert evidence.
+Current findings and exact host limitations are maintained in
+[the harness investigation bridge](docs/design/external-harness-investigation-bridge.md)
+and [the local-first runtime proposal](docs/design/local-first-agent-runtime-options.md).
+The default remains local. Deepr exposes bounded expert evidence to a host;
+it does not replace the host's orchestration or imply that every host can use
+the same transport, tool profile, or authentication scheme.
 
-- **Remote MCP becomes strategic, not backlog**: cloud-hosted autopilots cannot call a stdio server on a laptop. A hosted, authenticated Deepr MCP endpoint (Streamable HTTP/SSE) is the price of admission to every platform above - promote from backlog when Phase 4c/5 work allows.
-- **Hosts own the schedule, Deepr owns the verbs**: platform-native scheduling (Anthropic scheduled deployments, Antigravity scheduled tasks, Scout's always-on loop) can drive `deepr_expert_sync`/`health-check` instead of Deepr-side cron - consistent with the non-goal of owning the workflow.
-- **Handoff schemas and budget contracts gain a consumer**: AgentCore Payments previews agents paying per tool call; Deepr's budget contracts and versioned handoff schemas (Phase 5) map directly onto that - an autopilot paying per consult needs exactly the machine-validated artifacts and cost bounds Deepr already produces.
+- Portable Agent Plugin packaging is the primary integration lane today.
+- Hosted observation follows the v2.51 value experiment and authority work.
+  Read-only projections and exact host qualification are v2.54 work.
+- Remote control, scheduling authority, and paid-agent execution remain behind
+  their separate promotion gates. No cloud deployment is enabled here.
 
 - [x] MCP client connections (stdio + SSE)
 - [x] Configurable MCP client profiles (named server presets with connection details, auth, budget propagation, trace ID stitching, and transport failover; this is not automatic metered provider fallback)
@@ -3602,7 +3604,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.12. This roadmap keeps
+v2.50.13. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 

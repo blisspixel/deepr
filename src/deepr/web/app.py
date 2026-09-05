@@ -1755,7 +1755,7 @@ def _expert_counts(profile) -> tuple[int, int, int]:
     try:
         from deepr.experts.beliefs import BeliefStore
 
-        finding_count = max(finding_count, len(BeliefStore(profile.name).beliefs))
+        finding_count = max(finding_count, len(BeliefStore(profile.name, read_only=True).beliefs))
     except Exception as exc:
         logger.debug("Could not read belief store for %s: %s", profile.name, exc, exc_info=exc)
 
@@ -1814,8 +1814,10 @@ def list_experts():
 
 @app.route("/api/experts", methods=["POST"])
 def create_expert():
-    """Create a new domain expert (no API calls, $0 cost)."""
+    """Create an untrained local profile without inference or paid capacity."""
     try:
+        from deepr.backends.local import default_local_model
+        from deepr.experts.paths import expert_slug
         from deepr.experts.profile import ExpertProfile
         from deepr.experts.profile_store import ExpertStore
 
@@ -1848,9 +1850,12 @@ def create_expert():
 
         profile = ExpertProfile(
             name=name,
-            vector_store_id="",
+            vector_store_id=f"local-only:{expert_slug(name)}",
             description=description,
             domain=domain,
+            provider="local",
+            model=default_local_model() or "ollama",
+            monthly_learning_budget=0.0,
         )
         store.save(profile)
 
@@ -1880,6 +1885,7 @@ def get_expert(name):
     """Get expert details."""
     try:
         from deepr.experts.profile_store import ExpertStore
+        from deepr.web.expert_v2_api import roster_entry
 
         decoded_name, err = _decode_expert_name(name)
         if err:
@@ -1903,6 +1909,7 @@ def get_expert(name):
                     "last_active": getattr(profile, "updated_at", datetime.now(UTC)).isoformat(),
                     "created_at": getattr(profile, "created_at", datetime.now(UTC)).isoformat(),
                     "portrait_url": getattr(profile, "portrait_url", None),
+                    **roster_entry(profile.name),
                 }
             }
         )
