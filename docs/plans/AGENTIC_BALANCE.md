@@ -174,6 +174,13 @@ planned, final, and shipped. Both remain model judgments subject to calibration.
 Deterministic code records their shape and provenance but does not infer either
 verdict from words or overlap.
 
+Consult source excerpts use exact study anchors only to select retained text
+within existing context ceilings, including evidence after the opening
+paragraph. Matching does not update a finding's grounding, decide support, or
+alter expert state. First-world hard-negative evaluation cases retain their
+semantic review but do not enter negative-transfer denominators: applicability
+follows the frozen world's predecessor, not a case-label shortcut.
+
 ## How this connects to deepr's existing direction
 
 - **Budgeted autonomy** (README) *is* the workflow half of this axis: spend,

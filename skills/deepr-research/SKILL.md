@@ -6,7 +6,7 @@ description: |
   analysis, a research cost preview, a domain expert or expert council, or
   inspection of durable beliefs, gaps, confidence, and provenance.
 metadata:
-  deepr-version: "2.50.11"
+  deepr-version: "2.50.12"
   deepr-mcp-server: "deepr"
 ---
 
@@ -19,18 +19,19 @@ citations, budget posture, capacity provenance, uncertainty, and dissent.
 
 Treat these as works-now surfaces in the current release:
 
-- One API-backed research job when the provider, model, tools, token ceilings,
-  and price are all known.
+- Write-free API research previews when the provider, model, tools, token
+  ceilings, and price are all known. Production paid dispatch remains blocked.
 - Explicit local Ollama or non-metered plan-quota expert workflows.
 - Read-only expert state, handoffs, loop status, memory cards, and derived
   exports.
-- One-expert or multi-expert consultation through explicit local or plan
-  synthesis. Separately bounded API council synthesis is available only after
-  explicit approval and a positive budget.
+- One-expert or multi-expert consultation through explicit local or eligible
+  plan synthesis. Metered council synthesis remains blocked even with approval
+  and a positive budget.
 
 Treat these as execution-blocked, even if a tool or flag remains visible:
 
 - `deepr_agentic_research` and other autonomous multi-round metered work.
+- `deepr_research` paid execution and metered council synthesis.
 - `deepr_query_expert` with `backend="api"` or `agentic=true`.
 - Automatic cross-provider metered fallback.
 - Metered batch, campaign, team, prepared, or continuation execution.
@@ -50,25 +51,24 @@ asked a bad question.
 3. Use `backend="plan"` only with an explicit non-metered plan id. Do not infer
    that CLI presence proves free quota. A visible backend is not proof of
    executable plan capacity.
-4. Use one bounded API research request only after the user authorizes spend.
-   Pass an explicit provider, model, and budget ceiling.
+4. Use the CLI's write-free API research preview to inspect a finite envelope.
+   No user budget or approval installs the missing provider account-control
+   and credential-identity proof needed for production paid dispatch.
 5. Never silently fall through between capacity classes.
 
-## Run one bounded research job
+## Preview one bounded research job
 
 Use this sequence:
 
 1. State that the budget is a maximum, not a predicted final charge.
-2. Obtain explicit approval before a paid call.
-3. Call `deepr_research` with one focused prompt, an explicit provider/model,
-   and the approved budget.
-4. Omit `files` because hosted research context is gated. Put compact
-   non-sensitive context in the prompt or use local source packs outside this
-   tool.
-5. Monitor the returned job id or returned resource URI with
-   `deepr_check_status` or a resource subscription.
-6. Retrieve the completed report with `deepr_get_result`.
-7. Report actual settled cost when available and preserve inline citations.
+2. Inspect the advertised tool schema; a visible metered tool is not executable
+   capacity. The CLI supports `deepr research QUESTION --provider PROVIDER
+   --model MODEL --preview` without a paid request.
+3. Keep hosted files, paid tools, automatic fallback, and inference disabled.
+4. Report the estimated maximum and the dispatch block separately. A preview
+   produces no submitted job or completed research report.
+5. Existing accepted job state and completed reports remain inspectable through
+   `deepr_check_status` and `deepr_get_result`.
 
 Do not invent fixed prices or promise a completion time. Model rates, tool
 charges, provider latency, and the hard request envelope determine the
@@ -95,7 +95,7 @@ deepr_query_expert(
   expert_name="Security Analyst",
   question="What evidence should guide this decision?",
   backend="plan",
-  plan="codex",
+  plan="claude",
   agentic=false,
   budget=0
 )
@@ -135,7 +135,7 @@ override on the user's behalf.
 |------|-----|
 | `deepr_tool_search` | Discover a current tool schema before calling it |
 | `deepr_status` | Inspect service readiness and spending posture |
-| `deepr_research` | Submit one bounded paid research job after approval |
+| `deepr_research` | Visible metered tool; production paid dispatch is blocked |
 | `deepr_check_status` | Inspect an accepted job |
 | `deepr_get_result` | Retrieve a completed cited report |
 | `deepr_cancel_job` | Request cancellation and retain accounting state |
@@ -146,8 +146,8 @@ override on the user's behalf.
 
 ## Error handling
 
-- `BUDGET_EXCEEDED` or `BUDGET_INSUFFICIENT`: return the required ceiling and
-  ask whether the user wants to approve a new bounded attempt.
+- `BUDGET_EXCEEDED` or `BUDGET_INSUFFICIENT`: report the ceiling and capacity
+  block; a larger budget cannot enable quarantined production dispatch.
 - `PROVIDER_NOT_CONFIGURED`: identify the missing explicit capacity without
   switching providers.
 - `metered_expert_chat_accounting_unavailable` or another capacity block: use

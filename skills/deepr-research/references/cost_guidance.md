@@ -2,6 +2,11 @@
 
 ## Core rules
 
+Production paid dispatch is currently blocked. The transaction rules below
+describe required controls, not permission to execute. A wallet, positive
+budget, or user approval cannot supply the missing provider account-control
+and credential-identity verifier.
+
 1. A budget is a hard ceiling, not a target or fixed quote.
 2. Preview and dispatch must use the same finite request envelope.
 3. Reserve the maximum before provider dispatch.
@@ -21,25 +26,24 @@ serialized payload size determine the current hard envelope.
 | Capacity | Deepr dollar ledger | Important caveat |
 |----------|---------------------|------------------|
 | Local Ollama | `$0` | Consumes local hardware and may be busy |
-| Non-metered plan CLI | `$0` | May consume subscription quota or credits Deepr cannot prove |
+| Eligible non-metered plan CLI | `$0` | Requires proven auth, confinement, quota, and disabled paid overage |
 | Metered-at-margin CLI | Blocked | Requires complete estimate/reserve/settle support |
-| Bounded provider API | Actual or conservative settlement | Requires explicit approval and positive ceiling |
+| Bounded provider API | Preview and offline reconciliation | Production dispatch remains blocked despite approval or a positive ceiling |
 
 Some plan adapters are visible but not executable. CLI presence is never proof of free
 remaining quota.
 
-## Before a paid call
+## Inspect a metered preview
 
 - State the selected provider, model, tools, and budget ceiling.
-- Explain that final cost can be lower, but cannot exceed the admitted bound.
-- Obtain explicit user approval.
-- Submit one bounded job.
-- Preserve reservation and trace identifiers.
+- Explain the maximum envelope and that the preview makes no paid request.
+- Report the production dispatch block separately from local budget headroom.
+- Preserve returned preview and evidence identifiers without inventing a job.
 
 If the current model/tool combination is unpriced or request-unbounded, stop.
 Do not estimate from a similar model or remove a guard to make the call pass.
 
-## After a call
+## Inspect recorded settlement
 
 - Report actual settled cost and cumulative task spend.
 - If the outcome is ambiguous, say that the conservative ceiling may have been

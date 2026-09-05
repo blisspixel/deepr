@@ -1,6 +1,6 @@
 # Model Selection Guide
 
-Status: current with Deepr v2.50.11. Last reviewed: 2026-09-02.
+Status: current with Deepr v2.50.12. Last reviewed: 2026-09-04.
 
 The source of truth for model IDs, pricing estimates, context windows, and
 routing metadata is [src/deepr/providers/registry.py](../src/deepr/providers/registry.py),
@@ -385,7 +385,8 @@ Default posture:
   echo for one key. Add `--from-env` only to opt into the bounded local secret
   source. The command makes one read-only current-key request and requires a
   BYOK-inclusive monthly limit at or below `$5`, sufficient remaining headroom,
-  reconciling usage counters, and a live expiry when one is configured. Its
+  reconciling current-month usage counters, and a live expiry when one is configured. Lifetime
+  usage is preserved separately and may exceed the current month's usage. Its
   sanitized result always reports incomplete billing reconciliation and no
   dispatch authority.
 - OpenRouter permits nullable limit and reset controls. The v2 sanitized

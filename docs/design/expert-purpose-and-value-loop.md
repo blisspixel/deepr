@@ -109,9 +109,10 @@ deepr expert blueprint NAME --from-file blueprint.json --apply --attested-by OPE
 deepr expert make NAME --local
 ```
 
-A blueprint may be prepared before the profile exists. `expert make` remains
-backward compatible, but the README and next-step guidance place the blueprint
-before research or synchronization.
+A blueprint may be prepared before the profile exists. The README quick start
+begins with `expert make` and completes the local retain, study, brief, and
+consult loop. The optional blueprint workflow above freezes reviewed purpose
+and acceptance cases before a longitudinal value evaluation.
 
 ### Storage
 
@@ -268,6 +269,77 @@ An intentionally incomplete template is valid scaffolding, not evidence. A
 completed workbook must pass the published strict schema and runtime
 cross-record validation before aggregation. Report writes require an explicit
 output path; previews and aggregation are otherwise read-only.
+
+### v2.51 pilot protocol
+
+The next experiment is planned, not a published value result. Start with one
+flagship expert, three frozen source worlds, and 12 reviewed cases, producing
+48 arm cells. This pilot size is a practical starting point, not evidence of
+statistical sufficiency. Keep the same model, generation settings, source
+access rules, and context ceilings across arms. Record construction and
+maintenance overhead separately from each consultation.
+
+Run each arm in a separate data directory and process. Freeze the blueprint,
+arm policies, source manifests, and reviewer rubric before collecting answers.
+Advance worlds in order; later evidence and completed review labels must never
+enter earlier arm state. An organizer assigns opaque randomized answer ids;
+semantic reviewers receive the case and frozen sources without the arm key.
+Keep the assignment key separate until review labels are frozen. Record
+unverified attester identity honestly and hash every published artifact.
+
+| Case family | Observable failure |
+| --- | --- |
+| First-world false premise | Invented support; negative transfer is inapplicable |
+| Unchanged fact after update | Loss of previously correct knowledge |
+| Explicit reversal | Reuse of invalidated knowledge |
+| Late evidence about an earlier event | Confusion between valid and observation time |
+| Later-world false premise | Confident reuse of a stale assumption |
+| Same id in another expert or arm | Evidence crossing isolation boundaries |
+| Monthly and lifetime counters together | Measurement taken from the wrong period |
+| Relevant but non-supporting citation | Relevance mistaken for factual support |
+| Missing, changed, or swapped artifact | Review attached to different bytes |
+| Decisive passage after the excerpt boundary | Citation lost during context assembly |
+| Incomplete update | Failure hidden from the completion denominator |
+| Corrected outcome observation | Superseded result treated as current |
+
+Use the existing workbook and `--artifact-root` verifier for structural
+validation. Assign the appropriate existing role to each case; case-family
+names are experimental design notes, not new semantic classifier rules.
+Publish separate correctness, false-support, stale-reuse, transfer, update,
+effort, cost, and outcome-link results. Source-artifact integrity and anchor
+recovery are mechanical measures, not substitutes for answer review.
+
+This taxonomy draws on the separation of dynamic state, workflow knowledge,
+environment gotchas, and premise awareness in
+[LongMemEval-V2](https://arxiv.org/abs/2605.12493), and invalid-memory reuse in
+[Memora](https://arxiv.org/abs/2604.20006). These papers motivate the cases;
+their results do not establish Deepr's quality. A held-out benefit and
+negative-transfer assessment remain required before learning-policy changes.
+
+## September 4 validation corrections
+
+First-world hard-negative cases test false premises before any longitudinal
+update exists. Negative-transfer applicability follows the source world's
+predecessor, not the case's evaluation-role label. Such cases remain in
+false-support and abstention measures but are excluded from negative-transfer
+denominators and paired intervals. Later-world hard negatives still require
+the negative-transfer attestation. No semantic label is inferred by this fix.
+
+Consultation must retain the evidence behind the findings being evaluated.
+Source selection will use exact stored anchors to choose literal excerpts from
+the retained corpus, including passages beyond the opening 2,000 characters.
+All selected findings sharing a source contribute anchors in stable order.
+Discontinuous excerpts use an explicit `[...]` separator. Selection and packet
+rendering retain their existing 2,000- and 1,200-character per-source ceilings
+and eight-source and four-source limits, respectively. Missing or oversized
+anchors retain the bounded opening excerpt as a compatibility fallback; they
+do not acquire grounding or semantic-support status. This changes a derived
+view only and leaves stored sources, findings, and beliefs untouched.
+
+Always quoting the opening paragraph loses decisive later evidence. Increasing
+every context ceiling merely moves that failure and adds cost. Exact excerpt
+selection is the narrower correction. It is routing over source bytes, not a
+new grounding verdict.
 
 ## Agentic Boundary
 

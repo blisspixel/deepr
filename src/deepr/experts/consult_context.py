@@ -180,6 +180,30 @@ def gather_findings(question: str, result: StudyResult, positions: list[Position
     return carried + [f for _, _, f in matched[:room]]
 
 
+def _source_passage(text: str, anchors: list[str], max_chars: int) -> str:
+    """Select literal anchor windows; matching locates bytes, not meaning."""
+    if len(text) <= max_chars:
+        return text
+    spans: list[tuple[int, int]] = []
+    remaining = max_chars
+    separator = "\n[...]\n"
+    for anchor in anchors:
+        if not isinstance(anchor, str) or not anchor:
+            continue
+        index = text.find(anchor)
+        end = index + len(anchor)
+        if index < 0 or any(start <= index and end <= stop for start, stop in spans):
+            continue
+        allowance = remaining - (len(separator) if spans else 0)
+        if len(anchor) > allowance:
+            continue
+        padding = min(120, (allowance - len(anchor)) // 2)
+        start, stop = max(0, index - padding), min(len(text), end + padding)
+        remaining = allowance - (stop - start)
+        spans.append((start, stop))
+    return separator.join(text[start:stop] for start, stop in spans) if spans else text[:max_chars]
+
+
 def gather_sources(findings: list[StudyFinding], corpus: CorpusStore) -> list[tuple[str, str, str]]:
     """The retained passages behind these findings.
 
@@ -188,17 +212,18 @@ def gather_sources(findings: list[StudyFinding], corpus: CorpusStore) -> list[tu
     goes to get lost.
     """
     seen: list[tuple[str, str, str]] = []
-    used: set[str] = set()
+    anchors_by_sha: dict[str, list[str]] = {}
     for finding in findings:
         for sha in finding.corpus_shas:
-            if sha in used or len(seen) >= _MAX_SOURCES:
-                continue
-            entry = corpus.entries.get(sha)
-            text = corpus.read(sha)
-            if entry is None or not text:
-                continue
-            used.add(sha)
-            seen.append((sha, entry.origin_key, text[:_SOURCE_SPAN_CHARS]))
+            anchors_by_sha.setdefault(sha, []).extend(finding.anchors)
+    for sha, anchors in anchors_by_sha.items():
+        if len(seen) >= _MAX_SOURCES:
+            break
+        entry = corpus.entries.get(sha)
+        text = corpus.read(sha)
+        if entry is None or not text:
+            continue
+        seen.append((sha, entry.origin_key, _source_passage(text, anchors, _SOURCE_SPAN_CHARS)))
     return seen
 
 
@@ -288,8 +313,11 @@ def render_consult_packet(context: ConsultContext) -> str:
     if context.sources:
         lines = ["Passages, so you can check rather than take my word:", ""]
         for sha, origin, passage in context.sources[:4]:
+            anchors = [
+                anchor for finding in context.findings if sha in finding.corpus_shas for anchor in finding.anchors
+            ]
             lines.append(f"--- {origin} ({sha[:12]}) ---")
-            lines.append(passage[:1200])
+            lines.append(_source_passage(passage, anchors, 1200))
             lines.append("")
         blocks.append("\n".join(lines).strip())
 

@@ -103,6 +103,37 @@ def test_nullable_official_limit_fields_are_observed_but_fail_closed() -> None:
     assert observation.to_dict()["dispatch_authorized"] is False
 
 
+@pytest.mark.parametrize("monthly_usage,monthly_byok,remaining", [(0.8, 0.2, 4.0), (0.0, 0.0, 5.0)])
+def test_monthly_limit_reconciles_after_prior_month_spend(
+    monthly_usage: float, monthly_byok: float, remaining: float
+) -> None:
+    observation = evaluate_openrouter_key_document(
+        _document(
+            usage=12.8,
+            byok_usage=3.2,
+            usage_monthly=monthly_usage,
+            byok_usage_monthly=monthly_byok,
+            limit_remaining=remaining,
+        ),
+        required_headroom_usd=4.0,
+    )
+
+    assert observation.control_eligible is True
+    assert observation.failures == ()
+    assert observation.usage_usd == 12.8
+    assert observation.byok_usage_usd == 3.2
+    assert observation.to_dict()["dispatch_authorized"] is False
+
+
+@pytest.mark.parametrize("field", ["usage", "usage_monthly", "byok_usage", "byok_usage_monthly", "limit"])
+def test_unrepresentable_money_returns_a_non_authorizing_observation(field: str) -> None:
+    observation = evaluate_openrouter_key_document(_document(**{field: 10**400}), required_headroom_usd=4.0)
+
+    assert observation.control_eligible is False
+    assert any("finite USD" in failure for failure in observation.failures)
+    json.dumps(observation.to_dict(), allow_nan=False)
+
+
 @pytest.mark.parametrize(
     ("changes", "required", "failure"),
     [
@@ -116,6 +147,8 @@ def test_nullable_official_limit_fields_are_observed_but_fail_closed() -> None:
         ({"limit_remaining": 5.1, "usage": 0.0, "byok_usage": 0.0}, 4.0, "exceeds its total"),
         ({"usage": 0.7}, 4.0, "do not reconcile"),
         ({"usage_monthly": 0.7}, 4.0, "monthly usage"),
+        ({"byok_usage": 0.1}, 4.0, "monthly BYOK usage"),
+        ({"usage": 12.8, "byok_usage": 3.2, "limit_remaining": 4.1}, 4.0, "do not reconcile"),
         ({"expires_at": "2026-08-31T00:00:00Z"}, 4.0, "has expired"),
     ],
 )

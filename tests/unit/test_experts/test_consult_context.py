@@ -11,7 +11,9 @@ import pytest
 
 from deepr.experts.brief_contracts import ExpertBrief, Position, SettledState
 from deepr.experts.consult_context import (
+    ConsultContext,
     build_consult_context,
+    gather_sources,
     load_brief,
     rank_positions,
     render_consult_packet,
@@ -154,6 +156,115 @@ class TestSupportTravelsWithThePosition:
             corpus=corpus,
         )
         assert context.evidence_chars() > 200
+
+
+@pytest.mark.parametrize("offset", [0, 1500, 2800, 10000])
+def test_cited_anchor_survives_source_selection_and_packet_rendering(tmp_path, offset):
+    anchor = "The supported retention period is exactly 37 days."
+    text = "Background. " * (offset // 12) + anchor + " Further context." * 200
+    store = CorpusStore("Consult Expert", storage_dir=tmp_path / "corpus")
+    entry, _ = store.add(text, origin_key="url:primary.example")
+    finding = StudyFinding(
+        lens="failure",
+        axis="interrogation",
+        kind="facts",
+        title="Retention period",
+        anchors=[anchor],
+        corpus_shas=[entry.sha256],
+        grounded_anchor_count=1,
+    )
+
+    sources = gather_sources([finding], store)
+    packet = render_consult_packet(ConsultContext(expert_name="Consult Expert", findings=[finding], sources=sources))
+
+    assert len(sources) == 1
+    assert sources[0][:2] == (entry.sha256, "url:primary.example")
+    assert anchor in sources[0][2]
+    assert len(sources[0][2]) <= 2000
+    assert anchor in packet
+    assert store.read(entry.sha256) == text
+
+
+def test_shared_source_keeps_distant_anchors_within_both_excerpt_budgets(tmp_path):
+    first = "A policy with a 37 day retention period."
+    second = "A distinct exception with a 12 day retention period."
+    text = "Background. " * 300 + first + " Unrelated material." * 300 + second
+    store = CorpusStore("Consult Expert", storage_dir=tmp_path / "corpus")
+    entry, _ = store.add(text, origin_key="url:primary.example")
+    findings = [
+        StudyFinding(
+            lens="failure",
+            axis="interrogation",
+            kind="facts",
+            title="Retention period",
+            anchors=[anchor, anchor],
+            corpus_shas=[entry.sha256],
+            grounded_anchor_count=1,
+        )
+        for anchor in (first, second)
+    ]
+
+    sources = gather_sources(findings, store)
+    packet = render_consult_packet(ConsultContext(expert_name="Consult Expert", findings=findings, sources=sources))
+
+    assert len(sources) == 1
+    excerpt = sources[0][2]
+    assert len(excerpt) <= 2000
+    assert excerpt.count(first) == excerpt.count(second) == 1
+    assert all(span in text for span in excerpt.split("\n[...]\n"))
+    assert first in packet and second in packet
+    rendered_excerpt = packet.split("---\n", 1)[1].strip()
+    assert len(rendered_excerpt) <= 1200
+
+
+def test_absent_or_oversized_anchors_fall_back_without_claiming_support(tmp_path):
+    store = CorpusStore("Consult Expert", storage_dir=tmp_path / "corpus")
+    text = "Retained context. " * 300
+    entry, _ = store.add(text, origin_key="url:primary.example")
+    finding = StudyFinding(
+        lens="failure",
+        axis="interrogation",
+        kind="facts",
+        title="Retention period",
+        anchors=["not present", "", text],
+        corpus_shas=[entry.sha256],
+        ungrounded_anchor_count=1,
+    )
+
+    sources = gather_sources([finding], store)
+
+    assert sources[0][2] == text[:2000]
+    assert finding.is_grounded is False
+    assert finding.ungrounded_anchor_count == 1
+
+
+def test_anchor_selection_keeps_source_and_rendering_limits(tmp_path):
+    store = CorpusStore("Consult Expert", storage_dir=tmp_path / "corpus")
+    findings = []
+    for index in range(10):
+        anchors = [f"Exact evidence {index}:{number}." for number in range(15)]
+        text = ("Background. " * 300).join(anchors)
+        entry, _ = store.add(text, origin_key=f"url:primary-{index}.example")
+        findings.append(
+            StudyFinding(
+                lens="failure",
+                axis="interrogation",
+                kind="facts",
+                title="Evidence",
+                anchors=anchors,
+                corpus_shas=[entry.sha256],
+            )
+        )
+
+    sources = gather_sources(findings, store)
+    packet = render_consult_packet(ConsultContext(expert_name="Consult Expert", findings=findings, sources=sources))
+
+    assert len(sources) == 8
+    assert all(len(passage) <= 2000 for _, _, passage in sources)
+    assert packet.count("--- url:") == 4
+    for block in packet.split("--- url:")[1:]:
+        assert len(block.split("---\n", 1)[1].strip()) <= 1200
+    assert gather_sources(findings, store) == sources
 
 
 class TestCoverage:

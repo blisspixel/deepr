@@ -88,7 +88,9 @@ quarantined process copy when available, otherwise it parses only
 it. The command makes one read-only current-key
 request, binds a domain-separated scrypt credential fingerprint, and requires
 a BYOK-inclusive monthly key limit no greater than `$5` with enough remaining
-headroom. It does not
+headroom. Monthly headroom reconciles against current UTC month OpenRouter and
+BYOK usage; lifetime totals may be higher after a monthly reset. Monthly values
+greater than their corresponding lifetime totals remain inconsistent. It does not
 unquarantine or export the key, pass it to a child process, or inspect either
 local source without that flag. Neither check constructs an inference client or authorizes
 dispatch. A future adapter must also prove that account defaults cannot force

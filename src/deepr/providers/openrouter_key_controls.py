@@ -248,7 +248,10 @@ def _boolean(value: object, *, field_name: str) -> bool:
 def _money(value: object, *, field_name: str, positive: bool = False) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise OpenRouterKeyControlError(f"OpenRouter current-key {field_name} must be finite USD")
-    amount = float(value)
+    try:
+        amount = float(value)
+    except OverflowError as exc:
+        raise OpenRouterKeyControlError(f"OpenRouter current-key {field_name} must be finite USD") from exc
     if not math.isfinite(amount) or amount < 0 or (positive and amount <= 0):
         raise OpenRouterKeyControlError(f"OpenRouter current-key {field_name} must be finite USD")
     return amount
@@ -349,10 +352,20 @@ def _key_posture_failures(key: _ParsedOpenRouterKey) -> list[str]:
     return failures
 
 
-def _limited_usage(key: _ParsedOpenRouterKey) -> tuple[float, float]:
+def _limited_usage(key: _ParsedOpenRouterKey) -> float:
+    """Reconcile the monthly ceiling against current UTC month counters."""
     if key.include_byok:
-        return key.usage + key.byok_usage, key.usage_monthly + key.byok_usage_monthly
-    return key.usage, key.usage_monthly
+        return key.usage_monthly + key.byok_usage_monthly
+    return key.usage_monthly
+
+
+def _key_usage_failures(key: _ParsedOpenRouterKey) -> list[str]:
+    failures: list[str] = []
+    if key.usage_monthly > key.usage + _MONEY_TOLERANCE:
+        failures.append("current key monthly usage and total usage do not reconcile")
+    if key.byok_usage_monthly > key.byok_usage + _MONEY_TOLERANCE:
+        failures.append("current key monthly BYOK usage and total BYOK usage do not reconcile")
+    return failures
 
 
 def _key_limit_failures(
@@ -374,11 +387,8 @@ def _key_limit_failures(
         failures.append("current key remaining limit exceeds its total limit")
     if key.remaining + _MONEY_TOLERANCE < required:
         failures.append(f"current key remaining ${key.remaining:.6f} is below required headroom ${required:.6f}")
-    limited_usage, limited_usage_monthly = _limited_usage(key)
-    if abs((key.limit - key.remaining) - limited_usage) > _MONEY_TOLERANCE:
-        failures.append("current key limit, remaining, and usage do not reconcile")
-    if key.limit_reset == "monthly" and abs(limited_usage_monthly - limited_usage) > _MONEY_TOLERANCE:
-        failures.append("current key monthly usage does not match current limited usage")
+    if abs((key.limit - key.remaining) - _limited_usage(key)) > _MONEY_TOLERANCE:
+        failures.append("current key limit, remaining, and monthly usage do not reconcile")
     return failures
 
 
@@ -414,6 +424,7 @@ def evaluate_openrouter_key_document(
         )
 
     failures = _key_posture_failures(key)
+    failures.extend(_key_usage_failures(key))
     failures.extend(_key_limit_failures(key, required=required, maximum_limit=maximum_limit))
     return OpenRouterKeyControlObservation(
         control_eligible=not failures,

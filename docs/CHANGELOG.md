@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.12] - 2026-09-04
+
+### Fixed
+
+- Expert consultation now selects literal retained-source excerpts around
+  exact study anchors. Evidence after the first 2,000 characters, distant
+  anchors shared by several findings, and the separate 1,200-character render
+  limit have regression coverage. Existing packet ceilings and stored expert
+  state are preserved; matching does not decide semantic support.
+- First-world hard-negative cases no longer require a negative-transfer label
+  or enter that metric's denominator and paired intervals. Applicability
+  follows the source world's predecessor, while false-support and abstention
+  review remain separate.
+- OpenRouter monthly limits reconcile against current UTC month usage and
+  BYOK usage rather than lifetime totals. Previously, valid keys with earlier
+  months' spending were incorrectly rejected. Inconsistent period counters
+  still fail closed, and oversized numeric values produce sanitized refusals.
+
+### Changed
+
+- Corrected the standalone host skill and its reference guides, which still
+  advertised paid research and API council execution despite the production
+  quarantine. Its plan example now names the eligible adapter rather than an
+  execution-blocked one.
+- Refreshed Pi and OpenClaw research references and made the harness-control
+  sequence subordinate to the active release plan. The v2.51 pilot protocol
+  specifies frozen worlds, isolated arms, blinded review, and concrete temporal
+  and evidence-loss cases. No longitudinal benefit is claimed before that
+  experiment runs.
+- Live OpenRouter validation on September 4 passed all seven public route
+  checks and confirmed that the current key remains ineligible under the
+  existing monthly, BYOK-inclusive `$5` policy. No paid or inference request
+  was made.
+- A local Temporal Knowledge Graphs consultation completed with Gemma at a
+  hard `$0` ceiling, no metered fallback, and no expert-state writes. This is
+  operational validation, not a blinded judgment-quality result.
+
 ## [2.50.11] - 2026-09-02
 
 ### Fixed

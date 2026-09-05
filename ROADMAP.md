@@ -77,7 +77,7 @@ not widen the shipped surface ahead of this sequence.
 
 | Target | User-visible outcome | Why it is next | Exit gate |
 | --- | --- | --- | --- |
-| **v2.50.11** (current) | The OpenRouter current-key check accepts officially valid nullable limit controls, reports an uncapped or non-monthly key honestly, and still denies dispatch. Release planning is visible at the front of the roadmap. | Live no-inference validation found that a valid `limit_reset: null` response was being rejected as malformed before account posture could be assessed. Compatibility and truthful diagnostics are patch work. | Nullable controls have regression coverage; the sanitized live check reaches a policy verdict; all seven public routes pass; Qwen and Claude previews remain finite and write-free; CI, release artifacts, and clean-install validation pass. |
+| **v2.50.12** (current) | Preserve cited source excerpts in consultation, keep first-world cases out of negative-transfer measures, and reconcile OpenRouter monthly controls against the correct usage period. | Evidence loss and measurement-period errors undermine the next value experiment. These compatible fixes prepare the existing product for meaningful validation. | Regression cases fail before the fixes and pass afterward; existing packet and spend ceilings hold; all seven public routes pass without inference; CI, release artifacts, and clean-install validation pass. |
 | **v2.51** | Publish one blinded four-arm longitudinal value evaluation for a flagship expert, comparing fresh research, static history, compiled expert state, and maintained expert state. | Deepr must demonstrate that persistent expert state improves repeated decisions before adding more control, memory, or host surface. | Frozen source worlds, randomized review assignment, bound artifacts, operator attestations, and separate false-support, stale-memory, transfer, effort, cost, and outcome measures are reproducible. No aggregate score selects a winner or changes a default. |
 | **v2.52** | Resolve prospective expert predictions against later grounded observations and emit review-required learning proposals. | The value evaluation can identify whether the product helps. Prediction resolution closes the next part of the learning loop by showing why a view held or failed without granting self-modifying authority. | Each resolution binds the original prediction, later source evidence, world-valid time, observation time, and reviewer judgment. Frozen temporal fixtures reconstruct the same historical state and expose late or contradictory evidence. Accepted proposals demonstrate held-out before-and-after benefit. No prediction result directly mutates beliefs, prompts, routing, skills, or policy. |
 | **v2.53** | Complete the shared durable parent transaction and an execution-ready but disabled OpenRouter adapter proof. | Provider routing cannot become useful paid capacity until one request graph has exact spend, identity, route, retry, cancellation, and settlement authority. | Fault injection cannot overshoot or duplicate effects; fixtures prove exact credential, request, provider, response, generation, cache, BYOK, plugin, and total-cost handling; ambiguous outcomes consume the hold and freeze reconciliation. The current repository rule still forbids a paid inference validation or production activation. |
@@ -411,7 +411,20 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.11)
+## Current Status (v2.50.12)
+
+**v2.50.12:** consultation preserves literal cited excerpts
+beyond the beginning of retained sources within the existing packet ceilings.
+First-world hard negatives no longer contaminate negative-transfer measures.
+OpenRouter monthly controls reconcile the current UTC month separately from
+lifetime usage, and oversized numbers return a sanitized refusal. Regression
+tests reproduce the defects. No semantic or dispatch authority widened.
+
+The next evidence deliverable remains v2.51. Its
+[pilot protocol](docs/design/expert-purpose-and-value-loop.md#v251-pilot-protocol)
+now specifies three frozen worlds, 12 reviewed cases, and 48 arm cells, with
+blinded review, isolation, and separate temporal, support, effort, and cost
+measures. This is a protocol, not a completed experiment or proof of benefit.
 
 **Shipped in v2.50.11 (see docs/CHANGELOG.md):** the authenticated OpenRouter
 current-key observation now accepts the provider's documented nullable
@@ -3553,7 +3566,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.11. This roadmap keeps
+v2.50.12. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 

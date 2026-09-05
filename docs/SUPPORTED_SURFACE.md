@@ -1,11 +1,18 @@
 # Supported Surface
 
-Status: v2.50.11 current main, 2026-09-02. This document defines what users and host
+Status: v2.50.12 current main, 2026-09-04. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
 path is structurally complete but remains execution-blocked without verified
 provider prepaid-no-overage or hard-stop evidence.
+
+**v2.50.12 preserves cited evidence and measurement periods.** Consult source
+excerpts use exact study anchors to retain passages beyond the opening text,
+with existing source and character limits. First-world hard-negative cases
+remain in false-support measures and stay out of negative-transfer measures.
+OpenRouter key checks use current-month counters for monthly headroom while
+preserving lifetime usage separately. No semantic or dispatch authority widens.
 
 **v2.50.9 added bounded OpenRouter comparison without paid dispatch.** Seven
 exact cross-family model slugs support write-free research previews. A no-key
