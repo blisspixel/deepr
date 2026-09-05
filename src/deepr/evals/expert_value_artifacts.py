@@ -158,6 +158,8 @@ def _regular_reference_path(reference: str, root: Path, field: str) -> Path:
     relative = _reference_path(reference, field=field)
     if "\\" in reference:
         raise ArtifactVerificationError(f"{field} must use portable forward-slash separators")
+    if any(part.endswith((".", " ")) for part in relative.parts):
+        raise ArtifactVerificationError(f"{field} must use portable names without trailing periods or spaces")
     current = root
     for part in relative.parts:
         current = current / part

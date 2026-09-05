@@ -34,7 +34,9 @@ and does not silently start parsing nested manifests with this new schema.
 Ceilings are 1 MiB per index or world manifest, 16 MiB per source, 64 MiB of
 unique source-reference bytes, 4,096 source references, 512 sources per world,
 and 64 worlds. Indexes contain at least two worlds. References use canonical
-relative forward-slash paths and preserve significant spaces. Ordinary changes
+relative forward-slash paths and preserve internal spaces. Trailing periods
+or spaces are refused because Win32 can resolve them as aliases of a different
+reference. Ordinary changes
 during a read are refused; this is not a filesystem sandbox against a hostile
 concurrent writer. Process confinement belongs to the later runner.
 

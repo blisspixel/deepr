@@ -313,3 +313,14 @@ def test_index_must_be_inside_its_selected_root(tmp_path):
     outside.write_bytes(bundle.index_path.read_bytes())
     with pytest.raises(ValueError, match="inside"):
         sources.build_source_world_preflight(outside, bundle.root)
+
+
+@pytest.mark.parametrize("suffix", [".", " "])
+def test_source_paths_refuse_win32_trailing_aliases(tmp_path, suffix):
+    bundle = Bundle(tmp_path)
+    alternate = bundle.files[0].with_name(bundle.files[0].name + suffix)
+    alternate.write_bytes(bundle.files[0].read_bytes())
+    bundle.worlds[0]["sources"][0]["artifact_ref"] = alternate.relative_to(tmp_path).as_posix()
+    bundle.save()
+    with pytest.raises(ValueError, match="portable"):
+        bundle.check()
