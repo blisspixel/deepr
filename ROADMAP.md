@@ -414,6 +414,12 @@ reliable product, not a four-language architecture diagram.
 
 ## Current Status (v2.50.12)
 
+- [x] **Installer validation finding (2026-09-05):** both public installers
+  reported success after the CLI remained broken through repair. They now
+  return a failure status before the success footer. Executed PowerShell and
+  Bash scenarios cover success, recovery, and persistent failure without real
+  installation or network effects.
+
 **v2.50.12:** consultation preserves literal cited excerpts
 beyond the beginning of retained sources within the existing packet ceilings.
 First-world hard negatives no longer contaminate negative-transfer measures.

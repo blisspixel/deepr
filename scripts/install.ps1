@@ -166,6 +166,7 @@ if (Test-DeeprWorks) {
     }
 } else {
     Write-Err "Install completed but '$Cli' still does not run. Try a new terminal, or: pipx reinstall $Package"
+    exit 1
 }
 
 Write-Host ""
