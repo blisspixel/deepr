@@ -466,8 +466,9 @@ def _validate_trial_temporal_order(
 ) -> None:
     protocol_attested_at = datetime.fromisoformat(protocol_attestation.attested_at)
     previous_by_arm: dict[str, datetime] = {}
-    ordered = sorted(trials, key=lambda trial: trial.executed_at)
-    ordered.sort(key=lambda trial: world_by_id[case_by_id[trial.acceptance_case_id].source_world_id].as_of)
+    world_order = {world_id: index for index, world_id in enumerate(world_by_id)}
+    ordered = sorted(trials, key=lambda trial: datetime.fromisoformat(trial.executed_at))
+    ordered.sort(key=lambda trial: world_order[case_by_id[trial.acceptance_case_id].source_world_id])
     for trial in ordered:
         executed_at = datetime.fromisoformat(trial.executed_at)
         if trial.arm in previous_by_arm and executed_at < previous_by_arm[trial.arm]:

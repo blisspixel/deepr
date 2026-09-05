@@ -413,6 +413,22 @@ def test_worlds_without_any_invalidation_require_no_stale_reuse_label(tmp_path: 
     assert len(ExpertValueReview.model_validate(payload).trials) == 20
 
 
+def test_execution_order_compares_instants_instead_of_timestamp_spelling(tmp_path: Path) -> None:
+    payload = _review_payload(_blueprint(tmp_path))
+    payload["source_worlds"][0]["as_of"] = "2026-04-01T00:00:00+00:00"
+    payload["source_worlds"][1]["as_of"] = "2026-03-31T18:00:00-07:00"
+    payload["source_worlds"][2]["as_of"] = "2026-04-01T03:00:00+00:00"
+    for trial in payload["trials"]:
+        if trial["acceptance_case_id"] == "retention-case":
+            trial["executed_at"] = "2026-04-01T16:00:00+00:00"
+        elif trial["acceptance_case_id"] == "update-case":
+            trial["executed_at"] = "2026-04-01T10:00:00-07:00"
+        elif trial["acceptance_case_id"] != "initial-case":
+            trial["executed_at"] = "2026-04-01T20:00:00+00:00"
+
+    assert len(ExpertValueReview.model_validate(payload).trials) == 20
+
+
 def test_break_even_is_cost_only_and_uses_mean_consultation_cost(tmp_path: Path) -> None:
     blueprint = _blueprint(tmp_path)
     payload = _review_payload(blueprint)
