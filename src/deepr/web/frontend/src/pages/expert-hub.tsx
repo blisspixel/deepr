@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router'
+import { Link } from 'react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { expertsApi } from '@/api/experts'
 import { toast } from 'sonner'
@@ -26,7 +26,6 @@ import { CardGridSkeleton } from '@/components/ui/skeleton'
 import { ExpertPortrait } from '@/components/expert-portrait'
 
 export default function ExpertHub() {
-  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -49,6 +48,9 @@ export default function ExpertHub() {
     mutationFn: expertsApi.create,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['experts'] })
+      setRosterView('all')
+      setSearchQuery('')
+      setDebouncedSearch('')
       setCreateOpen(false)
       setNewExpert({ name: '', description: '', domain: '' })
       toast.success('Expert created')
@@ -111,17 +113,17 @@ export default function ExpertHub() {
     return filtered
   }, [experts, debouncedSearch, effectiveRosterView, sortBy])
 
-  if (isLoading) return <CardGridSkeleton />
+  if (isLoading) return <div role="status" aria-label="Loading experts"><CardGridSkeleton /></div>
 
   if (isError) {
     return (
-      <div className="flex flex-col items-center justify-center h-[60vh] text-center">
+      <div role="alert" className="flex min-h-[60vh] flex-col items-center justify-center p-4 text-center">
         <Users className="w-10 h-10 text-muted-foreground/40 mb-3" />
         <p className="text-lg font-medium text-foreground mb-1">Unable to load experts</p>
-        <p className="text-sm text-muted-foreground mb-4">Could not connect to the backend. Experts will appear here once the server is running.</p>
+        <p className="text-sm text-muted-foreground mb-4">The server could not return your experts. This does not mean the workspace is empty.</p>
         <button
           onClick={() => refetch()}
-          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary-hover transition-colors"
         >
           Retry
         </button>
@@ -130,13 +132,13 @@ export default function ExpertHub() {
   }
 
   return (
-    <div className="p-6 space-y-6 animate-fade-in">
+    <div className="p-4 sm:p-6 space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
           <h1 className="text-xl font-semibold text-foreground">Experts</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {flagshipCount} flagship &middot; {experts?.length ?? 0} total &middot;{' '}
+            {flagshipCount > 0 && <>{flagshipCount} flagship &middot; </>}{experts?.length ?? 0} total &middot;{' '}
             {effectiveRosterView === 'flagship'
               ? `${flagshipReadyCount} of ${flagshipCount} flagship ready`
               : `${allReadyCount} presentation-ready`}
@@ -163,7 +165,7 @@ export default function ExpertHub() {
             />
           </div>
           <Select value={sortBy} onValueChange={setSortBy}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full sm:w-[180px]" aria-label="Sort experts">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -178,7 +180,7 @@ export default function ExpertHub() {
             value={effectiveRosterView}
             onValueChange={(value) => setRosterView(value as 'flagship' | 'all')}
           >
-            <SelectTrigger className="w-[170px]" aria-label="Roster view">
+            <SelectTrigger className="w-full sm:w-[170px]" aria-label="Roster view">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -195,7 +197,7 @@ export default function ExpertHub() {
           <Users className="w-10 h-10 text-muted-foreground/40 mb-3" />
           <h3 className="text-base font-medium text-foreground mb-1">No experts yet</h3>
           <p className="text-sm text-muted-foreground mb-4">
-            Create domain experts to build persistent knowledge bases.
+            Create a local expert profile, then add trusted sources with the CLI. No API key is needed.
           </p>
           <Button onClick={handleCreateExpert}>
             <Plus className="w-4 h-4" />
@@ -213,14 +215,25 @@ export default function ExpertHub() {
               ? 'Feature experts explicitly, or switch to the complete roster.'
               : `No experts match "${debouncedSearch}".`}
           </p>
+          <Button
+            variant="outline"
+            className="mt-4"
+            onClick={() => {
+              setSearchQuery('')
+              setDebouncedSearch('')
+              setRosterView('all')
+            }}
+          >
+            Show all experts
+          </Button>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
           {filteredExperts.map((expert) => (
-            <div
+            <Link
               key={expert.name}
-              className="rounded-lg border bg-card hover:border-primary/20 hover:shadow-md transition-all cursor-pointer group"
-              onClick={() => navigate(`/experts/${encodeURIComponent(expert.name)}`)}
+              to={`/experts/${encodeURIComponent(expert.name)}`}
+              className="rounded-lg border bg-card hover:border-primary/20 hover:shadow-md transition-all group focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               <div className="p-4 space-y-3">
                 <div className="flex items-start gap-3">
@@ -276,7 +289,7 @@ export default function ExpertHub() {
                   {!expert.standpoint && <span className="text-warning">no standpoint yet</span>}
                 </div>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       )}
@@ -288,7 +301,7 @@ export default function ExpertHub() {
             <DialogHeader>
               <DialogTitle>Create Expert</DialogTitle>
               <DialogDescription>
-                Create a new domain expert. You can add documents later via CLI.
+                Create a local profile without a model call. Add trusted sources later with the local CLI.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">

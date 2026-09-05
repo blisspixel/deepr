@@ -176,7 +176,7 @@ export default function CostIntelligence() {
           </p>
           <button
             onClick={() => refetchSummary()}
-            className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:bg-primary/90 transition-colors"
+            className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:bg-primary-hover transition-colors"
           >
             Retry
           </button>
@@ -383,7 +383,7 @@ export default function CostIntelligence() {
               type="button"
               onClick={() => void refetchBreakdown()}
               disabled={isBreakdownFetching}
-              className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:bg-primary/90 disabled:opacity-50"
+              className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:bg-primary-hover disabled:opacity-50"
             >
               {isBreakdownFetching ? 'Retrying...' : 'Retry'}
             </button>

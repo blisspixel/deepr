@@ -356,7 +356,7 @@ export default function Benchmarks() {
           </p>
           <button
             onClick={() => queryClient.invalidateQueries()}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary-hover transition-colors"
           >
             Retry
           </button>
@@ -442,7 +442,7 @@ export default function Benchmarks() {
             <button
               onClick={() => { setEstimateData(null); estimateMutation.mutate({ ...runOpts }) }}
               disabled={estimateMutation.isPending || startMutation.isPending}
-              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 ml-auto"
+              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary-hover disabled:opacity-50 ml-auto"
             >
               {estimateMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <DollarSign className="h-3 w-3" />}
               Estimate Cost
@@ -462,7 +462,7 @@ export default function Benchmarks() {
                 <button
                   onClick={confirmBenchmark}
                   disabled={startMutation.isPending}
-                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
                 >
                   {startMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
                   Confirm & Start

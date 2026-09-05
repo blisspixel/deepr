@@ -1,6 +1,6 @@
 # External Harness Bridge for Expert Investigations
 
-Status: proposed boundary refinement, researched 2026-09-01. No remote
+Status: proposed boundary refinement, researched 2026-09-05. No remote
 investigation bridge or direct Grok Bot integration is shipped by this note.
 
 Read [AGENTIC_BALANCE.md](../plans/AGENTIC_BALANCE.md),
@@ -78,13 +78,20 @@ server-side authority. Source:
 
 ### DeepSeek Harness
 
-DeepSeek Harness `dsh-v0.1.1-rc.2` is a developer preview built around
-replaceable plugins and profiles. Its append-only session log drives resume,
-fork, search, replay, and UI trajectory projections. Its MCP client maps remote
-server tools into the host tool registry. A Deepr profile should fail on MCP
-startup errors instead of silently degrading. Harness tool restriction is a
-visibility mechanism, not Deepr authorization. These are strong evidence for
-two narrow Deepr additions:
+DeepSeek Harness `dsh-v0.1.3-alpha.1`, published 2026-09-04, is a prerelease
+built around replaceable plugins and profiles. Session creation is now
+asynchronous; lifecycle-owned `SessionHandle`s and locks limit a session to one
+owning process. Journal format v2 migrates older logs through immutable adjacent
+generations. The release also reports a session-load performance regression.
+These changes make exact version and cold-recovery fixtures necessary before
+Deepr could claim host compatibility.
+
+Its MCP client bridges tools over stdio or Streamable HTTP using
+`mcp__<serverName>__<tool>` names. Resources and prompts have no consumer in
+that bridge. `failOnStartupError` defaults to `false`; a future profile that
+requires Deepr should set it to `true` and verify the resulting inventory.
+Harness tool restriction remains visibility, not Deepr authorization. The
+useful narrow additions are:
 
 - a versioned host profile with an exact tool allowlist; and
 - replayable UI or chat projections over Deepr's authoritative event journal.
@@ -93,20 +100,38 @@ Deepr should not copy the Cordis plugin kernel, record private model reasoning,
 or let plugins replace budget, evidence, or memory authority. The Harness is in
 developer preview and states that its APIs will continue to evolve. Sources:
 [product overview](https://deepseek.com/harness/en/),
-[release](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.1-rc.2),
-[architecture](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.1.1-rc.2/docs/architecture.md),
+[prerelease](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.3-alpha.1),
+[architecture](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.1.3-alpha.1/docs/architecture.md),
 and
-[MCP client](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.1.1-rc.2/packages/mcp/mcp-client/README.md).
+[MCP client](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.1.3-alpha.1/packages/mcp/mcp-client/README.md).
+
+### Pi and Hermes
+
+Pi v0.85.1, published 2026-09-05, removes accidentally published experimental
+server/client commands and `client` and `experimental/plugin` subpaths from
+the supported package surface. They remain source-only experiments. Its local
+SDK and stdio RPC are unchanged. A future Deepr host recipe should bind one of
+those supported interfaces, not treat the withdrawn experiment as a stable
+remote-agent runtime. Sources:
+[release](https://github.com/earendil-works/pi/releases/tag/v0.85.1),
+[local SDK](https://github.com/earendil-works/pi/blob/v0.85.1/packages/coding-agent/docs/sdk.md), and
+[stdio RPC](https://github.com/earendil-works/pi/blob/v0.85.1/packages/coding-agent/docs/rpc.md).
+
+Hermes upstream remains v0.21.0 under release tag `v2026.8.31` as of this
+review. Its memory and session patterns inform isolated evaluation fixtures;
+they do not qualify a Deepr adapter or supersede the different managed Hermes
+pin in NemoClaw. Source:
+[upstream release](https://github.com/NousResearch/hermes-agent/releases/tag/v2026.8.31).
 
 ### OpenClaw
 
-OpenClaw stable `v2026.8.2` is an external gateway, channel, session,
-workspace, tool, skill, and agent runtime. Its configuration supports stdio and
-remote MCP servers, per-server timeouts, tool include and exclude filters,
-OAuth configuration and token-storage posture, TLS controls, and a Codex app-server-specific agent
-projection block. That block is not generic per-agent OpenClaw authority. Its
-sandbox, tool policy, and elevated execution controls are intentionally
-distinct.
+OpenClaw stable `v2026.9.1`, released 2026-09-03, is an external gateway,
+channel, session, workspace, tool, skill, and agent runtime. The historical
+`v2026.8.2` configuration review covered stdio and remote MCP servers,
+per-server timeouts, tool include and exclude filters, OAuth configuration and
+token-storage posture, TLS controls, and a Codex app-server-specific agent
+projection block. That block is not generic per-agent OpenClaw authority.
+Sandbox, tool policy, and elevated execution controls have separate roles.
 
 That makes OpenClaw a practical first host integration. The implemented
 `v2026.7.1-2` reference remains a pinned offline artifact. The conformant Agent
@@ -118,33 +143,45 @@ policy-filtered catalog and independent call-time denial remain authoritative.
 The later investigation observer profile should use the existing exported
 `SKILL.md` with its narrower three-tool allowlist. Native Agent Plugins support
 is stable upstream, but Deepr must not claim compatible execution until an
-isolated `v2026.8.2` gateway fixture proves discovery, calls, restart behavior,
+isolated `v2026.9.1` gateway fixture proves discovery, calls, restart behavior,
 blocked tools, zero provider contact, and zero ledger delta. The host still
-needs an installed `deepr-mcp` executable. Sources:
-[stable release](https://github.com/openclaw/openclaw/releases/tag/v2026.8.2),
+needs an installed `deepr-mcp` executable. The earlier `v2026.8.2` source
+inspection below is historical candidate evidence, not current-stable or
+live-host qualification. Sources:
+[current stable release](https://github.com/openclaw/openclaw/releases/tag/v2026.9.1),
 [MCP configuration](https://docs.openclaw.ai/gateway/configuration-reference),
-[tool naming](https://github.com/openclaw/openclaw/blob/v2026.8.2/docs/plugins/bundles.md#tool-naming),
-[MCP catalog](https://github.com/openclaw/openclaw/blob/v2026.8.2/src/agents/agent-bundle-mcp-runtime.ts),
-and [tool materialization](https://github.com/openclaw/openclaw/blob/v2026.8.2/src/agents/agent-bundle-mcp-materialize.ts).
+[historical tool naming](https://github.com/openclaw/openclaw/blob/v2026.8.2/docs/plugins/bundles.md#tool-naming),
+[historical MCP catalog](https://github.com/openclaw/openclaw/blob/v2026.8.2/src/agents/agent-bundle-mcp-runtime.ts),
+and [historical tool materialization](https://github.com/openclaw/openclaw/blob/v2026.8.2/src/agents/agent-bundle-mcp-materialize.ts).
 
 ### NemoClaw and OpenShell
 
-NVIDIA NemoClaw `v0.0.113` pins OpenShell 0.0.106 as the supported boundary,
-even though a newer standalone OpenShell release exists. It runs supported
-harnesses, including OpenClaw, inside sandboxes with network, filesystem,
-process, inference, snapshot, and lifecycle controls. Its managed MCP flow
-accepts authenticated HTTPS Streamable HTTP, keeps the secret value outside
-sandbox configuration, and resolves a credential alias at egress.
+NVIDIA NemoClaw tag `v0.0.120` pins OpenShell 0.0.106 as both the minimum and
+maximum blueprint version. Its September 4 changelog pins managed Hermes to
+0.20.6, separately from upstream Hermes 0.21.0. As of 2026-09-05 the repository
+has tags and checked-in changelogs but no GitHub Releases; a tag is not a Deepr
+qualification record.
+
+Managed MCP requires authenticated HTTPS Streamable HTTP and one dedicated
+bearer credential. It rejects direct loopback, hostnames resolving to loopback,
+and aliases such as `host.docker.internal` and `host.openshell.internal`.
+It does not start, wrap, or translate stdio-only servers. Deepr's portable
+stdio Agent Plugin therefore cannot be installed directly through that managed
+MCP path. The alias and secret value are kept separate, with resolution bound
+to the admitted endpoint.
 
 NemoClaw is therefore a deployment and isolation profile for an external host,
-not a Deepr runtime dependency. A first recipe should connect a NemoClaw
-sandbox to Deepr's HTTP MCP endpoint using a dedicated scoped key and explicit
-egress rule. It remains reference-only until Deepr validates that exact
-NemoClaw and OpenShell pair, including its managed-MCP path and release
-exceptions. Sources:
-[release](https://github.com/NVIDIA/NemoClaw/releases/tag/v0.0.113),
-[OpenShell pin](https://github.com/NVIDIA/NemoClaw/blob/v0.0.113/scripts/install-openshell.sh), and
-[managed MCP](https://docs.nvidia.com/nemoclaw/latest/user-guide/openclaw/manage-sandboxes/mcp-servers/about-managed-mcp-servers).
+not a Deepr runtime dependency. A future recipe needs an operator-owned routed
+HTTPS endpoint, scoped key, trusted certificate, explicit egress, and independent
+endpoint-cost authority. It stays reference-only until the exact NemoClaw,
+OpenShell, managed harness, and transport combination passes Deepr's fixture.
+No tunnel, proxy, credential registration, or deployment is authorized by this
+design. Sources:
+[tag](https://github.com/NVIDIA/NemoClaw/tree/v0.0.120),
+[release inventory](https://github.com/NVIDIA/NemoClaw/releases),
+[exact blueprint](https://github.com/NVIDIA/NemoClaw/blob/v0.0.120/nemoclaw-blueprint/blueprint.yaml),
+[September 4 changelog](https://github.com/NVIDIA/NemoClaw/blob/v0.0.120/docs/changelog/2026-09-04.mdx), and
+[managed MCP](https://github.com/NVIDIA/NemoClaw/blob/v0.0.120/docs/manage-sandboxes/add-mcp-server.mdx).
 
 ### Other hosts and protocols
 
@@ -457,6 +494,14 @@ selection is not proof of safe marginal cost or confinement.
 This is a dependency graph, not a duration estimate. A stage begins only after
 its predecessor's acceptance gate is recorded.
 
+The [active release plan](../../ROADMAP.md#active-release-plan) keeps v2.51's
+expert-value gate first. Apply the research now to redacted effective
+environment/source/model/tool evidence, per-arm memory hashes and cold-restart
+isolation, then offline cancellation and journal recovery. New host
+qualification follows the value and authority gates. The
+[ranked implications](agent-harness-lessons-2026.md#recommended-order) do not
+add an adapter, runtime dependency, or host qualification to this release.
+
 ### Bridge 0: standards truth and offline fixtures
 
 Status: implemented 2026-08-20. OKF 0.2, Agent Plugins 1.0.0, Agent Skills,
@@ -516,7 +561,7 @@ Status: implemented 2026-08-21 for zero-call schemas and local projection
 builders. The 2026-08-21 re-audit restored explicit production blocks
 for Codex, Grok Build, and Antigravity. The first closed host-profile schema,
 runtime-derived tool inventory, deterministic generator, and reference-only
-OpenClaw stable artifact are implemented. Capability snapshot, control
+OpenClaw `v2026.7.1-2` artifact are implemented. Capability snapshot, control
 evidence, status projection, event page, artifact metadata page, follow-up,
 and fork lineage now have published schemas and read-only builders in
 `deepr.experts.investigation.projection`. Follow-up and fork remain
@@ -553,16 +598,18 @@ reconstructs the same visible lifecycle without changing canonical state.
 - Prefer the conformant Agent Plugin package only where an exact stable host
   release passes Deepr's isolated evidence lane.
 - Retain the implemented reference-only OpenClaw `v2026.7.1-2` fragment, then
-  independently validate the Agent Plugin against stable `v2026.8.2` before
+  independently validate the Agent Plugin against stable `v2026.9.1` before
   promotion. The fixture must use ordinary `tools/list`, observe the exact ten
   `deepr__`-prefixed read-only tools, call status, deny paid and write tools,
   survive restart, make zero external provider requests, and leave zero ledger
   delta.
   Generate offline observer profiles and exact fragments for DeepSeek Harness
-  `dsh-v0.1.1-rc.2`, Grok Build 1.0.6, and Codex where needed.
-- Treat NemoClaw `v0.0.113` plus its pinned OpenShell 0.0.106 as a remote
-  isolation recipe after HTTP auth, egress, and endpoint-cost prerequisites
-  pass. Do not substitute a newer standalone OpenShell release.
+  prerelease `dsh-v0.1.3-alpha.1`, Grok Build 1.0.6, and Codex where needed.
+- Treat NemoClaw tag `v0.0.120` plus its pinned OpenShell 0.0.106 as a remote
+  isolation candidate after HTTPS auth, egress, and endpoint-cost prerequisites
+  pass. Bind the actual managed harness version too, including Hermes 0.20.6
+  when selected. Do not substitute a newer standalone release or translate the
+  stdio plugin into claimed managed-MCP support.
 - Record host version, transport, exact tool inventory, and validation
   evidence. Profiles remain `reference`; a separately validated,
   digest-bound evidence artifact derives any stronger status.

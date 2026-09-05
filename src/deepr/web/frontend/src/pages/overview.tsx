@@ -12,7 +12,6 @@ import {
   Clock3,
   DollarSign,
   Loader2,
-  Plus,
   Search,
   Trash2,
   Users,
@@ -20,6 +19,8 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Sparkline } from '@/components/charts/sparkline'
+import { Button } from '@/components/ui/button'
+import PartialQueryError from '@/components/shared/partial-query-error'
 
 export default function Overview() {
   const navigate = useNavigate()
@@ -42,7 +43,7 @@ export default function Overview() {
     },
   })
 
-  const { data: jobsData, isError: isJobsError } = useQuery({
+  const { data: jobsData, isLoading: isJobsLoading, isError: isJobsError, refetch: refetchJobs, isFetching: isJobsFetching } = useQuery({
     queryKey: ['jobs', 'recent'],
     queryFn: () => jobsApi.list({ limit: 10 }),
     refetchInterval: 5000,
@@ -99,55 +100,29 @@ export default function Overview() {
   const trendData = trends?.daily?.map((t: { cost: number }) => ({ value: t.cost })) || []
 
   const quickActions = [
-    { label: 'New Research', icon: Plus, onClick: () => navigate('/research'), variant: 'primary' as const },
+    { label: 'Explore Experts', icon: Users, onClick: () => navigate('/experts'), variant: 'primary' as const },
     { label: 'View Results', icon: Search, onClick: () => navigate('/results'), variant: 'secondary' as const },
-    { label: 'Ask Expert', icon: Users, onClick: () => navigate('/experts'), variant: 'secondary' as const },
+    { label: 'Research Preview', icon: Search, onClick: () => navigate('/research'), variant: 'secondary' as const },
     { label: 'Check Costs', icon: DollarSign, onClick: () => navigate('/costs'), variant: 'secondary' as const },
   ]
 
   return (
     <div className="space-y-6 p-4 sm:p-6 animate-fade-in">
       {/* Greeting + CTA */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Overview</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Research operations at a glance</p>
+          <h1 className="text-xl font-semibold text-foreground">Overview</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Your local expert workspace</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => navigate(!moneyKnown || costSummary.paid_api_frozen ? '/experts' : '/research')}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            {!moneyKnown || costSummary.paid_api_frozen ? 'Ask Expert' : 'New Research'}
-          </button>
-          {(!moneyKnown || costSummary.paid_api_frozen) && (
-            <button
-              onClick={() => navigate('/research')}
-              className="inline-flex items-center gap-2 px-3 py-2 border rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
-              title={
-                !moneyKnown
-                  ? 'Metered research stays blocked while money state is unknown'
-                  : 'Metered research stays blocked while paid API is frozen'
-              }
-            >
-              {!moneyKnown ? 'Research (blocked)' : 'Research (frozen)'}
-            </button>
-          )}
+          <Button asChild><Link to="/experts"><Users className="w-4 h-4" />Explore Experts</Link></Button>
+          <Button asChild variant="outline"><Link to="/research">Research Preview</Link></Button>
         </div>
       </div>
 
       {/* Connection warning */}
       {isJobsError && (
-        <div className="rounded-lg border border-warning/30 bg-warning/5 px-4 py-3 flex items-center gap-3">
-          <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
-          <p className="text-sm text-muted-foreground">
-            Unable to load job state. Operational data below may be incomplete.
-            Start the server or go to{' '}
-            <button onClick={() => navigate('/settings')} className="text-primary hover:underline">Settings</button>
-            {' '}to load demo data.
-          </p>
-        </div>
+        <PartialQueryError title="Activity is unavailable" description="The server could not return job state. This does not mean the workspace is empty." onRetry={() => void refetchJobs()} retrying={isJobsFetching} />
       )}
 
       {/* Spend truth: over-budget and orphaned spend must be impossible to
@@ -369,38 +344,38 @@ export default function Overview() {
               </button>
             </div>
             <div className="rounded-lg border bg-card divide-y">
-              {jobs.length === 0 ? (
+              {isJobsLoading ? (
+                <p role="status" className="p-8 text-sm text-muted-foreground">Loading recent activity...</p>
+              ) : isJobsError && jobs.length === 0 ? (
+                <p className="p-8 text-sm text-muted-foreground">Recent activity could not be loaded. Retry above to inspect it.</p>
+              ) : jobs.length === 0 ? (
                 <div className="p-8 space-y-4">
-                  <p className="text-sm font-medium text-foreground text-center mb-4">Get started in 3 steps</p>
+                  <p className="text-sm font-medium text-foreground text-center mb-4">Start with a local expert</p>
                   <div className="space-y-3 max-w-sm mx-auto">
                     <div className="flex items-start gap-3">
                       <span className="shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center mt-0.5">1</span>
                       <div>
-                        <p className="text-sm text-foreground">Set a budget</p>
+                        <p className="text-sm text-foreground">Create or choose an expert</p>
                         <p className="text-xs text-muted-foreground">
-                          Configure spending limits in{' '}
-                          <button onClick={() => navigate('/costs')} className="text-primary hover:underline">
-                            Cost Intelligence
-                          </button>
-                          {' '}to cap daily and monthly spending
+                          Open <Link to="/experts" className="text-primary underline underline-offset-2">Experts</Link> to define a domain or inspect an existing expert.
                         </p>
                       </div>
                     </div>
                     <div className="flex items-start gap-3">
                       <span className="shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center mt-0.5">2</span>
                       <div>
-                        <p className="text-sm text-foreground">Run a research job</p>
+                        <p className="text-sm text-foreground">Retain and study trusted evidence</p>
                         <p className="text-xs text-muted-foreground">
-                          Use the <button onClick={() => navigate('/research')} className="text-primary hover:underline">Research Studio</button> or CLI to submit a query
+                          Use the local CLI to retain sources, study them, and form a brief. <Link to="/help" className="text-primary underline underline-offset-2">Open local setup guidance</Link>.
                         </p>
                       </div>
                     </div>
                     <div className="flex items-start gap-3">
                       <span className="shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center mt-0.5">3</span>
                       <div>
-                        <p className="text-sm text-foreground">Review results with citations</p>
+                        <p className="text-sm text-foreground">Inspect evidence and consult locally</p>
                         <p className="text-xs text-muted-foreground">
-                          Completed reports appear in <button onClick={() => navigate('/results')} className="text-primary hover:underline">Results</button> with full source attribution
+                          Review the expert's claims and uncertainty here. Its profile provides the CLI handoff for a local consultation.
                         </p>
                       </div>
                     </div>
@@ -471,7 +446,7 @@ export default function Overview() {
                   className={cn(
                     'flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs font-medium transition-colors',
                     action.variant === 'primary'
-                      ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                      ? 'bg-primary text-primary-foreground hover:bg-primary-hover'
                       : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
                   )}
                 >

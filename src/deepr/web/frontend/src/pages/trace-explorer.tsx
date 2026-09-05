@@ -103,7 +103,7 @@ export default function TraceExplorer() {
           <button
             onClick={() => void refetchTrace()}
             disabled={isTraceFetching}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isTraceFetching ? 'Retrying...' : 'Retry'}
           </button>
@@ -222,7 +222,7 @@ export default function TraceExplorer() {
             </p>
             <button
               onClick={() => navigate(`/results/${id}`)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium mt-2 hover:bg-primary/90"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium mt-2 hover:bg-primary-hover"
             >
               View Result
             </button>

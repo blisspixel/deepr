@@ -592,7 +592,7 @@ def capacity_probe_plan(backend: str, model: str | None, yes: bool, json_output:
 
     if json_output:
         click.echo(_json.dumps({"backend": backend, "auth_mode": decision.auth_mode.value, **result}, indent=2))
-        return
+        sys.exit(0 if result["ok"] else 1)
     if result["ok"]:
         click.echo(
             f"{adapter.display_name}: OK - replied {result['reply'][:60]!r} in {result['latency_ms']}ms "

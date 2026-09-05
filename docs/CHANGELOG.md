@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.13] - 2026-09-05
+
 ### Fixed
 
 - Longitudinal value reviews retain stale-memory applicability after the world
@@ -18,6 +20,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Python callers now pass `artifact_root` instead of `artifact_verification`;
   CLI options and report JSON are unchanged. Artifact paths preserve repeated
   spaces rather than silently selecting a different file.
+
+- Failed plan-quota probes now return exit 1 in JSON mode while preserving
+  their structured refusal. Successful probes remain exit 0 and pre-dispatch
+  safety refusals remain exit 2.
+- Web-created experts explicitly use a local model and zero monthly learning
+  budget instead of inheriting paid-provider defaults. Successful creation
+  clears search and flagship filters so the new profile is visible.
+- Expert details now include the roster's study findings, grounding counts,
+  and source counts. Profiles no longer display zero findings for studied
+  experts, and reading knowledge counters no longer creates a belief store.
+- Shared link buttons no longer crash when rendered through Radix Slot.
+  Disabled and loading links prevent activation and expose their state.
+  Results filtering retains keyboard focus, expert cards use native links,
+  and profile routes no longer decode React Router parameters a second time.
+- Persisted accent names cannot read inherited object properties. Filled
+  controls use contrast-tested theme and hover tokens, and noninteractive
+  badges no longer change color on hover.
+
+### Changed
+
+- The dashboard starts with the supported local expert workflow. Profiles
+  open on Claims, retain saved conversation inspection on mobile, and expose
+  a safely quoted PowerShell handoff for local consultation. Browser chat and
+  paid research remain unavailable. The narrow status bar retains connection
+  and paid-dispatch state with a labeled link to complete accounting.
+- One geometric open-well SVG now supplies the app mark and favicon. The
+  existing typography, surface language, and selectable accents remain;
+  the interface design notes now describe the implemented tokens and checks.
+- Isolated browser workflow regressions now run in frontend CI, covering both
+  themes and 320, 390, and 1440px widths without a backend or provider.
+- Updated primary-source research on Pi's withdrawn experimental package
+  paths, DeepSeek Harness's prerelease lifecycle and MCP limits, and
+  NemoClaw's exact runtime pins and HTTPS-only managed MCP boundary. The
+  local-first runtime proposal and v2.51 value-evaluation priority remain.
+- Live local validation created and studied a new expert, generated its
+  brief, absorbed a primary temporal source into an isolated existing-expert
+  copy, and completed a two-perspective MCP consultation with one local
+  synthesis. This validates operation, not a blinded improvement in judgment.
+  The quota provider initially rate-limited account-control observations, then
+  completed a confined plan probe after the retry window with paid overage
+  proven disabled and quota plus $0 cost records written. All seven OpenRouter
+  public routes passed; current-key controls remained ineligible.
+  External paid API spend was $0 and no paid inference request was made.
 
 ## [2.50.12] - 2026-09-05
 

@@ -31,13 +31,13 @@ def test_installer_exit_status_reflects_cli_after_repair(tmp_path: Path, family:
     """Run the real installer with local command doubles, without network or installs."""
     shell = _installer_shell(family)
     release = {
-        "tag_name": "v2.50.12",
+        "tag_name": "v2.50.13",
         "assets": [
             {
-                "name": "deepr_research-2.50.12-py3-none-any.whl",
+                "name": "deepr_research-2.50.13-py3-none-any.whl",
                 "browser_download_url": (
                     "https://github.com/blisspixel/deepr/releases/download/"
-                    "v2.50.12/deepr_research-2.50.12-py3-none-any.whl"
+                    "v2.50.13/deepr_research-2.50.13-py3-none-any.whl"
                 ),
             }
         ],
@@ -71,7 +71,7 @@ function deepr {
         return
     }
     $global:LASTEXITCODE = 0
-    'deepr, version 2.50.12'
+    'deepr, version 2.50.13'
 }
 function Invoke-RestMethod { $env:DEEPR_INSTALL_TEST_RELEASE | ConvertFrom-Json }
 Invoke-Expression (Get-Content -LiteralPath $env:DEEPR_INSTALL_TEST_SCRIPT -Raw)
@@ -99,7 +99,7 @@ deepr() {
        { [ "$DEEPR_INSTALL_TEST_BEHAVIOR" = repair_works ] && [ "$install_count" -lt 2 ]; }; then
         return 7
     fi
-    printf 'deepr, version 2.50.12\\n'
+    printf 'deepr, version 2.50.13\\n'
 }
 source "$DEEPR_INSTALL_TEST_SCRIPT"
 """,
@@ -120,7 +120,7 @@ source "$DEEPR_INSTALL_TEST_SCRIPT"
     else:
         assert result.returncode == 0, output
         assert "==> Done." in output
-        assert "deepr, version 2.50.12" in output
+        assert "deepr, version 2.50.13" in output
 
 
 @pytest.mark.parametrize("relative_path", ["scripts/install.sh", "scripts/install.ps1"])

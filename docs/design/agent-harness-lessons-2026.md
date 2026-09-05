@@ -1,6 +1,6 @@
 # Agent Harness Lessons for Deepr
 
-Status: researched roadmap design, updated 2026-09-04. Nothing in this document is
+Status: researched roadmap design, updated 2026-09-05. Nothing in this document is
 shipped merely because it is described here.
 
 The current Deepr-specific integration decision is
@@ -40,13 +40,17 @@ safe.
   ([repository](https://github.com/anomalyco/opencode),
   [release](https://github.com/anomalyco/opencode/releases/tag/v1.18.26),
   [commit](https://github.com/anomalyco/opencode/commit/774cc7c1914e4329eefde5a669f938b0cf566661)).
-- Pi v0.85.0, released 2026-09-04, keeps the harness composable across model
-  APIs, core loop, TUI, SDK, and JSON-RPC. Its session model distinguishes
-  steering from follow-up input and supports abort recovery, trees, and forks
+- Pi v0.85.1, released 2026-09-05, repairs SDK imports after v0.85.0
+  accidentally published internal experimental code and dependencies. The
+  experimental `client` and `experimental/plugin` subpaths and server/client
+  commands return to source-only use. The supported local SDK and stdio RPC
+  remain available; those experimental paths are not stable host interfaces.
+  Its session model distinguishes steering from follow-up input and supports
+  abort recovery, trees, and forks
   ([repository](https://github.com/earendil-works/pi),
-  [release](https://github.com/earendil-works/pi/releases/tag/v0.85.0),
-  [session UX](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/README.md),
-  [SDK](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/sdk.md)).
+  [release](https://github.com/earendil-works/pi/releases/tag/v0.85.1),
+  [SDK](https://github.com/earendil-works/pi/blob/v0.85.1/packages/coding-agent/docs/sdk.md),
+  [stdio RPC](https://github.com/earendil-works/pi/blob/v0.85.1/packages/coding-agent/docs/rpc.md)).
 - OpenHands described a harness, orchestrator, and control-plane split on
   2026-04-03. Routing, budget, policy, and observability belong in the control
   plane rather than being implicit harness behavior
@@ -76,19 +80,33 @@ safe.
   external Deepr host, separately from any eligibility as plan capacity
   ([MCP](https://docs.x.ai/build/features/mcp-servers),
   [workflows](https://x.ai/news/workflows)).
-- DeepSeek Harness `dsh-v0.1.1-rc.2` makes capabilities profile-composed
-  plugins and reconstructs resume, fork, search, replay, and UI views from an
-  append-only session log. Deepr should adopt the narrower host-profile and
-  projection seams, not the general plugin kernel or private-reasoning log
+- DeepSeek Harness `dsh-v0.1.3-alpha.1`, a prerelease from 2026-09-04,
+  introduces asynchronous session creation, lifecycle-owned `SessionHandle`s,
+  a single-process session lock, and journal format v2. Its release notes also
+  flag a session-load performance regression. The MCP client bridges tools
+  over stdio or Streamable HTTP under `mcp__<serverName>__<tool>` names; it does
+  not consume resources or prompts. `failOnStartupError` defaults to `false`,
+  so a future Deepr-required profile should explicitly require startup success.
+  These are useful recovery and host-profile patterns, not a reason to adopt
+  the general plugin kernel or private-reasoning log
   ([overview](https://deepseek.com/harness/en/),
-  [architecture](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.1.1-rc.2/docs/architecture.md)).
+  [prerelease](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.3-alpha.1),
+  [architecture](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.1.3-alpha.1/docs/architecture.md),
+  [MCP client](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.1.3-alpha.1/packages/mcp/mcp-client/README.md)).
 - OpenClaw now documents remote and stdio MCP servers with tool filters and
   distinct sandbox, tool-policy, and elevated-execution controls. NemoClaw
-  `v0.0.113` pins OpenShell 0.0.106 for its managed-MCP boundary. Both are
-  practical external host targets, not Deepr runtime dependencies, and the
-  NemoClaw pair remains reference-only until Deepr validates it
+  tag `v0.0.120` pins OpenShell 0.0.106 exactly and manages Hermes 0.20.6,
+  separately from upstream Hermes 0.21.0. The repository has no GitHub Releases
+  as of 2026-09-05; its tag and checked-in changelog are the evidence. Managed
+  MCP accepts authenticated HTTPS Streamable HTTP with a dedicated bearer,
+  rejects loopback and host aliases, and does not start or wrap stdio servers.
+  Deepr's portable stdio plugin is therefore not a direct managed-NemoClaw
+  integration. These remain external host candidates without Deepr qualification
   ([OpenClaw MCP](https://docs.openclaw.ai/gateway/configuration-reference),
-  [NemoClaw release](https://github.com/NVIDIA/NemoClaw/releases/tag/v0.0.113)).
+  [NemoClaw tag](https://github.com/NVIDIA/NemoClaw/tree/v0.0.120),
+  [blueprint](https://github.com/NVIDIA/NemoClaw/blob/v0.0.120/nemoclaw-blueprint/blueprint.yaml),
+  [changelog](https://github.com/NVIDIA/NemoClaw/blob/v0.0.120/docs/changelog/2026-09-04.mdx),
+  [managed MCP](https://github.com/NVIDIA/NemoClaw/blob/v0.0.120/docs/manage-sandboxes/add-mcp-server.mdx)).
 
 ## Adopt
 
@@ -194,14 +212,37 @@ First complete the v2.51 value pilot and v2.52 reviewed prediction resolution;
 the harness-control sequence below belongs behind those gates. Latest upstream
 versions do not upgrade Deepr's pinned host fixtures or prove compatibility.
 
-The immediate adoption is bounded exact evidence recall. Hermes separates
-small session-start memory from session recall, while Pi retains session
+The ranked implications of the September 5 review are:
+
+1. **Make v2.51 execution evidence reproducible.** Evaluation preflight should
+   capture redacted effective environment settings, executable and model
+   identity, frozen source hashes, and the actual admitted tool inventory.
+   Configuration intent alone cannot establish what an arm received. Never
+   retain a complete environment dump or bearer value.
+2. **Prove memory isolation.** Bind each arm's starting and subsequent memory
+   hashes to its world and trial. Add cold-restart checks with separate state
+   directories so inherited sessions, cached context, or another arm's writes
+   cannot masquerade as expert value. Preserve the same source availability
+   and total context envelope across arms.
+3. **Exercise cancellation and journal recovery offline.** Test ownership
+   conflicts, interrupted creation, partial tool output, interrupted writes,
+   replay, and incompatible journal versions. A recovered projection must not
+   claim that a cancelled or ambiguous attempt completed successfully.
+4. **Qualify one exact future host after the gates.** Record host build,
+   transport, namespaced tool inventory, startup failure behavior, credential
+   confinement, restart evidence, and zero provider/ledger deltas. Pi's
+   withdrawn experimental paths, DeepSeek's prerelease journal, and NemoClaw's
+   managed HTTPS boundary each need their own fixture. None grants a new
+   adapter, dependency, or compatibility status by documentation alone.
+
+Bounded exact evidence recall already supplies a useful local foundation.
+Hermes separates small session-start memory from session recall, while Pi retains session
 entries beneath compact working context
 ([Hermes memory](https://github.com/NousResearch/hermes-agent/blob/v2026.8.31/website/docs/user-guide/features/memory.md),
-[Pi compaction](https://github.com/earendil-works/pi/blob/v0.85.0/packages/coding-agent/docs/compaction.md)).
+[Pi compaction](https://github.com/earendil-works/pi/blob/v0.85.1/packages/coding-agent/docs/compaction.md)).
 Deepr's retained sources and exact study anchors already support that pattern.
-Recovering those anchors inside the existing consult budget addresses a concrete
-evidence-loss defect without adding a memory engine. The
+Anchor-based excerpts now recover evidence inside the existing consult budget
+without adding a memory engine. The
 [value pilot protocol](expert-purpose-and-value-loop.md#v251-pilot-protocol)
 tests excerpt loss, temporal changes, false premises, and arm isolation.
 

@@ -66,6 +66,7 @@ function NavLink({
       to={item.path}
       onClick={onClick}
       aria-label={collapsed ? item.label : undefined}
+      aria-current={isActive ? 'page' : undefined}
       className={cn(
         'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
         'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
@@ -132,7 +133,7 @@ export default function Sidebar({ mobile }: { mobile?: boolean }) {
 
   const isActivePath = (path: string) => {
     if (path === '/') return location.pathname === '/'
-    return location.pathname.startsWith(path)
+    return location.pathname === path || location.pathname.startsWith(`${path}/`)
   }
 
   return (
@@ -140,7 +141,7 @@ export default function Sidebar({ mobile }: { mobile?: boolean }) {
       <aside
         aria-label="Sidebar"
         className={cn(
-          'flex h-full flex-col border-r bg-sidebar-background transition-all duration-200',
+          'flex h-full flex-col border-r bg-sidebar transition-all duration-200',
           mobile ? 'w-full border-r-0' : collapsed ? 'w-14' : 'w-56'
         )}
       >

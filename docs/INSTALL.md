@@ -168,11 +168,11 @@ for component support, then follow that host's instructions.
    visible on the host process's executable search path. Verify with
    `Get-Command deepr-mcp` in PowerShell or `command -v deepr-mcp` on macOS or
    Linux. A desktop host may need restarting after PATH changes.
-2. Download `deepr-agent-plugin-2.50.12.tar.gz` from the
-   [matching release](https://github.com/blisspixel/deepr/releases/tag/v2.50.12).
+2. Download `deepr-agent-plugin-2.50.13.tar.gz` from the
+   [matching release](https://github.com/blisspixel/deepr/releases/tag/v2.50.13).
    Match the plugin version to the installed Deepr version and verify the
    asset checksum shown by GitHub. Extract it with
-   `tar -xzf deepr-agent-plugin-2.50.12.tar.gz` or your archive utility.
+   `tar -xzf deepr-agent-plugin-2.50.13.tar.gz` or your archive utility.
 3. In the host's local plugin flow, select the extracted `deepr-research`
    directory containing `plugin.json`, `mcp.json`, `LICENSE`, `SHA256SUMS`,
    and `skills/`. When using a source checkout, the plugin root is
@@ -205,7 +205,7 @@ explicitly versioned reference; see [Supported Surface](SUPPORTED_SURFACE.md).
 
 ```bash
 # Download the wheel for the selected release, then install it locally.
-python -m pip install ./deepr_research-2.50.12-py3-none-any.whl
+python -m pip install ./deepr_research-2.50.13-py3-none-any.whl
 deepr --version
 ```
 

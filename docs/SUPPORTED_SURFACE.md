@@ -1,11 +1,18 @@
 # Supported Surface
 
-Status: v2.50.12 current main, 2026-09-04. This document defines what users and host
+Status: v2.50.13 current main, 2026-09-05. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
 path is structurally complete but remains execution-blocked without verified
 provider prepaid-no-overage or hard-stop evidence.
+
+**v2.50.13 aligns the dashboard with the local workflow.** Expert creation
+uses local defaults, profiles preserve study metadata, and keyboard and mobile
+navigation expose supported actions. Longitudinal reports reverify current
+artifacts, preserve exact paths and cumulative stale-memory applicability, and
+compare world execution order using actual timestamps. Paid dispatch remains
+quarantined.
 
 **v2.50.12 preserves cited evidence and measurement periods.** Consult source
 excerpts use exact study anchors to retain passages beyond the opening text,
@@ -193,7 +200,11 @@ must not be described as usable capacity.
 
 ## Experimental But Usable
 
-- Web dashboard and dashboard APIs.
+- Web dashboard and dashboard APIs. Create Expert saves an untrained local
+  profile with zero monthly learning budget and makes no inference call.
+  Profiles open on Claims; saved chat remains inspectable and local
+  consultation is an explicit CLI handoff. Browser chat and paid research
+  retain their execution gates even when a wallet is funded.
 - Expert councils, task planning contracts, and approval flows. Standalone
   metered expert chat is gated as described under Visible Or Planned Only.
 - `deepr eval consult --structured-local` is an eval-only owned-local graph. It

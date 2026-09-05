@@ -92,7 +92,7 @@ export default function ResearchStudio() {
   })
   const moneyKnown = costSummaryOk && !costSummaryError && costSummary !== undefined
   const paidApiFrozen = moneyKnown && Boolean(costSummary.paid_api_frozen)
-  const paidDispatchBlocked = !moneyKnown || paidApiFrozen
+  const paidDispatchBlocked = true
 
   useEffect(() => {
     if (!initialDraft.draft
@@ -309,8 +309,14 @@ export default function ResearchStudio() {
     <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-6 animate-fade-in">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">Research Studio</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Configure and submit research tasks</p>
+        <h1 className="text-xl font-semibold text-foreground">Research Studio</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">Draft a research request and inspect its estimated cost</p>
+      </div>
+
+      <div className="rounded-lg border bg-card p-4 text-sm space-y-2">
+        <p className="font-medium">Research preview</p>
+        <p className="text-muted-foreground">Paid API dispatch is unavailable in this release. A price estimate or funded budget does not enable submission. For work you can do now, inspect a local expert and use its CLI consultation handoff.</p>
+        <Button asChild variant="outline"><Link to="/experts">Explore Experts</Link></Button>
       </div>
 
       {paidDispatchBlocked && (
@@ -323,11 +329,12 @@ export default function ResearchStudio() {
               </span>{' '}
               {paidApiFrozen
                 ? (costSummary?.freeze_reason || 'The effective monthly paid API ceiling is $0.')
-                : 'Canonical money state is unknown or still loading; metered submit stays disabled.'}
+                : !moneyKnown
+                  ? 'Canonical money state is unknown or still loading; metered submit stays disabled.'
+                  : 'Production metered dispatch is not available; a funded local budget does not enable it.'}
             </p>
             <p className="text-muted-foreground">
-              Use local or proven plan-quota expert workflows instead of metered research submission.
-              Preview estimates may still appear; submit stays blocked until paid authority is known and unfrozen.
+              You can retain this draft and inspect estimates. Use the local CLI to consult an expert; browser-local research is not available here.
             </p>
             <p className="text-muted-foreground">
               <Link to="/experts" className="text-primary hover:underline">Expert Hub</Link>

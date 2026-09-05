@@ -291,12 +291,29 @@ class TestProbePlan:
 
         r = CliRunner().invoke(capacity, ["probe-plan", "claude", "--json"])
 
-        assert r.exit_code == 0
+        assert r.exit_code == 1
         events = load_quota_events(tmp_path / "quota_ledger.jsonl")
         assert len(events) == 1
         assert events[0].backend_id == "claude"
         assert events[0].event_type == QuotaEventType.EXHAUSTED
         assert events[0].detail == "probe-plan exhaustion signature"
+
+    def test_json_failed_overage_proof_is_a_failed_process(self, monkeypatch):
+        _clean_env(monkeypatch)
+        _stub_probe(
+            monkeypatch,
+            ok=False,
+            error="paid extra usage was not proven disabled",
+            outcome="overage_guard_refused",
+            vendor_dispatched=False,
+        )
+        result = CliRunner().invoke(capacity, ["probe-plan", "claude", "--json"])
+
+        assert result.exit_code == 1
+        payload = json.loads(result.output)
+        assert payload["ok"] is False
+        assert payload["outcome"] == "overage_guard_refused"
+        assert payload["vendor_dispatched"] is False
 
     def test_probe_owned_quota_accounting_is_not_duplicated(self, monkeypatch, tmp_path):
         monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))

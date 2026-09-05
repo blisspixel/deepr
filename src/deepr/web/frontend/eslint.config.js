@@ -6,13 +6,19 @@ import globals from 'globals'
 
 export default [
   {
-    ignores: ['dist', 'node_modules', 'screenshot-qa.mjs'],
+    ignores: ['dist', 'node_modules', 'screenshots', 'screenshot-qa.mjs'],
   },
   js.configs.recommended,
   {
     files: ['tests/**/*.mjs'],
     languageOptions: {
       globals: globals.node,
+    },
+  },
+  {
+    files: ['qa/*.mjs'],
+    languageOptions: {
+      globals: { ...globals.node, ...globals.browser },
     },
   },
   ...tsPlugin.configs['flat/recommended'],
