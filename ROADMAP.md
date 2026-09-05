@@ -414,6 +414,18 @@ reliable product, not a four-language architecture diagram.
 
 ## Current Status (v2.50.13)
 
+- [ ] **Live semantic follow-up (2026-09-05):** the local two-lens study
+  returned 13 grounded findings out of 14, and the separate existing-expert
+  absorb refused 5 of 19 candidates through its grounding checker. Preserve
+  the source, extraction, and checker artifacts for calibrated review; these
+  counts do not establish correctness or expert-value improvement. Include
+  false support and false refusal in the v2.51 review protocol.
+
+- [x] **Quota validation follow-up (2026-09-05):** after the provider's retry
+  interval, fresh metadata proved paid overage disabled and a confined plan
+  probe completed with quota and $0 cost records. See the
+  [validation record](docs/validation/local-workflows-2026-09-05.md).
+
 - [ ] **v2.51 preparation:** verify source entries inside frozen manifests,
   prepare equal source inventories for isolated arms, and bind blinded review
   assignments to exact case and answer bytes. Current SHA-256 verification

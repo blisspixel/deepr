@@ -2,14 +2,16 @@
 
 The local CLI and MCP workflows completed at $0 marginal API cost. The built
 web application created a local profile and exposed retained expert state.
-Quota execution remains unverified because the provider rate-limited its
-account-control endpoint. OpenRouter validation was read-only; no paid
-inference request was made.
+The quota provider initially rate-limited its account-control endpoint, then
+recovered after its retry window. A real plan-backed probe completed with paid
+overage proven disabled and $0 accounting recorded. OpenRouter validation was
+read-only; no paid inference request was made.
 
 ## Scope and evidence
 
-CLI runs used main commit `1d73f28675f7900462ff9d37e109629a4743f7de`.
-The dashboard checks used the v2.50.13 candidate, its production frontend build,
+Local expert CLI runs used main commit `1d73f28675f7900462ff9d37e109629a4743f7de`.
+The later quota probe and dashboard checks used the v2.50.13 code candidate
+`3a42238f64a9401dd6adabfe4055232a5ac6c155`, its production frontend build,
 and the actual Flask backend. The existing Temporal Knowledge Graphs expert
 was copied into an isolated workspace before modification. A before/after
 hash inventory checks that its canonical source files remain unchanged.
@@ -28,7 +30,7 @@ exact green main commit is tagged.
 | Existing expert update | Absorbed the primary XTDB time documentation into the isolated temporal-expert copy: 14 of 19 candidates added, 5 refused by grounding checks. | Additions and refusals require calibrated semantic review. Counts alone do not show improvement. |
 | Two-expert MCP consultation | Two stored perspectives and one local synthesis completed; all 15 contract checks passed. | This is in-process MCP tool validation, not autonomous agent dialogue or remote-host qualification. |
 | Built web application | Created an untrained local profile, opened actual claims, verified study counters, checked local CLI handoff, blocked chat, and 320px reflow. | Only the isolated expert workspace was mutated. |
-| Quota provider | Account-control observations returned rate limits, including a one-hour retry interval. No quota inference was dispatched. | Stored authentication alone does not prove current executable capacity. |
+| Quota provider | Initial observations returned rate limits. After the one-hour interval, fresh metadata proved paid overage disabled and a real confined plan probe returned OK in 3.387 seconds. Quota and $0 cost records were written. | This proves one bounded round trip, not throughput, a long expert workflow, or permanent future eligibility. Every later dispatch still needs fresh proof. |
 | OpenRouter | All seven public route checks passed; current-key controls remained ineligible under the monthly, BYOK-inclusive $5 policy. | Metadata and account inspection grant no dispatch authority. |
 
 External paid API spend for this validation session was **$0**, within the
@@ -60,6 +62,12 @@ The committed browser regression script is
 Its data is explicitly synthetic, every API and socket request is intercepted,
 and it refuses nonlocal traffic. README screenshots instead come from the
 actual built dashboard and the isolated live workspace described above.
+
+The full credential-free Windows suite passed 11,906 tests with 85.24%
+coverage. The explicit coverage gate passed. Clean core installation also
+passed both MCP protocol eras and preserved saved expert data across plugin
+relocation; the pinned host-profile fixture passed. These host checks do not
+qualify every third-party client version.
 
 ## Next decision
 

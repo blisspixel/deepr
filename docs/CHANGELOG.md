@@ -58,8 +58,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   brief, absorbed a primary temporal source into an isolated existing-expert
   copy, and completed a two-perspective MCP consultation with one local
   synthesis. This validates operation, not a blinded improvement in judgment.
-  The quota provider rate-limited the account-control observation. All seven
-  OpenRouter public routes passed; current-key controls remained ineligible.
+  The quota provider initially rate-limited account-control observations, then
+  completed a confined plan probe after the retry window with paid overage
+  proven disabled and quota plus $0 cost records written. All seven OpenRouter
+  public routes passed; current-key controls remained ineligible.
   External paid API spend was $0 and no paid inference request was made.
 
 ## [2.50.12] - 2026-09-05
