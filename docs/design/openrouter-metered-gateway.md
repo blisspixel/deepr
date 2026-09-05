@@ -93,7 +93,7 @@ The 2026-09-01 increment closes two prerequisites without enabling inference:
   response, and emits only hashed account and label references.
 - The key observation requires a non-management, non-provisioning, paid-tier
   key with a BYOK-inclusive monthly limit at or below Deepr's `$5` ceiling,
-  enough remaining headroom, consistent usage arithmetic, and a future expiry
+  enough remaining headroom, consistent current-month usage arithmetic, and a future expiry
   when an expiry exists.
 - The provider can validly return `null` for `limit`, `limit_remaining`, and
   `limit_reset`. `deepr-openrouter-key-control-v2` preserves those nullable
@@ -127,6 +127,20 @@ statement, the generic account-control gate does not consume this observation,
 and no OpenRouter inference client exists.
 
 ## Live no-inference validation
+
+The 2026-09-04 recheck passed all seven public routes. The current-key check
+reached the expected refusal for a non-monthly, BYOK-excluded key above the
+`$5` ceiling. Both checks reported no paid requests and no dispatch authority.
+Regression fixtures additionally cover prior-month spending, a just-reset
+month, inconsistent monthly counters, and numerically unrepresentable USD.
+
+OpenRouter defines `usage` and `byok_usage` as lifetime totals and their
+`*_monthly` counterparts as current UTC month totals in its
+[official key schema](https://github.com/OpenRouterTeam/terraform-provider-openrouter/blob/main/docs/data-sources/api_key.md).
+Only the monthly counters reconcile a monthly limit's remaining headroom.
+Lifetime totals need not equal that month's spend. Each monthly counter must
+still fit within its corresponding lifetime total; this correction does not
+relax the limit, BYOK, expiration, or dispatch gates.
 
 The 2026-09-02 validation exercised every shipped path without an inference
 request:

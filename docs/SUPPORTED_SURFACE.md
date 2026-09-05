@@ -1,11 +1,18 @@
 # Supported Surface
 
-Status: v2.50.11 current main, 2026-09-02. This document defines what users and host
+Status: v2.50.12 current main, 2026-09-04. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
 path is structurally complete but remains execution-blocked without verified
 provider prepaid-no-overage or hard-stop evidence.
+
+**v2.50.12 preserves cited evidence and measurement periods.** Consult source
+excerpts use exact study anchors to retain passages beyond the opening text,
+with existing source and character limits. First-world hard-negative cases
+remain in false-support measures and stay out of negative-transfer measures.
+OpenRouter key checks use current-month counters for monthly headroom while
+preserving lifetime usage separately. No semantic or dispatch authority widens.
 
 **v2.50.9 added bounded OpenRouter comparison without paid dispatch.** Seven
 exact cross-family model slugs support write-free research previews. A no-key
@@ -211,7 +218,14 @@ must not be described as usable capacity.
   `PLUGIN_DATA`, and zero primary and legacy spend ceilings. Its `read_only`
   profile is capability-read-only, not filesystem-immutable: runtime and audit
   databases are expected beneath plugin data, while the installed package must
-  remain unchanged. Clean-install and byte-reproducibility checks are blocking.
+  remain unchanged. Clean-install and byte-reproducibility checks are blocking,
+  including manifest-driven executable search, both MCP protocol eras, paths
+  with spaces, and preserved data after package replacement. The ten-tool
+  profile inspects existing expert metadata and results; generative consult is
+  absent. A new plugin workspace starts with no experts. Follow the
+  [Agent Plugins install guide](INSTALL.md#agent-plugins-hosts) for prerequisites
+  and explicit workspace provisioning. External host versions need separate
+  validation.
 - Offline machine-checkable MCP host-interop rollup via
   `deepr mcp conformance` (`deepr-mcp-conformance-v1`): dual-era constants,
   offline consult form checks, remote smoke fail-closed posture, managed

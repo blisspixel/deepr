@@ -46,6 +46,24 @@ class TestBuildExpertSkill:
         md = build_expert_skill("AI Strategy Expert").render()
         assert 'Always "AI Strategy Expert"' in md
 
+    def test_query_example_pins_supported_local_backend_and_zero_budget(self):
+        from jsonschema import Draft202012Validator
+
+        from deepr.mcp.query_expert_tool import QUERY_EXPERT_INPUT_SCHEMA
+        from deepr.skills.expert_skill import _expert_tool_manifests
+
+        query = next(tool for tool in _expert_tool_manifests("AI Strategy Expert") if tool.name == "deepr_query_expert")
+        properties = query.parameters["properties"]
+        arguments = {
+            "expert_name": "AI Strategy Expert",
+            "question": "What does the retained evidence support?",
+            "backend": properties["backend"]["const"],
+            "budget": properties["budget"]["const"],
+        }
+        Draft202012Validator(QUERY_EXPERT_INPUT_SCHEMA).validate(arguments)
+        assert arguments["backend"] == "local"
+        assert arguments["budget"] == 0
+
     def test_triggers_include_domain_and_name_words(self):
         pkg = build_expert_skill("Security Specialist", "cloud security posture")
         md = pkg.render()
@@ -58,9 +76,13 @@ class TestBuildExpertSkill:
         md = build_expert_skill("AI Strategy Expert", "AI").render()
         assert "deepr_query_expert" in md
         assert "PASS/WARN/FAIL" in md
-        # Should frame the expert as a role to prefer over priors, and note the
-        # MCP-server requirement.
+        # Discovery and host policy precede any optional consultation.
         assert "MCP" in md
+        instructions = md.split("## Instructions", 1)[1]
+        assert instructions.index("deepr_capabilities") < instructions.index("deepr_query_expert")
+        assert 'backend="local"' in md
+        assert "Installing this skill grants no tools or permissions" in md
+        assert "compiled-context perspective" in md
 
     def test_description_is_trigger_style(self):
         # The frontmatter description should name when to invoke, not summarize.

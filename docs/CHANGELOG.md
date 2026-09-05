@@ -7,6 +7,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.12] - 2026-09-04
+
+### Fixed
+
+- Expert consultation now selects literal retained-source excerpts around
+  exact study anchors. Evidence after the first 2,000 characters, distant
+  anchors shared by several findings, and the separate 1,200-character render
+  limit have regression coverage. Existing packet ceilings and stored expert
+  state are preserved; matching does not decide semantic support.
+- First-world hard-negative cases no longer require a negative-transfer label
+  or enter that metric's denominator and paired intervals. Applicability
+  follows the source world's predecessor, while false-support and abstention
+  review remain separate.
+- OpenRouter monthly limits reconcile against current UTC month usage and
+  BYOK usage rather than lifetime totals. Previously, valid keys with earlier
+  months' spending were incorrectly rejected. Inconsistent period counters
+  still fail closed, and oversized numeric values produce sanitized refusals.
+- The Agent Plugin install check now launches the manifest's command through
+  executable search, honors its working directory, supplies reserved plugin
+  variables, and completes legacy and modern MCP exchanges. It verifies a
+  saved expert remains discoverable and byte-unchanged after package
+  relocation, including paths with spaces. The standalone archive includes
+  the project license.
+- Replaced a load-sensitive 0.2-second wall-clock race in the post-provider
+  trace-lock regression with an explicit clock and lock-expiry fixture. The
+  assertion still proves one elapsed-limit terminal event and a nonretryable
+  failure after provider work; production deadlines are unchanged.
+
+### Changed
+
+- Corrected the standalone host skill and its reference guides, which still
+  advertised paid research and API council execution despite the production
+  quarantine. Its plan example now names the eligible adapter rather than an
+  execution-blocked one.
+- Added an Agent Plugins installation guide covering matching releases,
+  host-visible PATH, the correct extracted root, explicit workspace
+  provisioning, and the ten-tool inspection profile. Corrected the packaged
+  skill's consultation claim. The published Agent Plugins 1.0.0 and Agent
+  Skills pins were rechecked without normative schema drift; package checks
+  do not claim live validation of every external host.
+- Per-expert skill exports now discover the active tool profile first and pin
+  optional queries to the local backend at a zero-dollar ceiling. They no
+  longer request the blocked default API backend or guarantee grounded
+  answers. The portable profile remains limited to inspection.
+- Added a researched local-first runtime proposal: a reviewed expert and skill
+  creator, selected OKF knowledge, and an optional hosted companion. It compares
+  current Cloudflare primitives, recovery and authority boundaries, total-cost
+  limitations, and staged usability and quality gates. Cloud hosting remains
+  planned and disabled; the active value-evaluation sequence is unchanged.
+- Refreshed Pi and OpenClaw research references and made the harness-control
+  sequence subordinate to the active release plan. The v2.51 pilot protocol
+  specifies frozen worlds, isolated arms, blinded review, and concrete temporal
+  and evidence-loss cases. No longitudinal benefit is claimed before that
+  experiment runs.
+- Live OpenRouter validation on September 4 passed all seven public route
+  checks and confirmed that the current key remains ineligible under the
+  existing monthly, BYOK-inclusive `$5` policy. No paid or inference request
+  was made.
+- A local Temporal Knowledge Graphs consultation completed with Gemma at a
+  hard `$0` ceiling, no metered fallback, and no expert-state writes. This is
+  operational validation, not a blinded judgment-quality result.
+
 ## [2.50.11] - 2026-09-02
 
 ### Fixed

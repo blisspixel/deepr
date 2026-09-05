@@ -1,10 +1,10 @@
 ---
 name: deepr-research
-description: Inspect Deepr readiness, discover bounded MCP capabilities, and consult persistent domain expert state. Use for research planning, source and evidence review, knowledge gaps, confidence, provenance, and current read-only Deepr capability discovery.
+description: Inspect Deepr readiness, discover bounded MCP capabilities, and read persisted expert information and existing research results. Use for research planning, evidence review, knowledge gaps, confidence, provenance, and current read-only Deepr capability discovery.
 license: Apache-2.0
-compatibility: Requires deepr-research 2.50.11 and the packaged local stdio MCP server.
+compatibility: Requires deepr-research 2.50.12 and the packaged local stdio MCP server.
 metadata:
-  deepr-version: "2.50.11"
+  deepr-version: "2.50.12"
   deepr-mcp-server: deepr
   deepr-capability-profile: read-only
 ---
@@ -36,6 +36,13 @@ guessed.
 The Agent Plugin profile is capability-read-only, not filesystem-immutable.
 The MCP process keeps its audit and runtime databases beneath `PLUGIN_DATA`.
 It must not modify the installed plugin package.
+
+The package uses an installed `deepr-mcp` executable on the host's search
+path. Its fresh `PLUGIN_DATA/deepr/experts` directory starts empty and does not
+automatically expose an existing CLI fleet. Generative expert consultation is
+not advertised by this profile. See the project's
+[installation guide](https://github.com/blisspixel/deepr/blob/main/docs/INSTALL.md#agent-plugins-hosts)
+for matching versions, workspace provisioning, and host setup.
 
 Read [the capability boundary](references/capability_boundary.md) before
 proposing a write, paid request, external side effect, or broader host

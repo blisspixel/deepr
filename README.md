@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.50.11-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.11)
+[![Version](https://img.shields.io/badge/version-2.50.12-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.12)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -82,7 +82,8 @@ can be previewed, while automatic routing, expert routing, evaluation, and paid
 dispatch remain blocked. The public route check needs no key; the separate
 current-key check uses a hidden prompt by default and makes no inference
 request. An explicit checkout-local `.env` source is documented for local use.
-Officially valid nullable limit controls are reported honestly. A key without a
+Officially valid nullable limit controls and current-month usage are reported
+honestly. A key without a
 monthly BYOK-inclusive limit of `$5` or less remains ineligible. Neither check
 authorizes dispatch.
 
@@ -127,11 +128,17 @@ Creating a profile is not learning: retain makes the evidence re-readable,
 study extracts cited findings, and brief forms the inspectable view that the
 consult actually uses. These commands make no paid API call.
 
+Consultation selects bounded literal excerpts around the study's cited source
+anchors, including evidence later in a document. Excerpt selection preserves
+source references and does not certify that a claim is supported.
+
 See [Quick Start](docs/QUICK_START.md) and [Supported Surface](docs/SUPPORTED_SURFACE.md)
 for current workflows. The [MCP Agent Guide](docs/MCP_AGENT_TEST_GUIDE.md)
 covers the 36 MCP tools, dual-era `2026-07-28` protocol, and
-`deepr mcp conformance`. Portable packaging, OKF export, and the OpenClaw
-host-profile reference are documented in [Supported Surface](docs/SUPPORTED_SURFACE.md).
+`deepr mcp conformance`. The [Agent Plugins install guide](docs/INSTALL.md#agent-plugins-hosts)
+covers the portable skill and read-only MCP package, host PATH setup, and its
+isolated expert workspace. OKF export and the OpenClaw host-profile reference
+are documented in [Supported Surface](docs/SUPPORTED_SURFACE.md).
 
 ## Direction
 
@@ -143,6 +150,11 @@ finishes the durable parent transaction and disabled OpenRouter adapter proof;
 the current repository policy still prohibits paid inference validation and
 production activation. See the dependency gates and later host-control sequence
 in the [active release plan](ROADMAP.md#active-release-plan).
+
+The [local-first runtime proposal](docs/design/local-first-agent-runtime-options.md)
+considers a creator for reusable expert skills and selected OKF knowledge,
+plus an optional Cloudflare companion. Local execution and canonical knowledge
+remain the default; hosted observation and execution are planned and gated.
 
 ## Documentation
 

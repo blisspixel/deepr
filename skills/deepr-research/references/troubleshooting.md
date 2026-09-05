@@ -19,7 +19,7 @@ responses.
 | Provider key missing | Configure the explicitly selected provider or stop |
 | Budget insufficient | Return the required hard envelope and ask before changing it |
 | Metered expert accounting unavailable | Use local/plan read-only consultation or stop |
-| Parent budget unavailable | Split into separately approved bounded jobs or stop |
+| Parent budget unavailable | Report the block; do not split into metered jobs to bypass it |
 | Hosted context unavailable | Use local source packs; do not upload or attach vectors |
 | Reservation/ledger unavailable | Keep the job queued or blocked; do not dispatch |
 | Ambiguous provider failure | Do not resubmit automatically; reconcile settlement first |

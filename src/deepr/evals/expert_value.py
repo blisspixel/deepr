@@ -438,7 +438,7 @@ def _validate_role_specific_fields(
         stale_reuse_applies = bool(world_by_id[case.source_world_id].invalidated_claim_refs)
         if stale_reuse_applies != (stale_reuse is not None):
             raise ValueError("invalidated_belief_reused must be set only when the source world invalidates claims")
-        negative_transfer_applies = case.evaluation_role != "initial"
+        negative_transfer_applies = world_by_id[case.source_world_id].predecessor_source_world_id is not None
         if negative_transfer_applies != (negative_transfer is not None):
             raise ValueError("negative_transfer_observed must be set only for later-world trials")
         is_update = case.evaluation_role == "update"

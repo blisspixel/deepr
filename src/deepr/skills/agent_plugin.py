@@ -28,6 +28,7 @@ _MAX_PACKAGE_FILE_BYTES = 1024 * 1024
 _MAX_PACKAGE_BYTES = 2 * 1024 * 1024
 _EXPECTED_FILES = frozenset(
     {
+        "LICENSE",
         "SHA256SUMS",
         "mcp.json",
         "plugin.json",

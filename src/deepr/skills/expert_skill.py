@@ -45,19 +45,26 @@ def _expert_instructions(expert_name: str, domain: str, description: str) -> str
     domain_clause = f" Its domain is {domain}." if domain else ""
     desc_clause = f" {description}" if description else ""
     return (
-        f'This skill consults the persistent Deepr expert "{expert_name}" over MCP.'
+        f'This skill points to the persistent Deepr expert "{expert_name}" over MCP.'
         f"{domain_clause}{desc_clause}\n\n"
         f"When a question falls in this expert's domain:\n"
-        f'1. Call `deepr_query_expert` with `expert_name="{expert_name}"` and the user\'s question. '
-        f"You get a grounded, citation-backed answer drawn from the expert's accumulated knowledge.\n"
-        f"2. Before acting on a domain claim, validate it with `deepr_expert_validate` "
+        f"1. Discover the active boundary with `deepr_capabilities` and `deepr_tool_search`. "
+        f"Use exact advertised tool names, including any host prefix, and confirm the expert is present "
+        f"with `deepr_list_experts`. Installing this skill grants no tools or permissions.\n"
+        f"2. The portable Agent Plugin profile exposes inspection tools such as `deepr_get_expert_info`; "
+        f"it does not expose generative consultation. If `deepr_query_expert` is advertised by a separately "
+        f'configured server, call it with `expert_name="{expert_name}"`, the user\'s question, '
+        f'`backend="local"`, and `budget=0`. The default API backend is blocked. '
+        f"The local response is a compiled-context perspective whose citations and support still need review.\n"
+        f"3. When advertised, inspect a domain claim with `deepr_expert_validate` "
         f'(`expert_name="{expert_name}"`, `claim=...`) - it returns PASS/WARN/FAIL with supporting and '
         f"contradicting evidence. Do not act on a FAIL without further review.\n"
-        f"3. To see where the expert is under-informed, call `deepr_rank_gaps`; to audit its overall "
-        f"health (freshness, contradictions, missing provenance) call `deepr_expert_health_check`.\n\n"
-        f"The expert is a role, not a chat: prefer its grounded answers over your own priors for "
-        f"in-domain questions, and surface its citations to the user. It requires a running Deepr MCP "
-        f"server (`deepr mcp` / configured in your host) with this expert present."
+        f"4. When advertised, inspect gaps with `deepr_rank_gaps` and structural health with "
+        f"`deepr_expert_health_check`.\n\n"
+        f"Treat the expert's statements as evidence-backed perspective and surface its citations and "
+        f"uncertainty. A blocked or missing tool is a capability limit: stop that operation instead of "
+        f"adding approval flags, changing budgets, or invoking another executable to bypass it. "
+        f"This pointer requires a running Deepr MCP server with this expert present."
     )
 
 
@@ -71,31 +78,33 @@ def _expert_gotchas(expert_name: str) -> str:
     return (
         "## Gotchas\n\n"
         "- The expert can be stale. A confident answer is not necessarily current; for "
-        "time-sensitive questions, check `deepr_what_changed` before relying on it.\n"
+        "time-sensitive questions, inspect `deepr_what_changed` when advertised before relying on it.\n"
         f'- A PASS from `deepr_expert_validate` means the claim is consistent with what "{expert_name}" '
         "currently believes, not that it is true in the world - it is bounded by the expert's sources. "
         "Treat WARN/FAIL as a stop; do not treat PASS as proof.\n"
         "- Confidence is trust-floor-capped (web-sourced claims cap at ~0.60 single-source, ~0.80 with "
         "two independent sources), so a high number is a capped ceiling, not a probability of truth.\n"
-        "- Low confidence or a flagged gap is a signal to fill the gap (offer research) and surface it "
-        "to the user, not to guess.\n"
+        "- Low confidence or a flagged gap is a reason to surface missing evidence. It does not "
+        "authorize research or a write through a read-only host profile.\n"
         "- This skill is a pointer, not a copy: it needs a running Deepr MCP server with "
-        f'"{expert_name}" present. An EXPERT_NOT_FOUND error means the host is pointed at the wrong '
-        "Deepr instance."
+        f'"{expert_name}" present. EXPERT_NOT_FOUND means it is absent from the selected server\'s '
+        "configured expert store. A fresh Agent Plugin workspace starts empty."
     )
 
 
 def _expert_tool_manifests(expert_name: str) -> list[ToolManifest]:
-    """The expert-scoped read-side Deepr MCP tools, with expert_name pinned."""
+    """Conditional expert tools, with the expert and zero-cost local query pinned."""
     pinned = {"type": "string", "description": f'Always "{expert_name}"'}
     return [
         ToolManifest(
             name="deepr_query_expert",
-            description=f'Ask the "{expert_name}" expert a question; returns a grounded, cited answer.',
+            description=f'When advertised, ask the "{expert_name}" expert locally; review its citations and support.',
             parameters={
                 "properties": {
                     "expert_name": pinned,
                     "question": {"type": "string", "description": "The question to ask the expert"},
+                    "backend": {"type": "string", "const": "local", "description": "Explicit local backend"},
+                    "budget": {"type": "number", "const": 0, "description": "Zero paid-spend ceiling"},
                 }
             },
             server_name="deepr",
@@ -157,10 +166,10 @@ def build_expert_skill(
     # name the situations that should fire it, not a noun-phrase summary.
     about_clause = f" about {domain}" if domain else ""
     frontmatter_description = (
-        f"Consult the '{expert_name}' domain expert"
-        f"{f' ({domain})' if domain else ''} - a persistent, citation-backed Deepr expert. "
-        f"Use it when the user asks an in-domain question, wants a cited answer instead of a guess, "
-        f"or needs to validate a claim{about_clause}."
+        f"Inspect the '{expert_name}' domain expert"
+        f"{f' ({domain})' if domain else ''} through the host's advertised Deepr tools. "
+        f"Use it when the user asks an in-domain question, wants to review persisted expert information, "
+        f"or needs to assess a claim{about_clause}. Local consultation requires an eligible tool profile."
     )
     body = f"{_expert_instructions(expert_name, domain, description.strip())}\n\n{_expert_gotchas(expert_name)}"
     packager = SkillPackager(

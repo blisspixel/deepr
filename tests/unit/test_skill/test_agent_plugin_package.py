@@ -43,12 +43,17 @@ def test_committed_package_passes_closed_offline_contract() -> None:
 
     assert result.valid, result.violations
     assert result.files == (
+        "LICENSE",
         "SHA256SUMS",
         "mcp.json",
         "plugin.json",
         "skills/deepr-research/SKILL.md",
         "skills/deepr-research/references/capability_boundary.md",
     )
+
+
+def test_distributable_includes_the_project_license() -> None:
+    assert (PACKAGE / "LICENSE").read_text(encoding="utf-8") == (ROOT / "LICENSE").read_text(encoding="utf-8")
 
 
 def test_manifests_validate_against_pinned_official_schemas() -> None:

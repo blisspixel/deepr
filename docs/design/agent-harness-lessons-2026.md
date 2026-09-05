@@ -1,6 +1,6 @@
 # Agent Harness Lessons for Deepr
 
-Status: researched roadmap design, updated 2026-09-01. Nothing in this document is
+Status: researched roadmap design, updated 2026-09-04. Nothing in this document is
 shipped merely because it is described here.
 
 The current Deepr-specific integration decision is
@@ -17,7 +17,7 @@ useful question is not which harness to copy. It is which proven interaction
 and control patterns make expert research more reproducible, steerable, and
 safe.
 
-## Current landscape
+## Reviewed landscape
 
 - Hermes Agent v0.21.0, released 2026-08-31, combines persistent recall,
   scheduling, isolated subagents, skill creation, and multiple execution
@@ -25,28 +25,26 @@ safe.
   ([repository](https://github.com/NousResearch/hermes-agent),
   [release](https://github.com/NousResearch/hermes-agent/releases/tag/v2026.8.31),
   [commit](https://github.com/NousResearch/hermes-agent/commit/29112bef099274229cadff79cdff7bf7b99c4b77)).
-- OpenClaw stable `v2026.8.2`, released 2026-09-01, emphasizes an always-on local
+- OpenClaw stable `v2026.9.1`, released 2026-09-03, emphasizes an always-on local
   gateway, scoped skills, session snapshots, device pairing, sandboxing,
   prepared approvals, fail-closed execution, and release-integrity evidence
   ([repository](https://github.com/openclaw/openclaw),
   [security model](https://github.com/openclaw/openclaw/blob/main/docs/gateway/security/index.md),
   [skills](https://github.com/openclaw/openclaw/blob/main/docs/tools/skills.md),
-  [release](https://github.com/openclaw/openclaw/releases/tag/v2026.8.2),
-  [commit](https://github.com/openclaw/openclaw/commit/0965053fe6b9341776df147a6934b7485c60b5ca)).
+  [release](https://github.com/openclaw/openclaw/releases/tag/v2026.9.1)).
   Agent Plugins are stable upstream. Deepr's package remains unvalidated against
   that exact host release until the isolated gateway fixture passes.
-- OpenCode v1.18.26 keeps provider, model, session, permission, plugin, and MCP
+- OpenCode v1.18.26 (reviewed 2026-09-01) keeps provider, model, session, permission, plugin, and MCP
   selection visible, but its broad coding-agent surface and configurable
   providers are not a substitute for Deepr's spend and evidence authority
   ([repository](https://github.com/anomalyco/opencode),
   [release](https://github.com/anomalyco/opencode/releases/tag/v1.18.26),
   [commit](https://github.com/anomalyco/opencode/commit/774cc7c1914e4329eefde5a669f938b0cf566661)).
-- Pi v0.84.4 keeps the harness composable across model
+- Pi v0.85.0, released 2026-09-04, keeps the harness composable across model
   APIs, core loop, TUI, SDK, and JSON-RPC. Its session model distinguishes
   steering from follow-up input and supports abort recovery, trees, and forks
   ([repository](https://github.com/earendil-works/pi),
-  [release](https://github.com/earendil-works/pi/releases/tag/v0.84.4),
-  [commit](https://github.com/earendil-works/pi/commit/b79e4cc834970cca69daebffab7df1da7d1e52c4),
+  [release](https://github.com/earendil-works/pi/releases/tag/v0.85.0),
   [session UX](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/README.md),
   [SDK](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/sdk.md)).
 - OpenHands described a harness, orchestrator, and control-plane split on
@@ -190,6 +188,36 @@ consistency, security scans, CI checks, and adapter compatibility.
   capability snapshot, trace parent, cancellation, and evidence-merge rules.
 
 ## Recommended order
+
+The [active release plan](../../ROADMAP.md#active-release-plan) governs delivery.
+First complete the v2.51 value pilot and v2.52 reviewed prediction resolution;
+the harness-control sequence below belongs behind those gates. Latest upstream
+versions do not upgrade Deepr's pinned host fixtures or prove compatibility.
+
+The immediate adoption is bounded exact evidence recall. Hermes separates
+small session-start memory from session recall, while Pi retains session
+entries beneath compact working context
+([Hermes memory](https://github.com/NousResearch/hermes-agent/blob/v2026.8.31/website/docs/user-guide/features/memory.md),
+[Pi compaction](https://github.com/earendil-works/pi/blob/v0.85.0/packages/coding-agent/docs/compaction.md)).
+Deepr's retained sources and exact study anchors already support that pattern.
+Recovering those anchors inside the existing consult budget addresses a concrete
+evidence-loss defect without adding a memory engine. The
+[value pilot protocol](expert-purpose-and-value-loop.md#v251-pilot-protocol)
+tests excerpt loss, temporal changes, false premises, and arm isolation.
+
+For v2.52, borrow temporal provenance from
+[Graphiti](https://github.com/getzep/graphiti) through append-only resolution
+fixtures, not a new graph-service dependency. Deepr's current position ledger
+records when a position was stored; the experience view still reports every
+registered prediction as unresolved. Separate valid time, observation time,
+original criterion, later source evidence, and reviewer judgment before
+claiming prediction resolution or proposing learning changes.
+
+Pi, Hermes, and OpenClaw use MIT licenses; Graphiti uses Apache 2.0. These
+recommendations call for original implementations of the patterns. Copying
+upstream implementation code would require preserving its license notices.
+
+After the value and authority gates pass:
 
 1. Run-start capability snapshots and declared child result schemas.
 2. Settled terminal semantics plus typed control-delivery outcomes.

@@ -310,6 +310,31 @@ def test_report_keeps_quality_risk_cost_and_effort_dimensions_separate(tmp_path:
     assert "winner" not in report
 
 
+def test_first_world_hard_negative_does_not_count_as_negative_transfer(tmp_path: Path) -> None:
+    blueprint = _blueprint(tmp_path)
+    payload = _review_payload(blueprint)
+    for case in payload["cases"]:
+        if case["acceptance_case_id"] == "hard-negative-case":
+            case["source_world_id"] = "source-world-1"
+    for trial in payload["trials"]:
+        if trial["acceptance_case_id"] == "hard-negative-case":
+            trial["semantic_attestation"]["negative_transfer_observed"] = None
+
+    review = ExpertValueReview.model_validate(payload)
+    report = build_expert_value_report(review, blueprint)
+    static = next(arm for arm in report["arm_results"] if arm["arm"] == "static_history")
+
+    assert static["negative_transfer"] == {"eligible_trials": 3, "observed_trials": 1, "rate": 0.333333}
+    assert static["false_support"]["observed_trials"] == 2
+    assert report["comparisons"][0]["paired_bootstrap"]["metrics"]["negative_transfer_observed"]["case_count"] == 3
+
+    for trial in payload["trials"]:
+        if trial["acceptance_case_id"] == "hard-negative-case":
+            trial["semantic_attestation"]["negative_transfer_observed"] = False
+    with pytest.raises(ValidationError, match="negative_transfer_observed"):
+        ExpertValueReview.model_validate(payload)
+
+
 def test_report_rejects_stale_blueprint_binding(tmp_path: Path) -> None:
     original = _blueprint(tmp_path)
     review = _review(original)

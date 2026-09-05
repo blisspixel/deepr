@@ -40,7 +40,9 @@ consult artifact does not authorize project mutations.
 
 ## Human approval
 
-Host approval is required before a metered tool call. Approval must bind the
+Production metered tool execution is blocked. Host approval cannot install the
+missing provider account-control verifier or bypass that block. Any future
+eligible dispatch would also require approval binding the
 exact provider/model/tools/request ceiling and budget. A generic earlier
 approval does not authorize fallback, another attempt, hosted context, or
 multi-call expansion.

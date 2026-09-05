@@ -537,30 +537,45 @@ async def test_cancellation_at_elapsed_ceiling_becomes_public_timeout_once(tmp_p
 
 
 @pytest.mark.asyncio
-async def test_trace_lock_at_elapsed_boundary_stays_nonretryable_after_provider_work(tmp_path):
+async def test_trace_lock_at_elapsed_boundary_stays_nonretryable_after_provider_work(tmp_path, monkeypatch):
     lifecycle_path = tmp_path / "lifecycle.jsonl"
     trace_path = tmp_path / "traces.jsonl"
-    held_lock = consult_traces_module._shared_trace_path_lock(trace_path)
-    held_lock.acquire()
-    try:
-        with pytest.raises(ConsultStorageLockTimeoutError) as raised:
-            await execute_consult_transaction(
-                question="q",
-                requested_experts=["Fixture Expert"],
-                max_experts=3,
-                budget=0.0,
-                backend_mode="local",
-                backend_factory=_backend,
-                requested_capacity=_capacity(),
-                max_elapsed_seconds=0.2,
-                heartbeat_interval_seconds=1.0,
-                lifecycle_path=lifecycle_path,
-                trace_path=trace_path,
-                run_consult_fn=lambda *_args, **_kwargs: asyncio.sleep(0, result=_result()),
-            )
-    finally:
-        if held_lock.locked():
-            held_lock.release()
+    clock = {"now": 0.0}
+    generated = False
+    # Control only the lifecycle clock. A real 0.2-second deadline sometimes
+    # expired during preflight fsync on loaded runners, before reaching the
+    # post-provider lock boundary this regression is supposed to exercise.
+    monkeypatch.setattr(lifecycle_module, "time", SimpleNamespace(monotonic=lambda: clock["now"]))
+
+    class ExpiringTraceLock:
+        def acquire(self, *, timeout):
+            assert generated
+            assert timeout == pytest.approx(0.2)
+            clock["now"] = 30.0
+            return False
+
+    async def complete_generation(*_args, **_kwargs):
+        nonlocal generated
+        generated = True
+        clock["now"] = 29.8
+        return _result()
+
+    monkeypatch.setattr(consult_traces_module, "_shared_trace_path_lock", lambda _path: ExpiringTraceLock())
+    with pytest.raises(ConsultStorageLockTimeoutError) as raised:
+        await execute_consult_transaction(
+            question="q",
+            requested_experts=["Fixture Expert"],
+            max_experts=3,
+            budget=0.0,
+            backend_mode="local",
+            backend_factory=_backend,
+            requested_capacity=_capacity(),
+            max_elapsed_seconds=30.0,
+            heartbeat_interval_seconds=60.0,
+            lifecycle_path=lifecycle_path,
+            trace_path=trace_path,
+            run_consult_fn=complete_generation,
+        )
 
     events = load_consult_lifecycle_events(path=lifecycle_path)
     terminal = [event for event in events if LifecycleState(event["state"]) in TERMINAL_STATES]

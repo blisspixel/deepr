@@ -169,6 +169,7 @@ jobs:
             tests/unit/test_standards/test_external_standards_pins.py \
             tests/unit/test_skill/test_agent_skills_contract.py \
             tests/unit/test_skill/test_agent_plugin_package.py \
+            tests/unit/test_agent_plugin_install.py \
             tests/unit/test_mcp/test_server_bridge_hardening.py
           uv run python -m build
           uv run python scripts/build_agent_plugin.py --output dist/deepr-agent-plugin-first.tar.gz
@@ -192,12 +193,12 @@ jobs:
 
       - name: Prove contained read-only stdio operation
         run: |
-          mkdir -p "${RUNNER_TEMP}/deepr-agent-plugin-extracted"
+          mkdir -p "${RUNNER_TEMP}/deepr agent plugin extracted"
           tar -xzf dist/deepr-agent-plugin-first.tar.gz \
-            -C "${RUNNER_TEMP}/deepr-agent-plugin-extracted"
+            -C "${RUNNER_TEMP}/deepr agent plugin extracted"
           .agent-plugin-venv/bin/python scripts/check_agent_plugin_install.py \
-            --package-root "${RUNNER_TEMP}/deepr-agent-plugin-extracted/deepr-research" \
-            --data-root "${RUNNER_TEMP}/deepr-agent-plugin-data" \
+            --package-root "${RUNNER_TEMP}/deepr agent plugin extracted/deepr-research" \
+            --data-root "${RUNNER_TEMP}/deepr agent plugin data" \
             --command .agent-plugin-venv/bin/deepr-mcp
           .agent-plugin-venv/bin/python scripts/check_host_profile_install.py \
             --fixture tests/fixtures/hosts/openclaw/v2026.7.1-2/profile.json \

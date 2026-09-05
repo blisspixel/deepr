@@ -237,6 +237,26 @@ Deepr's typed stores and gates retain authority.
 
 ## Portable plugin and host profile
 
+The 2026-09-04 package review found no drift from the published Agent Plugins
+1.0.0 schemas. It did find a validation gap: the clean-install check bypassed
+the manifest's executable search and working directory, omitted the reserved
+plugin environment variables, and covered only legacy MCP. The install check
+now exercises the declared launch with the installed wheel on the host's
+search path, completes the legacy handshake, and probes modern per-request
+negotiation in a separate process. Extracted package and persistent data
+directories containing spaces exercise argument and path handling. Repeated
+launches retain a saved offline expert, verify its discovery, and leave its
+bytes and the package unchanged. This is a bounded publisher check of Deepr's exact manifest,
+not a new general plugin loader or a claim that an external host was tested.
+The distributable also includes the project license.
+
+The install guide states the external runtime prerequisite and the empty
+initial expert inventory. Silently reconnecting ambient expert roots is
+rejected because it changes which knowledge a host can inspect. Broadening the
+ten-tool profile to make generative consultation available is separate
+capability work. These checks follow the published
+[stdio runtime rules](https://agent-plugins.org/client-implementers/mcp-runtime).
+
 For clients that implement Agent Plugins 1.0.0, the preferred installation
 artifact is a conformant Deepr plugin containing the generic Deepr skill and
 stdio MCP declaration. Selected expert data is exported separately as OKF or
