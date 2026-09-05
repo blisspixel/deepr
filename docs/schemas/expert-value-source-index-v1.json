@@ -1,0 +1,93 @@
+{
+  "$defs": {
+    "SourceWorldBinding": {
+      "additionalProperties": false,
+      "description": "Frozen preparation-index identity for one separately hashed manifest.",
+      "properties": {
+        "source_world_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$",
+          "title": "Source World Id",
+          "type": "string"
+        },
+        "predecessor_source_world_id": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Predecessor Source World Id"
+        },
+        "as_of": {
+          "format": "date-time",
+          "maxLength": 80,
+          "title": "As Of",
+          "type": "string"
+        },
+        "manifest_ref": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Manifest Ref",
+          "type": "string"
+        },
+        "manifest_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Manifest Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_world_id",
+        "predecessor_source_world_id",
+        "as_of",
+        "manifest_ref",
+        "manifest_sha256"
+      ],
+      "title": "SourceWorldBinding",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "An ordered preparation chain independent of completed answer reviews.",
+  "properties": {
+    "schema_version": {
+      "const": "deepr-expert-value-source-index-v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "kind": {
+      "const": "deepr.expert.value_source_index",
+      "title": "Kind",
+      "type": "string"
+    },
+    "source_worlds": {
+      "items": {
+        "$ref": "#/$defs/SourceWorldBinding"
+      },
+      "maxItems": 64,
+      "minItems": 2,
+      "title": "Source Worlds",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "source_worlds"
+  ],
+  "title": "SourceWorldIndex",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/expert-value-source-index-v1.json",
+  "x-deepr-linked-validator": {
+    "python": "deepr.evals.expert_value_sources:build_source_world_preflight",
+    "schema_only_is_sufficient": false,
+    "requires": [
+      "source index path",
+      "artifact root"
+    ]
+  }
+}

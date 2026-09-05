@@ -798,6 +798,30 @@
       "path": "cli-operation-result-v1.json",
       "status": "stable",
       "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "expert-value-source-index",
+      "schema_version": "deepr-expert-value-source-index-v1",
+      "kind": "deepr.expert.value_source_index",
+      "path": "expert-value-source-index-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "expert-value-source-world",
+      "schema_version": "deepr-expert-value-source-world-v1",
+      "kind": "deepr.expert.value_source_world",
+      "path": "expert-value-source-world-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "expert-value-source-preflight",
+      "schema_version": "deepr-expert-value-source-preflight-v1",
+      "kind": "deepr.expert.value_source_preflight",
+      "path": "expert-value-source-preflight-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
     }
   ]
 }
