@@ -1257,6 +1257,14 @@ longitudinal proof; it is not itself proof that an expert improved.
 - [x] September 5, 2026: Windows regressions reproduced trailing-period and
   trailing-space paths counting the same file through aliases. The preparation
   reader now rejects these ambiguous names while preserving internal spaces.
+- [x] September 5, 2026: freeze the local four-arm operational rehearsal
+  protocol covering arm preparation, memory scope across worlds, native local
+  binding and retained request evidence, worker isolation, and blocked/failed/
+  answered outcome handling.
+  [Protocol and limits](docs/design/local-four-arm-rehearsal.md). Briefing
+  synthesis now accepts an explicit historical cutoff so a synthetic world's
+  prospective predictions survive a later execution date. Writing a protocol
+  is not executing it and supports no value claim.
 - [ ] Materialize equal neutral source inventories into isolated arm roots,
   bind effective model/context/memory state, and collect blinded answer reviews.
   Structural preparation does not satisfy the v2.51 value gate.

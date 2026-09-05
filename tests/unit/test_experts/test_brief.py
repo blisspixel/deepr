@@ -415,6 +415,62 @@ class TestEvidentialDepth:
 
 class TestBuildBrief:
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("prediction_date", "registered"),
+        [("2026-01-19", False), ("2026-01-20", True), ("2026-01-21", True)],
+    )
+    async def test_historical_cutoff_controls_prompt_and_prediction_registration(
+        self, corpus, monkeypatch, prediction_date, registered
+    ):
+        monkeypatch.setattr("deepr.experts.brief._utc_today", lambda: date(2026, 9, 5))
+        payload = json.loads(json.dumps(_GOOD))
+        payload["positions"][0]["falsifier_resolution_date"] = prediction_date
+        prompts = []
+
+        async def _completion(prompt):
+            prompts.append(prompt)
+            return json.dumps(payload)
+
+        brief = await build_brief(
+            expert_name="E",
+            result=_result([_finding("F1")]),
+            corpus=corpus,
+            completion=_completion,
+            as_of_date=date(2026, 1, 20),
+        )
+
+        assert len(prompts) == 1
+        assert "2026-01-20; never use an earlier date" in prompts[0]
+        assert "2026-09-05" not in prompts[0]
+        position = brief.positions[0]
+        assert position.falsifier_resolution_date == (prediction_date if registered else "")
+        assert position.is_registered_prediction is registered
+
+    @pytest.mark.asyncio
+    async def test_default_date_stays_fixed_when_completion_crosses_midnight(self, corpus, monkeypatch):
+        monkeypatch.setattr("deepr.experts.brief._utc_today", lambda: date(2026, 1, 20))
+        payload = json.loads(json.dumps(_GOOD))
+        payload["positions"][0]["falsifier_resolution_date"] = "2026-01-20"
+        prompts = []
+
+        async def _completion(prompt):
+            prompts.append(prompt)
+            monkeypatch.setattr("deepr.experts.brief._utc_today", lambda: date(2026, 1, 21))
+            return json.dumps(payload)
+
+        brief = await build_brief(
+            expert_name="E",
+            result=_result([_finding("F1")]),
+            corpus=corpus,
+            completion=_completion,
+        )
+
+        assert len(prompts) == 1
+        assert "2026-01-20; never use an earlier date" in prompts[0]
+        assert brief.positions[0].falsifier_resolution_date == "2026-01-20"
+        assert brief.positions[0].is_registered_prediction
+
+    @pytest.mark.asyncio
     async def test_no_findings_refuses_rather_than_inventing(self, corpus):
         calls = []
 

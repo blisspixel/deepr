@@ -24,6 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   links, junctions, special files, and changed inputs are refused. Experimental
   schemas describe the preparation contract. A passing report grants no
   execution authority and makes no semantic, historical, or blinding claim.
+- `build_brief` accepts an optional `as_of_date` so a briefing can be
+  synthesized at a stated historical information cutoff. The same effective
+  date governs the prompt instruction and prospective-prediction registration,
+  so a falsifier that is still future-facing at that cutoff is no longer
+  discarded merely because the run executes later. The default remains the
+  current UTC date, and no shipped command passes the parameter yet.
 
 ## [2.50.13] - 2026-09-05
 
