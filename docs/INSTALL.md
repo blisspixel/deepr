@@ -26,7 +26,8 @@ curl -fsSL https://raw.githubusercontent.com/blisspixel/deepr/main/scripts/insta
 The installers resolve the latest supported wheel from GitHub Releases and
 install it in an isolated pipx environment. They exit without changing an
 existing Deepr installation when GitHub is unreachable or the latest release
-does not contain a supported wheel.
+does not contain a supported wheel. If the CLI still fails after the automatic
+repair attempt, the installer exits with a failure status and recovery guidance.
 
 ### Development or source install
 

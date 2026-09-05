@@ -137,6 +137,7 @@ if deepr_works; then
     esac
 else
     echo "Install completed but '$CLI' still does not run. Open a new terminal, or: pipx reinstall $PACKAGE" >&2
+    exit 1
 fi
 
 echo ""

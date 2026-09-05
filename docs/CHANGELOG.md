@@ -7,10 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [2.50.12] - 2026-09-04
+## [2.50.12] - 2026-09-05
 
 ### Fixed
 
+- The Windows and macOS/Linux installers now exit with a failure status if the
+  CLI still fails after their one repair attempt. They no longer print a
+  success footer for a broken installation. Executed shell regressions cover
+  immediate success, successful repair, and persistent failure without network
+  requests or real package changes.
 - Expert consultation now selects literal retained-source excerpts around
   exact study anchors. Evidence after the first 2,000 characters, distant
   anchors shared by several findings, and the separate 1,200-character render
