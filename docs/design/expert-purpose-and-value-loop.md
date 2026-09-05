@@ -341,6 +341,50 @@ every context ceiling merely moves that failure and adds cost. Exact excerpt
 selection is the narrower correction. It is routing over source bytes, not a
 new grounding verdict.
 
+## September 5 longitudinal integrity corrections
+
+A claim version invalidated in one world remains invalidated in its
+successors. `invalidated_claim_refs` records that world's additions to the
+invalidation history; applicability of `invalidated_belief_reused` follows the
+cumulative history through the case's world, including worlds with no cases.
+Later evidence must use a distinct claim-version reference if it restores a
+position. Reintroducing the same reference does not erase its invalidation.
+The evaluator requires a reviewer-supplied label for every eligible trial and
+does not infer missing labels. Older workbooks that omit these labels must be
+reviewed again before aggregation. Earlier worlds never inherit future
+invalidations.
+
+Trial execution timestamps must also respect the source-world sequence within
+each arm: no trial in a predecessor world may have a later `executed_at` than
+that arm's trials in successor worlds. Isolated arms may be scheduled
+independently. Trial list order, review order, and within-world execution order
+are irrelevant, and equal timestamps are accepted at the recorded precision.
+This checks declared chronology only. It cannot prove that processes were
+isolated, that executions did not overlap, or that later evidence was absent;
+those remain protocol assertions backed by saved execution artifacts.
+
+These are corrections to the existing review contract, not semantic verdicts
+or execution authority. The output shape stays unchanged. Regression cases
+must cover inherited invalidations, no leakage into earlier worlds,
+out-of-order and timezone-equivalent timestamps, and unchanged evidence bytes.
+
+Independent artifact verification belongs inside report construction. A cached
+verification dictionary can describe a different workbook or files that have
+changed since hashing. Python callers pass `artifact_root` to
+`build_expert_value_report` instead of `artifact_verification`; the builder
+checks the blueprint and opens the current review's artifacts itself before
+aggregation. The standalone verifier remains available for inspection, but
+its result cannot authorize a later report's integrity claim. The CLI and
+report JSON shapes are unchanged. Files can still change after verification;
+the report describes bytes checked during this invocation, not perpetual
+filesystem integrity.
+
+Artifact references preserve every path character, including repeated spaces.
+Nonblank and length validation does not normalize filenames. Hashing a manifest
+does not recursively verify the source entries it contains, and hashing a
+review assignment does not prove its answer-to-arm mapping. Source-world
+preparation and blinded packet binding are the next planned increments.
+
 ## Agentic Boundary
 
 This feature is a workflow envelope around externally supplied meaning.

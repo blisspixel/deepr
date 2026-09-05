@@ -145,9 +145,7 @@ def _review_payload(blueprint: ExpertBlueprint) -> dict[str, object]:
                         "uncertainty_calibration": score,
                         "abstained": expected_abstention and arm != "static_history",
                         "false_support_observed": is_static_failure,
-                        "invalidated_belief_reused": arm == "static_history" and case.id == "update-case"
-                        if source_world_id == "source-world-2"
-                        else None,
+                        "invalidated_belief_reused": is_static_failure if source_world_id != "source-world-1" else None,
                         "negative_transfer_observed": is_static_failure if role != "initial" else None,
                         "retained_correctness": arm != "static_history" if role == "retention" else None,
                         "forward_transfer_observed": arm in {"compiled_expert", "maintained_expert"}
@@ -270,8 +268,8 @@ def test_report_keeps_quality_risk_cost_and_effort_dimensions_separate(tmp_path:
     assert maintained["dimensions"]["correctness"]["mean_score"] == 4.0
     assert maintained["dimensions"]["factual_support"]["mean_score"] == 4.0
     assert static["false_support"]["observed_trials"] == 2
-    assert static["invalidated_belief_reuse"]["eligible_trials"] == 2
-    assert static["invalidated_belief_reuse"]["observed_trials"] == 1
+    assert static["invalidated_belief_reuse"]["eligible_trials"] == 4
+    assert static["invalidated_belief_reuse"]["observed_trials"] == 2
     assert static["invalidated_belief_reuse"]["rate"] == 0.5
     assert static["negative_transfer"]["eligible_trials"] == 4
     assert static["negative_transfer"]["observed_trials"] == 2
@@ -319,6 +317,7 @@ def test_first_world_hard_negative_does_not_count_as_negative_transfer(tmp_path:
     for trial in payload["trials"]:
         if trial["acceptance_case_id"] == "hard-negative-case":
             trial["semantic_attestation"]["negative_transfer_observed"] = None
+            trial["semantic_attestation"]["invalidated_belief_reused"] = None
 
     review = ExpertValueReview.model_validate(payload)
     report = build_expert_value_report(review, blueprint)
@@ -342,6 +341,92 @@ def test_report_rejects_stale_blueprint_binding(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="revision is stale"):
         build_expert_value_report(review, changed)
+
+
+def test_later_world_requires_review_of_previously_invalidated_claims(tmp_path: Path) -> None:
+    payload = _review_payload(_blueprint(tmp_path))
+    for trial in payload["trials"]:
+        if trial["acceptance_case_id"] in {"transfer-case", "hard-negative-case"}:
+            trial["semantic_attestation"]["invalidated_belief_reused"] = None
+
+    with pytest.raises(ValidationError, match="invalidated_belief_reused"):
+        ExpertValueReview.model_validate(payload)
+
+
+def test_inherited_stale_reuse_is_counted_without_leaking_into_first_world(tmp_path: Path) -> None:
+    blueprint = _blueprint(tmp_path)
+    payload = _review_payload(blueprint)
+    for trial in payload["trials"]:
+        if trial["acceptance_case_id"] in {"transfer-case", "hard-negative-case"}:
+            trial["semantic_attestation"]["invalidated_belief_reused"] = trial["arm"] == "static_history"
+
+    report = build_expert_value_report(ExpertValueReview.model_validate(payload), blueprint)
+    static = next(arm for arm in report["arm_results"] if arm["arm"] == "static_history")
+    assert static["invalidated_belief_reuse"] == {"eligible_trials": 4, "observed_trials": 3, "rate": 0.75}
+    for comparison in report["comparisons"]:
+        assert comparison["paired_bootstrap"]["metrics"]["invalidated_belief_reused"]["case_count"] == 4
+
+
+@pytest.mark.parametrize("earlier_case", ["initial-case", "retention-case"])
+def test_rejects_execution_that_returns_to_an_earlier_world(tmp_path: Path, earlier_case: str) -> None:
+    payload = _review_payload(_blueprint(tmp_path))
+    for trial in payload["trials"]:
+        if trial["acceptance_case_id"] == earlier_case and trial["arm"] == "maintained_expert":
+            trial["executed_at"] = "2026-04-01T13:00:00+00:00"
+
+    with pytest.raises(ValidationError, match="execution.*source.world order"):
+        ExpertValueReview.model_validate(payload)
+
+
+def test_allows_independent_arm_schedules_and_timezone_equivalent_times(tmp_path: Path) -> None:
+    payload = _review_payload(_blueprint(tmp_path))
+    for trial in payload["trials"]:
+        if trial["arm"] == "maintained_expert":
+            trial["executed_at"] = "2026-04-01T13:00:00+00:00"
+        elif trial["acceptance_case_id"] == "initial-case":
+            trial["executed_at"] = "2026-04-01T05:00:00-07:00"
+    payload["trials"].reverse()
+
+    assert len(ExpertValueReview.model_validate(payload).trials) == 20
+
+
+def test_invalidation_survives_worlds_without_trials_and_reintroduced_refs(tmp_path: Path) -> None:
+    payload = _review_payload(_blueprint(tmp_path))
+    for case in payload["cases"]:
+        if case["source_world_id"] == "source-world-2":
+            case["source_world_id"] = "source-world-3"
+    payload["source_worlds"][2]["introduced_claim_refs"] = payload["source_worlds"][1]["invalidated_claim_refs"]
+
+    assert len(ExpertValueReview.model_validate(payload).trials) == 20
+    payload["trials"][-1]["semantic_attestation"]["invalidated_belief_reused"] = None
+    with pytest.raises(ValidationError, match="invalidated_belief_reused"):
+        ExpertValueReview.model_validate(payload)
+
+
+def test_worlds_without_any_invalidation_require_no_stale_reuse_label(tmp_path: Path) -> None:
+    payload = _review_payload(_blueprint(tmp_path))
+    for world in payload["source_worlds"]:
+        world["invalidated_claim_refs"] = []
+    for trial in payload["trials"]:
+        trial["semantic_attestation"]["invalidated_belief_reused"] = None
+
+    assert len(ExpertValueReview.model_validate(payload).trials) == 20
+
+
+def test_execution_order_compares_instants_instead_of_timestamp_spelling(tmp_path: Path) -> None:
+    payload = _review_payload(_blueprint(tmp_path))
+    payload["source_worlds"][0]["as_of"] = "2026-04-01T00:00:00+00:00"
+    payload["source_worlds"][1]["as_of"] = "2026-03-31T18:00:00-07:00"
+    payload["source_worlds"][2]["as_of"] = "2026-04-01T03:00:00+00:00"
+    for trial in payload["trials"]:
+        if trial["acceptance_case_id"] == "retention-case":
+            trial["executed_at"] = "2026-04-01T16:00:00+00:00"
+        elif trial["acceptance_case_id"] == "update-case":
+            trial["executed_at"] = "2026-04-01T10:00:00-07:00"
+        elif trial["acceptance_case_id"] != "initial-case":
+            trial["executed_at"] = "2026-04-01T20:00:00+00:00"
+
+    assert len(ExpertValueReview.model_validate(payload).trials) == 20
 
 
 def test_break_even_is_cost_only_and_uses_mean_consultation_cost(tmp_path: Path) -> None:

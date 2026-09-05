@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Longitudinal value reviews retain stale-memory applicability after the world
+  where a claim was invalidated. Later-world omissions are refused until
+  reviewed; earlier worlds never inherit future invalidations. Execution
+  timestamps must progress through source worlds within each isolated arm.
+- Value reports verify the current artifacts during report construction,
+  preventing a cached verification dictionary from blessing changed evidence.
+  Python callers now pass `artifact_root` instead of `artifact_verification`;
+  CLI options and report JSON are unchanged. Artifact paths preserve repeated
+  spaces rather than silently selecting a different file.
+
 ## [2.50.12] - 2026-09-05
 
 ### Fixed

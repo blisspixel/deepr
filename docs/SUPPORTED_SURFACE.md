@@ -169,7 +169,11 @@ must not be described as usable capacity.
   attestations with unverified identity and no human-authorship claim.
   Operator-attested mode does not open referenced files. Explicit
   `--artifact-root` mode recomputes every declared local SHA-256 digest under a
-  root-confined path policy with no network access. It does not execute the four
+  root-confined path policy with no network access during report construction.
+  References retain significant whitespace. Stale-reuse applicability includes
+  predecessor-world invalidations, and declared execution order must advance
+  per arm. Nested manifest entries and reviewer-assignment semantics remain
+  operator responsibilities. It does not execute the four
   arms; those runs use separately governed capacity and may incur the costs
   recorded by the review.
 - Relocatable data through coordinated roots written by `deepr init --data-dir`.

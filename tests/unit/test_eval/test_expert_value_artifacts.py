@@ -9,7 +9,7 @@ from typing import Any, cast
 
 import pytest
 
-from deepr.evals.expert_value import ExpertValueReview
+from deepr.evals.expert_value import ExpertValueReview, build_expert_value_report
 from deepr.evals.expert_value_artifacts import (
     ArtifactVerificationError,
     iter_expert_value_artifact_bindings,
@@ -144,12 +144,75 @@ def test_rejects_digest_mismatch(tmp_path: Path) -> None:
         verify_expert_value_artifacts(review, root)
 
 
+def test_report_cannot_reuse_a_verification_dictionary_for_changed_evidence(tmp_path: Path) -> None:
+    review, root = _materialized_review(tmp_path)
+    blueprint = _blueprint(tmp_path / "experts")
+    verification = verify_expert_value_artifacts(review, root)
+    (root / review.trials[0].answer_artifact_ref).write_text("changed after verification", encoding="utf-8")
+
+    with pytest.raises(TypeError, match="artifact_verification"):
+        build_expert_value_report(review, blueprint, artifact_verification=verification)
+
+
+def test_report_verifies_current_evidence_before_claiming_integrity(tmp_path: Path) -> None:
+    review, root = _materialized_review(tmp_path)
+    blueprint = _blueprint(tmp_path / "experts")
+    report = build_expert_value_report(review, blueprint, artifact_root=root)
+    assert report["artifact_verification"]["independently_verified"] is True
+    (root / review.trials[0].answer_artifact_ref).write_text("changed answer", encoding="utf-8")
+
+    with pytest.raises(ArtifactVerificationError, match="digest does not match"):
+        build_expert_value_report(review, blueprint, artifact_root=root)
+
+
 def test_rejects_missing_file(tmp_path: Path) -> None:
     review, root = _materialized_review(tmp_path)
     (root / review.source_worlds[0].manifest_ref).unlink()
 
     with pytest.raises(ArtifactVerificationError, match="does not resolve"):
         verify_expert_value_artifacts(review, root)
+
+
+@pytest.mark.parametrize(
+    ("section", "reference_field"),
+    [
+        ("source_worlds", "manifest_ref"),
+        ("arm_configurations", "run_policy_ref"),
+        ("trials", "run_artifact_ref"),
+        ("trials", "answer_artifact_ref"),
+        ("protocol_attestation", "review_assignment_ref"),
+        ("observed_outcome", "outcome_record_ref"),
+    ],
+)
+def test_artifact_references_preserve_significant_spaces(tmp_path: Path, section: str, reference_field: str) -> None:
+    review, root = _materialized_review(tmp_path)
+    payload = review.model_dump(mode="json")
+    if section == "observed_outcome":
+        record = next(case["observed_outcome"] for case in payload["cases"] if case["observed_outcome"])
+    elif section == "protocol_attestation":
+        record = payload[section]
+    else:
+        record = payload[section][0]
+    original = root / record[reference_field]
+    exact_reference = "two  spaces/artifact  file.json"
+    exact_file = root / exact_reference
+    exact_file.parent.mkdir()
+    exact_file.write_bytes(original.read_bytes())
+    wrong_file = root / "two spaces/artifact file.json"
+    wrong_file.parent.mkdir()
+    wrong_file.write_text("different sibling", encoding="utf-8")
+    record[reference_field] = exact_reference
+
+    changed = ExpertValueReview.model_validate(payload)
+    assert exact_reference in {binding.reference for binding in iter_expert_value_artifact_bindings(changed)}
+    assert verify_expert_value_artifacts(changed, root)["all_matched"] is True
+
+
+@pytest.mark.parametrize("reference", [" \t ", "a" * 4001])
+def test_artifact_references_still_reject_blank_or_oversized_values(tmp_path: Path, reference: str) -> None:
+    review, _root = _materialized_review(tmp_path)
+    with pytest.raises(ValueError, match="must not be empty|at most 4000"):
+        _replace_reference(review, reference=reference, sha256="a" * 64)
 
 
 @pytest.mark.parametrize("reference", ["../outside.json", "..\\outside.json"])

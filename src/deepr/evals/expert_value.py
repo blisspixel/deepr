@@ -2,8 +2,8 @@
 
 This module validates a frozen four-arm review workbook and performs only
 deterministic aggregation. It does not run an arm, call a model, judge answer
-text, write expert state, or select a winner. A caller may separately supply a
-root-confined artifact verification result for inclusion in the report.
+text, write expert state, or select a winner. An explicit artifact root enables
+verification of the current review's files during report construction.
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ from typing import Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
+from deepr.evals.expert_value_artifacts import validate_artifact_reference
 from deepr.experts.blueprint import ExpertBlueprint
 from deepr.experts.outcomes import normalize_timestamp
 
@@ -164,7 +165,7 @@ class SourceWorld(_StrictModel):
     @field_validator("manifest_ref")
     @classmethod
     def validate_manifest_ref(cls, value: str) -> str:
-        return _clean_text(value, field_name="source world manifest ref")
+        return validate_artifact_reference(value, field_name="source world manifest ref")
 
     @field_validator("manifest_sha256")
     @classmethod
@@ -194,7 +195,7 @@ class ObservedOutcomeReference(_StrictModel):
     @field_validator("outcome_record_ref")
     @classmethod
     def validate_outcome_ref(cls, value: str) -> str:
-        return _clean_text(value, field_name="outcome record ref")
+        return validate_artifact_reference(value, field_name="outcome record ref")
 
     @field_validator("outcome_record_sha256")
     @classmethod
@@ -231,7 +232,7 @@ class ArmConfiguration(_StrictModel):
     @field_validator("run_policy_ref")
     @classmethod
     def validate_policy_ref(cls, value: str) -> str:
-        return _clean_text(value, field_name="run policy ref")
+        return validate_artifact_reference(value, field_name="run policy ref")
 
     @field_validator("run_policy_sha256")
     @classmethod
@@ -312,7 +313,7 @@ class ExpertValueTrial(_StrictModel):
     @field_validator("run_artifact_ref", "answer_artifact_ref")
     @classmethod
     def validate_artifact_refs(cls, value: str, info: ValidationInfo) -> str:
-        return _clean_text(value, field_name=_validation_field_name(info))
+        return validate_artifact_reference(value, field_name=_validation_field_name(info))
 
     @field_validator("run_artifact_sha256", "answer_artifact_sha256")
     @classmethod
@@ -349,7 +350,7 @@ class ProtocolAttestation(_StrictModel):
     @field_validator("review_assignment_ref")
     @classmethod
     def validate_assignment_ref(cls, value: str) -> str:
-        return _clean_text(value, field_name="review assignment ref")
+        return validate_artifact_reference(value, field_name="review assignment ref")
 
     @field_validator("review_assignment_sha256")
     @classmethod
@@ -423,6 +424,11 @@ def _validate_role_specific_fields(
     case_by_id: dict[str, ExpertValueCase],
     world_by_id: dict[str, SourceWorld],
 ) -> None:
+    invalidated_worlds: dict[str, bool] = {}
+    invalidated_claims: set[str] = set()
+    for world in world_by_id.values():
+        invalidated_claims.update(world.invalidated_claim_refs)
+        invalidated_worlds[world.source_world_id] = bool(invalidated_claims)
     for trial in trials:
         case = case_by_id[trial.acceptance_case_id]
         retained = trial.semantic_attestation.retained_correctness
@@ -435,9 +441,11 @@ def _validate_role_specific_fields(
             raise ValueError("retained_correctness must be set only for retention trials")
         if (case.evaluation_role == "forward_transfer") != (transferred is not None):
             raise ValueError("forward_transfer_observed must be set only for forward-transfer trials")
-        stale_reuse_applies = bool(world_by_id[case.source_world_id].invalidated_claim_refs)
+        stale_reuse_applies = invalidated_worlds[case.source_world_id]
         if stale_reuse_applies != (stale_reuse is not None):
-            raise ValueError("invalidated_belief_reused must be set only when the source world invalidates claims")
+            raise ValueError(
+                "invalidated_belief_reused must be set only when this or a predecessor world invalidates claims"
+            )
         negative_transfer_applies = world_by_id[case.source_world_id].predecessor_source_world_id is not None
         if negative_transfer_applies != (negative_transfer is not None):
             raise ValueError("negative_transfer_observed must be set only for later-world trials")
@@ -457,8 +465,15 @@ def _validate_trial_temporal_order(
     protocol_attestation: ProtocolAttestation,
 ) -> None:
     protocol_attested_at = datetime.fromisoformat(protocol_attestation.attested_at)
-    for trial in trials:
+    previous_by_arm: dict[str, datetime] = {}
+    world_order = {world_id: index for index, world_id in enumerate(world_by_id)}
+    ordered = sorted(trials, key=lambda trial: datetime.fromisoformat(trial.executed_at))
+    ordered.sort(key=lambda trial: world_order[case_by_id[trial.acceptance_case_id].source_world_id])
+    for trial in ordered:
         executed_at = datetime.fromisoformat(trial.executed_at)
+        if trial.arm in previous_by_arm and executed_at < previous_by_arm[trial.arm]:
+            raise ValueError("trial execution must follow source-world order within each arm")
+        previous_by_arm[trial.arm] = executed_at
         attested_at = datetime.fromisoformat(trial.semantic_attestation.attested_at)
         world = world_by_id[case_by_id[trial.acceptance_case_id].source_world_id]
         if executed_at < datetime.fromisoformat(world.as_of):
@@ -875,13 +890,15 @@ def build_expert_value_report(
     blueprint: ExpertBlueprint,
     *,
     now: datetime | None = None,
-    artifact_verification: dict[str, Any] | None = None,
+    artifact_root: Path | None = None,
 ) -> dict[str, Any]:
     """Aggregate an operator-attested review without a semantic verdict."""
-    from deepr.evals.expert_value_artifacts import operator_attested_artifact_verification
+    from deepr.evals import expert_value_artifacts as artifacts
 
     validate_review_blueprint_binding(review, blueprint)
-    verification = artifact_verification or operator_attested_artifact_verification(review)
+    verification = artifacts.operator_attested_artifact_verification(review)
+    if artifact_root is not None:
+        verification = artifacts.verify_expert_value_artifacts(review, artifact_root)
     case_by_id = {case.acceptance_case_id: case for case in review.cases}
     role_counts = {role: 0 for role in ROLE_ORDER}
     for case in review.cases:

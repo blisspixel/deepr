@@ -22,6 +22,15 @@ class ArtifactVerificationError(ValueError):
     """Raised when a declared artifact cannot be verified safely."""
 
 
+def validate_artifact_reference(value: str, *, field_name: str) -> str:
+    """Validate reference form without rewriting significant path characters."""
+    if not value.strip():
+        raise ValueError(f"{field_name} must not be empty")
+    if len(value) > 4000:
+        raise ValueError(f"{field_name} must be at most 4000 characters")
+    return value
+
+
 @dataclass(frozen=True)
 class ArtifactBinding:
     """One workbook field pair that binds a reference to a digest."""
