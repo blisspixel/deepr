@@ -44,7 +44,7 @@ MODE_CONFIGS: dict[ChatMode, dict[str, Any]] = {
         "model_bias": "balanced",
         "force_tot": False,
         "label": "Research",
-        "description": "Default - full tool access",
+        "description": "Research tool configuration - execution gates apply",
     },
     ChatMode.ADVISE: {
         "tools": ["search_knowledge_base", "standard_research"],
@@ -65,7 +65,7 @@ MODE_CONFIGS: dict[ChatMode, dict[str, Any]] = {
         "model_bias": "quality",
         "force_tot": True,
         "label": "Focus",
-        "description": "Deep reasoning - Tree of Thoughts always on",
+        "description": "Deep reasoning - Tree of Thoughts requested",
     },
 }
 
@@ -230,15 +230,14 @@ class CommandRegistry:
             ChatCommand(
                 "model",
                 [],
-                "Show or change model",
+                "Show the current model",
                 CommandCategory.CONTROL,
                 CommandScope.SESSION_REQUIRED,
-                args="[name]",
             ),
             ChatCommand(
                 "tools",
                 [],
-                "List available tools for current mode",
+                "List configured tool inventory for current mode",
                 CommandCategory.CONTROL,
                 CommandScope.SESSION_REQUIRED,
             ),

@@ -760,6 +760,11 @@ must not be described as usable capacity.
   proof, conservative identity mismatch handling, cancellation settlement,
   canonical-ledger idempotency, concurrency, and ledger-failure regressions.
   Local and explicit plan read-only query is shipped and unaffected.
+  **Unreleased source checkout:** shared `/tools` and command help describe
+  configured inventory, explicitly mark skill execution blocked, and omit
+  unbound free-search and price claims. A mode switch does not grant capacity;
+  `/model` reports the current model without switching it. These corrections
+  do not enable the retained interactive chat design.
 - Unsafe metered expert lifecycle surfaces also fail closed:
   nonlocal `expert make` and `--learn`, API curriculum `expert plan`,
   provider-backed `expert refresh` and `--synthesize`, `expert resume`, normal

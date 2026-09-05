@@ -15,9 +15,9 @@ ALL_TOOL_NAMES = frozenset({TOOL_SEARCH_KB, TOOL_STANDARD_RESEARCH, TOOL_DEEP_RE
 
 # Human-readable tool descriptions
 TOOL_DESCRIPTIONS: dict[str, str] = {
-    TOOL_SEARCH_KB: "Search expert's documents (free)",
-    TOOL_STANDARD_RESEARCH: "Web search via Grok (free)",
-    TOOL_DEEP_RESEARCH: "Deep analysis ($0.10-0.30)",
+    TOOL_SEARCH_KB: "Search configured expert knowledge",
+    TOOL_STANDARD_RESEARCH: "Web research (metered calls blocked)",
+    TOOL_DEEP_RESEARCH: "Deep analysis (metered calls blocked)",
 }
 
 # Budget constants

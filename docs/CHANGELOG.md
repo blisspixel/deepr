@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Shared chat help describes configured tools as inventory, labels research
+  and skill execution blocks, and removes unsupported free-search and fixed
+  price claims. Mode descriptions no longer imply unrestricted access or
+  completed reasoning. Model help matches the existing read-only handler.
+
 ### Added
 
 - A read-only `eval expert-value-sources` preflight for versioned source-world
