@@ -414,6 +414,18 @@ reliable product, not a four-language architecture diagram.
 
 ## Current Status (v2.50.12)
 
+- [x] **Longitudinal validation findings (2026-09-05, Unreleased):** later
+  worlds dropped earlier invalidations from stale-reuse review; declared
+  executions could return to an earlier world; cached verification results
+  could describe changed evidence; and artifact paths collapsed repeated
+  spaces. Regression tests reproduce all four defects. The corrections
+  preserve separate semantic review and add no execution authority.
+
+- [ ] **v2.51 preparation:** verify source entries inside frozen manifests,
+  prepare equal source inventories for isolated arms, and bind blinded review
+  assignments to exact case and answer bytes. Current SHA-256 verification
+  covers declared artifacts, not nested inventories or assignment meaning.
+
 - [x] **Installer validation finding (2026-09-05):** both public installers
   reported success after the CLI remained broken through repair. They now
   return a failure status before the success footer. Executed PowerShell and

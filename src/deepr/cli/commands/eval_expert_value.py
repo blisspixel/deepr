@@ -146,13 +146,11 @@ def _evaluate_review(
     json_output: bool,
 ) -> None:
     from deepr.evals.expert_value import build_expert_value_report, load_expert_value_review
-    from deepr.evals.expert_value_artifacts import verify_expert_value_artifacts
 
     _validate_report_output(source, output, artifact_root)
     try:
         review = load_expert_value_review(source)
-        verification = verify_expert_value_artifacts(review, artifact_root) if artifact_root is not None else None
-        report = build_expert_value_report(review, blueprint, artifact_verification=verification)
+        report = build_expert_value_report(review, blueprint, artifact_root=artifact_root)
     except (OSError, json.JSONDecodeError, ValidationError, ValueError) as exc:
         raise click.ClickException(f"Invalid expert-value review: {exc}") from exc
     if output is not None:

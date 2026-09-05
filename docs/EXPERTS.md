@@ -230,15 +230,24 @@ retention, forward and negative transfer, update latency, reviewer effort,
 construction and maintenance cost, per-consultation cost, observed outcome
 links, pairwise deltas, reproducible 95 percent paired-bootstrap intervals, and
 cost-only break-even estimates. Failed updates remain in the completion
-denominator without a fabricated latency, and stale-memory rates exclude cases
-with no operator-attested invalidation. It does not run an arm, infer a semantic
+denominator without a fabricated latency. Stale-memory review applies after
+any operator-attested invalidation in the case's world or its predecessors;
+an empty later invalidation list does not clear that history. Earlier worlds
+never inherit later invalidations. Execution timestamps must advance through
+worlds within each arm, while isolated arms and blinded reviews may be
+scheduled independently. It does not run an arm, infer a semantic
 label, emit a superiority flag, rank arms, assess statistical sufficiency,
 claim causal attribution, or change a default. Operator-attested mode does not
 open referenced files or verify attester identity. `--artifact-root` is the
 explicit independent mode: it
 recomputes every declared SHA-256 digest within one root and rejects absolute
 paths, traversal, root or symlink escape, missing files, conflicting
-declarations, and mismatches before writing a report. Both modes cost `$0` and
+declarations, and mismatches before writing a report. References preserve
+significant whitespace. The report builder verifies the current workbook's
+artifacts during that invocation; Python callers pass `artifact_root`, not a
+cached `artifact_verification` dictionary. Manifest bytes are verified, but
+nested source inventories and answer-to-review assignments remain operator
+responsibilities. Both modes cost `$0` and
 make no model, provider, or network calls; external arm execution can consume
 recorded local, plan, or paid capacity.
 

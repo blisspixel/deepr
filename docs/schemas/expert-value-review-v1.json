@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/blisspixel/deepr/docs/schemas/expert-value-review-v1.json",
   "title": "Deepr Expert Value Review v1",
-  "description": "Completed operator-attested workbook for the frozen four-arm longitudinal expert-value protocol. Semantic and protocol attestations explicitly deny verified identity and human-authorship claims. Runtime validation also enforces exact blueprint binding, a linear source-world chain, complete case-arm coverage, and role-specific fields.",
+  "description": "Completed operator-attested workbook for the frozen four-arm longitudinal expert-value protocol. Semantic and protocol attestations explicitly deny verified identity and human-authorship claims. Runtime validation also enforces exact blueprint binding, a linear source-world chain, complete case-arm coverage, per-arm execution chronology, and role-specific fields. Stale-reuse applicability includes predecessor-world invalidations. Artifact references preserve significant whitespace.",
   "type": "object",
   "additionalProperties": false,
   "required": [
