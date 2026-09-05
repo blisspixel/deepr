@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A read-only `eval expert-value-sources` preflight for versioned source-world
+  indexes and manifests. It checks nested source hashes and byte sizes,
+  explicit availability cutoffs, stable source-version history, and bounded
+  local file reads. Duplicate JSON keys, organizer-only fields, traversal,
+  Win32 trailing-period and trailing-space aliases,
+  links, junctions, special files, and changed inputs are refused. Experimental
+  schemas describe the preparation contract. A passing report grants no
+  execution authority and makes no semantic, historical, or blinding claim.
+
 ## [2.50.13] - 2026-09-05
 
 ### Fixed

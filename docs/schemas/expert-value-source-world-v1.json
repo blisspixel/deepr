@@ -1,0 +1,129 @@
+{
+  "$defs": {
+    "SourceVersion": {
+      "additionalProperties": false,
+      "description": "One explicit source snapshot; times remain organizer declarations.",
+      "properties": {
+        "source_version_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$",
+          "title": "Source Version Id",
+          "type": "string"
+        },
+        "artifact_ref": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Artifact Ref",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "bytes": {
+          "maximum": 16777216,
+          "minimum": 1,
+          "title": "Bytes",
+          "type": "integer"
+        },
+        "available_at": {
+          "format": "date-time",
+          "maxLength": 80,
+          "title": "Available At",
+          "type": "string"
+        },
+        "snapshot_collected_at": {
+          "format": "date-time",
+          "maxLength": 80,
+          "title": "Snapshot Collected At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_version_id",
+        "artifact_ref",
+        "sha256",
+        "bytes",
+        "available_at",
+        "snapshot_collected_at"
+      ],
+      "title": "SourceVersion",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "One world's source inventory, without organizer evaluation-role labels.",
+  "properties": {
+    "schema_version": {
+      "const": "deepr-expert-value-source-world-v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "kind": {
+      "const": "deepr.expert.value_source_world",
+      "title": "Kind",
+      "type": "string"
+    },
+    "source_world_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$",
+      "title": "Source World Id",
+      "type": "string"
+    },
+    "predecessor_source_world_id": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Predecessor Source World Id"
+    },
+    "information_cutoff": {
+      "format": "date-time",
+      "maxLength": 80,
+      "title": "Information Cutoff",
+      "type": "string"
+    },
+    "clock_basis": {
+      "enum": [
+        "synthetic",
+        "historical_assertion"
+      ],
+      "title": "Clock Basis",
+      "type": "string"
+    },
+    "sources": {
+      "items": {
+        "$ref": "#/$defs/SourceVersion"
+      },
+      "maxItems": 512,
+      "minItems": 1,
+      "title": "Sources",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "source_world_id",
+    "predecessor_source_world_id",
+    "information_cutoff",
+    "clock_basis",
+    "sources"
+  ],
+  "title": "SourceWorldManifest",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/expert-value-source-world-v1.json",
+  "x-deepr-linked-validator": {
+    "python": "deepr.evals.expert_value_sources:build_source_world_preflight",
+    "schema_only_is_sufficient": false,
+    "requires": [
+      "source index path",
+      "artifact root"
+    ]
+  }
+}

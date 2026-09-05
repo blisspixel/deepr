@@ -217,4 +217,49 @@ def eval_expert_value(
     )
 
 
-__all__ = ["eval_expert_value"]
+@evaluate.command("expert-value-sources")
+@click.option(
+    "--from-file",
+    "source",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Versioned source-world preparation index inside the artifact root.",
+)
+@click.option(
+    "--artifact-root",
+    required=True,
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    help="Root containing the index, source manifests, and frozen source bytes.",
+)
+@click.option(
+    "--output",
+    type=click.Path(dir_okay=False, path_type=Path),
+    help="Explicit report path outside the evidence root. No default file writes.",
+)
+@click.option("--json", "json_output", is_flag=True, help="Emit the structural preflight report as JSON.")
+def eval_expert_value_sources(source: Path, artifact_root: Path, output: Path | None, json_output: bool) -> None:
+    """Check nested source bytes and declared availability without running an arm."""
+    from deepr.evals.expert_value_sources import build_source_world_preflight
+
+    _validate_report_output(source, output, artifact_root)
+    try:
+        report = build_source_world_preflight(source, artifact_root)
+    except (OSError, ValueError) as exc:
+        raise click.ClickException(f"Invalid source-world preparation: {exc}") from exc
+    if output is not None:
+        _write_payload(output, report, label="source-world preflight")
+    if json_output:
+        click.echo(json.dumps(report, indent=2, ensure_ascii=True))
+        return
+    click.echo(
+        f"Source-world preflight: {report['source_world_count']} worlds, "
+        f"{report['source_reference_count']} source references, "
+        f"{report['verified_source_file_count']} verified source files."
+    )
+    click.echo("Nested bytes and declared cutoff ordering match. Historical availability remains an assertion.")
+    click.echo("Preparation only: execution, isolation, blinding, and semantic quality remain unproven.")
+    if output is not None:
+        click.echo(f"Wrote preflight report: {output}")
+
+
+__all__ = ["eval_expert_value", "eval_expert_value_sources"]

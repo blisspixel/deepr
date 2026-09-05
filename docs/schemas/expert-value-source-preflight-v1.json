@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/expert-value-source-preflight-v1.json",
+  "title": "Deepr Expert Value Source Preflight v1",
+  "description": "Read-only nested source integrity and declared timing inspection. This report is not execution authority or semantic review and cannot replace fresh validation of current inputs.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "status",
+    "index_sha256",
+    "clock_basis",
+    "source_world_count",
+    "source_reference_count",
+    "verified_source_file_count",
+    "verified_source_bytes",
+    "worlds",
+    "declared_availability_within_cutoff",
+    "historical_availability_independently_verified",
+    "run_ready",
+    "execution_authorized",
+    "semantic_quality_assessed",
+    "process_isolation_verified",
+    "review_blinding_verified",
+    "network_access",
+    "provider_calls",
+    "evidence_writes",
+    "cost_usd"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "deepr-expert-value-source-preflight-v1"
+    },
+    "kind": {
+      "const": "deepr.expert.value_source_preflight"
+    },
+    "status": {
+      "const": "structural_preflight_passed"
+    },
+    "index_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "clock_basis": {
+      "enum": [
+        "synthetic",
+        "historical_assertion"
+      ]
+    },
+    "source_world_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "source_reference_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "verified_source_file_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "verified_source_bytes": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "worlds": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source_world_id",
+          "information_cutoff",
+          "manifest_sha256",
+          "source_count"
+        ],
+        "properties": {
+          "source_world_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "information_cutoff": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "manifest_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "source_count": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 512
+          }
+        }
+      }
+    },
+    "declared_availability_within_cutoff": {
+      "const": true
+    },
+    "historical_availability_independently_verified": {
+      "const": false
+    },
+    "run_ready": {
+      "const": false
+    },
+    "execution_authorized": {
+      "const": false
+    },
+    "semantic_quality_assessed": {
+      "const": false
+    },
+    "process_isolation_verified": {
+      "const": false
+    },
+    "review_blinding_verified": {
+      "const": false
+    },
+    "network_access": {
+      "const": false
+    },
+    "provider_calls": {
+      "const": 0
+    },
+    "evidence_writes": {
+      "const": 0
+    },
+    "cost_usd": {
+      "const": 0
+    }
+  },
+  "x-deepr-linked-validator": {
+    "python": "deepr.evals.expert_value_sources:build_source_world_preflight",
+    "schema_only_is_sufficient": false,
+    "requires": [
+      "source index path",
+      "artifact root"
+    ]
+  }
+}

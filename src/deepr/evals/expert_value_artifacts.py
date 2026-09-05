@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import os
+import stat
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -143,8 +144,67 @@ def _resolve_binding(binding: ArtifactBinding, root: Path) -> _ResolvedBinding:
 
 
 def _file_identity(path: Path) -> tuple[int, int, int, int]:
-    stat = path.stat()
-    return stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns
+    return _stat_identity(path.stat())
+
+
+def _stat_identity(info: os.stat_result) -> tuple[int, int, int, int]:
+    return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns
+
+
+def _regular_reference_path(reference: str, root: Path, field: str) -> Path:
+    validate_artifact_reference(reference, field_name=field)
+    if any(part in {"", ".", ".."} for part in reference.split("/")):
+        raise ArtifactVerificationError(f"{field} must use a canonical relative file reference")
+    relative = _reference_path(reference, field=field)
+    if "\\" in reference:
+        raise ArtifactVerificationError(f"{field} must use portable forward-slash separators")
+    if any(part.endswith((".", " ")) for part in relative.parts):
+        raise ArtifactVerificationError(f"{field} must use portable names without trailing periods or spaces")
+    current = root
+    for part in relative.parts:
+        current = current / part
+        info = current.lstat()
+        reparse = getattr(info, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+        if stat.S_ISLNK(info.st_mode) or reparse:
+            raise ArtifactVerificationError(f"{field} must not traverse links or junctions")
+    if not stat.S_ISREG(current.lstat().st_mode):
+        raise ArtifactVerificationError(f"{field} must be a regular file")
+    return current
+
+
+def read_bounded_artifact(
+    reference: str, artifact_root: Path, *, max_bytes: int, field_name: str = "artifact"
+) -> bytes:
+    """Read one bounded regular file without accepting links or changing state.
+
+    This stricter preparation reader does not change legacy workbook reference
+    compatibility. Identity checks detect ordinary concurrent changes; this is
+    not a process sandbox against a hostile writer controlling the filesystem.
+    """
+    if type(max_bytes) is not int or max_bytes < 1:
+        raise ValueError("max_bytes must be a positive integer")
+    root = _validate_root(artifact_root)
+    try:
+        path = _regular_reference_path(reference, root, field_name)
+        before = path.lstat()
+        if before.st_size > max_bytes:
+            raise ArtifactVerificationError(f"{field_name} exceeds its byte ceiling")
+        flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
+        flags |= getattr(os, "O_NONBLOCK", 0)
+        with os.fdopen(os.open(path, flags), "rb") as artifact:
+            opened = os.fstat(artifact.fileno())
+            if not stat.S_ISREG(opened.st_mode) or _stat_identity(before) != _stat_identity(opened):
+                raise ArtifactVerificationError(f"{field_name} changed before reading")
+            payload = artifact.read(max_bytes + 1)
+            after = os.fstat(artifact.fileno())
+        final_path = _regular_reference_path(reference, root, field_name)
+        if _stat_identity(before) != _stat_identity(after) or _stat_identity(before) != _file_identity(final_path):
+            raise ArtifactVerificationError(f"{field_name} changed during reading")
+    except OSError as exc:
+        raise ArtifactVerificationError(f"{field_name} could not be read as a bounded regular file") from exc
+    if len(payload) > max_bytes:
+        raise ArtifactVerificationError(f"{field_name} exceeds its byte ceiling")
+    return payload
 
 
 def _sha256_file(resolved: _ResolvedBinding, root: Path) -> str:
@@ -212,5 +272,6 @@ __all__ = [
     "ArtifactVerificationError",
     "iter_expert_value_artifact_bindings",
     "operator_attested_artifact_verification",
+    "read_bounded_artifact",
     "verify_expert_value_artifacts",
 ]

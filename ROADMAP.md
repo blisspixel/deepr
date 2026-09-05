@@ -1248,6 +1248,19 @@ report can be written. External arm execution can still consume the capacity
 and cost recorded in the workbook. This closes the measurement path needed for
 longitudinal proof; it is not itself proof that an expert improved.
 
+### Source-world preparation progress
+
+- [x] September 5, 2026: add the read-only `eval expert-value-sources` contract
+  for strict nested manifests, explicit cutoffs, source-version continuity,
+  bounded byte verification, and report output outside the evidence root.
+  [Design and limits](docs/design/source-world-preflight.md).
+- [x] September 5, 2026: Windows regressions reproduced trailing-period and
+  trailing-space paths counting the same file through aliases. The preparation
+  reader now rejects these ambiguous names while preserving internal spaces.
+- [ ] Materialize equal neutral source inventories into isolated arm roots,
+  bind effective model/context/memory state, and collect blinded answer reviews.
+  Structural preparation does not satisfy the v2.51 value gate.
+
 ## Detailed Promotion Gates
 
 The [Active Release Plan](#active-release-plan) is the only delivery sequence.

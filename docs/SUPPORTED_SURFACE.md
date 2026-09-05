@@ -183,6 +183,19 @@ must not be described as usable capacity.
   operator responsibilities. It does not execute the four
   arms; those runs use separately governed capacity and may incur the costs
   recorded by the review.
+- **Unreleased source checkout:**
+  `deepr eval expert-value-sources --from-file INDEX --artifact-root ROOT`
+  separately checks a strict preparation index, its nested source manifests,
+  source byte sizes and SHA-256 digests, explicit availability cutoffs, and
+  stable source-version identity across worlds. It rejects duplicate JSON
+  keys and unknown organizer fields; local reads have manifest, source,
+  aggregate-byte, and reference ceilings. References use forward slashes and
+  cannot traverse links, junctions, or parent paths. No provider is called and
+  no file is written by default. An explicit report output must be outside the
+  evidence root. Declared historical availability, semantic quality, process
+  isolation, and blinding remain unproven; a passing report is not execution
+  authority. This command does not change the older workbook verifier or
+  automatically migrate unreviewed rehearsal drafts.
 - Relocatable data through coordinated roots written by `deepr init --data-dir`.
   `DEEPR_DATA_DIR` covers expert, queue, trace, benchmark, observability, and
   selected MCP state; reports use `DEEPR_REPORTS_PATH`. Synced-folder portability supports
