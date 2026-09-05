@@ -326,7 +326,7 @@ denominators and paired intervals. Later-world hard negatives still require
 the negative-transfer attestation. No semantic label is inferred by this fix.
 
 Consultation must retain the evidence behind the findings being evaluated.
-Source selection will use exact stored anchors to choose literal excerpts from
+Source selection uses exact stored anchors to choose literal excerpts from
 the retained corpus, including passages beyond the opening 2,000 characters.
 All selected findings sharing a source contribute anchors in stable order.
 Discontinuous excerpts use an explicit `[...]` separator. Selection and packet

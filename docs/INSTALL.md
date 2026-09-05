@@ -101,7 +101,7 @@ checks and write-free previews. They do not enable production metered dispatch:
 ```bash
 # Metered cloud capacity. Pick any one to start, or use none for local/plan
 # workflows. Additional keys enable explicit bounded provider choices;
-# automatic cross-provider metered fallback is gated in v2.36.
+# automatic cross-provider metered fallback remains gated.
 
 OPENAI_API_KEY=sk-...       # GPT-5.5/5.4 families + o3/o4-mini deep research
 GEMINI_API_KEY=...          # Gemini text/multimodal; managed Deep Research is gated
@@ -136,7 +136,7 @@ deepr budget set 5
 # A budget ceiling never authorizes spend; preview and confirmation still apply
 ```
 
-### Step 4: Run Your First Research
+### Step 4: Preview Research Readiness
 
 ```bash
 # Free preflight
@@ -153,11 +153,58 @@ That's it! You're ready to use Deepr.
 
 ## Advanced Installation
 
+### Agent Plugins hosts
+
+Deepr publishes an [Agent Plugins 1.0.0](https://agent-plugins.org/specification)
+package with an Agent Skill and a local stdio MCP server declaration. Use a
+client that supports both skills and stdio MCP. Installation and enablement
+commands belong to the host; the standard does not define one universal
+installer. See the [client directory](https://agent-plugins.org/compatible-clients)
+for component support, then follow that host's instructions.
+
+1. Install Deepr using the release installer above. Check `deepr --version`.
+   The plugin declares the external `deepr-mcp` executable, so it must be
+   visible on the host process's executable search path. Verify with
+   `Get-Command deepr-mcp` in PowerShell or `command -v deepr-mcp` on macOS or
+   Linux. A desktop host may need restarting after PATH changes.
+2. Download `deepr-agent-plugin-2.50.12.tar.gz` from the
+   [matching release](https://github.com/blisspixel/deepr/releases/tag/v2.50.12).
+   Match the plugin version to the installed Deepr version and verify the
+   asset checksum shown by GitHub. Extract it with
+   `tar -xzf deepr-agent-plugin-2.50.12.tar.gz` or your archive utility.
+3. In the host's local plugin flow, select the extracted `deepr-research`
+   directory containing `plugin.json`, `mcp.json`, `LICENSE`, `SHA256SUMS`,
+   and `skills/`. When using a source checkout, the plugin root is
+   `packages/deepr-agent-plugin`. Enable both its skill and MCP server if the
+   host requires separate enablement.
+4. Ask the host to call `deepr_capabilities`, `deepr_status`, and
+   `deepr_list_experts`. Host-visible names may have a server prefix. Status
+   must report `read_only`; ordinary tool discovery exposes ten inspection,
+   status, and existing-result tools. Generative consultation, research
+   dispatch, and expert writes are outside this package's profile.
+
+The host creates a persistent `PLUGIN_DATA` directory and supplies its absolute
+path to the server. This package stores Deepr state under `PLUGIN_DATA/deepr`.
+A fresh installation therefore has an empty expert inventory, even if the
+ordinary CLI already has experts elsewhere. To populate a selected workspace,
+run the [local expert workflow](../README.md#quick-start) in a separate CLI
+process with the explicit storage variables from `mcp.json` pointed at that
+host data directory. This is a deliberate CLI operation; the plugin itself
+only inspects the resulting state. Keep the data directory when updating the
+package. Runtime audit databases belong there, while package files remain
+unchanged.
+
+Blocking checks validate the current published schemas offline, reproducible
+archives, clean-wheel command resolution, both supported MCP protocol eras,
+paths with spaces, and data preservation across package replacement. They do
+not certify every client listed upstream. The OpenClaw profile remains an
+explicitly versioned reference; see [Supported Surface](SUPPORTED_SURFACE.md).
+
 ### From a GitHub release
 
 ```bash
 # Download the wheel for the selected release, then install it locally.
-python -m pip install ./deepr_research-2.40.0-py3-none-any.whl
+python -m pip install ./deepr_research-2.50.12-py3-none-any.whl
 deepr --version
 ```
 
@@ -251,7 +298,7 @@ inventory-only. A local Ollama model or an
 explicit admitted plan-quota CLI can support `$0` marginal-cost expert
 maintenance without provider keys. Provider keys expose metered request
 metadata and offline previews, but production paid dispatch remains blocked in
-v2.40 until authenticated account controls and current credential identity can
+the current release until authenticated account controls and current credential identity can
 be proven before each call.
 
 Pick based on your priority:

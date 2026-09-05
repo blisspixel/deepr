@@ -218,7 +218,14 @@ must not be described as usable capacity.
   `PLUGIN_DATA`, and zero primary and legacy spend ceilings. Its `read_only`
   profile is capability-read-only, not filesystem-immutable: runtime and audit
   databases are expected beneath plugin data, while the installed package must
-  remain unchanged. Clean-install and byte-reproducibility checks are blocking.
+  remain unchanged. Clean-install and byte-reproducibility checks are blocking,
+  including manifest-driven executable search, both MCP protocol eras, paths
+  with spaces, and preserved data after package replacement. The ten-tool
+  profile inspects existing expert metadata and results; generative consult is
+  absent. A new plugin workspace starts with no experts. Follow the
+  [Agent Plugins install guide](INSTALL.md#agent-plugins-hosts) for prerequisites
+  and explicit workspace provisioning. External host versions need separate
+  validation.
 - Offline machine-checkable MCP host-interop rollup via
   `deepr mcp conformance` (`deepr-mcp-conformance-v1`): dual-era constants,
   offline consult form checks, remote smoke fail-closed posture, managed

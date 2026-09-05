@@ -53,6 +53,7 @@
 | [Epistemic Simulation Experts](docs/design/epistemic-simulation-experts.md) | Branch-scoped speculative lenses with isolated memory authority, graph-aware context, and held-out evaluation |
 | [Epistemic Simulation Evaluation](docs/design/epistemic-simulation-evaluation.md) | Identity ablation, counterfactual transfer, belief revision, evidence contracts, and outcome gates for reasoning lenses |
 | [Agent Harness Lessons 2026](docs/design/agent-harness-lessons-2026.md) | Hermes, OpenClaw, OpenCode, Pi, OpenHands, Goose, and Letta patterns relevant to Deepr |
+| [Local-First Agent Runtime Options](docs/design/local-first-agent-runtime-options.md) | Local expert and skill creation, selected OKF knowledge, and an optional gated hosted companion |
 | [External Harness Investigation Bridge](docs/design/external-harness-investigation-bridge.md) | Projection-first Grok Build, DeepSeek Harness, OpenClaw, NemoClaw, Codex, and workspace-host integration without moving orchestration authority into Deepr |
 | [Evidence-Gated Polyglot Evolution](docs/design/evidence-gated-polyglot-evolution.md) | Measured Python-first performance plan and explicit Rust, Go, Mojo, and free-threading extraction gates |
 | [Architecture](docs/ARCHITECTURE.md) | Technical details, security, observability |
@@ -420,11 +421,28 @@ OpenRouter monthly controls reconcile the current UTC month separately from
 lifetime usage, and oversized numbers return a sanitized refusal. Regression
 tests reproduce the defects. No semantic or dispatch authority widened.
 
+- [x] **Package live-validation findings (2026-09-04):** the install checker
+  bypassed manifest launch semantics, covered only legacy MCP, and did not
+  prove expert-data preservation. It now resolves the declared executable,
+  exercises both protocol eras with bounded exchanges, and verifies saved
+  expert bytes and discovery across package relocation on paths with spaces.
+  The installation guide states the isolated workspace and inspection scope.
+- [x] **CI validation finding (2026-09-04):** a 0.2-second trace-lock test
+  sometimes expired during preflight under Python 3.13 runner load. An explicit
+  clock and expiring lock now exercise the intended post-provider boundary
+  without changing production elapsed ceilings.
+
 The next evidence deliverable remains v2.51. Its
 [pilot protocol](docs/design/expert-purpose-and-value-loop.md#v251-pilot-protocol)
 now specifies three frozen worlds, 12 reviewed cases, and 48 arm cells, with
 blinded review, isolation, and separate temporal, support, effort, and cost
 measures. This is a protocol, not a completed experiment or proof of benefit.
+
+The [runtime options proposal](docs/design/local-first-agent-runtime-options.md)
+keeps execution and canonical knowledge local, reuses portable skills and OKF,
+and compares optional Cloudflare observation with later hosted execution. It
+includes a creator workflow, failure and reconnect behavior, and measurable
+promotion gates without changing the release order or deploying infrastructure.
 
 **Shipped in v2.50.11 (see docs/CHANGELOG.md):** the authenticated OpenRouter
 current-key observation now accepts the provider's documented nullable

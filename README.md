@@ -135,8 +135,10 @@ source references and does not certify that a claim is supported.
 See [Quick Start](docs/QUICK_START.md) and [Supported Surface](docs/SUPPORTED_SURFACE.md)
 for current workflows. The [MCP Agent Guide](docs/MCP_AGENT_TEST_GUIDE.md)
 covers the 36 MCP tools, dual-era `2026-07-28` protocol, and
-`deepr mcp conformance`. Portable packaging, OKF export, and the OpenClaw
-host-profile reference are documented in [Supported Surface](docs/SUPPORTED_SURFACE.md).
+`deepr mcp conformance`. The [Agent Plugins install guide](docs/INSTALL.md#agent-plugins-hosts)
+covers the portable skill and read-only MCP package, host PATH setup, and its
+isolated expert workspace. OKF export and the OpenClaw host-profile reference
+are documented in [Supported Surface](docs/SUPPORTED_SURFACE.md).
 
 ## Direction
 
@@ -148,6 +150,11 @@ finishes the durable parent transaction and disabled OpenRouter adapter proof;
 the current repository policy still prohibits paid inference validation and
 production activation. See the dependency gates and later host-control sequence
 in the [active release plan](ROADMAP.md#active-release-plan).
+
+The [local-first runtime proposal](docs/design/local-first-agent-runtime-options.md)
+considers a creator for reusable expert skills and selected OKF knowledge,
+plus an optional Cloudflare companion. Local execution and canonical knowledge
+remain the default; hosted observation and execution are planned and gated.
 
 ## Documentation
 

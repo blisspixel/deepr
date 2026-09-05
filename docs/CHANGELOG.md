@@ -24,6 +24,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   BYOK usage rather than lifetime totals. Previously, valid keys with earlier
   months' spending were incorrectly rejected. Inconsistent period counters
   still fail closed, and oversized numeric values produce sanitized refusals.
+- The Agent Plugin install check now launches the manifest's command through
+  executable search, honors its working directory, supplies reserved plugin
+  variables, and completes legacy and modern MCP exchanges. It verifies a
+  saved expert remains discoverable and byte-unchanged after package
+  relocation, including paths with spaces. The standalone archive includes
+  the project license.
+- Replaced a load-sensitive 0.2-second wall-clock race in the post-provider
+  trace-lock regression with an explicit clock and lock-expiry fixture. The
+  assertion still proves one elapsed-limit terminal event and a nonretryable
+  failure after provider work; production deadlines are unchanged.
 
 ### Changed
 
@@ -31,6 +41,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   advertised paid research and API council execution despite the production
   quarantine. Its plan example now names the eligible adapter rather than an
   execution-blocked one.
+- Added an Agent Plugins installation guide covering matching releases,
+  host-visible PATH, the correct extracted root, explicit workspace
+  provisioning, and the ten-tool inspection profile. Corrected the packaged
+  skill's consultation claim. The published Agent Plugins 1.0.0 and Agent
+  Skills pins were rechecked without normative schema drift; package checks
+  do not claim live validation of every external host.
+- Per-expert skill exports now discover the active tool profile first and pin
+  optional queries to the local backend at a zero-dollar ceiling. They no
+  longer request the blocked default API backend or guarantee grounded
+  answers. The portable profile remains limited to inspection.
+- Added a researched local-first runtime proposal: a reviewed expert and skill
+  creator, selected OKF knowledge, and an optional hosted companion. It compares
+  current Cloudflare primitives, recovery and authority boundaries, total-cost
+  limitations, and staged usability and quality gates. Cloud hosting remains
+  planned and disabled; the active value-evaluation sequence is unchanged.
 - Refreshed Pi and OpenClaw research references and made the harness-control
   sequence subordinate to the active release plan. The v2.51 pilot protocol
   specifies frozen worlds, isolated arms, blinded review, and concrete temporal

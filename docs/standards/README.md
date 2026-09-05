@@ -1,6 +1,6 @@
 # External standards pins
 
-Last reviewed: 2026-08-21.
+Last reviewed: 2026-09-04.
 
 Deepr validates external interoperability contracts offline. The pin registry
 records the upstream version, immutable revision, canonical byte length, and
