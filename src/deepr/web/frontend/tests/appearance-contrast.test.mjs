@@ -29,7 +29,7 @@ const { badgeVariants } = componentExports('../src/components/ui/badge.tsx')
 
 const stylesheet = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8')
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8')
-const bootstrap = html.match(/<script>([\s\S]*?)<\/script>/)[1]
+const bootstrap = html.match(/<script\s*>([\s\S]*?)<\/script\s*>/i)[1]
 
 function cssTokens(selector) {
   const block = stylesheet.match(new RegExp(`  ${selector} \\{([\\s\\S]*?)\\n  \\}`))[1]
