@@ -12,6 +12,8 @@ research and expert validation never construct a paid client. OpenRouter
 stays preview-only. Unknown models no longer inherit o4-mini prices.
 Host-header CORS, empty bind hosts, and IPv4-mapped SSRF fail closed.
 Source-world preflight and historical briefing cutoffs remain write-free.
+The next product gate is v2.51 value evidence, not paid dispatch or a
+generic agent runtime. See [what's next and why](../ROADMAP.md#active-release-plan).
 
 **v2.50.13 aligns the dashboard with the local workflow.** Expert creation
 uses local defaults, profiles preserve study metadata, and keyboard and mobile

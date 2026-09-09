@@ -13,6 +13,7 @@ understand why it works the way it does.
 2. **[INSTALL.md](INSTALL.md)** - Installation and setup
 3. **[QUICK_START.md](QUICK_START.md)** - Your first research job
 4. **[EXAMPLES.md](EXAMPLES.md)** - Real-world usage examples
+5. **[ROADMAP.md](../ROADMAP.md#active-release-plan)** - What is next and why (v2.51 value proof before more surface)
 
 ## Core reference (looking things up)
 

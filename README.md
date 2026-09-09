@@ -143,14 +143,20 @@ are documented in [Supported Surface](docs/SUPPORTED_SURFACE.md).
 
 ## Direction
 
-The next product milestone is v2.51: publish a blinded four-arm evaluation that
-tests whether a maintained expert improves repeated decisions over fresh
-research and simpler memory baselines. v2.52 then resolves prospective
-predictions against later grounded evidence without automatic learning. v2.53
-finishes the durable parent transaction and disabled OpenRouter adapter proof;
-the current repository policy still prohibits paid inference validation and
-production activation. See the dependency gates and later host-control sequence
-in the [active release plan](ROADMAP.md#active-release-plan).
+v2.50.14 closed remaining metered-dispatch, spend, consent, and SSRF holes.
+It did not enable paid OpenRouter, skill execution, or a claim that expert
+memory helps.
+
+**Next is v2.51:** one blinded four-arm evaluation of whether a maintained
+expert improves repeated decisions versus fresh research, static history, and
+compiled state. That measurement comes first because Deepr's product claim is
+durable judgment, not a larger agent runtime. Host wiring, expert-authored
+skills, and paid APIs wait until that evidence exists.
+
+After that, v2.52 resolves predictions as review-required proposals without
+automatic learning. v2.53 finishes the durable parent transaction with
+OpenRouter still execution-disabled unless a later explicit rule change and
+two-model validation say otherwise. See [what's next and why](ROADMAP.md#active-release-plan).
 
 The [local-first runtime proposal](docs/design/local-first-agent-runtime-options.md)
 considers a creator for reusable expert skills and selected OKF knowledge,
