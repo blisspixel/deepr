@@ -423,7 +423,12 @@ class StreamingHttpTransport:
         tool_name: str,
         arguments: dict[str, Any],
     ) -> web.Response | None:
-        decision = authorize_scoped_mcp_tool_call(context, tool_name, arguments)
+        decision = authorize_scoped_mcp_tool_call(
+            context,
+            tool_name,
+            arguments,
+            accept_client_approval=False,
+        )
         if decision.allowed:
             return None
         denied = http_scoped.authz_denial_message(message, decision)

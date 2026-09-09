@@ -79,6 +79,13 @@ def _read_json(path: Path) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
+def _optional_count(value: object) -> int:
+    """Return a non-negative count, or 0 when the study field is unusable."""
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        return 0
+    return value
+
+
 def roster_entry(expert_name: str) -> dict[str, Any]:
     """The few v2 fields that let a roster tell one expert from another.
 
@@ -99,19 +106,21 @@ def roster_entry(expert_name: str) -> dict[str, Any]:
         # roster showed "0 findings" beside "14 positions", which reads as an
         # expert that invented its views.
         noticed = _read_json(part_in(directory, "noticed")) or {}
-        totals = noticed.get("totals") or {}
-        independence = noticed.get("independence") or {}
+        totals = noticed.get("totals") if isinstance(noticed.get("totals"), dict) else {}
+        independence = noticed.get("independence") if isinstance(noticed.get("independence"), dict) else {}
         return {
             "chosen_name": str(account.get("chosen_name") or ""),
             "standpoint": str(account.get("standpoint") or ""),
             "glad_to_be_asked_about": [str(q) for q in (account.get("glad_to_be_asked_about") or [])][:3],
             "preferred_lens": str(account.get("preferred_lens") or ""),
-            "position_count": len(positions),
-            "falsifiable_count": sum(1 for p in positions if p.get("is_falsifiable")),
-            "mind_changes": len(account.get("shifts") or []),
-            "studied_findings": int(totals.get("findings", 0) or 0),
-            "grounded_findings": int(totals.get("grounded_findings", 0) or 0),
-            "source_count": int(independence.get("source_count", 0) or 0),
+            "position_count": len(positions) if isinstance(positions, list) else 0,
+            "falsifiable_count": sum(1 for p in positions if isinstance(p, dict) and p.get("is_falsifiable"))
+            if isinstance(positions, list)
+            else 0,
+            "mind_changes": len(account.get("shifts") or []) if isinstance(account.get("shifts"), list) else 0,
+            "studied_findings": _optional_count(totals.get("findings")),
+            "grounded_findings": _optional_count(totals.get("grounded_findings")),
+            "source_count": _optional_count(independence.get("source_count")),
         }
     except Exception:
         return {

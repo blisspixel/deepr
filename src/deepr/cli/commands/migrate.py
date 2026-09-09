@@ -1,11 +1,30 @@
 """Migration utilities for organizing legacy reports."""
 
+import re
 import shutil
 from pathlib import Path
 
 import click
 
 from deepr.cli.colors import print_error, print_success
+
+_PROTECTED_REPORT_ROOTS = frozenset(
+    {
+        "campaigns",
+        "_legacy_archive",
+        "investigations",
+        "validation",
+        "expert-updates",
+    }
+)
+_UUID_DIR_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+
+
+def _is_legacy_uuid_dir(name: str) -> bool:
+    """Return True only for UUID-only report directories, not live product roots."""
+    if name in _PROTECTED_REPORT_ROOTS or name.startswith("campaign-"):
+        return False
+    return _UUID_DIR_RE.fullmatch(name) is not None
 
 
 @click.group()
@@ -42,14 +61,11 @@ def organize(dry_run: bool, reports_dir: str | None):
         if item.is_file() and item.suffix == ".md":
             legacy_files.append(item)
 
-    # Find legacy UUID-only directories (no timestamp prefix)
+    # Find legacy UUID-only directories. Timestamped report dirs, campaigns,
+    # investigations, validation evidence, and expert-update notes stay put.
     for item in reports_path.iterdir():
-        if item.is_dir() and item.name != "campaigns":
-            # Check if it's a UUID-only format (no timestamp)
-            if not item.name[0].isdigit() or "_" not in item.name:
-                # Skip if it's already a campaign
-                if not item.name.startswith("campaign-"):
-                    legacy_dirs.append(item)
+        if item.is_dir() and _is_legacy_uuid_dir(item.name):
+            legacy_dirs.append(item)
 
     total = len(legacy_files) + len(legacy_dirs)
 
@@ -197,11 +213,11 @@ def stats(reports_dir: str | None):
                 # Count campaign subdirectories
                 if item.exists():
                     campaigns = len([d for d in item.iterdir() if d.is_dir()])
-            elif item.name == "_legacy_archive":
-                continue  # Skip archive folder
+            elif item.name in _PROTECTED_REPORT_ROOTS:
+                continue
             elif item.name[0].isdigit() and "_" in item.name:
                 organized += 1
-            else:
+            elif _is_legacy_uuid_dir(item.name):
                 legacy_dirs += 1
 
     click.echo("Report Organization Statistics\n")

@@ -367,6 +367,32 @@ class TestResponseParsing:
             assert status.metadata == {"task": "research"}
 
     @pytest.mark.asyncio
+    async def test_get_status_missing_model_leaves_cost_unset(self, provider):
+        mock_usage = MagicMock()
+        mock_usage.input_tokens = 1000
+        mock_usage.output_tokens = 500
+        mock_usage.total_tokens = 1500
+        mock_usage.reasoning_tokens = 0
+
+        mock_response = MagicMock()
+        mock_response.id = "resp_test123"
+        mock_response.status = "completed"
+        mock_response.model = None
+        mock_response.usage = mock_usage
+        mock_response.output = []
+        mock_response.created_at = None
+        mock_response.completed_at = None
+        mock_response.metadata = None
+        mock_response.error = None
+
+        with patch.object(provider.client.responses, "retrieve", new_callable=AsyncMock) as mock_retrieve:
+            mock_retrieve.return_value = mock_response
+            status = await provider.get_status("resp_test123")
+
+        assert status.usage is not None
+        assert status.usage.cost is None
+
+    @pytest.mark.asyncio
     async def test_get_status_prices_cached_input_tokens(self, provider):
         """Cached input tokens should use the registry cached-input rate."""
         mock_usage = MagicMock()

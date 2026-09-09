@@ -403,6 +403,29 @@ def test_unreserved_ledger_failure_still_leaves_paid_api_frozen() -> None:
     assert "legacy-ledger-failure" in operator.freeze_reason
 
 
+def test_unreserved_zero_process_cap_still_freezes_and_ledgers(monkeypatch) -> None:
+    from deepr.core.cost_caps import read_operator_budget
+    from deepr.experts.maximum_charge_contract import ABSOLUTE_DEEPR_CEILING_USD
+
+    monkeypatch.setenv("DEEPR_MAX_COST_PER_JOB", "0")
+    settled = record_unreserved_research_cost(
+        job_id="legacy-zero-cap",
+        provider="openai",
+        model="o3-deep-research",
+        actual_cost=None,
+        manager=CostSafetyManager(),
+        source="test.legacy.zero-cap",
+    )
+
+    assert settled == pytest.approx(ABSOLUTE_DEEPR_CEILING_USD)
+    event = CostLedger().get_events()[0]
+    assert event.cost_usd == pytest.approx(ABSOLUTE_DEEPR_CEILING_USD)
+    operator = read_operator_budget()
+    assert operator.frozen is True
+    assert operator.freeze_kind == "legacy"
+    assert "legacy-zero-cap" in operator.freeze_reason
+
+
 def test_active_reservation_check_binds_job_and_reserved_cost() -> None:
     reservation = _reserve(CostSafetyManager(), "owned-job", 0.8)
     store = ResearchReservationStore()

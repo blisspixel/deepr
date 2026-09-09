@@ -106,11 +106,9 @@ class TestCostEstimator:
         assert est.model == "gpt-5"
         assert est.min_cost <= est.expected_cost <= est.max_cost
 
-    def test_estimate_cost_unknown_model_uses_default_pricing(self):
-        est = CostEstimator.estimate_cost("query", model="unknown-model")
-        assert est.model == "unknown-model"
-        # Should use o3-deep-research pricing as fallback
-        assert est.min_cost >= 0
+    def test_estimate_cost_unknown_model_fails_closed(self):
+        with pytest.raises(ValueError, match="No registry pricing"):
+            CostEstimator.estimate_cost("query", model="unknown-model")
 
     def test_calculate_actual_cost_known_model(self):
         cost = CostEstimator.calculate_actual_cost(
@@ -131,14 +129,13 @@ class TestCostEstimator:
         # Reasoning is charged at the registry output rate: 20.00.
         assert cost == 20.0
 
-    def test_calculate_actual_cost_unknown_model(self):
-        cost = CostEstimator.calculate_actual_cost(
-            model="unknown-model",
-            input_tokens=1_000_000,
-            output_tokens=1_000_000,
-        )
-        # Falls back to o4-mini default rates (1.10 + 4.40), with a warning
-        assert cost == 5.5
+    def test_calculate_actual_cost_unknown_model_fails_closed(self):
+        with pytest.raises(ValueError, match="No registry pricing"):
+            CostEstimator.calculate_actual_cost(
+                model="unknown-model",
+                input_tokens=1_000_000,
+                output_tokens=1_000_000,
+            )
 
     def test_calculate_actual_cost_zero_tokens(self):
         cost = CostEstimator.calculate_actual_cost(
@@ -259,6 +256,14 @@ class TestCostController:
         assert allowed is True
         assert reason is None
         assert ctrl.daily_spending == 0.0
+
+    def test_check_cost_limit_daily_uses_max_cost_not_expected(self):
+        ctrl = CostController(max_cost_per_job=5.0, max_daily_cost=2.0)
+        estimate = CostEstimate(min_cost=0.1, max_cost=2.5, expected_cost=0.2, model="m", reasoning="r")
+        allowed, reason = ctrl.check_cost_limit(estimate)
+        assert allowed is False
+        assert "daily limit" in reason.lower()
+        assert "2.50" in reason
 
     def test_record_cost(self):
         ctrl = CostController()

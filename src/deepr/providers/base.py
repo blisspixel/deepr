@@ -72,7 +72,7 @@ class UsageStats:
     cached_input_tokens: int = 0
     cache_creation_input_tokens: int = 0
     cache_read_input_tokens: int = 0
-    cost: float = 0.0  # Calculated cost in USD
+    cost: float | None = 0.0  # Calculated cost in USD; None when the model identity is missing
 
     @classmethod
     def calculate_cost(cls, input_tokens: int, output_tokens: int, model: str) -> float:

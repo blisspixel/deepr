@@ -119,6 +119,18 @@ class TestDictToProfileKwargs:
         dict_to_profile_kwargs(data)
         assert "schema_version" in data  # original unchanged
 
+    def test_drops_unknown_profile_fields(self):
+        data = {
+            "name": "test",
+            "vector_store_id": "vs_1",
+            "learning_budget": 5,
+            "study_path": "noticed/current.json",
+        }
+        result = dict_to_profile_kwargs(data)
+        assert result["name"] == "test"
+        assert "learning_budget" not in result
+        assert "study_path" not in result
+
 
 class TestConstants:
     """Tests for module-level constants."""

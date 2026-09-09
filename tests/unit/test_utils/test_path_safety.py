@@ -99,3 +99,7 @@ class TestSafePathWithin:
         # Escapes then returns: net result is still inside base, so allowed.
         result = safe_path_within(tmp_path, "a", "..", "b")
         assert result == (tmp_path / "b").resolve()
+
+    def test_reserved_windows_device_segment_is_rejected(self, tmp_path):
+        with pytest.raises(ValueError, match="reserved Windows device"):
+            safe_path_within(tmp_path, "CON")

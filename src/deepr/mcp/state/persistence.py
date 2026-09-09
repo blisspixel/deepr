@@ -8,11 +8,14 @@ Storage location: data/mcp_jobs.db (alongside reports/)
 """
 
 import json
+import logging
 import sqlite3
 import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from deepr.config import runtime_data_path
 
@@ -209,7 +212,13 @@ class JobPersistence:
                 ).fetchall()
             else:
                 rows = self._conn.execute("SELECT * FROM jobs ORDER BY updated_at DESC").fetchall()
-        return [self._row_to_state(r) for r in rows]
+        jobs: list[JobState] = []
+        for row in rows:
+            try:
+                jobs.append(self._row_to_state(row))
+            except (TypeError, ValueError, json.JSONDecodeError, KeyError) as exc:
+                logger.error("Skipping unreadable persisted job row: %s", exc)
+        return jobs
 
     def delete_job(self, job_id: str) -> bool:
         """Delete a job and its related data (cascades)."""

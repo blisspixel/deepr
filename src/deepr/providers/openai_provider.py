@@ -241,8 +241,18 @@ class OpenAIProvider(DeepResearchProvider):
                 # massively under-bill the user.
                 model = getattr(response, "model", None)
                 if not model:
-                    logger.warning("OpenAI response missing model field for job %s; pricing may be inaccurate", job_id)
-                    model = "o4-mini-deep-research-2025-06-26"
+                    logger.warning(
+                        "OpenAI response missing model field for job %s; leaving usage.cost unset",
+                        job_id,
+                    )
+                    priced_cost = None
+                else:
+                    priced_cost = UsageStats.calculate_cost_with_cached_input(
+                        input_tokens,
+                        output_tokens,
+                        model,
+                        cached_input_tokens=cached_input_tokens,
+                    )
 
                 usage = UsageStats(
                     input_tokens=input_tokens,
@@ -250,12 +260,7 @@ class OpenAIProvider(DeepResearchProvider):
                     total_tokens=get_usage_int(response.usage, "total_tokens"),
                     reasoning_tokens=reasoning_tokens,
                     cached_input_tokens=cached_input_tokens,
-                    cost=UsageStats.calculate_cost_with_cached_input(
-                        input_tokens,
-                        output_tokens,
-                        model,
-                        cached_input_tokens=cached_input_tokens,
-                    ),
+                    cost=priced_cost,
                 )
 
             # Parse output

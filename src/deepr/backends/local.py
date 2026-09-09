@@ -165,7 +165,7 @@ async def release_local_model(model: str, base_url: str | None = None) -> bool:
         return False
 
 
-async def local_model_runs_on_gpu(model: str, base_url: str | None = None) -> tuple[bool, str]:
+async def local_model_runs_on_gpu(model: str, base_url: str | None = None) -> tuple[bool | None, str]:
     """Report whether a loaded model is resident on GPU. Returns (on_gpu, detail).
 
     A model whose weights plus context exceed available VRAM is silently placed
@@ -181,14 +181,14 @@ async def local_model_runs_on_gpu(model: str, base_url: str | None = None) -> tu
         async with httpx.AsyncClient(timeout=10.0, trust_env=False, follow_redirects=False) as client:
             response = await client.get(f"{_base_url(base_url)}/api/ps")
         if response.status_code >= 400:
-            return True, ""
+            return None, "could not determine whether the model is on GPU"
         for entry in (response.json() or {}).get("models") or []:
             if entry.get("name") != model and entry.get("model") != model:
                 continue
             total = int(entry.get("size") or 0)
             on_gpu = int(entry.get("size_vram") or 0)
             if total <= 0:
-                return True, ""
+                return None, "could not determine whether the model is on GPU"
             gpu_share = on_gpu / total
             if gpu_share >= 0.99:
                 return True, ""
@@ -199,8 +199,8 @@ async def local_model_runs_on_gpu(model: str, base_url: str | None = None) -> tu
                 "consider a smaller model or a shorter --max-corpus-chars."
             )
     except Exception:
-        return True, ""
-    return True, ""
+        return None, "could not determine whether the model is on GPU"
+    return None, ""
 
 
 def default_local_model(base_url: str | None = None) -> str | None:

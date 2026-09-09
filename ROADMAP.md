@@ -78,7 +78,7 @@ not widen the shipped surface ahead of this sequence.
 
 | Target | User-visible outcome | Why it is next | Exit gate |
 | --- | --- | --- | --- |
-| **v2.50.13** (current) | Make the local expert workflow consistent across the dashboard, preserve study and longitudinal review evidence, and report failed quota probes correctly. | Live workflows exposed misleading state and evidence-loss defects. Correcting them makes the next value experiment usable and reviewable. | Failing regressions pass after the fixes; local expert creation, study, update, and two-perspective MCP consultation complete at $0; browser, coverage, CI, package, and public installer gates pass. |
+| **v2.50.14** (current) | Close remaining metered-dispatch, spend-accounting, consent, and SSRF holes while keeping OpenRouter preview-only. | Live OpenRouter checks and a post-2.50.13 hunt found paid-client construction, pricing fallback, and host-header defects. | Credential-free suite, ratchets, CI, package, and public installer gates pass. Paid OpenRouter dispatch stays blocked. |
 | **v2.51** | Publish one blinded four-arm longitudinal value evaluation for a flagship expert, comparing fresh research, static history, compiled expert state, and maintained expert state. | Deepr must demonstrate that persistent expert state improves repeated decisions before adding more control, memory, or host surface. | Frozen source worlds, randomized review assignment, bound artifacts, operator attestations, and separate false-support, stale-memory, transfer, effort, cost, and outcome measures are reproducible. No aggregate score selects a winner or changes a default. |
 | **v2.52** | Resolve prospective expert predictions against later grounded observations and emit review-required learning proposals. | The value evaluation can identify whether the product helps. Prediction resolution closes the next part of the learning loop by showing why a view held or failed without granting self-modifying authority. | Each resolution binds the original prediction, later source evidence, world-valid time, observation time, and reviewer judgment. Frozen temporal fixtures reconstruct the same historical state and expose late or contradictory evidence. Accepted proposals demonstrate held-out before-and-after benefit. No prediction result directly mutates beliefs, prompts, routing, skills, or policy. |
 | **v2.53** | Complete the shared durable parent transaction and an execution-ready but disabled OpenRouter adapter proof. | Provider routing cannot become useful paid capacity until one request graph has exact spend, identity, route, retry, cancellation, and settlement authority. | Fault injection cannot overshoot or duplicate effects; fixtures prove exact credential, request, provider, response, generation, cache, BYOK, plugin, and total-cost handling; ambiguous outcomes consume the hold and freeze reconciliation. The current repository rule still forbids a paid inference validation or production activation. |
@@ -412,7 +412,20 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.13)
+## Current Status (v2.50.14)
+
+- [x] **OpenRouter write-free validation (2026-09-08):** all seven public
+  routes remained catalog-eligible with dispatch unauthorized. The current
+  key is ineligible at `$20` with BYOK excluded and a non-monthly
+  `limit_reset`. Preview envelopes priced Qwen, GPT-5.6 Sol, and Kimi
+  without execution. Non-preview research refused
+  `research_provider_preview_only`. Paid inference stayed `$0`.
+
+- [x] **Metered MCP freeze (2026-09-09):** `deepr_research` and
+  `deepr_expert_validate` fail closed after the metered contract and never
+  construct a paid provider client. Consent, a budget, and client
+  `_approved` are not spend authority. Unknown-model token pricing no
+  longer falls back to o4-mini.
 
 - [ ] **Live semantic follow-up (2026-09-05):** the local two-lens study
   returned 13 grounded findings out of 14, and the separate existing-expert
@@ -3645,7 +3658,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.13. This roadmap keeps
+v2.50.14. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 

@@ -1,19 +1,10 @@
 """Web dashboard command - start the Deepr web server."""
 
-import ipaddress
 import os
 
 import click
 
-
-def _is_loopback(host: str) -> bool:
-    """Return True if host is a loopback address (or 'localhost')."""
-    if host in ("localhost", ""):
-        return True
-    try:
-        return ipaddress.ip_address(host).is_loopback
-    except ValueError:
-        return False
+from deepr.utils.security import is_loopback_bind_host
 
 
 @click.command()
@@ -54,8 +45,15 @@ def web(host: str, port: int, debug: bool, allow_unauthenticated_loopback: bool)
             f"Web dependencies not installed: {exc}\nInstall with: pip install -e '.[web]'"
         ) from exc
 
+    from deepr.security.key_quarantine import quarantine_metered_keys
+
+    # web.app calls load_dotenv() at import time, which can restore metered
+    # keys the CLI already quarantined. Put them back out of process env
+    # before the poller constructs a provider client.
+    quarantine_metered_keys()
+
     api_key = os.getenv("DEEPR_API_KEY", "").strip()
-    loopback = _is_loopback(host)
+    loopback = is_loopback_bind_host(host)
 
     if not loopback:
         raise click.ClickException(

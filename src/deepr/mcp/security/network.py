@@ -85,16 +85,24 @@ class SSRFProtector:
             ValueError: If the URL targets an internal IP or blocked domain
         """
         parsed = urlparse(url)
+        if parsed.scheme not in {"http", "https"}:
+            raise ValueError(f"SSRF blocked: scheme {parsed.scheme!r} is not allowed")
         hostname = parsed.hostname
 
         if not hostname:
             raise ValueError(f"SSRF blocked: no hostname in URL: {url}")
+        if parsed.username is not None or parsed.password is not None:
+            raise ValueError(f"SSRF blocked: URL credentials are not allowed: {url}")
+        try:
+            _ = parsed.port
+        except ValueError as exc:
+            raise ValueError(f"SSRF blocked: invalid port in URL: {url}") from exc
 
         # Check domain allowlist
         if self._allowed_domains and hostname not in self._allowed_domains:
             raise ValueError(f"SSRF blocked: domain '{hostname}' not in allowlist")
 
-        # Resolve all IPs (IPv4 + IPv6) and check each
+        # Resolve all IPs (IPv4 + IPv6) and check each, including mapped forms.
         ip_strings = resolve_all_ips(hostname)
 
         if not ip_strings:

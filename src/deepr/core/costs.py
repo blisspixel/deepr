@@ -293,19 +293,19 @@ class CostController:
                 f"${self.max_cost_per_job:.2f}. Use --cost-sensitive or reduce scope."
             )
 
-        # Check daily limit
-        if self.daily_spending + expected_cost > self.max_daily_cost:
+        # Check daily limit against the worst-case remaining job, not the mean.
+        if self.daily_spending + max_cost > self.max_daily_cost:
             return False, (
-                f"Daily spending (${self.daily_spending:.2f}) + estimated cost "
-                f"(${expected_cost:.2f}) exceeds daily limit of "
+                f"Daily spending (${self.daily_spending:.2f}) + maximum cost "
+                f"(${max_cost:.2f}) exceeds daily limit of "
                 f"${self.max_daily_cost:.2f}"
             )
 
-        # Check monthly limit
-        if self.monthly_spending + expected_cost > self.max_monthly_cost:
+        # Check monthly limit against the worst-case remaining job, not the mean.
+        if self.monthly_spending + max_cost > self.max_monthly_cost:
             return False, (
-                f"Monthly spending (${self.monthly_spending:.2f}) + estimated cost "
-                f"(${expected_cost:.2f}) exceeds monthly limit of "
+                f"Monthly spending (${self.monthly_spending:.2f}) + maximum cost "
+                f"(${max_cost:.2f}) exceeds monthly limit of "
                 f"${self.max_monthly_cost:.2f}"
             )
 

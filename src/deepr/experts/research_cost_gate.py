@@ -702,11 +702,20 @@ def record_unreserved_research_cost(
 ) -> float:
     """Record a legacy completion and freeze paid dispatch pending review."""
     from deepr.config import load_config
+    from deepr.experts.maximum_charge_contract import ABSOLUTE_DEEPR_CEILING_USD
 
-    configured_ceiling = float(load_config().get("max_cost_per_job", 5.0))
-    if not isfinite(configured_ceiling) or configured_ceiling <= 0:
-        raise ValueError("max_cost_per_job must be finite and positive")
-    configured_ceiling = min(configured_ceiling, CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION)
+    configured_ceiling = float(load_config().get("max_cost_per_job", ABSOLUTE_DEEPR_CEILING_USD))
+    if not isfinite(configured_ceiling) or configured_ceiling < 0:
+        configured_ceiling = 0.0
+    # A $0 process cap must not skip freeze-and-ledger. Unknown usage consumes
+    # the product ceiling so unreserved completions cannot undercharge.
+    if configured_ceiling <= 0:
+        configured_ceiling = ABSOLUTE_DEEPR_CEILING_USD
+    configured_ceiling = min(
+        configured_ceiling,
+        ABSOLUTE_DEEPR_CEILING_USD,
+        CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION,
+    )
     missing_usage = actual_cost is None or (actual_cost == 0 and tokens <= 0)
     if missing_usage:
         settled_cost = configured_ceiling

@@ -56,6 +56,20 @@ def test_socketio_rejects_cross_origin_without_explicit_allowlist(client):
     assert response.status_code == 400
 
 
+def test_socketio_ignores_forwarded_host_for_foreign_origin(client):
+    response = client.get(
+        "/socket.io/?EIO=4&transport=polling",
+        headers={
+            "Host": "127.0.0.1:5071",
+            "Origin": "https://attacker.example",
+            "X-Forwarded-Host": "attacker.example",
+            "X-Forwarded-Proto": "https",
+        },
+    )
+
+    assert response.status_code == 400
+
+
 def test_testing_mode_does_not_start_background_poller(monkeypatch):
     monkeypatch.setitem(web_app.app.config, "TESTING", True)
     monkeypatch.setattr(web_app, "_poller_started", False)

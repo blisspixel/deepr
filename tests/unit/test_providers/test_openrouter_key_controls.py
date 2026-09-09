@@ -98,7 +98,7 @@ def test_nullable_official_limit_fields_are_observed_but_fail_closed() -> None:
     assert observation.limit_reset is None
     assert "current key has no finite USD limit" in observation.failures
     assert "current key has no finite remaining limit" in observation.failures
-    assert "current key limit_reset is not monthly" in observation.failures
+    assert "current key has no monthly limit_reset" in observation.failures
     assert observation.to_dict()["schema_version"] == "deepr-openrouter-key-control-v2"
     assert observation.to_dict()["dispatch_authorized"] is False
 

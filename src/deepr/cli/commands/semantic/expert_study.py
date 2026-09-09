@@ -16,9 +16,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import sys
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 import click
 
@@ -70,12 +73,15 @@ def _live_positions(expert_name: str) -> list[Any]:
         sys.exit(2)
 
 
+class PositionLedgerWriteError(RuntimeError):
+    """The current brief cannot be recorded into durable position history."""
+
+
 def _record_positions(expert_name: str, brief: Any, result: Any) -> dict[str, int]:
     """Fold this brief into the position ledger. Returns what changed.
 
-    Never fails the brief. A ledger write that goes wrong loses history, which
-    is bad; taking down a brief that a study just paid for is worse, and the
-    brief itself is still written either way.
+    A brief file without a matching ledger write looks like a first brief on
+    the next run. Fail visibly so the operator can repair the ledger.
     """
     from deepr.experts.position_ledger import LedgerUnreadableError, load_ledger, record_brief
     from deepr.experts.record_time import utc_now
@@ -98,8 +104,8 @@ def _record_positions(expert_name: str, brief: Any, result: Any) -> dict[str, in
         return changed
     except LedgerUnreadableError:
         raise
-    except Exception:
-        return {}
+    except Exception as exc:
+        raise PositionLedgerWriteError(f"could not record position history for {expert_name!r}: {exc}") from exc
 
 
 def _checkpoint_study(expert_name: str):
@@ -117,9 +123,8 @@ def _checkpoint_study(expert_name: str):
             # hours. A bare write_text that dies partway leaves a truncated
             # study.json, and the next stage reads it as the expert's findings.
             atomic_write_json(canonical_study_path(expert_name), result.to_dict(), sort_keys=True, fsync=True)
-        except OSError:
-            # A failed checkpoint must not end a run that is otherwise fine.
-            pass
+        except OSError as exc:
+            logger.warning("Study checkpoint failed for %s: %s", expert_name, exc)
 
     return _write
 
@@ -574,7 +579,7 @@ async def _warn_if_cpu_bound(model: str, *, quiet: bool) -> None:
     from deepr.backends.local import local_model_runs_on_gpu
 
     on_gpu, detail = await local_model_runs_on_gpu(model)
-    if not on_gpu and detail and not quiet:
+    if on_gpu is False and detail and not quiet:
         print_warning(detail)
 
 
@@ -736,7 +741,7 @@ def expert_brief(
 
     try:
         changed = _record_positions(profile.name, brief, result)
-    except LedgerUnreadableError as exc:
+    except (LedgerUnreadableError, PositionLedgerWriteError) as exc:
         click.echo(f"Error: {exc}", err=True)
         sys.exit(2)
 
