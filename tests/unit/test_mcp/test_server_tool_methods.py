@@ -95,11 +95,8 @@ def _state(phase=JobPhase.EXECUTING, cost=0.5, progress=0.3, metadata=None, owne
 
 class TestDeeprResearch:
     @pytest.mark.asyncio
-    async def test_budget_blocked_by_cost_safety(self, mock_server):
-        cost_safety = MagicMock()
-        cost_safety.check_operation.return_value = (False, "daily limit reached", None)
-        cost_safety.daily_cost = 12.34
-        with patch("deepr.experts.cost_safety.get_cost_safety_manager", return_value=cost_safety):
+    async def test_consented_request_still_freezes_production_dispatch(self, mock_server):
+        with patch("deepr.providers.create_provider") as provider_factory:
             out = await mock_server.deepr_research(
                 prompt="p",
                 model="o4-mini-deep-research",
@@ -107,135 +104,8 @@ class TestDeeprResearch:
                 allow_metered_api=True,
                 confirm_metered_cost=True,
             )
-        assert out["error_code"] == "BUDGET_EXCEEDED"
-        assert "daily limit reached" in out["message"]
-
-    @pytest.mark.asyncio
-    async def test_caller_budget_below_estimate(self, mock_server):
-        cost_safety = MagicMock()
-        cost_safety.check_operation.return_value = (True, "", None)
-        with patch("deepr.experts.cost_safety.get_cost_safety_manager", return_value=cost_safety):
-            out = await mock_server.deepr_research(
-                prompt="p",
-                model="o4-mini-deep-research",
-                budget=0.01,  # estimate floor is 0.15 for o4-mini
-                allow_metered_api=True,
-                confirm_metered_cost=True,
-            )
-        assert out["error_code"] == "BUDGET_INSUFFICIENT"
-
-    @pytest.mark.asyncio
-    async def test_ssrf_blocks_http_file_url(self, mock_server):
-        cost_safety = MagicMock()
-        cost_safety.check_operation.return_value = (True, "", None)
-        # Make SSRF protector reject every URL.
-        mock_server.ssrf_protector = MagicMock()
-        mock_server.ssrf_protector.validate_url.side_effect = ValueError("Internal address blocked")
-        with patch("deepr.experts.cost_safety.get_cost_safety_manager", return_value=cost_safety):
-            out = await mock_server.deepr_research(
-                prompt="p",
-                model="o4-mini",
-                files=["http://169.254.169.254/latest/meta-data"],
-                budget=1.0,
-                allow_metered_api=True,
-                confirm_metered_cost=True,
-            )
-        assert out["error_code"] == "SSRF_BLOCKED"
-        assert "Internal address blocked" in out["message"]
-
-    @pytest.mark.asyncio
-    async def test_local_file_path_is_rejected(self, mock_server):
-        cost_safety = MagicMock()
-        cost_safety.check_operation.return_value = (True, "", None)
-        with patch("deepr.experts.cost_safety.get_cost_safety_manager", return_value=cost_safety):
-            out = await mock_server.deepr_research(
-                prompt="p",
-                model="o4-mini",
-                files=[r"C:\secrets\.env"],
-                budget=1.0,
-                allow_metered_api=True,
-                confirm_metered_cost=True,
-            )
-        assert out["error_code"] == "PATH_BLOCKED"
-
-    @pytest.mark.asyncio
-    async def test_missing_provider_api_key(self, mock_server):
-        cost_safety = MagicMock()
-        cost_safety.check_operation.return_value = (True, "", None)
-        with (
-            patch("deepr.experts.cost_safety.get_cost_safety_manager", return_value=cost_safety),
-            patch.object(mock_server, "_get_api_key", return_value=None),
-        ):
-            out = await mock_server.deepr_research(
-                prompt="p",
-                model="o4-mini",
-                provider="openai",
-                budget=1.0,
-                allow_metered_api=True,
-                confirm_metered_cost=True,
-            )
-        assert out["error_code"] == "PROVIDER_NOT_CONFIGURED"
-
-    @pytest.mark.asyncio
-    async def test_happy_path_returns_job(self, mock_server):
-        cost_safety = MagicMock()
-        cost_safety.check_operation.return_value = (True, "", None)
-        cost_safety.get_spending_summary.return_value = {
-            "daily": {"spent": 1.0, "remaining": 99.0},
-            "monthly": {"spent": 1.0},
-        }
-        orchestrator = MagicMock()
-        orchestrator.submit_research = AsyncMock(return_value="job_abc")
-        mock_server.resource_handler.jobs.get_state.return_value = _state(metadata={})
-        identity = MCPRequestIdentity.http_scoped_key(
-            key_id="owner",
-            expert_allowlist=(),
-            peer_is_loopback=True,
-        )
-        with (
-            patch("deepr.experts.cost_safety.get_cost_safety_manager", return_value=cost_safety),
-            patch.object(mock_server, "_get_api_key", return_value="k"),
-            patch("deepr.mcp.server.create_provider"),
-            patch("deepr.mcp.server.create_storage"),
-            patch("deepr.core.documents.DocumentManager"),
-            patch("deepr.core.reports.ReportGenerator"),
-            patch("deepr.core.research.ResearchOrchestrator", return_value=orchestrator),
-        ):
-            token = bind_mcp_request_identity(identity)
-            try:
-                out = await mock_server.deepr_research(
-                    prompt="p",
-                    model="o4-mini",
-                    budget=1.0,
-                    allow_metered_api=True,
-                    confirm_metered_cost=True,
-                )
-            finally:
-                reset_mcp_request_identity(token)
-        assert out["job_id"] == "job_abc"
-        assert out["status"] == "submitted"
-        assert "trace_id" in out
-        assert out["daily_remaining"] == 99.0
-        assert mock_server.resource_handler.jobs.create_job.await_args.kwargs["owner_id"] == identity.owner_id
-        assert mock_server.active_jobs["job_abc"]["orchestrator"] is orchestrator
-
-    @pytest.mark.asyncio
-    async def test_unexpected_exception_mapped_to_internal_error(self, mock_server):
-        cost_safety = MagicMock()
-        cost_safety.check_operation.return_value = (True, "", None)
-        with (
-            patch("deepr.experts.cost_safety.get_cost_safety_manager", return_value=cost_safety),
-            patch.object(mock_server, "_get_api_key", return_value="k"),
-            patch("deepr.mcp.server.create_provider", side_effect=RuntimeError("boom")),
-        ):
-            out = await mock_server.deepr_research(
-                prompt="p",
-                model="o4-mini",
-                budget=1.0,
-                allow_metered_api=True,
-                confirm_metered_cost=True,
-            )
-        assert out["error_code"] == "INTERNAL_ERROR"
+        assert out["error_code"] == "METERED_DISPATCH_FROZEN"
+        provider_factory.assert_not_called()
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
@@ -250,7 +120,7 @@ class TestDeeprResearch:
     ):
         with (
             patch("deepr.experts.cost_safety.get_cost_safety_manager") as cost_safety,
-            patch("deepr.mcp.server.create_provider") as provider_factory,
+            patch("deepr.providers.create_provider") as provider_factory,
         ):
             out = await mock_server.deepr_research(
                 prompt="p",
@@ -265,7 +135,7 @@ class TestDeeprResearch:
 
     @pytest.mark.asyncio
     async def test_explicit_finite_positive_ceiling_is_required_before_provider_setup(self, mock_server):
-        with patch("deepr.mcp.server.create_provider") as provider_factory:
+        with patch("deepr.providers.create_provider") as provider_factory:
             out = await mock_server.deepr_research(
                 prompt="p",
                 allow_metered_api=True,

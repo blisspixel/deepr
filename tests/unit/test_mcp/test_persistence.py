@@ -153,9 +153,7 @@ class TestSchema:
         persistence = JobPersistence(db_path=db_path)
         try:
             job_columns = {row[1] for row in persistence._conn.execute("PRAGMA table_info(jobs)").fetchall()}
-            belief_columns = {
-                row[1] for row in persistence._conn.execute("PRAGMA table_info(job_beliefs)").fetchall()
-            }
+            belief_columns = {row[1] for row in persistence._conn.execute("PRAGMA table_info(job_beliefs)").fetchall()}
             assert "active_tasks_json" in job_columns
             assert "temporal_findings_json" in belief_columns
             assert "hypothesis_history_json" in belief_columns
@@ -471,3 +469,18 @@ class TestRestartRecovery:
         p2, _, _ = db2.load_job("persist_2")
         assert p2.phase == JobPhase.COMPLETED
         db2.close()
+
+
+def test_list_jobs_skips_corrupt_row_instead_of_failing_open(db, sample_state) -> None:
+    db.save_job(sample_state)
+    db._conn.execute(
+        """INSERT INTO jobs
+           (job_id, phase, progress, cost_so_far, estimated_remaining, error,
+            started_at, updated_at, metadata_json, owner_id, active_tasks_json)
+           VALUES (?, 'completed', 1, 0, '', '', ?, ?, ?, '', ?)""",
+        ("bad_row", "2025-01-01T00:00:00", "2025-01-01T00:00:00", "{not-json", "[]"),
+    )
+    db._conn.commit()
+
+    jobs = db.list_jobs()
+    assert [job.job_id for job in jobs] == ["job_001"]

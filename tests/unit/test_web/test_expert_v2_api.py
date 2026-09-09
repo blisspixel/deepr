@@ -30,7 +30,7 @@ os.environ.setdefault("OPENAI_API_KEY", "sk-test-dummy-key")
 
 from deepr.experts import expert_layout
 from deepr.web.app import app
-from deepr.web.expert_v2_api import roster_readiness
+from deepr.web.expert_v2_api import roster_entry, roster_readiness
 
 
 @pytest.fixture
@@ -202,3 +202,27 @@ class TestFleetHealth:
         payload = response.get_json()
         assert payload["experts"][0]["consulted_days_ago"] == -1
         assert payload["experts"][0]["beliefs"] == 4
+
+
+def test_roster_entry_keeps_positions_when_study_totals_are_unusable(tmp_path, monkeypatch) -> None:
+    directory = tmp_path / "keel"
+    (directory / "hold").mkdir(parents=True)
+    (directory / "self.json").write_text(
+        json.dumps({"chosen_name": "Keel", "standpoint": "a view", "glad_to_be_asked_about": [], "shifts": []}),
+        encoding="utf-8",
+    )
+    (directory / "hold" / "current.json").write_text(
+        json.dumps({"positions": [{"claim": "x", "is_falsifiable": True}]}),
+        encoding="utf-8",
+    )
+    (directory / "noticed").mkdir()
+    (directory / "noticed" / "current.json").write_text(
+        json.dumps({"totals": {"findings": []}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("deepr.web.expert_v2_api.canonical_expert_dir", lambda name: directory)
+
+    entry = roster_entry("keel")
+    assert entry["standpoint"] == "a view"
+    assert entry["position_count"] == 1
+    assert entry["studied_findings"] == 0

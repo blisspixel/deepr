@@ -62,7 +62,24 @@ _DASHBOARD_COOKIE = "deepr_dashboard"
 _CORS_ORIGINS = [
     origin.strip() for origin in os.getenv("DEEPR_CORS_ORIGINS", "http://localhost:5000").split(",") if origin.strip()
 ]
-_SOCKETIO_CORS_ORIGINS = _CORS_ORIGINS if os.getenv("DEEPR_CORS_ORIGINS") else None
+
+
+def _socketio_origin_allowed(origin: str | None, environ: dict | None = None) -> bool:
+    """Allow configured origins and same-origin Host matches, never forwarded hosts."""
+    if not origin:
+        return False
+    if origin in _CORS_ORIGINS:
+        return True
+    if not environ:
+        return False
+    host = environ.get("HTTP_HOST")
+    scheme = environ.get("wsgi.url_scheme")
+    if not host or not scheme:
+        return False
+    return origin == f"{scheme}://{host}"
+
+
+_SOCKETIO_CORS_ORIGINS = _socketio_origin_allowed
 _MAX_PROMPT_LENGTH = 50_000  # characters
 _MAX_BATCH_SIZE = 50
 _MAX_QUERY_LIMIT = 1000
@@ -1806,7 +1823,8 @@ def list_experts():
             )
         return jsonify({"experts": experts})
     except ImportError:
-        return jsonify({"experts": []})
+        logger.error("Error listing experts: expert storage is unavailable")
+        return jsonify({"error": "Internal server error"}), 500
     except Exception as e:
         logger.error(f"Error listing experts: {e}")
         return jsonify({"error": "Internal server error"}), 500

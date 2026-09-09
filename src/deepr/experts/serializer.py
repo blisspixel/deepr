@@ -150,7 +150,12 @@ def dict_to_profile_kwargs(data: dict[str, Any]) -> dict[str, Any]:
         if field in kwargs and isinstance(kwargs[field], str):
             kwargs[field] = iso_to_datetime(kwargs[field])
 
-    return kwargs
+    from dataclasses import fields as dataclass_fields
+
+    from deepr.experts.profile import ExpertProfile
+
+    allowed = {item.name for item in dataclass_fields(ExpertProfile)}
+    return {key: value for key, value in kwargs.items() if key in allowed}
 
 
 class ProfileSerializer:

@@ -66,3 +66,15 @@ def test_unauthenticated_switch_cannot_enable_public_bind(monkeypatch) -> None:
     assert result.exit_code != 0
     assert "Werkzeug" in result.output
     run.assert_not_called()
+
+
+def test_empty_host_is_not_treated_as_loopback(monkeypatch) -> None:
+    run = MagicMock()
+    monkeypatch.setenv("DEEPR_API_KEY", "configured-test-key")
+    monkeypatch.setattr(web_app.socketio, "run", run)
+
+    result = CliRunner().invoke(web, ["--host", ""])
+
+    assert result.exit_code != 0
+    assert "Werkzeug" in result.output
+    run.assert_not_called()

@@ -50,9 +50,10 @@ def build_capabilities(
     *,
     version: str,
     allowed_tool_names: Set[str] | None = None,
+    expert_allowlist: Set[str] | tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
     """Build the ``deepr-capabilities-v1`` map. Read-only, $0, no provider calls."""
-    roster = _roster(store)
+    roster = _roster(store, expert_allowlist=expert_allowlist)
     tools = [
         {"tool": name, "cost_tier": schema.cost_tier, "use_when": use_when}
         for name, use_when in _KEY_TOOLS
@@ -94,12 +95,17 @@ def build_capabilities(
     }
 
 
-def _roster(store: Any) -> list[dict[str, str]]:
+def _roster(
+    store: Any,
+    *,
+    expert_allowlist: Set[str] | tuple[str, ...] | None = None,
+) -> list[dict[str, str]]:
     """Return a name-sorted, bounded list of ``{name, domain}`` for each expert."""
+    allowed = set(expert_allowlist) if expert_allowlist else None
     roster = [
         {"name": name, "domain": getattr(profile, "domain", "") or getattr(profile, "description", "") or ""}
         for profile in store.list_all()
-        if (name := getattr(profile, "name", "") or "")
+        if (name := getattr(profile, "name", "") or "") and (allowed is None or name in allowed)
     ]
     roster.sort(key=lambda entry: entry["name"].casefold())
     return roster

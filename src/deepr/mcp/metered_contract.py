@@ -145,9 +145,22 @@ def require_metered_api_contract(
     return ceiling
 
 
+def refuse_metered_mcp_production_dispatch() -> MeteredMCPContractError:
+    """Consent and a ceiling never authorize a production metered MCP call."""
+    return MeteredMCPContractError(
+        "METERED_DISPATCH_FROZEN",
+        (
+            "Production metered MCP dispatch remains blocked until a provider "
+            "account-control verifier and complete parent transaction are installed. "
+            "Consent and a budget are not spend authority."
+        ),
+    )
+
+
 __all__ = [
     "PAID_EXPERT_VALIDATE_INPUT_SCHEMA",
     "PAID_RESEARCH_INPUT_SCHEMA",
     "MeteredMCPContractError",
+    "refuse_metered_mcp_production_dispatch",
     "require_metered_api_contract",
 ]

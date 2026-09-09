@@ -457,15 +457,11 @@ class TestTokenPricingTiers:
 
         assert get_token_pricing("claude-opus-4-8", input_tokens=500_000) == get_token_pricing("claude-opus-4-8")
 
-    def test_unknown_model_fallback_warns(self, caplog):
-        import logging
-
+    def test_unknown_model_fails_closed(self):
         from deepr.providers.registry import get_token_pricing
 
-        with caplog.at_level(logging.WARNING, logger="deepr.providers.registry"):
-            prices = get_token_pricing("totally-made-up-model-xyz")
-        assert prices == {"input": 1.10, "output": 4.40}
-        assert any("No registry pricing" in r.message for r in caplog.records)
+        with pytest.raises(ValueError, match="No registry pricing"):
+            get_token_pricing("totally-made-up-model-xyz")
 
 
 if __name__ == "__main__":

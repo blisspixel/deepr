@@ -122,8 +122,13 @@ def validate_path(
     if not user_path:
         raise InvalidInputError("Path cannot be empty")
 
-    base = Path(base_dir).resolve()
     path = Path(user_path)
+    for part in path.parts:
+        device = reserved_windows_device_stem(part)
+        if device is not None:
+            raise InvalidInputError(f"Path uses reserved Windows device name {device}")
+
+    base = Path(base_dir).resolve()
 
     # Handle absolute paths
     if path.is_absolute():
@@ -147,11 +152,34 @@ def validate_path(
     return resolved
 
 
+_NAT64_WELL_KNOWN = ipaddress.ip_network("64:ff9b::/96")
+
+
+def _canonical_ip_for_blocklist(
+    ip: ipaddress.IPv4Address | ipaddress.IPv6Address,
+) -> ipaddress.IPv4Address | ipaddress.IPv6Address:
+    """Unwrap transition addresses so Python 3.12 cannot treat mapped loopback as public.
+
+    CPython 3.12 reports ``::ffff:127.0.0.1`` as global. Connecting to that
+    address still reaches IPv4 loopback or link-local metadata.
+    """
+    if isinstance(ip, ipaddress.IPv6Address):
+        if ip.ipv4_mapped is not None:
+            return ip.ipv4_mapped
+        if ip.sixtofour is not None:
+            return ip.sixtofour
+        if ip in _NAT64_WELL_KNOWN:
+            return ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF)
+    return ip
+
+
 def is_blocked_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address, allow_private: bool = False) -> bool:
     """Check if an IP address should be blocked.
 
-    Handles both IPv4 and IPv6 addresses.
+    Handles both IPv4 and IPv6 addresses, including IPv4-mapped IPv6, 6to4,
+    and the well-known NAT64 prefix.
     """
+    ip = _canonical_ip_for_blocklist(ip)
     if ip.is_reserved or ip.is_multicast or ip.is_unspecified:
         return True
     if not allow_private and not ip.is_global:
@@ -553,6 +581,9 @@ def safe_path_within(base: str | Path, *parts: str) -> Path:
     for part in parts:
         if not isinstance(part, str) or not part:
             raise ValueError("path segments must be non-empty strings")
+        device = reserved_windows_device_stem(part)
+        if device is not None:
+            raise ValueError(f"path segment uses reserved Windows device name {device}")
 
     try:
         base_real = base_path.resolve(strict=False)

@@ -76,6 +76,7 @@ class ElicitationResponse:
     responded_at: datetime = field(default_factory=_utc_now)
     was_default: bool = False
     timeout_used: bool = False
+    handler_failed: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -85,6 +86,7 @@ class ElicitationResponse:
             "responded_at": self.responded_at.isoformat(),
             "was_default": self.was_default,
             "timeout_used": self.timeout_used,
+            "handler_failed": self.handler_failed,
         }
 
 
@@ -206,17 +208,13 @@ class ElicitationRouter:
                 timeout_used=True,
             )
         except Exception:
-            # Handler error - log locally, return a clean default to
-            # the caller. The previous ``"error": str(e)`` echoed
-            # exception text (potentially with stack-derived class
-            # names or argument values) to whichever UI surface presented
-            # the elicitation, leaking handler internals.
             logger.exception("Elicitation handler error for request %s", request.id)
             return ElicitationResponse(
                 request_id=request.id,
-                response=self._get_default_response(request),
+                response={"status": "handler_failed", "approved": False},
                 target=target,
-                was_default=True,
+                was_default=False,
+                handler_failed=True,
             )
 
     def detect_available_target(self) -> ElicitationTarget:

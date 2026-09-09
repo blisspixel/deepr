@@ -587,3 +587,45 @@ async def test_shared_local_request_guard_requires_cloud_disabled_and_strips_hea
     assert request.headers["user-agent"] == "deepr-local-ollama/1"
     assert "openai-organization" not in request.headers
     assert "x-upstream-provider" not in request.headers
+
+
+@pytest.mark.asyncio
+async def test_gpu_probe_unknown_when_ps_fails(monkeypatch) -> None:
+    class FailClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+        async def get(self, url: str):
+            return SimpleNamespace(status_code=500, json=lambda: {})
+
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **_kwargs: FailClient())
+    on_gpu, detail = await local.local_model_runs_on_gpu("llama")
+    assert on_gpu is None
+    assert "could not determine" in detail
+
+
+@pytest.mark.asyncio
+async def test_gpu_probe_reports_cpu_spill(monkeypatch) -> None:
+    class PsClient:
+        def __init__(self, **_kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+        async def get(self, url: str):
+            return SimpleNamespace(
+                status_code=200,
+                json=lambda: {"models": [{"name": "llama", "size": 10_000_000_000, "size_vram": 1_000_000_000}]},
+            )
+
+    monkeypatch.setattr(httpx, "AsyncClient", PsClient)
+    on_gpu, detail = await local.local_model_runs_on_gpu("llama")
+    assert on_gpu is False
+    assert "CPU" in detail

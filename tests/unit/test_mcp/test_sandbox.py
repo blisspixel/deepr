@@ -143,6 +143,11 @@ class TestPathValidator:
         """Null bytes should be rejected."""
         assert validator.is_safe_filename("file\x00.txt") is False
 
+    def test_unsafe_filename_stream_device_and_trailing_alias(self, validator):
+        assert validator.is_safe_filename("report.md:secret") is False
+        assert validator.is_safe_filename("notes.txt.") is False
+        assert validator.is_safe_filename("CON.txt") is False
+
 
 class TestSandboxManager:
     """Test SandboxManager functionality."""

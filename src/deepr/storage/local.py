@@ -85,9 +85,15 @@ class LocalStorage(StorageBackend):
                 storage_type="local",
                 original_error=None,
             )
-        if "/" in filename or "\\" in filename or ".." in filename:
+        if "/" in filename or "\\" in filename or ".." in filename or ":" in filename:
             raise StorageError(
                 message=f"Invalid filename contains path components: {filename}",
+                storage_type="local",
+                original_error=None,
+            )
+        if filename != filename.rstrip(" ."):
+            raise StorageError(
+                message=f"Invalid filename has a trailing dot or space: {filename}",
                 storage_type="local",
                 original_error=None,
             )

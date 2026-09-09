@@ -172,8 +172,10 @@ class PathValidator:
         if not filename or not filename.strip():
             return False
 
-        # Reject path separators
-        if "/" in filename or "\\" in filename:
+        # Reject path separators, NTFS streams, and Win32 trailing aliases
+        if "/" in filename or "\\" in filename or ":" in filename:
+            return False
+        if filename != filename.rstrip(" ."):
             return False
 
         # Reject parent directory references
@@ -182,6 +184,11 @@ class PathValidator:
 
         # Reject null bytes
         if "\x00" in filename:
+            return False
+
+        from deepr.utils.security import reserved_windows_device_stem
+
+        if reserved_windows_device_stem(filename):
             return False
 
         return True

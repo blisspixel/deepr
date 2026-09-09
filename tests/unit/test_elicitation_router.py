@@ -118,6 +118,33 @@ class TestElicitationRouting:
 
         assert response.was_default is True
         assert response.target == ElicitationTarget.NONE
+        assert response.handler_failed is False
+
+    @pytest.mark.asyncio
+    async def test_handler_error_is_not_treated_as_consent(self):
+        router = ElicitationRouter()
+
+        async def broken_handler(request):
+            raise RuntimeError("boom")
+
+        router.register_handler(ElicitationTarget.CLI, broken_handler)
+        request = ElicitationRequest(
+            id="err",
+            message="Approve spend?",
+            schema={
+                "type": "object",
+                "properties": {
+                    "decision": {"type": "string", "enum": ["approve_override", "abort"]},
+                },
+            },
+        )
+
+        response = await router.route(request, preferred_target=ElicitationTarget.CLI)
+
+        assert response.handler_failed is True
+        assert response.was_default is False
+        assert response.response.get("approved") is False
+        assert response.response.get("decision") != "approve_override"
 
     @pytest.mark.asyncio
     async def test_route_with_timeout(self):

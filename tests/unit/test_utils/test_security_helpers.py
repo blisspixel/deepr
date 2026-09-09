@@ -129,6 +129,16 @@ class TestIsBlockedIp:
     def test_allow_private_lets_private_through(self):
         assert not is_blocked_ip(ipaddress.ip_address("192.168.1.1"), allow_private=True)
 
+    def test_ipv4_mapped_loopback_and_metadata_are_blocked(self):
+        assert is_blocked_ip(ipaddress.ip_address("::ffff:127.0.0.1"))
+        assert is_blocked_ip(ipaddress.ip_address("::ffff:169.254.169.254"))
+        assert is_blocked_ip(ipaddress.ip_address("::ffff:10.0.0.1"))
+        assert is_blocked_ip(ipaddress.ip_address("2002:7f00:1::"))
+        assert is_blocked_ip(ipaddress.ip_address("64:ff9b::7f00:1"))
+
+    def test_ipv4_mapped_public_address_is_not_blocked(self):
+        assert not is_blocked_ip(ipaddress.ip_address("::ffff:8.8.8.8"))
+
 
 class TestIsLoopbackBindHost:
     def test_loopback_bind_hosts_are_local(self):

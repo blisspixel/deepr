@@ -3,16 +3,14 @@
 Exercises:
 - Schema registration in the gateway / tool registry.
 - Dispatch from `deepr_expert_validate` -> server.expert_validate.
-- Error shape when the expert does not exist.
-- Error shape when the validator service raises ExpertValidatorError.
-- Successful return shape (matches ValidationResult.to_dict()).
+- Production metered dispatch remains frozen after a valid contract.
 """
 
 from __future__ import annotations
 
 import sys
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -20,7 +18,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from deepr.mcp.search.registry import create_default_registry
 from deepr.mcp.server import DeeprMCPServer
-from deepr.services.expert_validator import ExpertValidatorError, ValidationResult
 
 
 @pytest.fixture
@@ -58,30 +55,10 @@ class TestSchemaRegistration:
         assert "max_evidence" in props
 
 
-def _stub_result(verdict: str = "pass") -> ValidationResult:
-    return ValidationResult(
-        expert_name="Test Expert",
-        claim="some claim",
-        verdict=verdict,  # type: ignore[arg-type]
-        confidence=0.8,
-        reasoning="ok",
-        supporting=[],
-        contradicting=[],
-        caveats=[],
-        model="gpt-5-mini",
-    )
-
-
 class TestExpertValidateTool:
     @pytest.mark.asyncio
-    async def test_success_returns_to_dict_payload(self, mock_server) -> None:
-        mock_server.store.load = MagicMock(return_value=MagicMock(name="Test Expert"))
-
+    async def test_consented_request_still_freezes_production_dispatch(self, mock_server) -> None:
         with patch("deepr.services.expert_validator.ExpertValidator") as mock_cls:
-            inst = MagicMock()
-            inst.validate = AsyncMock(return_value=_stub_result("pass"))
-            mock_cls.return_value = inst
-
             result = await mock_server.expert_validate(
                 expert_name="Test Expert",
                 claim="some claim",
@@ -90,71 +67,9 @@ class TestExpertValidateTool:
                 confirm_metered_cost=True,
             )
 
-        assert "error_code" not in result
-        assert result["verdict"] == "pass"
-        assert result["expert_name"] == "Test Expert"
-        assert result["model"] == "gpt-5-mini"
-        assert "caveats" in result
-        assert "supporting" in result
-        assert "contradicting" in result
-
-    @pytest.mark.asyncio
-    async def test_missing_expert_returns_clean_error(self, mock_server) -> None:
-        mock_server.store.load = MagicMock(return_value=None)
-
-        result = await mock_server.expert_validate(
-            expert_name="Ghost",
-            claim="anything",
-            budget=0.05,
-            allow_metered_api=True,
-            confirm_metered_cost=True,
-        )
-
-        assert result.get("error_code") == "EXPERT_NOT_FOUND"
-
-    @pytest.mark.asyncio
-    async def test_validator_error_becomes_invalid_input(self, mock_server) -> None:
-        mock_server.store.load = MagicMock(return_value=MagicMock(name="Test Expert"))
-
-        with patch("deepr.services.expert_validator.ExpertValidator") as mock_cls:
-            inst = MagicMock()
-            inst.validate = AsyncMock(side_effect=ExpertValidatorError("claim must be non-empty"))
-            mock_cls.return_value = inst
-
-            result = await mock_server.expert_validate(
-                expert_name="Test Expert",
-                claim="",
-                budget=0.05,
-                allow_metered_api=True,
-                confirm_metered_cost=True,
-            )
-
-        assert result.get("error_code") == "EXPERT_VALIDATE_INVALID_INPUT"
-
-    @pytest.mark.asyncio
-    async def test_passes_model_override(self, mock_server) -> None:
-        mock_server.store.load = MagicMock(return_value=MagicMock(name="Test Expert"))
-
-        with patch("deepr.services.expert_validator.ExpertValidator") as mock_cls:
-            inst = MagicMock()
-            inst.validate = AsyncMock(return_value=_stub_result("pass"))
-            mock_cls.return_value = inst
-
-            await mock_server.expert_validate(
-                expert_name="Test Expert",
-                claim="ok",
-                model="gpt-5",
-                max_evidence=3,
-                budget=0.03,
-                allow_metered_api=True,
-                confirm_metered_cost=True,
-            )
-
-            # The validator should have been constructed with the overrides.
-            ctor_kwargs = mock_cls.call_args.kwargs
-            assert ctor_kwargs["model"] == "gpt-5"
-            assert ctor_kwargs["max_evidence"] == 3
-            assert inst.validate.await_args.kwargs["max_cost_per_job"] == 0.03
+        assert result.get("error_code") == "METERED_DISPATCH_FROZEN"
+        mock_cls.assert_not_called()
+        mock_server.store.load.assert_not_called()
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(

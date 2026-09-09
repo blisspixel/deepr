@@ -298,7 +298,7 @@ def _price_envelope_components(
     failures: list[str] = []
     try:
         priced.update(_price_token_components(typed))
-    except MaximumChargeContractError as exc:
+    except (MaximumChargeContractError, ValueError) as exc:
         failures.append(str(exc))
     return priced, failures
 

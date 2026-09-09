@@ -78,6 +78,10 @@ class TestIsInternalIP:
         """Unparseable IPs should be blocked for safety."""
         assert is_internal_ip("not_an_ip") is True
 
+    def test_blocks_ipv4_mapped_loopback_and_metadata(self):
+        assert is_internal_ip("::ffff:127.0.0.1") is True
+        assert is_internal_ip("::ffff:169.254.169.254") is True
+
 
 # ------------------------------------------------------------------ #
 # SSRFProtector
@@ -115,10 +119,22 @@ class TestSSRFProtector:
             with pytest.raises(ValueError, match="SSRF blocked"):
                 protector.validate_url("http://metadata.google.internal/")
 
+    def test_blocks_non_http_scheme(self):
+        protector = SSRFProtector()
+        with pytest.raises(ValueError, match="scheme"):
+            protector.validate_url("file:///etc/passwd")
+        with pytest.raises(ValueError, match="scheme"):
+            protector.validate_url("gopher://example.com/")
+
+    def test_blocks_url_credentials(self):
+        protector = SSRFProtector()
+        with pytest.raises(ValueError, match="credentials"):
+            protector.validate_url("https://user:pass@example.com/path")
+
     def test_blocks_no_hostname(self):
         protector = SSRFProtector()
         with pytest.raises(ValueError, match="no hostname"):
-            protector.validate_url("file:///etc/passwd")
+            protector.validate_url("http://")
 
     def test_blocks_unresolved_hostname(self):
         """If DNS resolution fails, URL should be blocked (conservative)."""

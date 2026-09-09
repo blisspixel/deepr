@@ -462,6 +462,8 @@ def authorize_scoped_mcp_tool_call(
     tool_name: str,
     arguments: dict[str, Any],
     allowlist: ToolAllowlist | None = None,
+    *,
+    accept_client_approval: bool = True,
 ) -> ScopedMCPAuthzDecision:
     """Validate a tool call against a scoped remote MCP key."""
     policy = allowlist or ToolAllowlist()
@@ -474,14 +476,23 @@ def authorize_scoped_mcp_tool_call(
             error_code="TOOL_BLOCKED_BY_KEY_MODE",
             requested_experts=requested_experts,
         )
-    if validation["requires_confirmation"] and not bool(arguments.get("_approved")):
-        return ScopedMCPAuthzDecision(
-            allowed=False,
-            reason=str(validation["reason"]),
-            error_code="CONFIRMATION_REQUIRED",
-            requires_confirmation=True,
-            requested_experts=requested_experts,
-        )
+    if validation["requires_confirmation"]:
+        if not accept_client_approval:
+            return ScopedMCPAuthzDecision(
+                allowed=False,
+                reason="Remote HTTP MCP cannot treat client _approved as operator confirmation",
+                error_code="CONFIRMATION_REQUIRED",
+                requires_confirmation=True,
+                requested_experts=requested_experts,
+            )
+        if not bool(arguments.get("_approved")):
+            return ScopedMCPAuthzDecision(
+                allowed=False,
+                reason=str(validation["reason"]),
+                error_code="CONFIRMATION_REQUIRED",
+                requires_confirmation=True,
+                requested_experts=requested_experts,
+            )
     if context.expert_allowlist:
         allowed_experts = set(context.expert_allowlist)
         if tool_name == "deepr_list_experts":

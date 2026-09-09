@@ -53,11 +53,9 @@ class TestAliasResolution:
         # Deep-research-pro-preview should be substantially more than $0.20
         assert est > 1.0
 
-    def test_unknown_model_returns_default(self):
-        prices = get_token_pricing("totally-fake-model-xyz")
-        # Falls back to o4-mini default rates
-        assert prices["input"] == pytest.approx(1.10)
-        assert prices["output"] == pytest.approx(4.40)
+    def test_unknown_model_fails_closed(self):
+        with pytest.raises(ValueError, match="No registry pricing"):
+            get_token_pricing("totally-fake-model-xyz")
 
     @pytest.mark.parametrize(
         ("alias", "model", "input_rate", "output_rate", "cached_rate"),

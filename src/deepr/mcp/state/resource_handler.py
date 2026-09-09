@@ -77,15 +77,13 @@ class MCPResourceHandler:
         self._experts = ExpertResourceManager()
         self._reports_base = reports_base or self.REPORTS_BASE
 
-        # SQLite persistence: survives server restarts
+        # SQLite persistence: survives server restarts. Construction and
+        # restore fail closed so a corrupt or unreadable store cannot look
+        # like an empty job table.
         self._persistence: JobPersistence | None = None
         if db_path is not False:  # False disables persistence (for tests)
-            try:
-                self._persistence = JobPersistence(db_path=db_path)
-                self._restore_jobs_from_db()
-            except Exception as e:
-                logger.warning("Job persistence unavailable: %s", e)
-                self._persistence = None
+            self._persistence = JobPersistence(db_path=db_path)
+            self._restore_jobs_from_db()
 
     def _restore_jobs_from_db(self) -> None:
         """Restore job state from SQLite on startup and mark incomplete jobs as failed."""
@@ -125,10 +123,7 @@ class MCPResourceHandler:
         plan = self._jobs.get_plan(job_id)
         beliefs = self._jobs.get_beliefs(job_id)
 
-        try:
-            self._persistence.save_job(state, plan=plan, beliefs=beliefs)
-        except Exception as e:
-            logger.warning("Failed to persist job %s: %s", job_id, e)
+        self._persistence.save_job(state, plan=plan, beliefs=beliefs)
 
     @property
     def persistence(self) -> JobPersistence | None:

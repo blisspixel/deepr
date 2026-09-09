@@ -86,3 +86,17 @@ def test_profile_without_domain_falls_back_to_description():
     caps = build_capabilities(store, _registry(), version="1")
 
     assert caps["experts"]["roster"][0]["domain"] == "docs and IA"
+
+
+def test_expert_allowlist_hides_other_roster_entries():
+    store = _Store(
+        [
+            SimpleNamespace(name="alpha", domain="a"),
+            SimpleNamespace(name="beta", domain="b"),
+        ]
+    )
+
+    caps = build_capabilities(store, _registry(), version="1", expert_allowlist=("alpha",))
+
+    assert caps["experts"]["count"] == 1
+    assert [entry["name"] for entry in caps["experts"]["roster"]] == ["alpha"]

@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 
 from .registry import MODEL_CAPABILITIES, ModelCapability
-
-logger = logging.getLogger(__name__)
 
 _MODEL_ALIASES: dict[str, str] = {
     "gpt-5.6": "gpt-5.6-sol",
@@ -173,16 +170,7 @@ def get_token_pricing(model: str, input_tokens: int | None = None) -> dict[str, 
     resolved = get_resolved_token_pricing(model, input_tokens=input_tokens)
     if resolved is not None:
         return resolved
-
-    logger.warning(
-        "No registry pricing for model %r; defaulting to o4-mini rates ($1.10/$4.40 per 1M). "
-        "Add the model to deepr/providers/registry.py to bill it correctly.",
-        model,
-    )
-    default = MODEL_CAPABILITIES.get("openai/o4-mini")
-    if default:
-        return {"input": default.input_cost_per_1m, "output": default.output_cost_per_1m}
-    return {"input": 1.10, "output": 4.40}
+    raise ValueError(f"No registry pricing for model {model!r}; unknown models cannot be billed at o4-mini rates")
 
 
 def get_resolved_token_pricing(model: str, input_tokens: int | None = None) -> dict[str, float] | None:

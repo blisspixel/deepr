@@ -67,7 +67,6 @@ from deepr.mcp.tool_surface import (
 explicit_research_mode_value()
 
 from deepr.config import load_config
-from deepr.core.errors import DeeprError
 from deepr.experts.chat import ExpertChatSession
 from deepr.experts.claim_inventory import read_claim_inventory
 from deepr.experts.consult_transaction import DEFAULT_CONSULT_MAX_ELAPSED_SECONDS
@@ -75,7 +74,11 @@ from deepr.experts.profile import ExpertStore
 from deepr.mcp.consult_tool import consult_experts_tool
 from deepr.mcp.cost_status import current_cost_status
 from deepr.mcp.expert_reads import get_expert_handoff, get_expert_loop_status, get_semantic_recall, get_temporal_edges
-from deepr.mcp.metered_contract import MeteredMCPContractError, require_metered_api_contract
+from deepr.mcp.metered_contract import (
+    MeteredMCPContractError,
+    refuse_metered_mcp_production_dispatch,
+    require_metered_api_contract,
+)
 from deepr.mcp.protocol_compat import LEGACY_METHOD_MAP
 from deepr.mcp.protocol_dispatch import dispatch_protocol_method, registered_method_names
 from deepr.mcp.protocol_modern import (
@@ -107,7 +110,6 @@ from deepr.mcp.state.task_durability import TaskDurabilityManager
 from deepr.mcp.tool_errors import ToolError
 from deepr.mcp.tool_errors import make_tool_error as _make_error
 from deepr.mcp.transport.stdio import StdioServer
-from deepr.providers import create_provider
 from deepr.storage import create_storage
 
 # Prompt primitives (template menus for MCP clients)
@@ -230,7 +232,15 @@ class DeeprMCPServer:
         confirmation_tools = [tool for tool in available_tools if self.tool_allowlist.require_confirmation(tool.name)]
 
         uptime = time.time() - _server_start_time if _server_start_time else 0
-        active_count = len(self.resource_handler.jobs.list_jobs(phase=None))
+        identity = current_mcp_request_identity()
+        jobs = list(self.resource_handler.jobs.list_jobs(phase=None))
+        if identity is not None and identity.authentication == "scoped_key":
+            jobs = [job for job in jobs if job.owner_id == identity.owner_id]
+            cost_summary = {
+                "scoped": True,
+                "detail": "instance-wide spend is not visible to expert-scoped keys",
+            }
+        active_count = len(jobs)
 
         return {
             "status": health_status,
@@ -265,11 +275,18 @@ class DeeprMCPServer:
         """Return the versioned capability map: roster, key tools, cost tiers, $0 paths."""
         from deepr.mcp.capabilities import build_capabilities
 
+        identity = current_mcp_request_identity()
+        expert_allowlist = (
+            identity.expert_allowlist
+            if identity is not None and identity.authentication == "scoped_key" and identity.expert_allowlist
+            else None
+        )
         return build_capabilities(
             self.store,
             self.registry,
             version=SERVER_VERSION,
             allowed_tool_names=self.available_tool_names(),
+            expert_allowlist=expert_allowlist,
         )
 
     # ------------------------------------------------------------------ #
@@ -538,39 +555,20 @@ class DeeprMCPServer:
         for downstream agents that need domain validation before acting.
         """
         try:
-            ceiling = require_metered_api_contract(
+            require_metered_api_contract(
                 budget=budget,
                 allow_metered_api=allow_metered_api,
                 confirm_metered_cost=confirm_metered_cost,
             )
         except MeteredMCPContractError as exc:
             return _make_error(exc.code, str(exc))
-
-        try:
-            expert = self.store.load(expert_name)
-            if not expert:
-                return _make_error("EXPERT_NOT_FOUND", f"Expert '{expert_name}' not found")
-
-            from deepr.services.expert_validator import (
-                DEFAULT_VALIDATION_MODEL,
-                ExpertValidator,
-                ExpertValidatorError,
-            )
-
-            try:
-                validator = ExpertValidator(
-                    model=model or DEFAULT_VALIDATION_MODEL,
-                    max_evidence=max_evidence,
-                )
-                result = await validator.validate(expert, claim, max_cost_per_job=ceiling)
-            except ExpertValidatorError as e:
-                return _make_error("EXPERT_VALIDATE_INVALID_INPUT", str(e))
-            except ValueError as e:
-                return _make_error("BUDGET_EXCEEDED", f"Validation blocked by durable cost admission: {e}")
-
-            return result.to_dict()
-        except (OSError, KeyError, ValueError, DeeprError) as e:
-            return _make_error("EXPERT_VALIDATE_FAILED", str(e))
+        del expert_name, claim, model, max_evidence
+        frozen = refuse_metered_mcp_production_dispatch()
+        return _make_error(
+            frozen.code,
+            str(frozen),
+            fallback="use explicit local or plan-quota expert consultation",
+        )
 
     # ------------------------------------------------------------------ #
     # Tool: deepr_rank_gaps
@@ -842,177 +840,20 @@ class DeeprMCPServer:
     ) -> dict[str, Any]:
         """Validate a bounded research request; production metered dispatch is blocked."""
         try:
-            ceiling = require_metered_api_contract(
+            require_metered_api_contract(
                 budget=budget,
                 allow_metered_api=allow_metered_api,
                 confirm_metered_cost=confirm_metered_cost,
             )
         except MeteredMCPContractError as exc:
             return _make_error(exc.code, str(exc))
-
-        try:
-            # Generate trace_id for end-to-end request tracking
-            trace_id = uuid.uuid4().hex[:16]
-
-            # Estimate cost based on model. Defer to the registry so
-            # provider aliases like `gemini-deep-research`/`deep-research`
-            # are priced at the real ~$2.50 deep-research rate instead of
-            # the generic $0.20 unknown-model fallback. Without this, a
-            # caller can pass the Gemini Deep Research alias and have an
-            # explicit budget_limit/cost_safety check approve a much more
-            # expensive provider job.
-            from deepr.providers.registry import get_cost_estimate as _registry_cost_estimate
-
-            registry_cost = _registry_cost_estimate(model)
-            if "o4-mini" in model:
-                cost_estimate = max(0.15, registry_cost)
-                estimated_time = "5-10 minutes"
-            elif "o3" in model:
-                cost_estimate = max(0.50, registry_cost)
-                estimated_time = "10-20 minutes"
-            elif "deep-research" in model:
-                cost_estimate = max(registry_cost, 1.00)
-                estimated_time = "10-20 minutes"
-            else:
-                cost_estimate = max(registry_cost, 0.20)
-                estimated_time = "5-15 minutes"
-
-            # CRITICAL: Validate budget BEFORE any API calls
-            from deepr.experts.cost_safety import get_cost_safety_manager
-
-            cost_safety = get_cost_safety_manager()
-            session_id = f"mcp_research_{uuid.uuid4().hex[:8]}"
-
-            allowed, reason, _ = cost_safety.check_operation(
-                session_id=session_id,
-                operation_type="mcp_research",
-                estimated_cost=cost_estimate,
-                require_confirmation=False,
-            )
-
-            if not allowed:
-                return _make_error(
-                    "BUDGET_EXCEEDED",
-                    f"Research blocked by cost safety: {reason}",
-                    retry_hint="Wait for daily limit reset or increase budget with 'deepr budget set'",
-                    fallback=f"Daily spent: ${cost_safety.daily_cost:.2f}",
-                )
-
-            if cost_estimate > ceiling:
-                return _make_error(
-                    "BUDGET_INSUFFICIENT",
-                    f"Estimated cost ${cost_estimate:.2f} exceeds budget ${ceiling:.2f}",
-                    retry_hint=f"Set budget >= ${cost_estimate:.2f}",
-                )
-
-            # SSRF: only public HTTP(S) URLs. Local paths would be opened as
-            # files once storage accounting is enabled.
-            if files:
-                for f in files:
-                    if not f.startswith(("http://", "https://")):
-                        return _make_error(
-                            "PATH_BLOCKED",
-                            "Local filesystem paths are not accepted as research file sources",
-                            fallback="Provide an https URL, not a local path",
-                        )
-                    try:
-                        self.ssrf_protector.validate_url(f)
-                    except ValueError as ssrf_err:
-                        return _make_error(
-                            "SSRF_BLOCKED",
-                            str(ssrf_err),
-                            fallback="Only public URLs are allowed as file sources",
-                        )
-
-            # Create provider instance
-            api_key = self._get_api_key(provider)
-            if not api_key:
-                return _make_error(
-                    "PROVIDER_NOT_CONFIGURED",
-                    f"No API key configured for provider: {provider}",
-                    fallback="Configure via .env file or environment variables",
-                )
-
-            from deepr.core.documents import DocumentManager
-            from deepr.core.reports import ReportGenerator
-            from deepr.core.research import ResearchOrchestrator
-
-            provider_instance = create_provider(provider, api_key=api_key)  # type: ignore[arg-type]
-            storage_instance = create_storage("local", base_path=load_config().get("results_dir", "data/reports"))
-            doc_manager = DocumentManager()
-            report_generator = ReportGenerator()
-
-            orchestrator = ResearchOrchestrator(provider_instance, storage_instance, doc_manager, report_generator)
-
-            job_id = await orchestrator.submit_research(
-                prompt=prompt,
-                model=model,
-                documents=files if files else None,
-                enable_web_search=enable_web_search,
-                enable_code_interpreter=enable_code_interpreter,
-                cost_sensitive=ceiling < 0.20,
-                budget_limit=ceiling,
-                session_id=session_id,
-            )
-
-            # Track in JobManager for resource subscriptions
-            await self.resource_handler.jobs.create_job(
-                job_id=job_id,
-                goal=prompt,
-                model=model,
-                estimated_cost=cost_estimate,
-                estimated_time=estimated_time,
-                owner_id=current_scoped_mcp_owner_id(),
-            )
-            # Store trace_id in job metadata for end-to-end tracking
-            state = self.resource_handler.jobs.get_state(job_id)
-            if state:
-                state.metadata["trace_id"] = trace_id
-                state.metadata["session_id"] = session_id
-
-            # Persist to SQLite
-            self.resource_handler.persist_job(job_id)
-
-            # Cache provider instance for status checks
-            self.active_jobs[job_id] = {
-                "provider_instance": provider_instance,
-                "orchestrator": orchestrator,
-                "submitted_at": datetime.now().isoformat(),
-            }
-
-            logger.info("Research job %s submitted (trace=%s)", job_id, trace_id)
-
-            spending = cost_safety.get_spending_summary()
-            resource_uris = self.resource_handler.get_resource_uri_for_job(job_id)
-
-            from deepr.mcp.artifacts import inject_artifact_ids
-
-            return inject_artifact_ids(
-                {
-                    "job_id": job_id,
-                    "trace_id": trace_id,
-                    "status": "submitted",
-                    "estimated_time": estimated_time,
-                    "cost_estimate": cost_estimate,
-                    "daily_spent": spending["daily"]["spent"],
-                    "daily_remaining": spending["daily"]["remaining"],
-                    "resource_uris": resource_uris,
-                    "message": (
-                        f"Research job submitted. Use deepr_check_status with job_id "
-                        f"'{job_id}' to check progress, or subscribe to "
-                        f"{resource_uris['status']} for push notifications."
-                    ),
-                },
-                trace_id=trace_id,
-                job_id=job_id,
-                session_id=session_id,
-            )
-
-        except ValueError as ve:
-            return _make_error("VALIDATION_ERROR", str(ve))
-        except Exception as e:
-            logger.exception("deepr_research failed")
-            return _make_error("INTERNAL_ERROR", str(e))
+        del prompt, model, provider, enable_web_search, enable_code_interpreter, files
+        frozen = refuse_metered_mcp_production_dispatch()
+        return _make_error(
+            frozen.code,
+            str(frozen),
+            fallback="use explicit local or plan-quota research",
+        )
 
     # ------------------------------------------------------------------ #
     # Tool: deepr_check_status
@@ -1927,6 +1768,9 @@ async def run_stdio_server() -> None:
 
 def main() -> None:
     """Entry point for MCP server."""
+    from deepr.security.key_quarantine import quarantine_metered_keys
+
+    quarantine_metered_keys()
     try:
         asyncio.run(run_stdio_server())
     except KeyboardInterrupt:

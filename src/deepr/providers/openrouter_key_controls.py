@@ -345,7 +345,9 @@ def _key_posture_failures(key: _ParsedOpenRouterKey) -> list[str]:
         failures.append("current key is free-tier and cannot prove the proposed paid route")
     if not key.include_byok:
         failures.append("BYOK usage is excluded from the current key limit")
-    if key.limit_reset != "monthly":
+    if key.limit_reset is None:
+        failures.append("current key has no monthly limit_reset")
+    elif key.limit_reset != "monthly":
         failures.append("current key limit_reset is not monthly")
     if key.expiration_failure is not None:
         failures.append(key.expiration_failure)

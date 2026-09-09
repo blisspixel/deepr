@@ -133,6 +133,20 @@ class TestScopedMCPAuthorization:
         assert denied.requires_confirmation
         assert allowed.allowed
 
+    def test_remote_http_rejects_client_approved_flag(self):
+        context = ScopedMCPKeyContext("agent", ResearchMode.STANDARD, ("alpha",))
+
+        denied = authorize_scoped_mcp_tool_call(
+            context,
+            "deepr_expert_handoff",
+            {"expert_name": "alpha", "_approved": True},
+            accept_client_approval=False,
+        )
+
+        assert not denied.allowed
+        assert denied.error_code == "CONFIRMATION_REQUIRED"
+        assert "client _approved" in denied.reason
+
     def test_expert_allowlist_blocks_other_experts_and_global_listing(self):
         context = ScopedMCPKeyContext("agent", ResearchMode.UNRESTRICTED, ("alpha",))
 

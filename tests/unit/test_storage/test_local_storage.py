@@ -33,6 +33,11 @@ class TestValidation:
     def test_filename_ok(self, storage):
         assert storage._validate_filename("report.md") == "report.md"
 
+    def test_filename_rejects_ntfs_stream_and_trailing_alias(self, storage):
+        for bad in ["report.md:secret", "notes.txt ", "notes.txt."]:
+            with pytest.raises(StorageError):
+                storage._validate_filename(bad)
+
     @pytest.mark.parametrize("filename", ["metadata.json", "METADATA.JSON", "Metadata.Json"])
     def test_internal_metadata_filename_is_reserved(self, storage, filename):
         with pytest.raises(StorageError):

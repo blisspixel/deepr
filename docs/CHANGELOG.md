@@ -7,12 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.14] - 2026-09-09
+
 ### Fixed
 
 - Shared chat help describes configured tools as inventory, labels research
   and skill execution blocks, and removes unsupported free-search and fixed
   price claims. Mode descriptions no longer imply unrestricted access or
   completed reasoning. Model help matches the existing read-only handler.
+- IPv4-mapped IPv6, 6to4, and NAT64 addresses are blocked by the SSRF helper
+  on Python 3.12, where mapped loopback and link-local metadata previously
+  looked global. MCP outbound URL checks also refuse non-HTTP schemes and
+  URL credentials.
+- `deepr web --host ""` is no longer treated as loopback, so an empty bind
+  host cannot start the development server on all interfaces. Socket.IO CORS
+  allows configured origins and same-origin Host matches, and ignores
+  `X-Forwarded-Host`.
+- `deepr migrate organize` archives only UUID-only report directories. Live
+  `investigations/`, `validation/`, `expert-updates/`, campaigns, and the
+  existing archive stay in place.
+- Unreserved completion accounting no longer requires a positive process cap
+  before freeze and ledger write. A `$0` per-job cap consumes the `$5`
+  product ceiling. OpenAI status responses with a missing model leave
+  `usage.cost` unset instead of pricing o4-mini.
+- Calendar spend checks use each job's maximum cost, not the expected mean.
+  Dashboard listing returns 500 when expert storage cannot import, instead of
+  an empty fleet. Extra `profile.json` fields no longer hide an expert.
+- A brief that cannot write position history now fails visibly. Study
+  checkpoints log write failures. Corrupt MCP job rows are skipped instead of
+  disabling persistence. Expert-scoped MCP capabilities hide other experts
+  and instance-wide spend.
+- MCP `deepr_research` and `deepr_expert_validate` freeze after contract
+  validation and never construct a paid provider client. Consent and a budget
+  are not spend authority.
+- Unknown model token pricing no longer falls back to o4-mini rates.
+- Remote HTTP MCP ignores client `_approved`. An elicitation handler crash is
+  no longer treated as operator consent.
+- OpenRouter current-key checks distinguish a missing `limit_reset` from a
+  non-monthly reset. Live 2026-09-08 validation: seven public routes eligible,
+  current key ineligible at `$20` with BYOK excluded, `$0` paid.
 
 ### Added
 
