@@ -70,16 +70,35 @@ Roadmap items are not approach claims until they land in
 
 ## Active Release Plan
 
-This is the governing delivery order. It is dependency-gated, not an estimate
-of elapsed time. Deepr does not publish sprint, day, week, quarter, or release
-date promises. A target advances only when its exit gate is supported by saved
-evidence. Parallel research may prepare design notes and fixtures, but it may
-not widen the shipped surface ahead of this sequence.
+**Now (v2.50.14):** local experts, write-free OpenRouter previews, and
+fail-closed metered gates. Paid OpenRouter dispatch, Python/MCP skill
+execution, and automatic learning stay blocked.
+
+**Next (v2.51):** one blinded four-arm evaluation of whether a *maintained*
+expert improves repeated decisions versus fresh research, static history, and
+compiled state.
+
+**Why v2.51 is next:** Deepr already stores beliefs, sources, briefs, and
+outcomes. It has not shown that using that stored state helps. More harness
+surface, expert-authored skills, paid APIs, or self-modifying loops would
+widen the product before the loop is closed. An unverified improvement loop
+is a degradation loop. See [Planning Principles](#planning-principles) and
+the [v2.51 pilot protocol](docs/design/expert-purpose-and-value-loop.md#v251-pilot-protocol).
+
+**Not next, even if they look adjacent:** paid OpenRouter activation,
+host subagent trees, expert-maintained skills, hosted observation, and
+automatic belief changes from prediction outcomes. Those wait on later
+numbered gates, and only if v2.51 produces usable evidence.
+
+This order is dependency-gated, not a calendar. Deepr does not publish
+sprint, day, week, quarter, or release-date promises. A target advances only
+when its exit gate is supported by saved evidence. Parallel research may
+prepare design notes and fixtures, but it may not widen the shipped surface
+ahead of this sequence.
 
 | Target | User-visible outcome | Why it is next | Exit gate |
 | --- | --- | --- | --- |
-| **v2.50.14** (current) | Close remaining metered-dispatch, spend-accounting, consent, and SSRF holes while keeping OpenRouter preview-only. | Live OpenRouter checks and a post-2.50.13 hunt found paid-client construction, pricing fallback, and host-header defects. | Credential-free suite, ratchets, CI, package, and public installer gates pass. Paid OpenRouter dispatch stays blocked. |
-| **v2.51** | Publish one blinded four-arm longitudinal value evaluation for a flagship expert, comparing fresh research, static history, compiled expert state, and maintained expert state. | Deepr must demonstrate that persistent expert state improves repeated decisions before adding more control, memory, or host surface. | Frozen source worlds, randomized review assignment, bound artifacts, operator attestations, and separate false-support, stale-memory, transfer, effort, cost, and outcome measures are reproducible. No aggregate score selects a winner or changes a default. |
+| **v2.51** (next) | Publish one blinded four-arm longitudinal value evaluation for a flagship expert, comparing fresh research, static history, compiled expert state, and maintained expert state. | Persistent expert state is the product claim. Until it is measured, more memory, control, or host surface does not prove the claim. | Frozen source worlds, randomized review assignment, bound artifacts, operator attestations, and separate false-support, stale-memory, transfer, effort, cost, and outcome measures are reproducible. No aggregate score selects a winner or changes a default. |
 | **v2.52** | Resolve prospective expert predictions against later grounded observations and emit review-required learning proposals. | The value evaluation can identify whether the product helps. Prediction resolution closes the next part of the learning loop by showing why a view held or failed without granting self-modifying authority. | Each resolution binds the original prediction, later source evidence, world-valid time, observation time, and reviewer judgment. Frozen temporal fixtures reconstruct the same historical state and expose late or contradictory evidence. Accepted proposals demonstrate held-out before-and-after benefit. No prediction result directly mutates beliefs, prompts, routing, skills, or policy. |
 | **v2.53** | Complete the shared durable parent transaction and an execution-ready but disabled OpenRouter adapter proof. | Provider routing cannot become useful paid capacity until one request graph has exact spend, identity, route, retry, cancellation, and settlement authority. | Fault injection cannot overshoot or duplicate effects; fixtures prove exact credential, request, provider, response, generation, cache, BYOK, plugin, and total-cost handling; ambiguous outcomes consume the hold and freeze reconciliation. The current repository rule still forbids a paid inference validation or production activation. |
 | **v2.54** | Expose owner-scoped, read-only investigation projections and validate exact host profiles for OpenClaw, DeepSeek Harness, Grok Build, Codex, and manual Grok Bot use. | Observation follows the value loop and authority substrate, while control still waits. Portable Agent Plugin packaging remains the primary lane. | Observation authority binds caller, `run_id`, expert roster, and cursor. Cross-run reads fail. Each host claim pins exact versions, tools, transport, runtime dependencies, and fixture or live `$0` evidence. |
@@ -414,6 +433,32 @@ reliable product, not a four-language architecture diagram.
 
 ## Current Status (v2.50.14)
 
+**Next is v2.51, not more dispatch.** v2.50.14 closed metered-client
+construction, pricing fallback, consent, and SSRF holes and kept OpenRouter
+preview-only. That is safety. The product question is still open: does a
+maintained expert beat fresh research and simpler memory on repeated
+decisions?
+
+Open v2.51 work:
+
+- [ ] **v2.51 preparation:** verify source entries inside frozen manifests,
+  prepare equal source inventories for isolated arms, and bind blinded review
+  assignments to exact case and answer bytes. Current SHA-256 verification
+  covers declared artifacts, not nested inventories or assignment meaning.
+  The [pilot protocol](docs/design/expert-purpose-and-value-loop.md#v251-pilot-protocol)
+  specifies three frozen worlds, 12 reviewed cases, and 48 arm cells, with
+  blinded review and separate false-support, stale-reuse, transfer, effort,
+  cost, and outcome measures. The protocol is not a completed experiment.
+
+- [ ] **Live semantic follow-up (2026-09-05):** the local two-lens study
+  returned 13 grounded findings out of 14, and the separate existing-expert
+  absorb refused 5 of 19 candidates through its grounding checker. Preserve
+  the source, extraction, and checker artifacts for calibrated review; these
+  counts do not establish correctness or expert-value improvement. Include
+  false support and false refusal in the v2.51 review protocol.
+
+Shipped around this release:
+
 - [x] **OpenRouter write-free validation (2026-09-08):** all seven public
   routes remained catalog-eligible with dispatch unauthorized. The current
   key is ineligible at `$20` with BYOK excluded and a non-monthly
@@ -427,22 +472,10 @@ reliable product, not a four-language architecture diagram.
   `_approved` are not spend authority. Unknown-model token pricing no
   longer falls back to o4-mini.
 
-- [ ] **Live semantic follow-up (2026-09-05):** the local two-lens study
-  returned 13 grounded findings out of 14, and the separate existing-expert
-  absorb refused 5 of 19 candidates through its grounding checker. Preserve
-  the source, extraction, and checker artifacts for calibrated review; these
-  counts do not establish correctness or expert-value improvement. Include
-  false support and false refusal in the v2.51 review protocol.
-
 - [x] **Quota validation follow-up (2026-09-05):** after the provider's retry
   interval, fresh metadata proved paid overage disabled and a confined plan
   probe completed with quota and $0 cost records. See the
   [validation record](docs/validation/local-workflows-2026-09-05.md).
-
-- [ ] **v2.51 preparation:** verify source entries inside frozen manifests,
-  prepare equal source inventories for isolated arms, and bind blinded review
-  assignments to exact case and answer bytes. Current SHA-256 verification
-  covers declared artifacts, not nested inventories or assignment meaning.
 
 - [x] **Installer validation finding (2026-09-05):** both public installers
   reported success after the CLI remained broken through repair. They now
@@ -467,12 +500,6 @@ tests reproduce the defects. No semantic or dispatch authority widened.
   sometimes expired during preflight under Python 3.13 runner load. An explicit
   clock and expiring lock now exercise the intended post-provider boundary
   without changing production elapsed ceilings.
-
-The next evidence deliverable remains v2.51. Its
-[pilot protocol](docs/design/expert-purpose-and-value-loop.md#v251-pilot-protocol)
-now specifies three frozen worlds, 12 reviewed cases, and 48 arm cells, with
-blinded review, isolation, and separate temporal, support, effort, and cost
-measures. This is a protocol, not a completed experiment or proof of benefit.
 
 The [runtime options proposal](docs/design/local-first-agent-runtime-options.md)
 keeps execution and canonical knowledge local, reuses portable skills and OKF,

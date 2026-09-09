@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- ROADMAP, README, and Supported Surface now lead with what v2.50.14 shipped,
+  why v2.51 (blinded four-arm expert-value evaluation) is next, and why paid
+  OpenRouter, host subagents, and expert-authored skills wait.
+
 ## [2.50.14] - 2026-09-09
 
 ### Fixed
