@@ -115,9 +115,9 @@ class TestRegistry:
     def test_all_seven_registered(self):
         assert set(REGISTRY) == {"codex", "claude", "opencode", "kiro", "grok", "antigravity", "copilot"}
 
-    def test_auto_routable_are_only_free_at_margin_tos_clean(self):
+    def test_no_production_adapter_has_complete_execution_proof(self):
         ids = {a.backend_id for a in auto_routable_adapters()}
-        assert ids == {"claude"}
+        assert ids == set()
 
     def test_copilot_is_metered_and_off_by_default(self):
         cp = get_adapter("copilot")
@@ -135,7 +135,7 @@ class TestRegistry:
 
     def test_read_capable_native_tool_backends_never_run_unconfined(self):
         """Every adapter with an unproven native-tool surface stays blocked."""
-        for backend_id in ("codex", "kiro", "grok", "antigravity"):
+        for backend_id in ("codex", "claude", "kiro", "grok", "antigravity"):
             adapter = get_adapter(backend_id)
             assert adapter is not None, backend_id
             assert adapter.execution_block_reason, backend_id
@@ -187,7 +187,7 @@ class TestArgvBuilders:
         assert argv[argv.index("--model") + 1] == "gpt-5.4"
         assert argv[-1] == "q"
 
-    def test_claude_print_mode_has_no_ambient_tools_or_state(self):
+    def test_blocked_claude_transport_retains_defense_in_depth_flags(self):
         argv = get_adapter("claude").build_argv("q")
         assert argv == [
             "claude",

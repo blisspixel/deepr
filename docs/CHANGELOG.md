@@ -7,11 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.15] - 2026-09-13
+
+### Fixed
+
+- Legacy MCP clients can use `ping`; modern requests retain the removed-method
+  refusal. Invalid JSON-RPC envelopes are refused at the shared transport
+  boundary instead of succeeding or becoming internal-server errors. HTTP
+  notifications produce empty acknowledgements without tool admission,
+  accounting, or JSON-RPC denial responses; transport authentication remains
+  required.
+- Agent Plugin validation rejects explicit null optional metadata. The installed
+  package check expands placeholders once and resolves relative working
+  directories against the plugin root with containment checks. Published
+  Agent Plugins 1.0.0 remains the target; 1.1.0 is a working draft.
+- Claude plan dispatch now refuses before quota/account probes or subprocess
+  construction because managed-policy hooks survive safe mode. Empty model
+  tools and disabled paid overage do not prove hook confinement. All production
+  plan adapters are currently execution-blocked; local Ollama remains usable
+  behind its existing ownership and cloud-disable checks. Offline regressions
+  preserve the dormant transport and billing controls without enabling them.
+
 ### Changed
 
 - ROADMAP, README, and Supported Surface now lead with what v2.50.14 shipped,
   why v2.51 (blinded four-arm expert-value evaluation) is next, and why paid
   OpenRouter, host subagents, and expert-authored skills wait.
+- Added a current primary-source research assessment for v2.51, corrected stale
+  source-preflight status, and made maintained-expert value an explicit
+  hypothesis. The local four-arm rehearsal is distinguished from a future
+  frontier web-research comparison. No pilot benefit or reviewer attestation
+  is claimed.
+- Refined the existing AGENTS guide with canonical implementation owners,
+  lock-based environment setup, explicit coverage enforcement, verification
+  evidence, and continuity through `.agent/`. Preserved project-specific
+  safety and governance rules; no duplicate instruction file was added.
 
 ## [2.50.14] - 2026-09-09
 

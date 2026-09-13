@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.50.14-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.14)
+[![Version](https://img.shields.io/badge/version-2.50.15-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.15)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -61,7 +61,7 @@ open check.
 | Class | Current posture |
 | --- | --- |
 | Local Ollama | Preferred for expert setup, maintenance, evaluation, and consultation after endpoint ownership is proven. Records $0 and does not consume wallet capacity. |
-| Plan quota | Uses an existing subscription only when authentication, tool confinement, remaining quota, and disabled paid overage are proven. Claude Code is the current executable adapter. Successful work records $0 at the margin. |
+| Plan quota | Visible/read-only. No production adapter is currently execution-eligible. Claude Code is blocked because managed-policy hooks can survive safe mode; other adapters retain their existing safety blocks. Subscription auth and disabled paid overage alone do not prove process confinement. |
 | Metered API | No automatic fallback. The attended absorb path requires verified provider prepaid-no-overage or a hard provider ceiling, plus a cumulative Deepr wallet, a separate finite job ceiling, explicit confirmation, and a durable reservation. Other metered surfaces remain gated. |
 
 A local wallet is cumulative operator authorization, not provider credit. Paid
@@ -141,9 +141,16 @@ covers the portable skill and read-only MCP package, host PATH setup, and its
 isolated expert workspace. OKF export and the OpenClaw host-profile reference
 are documented in [Supported Surface](docs/SUPPORTED_SURFACE.md).
 
+Current compatibility targets are MCP `2026-07-28` with the documented legacy
+eras and published Agent Plugins `1.0.0`. See the
+[compatibility verification record](docs/validation/research-review-2026-09-13.md)
+for tested behavior and the distinction from draft standards and host certification.
+
 ## Direction
 
-v2.50.14 closed remaining metered-dispatch, spend, consent, and SSRF holes.
+v2.50.15 corrects MCP and Agent Plugins compatibility and blocks Claude plan
+execution until managed-policy commands can be confined. v2.50.14 closed
+remaining metered-dispatch, spend, consent, and SSRF holes.
 It did not enable paid OpenRouter, skill execution, or a claim that expert
 memory helps.
 
@@ -152,6 +159,13 @@ expert improves repeated decisions versus fresh research, static history, and
 compiled state. That measurement comes first because Deepr's product claim is
 durable judgment, not a larger agent runtime. Host wiring, expert-authored
 skills, and paid APIs wait until that evidence exists.
+
+The first rehearsal compares all four arms on the same local model and frozen
+sources. It can test the contribution of maintained state under that setup;
+it cannot establish superiority over frontier web research. Next, prepare
+equal isolated source inventories and bind blinded reviews to exact answers.
+The [research assessment](docs/research/deepr-next-evidence-2026-09-13.md)
+explains the evidence, remaining gaps, and acceptance criteria.
 
 After that, v2.52 resolves predictions as review-required proposals without
 automatic learning. v2.53 finishes the durable parent transaction with

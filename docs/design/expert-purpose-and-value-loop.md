@@ -184,10 +184,16 @@ verdict.
 The blueprint and outcome lanes are prerequisites, not proof. The later
 longitudinal harness should compare the same time-sliced tasks across:
 
-1. fresh frontier deep research without persistent memory;
+1. fresh research without persistent memory;
 2. static retrieval or full-history context;
 3. a compiled Deepr expert;
 4. the same Deepr expert maintained with local or explicit plan capacity.
+
+The first local rehearsal uses the same model and frozen source packets in
+all arms. It tests the contribution of persistent state under that setup.
+A future frontier web-research comparison is a separate experiment requiring
+proven capacity and a separately frozen protocol; the local pilot cannot
+establish that broader claim.
 
 Use frozen source worlds with supportive evidence, distractors, and noise.
 Report at least:
@@ -382,8 +388,10 @@ filesystem integrity.
 Artifact references preserve every path character, including repeated spaces.
 Nonblank and length validation does not normalize filenames. Hashing a manifest
 does not recursively verify the source entries it contains, and hashing a
-review assignment does not prove its answer-to-arm mapping. Source-world
-preparation and blinded packet binding are the next planned increments.
+review assignment does not prove its answer-to-arm mapping. The nested-source
+preflight now checks source bytes and declared availability separately. Equal
+isolated input materialization and blinded answer-to-review binding remain
+planned. Neither file hashing nor declared metadata establishes semantic truth.
 
 ## Agentic Boundary
 

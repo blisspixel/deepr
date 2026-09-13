@@ -605,12 +605,13 @@ class TestStreamingHttpScopedKeys:
         assert [event.tool for event in events] == ["resources/list", "resources/read"]
 
     @pytest.mark.asyncio
-    async def test_scoped_notification_settles_admission_once(self, tmp_path):
+    async def test_scoped_notification_does_not_consume_request_admission(self, tmp_path):
         store = ScopedMCPKeyStore(tmp_path / "keys.json")
-        secret, _record = store.create_key("agent", secret="secret")
+        secret, _record = store.create_key("agent", rate_limit_per_minute=1, secret="secret")
         audit = RemoteMCPAuditLog(tmp_path / "audit.jsonl")
         transport = StreamingHttpTransport(scoped_key_store=store, audit_log=audit)
-        transport.on_message(AsyncMock(return_value=None))
+        handler = AsyncMock(return_value=HttpMessage(id="request", result={"resources": []}))
+        transport.on_message(handler)
 
         response = await transport._handle_post(
             _request(
@@ -621,6 +622,20 @@ class TestStreamingHttpScopedKeys:
 
         # Accepted notification: 202 per the Streamable HTTP spec.
         assert response.status == 202
+        assert not response.body
+        handler.assert_not_awaited()
+        assert audit.read_recent() == []
+
+        # The notification leaves the only admission available to a real request.
+        request_response = await transport._handle_post(
+            _request(
+                {"jsonrpc": "2.0", "id": "request", "method": "resources/list", "params": {}},
+                secret,
+            )
+        )
+        assert request_response.status == 200
+        assert json.loads(request_response.text)["result"] == {"resources": []}
+        handler.assert_awaited_once()
         assert [event.tool for event in audit.read_recent()] == ["resources/list"]
 
     @pytest.mark.asyncio

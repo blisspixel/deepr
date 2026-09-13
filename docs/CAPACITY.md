@@ -7,6 +7,13 @@ Deepr has three capacity rungs:
 3. Metered provider APIs, with one narrow attended absorb path and every
    unattended path blocked.
 
+Unreleased correction, September 13, 2026: all production plan adapters are
+execution-blocked. Claude managed-policy hooks survive safe mode, so the
+existing flags cannot prove complete process confinement. Use owned local
+Ollama for the current expert workflow. Historical plan examples below are
+retained command shapes and return a safety refusal until the
+[restoration requirements](design/claude-managed-policy-containment.md) pass.
+
 The routing principle is cheapest capable path first, but only when the path is
 honest. Local capacity can be `$0` at the margin. Plan capacity can be `$0`
 inside Deepr but may consume a subscription quota, monthly credit pool, or
@@ -40,10 +47,11 @@ profile creation through `deepr expert make --local` stays provider-free.
 |---|---|---|
 | Local Ollama | `expert make --local`, `expert absorb --local`, `expert sync --local`, `expert sync --local --fresh-context`, `expert sync --local --deep-context`, experimental `expert investigate`, `eval local`, `eval local-context`, and scored admission | No provider API key required; investigation pins native per-request context, requires exact `$0`, and has no fallback; automatic routing requires measured local quality evidence |
 | Provider APIs | Write-free request preview and offline billing reconciliation. OpenRouter adds seven exact cross-family, preview-only model slugs, a no-key public endpoint proof, and an explicit-source current-key control observation. The attended `expert absorb --api` transaction is complete but executes only when authenticated evidence also proves provider prepaid-no-overage or a hard provider ceiling. | Wallet funding is local Deepr authorization, not provider credit. Every call also requires verified provider controls, explicit consent, a finite job budget, durable reservation, exact settlement, and a Deepr-owned client binding. OpenRouter's current checks explicitly do not authorize dispatch. Exact returned model and provider identity, parent transaction adoption, ambiguous-outcome handling, append-only usage settlement, and final billing reconciliation remain missing. The wallet has no overdraft or automatic refill. Open postpaid accounts, MCP, schedules, loops, automatic fallback, hosted storage, standalone metered chat, and unsafe lifecycle dispatch remain blocked. |
-| Plan-quota CLIs | Explicit `expert sync --plan <id>`, `expert sync-all --plan <id>`, `expert route-gaps --execute --plan <id>`, `expert absorb --plan <id>`, `expert learn --plan <id>`, `expert learn-web --plan <id>`, `expert consult --plan <id>`, and `capacity probe-plan <id>` for safety-eligible non-metered adapters | Claude Code is currently executable only after a live provider proof that paid extra usage is disabled. Codex, OpenCode, Kiro, Grok, Antigravity, and Copilot remain visible but execution-blocked for the reasons below. API-key env vars are stripped, auth, tool, and overage posture are checked, and automatic routing also requires trusted remaining-quota evidence. |
+| Plan-quota CLIs | Inventory and metadata inspection; explicit `--plan` command shapes remain available but refuse production execution | Claude managed-policy hooks are not confined by safe mode. Codex, OpenCode, Kiro, Grok, Antigravity, and Copilot retain their existing blocks. No production adapter is eligible; auth, live-overage, and trusted-quota observations cannot override confinement. |
 | CLI judges | Local-eval CLI judge flags remain visible for compatibility; consult-quality judging still has separate explicit local Ollama or safety-eligible `--plan <id>` paths | `--judge-cli`, `--judge-command`, and legacy `--allow-cli-judge` never start a local-eval vendor process because Deepr cannot prove its billing source, paid-overage posture, or total cost. The allow flag is not spend authority. API consult-quality judging shares the blocked provider-account authority gate. |
 
-Expert consult synthesis already supports local and explicit plan capacity.
+Expert consult synthesis supports owned local capacity. Its explicit plan
+selector remains present but no production plan adapter is currently eligible.
 Experimental `expert investigate` is narrower: it accepts only local Ollama
 plans with `--budget-usd 0`, pins the exact expert and review models plus native
 context windows, and refuses plan-quota or API execution before dispatch. Its
@@ -62,11 +70,10 @@ needs the shared per-call transaction before it can honestly claim local, plan,
 tool, streaming, and paid API parity. The implementation plan is
 [expert-chat-capacity-backends.md](design/expert-chat-capacity-backends.md).
 
-Automatic plan routing is not a blanket claim. Claude Code is the only current
-auto-routable adapter, and only after a trusted quota observation. Every actual
-Claude call repeats a live paid-overage check before the vendor process starts.
-Codex, OpenCode, Kiro, Grok, Antigravity, and Copilot remain fleet-visible but
-fail before a vendor process starts.
+Automatic plan routing has no currently eligible production adapter. Claude's
+managed-policy block applies before account or model-process activity, and
+Codex, OpenCode, Kiro, Grok, Antigravity, and Copilot retain their existing
+blocks. Trusted quota and disabled paid overage cannot override confinement.
 
 OpenRouter is a metered API gateway, not plan quota. Its current shipped surface
 is limited to exact-model previews with tools disabled and two non-authorizing
@@ -110,7 +117,7 @@ limit remains ineligible even when the account has enough prepaid credit.
 
 | Adapter | Current execution posture | Why |
 |---|---|---|
-| Claude Code | Executable; eligible for observed-quota auto-routing | Stored plan auth is classifiable. Every dispatch requires provider metadata proving paid extra usage is off, then uses safe mode with empty tool and MCP surfaces, no persistence, the included `sonnet` alias, and no API credential. |
+| Claude Code | Visible/read-only; execution-blocked | Managed-policy hooks can execute independently of empty model tools and survive safe mode. Stored plan auth, trusted quota, and disabled paid overage cannot prove confinement. |
 | Antigravity | Visible/read-only | Native tool permissions and transcript side effects cannot be disabled or confined for untrusted prompts; headless use is also ToS-gray. |
 | Codex | Visible/read-only | Its current non-interactive sandbox does not disable or narrowly confine native shell and file reads for untrusted prompts. |
 | OpenCode | Visible/read-only | The selected provider, stored credential type, marginal cost, and native tool posture cannot be proven before dispatch. |
@@ -298,20 +305,10 @@ deepr expert consult "What changed in plan capacity?" --plan claude --json
 deepr expert judge-consult-quality "Platform Team Expert" consult_abc123 --plan claude --json
 ```
 
-Run Claude plan commands from a dedicated shell without a truthy
-`ANTHROPIC_API_KEY`. Prefer setting an empty value for that process so
-checkout-local `.env` loading cannot reintroduce a real key
-(`load_dotenv` does not override an already-set process variable):
-
-```powershell
-$env:ANTHROPIC_API_KEY = ""
-deepr expert consult "question" --plan claude -y
-```
-
-`Remove-Item Env:ANTHROPIC_API_KEY` alone is not enough when `.env` still
-defines the key. The stored Claude subscription login remains intact. Deepr
-intentionally refuses when the API credential is present rather than guessing
-which authentication path the vendor will charge.
+The commands above currently return pre-dispatch safety refusals. Removing an
+API key, selecting a subscription, or supplying `-y` cannot enable Claude.
+The child environment allowlist removes metered credentials, but does not
+confine managed hooks or their access to other files and network services.
 
 The API judge form is visible but gated.
 
@@ -321,12 +318,13 @@ would authenticate through a metered API key, if stored auth is unclassified,
 or if native tools cannot be disabled or narrowly confined, Deepr refuses the
 plan path. An explicit flag and a zero-dollar budget do not bypass this gate.
 
-Claude adds a per-dispatch money gate because a subscription account may have
+The dormant Claude transport retains a per-dispatch money gate because a subscription account may have
 paid extra usage enabled. Deepr reads the same OAuth usage metadata used by the
 quota refresh, durably records the observation, and requires `extra_usage` to
 explicitly report disabled. Missing credentials, an unavailable endpoint, an
 unknown field, enabled extra usage, or a ledger failure all stop before the
-model process. The call is pinned to the included `sonnet` alias and runs as:
+model process. If confinement is separately restored, the preserved transport
+requires the included `sonnet` alias and uses this defense-in-depth argv:
 
 ```text
 claude --safe-mode --tools "" --no-session-persistence --disable-slash-commands --strict-mcp-config --mcp-config '{"mcpServers":{}}' --model sonnet -p -
@@ -342,11 +340,11 @@ Claude Code 2.1.206 rejects `--max-budget-usd 0`; that flag accepts only a
 positive value. Deepr does not substitute a positive value because doing so
 would describe permission to spend. `--bare` is also unsuitable because it
 intentionally disables OAuth and keychain reads. Safe mode preserves plan auth
-while disabling customizations; explicit empty tools and strict empty MCP
-configuration close the remaining agent surface. The no-bill boundary is the
-freshly observed provider-side `extra_usage.is_enabled: false` state plus
-refusal of API credentials. If that provider proof cannot be obtained and
-durably recorded, the model process does not start.
+while disabling ordinary customizations, but managed-policy hooks remain.
+Explicit empty tools and strict empty MCP do not close that independent
+command surface. The production adapter therefore refuses before the dormant
+overage check or runner. A future restoration must prove process confinement
+as well as current paid-overage-off state and stored authentication.
 
 Metered-at-margin adapters such as Copilot are fleet-visible but not executable
 through plan-quota commands. `probe-plan`, `probe-fleet`, sync, and absorb reject

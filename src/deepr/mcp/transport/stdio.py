@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Protocol
 
+from deepr.mcp.protocol_compat import mcp_response_id, validate_mcp_envelope
 from deepr.mcp.protocol_modern import JsonRpcProtocolError
 
 logger = logging.getLogger(__name__)
@@ -113,7 +114,7 @@ class Message:
     """A JSON-RPC message."""
 
     jsonrpc: str = "2.0"
-    id: str | None = None
+    id: str | int | None = None
     method: str | None = None
     params: dict[str, Any] | None = None
     result: Any | None = None
@@ -337,25 +338,23 @@ class StdioTransport:
                     # EOF reached
                     break
 
-                line_str = line.decode("utf-8").strip()
-                if not line_str:
-                    continue
-
-                self._stats.record_received(len(line))
-
                 # Parse JSON-RPC message
                 try:
+                    line_str = line.decode("utf-8").strip()
+                    if not line_str:
+                        continue
+                    self._stats.record_received(len(line))
                     data = json.loads(line_str)
 
-                    # Validate basic JSON-RPC structure
-                    if not isinstance(data, dict):
-                        raise json.JSONDecodeError("Expected object", line_str, 0)
-
-                    message = Message.from_dict(data)
-                except json.JSONDecodeError:
+                    message = Message.from_dict(validate_mcp_envelope(data))
+                except (json.JSONDecodeError, UnicodeDecodeError):
                     # Intent: one malformed JSON-RPC line from MCP server must not abort the stdio transport loop; continue to next message for resilience.
                     self._stats.record_error()
                     await self._send_error(None, -32700, "Parse error")
+                    continue
+                except JsonRpcProtocolError as exc:
+                    self._stats.record_error()
+                    await self._send_error(mcp_response_id(data), exc.code, exc.message)
                     continue
 
                 # Handle message - dispatch in a background task so the
@@ -408,7 +407,7 @@ class StdioTransport:
 
         self._stats.record_sent(len(encoded))
 
-    async def _send_error(self, id: str | None, code: int, message: str) -> None:
+    async def _send_error(self, id: str | int | None, code: int, message: str) -> None:
         """Send an error response."""
         error_msg = Message(id=id, error={"code": code, "message": message})
         await self.send(error_msg)
@@ -491,6 +490,10 @@ class StdioServer:
 
     async def _handle_message(self, message: Message) -> Message | None:
         """Handle incoming message."""
+        try:
+            validate_mcp_envelope(message.to_dict())
+        except JsonRpcProtocolError as exc:
+            return Message(id=mcp_response_id(message.to_dict()), error=exc.to_error())
         if message.is_notification():
             if message.method == "notifications/cancelled":
                 await self._cancel_stream((message.params or {}).get("requestId"))

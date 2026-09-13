@@ -9,6 +9,7 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 from deepr.mcp import server as mcp_server
+from deepr.mcp.protocol_compat import mcp_response_id, validate_mcp_envelope
 from deepr.mcp.protocol_dispatch import dispatch_protocol_method
 from deepr.mcp.protocol_modern import METHOD_NOT_FOUND_CODE, JsonRpcProtocolError
 from deepr.mcp.request_context import current_mcp_request_identity
@@ -22,13 +23,12 @@ def _make_http_message_handler(
     server: mcp_server.DeeprMCPServer,
 ) -> Callable[[HttpMessage], Awaitable[HttpMessage | None]]:
     async def _handle(message: HttpMessage) -> HttpMessage | None:
-        if message.method is None:
+        try:
+            validate_mcp_envelope(message.to_dict())
+        except JsonRpcProtocolError as exc:
+            return HttpMessage(id=mcp_response_id(message.to_dict()), error=exc.to_error())
+        if message.method is None or message.is_notification():
             return None
-        if message.id is not None and message.params is not None and not isinstance(message.params, dict):
-            return HttpMessage(
-                id=message.id,
-                error={"code": -32600, "message": "Invalid request params"},
-            )
         params = message.params or {}
         try:
             result = await dispatch_protocol_method(server, message.method, params)

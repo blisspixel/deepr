@@ -134,7 +134,7 @@ Epistemic boundaries stay honest:
 | Capacity | Works for expert maintenance today | Notes |
 |---|---|---|
 | Local Ollama | Yes: absorb, sync, consult, improve structural | Preferred $0 |
-| Plan CLI Claude Code | Yes after paid-overage-off proof | Only executable plan adapter |
+| Plan CLI Claude Code | Visible, execution-blocked | Managed-policy hooks survive safe mode; overage proof alone is insufficient |
 | Codex / OpenCode / Kiro / Grok / Antigravity / Copilot | Visible, **execution-blocked** | Tool confinement / overage / metering not proven |
 | Metered API | Preview/reconcile only; production dispatch frozen | Until account-control verifier |
 | Distillr specialist on gap-execute | Routed as DEFERRED suggestion | Approval-gated, not auto-spend |
@@ -142,7 +142,7 @@ Epistemic boundaries stay honest:
 
 So the membership-plan dream is **directionally right** and **partially true**:
 
-- Deepr can already use **Claude plan** for some expert ops when safe.
+- Deepr retains dormant **Claude plan** plumbing, but current production dispatch is blocked until managed-policy commands can be confined.
 - Distill can already use **local** analysis for $0 API on corpus builds.
 - Full “any plan CLI anywhere free” is **not shipped** in either tool; claiming
   it would violate no-surprise-bills.

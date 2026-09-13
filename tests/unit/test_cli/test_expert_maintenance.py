@@ -45,7 +45,7 @@ def _sealed_plan_client(adapter):
 
 
 def _enable_plan_adapter_for_wiring_test(monkeypatch, backend_id: str) -> None:
-    """Bypass only registry admission so internal multi-vendor wiring is testable."""
+    """Install a synthetic eligible adapter for mocked client wiring tests."""
     monkeypatch.setitem(
         REGISTRY,
         backend_id,
@@ -880,6 +880,7 @@ class TestBackendFlagGuard:
     def test_sync_wires_bounded_second_checker_escalator(self, monkeypatch):
         from deepr.experts.grounding_escalation import GroundingEscalator
 
+        _enable_plan_adapter_for_wiring_test(monkeypatch, "claude")
         _enable_plan_adapter_for_wiring_test(monkeypatch, "antigravity")
         captured = {}
         profile = SimpleNamespace(name="UI Experience Expert")
@@ -1696,6 +1697,7 @@ class TestPlanQuotaSync:
         return profile
 
     def test_plan_sync_refuses_execution_blocked_grounding_checker(self, monkeypatch):
+        _enable_plan_adapter_for_wiring_test(monkeypatch, "claude")
         captured = {}
         client_calls = []
         self._fakes(monkeypatch, captured)
@@ -1727,7 +1729,8 @@ class TestPlanQuotaSync:
         assert "Kiro CLI execution is disabled" in result.output
         assert client_calls == []
 
-    def test_plan_claude_runs_on_prepaid_and_records_source(self, monkeypatch):
+    def test_synthetic_plan_runs_on_prepaid_and_records_source(self, monkeypatch):
+        _enable_plan_adapter_for_wiring_test(monkeypatch, "claude")
         captured = {}
         research_fn = object()
         chat_client = object()
@@ -1761,6 +1764,7 @@ class TestPlanQuotaSync:
         assert captured["loop_run_kwargs"]["capacity_source"] == "plan_quota:claude"
 
     def test_plan_sync_can_inject_cross_plan_grounding_checker(self, monkeypatch):
+        _enable_plan_adapter_for_wiring_test(monkeypatch, "claude")
         _enable_plan_adapter_for_wiring_test(monkeypatch, "antigravity")
         captured = {}
         research_fn = object()
@@ -1933,7 +1937,8 @@ class TestPlanQuotaSync:
         assert "canonical cost-ledger" in message
         assert client_calls == []
 
-    def test_absorb_plan_claude_uses_plan_chat_client(self, monkeypatch):
+    def test_absorb_synthetic_plan_uses_plan_chat_client(self, monkeypatch):
+        _enable_plan_adapter_for_wiring_test(monkeypatch, "claude")
         captured = {}
         profile = SimpleNamespace(name="Plan Expert", total_research_cost=0.0, last_knowledge_refresh=None)
         sentinel_client = object()
@@ -1979,6 +1984,7 @@ class TestPlanQuotaSync:
         assert captured["client"] is sentinel_client
 
     def test_absorb_plan_can_inject_cross_plan_grounding_checker(self, monkeypatch):
+        _enable_plan_adapter_for_wiring_test(monkeypatch, "claude")
         _enable_plan_adapter_for_wiring_test(monkeypatch, "antigravity")
         captured = {}
         clients = []
@@ -2045,6 +2051,7 @@ class TestPlanQuotaSync:
         assert captured["estimated_cost"] == 0.0
 
     def test_absorb_wires_bounded_second_checker_escalator_lazily(self, monkeypatch):
+        _enable_plan_adapter_for_wiring_test(monkeypatch, "claude")
         from deepr.experts.grounding_escalation import GroundingEscalator
 
         _enable_plan_adapter_for_wiring_test(monkeypatch, "antigravity")
@@ -2476,6 +2483,7 @@ class TestLearnWeb:
         assert "knowledge freshness was not advanced" in " ".join((result.output + result.stderr).split())
 
     def test_learn_web_plan_runs_research_then_absorbs_with_plan_client(self, monkeypatch, tmp_path):
+        _enable_plan_adapter_for_wiring_test(monkeypatch, "claude")
         captured = {}
         profile = SimpleNamespace(
             name="Release Expert",

@@ -1,5 +1,6 @@
 """Study capacity selection: prepaid plan first, local as the floor, never metered."""
 
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
@@ -17,6 +18,16 @@ from deepr.experts.chat_backends import ExpertChatResult
 @pytest.fixture
 def profile():
     return SimpleNamespace(name="Capacity Test Expert")
+
+
+@pytest.fixture
+def synthetic_eligible_claude(monkeypatch):
+    """Exercise dormant plan preference with a synthetic eligible adapter."""
+    from deepr.backends.plan_quota import adapters
+
+    adapter = replace(adapters.REGISTRY["claude"], execution_block_reason="", enabled_by_default=True)
+    monkeypatch.setitem(adapters.REGISTRY, "claude", adapter)
+    monkeypatch.setattr(adapters, "_ADAPTERS", (adapter,))
 
 
 def _stub_plan(monkeypatch, *, works: bool):
@@ -44,21 +55,21 @@ def _stub_local(monkeypatch):
 
 
 class TestPreferenceOrder:
-    def test_auto_prefers_prepaid_plan_over_local(self, monkeypatch, profile):
-        """Both are $0; plan runs a stronger model and leaves the GPU alone."""
+    def test_auto_prefers_synthetic_eligible_plan_over_local(self, monkeypatch, profile, synthetic_eligible_claude):
+        """An eligible plan candidate takes precedence over local capacity."""
         _stub_plan(monkeypatch, works=True)
         _stub_local(monkeypatch)
         backend = build_study_backend(profile=profile)
         assert backend.capacity_source.startswith("plan:")
 
-    def test_auto_falls_back_to_local_when_no_plan_is_usable(self, monkeypatch, profile):
-        """Local is the guaranteed floor, not the preferred path."""
+    def test_auto_falls_back_to_local_when_no_plan_is_usable(self, monkeypatch, profile, synthetic_eligible_claude):
+        """An unavailable eligible plan candidate falls through to local."""
         _stub_plan(monkeypatch, works=False)
         _stub_local(monkeypatch)
         backend = build_study_backend(profile=profile)
         assert backend.capacity_source == "local:stub"
 
-    def test_explicit_local_is_honoured_over_the_preference(self, monkeypatch, profile):
+    def test_explicit_local_is_honoured_over_the_preference(self, monkeypatch, profile, synthetic_eligible_claude):
         _stub_plan(monkeypatch, works=True)
         _stub_local(monkeypatch)
         backend = build_study_backend(profile=profile, local=True)
@@ -82,14 +93,13 @@ class TestAutoRoutableSet:
     def test_only_genuinely_free_and_confined_adapters_are_preferred(self):
         """Quota is not the only gate.
 
-        Codex, Grok, Antigravity, and Kiro are installed and may well have quota
-        left, but their native tool permissions cannot be confined before
-        dispatch. That is a separate refusal from cost and must not be bypassed
-        by a capacity preference.
+        Claude managed-policy hooks and other adapters' native tool permissions
+        cannot be proven confined before dispatch. Capacity preference must
+        preserve these refusals even when plan quota might remain.
         """
         preferred = _preferred_plan_backends()
-        assert "claude" in preferred
-        for blocked in ("codex", "grok", "antigravity", "kiro", "opencode", "copilot"):
+        assert preferred == []
+        for blocked in ("claude", "codex", "grok", "antigravity", "kiro", "opencode", "copilot"):
             assert blocked not in preferred
 
     def test_preference_list_degrades_to_empty_rather_than_raising(self, monkeypatch):

@@ -159,12 +159,12 @@ def _validate_plugin_manifest(payload: dict[str, Any]) -> list[PluginViolation]:
     if any(field in payload and not isinstance(payload[field], str) for field in string_fields):
         violations.append(_violation("plugin_schema", "plugin manifest text fields must be strings"))
     keywords = payload.get("keywords")
-    if keywords is not None and (
+    if "keywords" in payload and (
         not isinstance(keywords, list) or not all(isinstance(keyword, str) for keyword in keywords)
     ):
         violations.append(_violation("plugin_schema", "plugin keywords must be an array of strings"))
     extensions = payload.get("extensions")
-    if extensions is not None and (
+    if "extensions" in payload and (
         not isinstance(extensions, dict) or not all(isinstance(value, dict) for value in extensions.values())
     ):
         violations.append(_violation("plugin_schema", "plugin extensions must map namespaces to objects"))

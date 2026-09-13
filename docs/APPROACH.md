@@ -52,8 +52,9 @@ It is not:
 
 1. **Research is input; revisable expert state is the asset.** A report or chat
    transcript is evidence or a derived view, not the whole mind of the system.
-2. **Cumulative understanding beats one-shot retrieval** when the same domain
-   decisions recur over days or months.
+2. **Cumulative understanding may improve recurring decisions.** This is the
+   product hypothesis, not an established result. The v2.51 evaluation tests
+   whether maintained state helps relative to fresh and simpler context.
 3. **Capacity is a proof problem**, not a configuration preference. Presence of
    a CLI, API key, or positive budget is never spend authority.
 4. **Determinism guards form and side-effects; model judgment owns meaning.**

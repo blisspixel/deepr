@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+from unittest.mock import AsyncMock, Mock
+
+import pytest
+
 from deepr.backends.plan_quota.adapters import get_adapter
+from deepr.backends.plan_quota.client import PlanQuotaChatClient, PlanQuotaError, probe_plan_quota
 from deepr.backends.plan_quota.safety import (
     AuthMode,
     detect_auth_mode,
@@ -88,8 +94,9 @@ class TestDetectAuthMode:
 
 
 class TestSafetyGate:
-    def test_plan_backend_clean_env_is_safe(self):
-        d = evaluate_plan_quota_safety(get_adapter("claude"), env={})
+    def test_synthetic_eligible_adapter_retains_live_overage_requirement(self):
+        adapter = replace(get_adapter("claude"), execution_block_reason="")
+        d = evaluate_plan_quota_safety(adapter, env={})
         assert d.safe
         assert not d.requires_ack
         assert d.auth_mode == AuthMode.PLAN
@@ -106,7 +113,8 @@ class TestSafetyGate:
 
     def test_held_key_does_not_block_prepaid_capacity(self):
         """The policy in one test: having a key is not spending it."""
-        d = evaluate_plan_quota_safety(get_adapter("claude"), env={"ANTHROPIC_API_KEY": "sk-ant-xxx"})
+        adapter = replace(get_adapter("claude"), execution_block_reason="")
+        d = evaluate_plan_quota_safety(adapter, env={"ANTHROPIC_API_KEY": "sk-ant-xxx"})
         assert d.auth_mode == AuthMode.PLAN
         assert d.safe
 
@@ -158,4 +166,39 @@ class TestSafetyGate:
         payload = d.to_dict()
         assert payload["backend_id"] == "claude"
         assert payload["auth_mode"] == "plan"
-        assert payload["safe"] is True
+        assert payload["safe"] is False
+
+
+@pytest.mark.parametrize("env", [{}, {"HOME": "/operator", "ANTHROPIC_API_KEY": "held-test-key"}])
+async def test_claude_managed_policy_blocks_before_account_probe_and_runner(tmp_path, monkeypatch, env):
+    adapter = get_adapter("claude")
+    decision = evaluate_plan_quota_safety(adapter, env=env)
+    assert not decision.safe
+    assert not decision.requires_ack
+    assert decision.auth_mode is AuthMode.PLAN
+    assert "managed-policy hooks" in decision.reason
+
+    runner = AsyncMock(side_effect=AssertionError("blocked adapter reached runner"))
+    collector = Mock(side_effect=AssertionError("blocked adapter reached account probe"))
+    overage_guard = AsyncMock(side_effect=AssertionError("blocked adapter reached overage guard"))
+    monkeypatch.setattr("deepr.backends.plan_quota.client.require_paid_overage_disabled", overage_guard)
+    quota_path = tmp_path / "quota.jsonl"
+    cost_path = tmp_path / "cost.jsonl"
+    kwargs = {
+        "env": env,
+        "runner": runner,
+        "quota_snapshot_collector": collector,
+        "quota_ledger_path": quota_path,
+        "cost_ledger_path": cost_path,
+    }
+
+    with pytest.raises(PlanQuotaError, match="managed-policy hooks"):
+        PlanQuotaChatClient(adapter, **kwargs)
+    result = await probe_plan_quota(adapter, **kwargs)
+    assert result["ok"] is False
+    assert "managed-policy hooks" in result["error"]
+    runner.assert_not_called()
+    collector.assert_not_called()
+    overage_guard.assert_not_called()
+    assert not quota_path.exists()
+    assert not cost_path.exists()

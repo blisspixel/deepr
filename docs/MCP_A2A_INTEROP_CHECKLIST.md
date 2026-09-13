@@ -136,8 +136,8 @@ includes the same offline MCP conformance check under the MCP category.
 - Plan-quota CLIs are explicit capacity unless a trusted remaining-quota probe
   and admission evidence say otherwise. A CLI authenticated by a metered API key
   is not plan capacity.
-- Claude Code is the only current executable plan adapter. Other adapters stay
-  visible for inspection but fail before dispatch.
+- No production plan adapter is currently executable. Claude managed-policy
+  hooks survive safe mode; all adapters remain visible but fail before dispatch.
 
 ## Task Lifecycle
 

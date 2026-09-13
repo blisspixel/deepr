@@ -1,6 +1,6 @@
 # Model Selection Guide
 
-Status: current with Deepr v2.50.14. Last reviewed: 2026-09-09.
+Status: current with Deepr v2.50.15. Last reviewed: 2026-09-09.
 
 The source of truth for model IDs, pricing estimates, context windows, and
 routing metadata is [src/deepr/providers/registry.py](../src/deepr/providers/registry.py),
@@ -116,10 +116,10 @@ Pricing notes:
   reservation, and canonical settlement.
 - Use `deepr research ... --dry-run` or the web preflight estimate before any
   metered research.
-- Prefer local Ollama and admitted plan-quota capacity for routine maintenance.
-  Metered APIs are preview-only outside the narrow attended absorb transaction.
-  Budget gates remain necessary but do
-  not authorize production dispatch.
+- Use admitted local Ollama for routine maintenance. All production plan
+  adapters are execution-blocked, including Claude because managed-policy
+  hooks survive safe mode. Metered APIs and the attended absorb transaction
+  remain execution-blocked. Budget gates do not authorize production dispatch.
 - Premium image generation is never a background default. Deepr only
   auto-selects local image endpoints for portraits; OpenAI, Gemini, and xAI
   image generation require explicit provider selection or the single premium

@@ -8,6 +8,7 @@ injected so nothing touches providers or disk.
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -1005,9 +1006,13 @@ class TestCapacity:
         assert {row["capacity_source"] for row in payload["summaries"]} == {"plan_quota:codex"}
         assert recorded == [("Alpha", "plan_quota:codex"), ("Beta", "plan_quota:codex")]
 
-    def test_explicit_plan_forces_roster_capacity(self, monkeypatch):
+    def test_explicit_synthetic_plan_forces_roster_capacity(self, monkeypatch):
         import json
 
+        from deepr.backends.plan_quota.adapters import REGISTRY
+
+        # The roster plumbing remains testable while production Claude is quarantined.
+        monkeypatch.setitem(REGISTRY, "claude", replace(REGISTRY["claude"], execution_block_reason=""))
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         recorded: list = []
         _wire(monkeypatch, _sync_result(SyncOutcome("t", "synced"), cost=0.0), recorded=recorded)
@@ -1018,6 +1023,18 @@ class TestCapacity:
         payload = json.loads(r.output)
         assert {row["capacity_source"] for row in payload["summaries"]} == {"plan_quota:claude"}
         assert recorded == [("Alpha", "plan_quota:claude"), ("Beta", "plan_quota:claude")]
+
+    def test_explicit_claude_plan_refuses_before_engine_construction(self, monkeypatch):
+        built: list = []
+        recorded: list = []
+        _wire(monkeypatch, _sync_result(cost=0.0), built=built, recorded=recorded)
+
+        result = CliRunner().invoke(expert, ["sync-all", "--all", "--plan", "claude", "-y", "--json"])
+
+        assert result.exit_code == 2, result.output
+        assert "managed-policy hooks" in " ".join(result.output.split())
+        assert built == []
+        assert recorded == []
 
     def test_explicit_metered_at_margin_plan_is_rejected_for_roster(self, monkeypatch):
         _wire(monkeypatch, _sync_result(cost=0.0))

@@ -23,9 +23,45 @@ class TestRegisteredMethods:
     def test_covers_core_and_legacy_aliases(self):
         names = registered_method_names()
         assert "initialize" in names
+        assert "ping" in names
         assert "server/discover" in names
         assert "tools/call" in names
         assert "query_expert" in names  # legacy alias
+
+
+class TestLegacyPing:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("version", pm.LEGACY_PROTOCOL_VERSIONS)
+    @pytest.mark.parametrize("transport", ["stdio", "http"])
+    async def test_initialized_legacy_client_can_ping_without_application_work(self, version, transport):
+        from deepr.mcp.http_server import _make_http_message_handler
+        from deepr.mcp.protocol_compat import HttpMessage
+        from deepr.mcp.transport.stdio import Message, StdioServer
+
+        server = MagicMock()
+        if transport == "stdio":
+            stdio = StdioServer()
+
+            def bind(method):
+                async def handle(params):
+                    return await dispatch_protocol_method(server, method, params)
+
+                return handle
+
+            for method in registered_method_names():
+                stdio.register_method(method, bind(method))
+            handle = stdio._handle_message
+            message_type = Message
+        else:
+            handle = _make_http_message_handler(server)
+            message_type = HttpMessage
+
+        initialized = await handle(message_type(id="init", method="initialize", params={"protocolVersion": version}))
+        assert initialized.result["protocolVersion"] == version
+        assert await handle(message_type(method="notifications/initialized")) is None
+        response = await handle(message_type(id=7, method="ping"))
+        assert response.to_dict() == {"jsonrpc": "2.0", "id": 7, "result": {}}
+        assert server.mock_calls == []
 
 
 class TestServerDiscover:
@@ -48,7 +84,7 @@ class TestServerDiscover:
 
 class TestModernSurface:
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("method", ["initialize", "resources/subscribe", "resources/unsubscribe"])
+    @pytest.mark.parametrize("method", ["initialize", "ping", "resources/subscribe", "resources/unsubscribe"])
     async def test_legacy_only_methods_are_gone_in_modern_era(self, method):
         with pytest.raises(pm.JsonRpcProtocolError) as excinfo:
             await dispatch_protocol_method(MagicMock(), method, _modern_params())

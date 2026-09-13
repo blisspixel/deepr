@@ -163,18 +163,10 @@ deepr capacity validate-fleet --backend claude --expert "AI Agent Harnesses" --j
 deepr mcp validate-consult-fleet --plan claude --expert "AI Agent Harnesses" --json
 ```
 
-Claude is the current safety-eligible adapter for this live check. Each call
-first requires live provider metadata proving paid extra usage is disabled,
-then runs in safe mode with empty tool and MCP surfaces, no persistence, the
-included `sonnet` alias, and no API credential. **Plan mode refuses when
-`ANTHROPIC_API_KEY` is set and non-empty** (including values loaded from
-`.env`). Use a dedicated shell and clear only that process variable so dotenv
-cannot reintroduce a truthy key:
-
-```powershell
-$env:ANTHROPIC_API_KEY = ""
-deepr mcp validate-consult --live --synthesis-backend plan --plan claude --json
-```
+The plan examples now return a safety refusal. Claude managed-policy hooks
+survive safe mode, so empty model tools and disabled paid overage do not prove
+confinement. Clearing environment variables cannot enable this path. Use the
+owned-local variant for live model validation after its ownership checks pass.
 
 Codex, OpenCode, Kiro, Grok, Antigravity, and Copilot are fleet-visible but
 fail before vendor dispatch; inspect their exact reasons with
@@ -464,8 +456,8 @@ plan capacity:
 deepr capacity probe-plan claude --json
 ```
 
-Claude Code is the only current executable plan adapter. Other plan adapters
-remain visible for inspection but must fail their safety gate before dispatch.
+No production plan adapter is currently executable. Claude and the other
+detected adapters remain visible for inspection and fail before dispatch.
 
 Call:
 

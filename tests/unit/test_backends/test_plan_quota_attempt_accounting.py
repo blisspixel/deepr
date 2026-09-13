@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
-from deepr.backends.plan_quota.adapters import get_adapter
+from deepr.backends.plan_quota.adapters import PlanQuotaAdapter, get_adapter
 from deepr.backends.plan_quota.attempt_accounting import (
     DEFAULT_PLAN_ACCOUNTING_LOCK_TIMEOUT_SECONDS,
     AttemptAccountingError,
@@ -20,7 +22,13 @@ from deepr.backends.quota_ledger import (
 from deepr.observability.cost_ledger import CostLedger
 
 
-def _record(tmp_path, **overrides):
+@pytest.fixture
+def synthetic_eligible_adapter() -> PlanQuotaAdapter:
+    """Exercise dormant accounting without altering production eligibility."""
+    return replace(get_adapter("claude"), execution_block_reason="")
+
+
+def _record(tmp_path, *, adapter: PlanQuotaAdapter, **overrides):
     arguments = {
         "attempt_id": "plan-quota:claude:fixture",
         "operation": "plan_quota_research",
@@ -35,10 +43,10 @@ def _record(tmp_path, **overrides):
         "auth_mode": AuthMode.PLAN,
     }
     arguments.update(overrides)
-    return record_plan_quota_attempt(get_adapter("claude"), **arguments)
+    return record_plan_quota_attempt(adapter, **arguments)
 
 
-def test_paired_accounting_requires_fsync_and_bounded_locks(monkeypatch, tmp_path):
+def test_paired_accounting_requires_fsync_and_bounded_locks(monkeypatch, tmp_path, synthetic_eligible_adapter):
     quota_calls = []
     cost_calls = []
     real_quota_record = QuotaLedger.record_event
@@ -61,7 +69,7 @@ def test_paired_accounting_requires_fsync_and_bounded_locks(monkeypatch, tmp_pat
     monkeypatch.setattr(QuotaLedger, "record_event", quota_record)
     monkeypatch.setattr(CostLedger, "record_event", cost_record)
 
-    status = _record(tmp_path)
+    status = _record(tmp_path, adapter=synthetic_eligible_adapter)
 
     expected = DEFAULT_PLAN_ACCOUNTING_LOCK_TIMEOUT_SECONDS
     assert status.quota_recorded is True
@@ -73,6 +81,7 @@ def test_paired_accounting_requires_fsync_and_bounded_locks(monkeypatch, tmp_pat
 def test_quota_durability_failure_preserves_paired_cost_partial_status(
     monkeypatch,
     tmp_path,
+    synthetic_eligible_adapter,
 ):
     def fail_quota_durability(self, event, *, require_fsync=False):
         assert require_fsync is True
@@ -81,7 +90,7 @@ def test_quota_durability_failure_preserves_paired_cost_partial_status(
     monkeypatch.setattr(QuotaLedger, "record_event", fail_quota_durability)
 
     with pytest.raises(AttemptAccountingError) as exc_info:
-        _record(tmp_path)
+        _record(tmp_path, adapter=synthetic_eligible_adapter)
 
     assert exc_info.value.status.quota_recorded is False
     assert exc_info.value.status.cost_recorded is True
@@ -100,6 +109,7 @@ def test_quota_durability_failure_preserves_paired_cost_partial_status(
         ("grok", AuthMode.PLAN),
         ("antigravity", AuthMode.PLAN),
         ("kiro", AuthMode.PLAN),
+        ("claude", AuthMode.PLAN),
         ("claude", AuthMode.METERED),
     ],
 )
