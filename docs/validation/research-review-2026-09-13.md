@@ -28,6 +28,8 @@ records its exact published commit, final hosted CI run, and artifact hashes.
 | Final MCP envelope, dispatch, and modern HTTP regressions | 112 passed | Shared shape validation and protocol-era behavior, not host certification |
 | Independently found HTTP notification admission defect | 104 passed in the focused HTTP set; new cases first reproduced 11 failures | Authentication retained; notifications do not enter tool admission, accounting, or dispatch |
 | Production capacity CLI refusal | 50 cases passed; both changed sync-all cases passed | Broader combined run encountered the Windows initialization hang below |
+| Accounting durability and production refusal | 9 passed | Synthetic eligibility for dormant durability tests; real Claude plan auth still cannot produce zero-cost records |
+| Scoped HTTP request/notification accounting | 31 passed | Notification leaves the only rate slot available for a real request, which audits once |
 | Upstream schema comparison | Published Agent Plugins schemas and pinned MCP schema match stored digests | Read-only upstream files, not a runtime interoperability result |
 | v2.50.15 clean core wheel and installed Windows stdio | Passed both 2025-06-18 and 2026-07-28 exchanges; exactly ten read-only tools; blocked research; expert data preserved across package replacement | Isolated fixture state, no external client certification |
 | Deterministic Agent Plugin archives | Both builds SHA-256 `6ce97d33bac28eb0604acbecaf2f48df716b2eaf1d4c8a92e6734bb7742011af` | Package bytes, not semantic quality |

@@ -6,6 +6,7 @@ without making any external API calls.
 
 import sys
 from contextlib import contextmanager
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -1971,9 +1972,11 @@ class TestExpertRouteGapsCommand:
         assert result.exit_code == 0, result.output
         assert mock_record.call_args.kwargs["capacity_source"] == "api_metered"
 
-    def test_execute_plan_runs_on_prepaid_capacity(self, runner, monkeypatch):
+    def test_execute_synthetic_plan_runs_on_prepaid_capacity(self, runner, monkeypatch):
+        from deepr.backends.plan_quota.adapters import REGISTRY
         from deepr.experts.gap_router import GapRoute
 
+        monkeypatch.setitem(REGISTRY, "claude", replace(REGISTRY["claude"], execution_block_reason=""))
         expert = MagicMock()
         expert.name = "AI Strategy Expert"
         expert.get_manifest.return_value.top_gaps.return_value = [MagicMock()]
