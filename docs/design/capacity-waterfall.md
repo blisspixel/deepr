@@ -47,12 +47,11 @@ window/credit probes, remaining scheduled dispatch beyond sync-all and
 gap-fill, and auto-mode runtime integration. `expert sync-all` and scheduled
 `route-gaps --execute` now consume existing admitted, quota-observed plan
 selections for maintenance. Automatic plan routing remains gated until a trusted
-remaining-quota signal exists for the candidate backend. Claude is the only
-current safety-eligible execution adapter. Each actual Claude dispatch repeats
-a live proof that paid extra usage is disabled, pins the included `sonnet`
-alias, and runs in safe mode with empty tool and MCP surfaces, no persistence,
-and no API credential. Codex, OpenCode, Kiro, Grok,
-Antigravity, and Copilot remain visible but execution-blocked.
+remaining-quota signal exists for the candidate backend. No production plan
+adapter is currently eligible. Claude managed-policy hooks survive safe mode,
+so its complete process confinement is unproven even with paid overage disabled.
+Codex, OpenCode, Kiro, Grok, Antigravity, and Copilot retain their existing
+execution blocks. See [the containment decision](claude-managed-policy-containment.md).
 
 Scheduled local sync, sync-all, local route-gaps, and the local recall-embedding
 substep of plan-backed compiled sync consume the bounded contention gate in
@@ -129,17 +128,16 @@ There are three distinct states, and docs must keep them separate:
 
 ### Vendor surfaces (verified 2026-06-18; re-verify before building - this churns monthly)
 
-`local-ollama` is genuine `$0` owned capacity. Claude Code is the only current
-plan adapter eligible for execution, and only with the per-call live
-paid-overage proof described above. The remaining surfaces stay research
-candidates or read-only inventory. Every first-party CLI adapter below must
+`local-ollama` is `$0` provider-marginal owned capacity after ownership and
+cloud-disable proofs. All production plan adapters, including Claude, remain
+execution-blocked. Every first-party CLI adapter below must
 prove it can hard-stop before paid overage and disable ambient native tools or
 it stays read-only.
 
 | Surface | Headless invocation | Cost model | Default exhaustion | Build priority |
 |---|---|---|---|---|
 | `local-ollama` | HTTP `/v1` | owned_hardware ($0) | n/a | 1 (shipped) |
-| Claude Code | `claude --safe-mode --tools "" --no-session-persistence --disable-slash-commands --strict-mcp-config --mcp-config '{"mcpServers":{}}' --model sonnet -p -` | subscription rolling window; optional paid extra usage | live provider proof that extra usage is off before every call | shipped, gated |
+| Claude Code | Dormant: `claude --safe-mode --tools "" --no-session-persistence --disable-slash-commands --strict-mcp-config --mcp-config '{"mcpServers":{}}' --model sonnet -p -` | subscription rolling window; optional paid extra usage | paid-overage proof is required but does not confine managed-policy hooks | execution-blocked |
 | GitHub Copilot CLI | `copilot -p` | metered at the margin | blocked until complete metered accounting exists | visible/read-only |
 | Cursor CLI | `cursor-agent -p --output-format json` | credit_pool = plan price; **Auto model is free** | quota | high (Auto = free capacity) |
 | Codex CLI | `codex exec --json` or equivalent local/cloud task invocation | shared plan window; API-key mode is metered | window exhausted; extra credits/API can bill | medium |

@@ -24,7 +24,7 @@ MethodHandler = Callable[["DeeprMCPServer", dict[str, Any]], Awaitable[dict[str,
 # Removed by the 2026-07-28 stateless core: modern requests to these return
 # method-not-found. initialize is replaced by per-request _meta plus
 # server/discover; resources/subscribe|unsubscribe by subscriptions/listen.
-_LEGACY_ONLY_METHODS = frozenset({"initialize", "resources/subscribe", "resources/unsubscribe"})
+_LEGACY_ONLY_METHODS = frozenset({"initialize", "ping", "resources/subscribe", "resources/unsubscribe"})
 
 # subscriptions/listen is opened at the transport layer (it needs a
 # long-lived notification stream), so it is not part of this dispatch table.
@@ -33,6 +33,12 @@ _LEGACY_ONLY_METHODS = frozenset({"initialize", "resources/subscribe", "resource
 async def _handle_server_discover(server: DeeprMCPServer, params: dict[str, Any]) -> dict[str, Any]:
     del server, params
     return pm.discover_result()
+
+
+async def _handle_legacy_ping(server: DeeprMCPServer, params: dict[str, Any]) -> dict[str, Any]:
+    """Answer a legacy connection-health probe without touching application state."""
+    del server, params
+    return {}
 
 
 async def _modern_resources_read(server: DeeprMCPServer, params: dict[str, Any]) -> dict[str, Any]:
@@ -68,6 +74,7 @@ def method_handlers() -> dict[str, MethodHandler]:
 
     return {
         "initialize": mcp_server._handle_initialize,
+        "ping": _handle_legacy_ping,
         "server/discover": _handle_server_discover,
         "tools/list": mcp_server._handle_tools_list,
         "tools/call": mcp_server._handle_tools_call,

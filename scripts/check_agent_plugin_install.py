@@ -7,6 +7,7 @@ import asyncio
 import hashlib
 import json
 import os
+import re
 import shutil
 import tempfile
 from pathlib import Path
@@ -25,6 +26,7 @@ EXPECTED_READ_ONLY_TOOLS = {
     "deepr_tool_search",
 }
 PERSISTENCE_EXPERT_NAME = "Plugin Persistence Fixture"
+_PLUGIN_PLACEHOLDER = re.compile(r"\$\{(PLUGIN_ROOT|PLUGIN_DATA)\}")
 
 
 def _tree_digest(root: Path) -> str:
@@ -85,6 +87,32 @@ def _requests(*, modern: bool = False) -> list[dict[str, Any]]:
     return messages
 
 
+def _expand_plugin_variables(value: str, package_root: Path, data_root: Path) -> str:
+    roots = {"PLUGIN_ROOT": str(package_root), "PLUGIN_DATA": str(data_root)}
+    return _PLUGIN_PLACEHOLDER.sub(lambda match: roots[match.group(1)], value)
+
+
+def _plugin_working_directory(value: str, package_root: Path, data_root: Path) -> Path:
+    if value.startswith("./"):
+        boundary = package_root
+        candidate = package_root / _expand_plugin_variables(value, package_root, data_root)
+    elif value == "${PLUGIN_ROOT}" or value.startswith("${PLUGIN_ROOT}/"):
+        boundary = package_root
+        candidate = Path(_expand_plugin_variables(value, package_root, data_root))
+    elif value == "${PLUGIN_DATA}" or value.startswith("${PLUGIN_DATA}/"):
+        boundary = data_root
+        candidate = Path(_expand_plugin_variables(value, package_root, data_root))
+    else:
+        raise RuntimeError("manifest working directory has an unsupported root")
+    try:
+        resolved = candidate.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise RuntimeError("manifest working directory could not be resolved") from exc
+    if not resolved.is_relative_to(boundary) or not resolved.is_dir():
+        raise RuntimeError("manifest working directory must be a directory within its declared root")
+    return resolved
+
+
 def _plugin_environment(package_root: Path, data_root: Path) -> dict[str, str]:
     manifest = json.loads((package_root / "mcp.json").read_text(encoding="utf-8"))
     declared = manifest["mcpServers"]["deepr"]["env"]
@@ -125,10 +153,7 @@ def _plugin_environment(package_root: Path, data_root: Path) -> dict[str, str]:
     ):
         environment[name] = str(forbidden / name.lower())
     environment.update(
-        {
-            name: value.replace("${PLUGIN_ROOT}", str(package_root)).replace("${PLUGIN_DATA}", str(data_root))
-            for name, value in declared.items()
-        }
+        {name: _expand_plugin_variables(value, package_root, data_root) for name, value in declared.items()}
     )
     environment.update({"PLUGIN_ROOT": str(package_root), "PLUGIN_DATA": str(data_root)})
     return environment
@@ -138,6 +163,8 @@ def _plugin_launch(
     package_root: Path, data_root: Path, installed_command: Path
 ) -> tuple[list[str], Path, dict[str, str]]:
     """Resolve Deepr's declared command through a host-visible executable search."""
+    package_root = package_root.resolve(strict=True)
+    data_root = data_root.resolve(strict=True)
     server = json.loads((package_root / "mcp.json").read_text(encoding="utf-8"))["mcpServers"]["deepr"]
     installed_command = installed_command.resolve(strict=True)
     search_path = str(installed_command.parent) + os.pathsep + os.environ.get("PATH", "")
@@ -145,13 +172,14 @@ def _plugin_launch(
     if resolved is None or Path(resolved).resolve(strict=True) != installed_command:
         raise RuntimeError("manifest command did not resolve to the installed wheel's executable")
 
-    def expand(value: str) -> str:
-        return value.replace("${PLUGIN_ROOT}", str(package_root)).replace("${PLUGIN_DATA}", str(data_root))
-
     environment = _plugin_environment(package_root, data_root)
     environment["PATH"] = search_path
-    command = [resolved, *(expand(value) for value in server.get("args", []))]
-    return command, Path(expand(server.get("cwd", "${PLUGIN_ROOT}"))).resolve(strict=True), environment
+    command = [
+        resolved,
+        *(_expand_plugin_variables(value, package_root, data_root) for value in server.get("args", [])),
+    ]
+    cwd = _plugin_working_directory(server.get("cwd", "${PLUGIN_ROOT}"), package_root, data_root)
+    return command, cwd, environment
 
 
 async def _exchange(

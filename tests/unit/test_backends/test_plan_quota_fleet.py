@@ -89,7 +89,7 @@ class TestFleetStatus:
 
     def test_routability_classes(self, tmp_path):
         rows = build_fleet_status(which=_which(), env={}, quota_ledger_path=tmp_path / "q.jsonl")
-        assert _row(rows, "claude")["routable"] == "auto"
+        assert _row(rows, "claude")["routable"] == "blocked"
         assert _row(rows, "antigravity")["routable"] == "blocked"
         assert _row(rows, "codex")["routable"] == "blocked"
         assert _row(rows, "grok")["routable"] == "blocked"

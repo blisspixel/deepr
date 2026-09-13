@@ -136,6 +136,11 @@ def _paid_overage_disabled(_backend_id: str, **_kwargs) -> QuotaSnapshot:
     return _claude_quota_snapshot()
 
 
+def _synthetic_claude_adapter():
+    """Exercise dormant transport and overage guards without production admission."""
+    return replace(get_adapter("claude"), execution_block_reason="")
+
+
 def test_safe_error_summary_redacts_short_prompt_echo_and_bearer_secret():
     summary = _safe_cli_error_summary(
         "Prompt: xy7\nAuthorization: Bearer private-token-value\nfatal: login required",
@@ -640,7 +645,7 @@ class TestResearchFn:
     async def test_plan_child_env_uses_a_runtime_allowlist(self, tmp_path):
         runner = _runner(stdout="ans")
         fn = make_plan_quota_research_fn(
-            get_adapter("claude"),
+            _synthetic_claude_adapter(),
             runner=runner,
             quota_snapshot_collector=_paid_overage_disabled,
             env={
@@ -1595,7 +1600,7 @@ class TestProbe:
         cpath = tmp_path / "c.jsonl"
 
         result = await probe_plan_quota(
-            get_adapter("claude"),
+            _synthetic_claude_adapter(),
             runner=runner,
             quota_ledger_path=qpath,
             cost_ledger_path=cpath,
@@ -1614,7 +1619,7 @@ class TestProbe:
         runner = _runner(stdout="must not run")
 
         result = await probe_plan_quota(
-            get_adapter("claude"),
+            _synthetic_claude_adapter(),
             runner=runner,
             quota_ledger_path=tmp_path / "q.jsonl",
             cost_ledger_path=tmp_path / "c.jsonl",
@@ -1632,7 +1637,7 @@ class TestProbe:
         runner = _runner(stdout="ok")
 
         result = await probe_plan_quota(
-            get_adapter("claude"),
+            _synthetic_claude_adapter(),
             runner=runner,
             quota_ledger_path=tmp_path / "q.jsonl",
             cost_ledger_path=tmp_path / "c.jsonl",

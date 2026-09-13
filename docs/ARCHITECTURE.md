@@ -77,7 +77,14 @@ automatic metered fallback, and metered multi-call fan-out also fail closed.
 
 ## Design Decisions
 
-- **Local-first with SQLite, not Postgres.** Research results, expert profiles, job queues, and cost tracking all use SQLite. No database server to run, no connection strings to manage. Users `pip install` and go. Cloud deployment swaps in DynamoDB/CosmosDB/Firestore via storage abstractions, but the local experience stays zero-config.
+- **Local-first persistence with explicit owners.** The local queue uses
+  SQLite; expert profiles use JSON, belief/event and cost histories use their
+  owning structured stores and append-only journals, and retained sources and
+  reports use files. `config.py` supplies roots, `ExpertStore` owns profiles,
+  and `utils/atomic_io.py` supplies atomic writes and durable JSONL appends.
+  Do not introduce another database or persistence path from the assumption
+  that every subsystem uses SQLite. Cloud adapters remain subject to the
+  documented execution and account-control gates.
 
 - **Experts are not just RAG.** Deepr experts track claims, confidence, evidence,
   contradictions, gaps, perspective state, and durable loop outcomes. Explicit

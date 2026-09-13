@@ -123,12 +123,22 @@ def test_tampering_or_undeclared_files_fail_closed(tmp_path: Path) -> None:
     assert {"unexpected_files", "plugin_identity", "version_drift", "checksum_mismatch"} <= codes
 
 
-def test_production_validation_enforces_optional_manifest_types(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("keywords", 42),
+        ("keywords", None),
+        ("keywords", [None]),
+        ("extensions", None),
+        ("extensions", {"com.test": None}),
+    ],
+)
+def test_production_validation_enforces_optional_manifest_types(tmp_path: Path, field: str, value: object) -> None:
     copied = tmp_path / "plugin"
     shutil.copytree(PACKAGE, copied)
     manifest_path = copied / "plugin.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    manifest["keywords"] = 42
+    manifest[field] = value
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     _refresh_checksums(copied)
 

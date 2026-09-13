@@ -1,6 +1,6 @@
 # Plan-quota CLI backends
 
-Status: implemented safety boundary, updated 2026-07-18. Implements the ROADMAP
+Status: implemented safety boundary, updated 2026-09-13. Implements the ROADMAP
 Phase 6 "CLI provider adapters" rung of the capacity waterfall
 ([capacity-waterfall.md](capacity-waterfall.md)). Governs how Deepr drives a
 vendor's own coding/agent CLI as a research backend without producing a surprise
@@ -27,7 +27,7 @@ no place as "free capacity". The June-2026 survey:
 | CLI | Headless cmd | $0 at margin on a flat plan? | Auto-routable | Why |
 |---|---|---|---|---|
 | Codex (`codex exec`) | yes | yes, within 5h/weekly window | no, blocked | Native read and shell tools cannot be disabled or narrowly confined for an untrusted prompt. |
-| Claude Code (`claude -p`) | yes | yes only while paid extra usage is explicitly off | **yes** | Each dispatch proves the provider-reported overage switch is off, then uses safe mode with empty tool and MCP surfaces, no persistence, the included `sonnet` alias, and no API credential. |
+| Claude Code (`claude -p`) | yes | provider inference only while paid extra usage is off; independent hook cost is unproven | no, blocked | Managed-policy hooks survive safe mode and execute independently of the empty model-tool catalog. |
 | OpenCode (`opencode run`) | yes | only if routed to an OAuth/local provider | no, blocked | Provider identity, stored credential type, marginal cost, and native tools cannot be proven before dispatch. |
 | Kiro (`kiro-cli chat`) | yes | only with prepaid auth and overage off | no, blocked | Read tools are not narrowly confined and prepaid overage posture is unproven. |
 | Grok Build (`grok -p`) | yes | subscription quota, but gray | no, blocked | Native tool permissions cannot be disabled or confined for an untrusted prompt. |
@@ -36,13 +36,14 @@ no place as "free capacity". The June-2026 survey:
 
 "Auto-routable" means Deepr's waterfall may *automatically* select it after
 admission and a trusted remaining-quota observation. An explicit `--plan <id>`
-selects an adapter but never bypasses the safety decision. Claude is the only
-current auto-routable adapter. Every actual Claude dispatch repeats the live
-paid-overage check immediately before process construction. Every other adapter
-remains detectable for honest fleet visibility but fails before process
-construction.
+selects an adapter but never bypasses the safety decision. No production adapter
+is currently auto-routable. Claude managed-policy confinement is unproven;
+its safety refusal precedes account probing and process construction. Existing
+auth, quota, and overage gates remain necessary for any later restoration.
+See the [containment decision](claude-managed-policy-containment.md).
 
-Claude's execution argv is deliberately narrower than ordinary Claude Code:
+Claude's dormant transport retains this defense-in-depth argv, which does not
+override the production execution block:
 
 ```text
 claude --safe-mode --tools "" --no-session-persistence --disable-slash-commands --strict-mcp-config --mcp-config '{"mcpServers":{}}' --model sonnet -p -

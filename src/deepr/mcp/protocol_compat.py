@@ -5,13 +5,49 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from deepr.mcp.protocol_modern import JsonRpcProtocolError
+
+
+def mcp_response_id(data: object) -> str | int | None:
+    """Return only an id that is safe to echo in an MCP response."""
+    value = data.get("id") if isinstance(data, dict) else None
+    return value if isinstance(value, str | int) and not isinstance(value, bool) else None
+
+
+def validate_mcp_envelope(data: object) -> dict[str, Any]:
+    """Validate MCP message shape without interpreting methods or extensions."""
+    if not isinstance(data, dict) or data.get("jsonrpc") != "2.0":
+        raise JsonRpcProtocolError(-32600, "Invalid JSON-RPC message")
+    if "method" in data:
+        if not isinstance(data["method"], str) or "result" in data or "error" in data:
+            raise JsonRpcProtocolError(-32600, "Invalid request envelope")
+        if "id" in data and mcp_response_id(data) is None:
+            raise JsonRpcProtocolError(-32600, "Request id must be a string or integer")
+        if "params" in data and not isinstance(data["params"], dict):
+            raise JsonRpcProtocolError(-32600, "Invalid request params")
+    elif "result" in data and "error" not in data:
+        if mcp_response_id(data) is None or not isinstance(data["result"], dict):
+            raise JsonRpcProtocolError(-32600, "Invalid result envelope")
+    elif "error" in data and "result" not in data:
+        error = data["error"]
+        if (
+            not isinstance(error, dict)
+            or type(error.get("code")) is not int
+            or not isinstance(error.get("message"), str)
+            or (data.get("id") is not None and mcp_response_id(data) is None)
+        ):
+            raise JsonRpcProtocolError(-32600, "Invalid error envelope")
+    else:
+        raise JsonRpcProtocolError(-32600, "Invalid JSON-RPC message")
+    return data
+
 
 @dataclass
 class HttpMessage:
     """A JSON-RPC message shared by HTTP protocol and compatibility policy."""
 
     jsonrpc: str = "2.0"
-    id: str | None = None
+    id: str | int | None = None
     method: str | None = None
     params: dict[str, Any] | None = None
     result: Any | None = None
@@ -85,4 +121,4 @@ def canonical_legacy_tool_call(
     return None
 
 
-__all__ = ["LEGACY_METHOD_MAP", "HttpMessage", "canonical_legacy_tool_call"]
+__all__ = ["LEGACY_METHOD_MAP", "HttpMessage", "canonical_legacy_tool_call", "mcp_response_id", "validate_mcp_envelope"]

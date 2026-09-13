@@ -26,8 +26,8 @@ from typing import Any
 from aiohttp import web
 
 from deepr.mcp.protocol_compat import HttpMessage as HttpMessage
-from deepr.mcp.protocol_compat import canonical_legacy_tool_call
-from deepr.mcp.protocol_modern import JsonRpcProtocolError
+from deepr.mcp.protocol_compat import canonical_legacy_tool_call, mcp_response_id, validate_mcp_envelope
+from deepr.mcp.protocol_modern import LEGACY_PROTOCOL_VERSIONS, META_PROTOCOL_VERSION, JsonRpcProtocolError
 from deepr.mcp.request_context import (
     MCPRequestIdentity,
     bind_mcp_request_identity,
@@ -289,9 +289,13 @@ class StreamingHttpTransport:
             status=403,
         )
 
-    def _protocol_error_response(self, message_id: Any, exc: JsonRpcProtocolError) -> web.Response:
+    def _protocol_error_response(
+        self, message_id: Any, exc: JsonRpcProtocolError, *, modern: bool = False
+    ) -> web.Response:
         """Map a JsonRpcProtocolError onto its spec-mandated HTTP status."""
-        payload = {"jsonrpc": "2.0", "error": exc.to_error(), "id": message_id}
+        payload = {"jsonrpc": "2.0", "error": exc.to_error()}
+        if message_id is not None or not modern:
+            payload["id"] = message_id
         response_data = json.dumps(payload)
         self._stats.bytes_sent += len(response_data)
         self._stats.responses_sent += 1
@@ -643,6 +647,8 @@ class StreamingHttpTransport:
             self._stats.errors += 1
             return self._concurrency_limited_response()
         message_id: Any = None
+        header_version = request.headers.get("MCP-Protocol-Version")
+        modern = header_version is not None and header_version not in LEGACY_PROTOCOL_VERSIONS
         slot_transferred = False
         try:
             body = await request.read()
@@ -650,8 +656,11 @@ class StreamingHttpTransport:
             self._stats.requests_received += 1
 
             data = json.loads(body.decode("utf-8"))
-            message = HttpMessage.from_dict(data)
-            message_id = message.id
+            raw_params = data.get("params") if isinstance(data, dict) else None
+            raw_meta = raw_params.get("_meta") if isinstance(raw_params, dict) else None
+            modern = modern or (isinstance(raw_meta, dict) and META_PROTOCOL_VERSION in raw_meta)
+            message_id = mcp_response_id(data)
+            message = HttpMessage.from_dict(validate_mcp_envelope(data))
 
             # 2026-07-28 transport validation: Origin was checked above;
             # metadata headers must match the body on modern requests. The
@@ -672,13 +681,10 @@ class StreamingHttpTransport:
 
         except JsonRpcProtocolError as exc:
             self._stats.errors += 1
-            return self._protocol_error_response(message_id, exc)
-        except json.JSONDecodeError:
+            return self._protocol_error_response(message_id, exc, modern=modern)
+        except (json.JSONDecodeError, UnicodeDecodeError):
             self._stats.errors += 1
-            return web.json_response(
-                {"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"}, "id": None},
-                status=400,
-            )
+            return self._protocol_error_response(None, JsonRpcProtocolError(-32700, "Parse error"), modern=modern)
         except web.HTTPException:
             # aiohttp's own statuses (e.g. 413 for a body over client_max_size)
             # must not be flattened into a 500.
@@ -706,6 +712,10 @@ class StreamingHttpTransport:
         message: HttpMessage,
     ) -> web.StreamResponse:
         """Dispatch one ordinary (non-streaming) JSON-RPC message."""
+        if not message.is_request():
+            # Authentication and wire validation already passed. Notifications
+            # and responses must not enter tool admission or request accounting.
+            return web.Response(status=202)
         self._canonicalize_legacy_method(message)
 
         admission = None

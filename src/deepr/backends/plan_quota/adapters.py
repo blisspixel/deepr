@@ -286,12 +286,11 @@ def _codex_argv(prompt: str, model: str | None) -> list[str]:
 
 
 def _claude_argv(prompt: str, model: str | None) -> list[str]:
-    # Current Claude Code exposes explicit safe and zero-tool modes. Safe mode
-    # suppresses project/user hooks, skills, plugins, MCP discovery, memory, and
-    # CLAUDE.md loading while preserving stored subscription authentication.
-    # Strict empty MCP configuration, session persistence, and slash-command
-    # controls keep an untrusted synthesis prompt away from ambient side effects.
-    # Older CLIs that do not recognize these flags fail closed before inference.
+    # Retain defense-in-depth flags for the blocked transport. Safe mode
+    # suppresses ordinary project/user customizations, but managed-policy hooks
+    # and commands still apply independently of the empty model-tool catalog.
+    # The production adapter is blocked until those side effects are confined;
+    # this argv and a scratch working directory do not prove containment.
     #
     # The prompt is fed over stdin (prompt == "-"): a multi-line prompt passed
     # as a command-line arg to claude.cmd is mangled by cmd.exe on Windows, so
@@ -416,10 +415,13 @@ _ADAPTERS: tuple[PlanQuotaAdapter, ...] = (
         argv_builder=_claude_argv,
         metered_env_vars=("ANTHROPIC_API_KEY",),
         exhaustion_signals=("usage limit", "rate limit", "plan limit", "429"),
-        enabled_by_default=True,
+        enabled_by_default=False,
         stdin_prompt=True,
         requires_live_overage_check=True,
-        value_note=("Pro/Max plan window; each dispatch requires a live proof that paid extra usage is disabled"),
+        execution_block_reason=(
+            "Claude managed-policy hooks and commands survive safe mode and cannot be proven confined before dispatch"
+        ),
+        value_note="visible/read-only; managed-policy side effects are not proven confined before dispatch",
     ),
     PlanQuotaAdapter(
         backend_id="opencode",

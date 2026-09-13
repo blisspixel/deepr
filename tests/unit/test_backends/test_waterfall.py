@@ -8,10 +8,14 @@ currently available.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
+
+import pytest
 
 from deepr.backends.admission import record_admission
 from deepr.backends.capacity import CostModel
+from deepr.backends.plan_quota.adapters import REGISTRY
 from deepr.backends.quota_ledger import (
     QuotaConfidence,
     QuotaEventType,
@@ -28,6 +32,16 @@ from deepr.backends.waterfall import (
 )
 
 T0 = datetime(2026, 6, 13, tzinfo=UTC)
+
+
+@pytest.fixture
+def synthetic_eligible_claude(monkeypatch):
+    """Keep dormant selection tests independent of production runtime admission."""
+    from deepr.backends.plan_quota import adapters
+
+    synthetic = replace(REGISTRY["claude"], enabled_by_default=True, execution_block_reason="")
+    monkeypatch.setitem(REGISTRY, "claude", synthetic)
+    monkeypatch.setattr(adapters, "_ADAPTERS", (synthetic,))
 
 
 def _fake_which(*present):
@@ -152,7 +166,7 @@ class TestChoose:
 
 
 class TestExplicitPlanQuota:
-    def test_clean_env_resolves_to_plan(self):
+    def test_synthetic_eligible_adapter_resolves_to_plan(self, synthetic_eligible_claude):
         choice = choose_plan_quota_backend("claude", env={})
         assert choice.backend == BACKEND_PLAN_QUOTA
         assert choice.is_plan_quota
@@ -168,7 +182,7 @@ class TestExplicitPlanQuota:
         assert choice.plan_backend_id is None
         assert "ANTHROPIC_API_KEY" in choice.reason
 
-    def test_held_api_key_does_not_block_free_plan_capacity(self):
+    def test_held_api_key_does_not_block_free_plan_capacity(self, synthetic_eligible_claude):
         """Policy: prefer free capacity; a held credential is not spend.
 
         Blocking prepaid capacity because a key exists elsewhere saves no money
@@ -178,7 +192,7 @@ class TestExplicitPlanQuota:
         assert choice.plan_backend_id == "claude"
 
     def test_unproven_native_tool_backends_are_refused(self):
-        for backend_id in ("codex", "kiro", "grok", "antigravity"):
+        for backend_id in ("codex", "claude", "kiro", "grok", "antigravity"):
             choice = choose_plan_quota_backend(backend_id, env={})
             assert choice.backend == BACKEND_UNAVAILABLE, backend_id
             assert choice.plan_backend_id is None, backend_id
@@ -201,6 +215,31 @@ class TestExplicitPlanQuota:
         assert "durable reservation" in choice.reason
 
 
+def test_claude_managed_policy_blocks_explicit_and_quota_observed_auto_selection(tmp_path):
+    """Installation, quota, admission, and legacy acknowledgement cannot grant confinement."""
+    for acknowledgement in (False, True):
+        explicit = choose_plan_quota_backend("claude", env={}, allow_metered_at_margin=acknowledgement)
+        assert explicit.backend == BACKEND_UNAVAILABLE
+        assert "managed-policy hooks" in explicit.reason
+
+    admission_path = tmp_path / "admissions.jsonl"
+    quota_path = tmp_path / "quota.jsonl"
+    _admit_plan(admission_path)
+    _record_quota_available(quota_path)
+    automatic = choose_maintenance_backend(
+        "sync",
+        now=T0,
+        available_models_fn=lambda: [],
+        admissions_path=admission_path,
+        which=_fake_which("claude"),
+        plan_env={},
+        quota_ledger_path=quota_path,
+    )
+    assert automatic.backend == BACKEND_UNAVAILABLE
+    assert automatic.plan_backend_id is None
+
+
+@pytest.mark.usefixtures("synthetic_eligible_claude")
 class TestPlanQuotaAutoRung:
     """Auto-routing to a plan CLI needs both operator intent and quota evidence."""
 

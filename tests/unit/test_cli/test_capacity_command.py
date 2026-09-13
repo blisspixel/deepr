@@ -7,11 +7,14 @@ run with no CLI installed and no spend.
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import UTC, datetime
 
+import pytest
 from click.testing import CliRunner
 
 from deepr.backends.capacity import BackendKind, CapacitySource, CostModel
+from deepr.backends.plan_quota.adapters import REGISTRY
 from deepr.backends.quota_ledger import (
     QuotaConfidence,
     QuotaEventType,
@@ -22,6 +25,20 @@ from deepr.backends.quota_ledger import (
 )
 from deepr.backends.quota_snapshot import QuotaSnapshot, QuotaWindowSnapshot
 from deepr.cli.commands.capacity import capacity
+
+
+@pytest.fixture
+def synthetic_eligible_claude(monkeypatch):
+    """Exercise dormant CLI plumbing without weakening production admission."""
+    from deepr.backends.plan_quota import adapters
+
+    synthetic = replace(REGISTRY["claude"], enabled_by_default=True, execution_block_reason="")
+    monkeypatch.setitem(REGISTRY, "claude", synthetic)
+    monkeypatch.setattr(
+        adapters,
+        "_ADAPTERS",
+        tuple(synthetic if adapter.backend_id == "claude" else adapter for adapter in adapters.all_adapters()),
+    )
 
 
 def _source(
@@ -100,7 +117,7 @@ class TestAdmitPlan:
         assert "admit-plan" in capacity.commands
         assert "revoke-plan" in capacity.commands
 
-    def test_admit_then_revoke_round_trip(self, monkeypatch, tmp_path):
+    def test_admit_then_revoke_round_trip(self, monkeypatch, tmp_path, synthetic_eligible_claude):
         monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
         for var in _CLEAN:
             monkeypatch.delenv(var, raising=False)
@@ -114,7 +131,7 @@ class TestAdmitPlan:
         assert r2.exit_code == 0
         assert not is_admitted("plan:claude", "sync")
 
-    def test_gap_fill_task_class_is_admittable(self, monkeypatch, tmp_path):
+    def test_gap_fill_task_class_is_admittable(self, monkeypatch, tmp_path, synthetic_eligible_claude):
         monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
         for var in _CLEAN:
             monkeypatch.delenv(var, raising=False)
@@ -136,16 +153,21 @@ class TestAdmitPlan:
         assert "ANTHROPIC_API_KEY" in r.output
         assert "explicitly budgeted API path" in r.output
 
-    def test_admit_allows_held_but_unreachable_api_key(self, monkeypatch, tmp_path):
-        """Holding a key for other tools must not deny the $0 path."""
+    def test_admit_refuses_managed_policy_when_api_key_is_unreachable(self, monkeypatch, tmp_path):
+        """Removing API-key reachability does not prove managed-policy confinement."""
+        from deepr.backends.admission import is_admitted
+
         monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-held-for-other-tools")
         r = CliRunner().invoke(capacity, ["admit-plan", "claude"])
-        assert r.exit_code == 0, r.output
+        assert r.exit_code == 2, r.output
+        assert "managed-policy hooks" in r.output
+        assert "ANTHROPIC_API_KEY is set" not in r.output
+        assert not is_admitted("plan:claude", "sync")
 
     def test_admit_choice_restricted_to_auto_routable(self):
         """Only a backend with complete execution proof can auto-route."""
-        for backend in ("codex", "opencode", "kiro", "grok", "antigravity", "copilot"):
+        for backend in ("codex", "claude", "opencode", "kiro", "grok", "antigravity", "copilot"):
             r = CliRunner().invoke(capacity, ["admit-plan", backend])
             assert r.exit_code != 0, backend
 
@@ -237,13 +259,21 @@ class TestProbePlan:
         assert "ANTHROPIC_API_KEY" in r.output
         assert "explicitly budgeted API path" in r.output
 
-    def test_held_api_key_does_not_block_probe(self, monkeypatch):
+    def test_managed_policy_refuses_probe_when_api_key_is_unreachable(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-held-for-other-tools")
-        _stub_probe(monkeypatch, ok=True, reply="OK", latency_ms=7)
-        r = CliRunner().invoke(capacity, ["probe-plan", "claude"])
-        assert r.exit_code == 0, r.output
 
-    def test_ok_round_trip(self, monkeypatch):
+        async def must_not_probe(*args, **kwargs):
+            pytest.fail("Claude managed-policy refusal must happen before the probe")
+
+        monkeypatch.setattr("deepr.backends.plan_quota.probe_plan_quota", must_not_probe)
+        r = CliRunner().invoke(capacity, ["probe-plan", "claude", "--json", "-y"])
+        assert r.exit_code == 2, r.output
+        payload = json.loads(r.output)
+        assert payload["auth_mode"] == "plan"
+        assert payload["ok"] is False
+        assert "managed-policy hooks" in payload["error"]
+
+    def test_ok_round_trip(self, monkeypatch, synthetic_eligible_claude):
         _clean_env(monkeypatch)
         _stub_probe(monkeypatch, ok=True, reply="OK", latency_ms=7)
         r = CliRunner().invoke(capacity, ["probe-plan", "claude"])
@@ -251,14 +281,14 @@ class TestProbePlan:
         assert "OK" in r.output
         assert "plan" in r.output
 
-    def test_failed_round_trip_exits_nonzero(self, monkeypatch):
+    def test_failed_round_trip_exits_nonzero(self, monkeypatch, synthetic_eligible_claude):
         _clean_env(monkeypatch)
         _stub_probe(monkeypatch, ok=False, error="not installed")
         r = CliRunner().invoke(capacity, ["probe-plan", "claude"])
         assert r.exit_code == 1
         assert "FAILED" in r.output
 
-    def test_json_payload(self, monkeypatch):
+    def test_json_payload(self, monkeypatch, synthetic_eligible_claude):
         _clean_env(monkeypatch)
         _stub_probe(monkeypatch, ok=True, reply="OK", latency_ms=7)
         r = CliRunner().invoke(capacity, ["probe-plan", "claude", "--json"])
@@ -268,7 +298,7 @@ class TestProbePlan:
         assert payload["auth_mode"] == "plan"
         assert payload["ok"] is True
 
-    def test_successful_probe_records_usage_observation(self, monkeypatch, tmp_path):
+    def test_successful_probe_records_usage_observation(self, monkeypatch, tmp_path, synthetic_eligible_claude):
         monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
         _clean_env(monkeypatch)
         _stub_probe(monkeypatch, ok=True, reply="OK", latency_ms=7)
@@ -284,7 +314,7 @@ class TestProbePlan:
         assert events[0].overage_enabled is None
         assert events[0].detail == "probe-plan successful plan call"
 
-    def test_exhausted_probe_records_exhaustion_observation(self, monkeypatch, tmp_path):
+    def test_exhausted_probe_records_exhaustion_observation(self, monkeypatch, tmp_path, synthetic_eligible_claude):
         monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
         _clean_env(monkeypatch)
         _stub_probe(monkeypatch, ok=False, error="quota exhausted")
@@ -298,7 +328,7 @@ class TestProbePlan:
         assert events[0].event_type == QuotaEventType.EXHAUSTED
         assert events[0].detail == "probe-plan exhaustion signature"
 
-    def test_json_failed_overage_proof_is_a_failed_process(self, monkeypatch):
+    def test_json_failed_overage_proof_is_a_failed_process(self, monkeypatch, synthetic_eligible_claude):
         _clean_env(monkeypatch)
         _stub_probe(
             monkeypatch,
@@ -315,7 +345,7 @@ class TestProbePlan:
         assert payload["outcome"] == "overage_guard_refused"
         assert payload["vendor_dispatched"] is False
 
-    def test_probe_owned_quota_accounting_is_not_duplicated(self, monkeypatch, tmp_path):
+    def test_probe_owned_quota_accounting_is_not_duplicated(self, monkeypatch, tmp_path, synthetic_eligible_claude):
         monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
         _clean_env(monkeypatch)
 
@@ -435,7 +465,7 @@ class TestProbeFleet:
     def test_registered(self):
         assert "probe-fleet" in capacity.commands
 
-    def test_explicit_fanout_refuses_blocked_adapter(self, monkeypatch, tmp_path):
+    def test_explicit_fanout_refuses_blocked_adapter(self, monkeypatch, tmp_path, synthetic_eligible_claude):
         monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
         _clean_env(monkeypatch)
         _stub_path(monkeypatch, "claude", "opencode")
@@ -458,7 +488,7 @@ class TestProbeFleet:
         assert [event.backend_id for event in events] == ["claude"]
         assert all(event.event_type == QuotaEventType.USAGE_OBSERVED for event in events)
 
-    def test_default_probes_only_installed_auto_routable_backends(self, monkeypatch):
+    def test_default_probes_only_installed_auto_routable_backends(self, monkeypatch, synthetic_eligible_claude):
         _clean_env(monkeypatch)
         _stub_path(monkeypatch, "claude", "grok", "agy")
         _stub_probe(monkeypatch, ok=True, reply="OK")
@@ -470,9 +500,24 @@ class TestProbeFleet:
         assert payload["selected_count"] == 1
         assert payload["results"][0]["backend"] == "claude"
 
+    def test_production_default_fleet_has_no_execution_eligible_adapters(self, monkeypatch):
+        _clean_env(monkeypatch)
+        _stub_path(monkeypatch, "claude", "grok", "agy")
+
+        async def must_not_probe(*args, **kwargs):
+            pytest.fail("an installed production adapter must not gain probe authority")
+
+        monkeypatch.setattr("deepr.backends.plan_quota.probe_plan_quota", must_not_probe)
+        r = CliRunner().invoke(capacity, ["probe-fleet", "--json"])
+        assert r.exit_code == 1, r.output
+        payload = json.loads(r.output)
+        assert payload["selected_count"] == 0
+        assert payload["results"] == []
+
     def test_explicit_unproven_native_tool_backends_are_refused(self, monkeypatch):
         for backend, executable in (
             ("codex", "codex"),
+            ("claude", "claude"),
             ("kiro", "kiro-cli"),
             ("grok", "grok"),
             ("antigravity", "agy"),
@@ -525,7 +570,7 @@ class TestProbeFleet:
         assert payload["results"][0]["latency_ms"] == 0
         assert "cost estimation" in payload["results"][0]["error"]
 
-    def test_failure_exits_nonzero_after_payload(self, monkeypatch):
+    def test_failure_exits_nonzero_after_payload(self, monkeypatch, synthetic_eligible_claude):
         _clean_env(monkeypatch)
         _stub_path(monkeypatch, "claude")
         _stub_probe(monkeypatch, ok=False, error="quota exhausted")
@@ -560,7 +605,7 @@ class TestValidateFleet:
     def test_registered(self):
         assert "validate-fleet" in capacity.commands
 
-    def test_validate_fleet_runs_transport_then_consult(self, monkeypatch, tmp_path):
+    def test_validate_fleet_runs_transport_then_consult(self, monkeypatch, tmp_path, synthetic_eligible_claude):
         from deepr.mcp.consult_validation import MCPConsultValidationCheck, MCPConsultValidationReport
 
         monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
@@ -612,7 +657,7 @@ class TestValidateFleet:
         events = load_quota_events(tmp_path / "quota_ledger.jsonl")
         assert [event.backend_id for event in events] == ["claude"]
 
-    def test_validate_fleet_skips_consult_after_transport_failure(self, monkeypatch):
+    def test_validate_fleet_skips_consult_after_transport_failure(self, monkeypatch, synthetic_eligible_claude):
         _clean_env(monkeypatch)
         _stub_path(monkeypatch, "claude")
         _stub_probe(monkeypatch, ok=False, error="quota exhausted")
@@ -636,27 +681,34 @@ class TestValidateFleet:
         assert "transport failed: quota exhausted" in payload["stages"]["consult"]["results"][0]["error"]["message"]
         assert calls == []
 
-    def test_validate_fleet_refuses_opencode_before_both_stages(self, monkeypatch, tmp_path):
+    @pytest.mark.parametrize(
+        "backend,auth_mode,reason",
+        [("opencode", "unknown", "cannot be proven prepaid or local"), ("claude", "plan", "managed-policy hooks")],
+    )
+    def test_validate_fleet_refuses_unproven_adapter_before_both_stages(
+        self, monkeypatch, tmp_path, backend, auth_mode, reason
+    ):
         _clean_env(monkeypatch)
         monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
-        _stub_path(monkeypatch, "opencode")
+        _stub_path(monkeypatch, backend)
 
         async def must_not_probe(*args, **kwargs):
-            raise AssertionError("OpenCode validation transport must not dispatch")
+            pytest.fail("unproven validation transport must not dispatch")
 
         async def must_not_consult(**kwargs):
-            raise AssertionError("OpenCode validation consult must not dispatch")
+            pytest.fail("unproven validation consult must not dispatch")
 
         monkeypatch.setattr("deepr.backends.plan_quota.probe_plan_quota", must_not_probe)
         monkeypatch.setattr("deepr.mcp.consult_validation.run_in_process_consult_validation", must_not_consult)
 
-        result = CliRunner().invoke(capacity, ["validate-fleet", "--backend", "opencode", "--json"])
+        result = CliRunner().invoke(capacity, ["validate-fleet", "--backend", backend, "--json"])
 
         assert result.exit_code == 1
         payload = json.loads(result.output)
-        assert payload["stages"]["transport"]["results"][0]["auth_mode"] == "unknown"
-        assert payload["summary"]["failed_transport_backends"] == ["opencode"]
-        assert payload["summary"]["skipped_consult_plans"] == ["opencode"]
+        assert payload["stages"]["transport"]["results"][0]["auth_mode"] == auth_mode
+        assert reason in payload["stages"]["transport"]["results"][0]["error"]
+        assert payload["summary"]["failed_transport_backends"] == [backend]
+        assert payload["summary"]["skipped_consult_plans"] == [backend]
         assert not (tmp_path / "cost_ledger.jsonl").exists()
 
 

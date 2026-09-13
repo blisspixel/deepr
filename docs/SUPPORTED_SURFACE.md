@@ -1,19 +1,32 @@
 # Supported Surface
 
-Status: v2.50.14 current main, 2026-09-09. This document defines what users and host
+Status: v2.50.15 current main, 2026-09-13. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
 path is structurally complete but remains execution-blocked without verified
 provider prepaid-no-overage or hard-stop evidence.
 
-**v2.50.14 keeps metered dispatch frozen and spend gates fail-closed.** MCP
+**v2.50.15 keeps metered dispatch frozen and spend gates fail-closed.** MCP
 research and expert validation never construct a paid client. OpenRouter
 stays preview-only. Unknown models no longer inherit o4-mini prices.
 Host-header CORS, empty bind hosts, and IPv4-mapped SSRF fail closed.
-Source-world preflight and historical briefing cutoffs remain write-free.
+Source-world preflight remains write-free; briefing supports historical cutoffs.
 The next product gate is v2.51 value evidence, not paid dispatch or a
 generic agent runtime. See [what's next and why](../ROADMAP.md#active-release-plan).
+
+**v2.50.15: Claude plan execution is blocked.** Managed-policy
+hooks can survive safe mode and execute independently of the model tool list.
+No production plan adapter currently passes the complete confinement gate.
+Local Ollama remains usable after its existing ownership and cloud-disable
+proofs. [Decision and restoration requirements](design/claude-managed-policy-containment.md).
+
+**Unreleased compatibility corrections:** legacy MCP ping is supported;
+modern-era removal remains enforced. Malformed JSON-RPC envelopes fail at the
+shared boundary. Agent Plugins 1.0.0 package validation rejects null optional
+metadata, and installation checks use single-pass placeholders and contained
+plugin-relative cwd. These fixes preserve the existing read-only package and
+add no tools, provider dispatch, or host-control authority.
 
 **v2.50.13 aligns the dashboard with the local workflow.** Expert creation
 uses local defaults, profiles preserve study metadata, and keyboard and mobile
@@ -631,11 +644,11 @@ must not be described as usable capacity.
   `deepr expert learn --plan <id>`, the explicit
   `deepr expert learn-web --plan <id>` alias, and
   `deepr capacity probe-plan <id>` run through deterministic auth-mode and
-  no-surprise-bills guards. Claude Code is currently executable and can become
-  auto-routable only after a trusted quota observation. Every dispatch also
-  requires a fresh provider response proving paid extra usage is disabled, uses
-  safe mode with empty tool and MCP surfaces and no persistence, pins the
-  included `sonnet` alias, and uses no API credential. Codex, OpenCode, Kiro,
+  no-surprise-bills guards. All production adapters are now execution-blocked.
+  Claude safe mode preserves managed-policy hooks; empty model tools, a trusted
+  quota observation, and disabled paid overage do not prove process confinement.
+  The dormant transport retains its Sonnet, empty-tools/MCP, no-persistence,
+  sanitized-environment, and live-overage requirements. Codex, OpenCode, Kiro,
   Grok Build, and Antigravity
   are visible/read-only because
   Deepr cannot yet prove their native-tool confinement, stored provider
@@ -788,10 +801,10 @@ must not be described as usable capacity.
 - Automatic routing to plan-quota CLIs remains gated until Deepr has trusted
   live remaining-quota signals for the candidate backend. `expert sync-all` and
   scheduled `route-gaps --execute` consume admitted, quota-observed plan
-  selections from that gate. Claude is the only current safety-eligible
-  auto-routable candidate and every Claude dispatch also requires a fresh
-  provider observation proving paid extra usage is disabled. Codex, OpenCode,
-  Kiro, Grok, Antigravity, and Copilot are execution-blocked. Explicit `--plan`
+  selections from that gate when an adapter is eligible. There is currently no
+  eligible production plan adapter: Claude managed-policy confinement is
+  unproven, and Codex, OpenCode, Kiro, Grok, Antigravity, and Copilot retain
+  their existing execution blocks. Explicit `--plan`
   selects an adapter but never bypasses auth, tool, side-effect, live-overage,
   marginal-cost, or process-safety gates.
 - Multi-account capacity pools are planned after a single-account mechanism is

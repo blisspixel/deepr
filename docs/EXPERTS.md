@@ -104,9 +104,10 @@ deepr expert memory-card "Azure Architect" --write
 deepr expert next "Azure Architect"
 ```
 
-Claude Code is the current safety-eligible plan adapter. `deepr capacity`
-lists other detected CLIs with their pre-dispatch refusal or explicit-only
-status. A zero-dollar budget does not override those decisions.
+All production plan adapters are currently execution-blocked. Claude safe
+mode does not confine managed-policy hooks. `deepr capacity` lists each
+adapter's refusal; a zero-dollar budget does not override it. Use `--local`
+for the supported expert workflow after owned-local capacity checks pass.
 
 ## What Should This Expert Do Next?
 
@@ -1148,10 +1149,10 @@ deepr expert consult "How do we keep expert knowledge current and cheap?" --plan
 deepr expert consult "Cost vs quality tradeoff?" --local --max-experts 8 --max-elapsed-seconds 600
 ```
 
-`--plan claude` and `--local` run synthesis on explicit plan or local capacity
-and disable live metered fallback, so a consult never silently bills an API key.
-Claude Code is the current executable plan adapter. Other plan adapters remain
-visible but blocked until their safety gates pass. Over MCP this is
+`--local` runs synthesis on owned local capacity and disables live metered
+fallback. `--plan claude` is currently blocked because managed-policy hooks
+remain unconfined; all other production plan adapters are also blocked.
+The preserved MCP selector is
 `synthesis_backend: "plan" | "local"`. When Deepr asks its own experts, this is
 a one-shot self-consult, not a recursive loop.
 

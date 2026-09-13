@@ -93,3 +93,63 @@ def test_launch_refuses_a_different_runtime_on_the_search_path(checker, installa
 
     with pytest.raises(RuntimeError, match="manifest command did not resolve"):
         checker._plugin_launch(package, data, executable)
+
+
+def test_launch_expands_placeholders_once_and_preserves_unknown_text(checker, installation):
+    package, data, executable = installation
+    package = package.rename(package.with_name("plugin ${PLUGIN_DATA}"))
+    data = data.rename(data.with_name("data ${PLUGIN_ROOT}"))
+    manifest_path = package / "mcp.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    server = manifest["mcpServers"]["deepr"]
+    opaque = "${PLUGIN_ROOT}|${PLUGIN_DATA}|${HOME}|${PLUGIN_ROOT}"
+    server["args"] = [opaque]
+    server["env"]["OPAQUE_VALUE"] = opaque
+    server["cwd"] = "${PLUGIN_ROOT}"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    command, cwd, environment = checker._plugin_launch(package, data, executable)
+
+    expected = f"{package}|{data}|${{HOME}}|{package}"
+    assert command[1:] == [expected]
+    assert environment["OPAQUE_VALUE"] == expected
+    assert environment["PLUGIN_ROOT"] == str(package)
+    assert environment["PLUGIN_DATA"] == str(data)
+    assert cwd == package
+
+
+@pytest.mark.parametrize(
+    "declared", [None, "./working directory", "${PLUGIN_ROOT}/working directory", "${PLUGIN_DATA}/working directory"]
+)
+def test_launch_resolves_cwd_against_its_declared_root(checker, installation, declared):
+    package, data, executable = installation
+    base = data if declared and declared.startswith("${PLUGIN_DATA}") else package
+    expected = base if declared is None else base / "working directory"
+    expected.mkdir(exist_ok=True)
+    manifest_path = package / "mcp.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    server = manifest["mcpServers"]["deepr"]
+    if declared is None:
+        server.pop("cwd")
+    else:
+        server["cwd"] = declared
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    _, cwd, _ = checker._plugin_launch(package, data, executable)
+
+    assert cwd == expected
+
+
+@pytest.mark.parametrize(
+    "declared",
+    ["../", "working directory", "${HOME}", "./..", "${PLUGIN_ROOT}/..", "${PLUGIN_DATA}/..", "./plugin.json"],
+)
+def test_launch_refuses_invalid_or_escaping_cwd(checker, installation, declared):
+    package, data, executable = installation
+    manifest_path = package / "mcp.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["mcpServers"]["deepr"]["cwd"] = declared
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="working directory"):
+        checker._plugin_launch(package, data, executable)

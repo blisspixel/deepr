@@ -390,25 +390,16 @@ Remove-Item Env:ANTHROPIC_API_KEY -ErrorAction SilentlyContinue
 deepr expert consult "Which cross-domain assumption should we test next?" --expert "Temporal Knowledge Graphs" --expert "Digital Consciousness" --expert "Model Context Protocol" --plan claude --budget 0 --output .\three-expert-council-plan.json -y
 ```
 
-Claude Code is the current safety-eligible plan adapter. Before every call,
-Deepr reads provider usage metadata and requires an explicit `extra usage off`
-signal. It then uses safe mode, empty tool and MCP surfaces, no persistence, the
-included `sonnet` alias, and no API credential. If any control is unavailable,
-the consult stops before dispatch. Codex, OpenCode, Kiro, Grok, Antigravity,
-and Copilot remain visible in `deepr capacity` but fail before dispatch because
-Deepr cannot prove their tool confinement, provider/auth provenance, overage
-posture, transcript side effects, or complete metered accounting.
-
-Removing the environment variable in this dedicated shell does not delete the
-stored Claude subscription login. If `ANTHROPIC_API_KEY` is present, Deepr
-refuses before vendor dispatch rather than silently stripping it and guessing
-which credential the CLI will use. `deepr capacity refresh-quota claude --json`
-is a metadata-only `$0` check; `deepr capacity probe-plan claude --json` consumes
-one subscription request only after the same live overage proof.
+The plan example is now execution-blocked. Claude managed-policy hooks survive
+safe mode, and neither empty model tools nor disabled paid overage confines
+them. Removing an API key cannot restore eligibility. All production plan
+adapters remain visible in `deepr capacity` with pre-dispatch refusals. Quota
+metadata inspection is separate from permission to run a model. Use the
+owned-local council path while complete plan-process confinement is unproven.
 
 The legacy API command shape is not runnable. Even with a budget and
-confirmation, it exits before provider construction. Use the local or eligible
-plan command above. To inspect a provider request envelope without spending:
+confirmation, it exits before provider construction. Use the local command
+above. To inspect a provider request envelope without spending:
 
 ```powershell
 deepr research "Which cross-domain assumption should we test next?" --provider openai --model o4-mini-deep-research --budget 1 --preview
