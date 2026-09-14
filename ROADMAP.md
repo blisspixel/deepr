@@ -1366,7 +1366,34 @@ design standard, not a closed story.
    only when paid overage is proven disabled; every other opaque or untracked
    external path blocks before dispatch.
    That is an extreme, unacceptable failure class; a cap that can be exceeded
-   is not a cap. Closed 2026-07-25/26 (143-agent adversarial audit, 25
+   is not a cap.
+
+   **The converse is equally binding: a cap the owner cannot raise is not a
+   control, it is a wall.** The goal is bounded *authorized* spend, not zero
+   spend. "No surprise bills" means no bill the operator did not ask for; it
+   does not mean no bills. A guard that refuses an explicit, informed
+   instruction to spend a stated amount fails the user exactly as badly as one
+   that overshoots, and it has a second cost: it leaves the paid path
+   permanently unexercised, so nobody learns whether the accounting works until
+   real money is finally at stake. Deepr defaults to local `$0` and admitted
+   plan quota because that is cheapest, not because paid work is forbidden.
+
+   The shape to build toward is the cloud-platform budget cap: **a total
+   ceiling, not a blank cheque and not a recurring allowance.** A one-time
+   `$20` cap stops at `$20` forever; a `$20` monthly allowance re-arms twelve
+   times a year and is `$240` of annual exposure. The non-renewing cap is the
+   safer posture and must be treated as such wherever a provider exposes one,
+   rather than being refused for lacking a reset cadence.
+
+   Concretely, as of this change: `absolute_deepr_ceiling_usd()` replaces a
+   hardcoded constant. The default stays `$5.00` and fail-closed. An operator
+   raises it deliberately through `DEEPR_MAX_SPEND_CEILING_USD`, never through
+   anything a model or a request can influence; the raise is bounded by
+   `MAX_RAISED_CEILING_USD` (`$100`) so a typo cannot authorize a fortune; a
+   value below the default is honoured rather than clamped up, because asking
+   for less exposure must always be allowed; and the ceiling in force is
+   reported in every contract summary, so any charge traces back to the moment
+   it was authorized. Closed 2026-07-25/26 (143-agent adversarial audit, 25
    confirmed cost bugs, all criticals and highs fixed): ledger-anchored
    reconciled spend on every surface, fail-closed approval on unreadable
    ledgers, `DEEPR_MAX_COST_PER_*` enforced across CLI/web/REST with the

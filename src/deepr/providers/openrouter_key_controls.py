@@ -18,7 +18,7 @@ from typing import Any
 
 import requests
 
-from deepr.experts.maximum_charge_contract import ABSOLUTE_DEEPR_CEILING_USD
+from deepr.experts.maximum_charge_contract import absolute_deepr_ceiling_usd
 from deepr.utils.pinned_http import close_pinned_response, pinned_get
 
 OPENROUTER_KEY_CHECK_KIND = "deepr.providers.openrouter_key_control_observation"
@@ -345,17 +345,30 @@ def _key_posture_failures(key: _ParsedOpenRouterKey) -> list[str]:
         failures.append("current key is free-tier and cannot prove the proposed paid route")
     if not key.include_byok:
         failures.append("BYOK usage is excluded from the current key limit")
-    if key.limit_reset is None:
-        failures.append("current key has no monthly limit_reset")
-    elif key.limit_reset != "monthly":
-        failures.append("current key limit_reset is not monthly")
+    # A limit that never resets is a total cap: once spent, it is gone, and the
+    # key cannot authorize another dollar without a human raising it. That is
+    # strictly safer than a monthly allowance, which re-arms twelve times a year
+    # and turns a $20 limit into $240 of annual exposure. Requiring "monthly"
+    # therefore rejected the safest posture available, so a non-renewing cap is
+    # accepted here and a recurring one is accepted as the weaker alternative.
+    # Any other cadence stays refused because its renewal period is unmodelled.
+    if key.limit_reset is not None and key.limit_reset != "monthly":
+        failures.append(f"current key limit_reset {key.limit_reset!r} is neither a total cap nor monthly")
     if key.expiration_failure is not None:
         failures.append(key.expiration_failure)
     return failures
 
 
 def _limited_usage(key: _ParsedOpenRouterKey) -> float:
-    """Reconcile the monthly ceiling against current UTC month counters."""
+    """Return the usage the key's own limit is drawn down by.
+
+    A monthly limit is drawn down by this month's counters, because it re-arms.
+    A total cap is drawn down by lifetime usage and never re-arms, so comparing
+    it against month-to-date would understate what has already been spent and
+    overstate the headroom that remains.
+    """
+    if key.limit_reset is None:
+        return key.usage + key.byok_usage if key.include_byok else key.usage
     if key.include_byok:
         return key.usage_monthly + key.byok_usage_monthly
     return key.usage_monthly
@@ -398,14 +411,19 @@ def evaluate_openrouter_key_document(
     document: FetchedOpenRouterKeyDocument,
     *,
     required_headroom_usd: float,
-    maximum_monthly_limit_usd: float = ABSOLUTE_DEEPR_CEILING_USD,
+    maximum_monthly_limit_usd: float | None = None,
 ) -> OpenRouterKeyControlObservation:
     """Evaluate current-key controls without granting dispatch authority."""
+    ceiling = absolute_deepr_ceiling_usd()
     required = _money(required_headroom_usd, field_name="required_headroom_usd", positive=True)
-    maximum_limit = _money(maximum_monthly_limit_usd, field_name="maximum_monthly_limit_usd", positive=True)
-    if required > ABSOLUTE_DEEPR_CEILING_USD + _MONEY_TOLERANCE:
+    maximum_limit = _money(
+        ceiling if maximum_monthly_limit_usd is None else maximum_monthly_limit_usd,
+        field_name="maximum_monthly_limit_usd",
+        positive=True,
+    )
+    if required > ceiling + _MONEY_TOLERANCE:
         raise OpenRouterKeyControlError("required_headroom_usd exceeds the absolute Deepr ceiling")
-    if maximum_limit > ABSOLUTE_DEEPR_CEILING_USD + _MONEY_TOLERANCE:
+    if maximum_limit > ceiling + _MONEY_TOLERANCE:
         raise OpenRouterKeyControlError("maximum_monthly_limit_usd exceeds the absolute Deepr ceiling")
     if required > maximum_limit + _MONEY_TOLERANCE:
         raise OpenRouterKeyControlError("required_headroom_usd exceeds maximum_monthly_limit_usd")

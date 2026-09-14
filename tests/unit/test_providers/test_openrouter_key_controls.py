@@ -98,7 +98,9 @@ def test_nullable_official_limit_fields_are_observed_but_fail_closed() -> None:
     assert observation.limit_reset is None
     assert "current key has no finite USD limit" in observation.failures
     assert "current key has no finite remaining limit" in observation.failures
-    assert "current key has no monthly limit_reset" in observation.failures
+    # A null limit_reset is a total cap and no longer a failure on its own; what
+    # still fails closed here is the absence of any finite limit to cap against.
+    assert not any("limit_reset" in failure for failure in observation.failures)
     assert observation.to_dict()["schema_version"] == "deepr-openrouter-key-control-v2"
     assert observation.to_dict()["dispatch_authorized"] is False
 
@@ -143,7 +145,7 @@ def test_unrepresentable_money_returns_a_non_authorizing_observation(field: str)
         ({"is_management_key": True}, 4.0, "management and provisioning"),
         ({"is_provisioning_key": True}, 4.0, "management and provisioning"),
         ({"is_free_tier": True}, 4.0, "free-tier"),
-        ({"limit_reset": "daily"}, 4.0, "not monthly"),
+        ({"limit_reset": "daily"}, 4.0, "neither a total cap nor monthly"),
         ({"limit_remaining": 5.1, "usage": 0.0, "byok_usage": 0.0}, 4.0, "exceeds its total"),
         ({"usage": 0.7}, 4.0, "do not reconcile"),
         ({"usage_monthly": 0.7}, 4.0, "monthly usage"),
@@ -299,3 +301,46 @@ def test_current_key_fetch_rejects_untrusted_responses(
     monkeypatch.setattr("deepr.providers.openrouter_key_controls.close_pinned_response", lambda value: None)
     with pytest.raises(OpenRouterKeyControlError, match=message):
         fetch_openrouter_current_key(_API_KEY)
+
+
+def test_total_cap_key_is_accepted_and_drawn_down_by_lifetime_usage() -> None:
+    """A limit that never resets is the safest posture, not a failure.
+
+    A monthly $20 allowance re-arms twelve times a year; a one-time $20 cap
+    stops at $20 forever. Requiring "monthly" rejected the safer configuration.
+    """
+    # $1.00 already spent, but none of it this month. A monthly reading would
+    # see 0.0 spent and claim the full $4.00 cap is intact.
+    observation = evaluate_openrouter_key_document(
+        _document(
+            limit=4.0,
+            limit_remaining=3.0,
+            limit_reset=None,
+            usage=1.0,
+            usage_monthly=0.0,
+            byok_usage=0.0,
+            byok_usage_monthly=0.0,
+        ),
+        required_headroom_usd=2.0,
+    )
+
+    assert observation.control_eligible is True
+    assert observation.failures == ()
+
+
+def test_total_cap_headroom_refuses_when_lifetime_spend_exhausted_it() -> None:
+    observation = evaluate_openrouter_key_document(
+        _document(
+            limit=4.0,
+            limit_remaining=0.5,
+            limit_reset=None,
+            usage=3.5,
+            usage_monthly=0.0,
+            byok_usage=0.0,
+            byok_usage_monthly=0.0,
+        ),
+        required_headroom_usd=2.0,
+    )
+
+    assert observation.control_eligible is False
+    assert any("below required headroom" in failure for failure in observation.failures)

@@ -13,7 +13,10 @@ from deepr.experts.chat_capacity import (
 from deepr.experts.chat_metered import execute_metered_chat_provider_call
 from deepr.experts.maximum_charge_contract import (
     ABSOLUTE_DEEPR_CEILING_USD,
+    DEEPR_MAX_SPEND_CEILING_ENV,
+    MAX_RAISED_CEILING_USD,
     MaximumChargeContractError,
+    absolute_deepr_ceiling_usd,
     evaluate_maximum_charge_contract,
     incomplete_contract_summary,
     require_complete_maximum_charge_contract,
@@ -156,3 +159,48 @@ def test_expert_chat_capacity_exposes_contract_summary() -> None:
     assert capacity["execution_enabled"] is False
     assert capacity["maximum_charge_contract_runtime_proven"] is False
     assert capacity["maximum_charge_contract"]["complete"] is False
+
+
+class TestOperatorRaisableCeiling:
+    """A cap the owner cannot raise is a wall, not a budget control."""
+
+    def test_defaults_to_the_fail_closed_ceiling(self, monkeypatch):
+        monkeypatch.delenv(DEEPR_MAX_SPEND_CEILING_ENV, raising=False)
+        assert absolute_deepr_ceiling_usd() == ABSOLUTE_DEEPR_CEILING_USD
+
+    def test_operator_can_authorize_more(self, monkeypatch):
+        monkeypatch.setenv(DEEPR_MAX_SPEND_CEILING_ENV, "20")
+        assert absolute_deepr_ceiling_usd() == 20.0
+
+    def test_operator_can_authorize_less(self, monkeypatch):
+        # Asking for less exposure must never be clamped back up to the default.
+        monkeypatch.setenv(DEEPR_MAX_SPEND_CEILING_ENV, "1.50")
+        assert absolute_deepr_ceiling_usd() == 1.50
+
+    @pytest.mark.parametrize(
+        "value",
+        ["", "   ", "abc", "0", "-5", str(MAX_RAISED_CEILING_USD + 0.01), "1e9"],
+        ids=["empty", "blank", "unparseable", "zero", "negative", "over-bound", "huge"],
+    )
+    def test_anything_unusable_falls_back_to_the_default(self, monkeypatch, value):
+        monkeypatch.setenv(DEEPR_MAX_SPEND_CEILING_ENV, value)
+        assert absolute_deepr_ceiling_usd() == ABSOLUTE_DEEPR_CEILING_USD
+
+    def test_parent_transaction_honours_a_raised_ceiling(self, monkeypatch):
+        from deepr.experts.parent_budget_transaction import (
+            ParentBudgetError,
+            open_parent_budget_transaction,
+        )
+
+        monkeypatch.delenv(DEEPR_MAX_SPEND_CEILING_ENV, raising=False)
+        with pytest.raises(ParentBudgetError, match="exceeds absolute Deepr ceiling"):
+            open_parent_budget_transaction(run_id="r1", parent_ceiling_usd=20.0, surface="api_expert_sync")
+
+        monkeypatch.setenv(DEEPR_MAX_SPEND_CEILING_ENV, "20")
+        txn = open_parent_budget_transaction(run_id="r2", parent_ceiling_usd=20.0, surface="api_expert_sync")
+        assert txn.parent_ceiling_usd == 20.0
+
+    def test_the_ceiling_in_force_is_reported_for_audit(self, monkeypatch):
+        monkeypatch.setenv(DEEPR_MAX_SPEND_CEILING_ENV, "20")
+        summary = incomplete_contract_summary()
+        assert summary["absolute_deepr_ceiling_usd"] == 20.0
