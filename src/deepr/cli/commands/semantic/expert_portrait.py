@@ -77,7 +77,10 @@ async def _run_portrait_batch(store: Any, targets: list[str], *, provider: str |
     "--style", default=None, help="Override the art style this run (else DEEPR_PORTRAIT_STYLE / house default)"
 )
 @click.option(
-    "--provider", type=click.Choice(["local", "openai", "google", "xai"]), default=None, help="Image provider"
+    "--provider",
+    type=click.Choice(["lemonade", "local", "openai", "google", "xai"]),
+    default=None,
+    help="Image provider ('lemonade' renders on an attested local server at $0)",
 )
 @click.option("-y", "--yes", is_flag=True, help="Skip the cost confirmation")
 @click.option(
