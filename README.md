@@ -26,20 +26,21 @@ longitudinal proof of better judgment remain roadmap work.
 ## Build a durable expert fleet
 
 <p align="center">
-  <img src="assets/expert-hub.png" width="100%" alt="Deepr Expert Hub in an isolated validation workspace showing an existing temporal expert, a newly studied local expert, and an untrained web-created profile" />
+  <img src="assets/expert-hub.png" width="100%" alt="Deepr Expert Hub showing a working roster of 49 experts, 25 of them flagship, each card exposing positions, studied findings, retained sources, and recorded stance shifts" />
 </p>
 
-The pictured validation workspace contains an existing temporal expert, a new
-expert after local study, and an untrained profile created through the
-dashboard. Each card exposes positions, studied findings, source counts, and
-presentation readiness from durable state. Flagship membership is user-curated
-local state. These are real local workflow captures, not a clean-install roster
-or evidence of improved judgment. See the [validation record](docs/validation/local-workflows-2026-09-05.md).
+The pictured roster is one operator's working set: 49 experts, 25 of them
+flagship. Each card exposes positions, studied findings, retained source
+counts, and recorded stance shifts from durable state. Flagship membership is
+user-curated local state. This is a real local roster, not a clean-install
+default and not evidence of improved judgment; grades read thin state honestly,
+and `deepr expert health` will say so. See the
+[validation record](docs/validation/local-workflows-2026-09-05.md).
 
 ## Turn evidence into reusable judgment
 
 <p align="center">
-  <img src="assets/expert-profile.png" width="100%" alt="A Deepr temporal knowledge graphs expert profile showing inspectable claims, confidence, source counts, and knowledge domains" />
+  <img src="assets/expert-profile.png" width="100%" alt="A Deepr Python code quality expert profile showing 6 study sources and 670 findings at $0.00, with each claim carrying its own confidence, source count, and knowledge domain" />
 </p>
 
 Expert profiles keep claims, confidence, source lineage, gaps, decisions, and
@@ -47,10 +48,6 @@ history inspectable after a research run ends. The structured belief store is
 authoritative; reports, digests, and portable exports are regenerable views.
 
 ## Keep the spend boundary visible
-
-<p align="center">
-  <img src="assets/cli-demo.png" width="92%" alt="A $200 cumulative Deepr wallet with a separate $4 job ceiling, exact drawdown, no automatic refill, and provider hard-stop status shown separately" />
-</p>
 
 Local and eligible plan-quota work stay at `$0` marginal API cost. Metered work
 never becomes an automatic fallback and cannot turn the local wallet into an

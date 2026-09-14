@@ -80,6 +80,11 @@ _PROVIDERS: list[tuple[str, str]] = [
     ("xAI Grok", "XAI_API_KEY"),
     ("Anthropic", "ANTHROPIC_API_KEY"),
     ("Azure OpenAI", "AZURE_OPENAI_API_KEY"),
+    # OpenRouter bills like any other metered key (it is in the key-quarantine
+    # set for exactly that reason) and ships a catalog, key controls, and
+    # pricing, so a configured key has to be visible here. Leaving it out let an
+    # operator read "no metered credentials" with a live billable key set.
+    ("OpenRouter", "OPENROUTER_API_KEY"),
 ]
 
 # Plan-quota CLIs: display name, executable, cost model, install hint.
