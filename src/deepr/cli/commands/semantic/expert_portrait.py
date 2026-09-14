@@ -116,7 +116,14 @@ def expert_portrait(name, all_experts, missing_only, force, style, provider, yes
         )
         sys.exit(2)
 
-    unit = portrait_cost(effective)
+    try:
+        unit = portrait_cost(effective)
+    except RuntimeError as exc:
+        # A blocked local image backend is an expected refusal, not a crash. It
+        # reached the user as a bare traceback while every other blocked path
+        # here prints a reason and exits 2.
+        print_error(str(exc))
+        sys.exit(2)
     console.print(f"[dim]Provider: {effective} (~${unit:.2f}/image)  Style: {portrait_style(style)}[/dim]")
     est = len(targets) * unit
     if yes and unit > 0 and not confirm_metered_cost:

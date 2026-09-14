@@ -408,7 +408,8 @@ class TestPortraitCliCostConfirmation:
         assert paid.exit_code == 1
         assert "temporarily disabled" in paid.output.lower()
         assert local.exit_code != 0
-        assert "exact local-only capacity" in str(local.exception)
+        # Reported as a clean CLI refusal on stdout, not a raised traceback.
+        assert "exact local-only capacity" in local.output
         assert calls == []
 
 
