@@ -1,8 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="currentColor">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="butt" stroke-linejoin="miter">
   <style>
     :root { color: hsl(172 65% 27%); }
     @media (prefers-color-scheme: dark) { :root { color: hsl(172 50% 48%); } }
   </style>
-  <path d="M3 3H6V24Q6 26 8 26H24Q26 26 26 24V3H29Q30 3 30 4V26Q30 30 26 30H6Q2 30 2 26V4Q2 3 3 3Z"/>
-  <path d="M11 9H12Q13 9 13 10V18Q13 19 14 19H18Q19 19 19 18V10Q19 9 20 9H21Q22 9 22 10V20Q22 22 20 22H12Q10 22 10 20V10Q10 9 11 9Z"/>
+  <path d="M23 10L16 4V28"/>
+  <path d="M16 15L9 22"/>
 </svg>
