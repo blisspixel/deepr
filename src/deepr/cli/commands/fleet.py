@@ -120,12 +120,17 @@ def _render_human(payload: dict[str, Any]) -> None:
         state_error_summary = (
             f" · {state_error_count} unreadable state {state_error_label}" if state_error_count else ""
         )
+        # The spend window is a run count, not a time range, and each row above
+        # shows only its latest run. Name the real bound so the total is not read
+        # as "recent spend" against a cost ledger that reports a dated window.
+        window_limit = (payload.get("window") or {}).get("limit")
+        spend_label = f"spent (last {window_limit} runs/expert)" if window_limit else "spent (recent runs/expert)"
         if payload.get("complete", True):
             console.print(
                 f"\n[bold]{summary['experts']} readable {expert_label}[/bold] · "
                 f"{summary['attention']} failed · {summary['waiting']} waiting · "
                 f"{summary['refresh_due']} refresh-due · {summary['never_run']} never-run · "
-                f"${summary['budget_spent_window_total']:.2f} spent (window)"
+                f"${summary['budget_spent_window_total']:.2f} {spend_label}"
             )
         else:
             observed = summary["observed"]
@@ -134,7 +139,7 @@ def _render_human(payload: dict[str, Any]) -> None:
                 f"observed readable state: {observed['attention']} failed · "
                 f"{observed['waiting']} waiting · {observed['refresh_due']} refresh-due · "
                 f"{observed['never_run']} never-run · "
-                f"${observed['budget_spent_window_total']:.2f} spent (window)"
+                f"${observed['budget_spent_window_total']:.2f} {spend_label}"
                 f"{state_error_summary}"
             )
     if not payload.get("complete", True):
