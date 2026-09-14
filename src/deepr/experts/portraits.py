@@ -15,6 +15,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import NoReturn
 
+from deepr.experts import lemonade_image
+
 logger = logging.getLogger(__name__)
 
 # The house style is framing and palette, deliberately not character.
@@ -100,7 +102,7 @@ def _local_image_base_url(value: str | None = None) -> str:
 
 def portrait_cost(provider: str | None) -> float:
     """Return the bounded metered estimate, rejecting unproven local labels."""
-    if provider == "local_cli":
+    if provider in ("local_cli", "lemonade"):
         return 0.0
     if provider == "local":
         _require_attested_local_image_capacity()
@@ -226,6 +228,14 @@ def detect_provider() -> str | None:
     if local_cli_available():
         return "local_cli"
 
+    # Opt-in by configuration, then attested against the running server. Auto
+    # selection stays behind the env var on purpose: probing a default port
+    # would make detection depend on whatever happens to be listening, so the
+    # same command could pick a different backend on two machines. `--provider
+    # lemonade` still works without it, because that is an explicit choice.
+    if os.getenv(lemonade_image.LEMONADE_URL_ENV, "").strip() and lemonade_image.is_available():
+        return "lemonade"
+
     local_image_url = os.getenv(LOCAL_IMAGE_URL_ENV, "")
     if local_image_url.strip():
         _local_image_base_url(local_image_url)
@@ -279,11 +289,12 @@ async def generate_portrait(
             "image generation, or set DEEPR_ALLOW_METERED_IMAGE_AUTO=1. Loopback image endpoints "
             "remain blocked until exact local-only capacity can be attested."
         )
-    if provider == "local_cli":
-        # No metered gate: Deepr passes no credential to this transport and the
-        # operator has attested it runs locally. The gate exists to stop Deepr
-        # spending money it was not told it could; it cannot police a program
-        # it does not own, and applying it here would block the one $0 path.
+    if provider in ("local_cli", "lemonade"):
+        # No metered gate: Deepr passes no credential to either transport. The
+        # gate exists to stop Deepr spending money it was not told it could, and
+        # applying it here would block the $0 paths. `local_cli` rests on an
+        # operator attestation; `lemonade` re-checks a materialized local
+        # checkpoint against the running server on every render.
         pass
     elif provider == "local":
         _local_image_base_url()
@@ -364,7 +375,7 @@ async def generate_and_save_portrait(
     if effective_provider == "local":
         _local_image_base_url()
         _require_attested_local_image_capacity()
-    if effective_provider and effective_provider not in {"local", "local_cli"}:
+    if effective_provider and effective_provider not in {"local", "local_cli", "lemonade"}:
         from deepr.experts.metered_mutation_gate import require_metered_expert_mutation
 
         require_metered_expert_mutation(
@@ -452,6 +463,7 @@ async def _dispatch(provider: str, prompt: str) -> bytes:
     """
     transports = {
         "local_cli": _generate_local_cli,
+        "lemonade": _generate_lemonade,
         "local": _generate_local,
         "openai": _generate_openai,
         "google": _generate_google,
@@ -470,6 +482,17 @@ async def _generate_local_cli(prompt: str) -> bytes:
     inline would stall every other task in the loop for the duration.
     """
     from deepr.experts.local_image_cli import render
+
+    return await asyncio.to_thread(render, prompt)
+
+
+async def _generate_lemonade(prompt: str) -> bytes:
+    """Render through an attested local Lemonade server, off the event loop.
+
+    `asyncio.to_thread` for the same reason as the CLI transport: a diffusion
+    pass blocks for minutes and would otherwise stall the whole loop.
+    """
+    from deepr.experts.lemonade_image import render
 
     return await asyncio.to_thread(render, prompt)
 
