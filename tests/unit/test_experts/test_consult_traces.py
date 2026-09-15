@@ -128,6 +128,7 @@ def test_build_consult_trace_records_replay_context():
     assert record["kind"] == CONSULT_TRACE_KIND
     assert record["trace_id"] == "consult_abcdef123456"
     assert record["input"]["question_hash"]
+    assert "routing" not in record["input"]
     assert record["capacity"]["live_metered_fallback"] is False
     assert record["context_packet"]["selected"][0]["context"]["source"] == "belief_store"
     assert {check["name"] for check in record["checks"]} >= {
@@ -135,6 +136,27 @@ def test_build_consult_trace_records_replay_context():
         "owned_capacity_no_metered_fallback",
         "synthesis_status",
     }
+
+
+def test_build_consult_trace_stores_automatic_routing_snapshot():
+    record = build_consult_trace(
+        question="cloud security",
+        requested_experts=[],
+        max_experts=3,
+        budget=0.0,
+        payload=_payload(),
+        result={"perspectives": [{}], "synthesis_status": "completed"},
+        routing={
+            "method": "keyword_overlap",
+            "recency_fallback": False,
+            "scores": [{"name": "A", "overlap_score": 1, "matched_terms": ["cloud"], "selected": True}],
+        },
+        trace_id="consult_routing_snapshot",
+    )
+
+    assert record["input"]["selection_mode"] == "automatic"
+    assert record["input"]["routing"]["method"] == "keyword_overlap"
+    assert record["input"]["routing"]["recency_fallback"] is False
 
 
 def test_default_trace_capacity_is_truthful_local_capacity() -> None:

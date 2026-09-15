@@ -386,6 +386,18 @@ def record_consult_payload_trace(
 
     shared_trace_id = trace_id or new_consult_trace_id()
     attach_collaboration_runtime(payload, result=result, capacity=capacity, trace={"trace_id": shared_trace_id})
+    routing = None
+    if not requested_experts:
+        try:
+            from deepr.experts.fleet_collapse import observe_automatic_routing
+
+            routing = observe_automatic_routing(
+                question,
+                selected=list((payload or {}).get("experts_consulted") or []),
+                max_experts=max_experts,
+            )
+        except Exception:
+            routing = None
     trace_ref = record_consult_trace(
         path=path,
         question=question,
@@ -395,6 +407,7 @@ def record_consult_payload_trace(
         payload=payload,
         result=result,
         capacity=capacity,
+        routing=routing,
         trace_id=shared_trace_id,
         lock_timeout_seconds=lock_timeout_seconds,
     )

@@ -395,6 +395,15 @@ class TestDefaultModel:
         monkeypatch.setattr(local, "ollama_status", lambda base_url=None: (True, "2 model(s): foo:1b, bar:7b"))
         assert local.default_local_model() == "foo:1b"
 
+    def test_prefers_instruct_over_coder_listed_first(self, monkeypatch):
+        monkeypatch.delenv("DEEPR_LOCAL_MODEL", raising=False)
+        monkeypatch.setattr(
+            local,
+            "ollama_status",
+            lambda base_url=None: (True, "2 model(s): qwen2.5-coder:32b, qwen2.5:14b"),
+        )
+        assert local.default_local_model() == "qwen2.5:14b"
+
     def test_none_when_not_running(self, monkeypatch):
         monkeypatch.delenv("DEEPR_LOCAL_MODEL", raising=False)
         monkeypatch.setattr(local, "ollama_status", lambda base_url=None: (False, "not reachable"))

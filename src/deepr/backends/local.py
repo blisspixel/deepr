@@ -203,8 +203,24 @@ async def local_model_runs_on_gpu(model: str, base_url: str | None = None) -> tu
     return None, ""
 
 
-def default_local_model(base_url: str | None = None) -> str | None:
-    """Pick a local model: DEEPR_LOCAL_MODEL if set, else the first one Ollama lists."""
+def _status_model_names(detail: str) -> list[str]:
+    """Parse ``ollama_status`` detail into installed model names, in list order."""
+    if "model(s): " not in detail:
+        return []
+    rest = detail.split("model(s): ", 1)[1]
+    if rest.endswith("..."):
+        rest = rest[: -len("...")]
+    return [part.strip().rstrip(".") for part in rest.split(",") if part.strip() and part.strip() != "..."]
+
+
+def default_local_model(base_url: str | None = None, *, task_class: str = "extraction") -> str | None:
+    """Pick a local model: env override, then task-class hygiene over list order.
+
+    ``DEEPR_LOCAL_MODEL`` always wins. Coder and thinking tags are skipped for
+    extraction/synthesis when a general instruct model is installed, so an
+    80B coder MoE is not the silent default for absorb or consult. Entailment
+    callers may pass ``task_class="entailment"`` to refuse coder-only lists.
+    """
     url = _base_url(base_url)
     explicit = os.getenv("DEEPR_LOCAL_MODEL")
     if explicit:
@@ -212,14 +228,20 @@ def default_local_model(base_url: str | None = None) -> str | None:
     running, detail = ollama_status(url)
     if not running:
         return None
-    # ollama_status detail starts "N model(s): a, b, c..." - take the first name.
-    if "model(s): " in detail:
-        first = detail.split("model(s): ", 1)[1].split(",", 1)[0].strip().rstrip(".")
-        return first or None
-    return None
+    names = _status_model_names(detail)
+    if not names:
+        return None
+    from deepr.backends.local_fit import prefer_local_model
+
+    return prefer_local_model(names, task_class=task_class) or names[0]
 
 
-async def default_local_model_async(base_url: str | None = None, *, timeout: float = 0.5) -> str | None:
+async def default_local_model_async(
+    base_url: str | None = None,
+    *,
+    timeout: float = 0.5,
+    task_class: str = "extraction",
+) -> str | None:
     """Resolve the default local model through a cancellable bounded probe."""
     url = _base_url(base_url)
     explicit = os.getenv("DEEPR_LOCAL_MODEL")
@@ -233,12 +255,16 @@ async def default_local_model_async(base_url: str | None = None, *, timeout: flo
             response.raise_for_status()
         payload = response.json()
         models = payload.get("models", []) if isinstance(payload, dict) else []
-        for model in models:
-            if not isinstance(model, dict):
-                continue
-            name = str(model.get("name", "") or "").strip()
-            if name:
-                return name
+        names = [
+            str(model.get("name", "") or "").strip()
+            for model in models
+            if isinstance(model, dict) and str(model.get("name", "") or "").strip()
+        ]
+        if not names:
+            return None
+        from deepr.backends.local_fit import prefer_local_model
+
+        return prefer_local_model(names, task_class=task_class) or names[0]
     except Exception:
         return None
     return None

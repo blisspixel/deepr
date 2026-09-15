@@ -481,15 +481,16 @@ Open v2.51 work:
   plugin stdio check passed here. See the
   [verification record](docs/validation/research-review-2026-09-13.md).
 
-- [ ] **Mixture-of-Experts research (behind v2.51, 2026-09-15):** neural MoE
+- [~] **Mixture-of-Experts research (behind v2.51, 2026-09-15):** neural MoE
   sparsifies compute inside one model; Deepr sparsifies durable expertise
   across a roster. They are not the same object. Consult is already top-k
-  stored packets plus one synthesis, not N expert processes. Parallel work
-  may add `$0` collapse telemetry over automatic consult traces and may
-  implement the staged local-model-selection policy so an installed MoE
-  GGUF is ranked by fit and task class (coder/thinking excluded from
-  entailment defaults). It must not train a gate, rebrand the council as
-  MoE, add a `local-moe` capacity class, or change routing defaults.
+  stored packets plus one synthesis, not N expert processes. Shipped:
+  `deepr route collapse` (`$0` load report, not a quality verdict) and local
+  defaults that skip coder/thinking tags when an instruct model is installed.
+  Remaining: persist richer replay, VRAM fit by weight bytes rather than total
+  params, and entailment-specific refusal of coder-only lists at call sites.
+  It must not train a gate, rebrand the council as MoE, add a `local-moe`
+  capacity class, or change routing defaults.
   [Design note](docs/design/mixture-of-experts-and-deepr-experts.md).
 
 Completed September 13 compatibility and capacity corrections are recorded in
