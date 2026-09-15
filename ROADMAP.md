@@ -71,7 +71,7 @@ Roadmap items are not approach claims until they land in
 
 ## Active Release Plan
 
-**Now (v2.50.16):** local experts, write-free OpenRouter previews, an
+**Now (v2.50.17):** local experts, write-free OpenRouter previews, an
 owner-raisable local spend ceiling, and fail-closed metered gates. Paid
 OpenRouter dispatch, Python/MCP skill execution, and automatic learning stay
 blocked.
@@ -447,7 +447,7 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.16)
+## Current Status (v2.50.17)
 
 **Next is v2.51, not more dispatch.** v2.50.14 closed metered-client
 construction, pricing fallback, consent, and SSRF holes and kept OpenRouter
@@ -3753,7 +3753,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.16. This roadmap keeps
+v2.50.17. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 

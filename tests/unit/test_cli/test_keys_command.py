@@ -18,6 +18,7 @@ from deepr.cli.commands import keys as keys_module
 @pytest.fixture
 def env_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("deepr.config.default_data_dir", lambda: tmp_path / "user-deepr")
     for name in (
         "OPENAI_API_KEY",
         "XAI_API_KEY",
@@ -79,7 +80,7 @@ def test_check_reports_no_key_without_network(env_file: Path, monkeypatch: pytes
     assert calls == []  # nothing to validate, nothing pinged
 
 
-def test_set_openrouter_writes_env_and_never_prints_the_secret(env_file: Path) -> None:
+def test_set_openrouter_writes_user_env_when_cwd_has_none(env_file: Path, tmp_path: Path) -> None:
     secret = "sk-or-v1-" + "b" * 64
     result = CliRunner().invoke(
         keys_module.keys,
@@ -88,9 +89,24 @@ def test_set_openrouter_writes_env_and_never_prints_the_secret(env_file: Path) -
     )
     assert result.exit_code == 0, result.output
     assert secret not in result.output
-    stored = env_file.read_text(encoding="utf-8")
+    stored = (tmp_path / "user-deepr" / ".env").read_text(encoding="utf-8")
     assert f"OPENROUTER_API_KEY={secret}" in stored
+    assert not env_file.exists()
     assert "value not shown" in result.output
+
+
+def test_set_prefers_existing_checkout_env(env_file: Path) -> None:
+    env_file.write_text("XAI_API_KEY=keep-me\n", encoding="utf-8")
+    secret = "sk-or-v1-" + "e" * 64
+    result = CliRunner().invoke(
+        keys_module.keys,
+        ["set", "openrouter"],
+        input=f"{secret}\n{secret}\n",
+    )
+    assert result.exit_code == 0, result.output
+    stored = env_file.read_text(encoding="utf-8")
+    assert "XAI_API_KEY=keep-me" in stored
+    assert f"OPENROUTER_API_KEY={secret}" in stored
 
 
 def test_set_refuses_empty_keys(env_file: Path) -> None:

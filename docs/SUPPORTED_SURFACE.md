@@ -1,13 +1,13 @@
 # Supported Surface
 
-Status: v2.50.16 current main, 2026-09-15. This document defines what users and host
+Status: v2.50.17 current main, 2026-09-15. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
 path is structurally complete but remains execution-blocked without verified
 provider prepaid-no-overage or hard-stop evidence.
 
-**v2.50.16 keeps metered dispatch frozen and spend gates fail-closed.** MCP
+**v2.50.17 keeps metered dispatch frozen and spend gates fail-closed.** MCP
 research and expert validation never construct a paid client. OpenRouter
 stays preview-only. Unknown models no longer inherit o4-mini prices.
 Host-header CORS, empty bind hosts, and IPv4-mapped SSRF fail closed.
