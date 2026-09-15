@@ -9,7 +9,7 @@ from pathlib import Path
 import click
 from dotenv import dotenv_values
 
-from deepr.experts.maximum_charge_contract import ABSOLUTE_DEEPR_CEILING_USD
+from deepr.experts.maximum_charge_contract import absolute_deepr_ceiling_usd
 from deepr.providers.openrouter_key_controls import OpenRouterKeyControlError, inspect_openrouter_key
 from deepr.security.key_quarantine import QUARANTINE_PREFIX
 
@@ -35,10 +35,10 @@ def _read_explicit_local_key() -> tuple[str, str]:
 @click.command("openrouter-key-check")
 @click.option(
     "--required-headroom",
-    type=click.FloatRange(min=0.01, max=ABSOLUTE_DEEPR_CEILING_USD),
-    default=ABSOLUTE_DEEPR_CEILING_USD,
+    type=click.FloatRange(min=0.01),
+    default=None,
     show_default=True,
-    help="Required remaining USD under the current key's monthly limit",
+    help="Required remaining USD under the current key limit (default: the Deepr ceiling in force)",
 )
 @click.option(
     "--from-env",
@@ -46,8 +46,11 @@ def _read_explicit_local_key() -> tuple[str, str]:
     help="Use OPENROUTER_API_KEY from quarantine or the checkout-local .env without exporting it",
 )
 @click.option("--json", "json_output", is_flag=True, help="Emit the sanitized versioned observation")
-def openrouter_key_check(required_headroom: float, from_env: bool, json_output: bool) -> None:
+def openrouter_key_check(required_headroom: float | None, from_env: bool, json_output: bool) -> None:
     """Inspect current-key controls without inference or dispatch authority."""
+    # Resolved at call time, not import time, so an operator-raised ceiling
+    # applies to this check too instead of being pinned to the default.
+    required_headroom = absolute_deepr_ceiling_usd() if required_headroom is None else required_headroom
     if from_env:
         api_key, api_key_source = _read_explicit_local_key()
         if not api_key:

@@ -23,6 +23,7 @@ Rules:
 from __future__ import annotations
 
 import math
+import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
@@ -61,6 +62,42 @@ IDENTITY_FIELDS = (
 
 # Absolute Deepr total ceiling for active examples / operator binding.
 ABSOLUTE_DEEPR_CEILING_USD = 5.0
+"""Fail-closed default. Low on purpose: it bounds spend nobody asked for."""
+
+DEEPR_MAX_SPEND_CEILING_ENV = "DEEPR_MAX_SPEND_CEILING_USD"
+
+MAX_RAISED_CEILING_USD = 100.0
+"""A deliberate raise is still bounded, so a typo cannot authorize a fortune."""
+
+
+def absolute_deepr_ceiling_usd() -> float:
+    """The ceiling in force: the default, or an explicit operator raise.
+
+    A ceiling the owner cannot raise with an informed instruction is not a
+    budget control, it is a wall: it blocks intended spend exactly as well as
+    unintended spend, which is how a "no surprise bills" guarantee turns into
+    "no bills, ever" and leaves the paid path permanently unproven.
+
+    So the raise is possible but deliberate. It comes from an environment
+    variable the operator sets rather than anything a model or a request can
+    influence, it stays bounded by ``MAX_RAISED_CEILING_USD``, and the value in
+    force is reported in every contract summary, so an unexpected charge can
+    still be traced back to the moment it was authorized. Anything unset,
+    unparseable, non-positive, or over the bound falls back to the default.
+    """
+    raw = os.getenv(DEEPR_MAX_SPEND_CEILING_ENV, "").strip()
+    if not raw:
+        return ABSOLUTE_DEEPR_CEILING_USD
+    try:
+        requested = float(raw)
+    except (TypeError, ValueError):
+        return ABSOLUTE_DEEPR_CEILING_USD
+    if requested <= 0 or requested > MAX_RAISED_CEILING_USD:
+        return ABSOLUTE_DEEPR_CEILING_USD
+    # A value below the default is honoured rather than clamped up: an operator
+    # asking for a stricter ceiling is asking for less exposure, and refusing
+    # that would hand them more spend headroom than they requested.
+    return requested
 
 
 class MaximumChargeContractError(ValueError):
@@ -268,10 +305,9 @@ def _parent_ceiling_failures(parent: float) -> list[str]:
     failures: list[str] = []
     if parent <= 0:
         failures.append("parent_ceiling_usd must be positive")
-    if parent > ABSOLUTE_DEEPR_CEILING_USD:
-        failures.append(
-            f"parent_ceiling_usd ${parent:.4f} exceeds absolute Deepr ceiling ${ABSOLUTE_DEEPR_CEILING_USD:.2f}"
-        )
+    ceiling = absolute_deepr_ceiling_usd()
+    if parent > ceiling:
+        failures.append(f"parent_ceiling_usd ${parent:.4f} exceeds absolute Deepr ceiling ${ceiling:.2f}")
     return failures
 
 
@@ -380,23 +416,26 @@ def incomplete_contract_summary(
             "required_usd_dimensions": list(USD_DIMENSIONS),
             "required_posture_flags": list(POSTURE_FLAGS),
             "required_identity_fields": list(IDENTITY_FIELDS),
-            "absolute_deepr_ceiling_usd": ABSOLUTE_DEEPR_CEILING_USD,
+            "absolute_deepr_ceiling_usd": absolute_deepr_ceiling_usd(),
         }
     verdict = evaluate_maximum_charge_contract(envelope)
     payload = verdict.to_dict()
-    payload["absolute_deepr_ceiling_usd"] = ABSOLUTE_DEEPR_CEILING_USD
+    payload["absolute_deepr_ceiling_usd"] = absolute_deepr_ceiling_usd()
     return payload
 
 
 __all__ = [
     "ABSOLUTE_DEEPR_CEILING_USD",
+    "DEEPR_MAX_SPEND_CEILING_ENV",
     "IDENTITY_FIELDS",
+    "MAX_RAISED_CEILING_USD",
     "POSTURE_FLAGS",
     "TOKEN_DIMENSIONS",
     "USD_DIMENSIONS",
     "MaximumChargeContractError",
     "MaximumChargeEnvelope",
     "MaximumChargeVerdict",
+    "absolute_deepr_ceiling_usd",
     "envelope_from_mapping",
     "evaluate_maximum_charge_contract",
     "incomplete_contract_summary",

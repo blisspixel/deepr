@@ -53,6 +53,26 @@ Local and eligible plan-quota work stay at `$0` marginal API cost. Metered work
 never becomes an automatic fallback and cannot turn the local wallet into an
 open check.
 
+The aim is bounded *authorized* spend, not zero spend. No surprise bills means
+no bill you did not ask for; it does not mean no bills. A cap that can be
+exceeded is not a cap, and a cap you cannot raise is not a control, it is a
+wall. Deepr prefers local and plan capacity because that is cheapest, not
+because paid work is forbidden.
+
+The model is the cloud-platform budget cap: a **total** ceiling, not a blank
+cheque and not a recurring allowance. A one-time `$20` cap stops at `$20`
+forever; `$20` per month re-arms twelve times a year and is `$240` of annual
+exposure, so a non-renewing provider limit is treated as the safer posture
+rather than refused for lacking a reset.
+
+| Control | Behaviour |
+| --- | --- |
+| Default ceiling | `$5.00`, fail-closed |
+| Raising it | `DEEPR_MAX_SPEND_CEILING_USD`, set by the operator only |
+| Upper bound on a raise | `$100`, so a typo cannot authorize a fortune |
+| Lowering it | Honoured, never clamped back up |
+| Auditability | The ceiling in force is reported in every contract summary |
+
 ## Capacity
 
 | Class | Current posture |

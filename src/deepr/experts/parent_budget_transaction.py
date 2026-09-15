@@ -24,7 +24,7 @@ from enum import StrEnum
 from typing import Any
 from uuid import uuid4
 
-from deepr.experts.maximum_charge_contract import ABSOLUTE_DEEPR_CEILING_USD
+from deepr.experts.maximum_charge_contract import absolute_deepr_ceiling_usd
 
 
 class ParentBudgetError(ValueError):
@@ -232,10 +232,9 @@ def open_parent_budget_transaction(
 ) -> ParentBudgetTransaction:
     """Open one parent transaction under the absolute Deepr ceiling."""
     ceiling = _positive_money(parent_ceiling_usd, field_name="parent_ceiling_usd")
-    if ceiling > ABSOLUTE_DEEPR_CEILING_USD + 1e-12:
-        raise ParentBudgetError(
-            f"parent_ceiling_usd ${ceiling:.4f} exceeds absolute Deepr ceiling ${ABSOLUTE_DEEPR_CEILING_USD:.2f}"
-        )
+    absolute = absolute_deepr_ceiling_usd()
+    if ceiling > absolute + 1e-12:
+        raise ParentBudgetError(f"parent_ceiling_usd ${ceiling:.4f} exceeds absolute Deepr ceiling ${absolute:.2f}")
     name = str(surface or "").strip()
     if not name:
         raise ParentBudgetError("surface must be a non-empty string")
