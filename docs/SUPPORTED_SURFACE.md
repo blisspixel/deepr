@@ -637,6 +637,11 @@ must not be described as usable capacity.
   a consult would fan out to (a deterministic keyword-overlap selection router,
   never a quality verdict) plus the non-probing next-run capacity outlook, as
   `deepr-route-explanation-v1`.
+- `deepr route collapse` is a `$0`, no-model load report over automatic consult
+  traces (`deepr-route-collapse-v1`). It measures concentration, recency
+  fallback, and current-router replay disagreement. It does not conclude
+  quality, importance, or that routing defaults should change. Flagship is a
+  presentation label on the report, not a routing prior.
 - Explicit plan-quota CLI execution for expert maintenance and bootstrap:
   `deepr expert sync --plan <id>`, `deepr expert sync-all --plan <id>`,
   `deepr expert route-gaps --execute --plan <id>`,

@@ -65,6 +65,9 @@ default is not a neutral choice.
 1. Shipped already: checker identity on eval reports; benchmark adapter; this design.
 2. Next: implement the policy above in `default_local_model` (pure function over the
    installed-model list + env; unit-testable with a fake list; no daemon probing).
+   Started: `prefer_local_model` skips coder/thinking tags for extraction when a
+   general instruct model is listed. Env override still wins. First-listed
+   remains the fallback when every installed tag is the same class.
 3. Then: wire `expert sync/absorb/eval` call sites through the task-class parameter.
 4. Then: a short sweep matrix in CI-adjacent tooling is NOT planned - evals cost real
    local compute; they stay operator-run via the shipped eval commands.

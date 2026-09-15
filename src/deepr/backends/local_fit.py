@@ -51,6 +51,49 @@ _VRAM_OVERHEAD_BYTES = 1_800_000_000
 # equivalent recovery from silently never offering a model that would have run.
 _KV_BYTES_PER_TOKEN_PER_B = 16_500
 
+# Task-class hygiene. These are filename/tag conventions, not a quality verdict.
+# They route which installed model is eligible for a task; they do not conclude
+# that a coder model is wrong or that an instruct model is expert.
+_CODER_MARKERS = ("-coder", "coder:", "codellama", "deepseek-coder", "qwen3-coder")
+_THINKING_MARKERS = ("thinking", "reasoner", "qwq")
+_EMBED_MARKERS = ("embed", "embedding")
+
+
+def model_task_hygiene_class(name: str) -> str:
+    """Classify an installed tag for task routing: instruct, code, thinking, or embedding."""
+    lowered = name.lower()
+    if any(marker in lowered for marker in _EMBED_MARKERS):
+        return "embedding"
+    if any(marker in lowered for marker in _CODER_MARKERS):
+        return "code"
+    if any(marker in lowered for marker in _THINKING_MARKERS):
+        return "thinking"
+    return "instruct"
+
+
+def prefer_local_model(names: list[str], *, task_class: str = "extraction") -> str | None:
+    """Pick an installed local model for a task class without probing Ollama.
+
+    ``entailment`` / ``verification`` prefer general instruct and skip coder and
+    thinking tags when an instruct model is present. ``extraction`` / ``synthesis``
+    prefer instruct but will use a coder if that is all that is installed.
+    ``embedding`` requires an embedding tag. Empty input returns None.
+    """
+    usable = [name.strip() for name in names if str(name).strip()]
+    if not usable:
+        return None
+    classes = {name: model_task_hygiene_class(name) for name in usable}
+    if task_class == "embedding":
+        embeds = [name for name in usable if classes[name] == "embedding"]
+        return embeds[0] if embeds else None
+    instruct = [name for name in usable if classes[name] == "instruct"]
+    if task_class in {"entailment", "verification"}:
+        return instruct[0] if instruct else None
+    if instruct:
+        return instruct[0]
+    non_embed = [name for name in usable if classes[name] != "embedding"]
+    return non_embed[0] if non_embed else None
+
 
 @dataclass(frozen=True)
 class ModelFit:

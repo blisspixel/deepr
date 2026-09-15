@@ -342,6 +342,7 @@ def build_consult_trace(
     result: dict[str, Any] | None = None,
     capacity: dict[str, Any] | None = None,
     failure: dict[str, Any] | None = None,
+    routing: dict[str, Any] | None = None,
     trace_id: str | None = None,
     recorded_at: datetime | None = None,
 ) -> dict[str, Any]:
@@ -354,6 +355,17 @@ def build_consult_trace(
     status = "completed" if not failure and synthesis_ok else "failed"
     perspective_contexts = _perspective_contexts(payload)
     checked = _checks(payload=payload, capacity=capacity_record, synthesis_status=synthesis_status, status=status)
+    trace_input: dict[str, Any] = {
+        "question": question,
+        "question_hash": _sha256(question),
+        "requested_experts": list(requested_experts),
+        "selection_mode": "explicit" if explicit_roster else "automatic",
+        "requested_max_experts": int(max_experts),
+        "max_experts": effective_max_experts,
+        "budget_usd": float(budget),
+    }
+    if routing:
+        trace_input["routing"] = dict(routing)
     record = {
         "schema_version": CONSULT_TRACE_SCHEMA_VERSION,
         "kind": CONSULT_TRACE_KIND,
@@ -361,15 +373,7 @@ def build_consult_trace(
         "trace_id": trace_id or new_consult_trace_id(),
         "recorded_at": (recorded_at or _utc_now()).isoformat(),
         "status": status,
-        "input": {
-            "question": question,
-            "question_hash": _sha256(question),
-            "requested_experts": list(requested_experts),
-            "selection_mode": "explicit" if explicit_roster else "automatic",
-            "requested_max_experts": int(max_experts),
-            "max_experts": effective_max_experts,
-            "budget_usd": float(budget),
-        },
+        "input": trace_input,
         "capacity": capacity_record,
         "context_packet": {
             "always": {

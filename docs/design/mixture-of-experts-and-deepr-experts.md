@@ -64,6 +64,14 @@ Do not import an auxiliary loss that rewrites selection. Do not train a
 neural gate over Deepr experts. That would be an unverified improvement
 loop on the wrong object.
 
+## Shipped increment (v2.50.16+)
+
+`deepr route collapse` is the `$0` collapse report: automatic-consult
+concentration, recency-fallback rate when traces stored overlap scores, and
+optional replay against the current router. It does not change routing
+defaults. Local model defaults also skip coder/thinking tags when a general
+instruct model is installed.
+
 ## Two useful later increments (behind v2.51)
 
 ### 1. Sparse fleet collapse telemetry (`$0`)

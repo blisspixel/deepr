@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `deepr route collapse` reports whether automatic consults concentrate on a
+  few experts. It is `$0`, read-only, and not a quality verdict. New automatic
+  consult traces store overlap scores so recency fallback is replayable.
+- Local model defaults skip coder and thinking tags for extraction when a
+  general instruct model is installed, so an 80B coder MoE is not the silent
+  default for absorb or consult.
+
 ## [2.50.16] - 2026-09-15
 
 ### Added

@@ -4,7 +4,9 @@ from deepr.backends.local_fit import (
     choose_fitting_model,
     detect_vram_bytes,
     estimate_fit,
+    model_task_hygiene_class,
     parse_param_billions,
+    prefer_local_model,
 )
 
 _GB = 1_000_000_000
@@ -120,3 +122,25 @@ class TestDetectVram:
     def test_bad_override_reads_as_unknown(self, monkeypatch):
         monkeypatch.setenv("DEEPR_VRAM_BYTES", "not-a-number")
         assert detect_vram_bytes() == 0
+
+
+class TestPreferLocalModel:
+    def test_extraction_skips_coder_when_instruct_exists(self):
+        assert model_task_hygiene_class("qwen3-coder-next") == "code"
+        assert (
+            prefer_local_model(
+                ["qwen2.5-coder:32b", "qwen2.5:14b"],
+                task_class="extraction",
+            )
+            == "qwen2.5:14b"
+        )
+
+    def test_entailment_refuses_coder_only_lists(self):
+        assert prefer_local_model(["qwen2.5-coder:32b"], task_class="entailment") is None
+
+    def test_extraction_keeps_coder_when_that_is_all_that_is_installed(self):
+        assert prefer_local_model(["qwen3-coder-next"], task_class="extraction") == "qwen3-coder-next"
+
+    def test_embedding_requires_an_embedding_tag(self):
+        assert prefer_local_model(["qwen2.5:14b"], task_class="embedding") is None
+        assert prefer_local_model(["nomic-embed-text"], task_class="embedding") == "nomic-embed-text"

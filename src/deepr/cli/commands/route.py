@@ -86,3 +86,64 @@ def explain(query: str, max_experts: int, top_n: int, json_output: bool) -> None
     print_capacity_outlook(payload.get("capacity_outlook") or {})
     console.print(f"[dim]Automatic cheap-capacity order: {' -> '.join(payload['backend_fallback_order'])}[/dim]")
     console.print("[dim]Metered API: preview only; never an automatic fallback[/dim]")
+
+
+@route.command(name="collapse")
+@click.option(
+    "--limit",
+    type=click.IntRange(min=1, max=5000),
+    default=500,
+    show_default=True,
+    help="Newest consult traces to read",
+)
+@click.option("--json", "json_output", is_flag=True, help="Emit the collapse report as JSON")
+@click.option("--no-replay", is_flag=True, help="Skip comparing historical selections to the current router")
+def collapse(limit: int, json_output: bool, no_replay: bool) -> None:
+    """Show whether automatic consults concentrate on a few experts.
+
+    $0, read-only, no model call. Measures routing load over stored automatic
+    consult traces. Not a quality, importance, or authority verdict, and it
+    does not change routing defaults.
+
+    EXAMPLES:
+      deepr route collapse
+      deepr route collapse --json
+    """
+    from deepr.experts.consult_traces import load_consult_traces
+    from deepr.experts.fleet_collapse import build_route_collapse_report
+
+    try:
+        traces = load_consult_traces(limit=limit)
+        payload = build_route_collapse_report(traces, replay=not no_replay)
+    except Exception as exc:
+        print_error(f"Could not build route collapse report: {escape(str(exc))}")
+        sys.exit(1)
+
+    if json_output:
+        click.echo(_json.dumps(payload, indent=2))
+        return
+
+    print_header("Automatic consult collapse")
+    console.print(f"[dim]{escape(payload['note'])}[/dim]")
+    automatic = int(payload["automatic_consults"])
+    if automatic == 0:
+        console.print("No automatic consult traces in the local window.")
+        return
+    console.print(
+        f"{automatic} automatic consult(s), {payload['unique_experts_selected']} unique of "
+        f"{payload['roster_size']} on the current roster."
+    )
+    console.print(
+        f"top-1 share {payload['top1_share']:.0%}; top-3 share {payload['top3_share']:.0%}; "
+        f"entropy {payload['entropy_bits']:.2f} bits (max {payload['max_entropy_bits']:.2f})."
+    )
+    if payload["recency_fallback_known"]:
+        console.print(
+            f"recency fallback (zero overlap): {payload['recency_fallback_count']}/{payload['recency_fallback_known']}"
+        )
+    if payload["replayed"]:
+        console.print(f"current-router replay disagreements: {payload['replay_disagreements']}/{payload['replayed']}")
+    console.print("[dim]Flagship is a presentation label, not a routing prior.[/dim]")
+    for row in payload["frequencies"][:10]:
+        tier = f" [dim]({escape(row['roster_tier'])})[/dim]" if row["roster_tier"] == "flagship" else ""
+        console.print(f"  {row['count']:4d}  [bold]{escape(row['name'])}[/bold]{tier}  {row['share']:.0%}")
