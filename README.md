@@ -73,6 +73,18 @@ rather than refused for lacking a reset.
 | Lowering it | Honoured, never clamped back up |
 | Auditability | The ceiling in force is reported in every contract summary |
 
+Store an OpenRouter key with a hidden prompt, never as a command argument:
+
+```bash
+deepr keys set openrouter
+deepr keys list
+deepr keys check --provider openrouter
+```
+
+A stored key is optional paid capacity. It does not unfreeze MCP, schedules, or
+automatic fallback. Attended work still needs `deepr budget set`, wallet
+credits, and a finite provider cap.
+
 ## Capacity
 
 | Class | Current posture |
