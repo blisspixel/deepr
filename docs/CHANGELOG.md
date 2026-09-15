@@ -9,12 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `deepr keys set openrouter` stores `OPENROUTER_API_KEY` in checkout-local
+  `.env` via a hidden prompt. `deepr keys list` includes OpenRouter. Storing a
+  key is optional paid capacity, not a blank cheque.
 - `deepr route collapse` reports whether automatic consults concentrate on a
   few experts. It is `$0`, read-only, and not a quality verdict. New automatic
   consult traces store overlap scores so recency fallback is replayable.
 - Local model defaults skip coder and thinking tags for extraction when a
   general instruct model is installed, so an 80B coder MoE is not the silent
   default for absorb or consult.
+
+### Changed
+
+- OpenRouter keys that exclude BYOK from the limit stay eligible when BYOK
+  usage is zero. BYOK spend outside the cap still fails closed.
 
 ## [2.50.16] - 2026-09-15
 

@@ -141,7 +141,11 @@ def test_unrepresentable_money_returns_a_non_authorizing_observation(field: str)
     [
         ({"limit": 6.0, "limit_remaining": 5.0}, 4.0, "exceeds Deepr maximum"),
         ({"limit_remaining": 3.99, "usage": 0.81}, 4.0, "below required headroom"),
-        ({"include_byok_in_limit": False, "limit_remaining": 4.2}, 4.0, "BYOK usage is excluded"),
+        (
+            {"include_byok_in_limit": False, "limit_remaining": 4.2},
+            4.0,
+            "BYOK usage is excluded from the current key limit but BYOK spend is present",
+        ),
         ({"is_management_key": True}, 4.0, "management and provisioning"),
         ({"is_provisioning_key": True}, 4.0, "management and provisioning"),
         ({"is_free_tier": True}, 4.0, "free-tier"),
@@ -163,6 +167,27 @@ def test_current_key_controls_fail_closed(
     assert observation.control_eligible is False
     assert any(failure in item for item in observation.failures)
     assert observation.to_dict()["dispatch_authorized"] is False
+
+
+def test_unused_byok_exclusion_is_not_a_posture_failure() -> None:
+    observation = evaluate_openrouter_key_document(
+        _document(
+            include_byok_in_limit=False,
+            byok_usage=0.0,
+            byok_usage_monthly=0.0,
+            byok_usage_daily=0.0,
+            byok_usage_weekly=0.0,
+            usage=1.0,
+            usage_monthly=1.0,
+            usage_daily=1.0,
+            usage_weekly=1.0,
+            limit=5.0,
+            limit_remaining=4.0,
+        ),
+        required_headroom_usd=4.0,
+    )
+    assert observation.control_eligible is True
+    assert observation.failures == ()
 
 
 @pytest.mark.parametrize(

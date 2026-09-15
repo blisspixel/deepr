@@ -343,8 +343,8 @@ def _key_posture_failures(key: _ParsedOpenRouterKey) -> list[str]:
         failures.append("management and provisioning keys cannot be inference authority")
     if key.is_free_tier:
         failures.append("current key is free-tier and cannot prove the proposed paid route")
-    if not key.include_byok:
-        failures.append("BYOK usage is excluded from the current key limit")
+    if not key.include_byok and (key.byok_usage > _MONEY_TOLERANCE or key.byok_usage_monthly > _MONEY_TOLERANCE):
+        failures.append("BYOK usage is excluded from the current key limit but BYOK spend is present")
     # A limit that never resets is a total cap: once spent, it is gone, and the
     # key cannot authorize another dollar without a human raising it. That is
     # strictly safer than a monthly allowance, which re-arms twelve times a year

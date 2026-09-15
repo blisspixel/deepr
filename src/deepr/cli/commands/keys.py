@@ -1,4 +1,4 @@
-"""Provider credential visibility: `deepr keys list` and `deepr keys check`.
+"""Provider credential inventory: `deepr keys list`, `keys set`, and `keys check`.
 
 Every credential failure mode this command surfaces was hit in live operation
 on one machine in one day: a key present but expired, a key valid for one
@@ -6,12 +6,12 @@ endpoint but not another, a fresh key shadowed by a stale exported variable
 (dotenv never overrides the process environment), a misspelled variable name
 that nothing would ever read, and an empty value that looked set. Each one
 surfaced downstream as a misleading provider error. This command makes key
-state inspectable up front, for $0.
+state inspectable up front.
 
 Security posture: values are never printed. Output shows presence, a short
-prefix, and length only. There is deliberately no `keys set`: secrets passed
-as command arguments land in shell history, so the supported write path is
-editing .env directly (see .env.example for every spot).
+prefix, and length only. `keys set` takes no argv secret: it prompts hidden
+and writes `.env`. Storing a key is not spend authority. Attended metered
+work still needs a budget, wallet credits, and a provider hard cap.
 """
 
 from __future__ import annotations
@@ -25,13 +25,17 @@ import click
 
 from deepr.cli.colors import console, print_header
 
-# Provider key inventory. Live validation is deliberately quarantined.
+# Provider key inventory. OpenRouter metadata may be checked; other live
+# provider pings stay cost-quarantined.
 PROVIDERS: dict[str, dict[str, str]] = {
     "openai": {"env": "OPENAI_API_KEY"},
     "xai": {"env": "XAI_API_KEY"},
     "anthropic": {"env": "ANTHROPIC_API_KEY"},
     "gemini": {"env": "GEMINI_API_KEY"},
+    "openrouter": {"env": "OPENROUTER_API_KEY"},
 }
+_MAX_ENV_BYTES = 64 * 1024
+_MAX_KEY_BYTES = 512
 
 _KNOWN_ENV_NAMES = [meta["env"] for meta in PROVIDERS.values()]
 
@@ -90,17 +94,62 @@ def _key_state(provider: str) -> dict[str, object]:
     }
 
 
+def _write_env_key(name: str, value: str) -> Path:
+    """Replace or append one assignment in checkout-local `.env` without printing it."""
+    from deepr.utils.atomic_io import atomic_write_text
+
+    path = Path(".env")
+    if path.exists():
+        if path.stat().st_size > _MAX_ENV_BYTES:
+            raise click.ClickException(".env is too large to update safely")
+        existing = path.read_text(encoding="utf-8").splitlines()
+    else:
+        existing = []
+    lines: list[str] = []
+    replaced = False
+    for line in existing:
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#") and "=" in stripped:
+            key = stripped.split("=", 1)[0].strip()
+            if key == name:
+                lines.append(f"{name}={value}")
+                replaced = True
+                continue
+        lines.append(line)
+    if not replaced:
+        if lines and lines[-1] != "":
+            lines.append("")
+        lines.append(f"{name}={value}")
+    atomic_write_text(path, "\n".join(lines) + "\n")
+    return path
+
+
 def _validate(provider: str, key: str) -> dict[str, object]:
-    """Block external key validation before any request or credential use."""
+    """Live-check OpenRouter metadata; other providers stay cost-quarantined."""
     if provider not in PROVIDERS:
         raise ValueError(f"unknown provider: {provider}")
-    del key
-    return {"status": "blocked", "reason": "external_metadata_cost_unverified"}
+    if provider != "openrouter":
+        del key
+        return {"status": "blocked", "reason": "external_metadata_cost_unverified"}
+    from deepr.providers.openrouter_key_controls import OpenRouterKeyControlError, inspect_openrouter_key
+
+    try:
+        observation = inspect_openrouter_key(key)
+    except OpenRouterKeyControlError as exc:
+        return {"status": "invalid", "reason": str(exc)}
+    return {
+        "status": "valid" if observation.control_eligible else "ineligible",
+        "reason": "; ".join(observation.failures) if observation.failures else "openrouter_key_metadata",
+        "control_eligible": observation.control_eligible,
+        "limit_usd": observation.limit_usd,
+        "limit_remaining_usd": observation.limit_remaining_usd,
+        "limit_reset": observation.limit_reset,
+    }
 
 
 @click.group()
 def keys():
-    """Inspect and validate provider API keys without exposing them."""
+    """Inspect, store, and check provider API keys without exposing them."""
 
 
 @keys.command("list")
@@ -136,14 +185,25 @@ def list_keys(json_output: bool):
             f"  !! suspect name {found!r} in .env; nothing reads it. Did you mean {expected!r}?", markup=False
         )
     if not any(s["present"] for s in states):
-        console.print("  No provider keys found. Copy .env.example to .env and add at least one.")
+        console.print("  No provider keys found. Run `deepr keys set openrouter` or copy .env.example to .env.")
+
+
+def _check_extra(result: dict[str, object]) -> str:
+    extras = {
+        "valid": f"{result.get('models_visible', 0)} models visible",
+        "no_key": f"set {result['env_var']} in .env",
+        "invalid": "rejected by provider (expired, revoked, or endpoint-restricted)",
+        "blocked": "external validation blocked because endpoint and proxy cost cannot be proven",
+        "ineligible": str(result.get("reason") or "key metadata failed Deepr's hard-cap checks"),
+    }
+    return str(extras.get(str(result["status"]), ""))
 
 
 @keys.command("check")
 @click.option("--provider", "only", type=click.Choice(sorted(PROVIDERS)), default=None, help="Check one provider")
 @click.option("--json", "json_output", is_flag=True, help="Machine-readable output")
 def check_keys(only: str | None, json_output: bool):
-    """Report that live provider-key validation is cost-quarantined."""
+    """Report OpenRouter key metadata, or that other live checks are cost-quarantined."""
     results = []
     for provider in [only] if only else sorted(PROVIDERS):
         state = _key_state(provider)
@@ -158,16 +218,38 @@ def check_keys(only: str | None, json_output: bool):
         return
     print_header("Provider key check")
     for result in results:
-        status = result["status"]
-        extra = ""
-        if status == "valid":
-            extra = f"{result.get('models_visible', 0)} models visible"
-        elif status == "no_key":
-            extra = f"set {result['env_var']} in .env"
-        elif status == "invalid":
-            extra = "rejected by provider (expired, revoked, or endpoint-restricted)"
-        elif status == "blocked":
-            extra = "external validation blocked because endpoint and proxy cost cannot be proven"
-        console.print(f"  {status:<12}{result['provider']:<10} {extra}", markup=False)
+        console.print(
+            f"  {result['status']:<12}{result['provider']:<12} {_check_extra(result)}",
+            markup=False,
+        )
         if result.get("shadowed"):
             console.print("        warning: exported variable shadows .env; the exported one was checked")
+
+
+@keys.command("set")
+@click.argument("provider", type=click.Choice(sorted(PROVIDERS)))
+def set_key(provider: str) -> None:
+    """Store a provider key in checkout-local `.env` via a hidden prompt.
+
+    The secret is never accepted as a command-line argument (that lands in
+    shell history). Storing a key does not spend money and does not unfreeze
+    paid dispatch. Attended OpenRouter work still needs a budget, wallet
+    credits, and a finite provider cap.
+
+    EXAMPLES:
+      deepr keys set openrouter
+    """
+    env_var = PROVIDERS[provider]["env"]
+    secret = click.prompt(f"{env_var}", hide_input=True, confirmation_prompt=True, err=True)
+    secret = secret.strip()
+    if not secret:
+        raise click.ClickException("empty keys are not stored")
+    if len(secret.encode("utf-8")) > _MAX_KEY_BYTES:
+        raise click.ClickException("key exceeds the stored-secret size bound")
+    path = _write_env_key(env_var, secret)
+    secret = ""
+    print_header("Provider key stored")
+    console.print(f"  wrote {env_var} to {path} (value not shown)")
+    console.print("  A stored key is optional paid capacity, not a blank cheque.")
+    if provider == "openrouter":
+        console.print("  Next: `deepr keys check --provider openrouter` then `deepr budget set 20`.")
