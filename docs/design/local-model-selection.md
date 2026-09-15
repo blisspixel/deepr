@@ -69,6 +69,12 @@ default is not a neutral choice.
 4. Then: a short sweep matrix in CI-adjacent tooling is NOT planned - evals cost real
    local compute; they stay operator-run via the shipped eval commands.
 
+An installed sparse MoE GGUF (30B-A3B class, or an admitted 80B coder such as
+`qwen3-coder-next`) stays on this same local `$0` rung. It is a fit and
+task-class annotation, not a fourth capacity class, and it is not the same
+object as a Deepr domain expert. See
+[mixture-of-experts-and-deepr-experts.md](mixture-of-experts-and-deepr-experts.md).
+
 ## Measured addendum (2026-07-25 sweep)
 
 Five local checkers (qwen2.5-coder:32b, qwen2.5:14b, gemma4:26b, qwen3:30b,

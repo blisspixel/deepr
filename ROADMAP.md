@@ -54,6 +54,7 @@
 | [Epistemic Simulation Evaluation](docs/design/epistemic-simulation-evaluation.md) | Identity ablation, counterfactual transfer, belief revision, evidence contracts, and outcome gates for reasoning lenses |
 | [Agent Harness Lessons 2026](docs/design/agent-harness-lessons-2026.md) | Hermes, OpenClaw, OpenCode, Pi, OpenHands, Goose, and Letta patterns relevant to Deepr |
 | [Local-First Agent Runtime Options](docs/design/local-first-agent-runtime-options.md) | Local expert and skill creation, selected OKF knowledge, and an optional gated hosted companion |
+| [Mixture of Experts and Deepr Experts](docs/design/mixture-of-experts-and-deepr-experts.md) | Neural MoE vs Mixture-of-Agents vs the persistent expert fleet; collapse telemetry and local MoE as fit policy, not a new capacity class |
 | [External Harness Investigation Bridge](docs/design/external-harness-investigation-bridge.md) | Projection-first Grok Build, DeepSeek Harness, OpenClaw, NemoClaw, Codex, and workspace-host integration without moving orchestration authority into Deepr |
 | [Evidence-Gated Polyglot Evolution](docs/design/evidence-gated-polyglot-evolution.md) | Measured Python-first performance plan and explicit Rust, Go, Mojo, and free-threading extraction gates |
 | [Architecture](docs/ARCHITECTURE.md) | Technical details, security, observability |
@@ -70,9 +71,10 @@ Roadmap items are not approach claims until they land in
 
 ## Active Release Plan
 
-**Now (v2.50.15):** local experts, write-free OpenRouter previews, and
-fail-closed metered gates. Paid OpenRouter dispatch, Python/MCP skill
-execution, and automatic learning stay blocked.
+**Now (v2.50.16):** local experts, write-free OpenRouter previews, an
+owner-raisable local spend ceiling, and fail-closed metered gates. Paid
+OpenRouter dispatch, Python/MCP skill execution, and automatic learning stay
+blocked.
 
 **v2.50.15 safety correction (2026-09-13):** all production plan adapters
 are now execution-blocked. Claude managed-policy hooks survive safe mode,
@@ -98,9 +100,11 @@ A completed negative pilot is useful evidence; a favorable result still needs
 held-out replication before learning-policy or routing-default changes.
 
 **Not next, even if they look adjacent:** paid OpenRouter activation,
-host subagent trees, expert-maintained skills, hosted observation, and
-automatic belief changes from prediction outcomes. Those wait on later
-numbered gates, and only if v2.51 produces usable evidence.
+host subagent trees, expert-maintained skills, hosted observation,
+automatic belief changes from prediction outcomes, a trained gate over
+the expert roster, or rebranding the fleet as a neural mixture of
+experts. Those wait on later numbered gates, and only if v2.51 produces
+usable evidence.
 
 This order is dependency-gated, not a calendar. Deepr does not publish
 sprint, day, week, quarter, or release-date promises. A target advances only
@@ -443,7 +447,7 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.15)
+## Current Status (v2.50.16)
 
 **Next is v2.51, not more dispatch.** v2.50.14 closed metered-client
 construction, pricing fallback, consent, and SSRF holes and kept OpenRouter
@@ -476,6 +480,17 @@ Open v2.51 work:
   the suite on a healthy Windows host. Focused regressions and the installed
   plugin stdio check passed here. See the
   [verification record](docs/validation/research-review-2026-09-13.md).
+
+- [ ] **Mixture-of-Experts research (behind v2.51, 2026-09-15):** neural MoE
+  sparsifies compute inside one model; Deepr sparsifies durable expertise
+  across a roster. They are not the same object. Consult is already top-k
+  stored packets plus one synthesis, not N expert processes. Parallel work
+  may add `$0` collapse telemetry over automatic consult traces and may
+  implement the staged local-model-selection policy so an installed MoE
+  GGUF is ranked by fit and task class (coder/thinking excluded from
+  entailment defaults). It must not train a gate, rebrand the council as
+  MoE, add a `local-moe` capacity class, or change routing defaults.
+  [Design note](docs/design/mixture-of-experts-and-deepr-experts.md).
 
 Completed September 13 compatibility and capacity corrections are recorded in
 [the v2.50.15 changelog](docs/CHANGELOG.md#25015---2026-09-13).
@@ -950,6 +965,7 @@ lexical verdict.
 | [docs/design/expert-insight-layer.md](docs/design/expert-insight-layer.md) | **Corpus to perspective, not corpus to facts** - the missing reasoning stage |
 | [docs/design/living-expert-research-stack.md](docs/design/living-expert-research-stack.md) | Research: Distillr, Learny, capacity |
 | [docs/design/diverse-expert-council.md](docs/design/diverse-expert-council.md) | Research: multi-axis mock councils |
+| [docs/design/mixture-of-experts-and-deepr-experts.md](docs/design/mixture-of-experts-and-deepr-experts.md) | Research: neural MoE vs the persistent fleet |
 | [docs/plans/living-expert-research-stack.md](docs/plans/living-expert-research-stack.md) | **Order of operations** Steps 0-8 (no calendar estimates) |
 | [docs/design/exceptional-expert-quality.md](docs/design/exceptional-expert-quality.md) | Living expert / wiki quality bar |
 | [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) | Instrument independence |
@@ -3736,7 +3752,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.15. This roadmap keeps
+v2.50.16. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 

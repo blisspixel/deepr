@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.50.15-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.15)
+[![Version](https://img.shields.io/badge/version-2.50.16-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.16)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -100,10 +100,10 @@ can be previewed, while automatic routing, expert routing, evaluation, and paid
 dispatch remain blocked. The public route check needs no key; the separate
 current-key check uses a hidden prompt by default and makes no inference
 request. An explicit checkout-local `.env` source is documented for local use.
-Officially valid nullable limit controls and current-month usage are reported
-honestly. A key without a
-monthly BYOK-inclusive limit of `$5` or less remains ineligible. Neither check
-authorizes dispatch.
+Officially valid nullable limit controls are reported honestly. A
+non-renewing total cap is accepted and reconciled against lifetime usage. A
+key without a finite BYOK-inclusive limit at or below the operator ceiling
+remains ineligible. Neither check authorizes dispatch.
 
 See [Capacity and Cost](docs/CAPACITY.md) for the operating and billing
 boundary, [Models](docs/MODELS.md#openrouter-preview-catalog) for provider-route
@@ -165,11 +165,12 @@ for tested behavior and the distinction from draft standards and host certificat
 
 ## Direction
 
-v2.50.15 corrects MCP and Agent Plugins compatibility and blocks Claude plan
-execution until managed-policy commands can be confined. v2.50.14 closed
-remaining metered-dispatch, spend, consent, and SSRF holes.
-It did not enable paid OpenRouter, skill execution, or a claim that expert
-memory helps.
+v2.50.16 adds an owner-raisable local spend ceiling and accepts a
+non-renewing OpenRouter total cap, plus local Lemonade portraits and the
+Delve mark. Production paid dispatch remains blocked. v2.50.15 corrected MCP
+and Agent Plugins compatibility and blocked Claude plan execution until
+managed-policy commands can be confined. It did not enable paid OpenRouter,
+skill execution, or a claim that expert memory helps.
 
 **Next is v2.51:** one blinded four-arm evaluation of whether a maintained
 expert improves repeated decisions versus fresh research, static history, and
