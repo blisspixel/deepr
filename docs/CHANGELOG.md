@@ -7,11 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.17] - 2026-09-15
+
 ### Added
 
-- `deepr keys set openrouter` stores `OPENROUTER_API_KEY` in checkout-local
-  `.env` via a hidden prompt. `deepr keys list` includes OpenRouter. Storing a
-  key is optional paid capacity, not a blank cheque.
+- `deepr keys set openrouter` stores `OPENROUTER_API_KEY` via a hidden prompt.
+  If a checkout `.env` exists it is updated; otherwise the key is written to
+  `~/.deepr/.env` so a globally installed CLI works from any directory.
+  `deepr keys list` includes OpenRouter. Storing a key is optional paid
+  capacity, not a blank cheque.
 - `deepr route collapse` reports whether automatic consults concentrate on a
   few experts. It is `$0`, read-only, and not a quality verdict. New automatic
   consult traces store overlap scores so recency fallback is replayable.

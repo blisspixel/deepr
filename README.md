@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.50.16-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.16)
+[![Version](https://img.shields.io/badge/version-2.50.17-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.17)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -177,7 +177,7 @@ for tested behavior and the distinction from draft standards and host certificat
 
 ## Direction
 
-v2.50.16 adds an owner-raisable local spend ceiling and accepts a
+v2.50.17 adds `deepr keys set openrouter`. v2.50.16 adds an owner-raisable local spend ceiling and accepts a
 non-renewing OpenRouter total cap, plus local Lemonade portraits and the
 Delve mark. Production paid dispatch remains blocked. v2.50.15 corrected MCP
 and Agent Plugins compatibility and blocked Claude plan execution until
