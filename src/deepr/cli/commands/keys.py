@@ -188,11 +188,22 @@ def list_keys(json_output: bool):
         console.print("  No provider keys found. Run `deepr keys set openrouter` or copy .env.example to .env.")
 
 
+def _check_extra(result: dict[str, object]) -> str:
+    extras = {
+        "valid": f"{result.get('models_visible', 0)} models visible",
+        "no_key": f"set {result['env_var']} in .env",
+        "invalid": "rejected by provider (expired, revoked, or endpoint-restricted)",
+        "blocked": "external validation blocked because endpoint and proxy cost cannot be proven",
+        "ineligible": str(result.get("reason") or "key metadata failed Deepr's hard-cap checks"),
+    }
+    return str(extras.get(str(result["status"]), ""))
+
+
 @keys.command("check")
 @click.option("--provider", "only", type=click.Choice(sorted(PROVIDERS)), default=None, help="Check one provider")
 @click.option("--json", "json_output", is_flag=True, help="Machine-readable output")
 def check_keys(only: str | None, json_output: bool):
-    """Report that live provider-key validation is cost-quarantined."""
+    """Report OpenRouter key metadata, or that other live checks are cost-quarantined."""
     results = []
     for provider in [only] if only else sorted(PROVIDERS):
         state = _key_state(provider)
@@ -207,19 +218,10 @@ def check_keys(only: str | None, json_output: bool):
         return
     print_header("Provider key check")
     for result in results:
-        status = result["status"]
-        extra = ""
-        if status == "valid":
-            extra = f"{result.get('models_visible', 0)} models visible"
-        elif status == "no_key":
-            extra = f"set {result['env_var']} in .env"
-        elif status == "invalid":
-            extra = "rejected by provider (expired, revoked, or endpoint-restricted)"
-        elif status == "blocked":
-            extra = "external validation blocked because endpoint and proxy cost cannot be proven"
-        elif status == "ineligible":
-            extra = str(result.get("reason") or "key metadata failed Deepr's hard-cap checks")
-        console.print(f"  {status:<12}{result['provider']:<12} {extra}", markup=False)
+        console.print(
+            f"  {result['status']:<12}{result['provider']:<12} {_check_extra(result)}",
+            markup=False,
+        )
         if result.get("shadowed"):
             console.print("        warning: exported variable shadows .env; the exported one was checked")
 
