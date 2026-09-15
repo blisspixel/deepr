@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.16] - 2026-09-15
+
+### Added
+
+- Local expert portraits can render through an attested Lemonade image
+  server at `$0` when endpoint ownership is proven. Blocked local portrait
+  capacity is a typed refusal, not a traceback.
+- The operator can raise the local Deepr spend ceiling through
+  `DEEPR_MAX_SPEND_CEILING_USD` (default `$5`, hard bound `$100`). A
+  non-renewing OpenRouter key limit is accepted as a total cap and
+  reconciles against lifetime usage. Production paid dispatch remains
+  blocked. BYOK-excluded keys stay ineligible.
+
+### Changed
+
+- The public mark is Delve: one stave with two opposite branches, no
+  nested-U curves.
+- README spend copy states bounded authorized spend: a total ceiling is
+  preferred over a monthly allowance that re-arms. Capacity inventory now
+  names OpenRouter honestly and labels the fleet spend window.
+- Research note: neural mixture-of-experts models sparsify compute inside
+  one network; Deepr experts are persistent domain state. Collapse
+  telemetry and local MoE fit policy stay behind v2.51 and do not add a
+  capacity class or train a routing gate.
+
+### Fixed
+
+- OpenRouter presence is visible in `deepr capacity` / fleet inventory
+  without authorizing dispatch.
+
 ## [2.50.15] - 2026-09-13
 
 ### Fixed
