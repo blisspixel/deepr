@@ -41,8 +41,10 @@ The loop, from smallest to largest change:
    backward-compatible changes. One feature or fix per commit/PR. Each
    increment lands green before the next starts. Do not extract new files
    only to clear C901 or the file-size ratchet - that creates confetti that
-   is harder to read than a cohesive module. Named seams with tests only;
-   prefer a short package map when a multi-file family is intentional. See
+   is harder to read than a cohesive module. An extract is allowed only as a
+   named seam with tests, and the parent must lose a whole story, not a
+   helper. Prefer a short package map when a multi-file family is
+   intentional. See
    [docs/design/module-shape-and-readability.md](docs/design/module-shape-and-readability.md).
 5. **Verify as you go**, then **ship**, then **validate live** where it
    matters. Live runs have found real bugs every time (see the ROADMAP

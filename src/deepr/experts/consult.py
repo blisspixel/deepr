@@ -1,11 +1,19 @@
 """Shared expert-consultation core (used by the CLI verb and the MCP tool).
 
-One bounded "knowledge transaction" (docs/design/agentic-harness-boundary.md):
-route a question to the relevant experts (or an explicit set), run the bounded
-council, and shape the result into the versioned ``deepr-consult-v1`` artifact.
-Both ``deepr expert consult`` and the ``deepr_consult_experts`` MCP tool import
-this, so the two surfaces share one contract and one code path - and the MCP
-server never has to depend on the CLI layer.
+One bounded knowledge transaction: route a question, run the bounded council,
+and shape ``deepr-consult-v1``. CLI ``expert consult`` and MCP
+``deepr_consult_experts`` import this so MCP never depends on the CLI.
+
+Family map:
+
+- ``consult.py``: select experts, run council, shape the artifact.
+- ``consult_transaction.py`` / ``consult_transaction_errors.py``: durable wrapper.
+- ``consult_lifecycle.py`` plus contract, storage, errors: journal and progress.
+- ``consult_context.py``: what one expert brings to the turn.
+- ``consult_quality.py`` / ``consult_quality_judges.py``: reviewed scoring.
+- ``consult_traces.py``: durable traces.
+
+Spend still goes through cost admission, not this package.
 """
 
 from __future__ import annotations

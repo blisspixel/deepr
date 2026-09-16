@@ -21,7 +21,11 @@ from deepr.experts.research_reservation_store import ResearchReservationStore
 from deepr.providers.base import ResearchRequest
 from deepr.providers.dispatch_authority import require_unproxied_paid_transport
 from deepr.providers.openrouter_account_controls import load_openrouter_api_key
-from deepr.providers.openrouter_completion import OpenRouterCompletionError, complete_openrouter_chat
+from deepr.providers.openrouter_completion import (
+    OpenRouterCompletionError,
+    OpenRouterCompletionResult,
+    complete_openrouter_chat,
+)
 from deepr.providers.registry_pricing import get_resolved_model_capability
 from deepr.security.key_quarantine import temporarily_released_metered_keys
 from deepr.services.research_bounds import bounded_research_cost_estimate
@@ -53,7 +57,7 @@ def _dispatch_openrouter_completion(
     max_tokens: int,
     prompt_max_price: float,
     completion_max_price: float,
-):
+) -> OpenRouterCompletionResult:
     api_key = load_openrouter_api_key()
     if not api_key:
         raise click.ClickException("OPENROUTER_API_KEY is not available")
@@ -192,7 +196,7 @@ def run_attended_openrouter_research(
         _print_and_store(query=query, model=model, job_id=job_id, result=result)
 
 
-def _print_and_store(*, query: str, model: str, job_id: str, result: object) -> None:
+def _print_and_store(*, query: str, model: str, job_id: str, result: OpenRouterCompletionResult) -> None:
     from deepr.config import load_config
     from deepr.utils.atomic_io import atomic_write_text
 

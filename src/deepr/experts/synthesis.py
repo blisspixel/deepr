@@ -271,7 +271,7 @@ class KnowledgeSynthesizer:
             if "content" in doc:
                 doc_contents.append({"filename": path.name, "content": doc["content"]})
             elif await asyncio.to_thread(path.exists):
-                # Note: sync open/read here; for full non-blocking use aiofiles in future pass
+                # Sync open/read is intentional; this path is not a hot loop.
                 with open(path, encoding="utf-8") as f:
                     doc_contents.append({"filename": path.name, "content": f.read()})
 

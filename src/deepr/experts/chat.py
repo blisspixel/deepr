@@ -1,9 +1,16 @@
-"""Interactive chat interface for domain experts using GPT-5 with tool calling for RAG.
+"""Live expert-chat session facade.
 
-Uses the Responses API (NOT deprecated Assistants API) with custom tool calling
-to retrieve from the vector store.
+Family map (do not extract crumbs to clear C901 or the file-size cap):
 
-Instrumented with distributed tracing for observability (4.2 Auto-Generated Metadata).
+- ``chat.py``: session object, turn loop, tool dispatch.
+- ``chat_capacity.py`` / ``chat_metered.py``: admit or refuse a metered turn.
+- ``chat_backends.py`` / ``chat_api_backends.py``: local vs API complete/stream.
+- ``chat_turns.py``: turn accounting and routing traces.
+- ``chat_session_ops.py``: compact, cancel, follow-ups.
+- ``chat_grounding.py``: belief-graph grounding, not a flat snapshot.
+- ``chat_research_ops.py``: fail-closed metered research helpers.
+
+CLI/MCP/web wrap this; they must not reimplement the turn.
 """
 
 import asyncio
