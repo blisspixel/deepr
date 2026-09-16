@@ -543,13 +543,13 @@ class ContextChainer:
         url_pattern = r'https?://[^\s<>"{}|\\^`\[\]]+'
         urls = re.findall(url_pattern, text)
         if urls:
-            return urls[0]
+            return str(urls[0])
 
         # Look for citations
         cite_pattern = r"\(([^)]+(?:19|20)\d{2}[^)]*)\)"
         cites = re.findall(cite_pattern, text)
         if cites:
-            return cites[0]
+            return str(cites[0])
 
         return None
 
@@ -558,7 +558,7 @@ class ContextChainer:
         phase_output: StructuredPhaseOutput,
         budget: int,
         focus_query: str | None,
-    ) -> tuple:
+    ) -> tuple[str, int]:
         """Format a phase's context within token budget.
 
         Args:

@@ -93,6 +93,7 @@ class TestResearchAPI:
             await api.get_job_result("pending-123")
 
     async def test_cancel_job_delegates(self, api, mock_queue):
-        """cancel_job delegates to queue.cancel."""
-        await api.cancel_job("cancel-123")
-        mock_queue.cancel.assert_called_once_with("cancel-123")
+        """cancel_job delegates to queue.cancel_job."""
+        mock_queue.cancel_job.return_value = True
+        assert await api.cancel_job("cancel-123") is True
+        mock_queue.cancel_job.assert_called_once_with("cancel-123")

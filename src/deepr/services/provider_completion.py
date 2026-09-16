@@ -57,8 +57,10 @@ async def _save_completion_report(*, storage: Any, job: ResearchJob, response: A
 async def _publish_completion_status(queue: Any, job_id: str, report_url: str | None) -> bool:
     """Mark empty provider completions FAILED after cost settlement."""
     if report_url:
-        return await queue.update_status(job_id, JobStatus.COMPLETED)
-    return await queue.update_status(job_id, JobStatus.FAILED, error=_EMPTY_COMPLETION_ERROR)
+        updated = await queue.update_status(job_id, JobStatus.COMPLETED)
+    else:
+        updated = await queue.update_status(job_id, JobStatus.FAILED, error=_EMPTY_COMPLETION_ERROR)
+    return bool(updated)
 
 
 def _usage_int(usage: Any, field: str) -> int | None:

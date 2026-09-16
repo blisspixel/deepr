@@ -84,10 +84,10 @@ class ResearchAPI:
             "completed_at": job.completed_at.isoformat() if job.completed_at else None,
         }
 
-    async def cancel_job(self, job_id: str):
+    async def cancel_job(self, job_id: str) -> bool:
         """Cancel a research job.
 
         Args:
             job_id: Job ID
         """
-        await self.queue.cancel(job_id)
+        return await self.queue.cancel_job(job_id)
