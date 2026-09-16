@@ -19,7 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   formatter.
 - Blocking ``mypy --strict`` now includes ``backends/``, ``agents/``,
   ``evals/``, and ``observability/``. ``services/`` stays on the non-blocking
-  baseline.
+  baseline. Cost-ledger file locks use ``sys.platform == "win32"`` so Linux
+  mypy does not type-check ``msvcrt``.
   Windows Job Object ctypes bindings type-check on Linux without claiming
   ``ctypes.WinDLL`` exists there.
 

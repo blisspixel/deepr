@@ -4,6 +4,7 @@ import importlib
 import json
 import logging
 import os
+import sys
 import threading
 import time
 from collections.abc import Callable, Iterator
@@ -204,7 +205,7 @@ class CostLedger:
                 handle.write(b"\0")
                 handle.flush()
             handle.seek(0)
-            if os.name == "nt":
+            if sys.platform == "win32":
                 import msvcrt
 
                 mode = msvcrt.LK_LOCK if timeout is None else msvcrt.LK_NBLCK
