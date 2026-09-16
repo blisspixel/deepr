@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- File-size grandfathered caps now match current line counts, so unused
+  headroom cannot grow the remaining god files.
+- Direct unused core/dev dependencies `aiofiles`, `colorama`, and `black`
+  were removed. Windows color still arrives through Click. Ruff remains the
+  formatter.
+- Blocking ``mypy --strict`` now includes ``backends/``, ``agents/``, and
+  ``evals/``. Observability and services stay on the non-blocking baseline.
+  Windows Job Object ctypes bindings type-check on Linux without claiming
+  ``ctypes.WinDLL`` exists there.
+
+### Fixed
+
+- Attended OpenRouter research helpers are typed against
+  `OpenRouterCompletionResult` instead of `object`.
+- Agent-tool JSON arguments that are not an object fail closed instead of
+  calling ``.get`` on a list or string.
+
 ## [2.50.18] - 2026-09-16
 
 ### Added

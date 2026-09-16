@@ -58,7 +58,7 @@ def create_config_template() -> None:
 def check_dependencies() -> bool:
     """Check importable package names without importing provider clients."""
     required = {
-        "aiofiles": "aiofiles",
+        "click": "click",
         "dotenv": "python-dotenv",
         "pydantic": "pydantic",
     }

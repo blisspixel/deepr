@@ -134,7 +134,7 @@ def _check_stored_belief_context_packet() -> ConsultEvalOutcome:
     belief = Belief(
         claim="Prompt caching cost models must separate cache creation tokens from cache read tokens.",
         confidence=0.92,
-        evidence_refs=("https://platform.claude.com/docs/en/build-with-claude/prompt-caching",),
+        evidence_refs=["https://platform.claude.com/docs/en/build-with-claude/prompt-caching"],
         domain="provider economics",
         trust_class="secondary",
     )

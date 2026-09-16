@@ -1,9 +1,9 @@
-"""Cost safety utilities for preventing runaway spending.
+"""Expert-facing cost safety facade.
 
-Implements circuit breaker pattern to detect and halt rapid cost accumulation.
-Provides defense against accidental or malicious cost spikes.
-
-Requirements: 8.2 - Implement rapid cost accumulation detection and circuit breaker
+Money path: this module (breaker, windows, messages),
+``cost_safety_ledger.py``, ``cost_admission.py``,
+``observability/cost_ledger.py`` (ledger of record), ``core/cost_caps.py``,
+``services/metered_call.py``. Do not add a parallel spend gate.
 """
 
 import threading

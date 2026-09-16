@@ -41,8 +41,10 @@ The loop, from smallest to largest change:
    backward-compatible changes. One feature or fix per commit/PR. Each
    increment lands green before the next starts. Do not extract new files
    only to clear C901 or the file-size ratchet - that creates confetti that
-   is harder to read than a cohesive module. Named seams with tests only;
-   prefer a short package map when a multi-file family is intentional. See
+   is harder to read than a cohesive module. An extract is allowed only as a
+   named seam with tests, and the parent must lose a whole story, not a
+   helper. Prefer a short package map when a multi-file family is
+   intentional. See
    [docs/design/module-shape-and-readability.md](docs/design/module-shape-and-readability.md).
 5. **Verify as you go**, then **ship**, then **validate live** where it
    matters. Live runs have found real bugs every time (see the ROADMAP
@@ -65,7 +67,7 @@ A change is done when all of these hold - not "the code works":
 - [ ] `python scripts/check_file_sizes.py` and
       `python scripts/check_ratchets.py` pass. These are local pre-commit hooks
       as well as blocking CI gates.
-- [ ] `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/core src/deepr/providers src/deepr/mcp src/deepr/security src/deepr/queue src/deepr/storage src/deepr/tools src/deepr/routing src/deepr/worker src/deepr/webhooks src/deepr/a2a src/deepr/skills`
+- [ ] `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/core src/deepr/providers src/deepr/mcp src/deepr/security src/deepr/queue src/deepr/storage src/deepr/tools src/deepr/routing src/deepr/worker src/deepr/webhooks src/deepr/a2a src/deepr/skills src/deepr/backends src/deepr/agents src/deepr/evals`
       clean (the blocking strict islands; do not regress the wider baseline).
 - [ ] `python scripts/check_docs_consistency.py` passes (doc counts match
       source).
@@ -127,7 +129,7 @@ not add day, sprint, week, quarter, or release-date estimates to active plans.
 ## Code style
 
 - **Formatter / linter**: ruff (line length 120). Pre-commit enforces it.
-- **Types**: `core/`, `providers/`, `mcp/`, `security/`, `queue/`, `storage/`, `tools/`, `routing/`, `worker/`, `webhooks/`, `a2a/`, and the importable `deepr.skills` package are `mypy --strict`-clean and
+- **Types**: `core/`, `providers/`, `mcp/`, `security/`, `queue/`, `storage/`, `tools/`, `routing/`, `worker/`, `webhooks/`, `a2a/`, the importable `deepr.skills` package, `backends/`, `agents/`, and `evals/` are `mypy --strict`-clean and
   gated; new modules should aim for the same.
 - **Logging**: `logging.getLogger(__name__)` in library code, never
   `print()`. Specific exception types, not bare `except Exception`.

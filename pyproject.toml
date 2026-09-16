@@ -32,8 +32,6 @@ dependencies = [
     "python-dotenv>=1.0.0,<2.0.0",
     "click>=8.1.0,<9.0.0",
     "pydantic>=2.0.0,<3.0.0",
-    "aiofiles>=23.0.0,<26.0.0",
-    "colorama>=0.4.6,<1.0.0",
     "rich>=13.0.0,<16.0.0",
     "httpx>=0.23.0,<1.0.0",
     # h2 arrives transitively through the httpx/httpcore HTTP-2 path. Pinned
@@ -126,7 +124,6 @@ dev = [
     "pytest-mock>=3.10.0",
     "pytest-socket>=0.7.0,<1.0.0",
     "pytest-timeout>=2.3.0",
-    "black>=26.5.1",
     "ruff>=0.16.0",
     "hypothesis>=6.163.0",
     "mypy>=2.3.0",
@@ -368,6 +365,12 @@ module = [
     "deepr.a2a.*",
     "deepr.skills",
     "deepr.skills.*",
+    "deepr.backends",
+    "deepr.backends.*",
+    "deepr.agents",
+    "deepr.agents.*",
+    "deepr.evals",
+    "deepr.evals.*",
 ]
 disallow_untyped_defs = true
 disallow_incomplete_defs = true

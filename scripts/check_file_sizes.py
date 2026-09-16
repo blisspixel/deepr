@@ -24,22 +24,22 @@ CEILING = 1000
 # This dict only ever shrinks: when Phase Q3 splits a file below CEILING,
 # remove its entry; if a file shrinks but stays over CEILING, lower its cap.
 GRANDFATHERED: dict[str, int] = {
-    "deepr/web/app.py": 3930,  # ratcheted after browser-chat REST extraction, 2026-07-11
-    "deepr/cli/commands/semantic/experts.py": 3338,
-    "deepr/experts/chat.py": 2628,  # ratcheted after live-session operation extraction, 2026-07-11
-    "deepr/experts/lazy_graph_rag.py": 2040,
-    "deepr/mcp/server.py": 2000,  # +63: deepr_consult_experts MCP tool (native team consultation, 2026-06-21)
-    "deepr/experts/beliefs.py": 1448,  # +7: security fix (path containment, 2026-06-16); +33: source-independence trust floor (2026-06-21)
-    "deepr/cli/commands/run.py": 1363,
-    "deepr/experts/curriculum.py": 1340,
+    "deepr/web/app.py": 3576,
+    "deepr/cli/commands/semantic/experts.py": 3323,
+    "deepr/experts/chat.py": 2502,
+    "deepr/experts/lazy_graph_rag.py": 2034,
+    "deepr/mcp/server.py": 1781,
+    "deepr/experts/beliefs.py": 1448,
+    "deepr/experts/curriculum.py": 1339,
+    "deepr/cli/commands/run.py": 1301,
     "deepr/experts/memory.py": 1291,
-    "deepr/experts/learner.py": 1287,
-    "deepr/providers/registry.py": 1303,  # +24: grok-4.5 + claude-opus-5 registration (2026-07-25); the pricing registry must grow when providers launch billable models
-    "deepr/observability/costs.py": 1156,  # +10: cost-integrity fix (dashboard reads canonical ledger, 2026-06-21)
+    "deepr/providers/registry.py": 1279,
+    "deepr/experts/learner.py": 1245,
+    "deepr/observability/costs.py": 1154,
     "deepr/core/settings.py": 1120,
-    "deepr/cli/commands/prep.py": 1094,
-    "deepr/cli/commands/research.py": 1049,
+    "deepr/cli/commands/prep.py": 1093,
     "deepr/api/app.py": 1028,
+    "deepr/cli/commands/research.py": 1016,
 }
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent

@@ -75,7 +75,7 @@ class PlanHeadroom:
 
 def _finite_float(value: object) -> float | None:
     """Return a finite numeric value without accepting booleans."""
-    if isinstance(value, bool):
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
         return None
     try:
         result = float(value)

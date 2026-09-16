@@ -1,7 +1,7 @@
 """CLI color utilities for modern, colorful terminal output.
 
-Uses rich for beautiful formatting and colorama for Windows compatibility.
-Modern 2026 CLI design: ASCII status labels, minimal separators, clean typography.
+Uses rich for formatting. Windows color comes through Click, not a direct
+colorama import.
 """
 
 import os

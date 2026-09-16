@@ -1,4 +1,11 @@
-"""Deterministic source-pack compiler primitives."""
+"""Deterministic source-pack compiler primitives.
+
+Family map: ``source_pack_compiler.py`` (compile), ``source_pack_payloads.py``
+(shape), ``source_pack_policies.py`` (admit), ``source_pack_edges.py`` /
+``source_pack_values.py`` (typed facts), ``source_pack_recall.py`` (retrieve),
+``source_pack_notes.py`` (operator notes). Compiler output is derived, not
+authoritative; beliefs remain the store.
+"""
 
 from __future__ import annotations
 

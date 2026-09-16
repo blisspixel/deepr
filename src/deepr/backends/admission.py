@@ -320,7 +320,7 @@ class Admission:
         }
 
     @classmethod
-    def from_dict(cls, d: dict) -> Admission:
+    def from_dict(cls, d: dict[str, Any]) -> Admission:
         exp = d.get("expires_at")
         return cls(
             model=str(d["model"]),
