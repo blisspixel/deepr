@@ -86,7 +86,7 @@ class ContextIndex:
         self._init_db()
         self._load_embeddings()
 
-    def _init_db(self):
+    def _init_db(self) -> None:
         """Initialize SQLite database schema."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -129,14 +129,14 @@ class ContextIndex:
         conn.commit()
         conn.close()
 
-    def _load_embeddings(self):
+    def _load_embeddings(self) -> None:
         """Load embeddings from disk."""
         if self.embeddings_path.exists():
             self.embeddings = np.load(self.embeddings_path)
         else:
             self.embeddings = None
 
-    def _save_embeddings(self):
+    def _save_embeddings(self) -> None:
         """Save embeddings to disk."""
         if self.embeddings is not None:
             np.save(self.embeddings_path, self.embeddings)
@@ -673,7 +673,7 @@ class ContextIndex:
             "embeddings_path": str(self.embeddings_path),
         }
 
-    def clear(self):
+    def clear(self) -> None:
         """Clear the entire index."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()

@@ -133,9 +133,9 @@ class ProviderRouter:
             return self.available_providers[0]
 
         # Score each provider
-        scores = {}
+        scores: dict[str, float] = {}
         for provider_name, caps in self.capabilities.items():
-            score = 0
+            score = 0.0
 
             # Documentation tasks prefer turnkey deep research
             if task_type == "documentation":

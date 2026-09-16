@@ -18,9 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   were removed. Windows color still arrives through Click. Ruff remains the
   formatter.
 - Blocking ``mypy --strict`` now includes ``backends/``, ``agents/``,
-  ``evals/``, and ``observability/``. ``services/`` stays on the non-blocking
-  baseline. Cost-ledger file locks use ``sys.platform == "win32"`` so Linux
-  mypy does not type-check ``msvcrt``.
+  ``evals/``, ``observability/``, and ``services/``. Cost-ledger file locks
+  use ``sys.platform == "win32"`` so Linux mypy does not type-check
+  ``msvcrt``.
+- Legacy ``ResearchAPI.cancel_job`` now calls ``queue.cancel_job``, the
+  real queue method.
   Windows Job Object ctypes bindings type-check on Linux without claiming
   ``ctypes.WinDLL`` exists there.
 

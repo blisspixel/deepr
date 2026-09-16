@@ -70,10 +70,10 @@ class BatchExecutor:
 
     async def execute_campaign(
         self,
-        tasks: list[dict],
+        tasks: list[dict[str, Any]],
         campaign_id: str,
         enable_stopping_criteria: bool = True,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """
         Execute a complete research campaign.
 
@@ -186,12 +186,12 @@ class BatchExecutor:
 
     async def _execute_phase(
         self,
-        phase_tasks: list[dict],
+        phase_tasks: list[dict[str, Any]],
         phase_num: int,
-        completed_tasks: dict[int, dict],
+        completed_tasks: dict[int, dict[str, Any]],
         campaign_id: str,
         prior_entropy: float | None = None,
-    ) -> tuple[dict[int, dict], StoppingDecision | None]:
+    ) -> tuple[dict[int, dict[str, Any]], StoppingDecision | None]:
         """
         Execute all tasks in a phase.
 
@@ -278,7 +278,7 @@ class BatchExecutor:
 
     def _extract_findings(
         self,
-        results: dict[int, dict],
+        results: dict[int, dict[str, Any]],
         phase_num: int,
     ) -> list[Finding]:
         """Extract findings from task results.
@@ -318,7 +318,7 @@ class BatchExecutor:
         prompt: str,
         task_id: int,
         campaign_id: str,
-        metadata: dict,
+        metadata: dict[str, Any],
         model: str = "o4-mini-deep-research",
     ) -> str:
         """Submit a single task to the queue."""
@@ -383,9 +383,9 @@ class BatchExecutor:
     async def _wait_for_completion(
         self,
         job_ids: dict[int, str],
-        tasks: list[dict],
+        tasks: list[dict[str, Any]],
         max_wait_seconds: float = 3600.0,
-    ) -> dict[int, dict]:
+    ) -> dict[int, dict[str, Any]]:
         """
         Wait for all jobs to complete and retrieve results.
 
@@ -498,11 +498,11 @@ class BatchExecutor:
         job_ids: dict[int, str],
         task_titles: dict[int, str],
         max_wait_seconds: float,
-    ) -> dict[int, dict]:
+    ) -> dict[int, dict[str, Any]]:
         """Attempt cancellation without inventing terminal state when it fails."""
         from deepr.services.research_cancellation import cancel_reserved_research
 
-        results: dict[int, dict] = {}
+        results: dict[int, dict[str, Any]] = {}
         provider_name = getattr(self.provider, "name", "openai")
         for task_id in list(pending):
             job = await self.queue.get_job(job_ids[task_id])
@@ -530,9 +530,9 @@ class BatchExecutor:
             }
         return results
 
-    def _group_by_phase(self, tasks: list[dict]) -> dict[int, list[dict]]:
+    def _group_by_phase(self, tasks: list[dict[str, Any]]) -> dict[int, list[dict[str, Any]]]:
         """Group tasks by phase number."""
-        phases: dict[int, list[dict]] = {}
+        phases: dict[int, list[dict[str, Any]]] = {}
         for task in tasks:
             phase = task.get("phase", 1)
             if phase not in phases:
@@ -543,8 +543,8 @@ class BatchExecutor:
     async def _save_campaign_results(
         self,
         campaign_id: str,
-        results: dict,
-    ):
+        results: dict[str, Any],
+    ) -> None:
         """Save campaign results to storage."""
         # Extract campaign prompt/goal if available (from first task)
         campaign_prompt = "Multi-phase research campaign"
@@ -576,7 +576,7 @@ class BatchExecutor:
             content_type="text/markdown",
         )
 
-    def _generate_campaign_summary(self, results: dict) -> str:
+    def _generate_campaign_summary(self, results: dict[str, Any]) -> str:
         """Generate human-readable campaign summary."""
         lines = [
             f"# Campaign Results: {results['campaign_id']}",

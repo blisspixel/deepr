@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import asdict
+from typing import NoReturn
 
 from deepr.core.costs import CostEstimate
 from deepr.providers.base import ResearchRequest, UsageStats
@@ -59,7 +60,7 @@ def require_research_parent_budget_accounting(operation: str) -> None:
     )
 
 
-def require_metered_interface_accounting(operation: str) -> None:
+def require_metered_interface_accounting(operation: str) -> NoReturn:
     """Block a direct metered interface that does not use durable settlement."""
     raise ResearchRequestBoundsError(
         f"{operation} is disabled until its provider call reserves before dispatch, enforces an output ceiling, "

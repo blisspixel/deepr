@@ -368,6 +368,8 @@ module = [
     "deepr.evals.*",
     "deepr.observability",
     "deepr.observability.*",
+    "deepr.services",
+    "deepr.services.*",
 ]
 disallow_untyped_defs = true
 disallow_incomplete_defs = true

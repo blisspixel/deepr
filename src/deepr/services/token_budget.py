@@ -58,7 +58,7 @@ class PhaseAllocation:
     remaining: int = 0
     status: str = "pending"  # pending, active, completed
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.remaining == 0:
             self.remaining = self.allocated
 
@@ -417,7 +417,7 @@ class BudgetTracker:
         phase: int,
         operation: str,
         tokens: int,
-    ):
+    ) -> None:
         """Log a token usage event.
 
         Args:

@@ -42,7 +42,7 @@ class ContextItem:
     tokens: int = 0
     metadata: dict[str, Any] = field(default_factory=dict)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.tokens == 0:
             # Rough token estimate: ~4 chars per token
             self.tokens = len(self.text) // 4 + 1
@@ -110,7 +110,7 @@ class ContextPruner:
         relevance_weight: float = 0.4,
         importance_weight: float = 0.3,
         dedup_threshold: float = 0.8,
-    ):
+    ) -> None:
         """Initialize the pruner.
 
         Args:
@@ -346,8 +346,8 @@ class ContextPruner:
         Returns:
             Tuple of (deduplicated items, removal reasons dict)
         """
-        unique = []
-        removal_reasons = {}
+        unique: list[ContextItem] = []
+        removal_reasons: dict[str, str] = {}
 
         for item in items:
             is_dup = False
@@ -401,12 +401,12 @@ class AdaptivePruner(ContextPruner):
     - Caching relevance scores
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._usage_history: dict[str, int] = {}  # item_id -> use count
         self._score_cache: dict[str, float] = {}
 
-    def record_usage(self, item_id: str):
+    def record_usage(self, item_id: str) -> None:
         """Record that an item was actually used.
 
         Args:
@@ -438,7 +438,7 @@ class AdaptivePruner(ContextPruner):
 
         return min(1.0, base_score + usage_bonus)
 
-    def reset_history(self):
+    def reset_history(self) -> None:
         """Reset usage history."""
         self._usage_history.clear()
         self._score_cache.clear()

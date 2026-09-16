@@ -1901,7 +1901,7 @@ The gate targets below are firm commitments, not a soft "raise it when convenien
 - [x] `providers/` driven to mypy `--strict`-clean (82 errors fixed across all 7 adapters + `__init__`; included real fixes - grok's vector-store stubs realigned to the base `DeepResearchProvider` contract, optional-import typing) and added to the blocking `mypy --strict deepr/core deepr/providers` gate
 - [x] Extend the strict-blocking gate to `mcp/` (216 errors fixed; third strict island, shipped v2.12 - the blocking gate now covers `core/` + `providers/` + `mcp/`)
 - [ ] Extend the strict-blocking gate to the rest of the tree, package-by-package (whole-tree `mypy` stays a non-blocking baseline meanwhile)
-  - 2026-09-16: `backends/`, `agents/`, `evals/`, and `observability/` joined the blocking strict island. `services/` (52 remaining `--strict` errors) stays baseline-only.
+  - 2026-09-16: `backends/`, `agents/`, `evals/`, `observability/`, and `services/` joined the blocking strict island.
   - 2026-07-07: `security/` is now the fourth blocking strict island. Local probe passed before widening the CI command and `[tool.mypy.overrides]`; follow-up probes at that point found `routing/`, `storage/`, and `tools/` strict errors to pay down before they could join the gate.
   - 2026-07-07: `queue/` is now the fifth blocking strict island after minimal annotation-only cleanup in the local SQLite queue and queue factory. Follow-up probes at that point found `routing/`, `storage/`, and `tools/` strict errors.
   - 2026-07-07: `storage/` is now the sixth blocking strict island after minimal annotation-only cleanup in the findings store and storage factory. Follow-up probes still found `routing/` and `tools/` strict errors.
