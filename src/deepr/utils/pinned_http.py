@@ -101,6 +101,23 @@ def pinned_head(
     )
 
 
+def pinned_post(
+    url: str,
+    *,
+    address_failover: bool = True,
+    redact_request_target: bool = False,
+    **kwargs: Any,
+) -> requests.Response:
+    """POST without redirects through prevalidated addresses and optional failover."""
+    return _pinned_send(
+        "POST",
+        url,
+        address_failover=address_failover,
+        redact_request_target=redact_request_target,
+        **kwargs,
+    )
+
+
 def _pinned_send(
     method: str,
     url: str,

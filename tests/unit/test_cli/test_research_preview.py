@@ -216,9 +216,8 @@ class TestPreviewExplicitModel:
             )
 
         assert result.exit_code != 0
-        assert "research_provider_preview_only" in result.output
-        assert "no executable adapter" in result.output
         reserve.assert_not_called()
+        assert "research_provider_preview_only" not in result.output
 
     def test_gemini_alias_without_provider_infers_provider_before_preview(self, runner: CliRunner) -> None:
         result = runner.invoke(

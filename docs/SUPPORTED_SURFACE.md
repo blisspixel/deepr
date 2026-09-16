@@ -739,8 +739,12 @@ must not be described as usable capacity.
   first Deepr spend. MCP, schedules, and automatic fallback stay blocked.
   Account-level BYOK and plugin controls, endpoint-tag response proof,
   complete usage settlement, parent settlement, and an OpenRouter inference
-  client remain missing, so attended completions still refuse without
-  `--preview`.
+  client remain missing for automatic routing. Explicit
+  `deepr research --provider openrouter --model <slug>` can run one
+  attended no-tool completion after wallet credits and
+  `deepr budget authorize openrouter`. It pins one upstream tag, refuses
+  cache-status headers and BYOK, and settles `usage.cost`. MCP, schedules,
+  and automatic fallback stay blocked.
   See [openrouter-metered-gateway.md](design/openrouter-metered-gateway.md).
 - Attended OpenAI report absorption through `deepr expert absorb --api` has a
   complete wallet, job reservation, exact-client, dispatch, and settlement

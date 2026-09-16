@@ -31,7 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `deepr budget authorize openrouter` binds a control-eligible OpenRouter
   key limit as provider hard-stop evidence. That is a no-inference GET
   `/api/v1/key`. MCP, schedules, and automatic fallback stay blocked.
-  Attended completions still need an OpenRouter adapter.
+- Attended `deepr research --provider openrouter` can run one pinned
+  chat completion (no tools, no fallbacks, cache off) under the wallet,
+  reservation, and ledger. Settlement uses OpenRouter `usage.cost`. Auto
+  routing still cannot select OpenRouter.
 
 ## [2.50.17] - 2026-09-15
 
