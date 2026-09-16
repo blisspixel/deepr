@@ -31,6 +31,7 @@ _ALL_VARS = [
     "DEEPR_DAILY_LIMIT",
     "DEEPR_WEEKLY_LIMIT",
     "DEEPR_MONTHLY_LIMIT",
+    "DEEPR_MAX_SPEND_CEILING_USD",
 ]
 
 
@@ -45,6 +46,34 @@ def test_documented_caps_bind(monkeypatch: pytest.MonkeyPatch) -> None:
     assert resolve_spend_caps()["monthly"] == 5.0
 
 
+def test_operator_raised_ceiling_widens_monthly_absolute(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DEEPR_MAX_SPEND_CEILING_USD", "20")
+    monkeypatch.setenv("DEEPR_MAX_COST_PER_MONTH", "20")
+    operator = OperatorBudget(
+        configured=True,
+        monthly_limit=20.0,
+        frozen=False,
+        authorization_valid=True,
+        authorization_providers=("openrouter",),
+        _verified_marker=cost_caps_module._VERIFIED_AUTHORITY_MARKER,
+    )
+    assert resolve_spend_caps(operator_budget=operator, provider="openrouter")["monthly"] == 20.0
+
+
+def test_default_ceiling_still_clamps_a_twenty_dollar_budget(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("DEEPR_MAX_SPEND_CEILING_USD", raising=False)
+    monkeypatch.setenv("DEEPR_MAX_COST_PER_MONTH", "20")
+    operator = OperatorBudget(
+        configured=True,
+        monthly_limit=20.0,
+        frozen=False,
+        authorization_valid=True,
+        authorization_providers=("openrouter",),
+        _verified_marker=cost_caps_module._VERIFIED_AUTHORITY_MARKER,
+    )
+    assert resolve_spend_caps(operator_budget=operator, provider="openrouter")["monthly"] == 5.0
+
+
 def test_tighter_bound_wins_when_both_families_set(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DEEPR_MAX_COST_PER_MONTH", "10")
     monkeypatch.setenv("DEEPR_MONTHLY_LIMIT", "20")
@@ -55,9 +84,7 @@ def test_tighter_bound_wins_when_both_families_set(monkeypatch: pytest.MonkeyPat
     assert resolve_spend_caps()["daily"] == 5.0
 
 
-def test_unreadable_wallet_file_does_not_widen_to_provider_cap(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_unreadable_wallet_file_does_not_widen_to_provider_cap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A $2 wallet that cannot be parsed must not restore the $5 provider cap."""
     from deepr.core.spend_wallet import wallet_file_path
 
@@ -122,10 +149,16 @@ def test_validated_checkout_caps_persist_for_installed_runtime_and_cannot_widen(
     )
 
     expected = {"per_job": 2.0, "daily": 5.0, "weekly": 5.0, "monthly": 5.0}
+    monkeypatch.chdir(checkout)
     assert resolve_spend_caps() == expected
 
     monkeypatch.setattr(authority_module, "_source_checkout_cost_data_dir", lambda: None)
     assert resolve_spend_caps() == expected
+
+    monkeypatch.chdir(tmp_path)
+    outside = resolve_spend_caps()
+    assert outside["per_job"] == 1.0
+    assert outside["monthly"] == 5.0
 
     policy_path.write_text(
         "DEEPR_MAX_COST_PER_JOB=4\nDEEPR_MAX_COST_PER_DAY=8\nDEEPR_MAX_COST_PER_MONTH=20\n",
@@ -171,6 +204,7 @@ def test_runtime_caps_do_not_contaminate_checkout_file_provenance(
         lambda *_args, **_kwargs: OperatorBudget(configured=True, monthly_limit=200.0, frozen=False),
     )
 
+    monkeypatch.chdir(checkout)
     assert resolve_spend_caps() == {"per_job": 2.0, "daily": 2.0, "weekly": 5.0, "monthly": 5.0}
     registry = canonical_cost_root / "accounting_sources.jsonl"
     records = [json.loads(line) for line in registry.read_text(encoding="utf-8").splitlines()]

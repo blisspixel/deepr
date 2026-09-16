@@ -8,6 +8,7 @@ from deepr.cli.async_runner import run_async_command
 from deepr.cli.colors import console, print_error, print_header, print_key_value
 from deepr.cli.commands.research_safety import (
     bounded_admission_estimate,
+    print_explicit_research_preview,
     require_dispatchable_admission,
     require_metered_interface,
     require_parent_budget,
@@ -323,7 +324,7 @@ def research(
     # see what they would spend before any provider call. Exits without
     # submitting a job.
     if preview:
-        _print_explicit_preview(
+        print_explicit_research_preview(
             query=query,
             provider=provider,
             model=model,
@@ -331,6 +332,21 @@ def research(
             no_web=no_web,
             no_code=no_code,
             output_context=output_context,
+        )
+        return
+
+    if provider == "openrouter":
+        from deepr.services.openrouter_attended_research import run_attended_openrouter_research
+
+        run_attended_openrouter_research(
+            query=query,
+            model=model,
+            limit=limit,
+            yes=yes,
+            no_web=no_web,
+            no_code=no_code,
+            upload=upload,
+            scrape=scrape,
         )
         return
 
@@ -931,70 +947,3 @@ def _run_auto_research(
         ),
         runner=asyncio.run,
     )
-
-
-def _print_explicit_preview(
-    query: str,
-    provider: str,
-    model: str,
-    upload: tuple,
-    no_web: bool,
-    no_code: bool,
-    output_context: OutputContext,
-) -> None:
-    """Print a preview for an explicit (non-auto) research run.
-
-    Shows the resolved provider/model and a cost estimate band based on
-    query length and whether web search is enabled. Pure local computation
-    - does not contact any provider. Exits without submitting a job.
-
-    JSON mode emits a structured ``{preview, executed, provider, model,
-    cost_estimate}`` document for machine consumers.
-    """
-    estimate = bounded_admission_estimate(
-        query=query,
-        provider=provider,
-        model=model,
-        no_web=no_web,
-        no_code=no_code,
-        allow_preview_only=True,
-    )
-
-    if output_context.mode == OutputMode.JSON:
-        import json
-
-        payload = {
-            "preview": True,
-            "executed": False,
-            "provider": provider,
-            "model": model,
-            "cost_estimate": {
-                "min": round(estimate.min_cost, 6),
-                "expected": round(estimate.expected_cost, 6),
-                "max": round(estimate.max_cost, 6),
-            },
-            "reasoning": estimate.reasoning,
-            "tools": {
-                "web_search": not no_web,
-                "code_interpreter": not no_code,
-            },
-        }
-        # Use click.echo (not Rich console) so the JSON is clean for
-        # downstream consumers - no ANSI control codes leak in.
-        click.echo(json.dumps(payload, indent=2))
-        return
-
-    console.print()
-    console.print("[bold]Research Preview[/bold]")
-    console.print(f"[dim]{'─' * 40}[/dim]")
-    console.print(f"  Provider:   {provider}")
-    console.print(f"  Model:      {model}")
-    console.print(f"  Web search: {'enabled' if not no_web else 'disabled'}")
-    console.print(f"  Code tool:  {'enabled' if not no_code else 'disabled'}")
-    console.print(
-        f"  Est. cost:  ${estimate.min_cost:.4f} - ${estimate.max_cost:.4f} (expected ${estimate.expected_cost:.4f})"
-    )
-    if estimate.reasoning:
-        console.print(f"  [dim]{estimate.reasoning}[/dim]")
-    console.print("[yellow]  (preview only - no provider call, no spend)[/yellow]")
-    console.print()

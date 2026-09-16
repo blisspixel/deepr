@@ -19,6 +19,8 @@ from deepr.cli.commands import keys as keys_module
 def env_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("deepr.config.default_data_dir", lambda: tmp_path / "user-deepr")
+    from deepr.security.key_quarantine import QUARANTINE_PREFIX
+
     for name in (
         "OPENAI_API_KEY",
         "XAI_API_KEY",
@@ -27,6 +29,7 @@ def env_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         "OPENROUTER_API_KEY",
     ):
         monkeypatch.delenv(name, raising=False)
+        monkeypatch.delenv(QUARANTINE_PREFIX + name, raising=False)
     return tmp_path / ".env"
 
 
@@ -120,6 +123,7 @@ def test_check_openrouter_uses_key_metadata_without_printing_the_secret(
 ) -> None:
     secret = "sk-or-v1-" + "c" * 64
     env_file.write_text(f"OPENROUTER_API_KEY={secret}\n", encoding="utf-8")
+    captured: list[tuple[str, float]] = []
 
     class _Observation:
         control_eligible = True
@@ -127,17 +131,94 @@ def test_check_openrouter_uses_key_metadata_without_printing_the_secret(
         limit_usd = 20.0
         limit_remaining_usd = 20.0
         limit_reset = None
+        required_headroom_usd = 0.01
 
-    monkeypatch.setattr(
-        "deepr.providers.openrouter_key_controls.inspect_openrouter_key",
-        lambda key, **kw: _Observation(),
-    )
+    def inspect(api_key: str, *, required_headroom_usd: float) -> _Observation:
+        captured.append((api_key, required_headroom_usd))
+        return _Observation()
+
+    monkeypatch.setattr("deepr.providers.openrouter_key_controls.inspect_openrouter_key", inspect)
     result = CliRunner().invoke(keys_module.keys, ["check", "--provider", "openrouter", "--json"])
     payload = json.loads(result.output)
     assert result.exit_code == 0, result.output
+    assert captured == [(secret, 0.01)]
     assert secret not in result.output
     assert payload["results"][0]["provider"] == "openrouter"
     assert payload["results"][0]["status"] == "valid"
+    assert payload["results"][0]["limit_usd"] == 20.0
+    assert payload["results"][0]["limit_remaining_usd"] == 20.0
+
+
+def test_check_openrouter_reports_ineligible_key_limit_above_ceiling(
+    env_file: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    secret = "sk-or-v1-" + "d" * 64
+    env_file.write_text(f"OPENROUTER_API_KEY={secret}\n", encoding="utf-8")
+
+    class _Observation:
+        control_eligible = False
+        failures = ("current key limit $20.000000 exceeds Deepr maximum $5.000000",)
+        limit_usd = 20.0
+        limit_remaining_usd = 20.0
+        limit_reset = None
+        required_headroom_usd = 0.01
+
+    def inspect(api_key: str, *, required_headroom_usd: float) -> _Observation:
+        del api_key, required_headroom_usd
+        return _Observation()
+
+    monkeypatch.setattr("deepr.providers.openrouter_key_controls.inspect_openrouter_key", inspect)
+    result = CliRunner().invoke(keys_module.keys, ["check", "--provider", "openrouter"])
+    assert result.exit_code == 0, result.output
+    assert secret not in result.output
+    assert "ineligible" in result.output
+    assert "exceeds Deepr maximum" in result.output
+    assert "deepr budget set 20" in result.output.lower()
+
+
+def test_check_invalid_openrouter_key_shows_provider_http_status(
+    env_file: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    secret = "sk-or-v1-" + "f" * 64
+    env_file.write_text(f"OPENROUTER_API_KEY={secret}\n", encoding="utf-8")
+    from deepr.providers.openrouter_key_controls import OpenRouterKeyControlError
+
+    def inspect(api_key: str, *, required_headroom_usd: float):
+        del api_key, required_headroom_usd
+        raise OpenRouterKeyControlError("OpenRouter current-key endpoint returned HTTP 401")
+
+    monkeypatch.setattr("deepr.providers.openrouter_key_controls.inspect_openrouter_key", inspect)
+    result = CliRunner().invoke(keys_module.keys, ["check", "--provider", "openrouter"])
+    assert result.exit_code == 0, result.output
+    assert secret not in result.output
+    assert "HTTP 401" in result.output
+
+
+def test_check_reads_quarantined_openrouter_key(env_file: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from deepr.security.key_quarantine import QUARANTINE_PREFIX
+
+    secret = "sk-or-v1-" + "e" * 64
+    monkeypatch.setenv(QUARANTINE_PREFIX + "OPENROUTER_API_KEY", secret)
+
+    class _Observation:
+        control_eligible = True
+        failures: tuple[str, ...] = ()
+        limit_usd = 20.0
+        limit_remaining_usd = 19.0
+        limit_reset = None
+        required_headroom_usd = 0.01
+
+    def inspect(api_key: str, *, required_headroom_usd: float) -> _Observation:
+        assert api_key == secret
+        del required_headroom_usd
+        return _Observation()
+
+    monkeypatch.setattr("deepr.providers.openrouter_key_controls.inspect_openrouter_key", inspect)
+    result = CliRunner().invoke(keys_module.keys, ["check", "--provider", "openrouter", "--json"])
+    payload = json.loads(result.output)
+    assert result.exit_code == 0, result.output
+    assert payload["results"][0]["status"] == "valid"
+    assert secret not in result.output
 
 
 def test_check_blocks_present_keys_before_network(env_file: Path) -> None:

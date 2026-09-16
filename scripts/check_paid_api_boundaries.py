@@ -58,6 +58,7 @@ _PAID_ENDPOINT_FRAGMENTS = (
     "generativelanguage.googleapis.com",
     "openai.azure.com",
     "services.ai.azure.com",
+    "openrouter.ai",
 )
 _METERED_WRAPPERS = {
     "deepr.services.metered_call.execute_reserved_sync_call",
@@ -120,7 +121,9 @@ _ENDPOINT_BASELINE = {
     "src/deepr/config.py": 2,
     "src/deepr/experts/consult_quality_judges.py": 0,
     "src/deepr/mcp/security/network.py": 2,
-    "src/deepr/providers/dispatch_authority.py": 6,
+    "src/deepr/providers/dispatch_authority.py": 7,
+    "src/deepr/providers/openrouter_catalog_check.py": 1,
+    "src/deepr/providers/openrouter_key_controls.py": 1,
     "src/deepr/providers/grok_provider.py": 0,
 }
 _ACTIVE_SPEND_DEFAULT_NAMES = frozenset(
@@ -244,7 +247,7 @@ _REQUIRED_SAFETY_FRAGMENTS = {
         '"daily": 5.0',
         '"weekly": 5.0',
         '"monthly": 5.0',
-        'monthly = min(monthly, _ABSOLUTE_CEILINGS["monthly"])',
+        "monthly = min(monthly, absolute_deepr_ceiling_usd())",
     ),
     "src/deepr/experts/skills/definition.py": (
         "_MAX_PER_CALL_USD = 1.0",

@@ -1,15 +1,18 @@
 # Supported Surface
 
-Status: v2.50.17 current main, 2026-09-15. This document defines what users and host
+Status: v2.50.18 current main, 2026-09-16. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
 path is structurally complete but remains execution-blocked without verified
-provider prepaid-no-overage or hard-stop evidence.
+provider prepaid-no-overage or hard-stop evidence. Attended OpenRouter research
+is the exception: one pinned no-tool completion after wallet credits and
+`deepr budget authorize openrouter`.
 
-**v2.50.17 keeps metered dispatch frozen and spend gates fail-closed.** MCP
-research and expert validation never construct a paid client. OpenRouter
-stays preview-only. Unknown models no longer inherit o4-mini prices.
+**v2.50.18 keeps unattended metered dispatch frozen and spend gates fail-closed.** MCP
+research and expert validation never construct a paid client. OpenRouter catalog
+entries stay excluded from automatic routing. Explicit attended OpenRouter
+research can run one pinned completion. Unknown models no longer inherit o4-mini prices.
 Host-header CORS, empty bind hosts, and IPv4-mapped SSRF fail closed.
 Source-world preflight remains write-free; briefing supports historical cutoffs.
 The next product gate is v2.51 value evidence, not paid dispatch or a
@@ -159,6 +162,12 @@ must not be described as usable capacity.
   provider/model/tool combinations with a complete finite cost envelope.
   Unattended metered dispatch remains blocked until authenticated provider
   account-control and current credential-identity adapters are installed.
+- Attended OpenRouter research: explicit
+  `deepr research --provider openrouter --model <catalog slug>` after a stored
+  key, owner ceiling, wallet credits, and `deepr budget authorize openrouter`.
+  One pinned no-tool completion, cache off, no fallbacks, settlement from
+  `usage.cost`. MCP, schedules, automatic routing, and automatic fallback
+  stay blocked.
 - Budget ceilings, cost estimates, and the canonical append-only cost ledger.
   The metered transaction substrate uses cross-process maximum-cost
   reservations, conservative ambiguous-outcome settlement, terminal-state
@@ -708,19 +717,19 @@ must not be described as usable capacity.
 
 ## Visible Or Planned Only
 
-- OpenRouter has seven preview-only exact model slugs across OpenAI,
-  Anthropic, Google, xAI, Qwen, MoonshotAI, and DeepSeek. Use
+- OpenRouter has seven exact model slugs across OpenAI, Anthropic, Google,
+  xAI, Qwen, MoonshotAI, and DeepSeek. Use
   `deepr research --provider openrouter --model qwen/qwen3.8-flash --preview`
   for a write-free bounded request envelope. These entries are excluded from
   automatic routing, expert routing, and eval targets. Omitting `--preview`
-  fails with `research_provider_preview_only` before reservation or provider
-  construction. `deepr providers openrouter-check` uses bounded public metadata
-  and no key to verify one selected endpoint metadata tag, reject additional
-  non-tier variants matched by a base tag, and bound reachable text-inference
-  price classes, required parameters, and context limits for each route. It
-  proposes response caching off, router metadata on, and forbids explicit
-  prompt-cache controls, fallbacks, service tiers, media, plugins, presets,
-  server tools, and background execution. Preview
+  on an explicit catalog slug can run the attended one-shot path documented
+  under Stable Today. `deepr providers openrouter-check` uses bounded public
+  metadata and no key to verify one selected endpoint metadata tag, reject
+  additional non-tier variants matched by a base tag, and bound reachable
+  text-inference price classes, required parameters, and context limits for
+  each route. It proposes response caching off, router metadata on, and
+  forbids explicit prompt-cache controls, fallbacks, service tiers, media,
+  plugins, presets, server tools, and background execution. Preview
   estimates reserve a full-input cache write as an additional maximum charge.
   `deepr providers openrouter-key-check` accepts a credential through a hidden
   prompt by default. Explicit `--from-env` uses the quarantined process copy
@@ -730,12 +739,17 @@ must not be described as usable capacity.
   fields remain visible as `null` and produce specific ineligibility reasons
   instead of a malformed-response error or a false `$0.00` limit. It never
   reads the local source without that flag, unquarantines or exports the key,
-  or passes it to a child. Both checks state that dispatch remains
-  unauthorized because account-level BYOK and plugin controls, endpoint-tag
-  response proof, complete usage settlement, parent settlement, and final
-  billing reconciliation are not complete. No OpenRouter inference client is
-  built.
-  See [openrouter-metered-gateway.md](design/openrouter-metered-gateway.md).
+  or passes it to a child. `deepr keys check --provider openrouter` uses the
+  stored or quarantined key and reports limit, remaining, and total-cap
+  cadence. `deepr budget set 20` persists `DEEPR_MAX_SPEND_CEILING_USD` when
+  the operator raises the ceiling. `deepr budget authorize openrouter` binds
+  a control-eligible current-key limit as OpenRouter-only hard-stop evidence
+  without a billing import, because a final invoice cannot exist before the
+  first Deepr spend. MCP, schedules, and automatic fallback stay blocked.
+  Account-level BYOK and plugin controls, endpoint-tag response proof,
+  generation-id post-mortem, and final billing-export join remain missing for
+  automatic routing. See
+  [openrouter-metered-gateway.md](design/openrouter-metered-gateway.md).
 - Attended OpenAI report absorption through `deepr expert absorb --api` has a
   complete wallet, job reservation, exact-client, dispatch, and settlement
   transaction, but no production provider account-control verifier ships in

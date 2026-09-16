@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.18] - 2026-09-16
+
+### Added
+
+- `deepr budget authorize openrouter` binds a control-eligible OpenRouter
+  key limit as provider hard-stop evidence. That is a no-inference GET
+  `/api/v1/key`. MCP, schedules, and automatic fallback stay blocked.
+- Attended `deepr research --provider openrouter` can run one pinned
+  chat completion (no tools, no fallbacks, cache off) under the wallet,
+  reservation, and ledger. Settlement uses OpenRouter `usage.cost`. Auto
+  routing still cannot select OpenRouter.
+
+### Fixed
+
+- `deepr keys check --provider openrouter` was crashing with
+  `inspect_openrouter_key() missing 1 required keyword-only argument:
+  'required_headroom_usd'`. It now inspects the live current-key document,
+  reads quarantined credentials, and reports limit, remaining, and total-cap
+  versus monthly cadence.
+- `deepr budget set 20` configured `$20` while the effective hard ceiling
+  stayed `$0` with no explanation. It now persists
+  `DEEPR_MAX_SPEND_CEILING_USD` to `~/.deepr/.env` when the operator raises
+  the ceiling, reports the freeze reason, and points at
+  `deepr budget authorize openrouter`.
+- The owner-raisable Deepr ceiling now actually binds the monthly spend
+  clamp. A `$20` raise is no longer silently recapped at `$5`.
+- A leftover checkout `.env` monthly cap no longer follows a globally
+  installed CLI launched from home. Repo `$5` still applies when the cwd is
+  that checkout. `deepr budget status` binds a single authorized provider so
+  a successful OpenRouter hard stop is not displayed as `$0`.
+- OpenRouter dispatch now marks the reserved request digest, not a
+  reconstructed JSON body, so settlement can proceed after a successful POST.
+- OpenRouter message content that arrives as a list of text parts is joined
+  instead of rejected as a non-string.
+- Attended OpenRouter jobs reserve against the wallet day and month caps
+  from `resolve_spend_caps()`, not against a job envelope that rounds to
+  `$0.00` and then fails the daily limit check.
+
 ## [2.50.17] - 2026-09-15
 
 ### Added

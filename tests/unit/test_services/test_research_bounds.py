@@ -351,6 +351,27 @@ def test_openrouter_dispatch_envelope_fails_closed() -> None:
     assert "no executable adapter" in str(raised.value)
 
 
+def test_attended_openrouter_envelope_is_admitted_without_tools() -> None:
+    request = ResearchRequest(
+        prompt="Research",
+        model="qwen/qwen3.8-flash",
+        system_message="Test",
+        tools=[],
+        max_input_tokens=8_000,
+        max_output_tokens=4_000,
+        max_provider_requests=1,
+        max_tool_calls=1,
+    )
+
+    estimate = bounded_research_cost_estimate(
+        request=request,
+        provider="openrouter",
+        allow_attended_openrouter=True,
+    )
+
+    assert 0 < estimate.max_cost <= 5.0
+
+
 @pytest.mark.parametrize("model", ["gemini-3-pro-preview", "gemini-3.1-flash-lite-preview"])
 def test_deprecated_gemini_model_fails_before_cost_admission(model: str) -> None:
     request = ResearchRequest(

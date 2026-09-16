@@ -4,6 +4,7 @@ Tests the budget command structure, parameter validation, and display logic
 without making any external API calls.
 """
 
+import json
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
@@ -113,6 +114,46 @@ class TestBudgetSetCommand:
         """Test that 'budget set' accepts an amount argument."""
         result = runner.invoke(cli, ["budget", "set", "10.00"])
         assert result.exit_code == 0
+
+    def test_budget_set_persists_raised_ceiling_and_explains_zero_effective(self, runner, tmp_path, monkeypatch):
+        from datetime import UTC, datetime
+
+        monkeypatch.setenv("DEEPR_MAX_SPEND_CEILING_USD", "5")
+        budget_path = tmp_path / "frozen-budget.json"
+        budget_path.write_text(
+            json.dumps(
+                {
+                    "monthly_limit": 0,
+                    "paid_api_frozen": True,
+                    "freeze_reason": "paid API account controls are not configured",
+                    "freeze_kind": "unconfigured",
+                    "freeze_id": "freeze_test1",
+                    "frozen_at": datetime.now(UTC).isoformat(),
+                    "current_month": "2026-09",
+                    "monthly_spending": 0.0,
+                    "history": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("DEEPR_BUDGET_FILE", str(budget_path))
+        result = runner.invoke(cli, ["budget", "set", "20"])
+        assert result.exit_code == 0, result.output
+        env_path = budget_path.parent / ".env"
+        assert env_path.is_file()
+        assert "DEEPR_MAX_SPEND_CEILING_USD=20.00" in env_path.read_text(encoding="utf-8")
+        real_home_env = Path.home() / ".deepr" / ".env"
+        if real_home_env.exists():
+            assert env_path.resolve() != real_home_env.resolve()
+        assert "Configured budget: $20.00/month" in result.output
+        assert "Effective hard ceiling: $0.00/month" in result.output
+        assert "Paid API remains frozen" in result.output
+        assert "deepr budget authorize openrouter" in result.output
+
+    def test_budget_authorize_openrouter_help(self, runner):
+        result = runner.invoke(cli, ["budget", "authorize", "--help"])
+        assert result.exit_code == 0
+        assert "openrouter" in result.output.lower()
 
     def test_next_reset_is_the_next_calendar_month(self):
         assert _next_month_start(datetime(2026, 7, 29, 12, tzinfo=UTC)) == datetime(2026, 8, 1, tzinfo=UTC)

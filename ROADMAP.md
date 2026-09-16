@@ -71,10 +71,13 @@ Roadmap items are not approach claims until they land in
 
 ## Active Release Plan
 
-**Now (v2.50.17):** local experts, write-free OpenRouter previews, an
-owner-raisable local spend ceiling, and fail-closed metered gates. Paid
-OpenRouter dispatch, Python/MCP skill execution, and automatic learning stay
-blocked.
+**Now (v2.50.18):** local experts, write-free OpenRouter previews, an
+owner-raisable local spend ceiling that actually binds the monthly clamp,
+live OpenRouter key inspection, OpenRouter hard-stop authorization from the
+current-key limit, and attended one-shot `deepr research --provider
+openrouter` under the wallet and ledger. Python/MCP skill execution and
+automatic learning stay blocked. MCP, schedules, and automatic fallback
+cannot select OpenRouter.
 
 **v2.50.15 safety correction (2026-09-13):** all production plan adapters
 are now execution-blocked. Claude managed-policy hooks survive safe mode,
@@ -99,7 +102,7 @@ state under frozen evidence access, not superiority over frontier web research.
 A completed negative pilot is useful evidence; a favorable result still needs
 held-out replication before learning-policy or routing-default changes.
 
-**Not next, even if they look adjacent:** paid OpenRouter activation,
+**Not next, even if they look adjacent:** unattended or MCP OpenRouter,
 host subagent trees, expert-maintained skills, hosted observation,
 automatic belief changes from prediction outcomes, a trained gate over
 the expert roster, or rebranding the fleet as a neural mixture of
@@ -116,7 +119,7 @@ ahead of this sequence.
 | --- | --- | --- | --- |
 | **v2.51** (next) | Publish one blinded four-arm longitudinal value evaluation for a flagship expert, comparing fresh research, static history, compiled expert state, and maintained expert state. | Persistent expert state is the product claim. Until it is measured, more memory, control, or host surface does not prove the claim. | Frozen source worlds, randomized review assignment, bound artifacts, operator attestations, and separate false-support, stale-memory, transfer, effort, cost, and outcome measures are reproducible. No aggregate score selects a winner or changes a default. |
 | **v2.52** | Resolve prospective expert predictions against later grounded observations and emit review-required learning proposals. | The value evaluation can identify whether the product helps. Prediction resolution closes the next part of the learning loop by showing why a view held or failed without granting self-modifying authority. | Each resolution binds the original prediction, later source evidence, world-valid time, observation time, and reviewer judgment. Frozen temporal fixtures reconstruct the same historical state and expose late or contradictory evidence. Accepted proposals demonstrate held-out before-and-after benefit. No prediction result directly mutates beliefs, prompts, routing, skills, or policy. |
-| **v2.53** | Complete the shared durable parent transaction and an execution-ready but disabled OpenRouter adapter proof. | Provider routing cannot become useful paid capacity until one request graph has exact spend, identity, route, retry, cancellation, and settlement authority. | Fault injection cannot overshoot or duplicate effects; fixtures prove exact credential, request, provider, response, generation, cache, BYOK, plugin, and total-cost handling; ambiguous outcomes consume the hold and freeze reconciliation. The current repository rule still forbids a paid inference validation or production activation. |
+| **v2.53** | Complete the shared durable parent transaction for remaining metered surfaces and OpenRouter billing-export reconciliation. | Attended OpenRouter one-shot already reserves, marks, and settles `usage.cost`. Unattended graphs, generation-id post-mortem, and final invoice join remain. | Fault injection cannot overshoot or duplicate effects; fixtures prove exact credential, request, provider, response, generation, cache, BYOK, plugin, and total-cost handling; ambiguous outcomes consume the hold and freeze reconciliation. MCP, schedules, and automatic fallback stay blocked. |
 | **v2.54** | Expose owner-scoped, read-only investigation projections and validate exact host profiles for OpenClaw, DeepSeek Harness, Grok Build, Codex, and manual Grok Bot use. | Observation follows the value loop and authority substrate, while control still waits. Portable Agent Plugin packaging remains the primary lane. | Observation authority binds caller, `run_id`, expert roster, and cursor. Cross-run reads fail. Each host claim pins exact versions, tools, transport, runtime dependencies, and fixture or live `$0` evidence. |
 | **v2.55** | Add lineage-only follow-up, fork, pause, resume, cancel, and separately approved remote start. | Control can follow only after observation and ownership are proven. | Every transition is typed, idempotent, hash-bound, race-tested, budget-bound, and reconstructible from the canonical journal. |
 | **v2.56** | Admit bounded external workspace evidence and only the MCP extensions that remove a measured limitation. | Computer-produced evidence and protocol convenience must not become hidden authority. | Tainted artifacts remain evidence-only, derived views remain regenerable, and every Tasks, Skills-over-MCP, or Apps adapter has an explicit capability and authority boundary. |
@@ -447,13 +450,13 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.17)
+## Current Status (v2.50.18)
 
-**Next is v2.51, not more dispatch.** v2.50.14 closed metered-client
-construction, pricing fallback, consent, and SSRF holes and kept OpenRouter
-preview-only. That is safety. The product question is still open: does a
-maintained expert beat fresh research and simpler memory on repeated
-decisions?
+**Next is v2.51, not more dispatch.** v2.50.18 added attended OpenRouter
+one-shot research under a total cap. Unattended metered dispatch, MCP
+research, and automatic fallback stay frozen. The product question is still
+open: does a maintained expert beat fresh research and simpler memory on
+repeated decisions?
 
 Open v2.51 work:
 
@@ -497,6 +500,11 @@ Completed September 13 compatibility and capacity corrections are recorded in
 [the v2.50.15 changelog](docs/CHANGELOG.md#25015---2026-09-13).
 
 Shipped around this release:
+
+- [x] **Attended OpenRouter one-shot (2026-09-16):** after keys, `budget set
+  20`, wallet credits, and `budget authorize openrouter`, `deepr research
+  --provider openrouter --model qwen/qwen3.8-flash` settled `$0.001908` to
+  the canonical ledger. MCP, schedules, and automatic fallback stay blocked.
 
 - [x] **OpenRouter write-free validation (2026-09-08):** all seven public
   routes remained catalog-eligible with dispatch unauthorized. The current
@@ -3753,7 +3761,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.17. This roadmap keeps
+v2.50.18. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 

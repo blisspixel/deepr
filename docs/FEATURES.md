@@ -1147,6 +1147,7 @@ Capacity source status:
 |---|---|---|
 | Local Ollama | Execution works for local expert setup, local sync, deep/fresh local context, local absorb, local eval, local context eval, and scored admission | `$0` marginal cost, quality-gated before automatic routing |
 | OpenAI, Gemini, Grok, Anthropic, Azure APIs | Write-free request preview and offline billing reconciliation work for supported finite envelopes | The attended absorb transaction still requires authenticated prepaid-no-overage or hard-stop proof plus a funded wallet and job ceiling; other production metered dispatch remains blocked; every supported spend source must use the canonical ledger |
+| OpenRouter | Attended one-shot `deepr research --provider openrouter` after keys, wallet credits, and `budget authorize openrouter` | One pinned no-tool completion; settlement uses `usage.cost`; MCP, schedules, automatic routing, and fallback stay blocked |
 | Codex, Claude Code, OpenCode, Antigravity, Grok Build, Kiro, and other plan CLIs | Claude Code execution works behind auth-mode, tool-confinement, live no-overage, and no-surprise-bills gates; the other adapters remain visible/read-only | Automatic plan routing also requires a trusted remaining-quota observation; metered-at-margin Copilot remains execution-blocked |
 | CLI judge for local eval | Quarantined compatibility surface | Even `--allow-cli-judge` exits before process creation because billing source, overage posture, and total cost cannot be proven |
 
@@ -1626,7 +1627,7 @@ deepr --help       # Full help
 ### Semantic Commands (Primary Interface)
 
 ```bash
-deepr research     # Exact write-free preview; production metered dispatch is blocked
+deepr research     # Write-free preview; attended OpenRouter one-shot after authorize; other metered dispatch stays blocked
 deepr learn        # Metered multi-phase execution gated
 deepr team         # Metered multi-perspective execution gated
 deepr check        # Legacy metered completion gated

@@ -1,7 +1,7 @@
 # OpenRouter Metered Gateway
 
-Status: accepted for visible/read-only preview and proof increments, updated
-2026-09-02.
+Status: attended one-shot ships in v2.50.18; unattended, MCP, and automatic
+fallback remain blocked. Updated 2026-09-16.
 
 ## Problem
 
@@ -160,10 +160,30 @@ request:
 This validates discovery, parsing, pricing, and refusal behavior. It does not
 validate model answer quality, provider completion behavior, or final billing.
 
+## Attended one-shot increment
+
+v2.50.18 adds an owner-attended exception, not unattended activation:
+
+- `deepr budget authorize openrouter` binds a control-eligible current-key
+  limit as OpenRouter-only hard-stop evidence. That request is still a
+  no-inference GET `/api/v1/key`.
+- Explicit `deepr research --provider openrouter --model <catalog slug>` can
+  run one pinned chat completion after wallet credits and that hard stop.
+- The completion pins one upstream provider tag, sets `allow_fallbacks=false`,
+  sends empty tools, disables OpenRouter response caching, and refuses
+  cache-status headers and BYOK.
+- Reservation uses the wallet day and month caps from `resolve_spend_caps()`.
+  Dispatch marks the reserved request digest. Settlement uses OpenRouter
+  `usage.cost`.
+- MCP, schedules, automatic routing, and automatic fallback stay blocked.
+
+Live validation on 2026-09-16 settled `$0.001908` for
+`qwen/qwen3.8-flash` to the canonical ledger.
+
 ## Executable adapter requirements
 
-OpenRouter dispatch remains blocked until one adapter proves all of these
-properties for the exact attempt:
+Unattended OpenRouter dispatch remains blocked until one adapter proves all of
+these properties for the exact attempt:
 
 1. The current credential resolves to the same key identity admitted by the
    account-control evidence.
@@ -205,23 +225,27 @@ merely to make inference work and must not become runtime authority.
 
 ## Remaining Proof Gap
 
-The following work remains ordered behind v2.53:
+Attended one-shot research now reserves, marks, and settles `usage.cost`.
+The following work remains ordered behind v2.53 for unattended graphs and
+final invoice join:
 
-1. Adopt `DurableParentBudget` for the exact OpenRouter attempt and bind the
-   complete request digest before any network dispatch.
-2. Construct one Deepr-owned client with zero SDK retries, no redirects, no
-   ambient proxies, the official gateway endpoint, and the prompted credential
-   fingerprint from a fresh control observation.
+1. Adopt `DurableParentBudget` for remaining metered surfaces and multi-call
+   OpenRouter graphs, binding the complete request digest before any network
+   dispatch.
+2. Keep the Deepr-owned client at zero SDK retries, no redirects, no ambient
+   proxies, the official gateway endpoint, and the prompted credential
+   fingerprint from a fresh control observation for every remaining path.
 3. Verify router metadata and generation metadata against the complete
    acceptance contract above. Use the `X-Generation-Id` response header for
    post-mortem reconciliation when an error lacks router metadata. Verify that
    response-cache and prompt-cache evidence matches the admitted request
-   posture. The official response schemas currently do not expose the selected
-   endpoint tag, so execution remains blocked until the composite route evidence
-   is sufficient for the reviewed provider-family contract.
-4. Settle reported total cost and provider receipt identifiers into both the
-   child and append-only canonical ledger. Unknown or conflicting evidence must
-   consume the full hold and freeze the parent for reconciliation.
+   posture. Official response schemas still do not expose the selected
+   endpoint tag; attended one-shot pins the catalog tag and refuses a wrong
+   model, but composite route evidence is still required for unattended work.
+4. Join generation receipts into both the child and append-only canonical
+   ledger when `usage.cost` is absent or conflicts. Unknown or conflicting
+   evidence must consume the full hold and freeze the parent for
+   reconciliation.
 5. Reconcile the provider's final billing export or authenticated complete
    statement before account-control evidence can recover or extend authority.
 

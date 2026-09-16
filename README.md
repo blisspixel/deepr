@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.50.17-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.17)
+[![Version](https://img.shields.io/badge/version-2.50.18-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.18)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -79,11 +79,17 @@ Store an OpenRouter key with a hidden prompt, never as a command argument:
 deepr keys set openrouter
 deepr keys list
 deepr keys check --provider openrouter
+deepr budget set 20
+deepr budget credits add --amount 20
+deepr budget authorize openrouter
 ```
 
-A stored key is optional paid capacity. It does not unfreeze MCP, schedules, or
-automatic fallback. Attended work still needs `deepr budget set`, wallet
-credits, and a finite provider cap.
+A stored key is optional paid capacity. `budget set 20` persists the owner
+ceiling and the monthly window; it is not spend authority by itself. Wallet
+credits are the non-renewing `$20` cap. `budget authorize openrouter` proves
+the live key limit is a provider hard stop. MCP, schedules, and automatic
+fallback stay blocked. Attended `deepr research --provider openrouter` can
+then run one pinned completion under the wallet and ledger.
 
 ## Capacity
 
@@ -91,31 +97,34 @@ credits, and a finite provider cap.
 | --- | --- |
 | Local Ollama | Preferred for expert setup, maintenance, evaluation, and consultation after endpoint ownership is proven. Records $0 and does not consume wallet capacity. |
 | Plan quota | Visible/read-only. No production adapter is currently execution-eligible. Claude Code is blocked because managed-policy hooks can survive safe mode; other adapters retain their existing safety blocks. Subscription auth and disabled paid overage alone do not prove process confinement. |
-| Metered API | No automatic fallback. The attended absorb path requires verified provider prepaid-no-overage or a hard provider ceiling, plus a cumulative Deepr wallet, a separate finite job ceiling, explicit confirmation, and a durable reservation. Other metered surfaces remain gated. |
+| Metered API | No automatic fallback. Attended `deepr research --provider openrouter` can run one pinned no-tool completion after a stored key, wallet credits, and `budget authorize openrouter`. The attended absorb path still requires verified provider prepaid-no-overage or a hard provider ceiling, plus a cumulative Deepr wallet, a separate finite job ceiling, explicit confirmation, and a durable reservation. Other metered surfaces remain gated. |
 
 A local wallet is cumulative operator authorization, not provider credit. Paid
 dispatch also requires authenticated proof of provider-side prepaid capacity or
-a hard stop with overage disabled. The current release ships no production
-account-control verifier, so metered execution remains blocked and cannot be
-enabled by funding a wallet, setting a budget, or approving a prompt.
+a hard stop with overage disabled. OpenRouter's current-key limit is that hard
+stop for attended one-shot research. Other metered providers stay blocked
+until their account-control verifiers land. Funding a wallet, setting a
+budget, or approving a prompt cannot enable those other paths.
 
 ```bash
 deepr capacity
 deepr research "A bounded premium question" --provider openai --model o4-mini-deep-research --preview
 deepr research "Compare model families" --provider openrouter --model qwen/qwen3.8-flash --preview
+deepr research "A bounded premium question" --provider openrouter --model qwen/qwen3.8-flash --limit 0.50
 deepr providers openrouter-check
 deepr costs doctor
 ```
 
-OpenRouter is visible/read-only for bounded comparison. Seven exact model slugs
-can be previewed, while automatic routing, expert routing, evaluation, and paid
-dispatch remain blocked. The public route check needs no key; the separate
-current-key check uses a hidden prompt by default and makes no inference
-request. An explicit checkout-local `.env` source is documented for local use.
-Officially valid nullable limit controls are reported honestly. A
-non-renewing total cap is accepted and reconciled against lifetime usage. A
-key without a finite BYOK-inclusive limit at or below the operator ceiling
-remains ineligible. Neither check authorizes dispatch.
+OpenRouter catalog slugs can be previewed write-free. Automatic routing, expert
+routing, and evaluation stay blocked. Explicit attended research can run one
+pinned completion after `deepr budget authorize openrouter`. The public route
+check needs no key; the separate current-key check uses a hidden prompt by
+default and makes no inference request. An explicit checkout-local `.env`
+source is documented for local use. Officially valid nullable limit controls
+are reported honestly. A non-renewing total cap is accepted and reconciled
+against lifetime usage. A key without a finite BYOK-inclusive limit at or
+below the operator ceiling remains ineligible. Key inspection does not itself
+fire inference.
 
 See [Capacity and Cost](docs/CAPACITY.md) for the operating and billing
 boundary, [Models](docs/MODELS.md#openrouter-preview-catalog) for provider-route
@@ -177,18 +186,20 @@ for tested behavior and the distinction from draft standards and host certificat
 
 ## Direction
 
-v2.50.17 adds `deepr keys set openrouter`. v2.50.16 adds an owner-raisable local spend ceiling and accepts a
-non-renewing OpenRouter total cap, plus local Lemonade portraits and the
-Delve mark. Production paid dispatch remains blocked. v2.50.15 corrected MCP
-and Agent Plugins compatibility and blocked Claude plan execution until
-managed-policy commands can be confined. It did not enable paid OpenRouter,
-skill execution, or a claim that expert memory helps.
+v2.50.18 adds live OpenRouter key inspection, a binding owner ceiling,
+`budget authorize openrouter`, and attended one-shot research under the
+wallet and ledger. v2.50.17 added `deepr keys set openrouter`. v2.50.16
+added an owner-raisable local spend ceiling and a non-renewing OpenRouter
+total cap, plus local Lemonade portraits and the Delve mark. v2.50.15
+corrected MCP and Agent Plugins compatibility and blocked Claude plan
+execution until managed-policy commands can be confined. It did not enable
+skill execution or a claim that expert memory helps.
 
 **Next is v2.51:** one blinded four-arm evaluation of whether a maintained
 expert improves repeated decisions versus fresh research, static history, and
 compiled state. That measurement comes first because Deepr's product claim is
 durable judgment, not a larger agent runtime. Host wiring, expert-authored
-skills, and paid APIs wait until that evidence exists.
+skills, and broader paid APIs wait until that evidence exists.
 
 The first rehearsal compares all four arms on the same local model and frozen
 sources. It can test the contribution of maintained state under that setup;

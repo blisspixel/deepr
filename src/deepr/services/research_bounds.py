@@ -244,6 +244,7 @@ def bounded_research_cost_estimate(
     request: ResearchRequest,
     provider: str,
     allow_preview_only: bool = False,
+    allow_attended_openrouter: bool = False,
 ) -> CostEstimate:
     """Return a maximum cost that covers every permitted provider dispatch."""
     serialized_bytes = validate_research_request_bounds(request)
@@ -256,7 +257,8 @@ def bounded_research_cost_estimate(
         )
     if provider_key == "gemini" and "deep-research" in model_key:
         raise ResearchRequestBoundsError(
-            "Gemini Deep Research runs an autonomous tool loop without provider-enforced total budget, output, or tool ceilings",
+            "Gemini Deep Research runs an autonomous tool loop without "
+            "provider-enforced total budget, output, or tool ceilings",
             code="gemini_deep_research_budget_unbounded",
         )
     if provider_key == "azure-foundry":
@@ -283,9 +285,21 @@ def bounded_research_cost_estimate(
             code="research_provider_model_mismatch",
         )
     if capability.preview_only and not allow_preview_only:
+        attended_openrouter = (
+            allow_attended_openrouter
+            and capability.provider == "openrouter"
+            and not request.tools
+            and request.max_provider_requests == 1
+        )
+        if not attended_openrouter:
+            raise ResearchRequestBoundsError(
+                f"Research provider {provider_key!r} is visible for bounded previews but has no executable adapter",
+                code="research_provider_preview_only",
+            )
+    if allow_attended_openrouter and (request.tools or request.max_provider_requests != 1):
         raise ResearchRequestBoundsError(
-            f"Research provider {provider_key!r} is visible for bounded previews but has no executable adapter",
-            code="research_provider_preview_only",
+            "Attended OpenRouter research cannot include tools, retries, or extra provider requests",
+            code="openrouter_attended_tools_forbidden",
         )
     if capability.deprecated:
         successor = f"; use successor {capability.successor!r}" if capability.successor else ""

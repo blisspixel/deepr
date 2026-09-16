@@ -67,6 +67,7 @@ _OFFICIAL_FIXED_ENDPOINTS = {
     "anthropic": "https://api.anthropic.com",
     "xai": "https://api.x.ai/v1",
     "gemini": "https://generativelanguage.googleapis.com",
+    "openrouter": "https://openrouter.ai/api/v1",
 }
 _ENDPOINT_OVERRIDE_ENV_PROVIDERS = {
     "openai_base_url": "openai",
@@ -110,7 +111,7 @@ _AZURE_FOUNDRY_SUFFIXES = (
     ".services.ai.azure.cn",
 )
 _FOUNDRY_PROJECT_PATH = re.compile(r"/api/projects/[A-Za-z0-9](?:[A-Za-z0-9._-]{0,126}[A-Za-z0-9])?/?\Z")
-_PAID_ENDPOINT_PROVIDERS = frozenset({"openai", "anthropic", "xai", "gemini", "azure", "azure-foundry"})
+_PAID_ENDPOINT_PROVIDERS = frozenset({"openai", "anthropic", "xai", "gemini", "azure", "azure-foundry", "openrouter"})
 _MAX_UNTIERED_OPENAI_INPUT_TOKENS = 128_000
 _SUPPORTED_SDK_CLIENT_TYPES = {
     "openai": frozenset({("openai", "OpenAI"), ("openai", "AsyncOpenAI")}),
