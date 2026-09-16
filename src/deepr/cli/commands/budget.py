@@ -61,10 +61,12 @@ def _persist_operator_ceiling(amount: float) -> Path | None:
     current = absolute_deepr_ceiling_usd()
     if amount <= current:
         return None
-    from deepr.cli.commands.keys import _user_env_path, _write_env_key
+    from deepr.cli.commands.keys import _write_env_key
 
     value = f"{amount:.2f}"
-    path = _write_env_key(DEEPR_MAX_SPEND_CEILING_ENV, value, path=_user_env_path())
+    # Persist beside the operator budget file. Tests isolate DEEPR_BUDGET_FILE,
+    # so a `budget set 10` fixture cannot rewrite the real ~/.deepr/.env.
+    path = _write_env_key(DEEPR_MAX_SPEND_CEILING_ENV, value, path=get_budget_file().parent / ".env")
     os.environ[DEEPR_MAX_SPEND_CEILING_ENV] = value
     return path
 

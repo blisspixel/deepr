@@ -119,7 +119,6 @@ class TestBudgetSetCommand:
         from datetime import UTC, datetime
 
         monkeypatch.setenv("DEEPR_MAX_SPEND_CEILING_USD", "5")
-        monkeypatch.setattr("deepr.config.default_data_dir", lambda: tmp_path / "user-deepr")
         budget_path = tmp_path / "frozen-budget.json"
         budget_path.write_text(
             json.dumps(
@@ -140,9 +139,12 @@ class TestBudgetSetCommand:
         monkeypatch.setenv("DEEPR_BUDGET_FILE", str(budget_path))
         result = runner.invoke(cli, ["budget", "set", "20"])
         assert result.exit_code == 0, result.output
-        env_path = tmp_path / "user-deepr" / ".env"
+        env_path = budget_path.parent / ".env"
         assert env_path.is_file()
         assert "DEEPR_MAX_SPEND_CEILING_USD=20.00" in env_path.read_text(encoding="utf-8")
+        real_home_env = Path.home() / ".deepr" / ".env"
+        if real_home_env.exists():
+            assert env_path.resolve() != real_home_env.resolve()
         assert "Configured budget: $20.00/month" in result.output
         assert "Effective hard ceiling: $0.00/month" in result.output
         assert "Paid API remains frozen" in result.output
