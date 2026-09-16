@@ -68,6 +68,23 @@ def _mapping(value: object, *, field_name: str) -> Mapping[str, Any]:
     return value
 
 
+def _message_content(value: object) -> str:
+    if isinstance(value, str):
+        return _text(value, field_name="message.content")
+    if isinstance(value, list):
+        parts: list[str] = []
+        for item in value:
+            if isinstance(item, str) and item.strip():
+                parts.append(item)
+            elif isinstance(item, Mapping):
+                text = item.get("text")
+                if isinstance(text, str) and text.strip() and item.get("type") in (None, "text"):
+                    parts.append(text)
+        if parts:
+            return _text("\n".join(parts), field_name="message.content")
+    raise OpenRouterCompletionError(f"OpenRouter message.content must be text, got {type(value).__name__}")
+
+
 def _text(value: object, *, field_name: str, allow_empty: bool = False) -> str:
     if not isinstance(value, str):
         raise OpenRouterCompletionError(f"OpenRouter {field_name} must be text")
@@ -154,7 +171,7 @@ def _parse_completion_payload(payload: object, *, expected_slug: str, expected_t
         raise OpenRouterCompletionError("OpenRouter completion must return exactly one choice")
     choice = _mapping(choices[0], field_name="choices[0]")
     message = _mapping(choice.get("message"), field_name="message")
-    content = _text(message.get("content"), field_name="message.content")
+    content = _message_content(message.get("content"))
     finish_reason = _text(choice.get("finish_reason"), field_name="finish_reason")
     generation_id = _text(document.get("id"), field_name="id")
     return OpenRouterCompletionResult(
