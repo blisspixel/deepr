@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   formatter.
 - Blocking ``mypy --strict`` now includes ``backends/``, ``agents/``, and
   ``evals/``. Observability and services stay on the non-blocking baseline.
+  Windows Job Object ctypes bindings type-check on Linux without claiming
+  ``ctypes.WinDLL`` exists there.
 
 ### Fixed
 

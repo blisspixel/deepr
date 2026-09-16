@@ -11,12 +11,12 @@ from __future__ import annotations
 
 import contextlib
 import ctypes
-import os
+import sys
 import threading
 from ctypes import wintypes
 from dataclasses import dataclass
 
-if os.name != "nt":
+if sys.platform != "win32":
     raise RuntimeError("Windows Job Objects are only available on Windows")
 
 
@@ -83,7 +83,9 @@ class _ThreadEntry32(ctypes.Structure):
     ]
 
 
-_kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+# WinDLL and get_last_error exist only on Windows. This module raises on import
+# elsewhere; the ignores keep Linux mypy from treating the bindings as missing.
+_kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined]
 _kernel32.CreateJobObjectW.argtypes = (ctypes.c_void_p, wintypes.LPCWSTR)
 _kernel32.CreateJobObjectW.restype = wintypes.HANDLE
 _kernel32.SetInformationJobObject.argtypes = (
@@ -269,5 +271,5 @@ def _require(result: object, operation: str) -> None:
 
 
 def _ownership_error(operation: str) -> WindowsProcessOwnershipError:
-    error_code = ctypes.get_last_error()
+    error_code = ctypes.get_last_error()  # type: ignore[attr-defined]
     return WindowsProcessOwnershipError(error_code, f"{operation} failed")
