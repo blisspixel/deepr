@@ -1,6 +1,6 @@
 # Model Selection Guide
 
-Status: current with Deepr v2.50.17. Last reviewed: 2026-09-15.
+Status: current with Deepr v2.50.18. Last reviewed: 2026-09-16.
 
 The source of truth for model IDs, pricing estimates, context windows, and
 routing metadata is [src/deepr/providers/registry.py](../src/deepr/providers/registry.py),
@@ -53,7 +53,7 @@ current-key docs were checked through 2026-09-02:
 | Google Gemini | Google released Gemini 3.6 Flash and Gemini 3.5 Flash-Lite as GA production API models on 2026-07-21. The same launch limits Gemini 3.5 Flash Cyber to a CodeMender pilot for governments and trusted partners. | Both GA API models are registered with standard pricing, cached-input pricing, context metadata, and the new thinking-level request shape. Flash Cyber is deliberately absent. Managed Gemini Deep Research remains gated because its autonomous loop lacks a complete request ceiling. | Use the GA API models for explicit bounded requests. Do not represent Flash Cyber as selectable Gemini API capacity. |
 | xAI | Grok 4.6 launched on 2026-08-12. xAI also publishes Grok Build 0.1 and revived `grok-code-fast` aliases with current prices. | Grok 4.6 and Grok Build 0.1 are registered. Generic flagship aliases resolve to 4.6; quick routing can retain cheaper Grok 4.3. | Keep fast service tiers and server-side tools outside base estimates unless their separate charges are explicitly bounded. |
 | Azure AI Foundry | Microsoft lists GPT-5.6 Sol, Terra, and Luna, but availability and billing remain deployment, quota, region, and service-tier dependent. | Azure entries remain tested deployment targets, not mirrors of every public OpenAI model. | Do not promote a catalog listing into Azure routing without deployment-specific pricing and adapter verification. |
-| OpenRouter | Public endpoint metadata exposes provider tags, parameters, context, status, and price classes. A base provider tag can match non-tier variants. Router and generation metadata report provider display names, not the selected tag. BYOK can override ordering, while account defaults can force plugins. | Seven exact model slugs are preview-only. A no-key check requires one currently matched standard tag and bounded text-inference prices. An explicit-source check produces a sanitized key-control observation. Both deny dispatch authority. | Keep inference blocked until authenticated account controls exclude BYOK and paid defaults, the request and provider-route evidence are bound, total usage settles one durable parent, ambiguous outcomes freeze safely, and final billing reconciles. |
+| OpenRouter | Public endpoint metadata exposes provider tags, parameters, context, status, and price classes. A base provider tag can match non-tier variants. Router and generation metadata report provider display names, not the selected tag. BYOK can override ordering, while account defaults can force plugins. | Seven exact model slugs stay excluded from automatic routing. A no-key check requires one currently matched standard tag and bounded text-inference prices. An explicit-source check produces a sanitized key-control observation. Both deny dispatch authority. Attended `deepr research --provider openrouter` can run one pinned completion after wallet credits and `budget authorize openrouter`. | Keep MCP, schedules, and automatic fallback blocked. Unattended graphs still need BYOK/default exclusion, composite route evidence, generation-id post-mortem, and final billing-export join. |
 
 ## Current External Watchlist
 
@@ -134,8 +134,8 @@ Pricing notes:
 ## Current Deepr Registry Snapshot
 
 The registry currently contains 72 models: 65 direct-provider contracts across
-OpenAI, Gemini, xAI, Anthropic, and Azure AI Foundry, plus seven preview-only
-OpenRouter routes. The list below mirrors the registry on 2026-08-31; run the
+OpenAI, Gemini, xAI, Anthropic, and Azure AI Foundry, plus seven OpenRouter
+routes that stay excluded from automatic routing. The list below mirrors the registry on 2026-08-31; run the
 offline command above for exact pricing and context values. The web
 Models page intentionally reports 48 active benchmarkable public text or
 research models because Azure AI Foundry entries are deployment targets, premium
@@ -370,12 +370,15 @@ Default posture:
 - All tools are disabled. Automatic model routing, expert routing, benchmark
   evaluation, model fallbacks, and provider fallbacks cannot select these
   entries.
-- Execution is blocked before reservation and provider construction. A future
-  request must pin one upstream provider, disable fallback, require parameter
-  support, set `max_price` to no more than the registered prompt, completion,
-  and zero fixed-request rate, send `X-OpenRouter-Cache: false` and
-  `X-OpenRouter-Metadata: enabled`, and omit service tiers, media, explicit
-  prompt-cache controls, paid server features, and deprecated usage opt-ins.
+- Catalog entries stay excluded from automatic routing. Attended
+  `deepr research --provider openrouter --model <slug>` can run one pinned
+  completion after wallet credits and `deepr budget authorize openrouter`.
+  That request pins one upstream provider, disables fallback, requires
+  parameter support, sets `max_price` to no more than the registered prompt,
+  completion, and zero fixed-request rate, sends `X-OpenRouter-Cache: false`
+  and `X-OpenRouter-Metadata: enabled`, and omits service tiers, media,
+  explicit prompt-cache controls, paid server features, and deprecated usage
+  opt-ins. MCP, schedules, and automatic fallback stay blocked.
 - `deepr providers openrouter-check` makes at most seven pinned public metadata
   requests with no key, no redirects, no ambient proxy, bounded response bytes,
   and strict duplicate-key rejection. This no-key endpoint behavior is observed,
@@ -390,7 +393,7 @@ Default posture:
   separately and may exceed the current month's usage. `deepr keys check
   --provider openrouter` uses the stored or quarantined key and does not take a
   key argument. `deepr budget authorize openrouter` binds a control-eligible
-  key limit as hard-stop evidence. Completions still need an adapter.
+  key limit as hard-stop evidence. This check does not fire inference.
 - OpenRouter permits nullable limit and reset controls. The v2 sanitized
   observation preserves an observed `null`, reports missing or non-monthly
   authority as ineligible, and never renders an absent limit as zero spend.

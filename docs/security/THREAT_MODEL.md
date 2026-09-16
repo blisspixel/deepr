@@ -1,6 +1,6 @@
 # Deepr Threat Model
 
-Status: current with Deepr v2.50.17. Last reviewed: 2026-09-15.
+Status: current with Deepr v2.50.18. Last reviewed: 2026-09-16.
 
 This document is the repository-scoped threat model for Deepr. It is intended
 for security reviews, design reviews, and future bug discovery. It should stay
@@ -390,22 +390,24 @@ Existing controls:
   token buckets, canonical queued-model rates, and provable paid-tool calls.
   Missing or inconsistent response model, token, tool, or settlement evidence
   consumes the full reservation or freezes paid dispatch.
-- OpenRouter entries are preview-only and excluded from automatic routing,
-  expert routing, and evaluation. Their no-key catalog check requires one
-  currently matched standard endpoint metadata tag, rejects another non-tier
-  variant under a base route, rejects fallback, bounds every reachable
-  text-inference price class and discount, disables response caching, requests
-  router metadata, and forbids paid request features. The current-key check uses a hidden prompt by default. Explicit
-  `--from-env` uses the quarantined process copy when available or parses only
-  the bounded checkout-local key without exporting it. It does not unquarantine
-  or export the value or pass it to a child
-  process. It makes one bounded read-only request without ambient proxy or
-  redirects, and returns only sanitized limit evidence. Nullable provider
+- OpenRouter catalog entries are excluded from automatic routing, expert
+  routing, and evaluation. Their no-key catalog check requires one currently
+  matched standard endpoint metadata tag, rejects another non-tier variant
+  under a base route, rejects fallback, bounds every reachable text-inference
+  price class and discount, disables response caching, requests router
+  metadata, and forbids paid request features. The current-key check uses a
+  hidden prompt by default. Explicit `--from-env` uses the quarantined process
+  copy when available or parses only the bounded checkout-local key without
+  exporting it. It does not unquarantine or export the value or pass it to a
+  child process. It makes one bounded read-only request without ambient proxy
+  or redirects, and returns only sanitized limit evidence. Nullable provider
   controls are preserved as `null` and fail policy eligibility without being
   rendered as zero or rejected before the actual posture can be assessed. Both
-  checks explicitly deny dispatch authority, and no OpenRouter inference client
-  is constructed.
-  A future adapter also needs authenticated proof of no applicable BYOK or
+  checks explicitly deny dispatch authority and do not fire inference.
+  Attended `deepr research --provider openrouter` may construct one pinned
+  inference client after wallet credits and `deepr budget authorize
+  openrouter`. MCP, schedules, and automatic fallback stay denied. A future
+  unattended adapter also needs authenticated proof of no applicable BYOK or
   enforced paid workspace defaults. It must reject cache HIT/MISS, non-default
   service tiers, BYOK, pipeline stages, searches, fetches, media, presets, and
   conflicting or missing total-cost evidence.
@@ -421,10 +423,11 @@ Existing controls:
   applied evidence, and freezes on non-clean or failed apply. Paid account
   evidence is non-authoritative unless a provider-specific authenticated source
   verifier and current account, scope, and credential resolver both succeed.
-  No production provider account-control adapter is installed in v2.50, so
-  metered dispatch remains blocked. A funded Deepr wallet cannot change that
-  result: it is local spend authority, not proof that provider overage is
-  impossible.
+  No generic production provider account-control adapter is installed in
+  v2.50. OpenRouter attended one-shot uses the current-key limit as the
+  provider hard stop. Other metered dispatch remains blocked. A funded Deepr
+  wallet cannot enable those other paths: it is local spend authority, not
+  proof that provider overage is impossible.
 - Image generation auto-selects only local `$0` image endpoints by default.
   Premium image APIs require explicit provider choice or the single premium
   auto opt-in.

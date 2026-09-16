@@ -6,7 +6,7 @@ description: |
   analysis, a research cost preview, a domain expert or expert council, or
   inspection of durable beliefs, gaps, confidence, and provenance.
 metadata:
-  deepr-version: "2.50.17"
+  deepr-version: "2.50.18"
   deepr-mcp-server: "deepr"
 ---
 
@@ -20,7 +20,10 @@ citations, budget posture, capacity provenance, uncertainty, and dissent.
 Treat these as works-now surfaces in the current release:
 
 - Write-free API research previews when the provider, model, tools, token
-  ceilings, and price are all known. Production paid dispatch remains blocked.
+  ceilings, and price are all known. MCP and unattended paid dispatch remain
+  blocked. Attended CLI `deepr research --provider openrouter` after keys,
+  wallet credits, and `budget authorize openrouter` can run one pinned
+  completion.
 - Explicit local Ollama or non-metered plan-quota expert workflows.
 - Read-only expert state, handoffs, loop status, memory cards, and derived
   exports.

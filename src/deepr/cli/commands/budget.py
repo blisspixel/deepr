@@ -656,8 +656,9 @@ def authorize(provider: str) -> None:
     """Bind a live OpenRouter key limit as the provider hard stop.
 
     Makes one authenticated no-inference GET /api/v1/key request. MCP,
-    schedules, and automatic fallback stay blocked. Attended completions still
-    need an OpenRouter adapter.
+    schedules, and automatic fallback stay blocked. Attended
+    `deepr research --provider openrouter` can then run one pinned completion
+    after wallet credits.
     """
     del provider
     print_header("Authorize OpenRouter")
@@ -673,7 +674,11 @@ def authorize(provider: str) -> None:
     )
     click.echo(f"Evidence ID: {result['evidence_id']}")
     click.echo("MCP, schedules, and automatic fallback stay blocked.")
-    click.echo("Attended completions still need an OpenRouter adapter; this does not fire inference.")
+    click.echo(
+        "This command does not fire inference. Attended "
+        "`deepr research --provider openrouter` can run one pinned completion "
+        "after wallet credits."
+    )
 
 
 @budget.command()
