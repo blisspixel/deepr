@@ -9,9 +9,10 @@ import click
 
 from deepr.cli.colors import console, print_header, print_key_value
 from deepr.cli.commands.budget import check_budget_approval
-from deepr.core.cost_caps import paid_api_provider_scope
+from deepr.core.cost_caps import paid_api_provider_scope, resolve_spend_caps
 from deepr.experts.parent_budget_transaction import open_parent_budget_transaction
 from deepr.experts.research_cost_gate import (
+    ResearchCostBlocked,
     refund_research_cost,
     reserve_research_cost,
     settle_research_cost,
@@ -123,17 +124,22 @@ def run_attended_openrouter_research(
             parent_ceiling_usd=estimate.max_cost,
             run_id=job_id,
         )
-        reservation = reserve_research_cost(
-            job_id=job_id,
-            provider="openrouter",
-            model=model,
-            estimate=estimate,
-            max_cost_per_job=min(estimate.max_cost, limit) if limit is not None else estimate.max_cost,
-            max_daily_cost=estimate.max_cost,
-            max_weekly_cost=estimate.max_cost,
-            max_monthly_cost=estimate.max_cost,
-            request=request,
-        )
+        spend_caps = resolve_spend_caps(provider="openrouter")
+        per_job = estimate.max_cost if limit is None else min(estimate.max_cost, limit)
+        try:
+            reservation = reserve_research_cost(
+                job_id=job_id,
+                provider="openrouter",
+                model=model,
+                estimate=estimate,
+                max_cost_per_job=per_job,
+                max_daily_cost=spend_caps["daily"],
+                max_weekly_cost=spend_caps["weekly"],
+                max_monthly_cost=spend_caps["monthly"],
+                request=request,
+            )
+        except ResearchCostBlocked as exc:
+            raise click.ClickException(str(exc)) from exc
         require_unproxied_paid_transport()
         if not load_openrouter_api_key():
             refund_research_cost(reservation, provider_work_did_not_run=True)
