@@ -19,6 +19,7 @@ Usage:
 """
 
 import json
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -112,7 +113,7 @@ class OperationContext:
         self.metadata = metadata
         self._emitter = emitter
 
-    def set_cost(self, cost: float):
+    def set_cost(self, cost: float) -> None:
         """Set the cost for this operation.
 
         Args:
@@ -121,7 +122,7 @@ class OperationContext:
         self.span.set_cost(cost)
         self.metadata.cost = cost
 
-    def set_tokens(self, input_tokens: int, output_tokens: int):
+    def set_tokens(self, input_tokens: int, output_tokens: int) -> None:
         """Set token counts for this operation.
 
         Args:
@@ -133,7 +134,7 @@ class OperationContext:
         self.span.set_attribute("tokens_input", input_tokens)
         self.span.set_attribute("tokens_output", output_tokens)
 
-    def set_model(self, model: str, provider: str = ""):
+    def set_model(self, model: str, provider: str = "") -> None:
         """Set the model used for this operation.
 
         Args:
@@ -145,7 +146,7 @@ class OperationContext:
         self.span.set_attribute("model", model)
         self.span.set_attribute("provider", provider)
 
-    def add_context_source(self, source: str):
+    def add_context_source(self, source: str) -> None:
         """Add a context source used in this operation.
 
         Args:
@@ -154,7 +155,7 @@ class OperationContext:
         self.metadata.context_sources.append(source)
         self.span.set_attribute("context_sources", self.metadata.context_sources)
 
-    def add_event(self, name: str, attributes: dict[str, Any] | None = None):
+    def add_event(self, name: str, attributes: dict[str, Any] | None = None) -> None:
         """Add a timestamped event to this operation.
 
         Args:
@@ -163,7 +164,7 @@ class OperationContext:
         """
         self.span.add_event(name, attributes)
 
-    def set_attribute(self, key: str, value: Any):
+    def set_attribute(self, key: str, value: Any) -> None:
         """Set a custom attribute on this operation.
 
         Args:
@@ -208,7 +209,7 @@ class MetadataEmitter:
         # last-set tracker. Logged as a warning so we can find them.
         self._temporal_tracker: TemporalKnowledgeTracker | None = None
 
-    def set_temporal_tracker(self, tracker: "TemporalKnowledgeTracker", job_id: str | None = None):
+    def set_temporal_tracker(self, tracker: "TemporalKnowledgeTracker", job_id: str | None = None) -> None:
         """Set the temporal knowledge tracker for findings/hypothesis tracking.
 
         Args:
@@ -267,7 +268,7 @@ class MetadataEmitter:
 
         return op
 
-    def complete_task(self, op: OperationContext, status: str = "completed"):
+    def complete_task(self, op: OperationContext, status: str = "completed") -> None:
         """Mark a task as complete.
 
         Args:
@@ -283,7 +284,7 @@ class MetadataEmitter:
         # Remove from active operations
         self._active_operations.pop(op.span.span_id, None)
 
-    def fail_task(self, op: OperationContext, error: str):
+    def fail_task(self, op: OperationContext, error: str) -> None:
         """Mark a task as failed.
 
         Args:
@@ -300,7 +301,9 @@ class MetadataEmitter:
         self._active_operations.pop(op.span.span_id, None)
 
     @contextmanager
-    def operation(self, task_type: str, attributes: dict[str, Any] | None = None, prompt: str = ""):
+    def operation(
+        self, task_type: str, attributes: dict[str, Any] | None = None, prompt: str = ""
+    ) -> Iterator["OperationContext"]:
         """Context manager for tracking an operation.
 
         Args:
@@ -368,7 +371,7 @@ class MetadataEmitter:
         """
         return {task.task_id: task.context_sources for task in self.tasks if task.context_sources}
 
-    def save_trace(self, path: Path):
+    def save_trace(self, path: Path) -> None:
         """Save the complete trace to a JSON file.
 
         Args:
@@ -468,4 +471,7 @@ class MetadataEmitter:
             Raw trace data dictionary
         """
         with open(path, encoding="utf-8") as f:
-            return json.load(f)
+            loaded: object = json.load(f)
+        if not isinstance(loaded, dict):
+            raise ValueError("Trace file must contain a JSON object")
+        return loaded

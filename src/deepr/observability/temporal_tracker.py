@@ -384,7 +384,7 @@ class TemporalKnowledgeTracker:
         hypothesis_id: str,
         reason: str,
         contradicting_finding_id: str | None = None,
-    ) -> HypothesisEvolution:
+    ) -> HypothesisEvolution | None:
         """Invalidate a hypothesis.
 
         Args:
@@ -504,7 +504,7 @@ class TemporalKnowledgeTracker:
             "active_hypotheses": len([h for h in self.hypotheses.values() if h.current_state.confidence > 0.0]),
         }
 
-    def _check_for_contradictions(self, new_finding: TemporalFinding):
+    def _check_for_contradictions(self, new_finding: TemporalFinding) -> None:
         """Check if new finding contradicts existing hypotheses.
 
         Args:
@@ -528,7 +528,7 @@ class TemporalKnowledgeTracker:
                         new_finding.finding_type = FindingType.CONTRADICTION
                         new_finding.related_findings.append(hypothesis.id)
 
-    def _update_phase_summary(self, phase: int, finding: TemporalFinding):
+    def _update_phase_summary(self, phase: int, finding: TemporalFinding) -> None:
         """Update summary for a phase.
 
         Args:
@@ -553,7 +553,7 @@ class TemporalKnowledgeTracker:
         finding_type = finding.finding_type.value
         summary["finding_types"][finding_type] = summary["finding_types"].get(finding_type, 0) + 1
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset tracker for a new session."""
         self.findings.clear()
         self.hypotheses.clear()

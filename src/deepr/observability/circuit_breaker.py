@@ -90,11 +90,11 @@ class CircuitBreaker:
     failure_threshold: int = CIRCUIT_BREAKER_FAILURE_THRESHOLD
     recovery_timeout: int = CIRCUIT_BREAKER_RECOVERY_TIMEOUT
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self._lock = threading.Lock()
 
     @property
-    def key(self) -> tuple:
+    def key(self) -> tuple[str, str]:
         """Get unique key for this circuit.
 
         Returns:
@@ -246,14 +246,14 @@ class CircuitBreakerRegistry:
         self,
         failure_threshold: int = CIRCUIT_BREAKER_FAILURE_THRESHOLD,
         recovery_timeout: int = CIRCUIT_BREAKER_RECOVERY_TIMEOUT,
-    ):
+    ) -> None:
         """Initialize the circuit breaker registry.
 
         Args:
             failure_threshold: Default failures before opening circuit
             recovery_timeout: Default seconds before testing recovery
         """
-        self.circuits: dict[tuple, CircuitBreaker] = {}
+        self.circuits: dict[tuple[str, str], CircuitBreaker] = {}
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
 

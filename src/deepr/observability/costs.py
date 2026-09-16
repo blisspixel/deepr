@@ -1,10 +1,7 @@
 """Cost tracking and dashboard for Deepr.
 
-Provides cost tracking, alerts, and reporting:
-- Record costs per operation
-- Daily and monthly totals
-- Breakdown by provider and operation type
-- Configurable alerts at thresholds
+Provides cost tracking, alerts, and reporting: record per operation,
+daily and monthly totals, provider breakdown, and threshold alerts.
 
 Usage:
     from deepr.observability.costs import CostDashboard
@@ -18,6 +15,7 @@ Usage:
 
 import json
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -466,7 +464,7 @@ class CostAggregator:
         entries = self.get_entries_by_expert(expert_name)
         return self._aggregate_by_field(entries, lambda e: e.operation)
 
-    def _aggregate_by_field(self, entries: list[CostEntry], key_func) -> dict[str, float]:
+    def _aggregate_by_field(self, entries: list[CostEntry], key_func: Callable[[CostEntry], str]) -> dict[str, float]:
         """Aggregate costs by a field extracted via key function.
 
         Args:
@@ -851,7 +849,7 @@ class CostDashboard:
         self._save()
         return len(self.entries)
 
-    def _save(self):
+    def _save(self) -> None:
         """Save entries to disk using atomic write pattern.
 
         Uses a temporary file and atomic rename to prevent corruption
@@ -904,7 +902,7 @@ class CostDashboard:
                 except (TypeError, ValueError):
                     pass
 
-    def _load(self):
+    def _load(self) -> None:
         """Load dashboard state.
 
         Entries come from the canonical cost ledger (the append-only source of
@@ -1118,7 +1116,7 @@ class BufferedCostDashboard(CostDashboard):
         """
         return (datetime.now(UTC) - self._last_flush).total_seconds()
 
-    def _shutdown_flush(self):
+    def _shutdown_flush(self) -> None:
         """Flush handler called on application shutdown.
 
         This method is registered with atexit to ensure all buffered

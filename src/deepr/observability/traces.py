@@ -36,6 +36,7 @@ def _utc_now() -> datetime:
 
 import contextvars
 import threading
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Optional
@@ -87,7 +88,7 @@ class Span:
     events: list[dict[str, Any]] = field(default_factory=list)
     cost: float = 0.0
 
-    def set_attribute(self, key: str, value: Any):
+    def set_attribute(self, key: str, value: Any) -> None:
         """Set an attribute on the span.
 
         Args:
@@ -96,7 +97,7 @@ class Span:
         """
         self.attributes[key] = value
 
-    def add_event(self, name: str, attributes: dict[str, Any] | None = None):
+    def add_event(self, name: str, attributes: dict[str, Any] | None = None) -> None:
         """Add a timestamped event to the span.
 
         Args:
@@ -105,7 +106,7 @@ class Span:
         """
         self.events.append({"name": name, "timestamp": datetime.now(UTC).isoformat(), "attributes": attributes or {}})
 
-    def set_cost(self, cost: float):
+    def set_cost(self, cost: float) -> None:
         """Set the cost attributed to this span.
 
         Args:
@@ -113,7 +114,7 @@ class Span:
         """
         self.cost = cost
 
-    def complete(self, status: SpanStatus = SpanStatus.COMPLETED):
+    def complete(self, status: SpanStatus = SpanStatus.COMPLETED) -> None:
         """Mark the span as complete.
 
         Args:
@@ -122,7 +123,7 @@ class Span:
         self.end_time = datetime.now(UTC)
         self.status = status
 
-    def fail(self, error: str | None = None):
+    def fail(self, error: str | None = None) -> None:
         """Mark the span as failed.
 
         Args:
@@ -227,7 +228,7 @@ class TraceContext:
 
         return span
 
-    def end_span(self, span: Span, status: SpanStatus = SpanStatus.COMPLETED):
+    def end_span(self, span: Span, status: SpanStatus = SpanStatus.COMPLETED) -> None:
         """End a span.
 
         Args:
@@ -241,7 +242,7 @@ class TraceContext:
                 self._span_stack.pop()
 
     @contextmanager
-    def span(self, name: str, attributes: dict[str, Any] | None = None):
+    def span(self, name: str, attributes: dict[str, Any] | None = None) -> Iterator[Span]:
         """Context manager for creating spans.
 
         Args:
@@ -313,12 +314,12 @@ class TraceContext:
             return None
 
         start = min(s.start_time for s in self.spans)
-        completed = [s for s in self.spans if s.end_time is not None]
+        ends = [s.end_time for s in self.spans if s.end_time is not None]
 
-        if not completed:
+        if not ends:
             return None
 
-        end = max(s.end_time for s in completed)
+        end = max(ends)
         delta = end - start
         return delta.total_seconds() * 1000
 
@@ -331,7 +332,7 @@ class TraceContext:
             "total_duration_ms": self.get_total_duration_ms(),
         }
 
-    def save(self, path: Path):
+    def save(self, path: Path) -> None:
         """Save trace to JSON file (crash-safe atomic write).
 
         Args:

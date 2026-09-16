@@ -412,7 +412,7 @@ class QualityMetrics:
             by_category=by_category,
         )
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset all tracked metrics."""
         self.results.clear()
         self._calibration_bins.clear()

@@ -35,7 +35,7 @@ GRANDFATHERED: dict[str, int] = {
     "deepr/experts/memory.py": 1291,
     "deepr/providers/registry.py": 1279,
     "deepr/experts/learner.py": 1245,
-    "deepr/observability/costs.py": 1154,
+    "deepr/observability/costs.py": 1152,
     "deepr/core/settings.py": 1120,
     "deepr/cli/commands/prep.py": 1093,
     "deepr/api/app.py": 1028,

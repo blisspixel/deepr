@@ -96,7 +96,7 @@ class InformationGainTracker:
         cumulative_context: Accumulated knowledge from all phases
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the tracker."""
         self.phases: list[InformationGainMetrics] = []
         self.cumulative_context = PriorContext()
@@ -264,7 +264,7 @@ class InformationGainTracker:
         # Continue if gain is above threshold and not declining
         return recent_gain >= threshold or trend != "decreasing"
 
-    def export_to_span(self, span) -> None:
+    def export_to_span(self, span: Any) -> None:
         """Export metrics to an observability span.
 
         Args:
@@ -299,13 +299,13 @@ class InformationGainTracker:
             "phase_metrics": [p.to_dict() for p in self.phases],
         }
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset tracker for a new research session."""
         self.phases.clear()
         self.cumulative_context = PriorContext()
         self._phase_findings.clear()
 
-    def _update_context_from_dict(self, context: dict[str, Any]):
+    def _update_context_from_dict(self, context: dict[str, Any]) -> None:
         """Update cumulative context from a dictionary.
 
         Args:
