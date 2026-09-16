@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unit coverage now measures `cli/ui.py`, `cli/startup_banner.py`, and
+  `webhooks/`. Azure blob stays omitted because construction is blocked until
+  billed storage accounting exists.
 - File-size grandfathered caps now match current line counts, so unused
   headroom cannot grow the remaining god files.
 - Direct unused core/dev dependencies `aiofiles`, `colorama`, and `black`
