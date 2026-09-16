@@ -82,10 +82,21 @@ class AgentTool:
         Returns:
             AgentResult from the delegated execution.
         """
+        payload: object
         if isinstance(arguments, str):
-            arguments = json.loads(arguments)
+            payload = json.loads(arguments)
+        else:
+            payload = arguments
+        if not isinstance(payload, dict):
+            return AgentResult(
+                agent_id=parent_identity.agent_id,
+                trace_id=parent_identity.trace_id,
+                output="Tool arguments must be an object with a 'query' field",
+                status=AgentStatus.FAILED,
+                metadata={"error": "invalid_arguments"},
+            )
 
-        query = arguments.get("query")
+        query = payload.get("query")
         if not query:
             return AgentResult(
                 agent_id=parent_identity.agent_id,

@@ -13,7 +13,7 @@ import ipaddress
 import os
 import re
 import shutil
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, cast
@@ -299,7 +299,7 @@ def available_local_models(base_url: str | None = None, *, timeout: float = 2.0)
         return []
 
 
-def _detect_local(ollama_probe=ollama_status) -> list[CapacitySource]:
+def _detect_local(ollama_probe: Callable[..., tuple[bool, str]] = ollama_status) -> list[CapacitySource]:
     running, detail = ollama_probe()
     return [
         CapacitySource(
@@ -313,7 +313,7 @@ def _detect_local(ollama_probe=ollama_status) -> list[CapacitySource]:
     ]
 
 
-def _detect_plan_quota(which=shutil.which) -> list[CapacitySource]:
+def _detect_plan_quota(which: Callable[[str], str | None] = shutil.which) -> list[CapacitySource]:
     sources: list[CapacitySource] = []
     for name, exe, cost_model, hint in _CLI_BACKENDS:
         present = which(exe) is not None
@@ -332,7 +332,7 @@ def _detect_plan_quota(which=shutil.which) -> list[CapacitySource]:
     return sources
 
 
-def _detect_metered(env=None) -> list[CapacitySource]:
+def _detect_metered(env: Mapping[str, str] | None = None) -> list[CapacitySource]:
     env = env if env is not None else os.environ
     sources: list[CapacitySource] = []
     for name, var in _PROVIDERS:
@@ -350,7 +350,12 @@ def _detect_metered(env=None) -> list[CapacitySource]:
     return sources
 
 
-def detect_capacity(*, ollama_probe=ollama_status, which=shutil.which, env=None) -> list[CapacitySource]:
+def detect_capacity(
+    *,
+    ollama_probe: Callable[..., tuple[bool, str]] = ollama_status,
+    which: Callable[[str], str | None] = shutil.which,
+    env: Mapping[str, str] | None = None,
+) -> list[CapacitySource]:
     """Detect all capacity sources, cheapest-at-the-margin kind first.
 
     Read-only and $0: probes a local Ollama port, checks which vendor CLIs are

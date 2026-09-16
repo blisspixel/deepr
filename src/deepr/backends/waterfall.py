@@ -26,6 +26,7 @@ from pathlib import Path
 
 from deepr.backends import admission
 from deepr.backends.capacity import BackendKind, CostModel, available_local_models
+from deepr.backends.plan_quota.adapters import PlanQuotaAdapter
 from deepr.backends.quota_ledger import QuotaState, summarize_quota_state
 
 # Plan-quota admissions share the local admission store, namespaced so the local
@@ -73,7 +74,7 @@ def choose_maintenance_backend(
     *,
     now: datetime | None = None,
     available_models_fn: Callable[[], list[str]] = available_local_models,
-    admissions_path=None,
+    admissions_path: Path | None = None,
     quality_floor: float = admission.DEFAULT_LOCAL_EVAL_MIN_SCORE,
     which: Callable[[str], str | None] = shutil.which,
     plan_env: dict[str, str] | None = None,
@@ -208,7 +209,7 @@ def _quality_scores(backends: list[ResearchBackend], admissions: dict[str, admis
     return scores
 
 
-def _plan_quota_backend(adapter) -> ResearchBackend:  # adapter: PlanQuotaAdapter
+def _plan_quota_backend(adapter: PlanQuotaAdapter) -> ResearchBackend:
     return ResearchBackend(
         backend_id=adapter.backend_id,
         name=adapter.display_name,
@@ -286,7 +287,7 @@ def _exhaustion_cleared(state: QuotaState, now: datetime) -> bool:
     return state.exhausted and event.reset_at is not None and event.reset_at <= now
 
 
-def _auto_routable(adapter, env: dict[str, str]) -> bool:  # adapter: PlanQuotaAdapter
+def _auto_routable(adapter: PlanQuotaAdapter, env: dict[str, str]) -> bool:
     from deepr.backends.plan_quota.safety import evaluate_plan_quota_safety
 
     decision = evaluate_plan_quota_safety(adapter, env=env)

@@ -14,11 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Direct unused core/dev dependencies `aiofiles`, `colorama`, and `black`
   were removed. Windows color still arrives through Click. Ruff remains the
   formatter.
+- Blocking ``mypy --strict`` now includes ``backends/``, ``agents/``, and
+  ``evals/``. Observability and services stay on the non-blocking baseline.
 
 ### Fixed
 
 - Attended OpenRouter research helpers are typed against
   `OpenRouterCompletionResult` instead of `object`.
+- Agent-tool JSON arguments that are not an object fail closed instead of
+  calling ``.get`` on a list or string.
 
 ## [2.50.18] - 2026-09-16
 

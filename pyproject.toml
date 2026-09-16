@@ -365,6 +365,12 @@ module = [
     "deepr.a2a.*",
     "deepr.skills",
     "deepr.skills.*",
+    "deepr.backends",
+    "deepr.backends.*",
+    "deepr.agents",
+    "deepr.agents.*",
+    "deepr.evals",
+    "deepr.evals.*",
 ]
 disallow_untyped_defs = true
 disallow_incomplete_defs = true

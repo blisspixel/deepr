@@ -106,3 +106,13 @@ class TestAgentToolExecution:
 
         assert result.status == AgentStatus.FAILED
         assert "Missing required" in result.output
+
+    @pytest.mark.asyncio
+    async def test_execute_rejects_non_object_json(self):
+        tool = AgentTool(name="worker", description="Worker", agent=MockAgent())
+        parent = AgentIdentity()
+
+        result = await tool.execute("[1, 2]", parent)
+
+        assert result.status == AgentStatus.FAILED
+        assert result.metadata["error"] == "invalid_arguments"
