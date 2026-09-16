@@ -19,6 +19,8 @@ from deepr.cli.commands import keys as keys_module
 def env_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("deepr.config.default_data_dir", lambda: tmp_path / "user-deepr")
+    from deepr.security.key_quarantine import QUARANTINE_PREFIX
+
     for name in (
         "OPENAI_API_KEY",
         "XAI_API_KEY",
@@ -27,6 +29,7 @@ def env_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         "OPENROUTER_API_KEY",
     ):
         monkeypatch.delenv(name, raising=False)
+        monkeypatch.delenv(QUARANTINE_PREFIX + name, raising=False)
     return tmp_path / ".env"
 
 

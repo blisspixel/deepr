@@ -386,13 +386,14 @@ def read_operator_budget(path: Path | None = None, *, provider: str | None = Non
     return _with_spend_wallet(_with_verified_authorization(operator, authorization))
 
 
-def read_operator_budget_for_status(path: Path | None = None) -> OperatorBudget:
+def read_operator_budget_for_status(path: Path | None = None, *, provider: str | None = None) -> OperatorBudget:
     """Read authority for a human-facing status surface.
 
-    The wallet is provider-neutral, so the ordinary authority read is enough.
-    The unattended context guard remains authoritative.
+    Status may name the authorized provider so a single-provider hard stop is
+    not displayed as a missing binding. Dispatch still requires the provider
+    context variable or an explicit provider argument.
     """
-    return read_operator_budget(path)
+    return read_operator_budget(path, provider=provider)
 
 
 def _aware_datetime(value: object, *, source: str) -> datetime:
@@ -430,6 +431,7 @@ def _authorization_fields(document: dict[str, object]) -> _AuthorizationReferenc
         "recovered_freeze_id",
         "recovered_frozen_at",
         "cost_state_id",
+        "providers",
     }
     if set(raw).difference(allowed):
         raise SpendCapConfigurationError("operator paid_api_authorization contains unknown fields")
@@ -606,13 +608,40 @@ def _trusted_checkout_limits() -> dict[str, tuple[float, ...]]:
     limits: dict[str, list[float]] = {key: [] for key in _PRIMARY}
     try:
         paths = well_known_spend_cap_env_paths()
+        cwd = _resolved_cwd()
         for path in paths:
             effective = register_spend_cap_env_source(path, _read_checkout_policy(path))
+            # Keep the ratchet on the checkout file, but do not let a leftover
+            # repo `.env` cap a globally installed CLI launched from home.
+            if cwd is None or not _path_is_inside(cwd, path.parent):
+                continue
             for key, value in effective.items():
                 limits[key].append(value)
     except CostLedgerReadError as exc:
         raise SpendCapConfigurationError(f"spend-cap provenance is incomplete: {exc}") from exc
     return {key: tuple(values) for key, values in limits.items()}
+
+
+def _resolved_cwd() -> Path | None:
+    try:
+        return Path.cwd().resolve()
+    except OSError:
+        return None
+
+
+def _path_is_inside(path: Path, root: Path) -> bool:
+    try:
+        resolved = path.resolve()
+        base = root.resolve()
+    except OSError:
+        return False
+    if resolved == base:
+        return True
+    try:
+        resolved.relative_to(base)
+    except ValueError:
+        return False
+    return True
 
 
 def _environment_limit(key: str, trusted_values: tuple[float, ...] = ()) -> float | None:

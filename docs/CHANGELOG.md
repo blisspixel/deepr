@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `deepr budget authorize openrouter`.
 - The owner-raisable Deepr ceiling now actually binds the monthly spend
   clamp. A `$20` raise is no longer silently recapped at `$5`.
+- A leftover checkout `.env` monthly cap no longer follows a globally
+  installed CLI launched from home. Repo `$5` still applies when the cwd is
+  that checkout. `deepr budget status` binds a single authorized provider so
+  a successful OpenRouter hard stop is not displayed as `$0`.
 
 ### Added
 

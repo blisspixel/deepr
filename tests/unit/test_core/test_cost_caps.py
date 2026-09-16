@@ -149,10 +149,16 @@ def test_validated_checkout_caps_persist_for_installed_runtime_and_cannot_widen(
     )
 
     expected = {"per_job": 2.0, "daily": 5.0, "weekly": 5.0, "monthly": 5.0}
+    monkeypatch.chdir(checkout)
     assert resolve_spend_caps() == expected
 
     monkeypatch.setattr(authority_module, "_source_checkout_cost_data_dir", lambda: None)
     assert resolve_spend_caps() == expected
+
+    monkeypatch.chdir(tmp_path)
+    outside = resolve_spend_caps()
+    assert outside["per_job"] == 1.0
+    assert outside["monthly"] == 5.0
 
     policy_path.write_text(
         "DEEPR_MAX_COST_PER_JOB=4\nDEEPR_MAX_COST_PER_DAY=8\nDEEPR_MAX_COST_PER_MONTH=20\n",
@@ -198,6 +204,7 @@ def test_runtime_caps_do_not_contaminate_checkout_file_provenance(
         lambda *_args, **_kwargs: OperatorBudget(configured=True, monthly_limit=200.0, frozen=False),
     )
 
+    monkeypatch.chdir(checkout)
     assert resolve_spend_caps() == {"per_job": 2.0, "daily": 2.0, "weekly": 5.0, "monthly": 5.0}
     registry = canonical_cost_root / "accounting_sources.jsonl"
     records = [json.loads(line) for line in registry.read_text(encoding="utf-8").splitlines()]

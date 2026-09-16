@@ -13,6 +13,7 @@ import click
 from deepr.cli.colors import print_header, print_success
 from deepr.core.cost_caps import (
     OperatorBudget,
+    _with_spend_wallet,
     _with_verified_authorization,
     apply_paid_api_freeze,
     budget_file_path,
@@ -32,6 +33,25 @@ from deepr.experts.maximum_charge_contract import (
 def get_budget_file() -> Path:
     """Get budget configuration file path."""
     return budget_file_path()
+
+
+def _authorization_provider(config: dict[str, Any]) -> str | None:
+    """Return the single authorized provider for status, if one is bound."""
+    authorization = config.get("paid_api_authorization")
+    if not isinstance(authorization, dict):
+        return None
+    providers = authorization.get("providers")
+    if isinstance(providers, list) and len(providers) == 1 and isinstance(providers[0], str) and providers[0]:
+        return providers[0]
+    evidence_ids = authorization.get("evidence_ids")
+    if not isinstance(evidence_ids, list) or len(evidence_ids) != 1 or not isinstance(evidence_ids[0], str):
+        return None
+    try:
+        from deepr.observability.provider_account_controls import ProviderAccountEvidenceStore
+
+        return ProviderAccountEvidenceStore().load(evidence_ids[0]).provider
+    except Exception:
+        return None
 
 
 def _persist_operator_ceiling(amount: float) -> Path | None:
@@ -359,11 +379,12 @@ def status():
 
     config = load_budget_config()
     configured_monthly = float(config.get("monthly_limit", 0) or 0)
-    operator = read_operator_budget_for_status()
+    status_provider = _authorization_provider(config)
+    operator = read_operator_budget_for_status(provider=status_provider)
     from deepr.core.cost_caps import resolve_spend_policy
 
-    policy = resolve_spend_policy()
-    effective_monthly = resolve_spend_caps()["monthly"]
+    policy = resolve_spend_policy(provider=status_provider)
+    effective_monthly = resolve_spend_caps(provider=status_provider)["monthly"]
     # The approval gate spends against max(session counter, canonical ledger),
     # so the status display must show that same reconciled number. Showing only
     # the session counter once reported $0.00 while the ledger held $37.99 of
@@ -522,6 +543,7 @@ def unfreeze(evidence_ids: tuple[str, ...]) -> None:
         config["paid_api_authorization"] = {
             "authority": "verified_by_deepr",
             "evidence_ids": list(authorization.evidence_ids),
+            "providers": list(authorization.providers),
             "valid_until": authorization.valid_until.isoformat(),
             "recovered_freeze_id": current.freeze_id,
             "recovered_frozen_at": current.frozen_at.isoformat(),
@@ -578,14 +600,16 @@ def _apply_openrouter_authorization(config: dict[str, Any]) -> dict[str, object]
         )
     except OpenRouterAccountControlError as exc:
         raise click.ClickException(f"OpenRouter key could not authorize paid dispatch: {exc}") from exc
-    candidate = _with_verified_authorization(
-        OperatorBudget(
-            configured=True,
-            monthly_limit=current.monthly_limit,
-            frozen=True,
-            authorization_recovered_frozen_at=current.frozen_at,
-        ),
-        authorization,
+    candidate = _with_spend_wallet(
+        _with_verified_authorization(
+            OperatorBudget(
+                configured=True,
+                monthly_limit=current.monthly_limit,
+                frozen=True,
+                authorization_recovered_frozen_at=current.frozen_at,
+            ),
+            authorization,
+        )
     )
     effective_limit = resolve_spend_caps(
         operator_budget=candidate,

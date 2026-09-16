@@ -33,7 +33,9 @@ _METERED_CREDENTIAL_ENV_VARS = (
     "AZURE_PROJECT_ENDPOINT",
     "ANTIGRAVITY_API_KEY",
     "KIRO_API_KEY",
+    "OPENROUTER_API_KEY",
 )
+_QUARANTINE_PREFIX = "DEEPR_QUARANTINED_"
 
 # Test modules import application surfaces during collection, before autouse
 # fixtures can redirect cost state. Keep that phase away from a developer's
@@ -48,6 +50,8 @@ if os.getenv("DEEPR_RUN_LIVE_TESTS") != "1":
     os.environ["PYTHON_DOTENV_DISABLED"] = "1"
     for _credential_name in _METERED_CREDENTIAL_ENV_VARS:
         os.environ.pop(_credential_name, None)
+        os.environ.pop(_QUARANTINE_PREFIX + _credential_name, None)
+    os.environ.pop("DEEPR_MAX_SPEND_CEILING_USD", None)
 
 # Suppress slow-generation health checks globally - property tests use complex
 # strategies (nested dicts, filtered text) that can be slow on CI/Windows.
@@ -88,6 +92,7 @@ def _isolate_cost_data(tmp_path, monkeypatch):
     """
     cost_root = tmp_path.parent / f"{tmp_path.name}-costs"
     monkeypatch.setenv("DEEPR_COST_DATA_DIR", str(cost_root))
+    monkeypatch.delenv("DEEPR_MAX_SPEND_CEILING_USD", raising=False)
 
 
 @pytest.fixture(autouse=True)
