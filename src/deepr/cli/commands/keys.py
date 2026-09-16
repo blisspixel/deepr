@@ -24,6 +24,8 @@ from pathlib import Path
 import click
 
 from deepr.cli.colors import console, print_header
+from deepr.experts.maximum_charge_contract import absolute_deepr_ceiling_usd
+from deepr.security.key_quarantine import QUARANTINE_PREFIX
 
 # Provider key inventory. OpenRouter metadata may be checked; other live
 # provider pings stay cost-quarantined.
@@ -36,6 +38,9 @@ PROVIDERS: dict[str, dict[str, str]] = {
 }
 _MAX_ENV_BYTES = 64 * 1024
 _MAX_KEY_BYTES = 512
+# keys check proves the credential is live and has remaining headroom, not that
+# it can cover the entire Deepr ceiling in one request.
+_KEY_CHECK_HEADROOM_USD = 0.01
 
 _KNOWN_ENV_NAMES = [meta["env"] for meta in PROVIDERS.values()]
 
@@ -99,14 +104,17 @@ def _near_miss_names(env_file: dict[str, str]) -> list[tuple[str, str]]:
 
 
 def _key_state(provider: str) -> dict[str, object]:
-    """Resolve one provider's key state from .env and the process environment."""
+    """Resolve one provider's key state from .env, process env, and quarantine."""
     meta = PROVIDERS[provider]
     env_file = _read_env_file()
     file_value = env_file.get(meta["env"], "")
     process_value = os.environ.get(meta["env"], "")
+    quarantined_value = os.environ.get(QUARANTINE_PREFIX + meta["env"], "")
     # dotenv does not override an already-exported variable, so when both exist
     # and differ, the process value is what providers will actually use.
-    effective = process_value or file_value
+    # CLI startup moves metered keys into quarantine; that copy is still the
+    # credential the operator stored and must be visible to `keys check`.
+    effective = process_value or quarantined_value or file_value
     shadowed = bool(process_value and file_value and process_value != file_value)
     return {
         "provider": provider,
@@ -115,16 +123,17 @@ def _key_state(provider: str) -> dict[str, object]:
         "masked": _mask(effective) if effective else None,
         "in_env_file": bool(file_value),
         "in_process_env": bool(process_value),
+        "in_quarantine": bool(quarantined_value),
         "shadowed": shadowed,
         "effective_value": effective,  # stripped before any output
     }
 
 
-def _write_env_key(name: str, value: str) -> Path:
+def _write_env_key(name: str, value: str, *, path: Path | None = None) -> Path:
     """Replace or append one assignment without printing the secret."""
     from deepr.utils.atomic_io import atomic_write_text
 
-    path = _target_env_path()
+    path = path or _target_env_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists():
         if path.stat().st_size > _MAX_ENV_BYTES:
@@ -151,7 +160,7 @@ def _write_env_key(name: str, value: str) -> Path:
     return path
 
 
-def _validate(provider: str, key: str) -> dict[str, object]:
+def _validate(provider: str, key: str, *, required_headroom_usd: float) -> dict[str, object]:
     """Live-check OpenRouter metadata; other providers stay cost-quarantined."""
     if provider not in PROVIDERS:
         raise ValueError(f"unknown provider: {provider}")
@@ -160,10 +169,11 @@ def _validate(provider: str, key: str) -> dict[str, object]:
         return {"status": "blocked", "reason": "external_metadata_cost_unverified"}
     from deepr.providers.openrouter_key_controls import OpenRouterKeyControlError, inspect_openrouter_key
 
+    ceiling = absolute_deepr_ceiling_usd()
     try:
-        observation = inspect_openrouter_key(key)
+        observation = inspect_openrouter_key(key, required_headroom_usd=required_headroom_usd)
     except OpenRouterKeyControlError as exc:
-        return {"status": "invalid", "reason": str(exc)}
+        return {"status": "invalid", "reason": str(exc), "deepr_ceiling_usd": ceiling}
     return {
         "status": "valid" if observation.control_eligible else "ineligible",
         "reason": "; ".join(observation.failures) if observation.failures else "openrouter_key_metadata",
@@ -171,6 +181,8 @@ def _validate(provider: str, key: str) -> dict[str, object]:
         "limit_usd": observation.limit_usd,
         "limit_remaining_usd": observation.limit_remaining_usd,
         "limit_reset": observation.limit_reset,
+        "required_headroom_usd": observation.required_headroom_usd,
+        "deepr_ceiling_usd": ceiling,
     }
 
 
@@ -196,7 +208,11 @@ def list_keys(json_output: bool):
         origin = (
             "env+file(shadowed)"
             if state["shadowed"]
-            else ("process env" if state["in_process_env"] else ("file .env" if state["in_env_file"] else "missing"))
+            else (
+                "process env"
+                if state["in_process_env"]
+                else ("quarantined" if state["in_quarantine"] else ("file .env" if state["in_env_file"] else "missing"))
+            )
         )
         console.print(
             f"  {marker:<3}{state['provider']:<10} {state['env_var']:<18} {origin:<20} {state['masked'] or ''}",
@@ -215,11 +231,21 @@ def list_keys(json_output: bool):
         console.print("  No provider keys found. Run `deepr keys set openrouter` or copy .env.example to .env.")
 
 
+def _format_limit_summary(result: dict[str, object]) -> str:
+    limit = result.get("limit_usd")
+    remaining = result.get("limit_remaining_usd")
+    if not isinstance(limit, (int, float)) or not isinstance(remaining, (int, float)):
+        return str(result.get("reason") or "openrouter_key_metadata")
+    reset = result.get("limit_reset")
+    cadence = "total cap" if reset is None else str(reset)
+    return f"limit ${float(limit):.2f} remaining ${float(remaining):.2f} ({cadence})"
+
+
 def _check_extra(result: dict[str, object]) -> str:
     extras = {
-        "valid": f"{result.get('models_visible', 0)} models visible",
+        "valid": _format_limit_summary(result),
         "no_key": f"set {result['env_var']} in .env",
-        "invalid": "rejected by provider (expired, revoked, or endpoint-restricted)",
+        "invalid": str(result.get("reason") or "rejected by provider (expired, revoked, or endpoint-restricted)"),
         "blocked": "external validation blocked because endpoint and proxy cost cannot be proven",
         "ineligible": str(result.get("reason") or "key metadata failed Deepr's hard-cap checks"),
     }
@@ -228,9 +254,16 @@ def _check_extra(result: dict[str, object]) -> str:
 
 @keys.command("check")
 @click.option("--provider", "only", type=click.Choice(sorted(PROVIDERS)), default=None, help="Check one provider")
+@click.option(
+    "--required-headroom",
+    type=click.FloatRange(min=0.01),
+    default=None,
+    help="Required remaining USD under the current key limit (default: $0.01)",
+)
 @click.option("--json", "json_output", is_flag=True, help="Machine-readable output")
-def check_keys(only: str | None, json_output: bool):
+def check_keys(only: str | None, required_headroom: float | None, json_output: bool):
     """Report OpenRouter key metadata, or that other live checks are cost-quarantined."""
+    headroom = _KEY_CHECK_HEADROOM_USD if required_headroom is None else required_headroom
     results = []
     for provider in [only] if only else sorted(PROVIDERS):
         state = _key_state(provider)
@@ -238,19 +271,44 @@ def check_keys(only: str | None, json_output: bool):
         if not key:
             results.append({"provider": provider, "status": "no_key", "env_var": state["env_var"]})
             continue
-        outcome = _validate(provider, key)
+        outcome = _validate(provider, key, required_headroom_usd=headroom)
         results.append({"provider": provider, "env_var": state["env_var"], "shadowed": state["shadowed"], **outcome})
     if json_output:
         click.echo(json.dumps({"results": results}))
         return
     print_header("Provider key check")
+    ceiling = absolute_deepr_ceiling_usd()
     for result in results:
         console.print(
             f"  {result['status']:<12}{result['provider']:<12} {_check_extra(result)}",
             markup=False,
         )
-        if result.get("shadowed"):
-            console.print("        warning: exported variable shadows .env; the exported one was checked")
+        _print_check_follow_up(result, ceiling=ceiling)
+
+
+def _print_check_follow_up(result: dict[str, object], *, ceiling: float) -> None:
+    if result.get("shadowed"):
+        console.print(
+            "        warning: exported OPENROUTER_API_KEY shadows .env; "
+            "the exported value was checked. Unset it in this shell and in "
+            "Windows User environment variables to use ~/.deepr/.env.",
+            markup=False,
+        )
+    if result.get("status") == "ineligible" and "exceeds Deepr maximum" in str(result.get("reason") or ""):
+        console.print(
+            f"        Deepr ceiling in force: ${ceiling:.2f}. "
+            "Run `deepr budget set 20` to persist DEEPR_MAX_SPEND_CEILING_USD "
+            "in ~/.deepr/.env (max $100), then check again.",
+            markup=False,
+        )
+    if result.get("status") == "valid" and result.get("provider") == "openrouter":
+        console.print(
+            f"        Deepr ceiling in force: ${ceiling:.2f}. "
+            "A stored key is not spend authority. Next: "
+            "`deepr budget credits add --amount 20` then "
+            "`deepr budget authorize openrouter`.",
+            markup=False,
+        )
 
 
 @keys.command("set")
@@ -280,4 +338,4 @@ def set_key(provider: str) -> None:
     console.print("  Restart the shell command so the next `deepr` process reloads it.")
     console.print("  A stored key is optional paid capacity, not a blank cheque.")
     if provider == "openrouter":
-        console.print("  Next: `deepr keys check --provider openrouter` then `deepr budget set 20`.")
+        console.print("  Next: `deepr keys check --provider openrouter`.")

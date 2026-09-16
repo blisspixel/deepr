@@ -730,11 +730,17 @@ must not be described as usable capacity.
   fields remain visible as `null` and produce specific ineligibility reasons
   instead of a malformed-response error or a false `$0.00` limit. It never
   reads the local source without that flag, unquarantines or exports the key,
-  or passes it to a child. Both checks state that dispatch remains
-  unauthorized because account-level BYOK and plugin controls, endpoint-tag
-  response proof, complete usage settlement, parent settlement, and final
-  billing reconciliation are not complete. No OpenRouter inference client is
-  built.
+  or passes it to a child. `deepr keys check --provider openrouter` uses the
+  stored or quarantined key and reports limit, remaining, and total-cap
+  cadence. `deepr budget set 20` persists `DEEPR_MAX_SPEND_CEILING_USD` when
+  the operator raises the ceiling. `deepr budget authorize openrouter` binds
+  a control-eligible current-key limit as OpenRouter-only hard-stop evidence
+  without a billing import, because a final invoice cannot exist before the
+  first Deepr spend. MCP, schedules, and automatic fallback stay blocked.
+  Account-level BYOK and plugin controls, endpoint-tag response proof,
+  complete usage settlement, parent settlement, and an OpenRouter inference
+  client remain missing, so attended completions still refuse without
+  `--preview`.
   See [openrouter-metered-gateway.md](design/openrouter-metered-gateway.md).
 - Attended OpenAI report absorption through `deepr expert absorb --api` has a
   complete wallet, job reservation, exact-client, dispatch, and settlement

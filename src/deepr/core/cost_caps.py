@@ -655,6 +655,9 @@ def _wallet_spend_policy(
     # Environment values still narrow it when explicitly configured, but the
     # request supplies the independently named job ceiling.
     monthly = operator.monthly_limit if monthly is None else min(monthly, operator.monthly_limit)
+    from deepr.experts.maximum_charge_contract import absolute_deepr_ceiling_usd
+
+    monthly = min(monthly, absolute_deepr_ceiling_usd())
     if operator.frozen or not provider_authority_verified:
         monthly = 0.0
     weekly = monthly if weekly is None else min(weekly, monthly)
@@ -726,7 +729,9 @@ def resolve_spend_policy(
     if operator.configured:
         monthly_candidates.append(operator.monthly_limit)
     monthly = min(monthly_candidates) if monthly_candidates else 0.0
-    monthly = min(monthly, _ABSOLUTE_CEILINGS["monthly"])
+    from deepr.experts.maximum_charge_contract import absolute_deepr_ceiling_usd
+
+    monthly = min(monthly, absolute_deepr_ceiling_usd())
     if operator.frozen:
         monthly = 0.0
 

@@ -71,10 +71,11 @@ Roadmap items are not approach claims until they land in
 
 ## Active Release Plan
 
-**Now (v2.50.17):** local experts, write-free OpenRouter previews, an
-owner-raisable local spend ceiling, and fail-closed metered gates. Paid
-OpenRouter dispatch, Python/MCP skill execution, and automatic learning stay
-blocked.
+**Now (v2.50.17 plus unreleased keys/budget fix):** local experts, write-free
+OpenRouter previews, an owner-raisable local spend ceiling that actually binds
+the monthly clamp, live OpenRouter key inspection, and OpenRouter hard-stop
+authorization from the current-key limit. Paid OpenRouter completions, Python/MCP
+skill execution, and automatic learning stay blocked.
 
 **v2.50.15 safety correction (2026-09-13):** all production plan adapters
 are now execution-blocked. Claude managed-policy hooks survive safe mode,

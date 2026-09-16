@@ -381,8 +381,12 @@ def main():
     # looks like removing it - measured here, three keys survived that edit
     # because Windows was their real source. Not being set beats being checked:
     # a guard has to be reached, an absent variable cannot be read at all.
+    # Load `.env` before quarantine. Lazy command imports otherwise load
+    # config later and put metered keys back into the process environment.
+    from deepr.config import default_data_dir
     from deepr.security.key_quarantine import quarantine_metered_keys
 
+    default_data_dir()
     quarantine_metered_keys()
 
     if "NO_COLOR" in os.environ:

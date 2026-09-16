@@ -244,7 +244,7 @@ _REQUIRED_SAFETY_FRAGMENTS = {
         '"daily": 5.0',
         '"weekly": 5.0',
         '"monthly": 5.0',
-        'monthly = min(monthly, _ABSOLUTE_CEILINGS["monthly"])',
+        "monthly = min(monthly, absolute_deepr_ceiling_usd())",
     ),
     "src/deepr/experts/skills/definition.py": (
         "_MAX_PER_CALL_USD = 1.0",

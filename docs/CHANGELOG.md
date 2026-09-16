@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `deepr keys check --provider openrouter` was crashing with
+  `inspect_openrouter_key() missing 1 required keyword-only argument:
+  'required_headroom_usd'`. It now inspects the live current-key document,
+  reads quarantined credentials, and reports limit, remaining, and total-cap
+  versus monthly cadence.
+- `deepr budget set 20` configured `$20` while the effective hard ceiling
+  stayed `$0` with no explanation. It now persists
+  `DEEPR_MAX_SPEND_CEILING_USD` to `~/.deepr/.env` when the operator raises
+  the ceiling, reports the freeze reason, and points at
+  `deepr budget authorize openrouter`.
+- The owner-raisable Deepr ceiling now actually binds the monthly spend
+  clamp. A `$20` raise is no longer silently recapped at `$5`.
+
+### Added
+
+- `deepr budget authorize openrouter` binds a control-eligible OpenRouter
+  key limit as provider hard-stop evidence. That is a no-inference GET
+  `/api/v1/key`. MCP, schedules, and automatic fallback stay blocked.
+  Attended completions still need an OpenRouter adapter.
+
 ## [2.50.17] - 2026-09-15
 
 ### Added

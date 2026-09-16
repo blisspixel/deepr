@@ -79,11 +79,16 @@ Store an OpenRouter key with a hidden prompt, never as a command argument:
 deepr keys set openrouter
 deepr keys list
 deepr keys check --provider openrouter
+deepr budget set 20
+deepr budget credits add --amount 20
+deepr budget authorize openrouter
 ```
 
-A stored key is optional paid capacity. It does not unfreeze MCP, schedules, or
-automatic fallback. Attended work still needs `deepr budget set`, wallet
-credits, and a finite provider cap.
+A stored key is optional paid capacity. `budget set 20` persists the owner
+ceiling and the monthly window; it is not spend authority by itself. Wallet
+credits are the non-renewing `$20` cap. `budget authorize openrouter` proves
+the live key limit is a provider hard stop. MCP, schedules, and automatic
+fallback stay blocked. Attended completions still need an OpenRouter adapter.
 
 ## Capacity
 
@@ -177,9 +182,12 @@ for tested behavior and the distinction from draft standards and host certificat
 
 ## Direction
 
-v2.50.17 adds `deepr keys set openrouter`. v2.50.16 adds an owner-raisable local spend ceiling and accepts a
-non-renewing OpenRouter total cap, plus local Lemonade portraits and the
-Delve mark. Production paid dispatch remains blocked. v2.50.15 corrected MCP
+Unreleased: `deepr keys check --provider openrouter` inspects the live key,
+`budget set 20` persists the owner ceiling, and `budget authorize openrouter`
+binds that key limit as a hard stop. No OpenRouter inference client ships.
+v2.50.17 added `deepr keys set openrouter`. v2.50.16 added an owner-raisable
+local spend ceiling and a non-renewing OpenRouter total cap, plus local
+Lemonade portraits and the Delve mark. v2.50.15 corrected MCP
 and Agent Plugins compatibility and blocked Claude plan execution until
 managed-policy commands can be confined. It did not enable paid OpenRouter,
 skill execution, or a claim that expert memory helps.

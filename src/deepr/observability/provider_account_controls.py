@@ -192,7 +192,11 @@ class VerifiedPaidApiAuthorization:
 
 def _verify_authenticated_account_evidence_source(evidence: PaidApiAccountEvidence) -> None:
     """Authenticate a provider API response or a signed provider export."""
-    del evidence
+    if evidence.provider == "openrouter":
+        from deepr.providers.openrouter_account_controls import verify_openrouter_account_evidence_source
+
+        verify_openrouter_account_evidence_source(evidence)
+        return
     raise ProviderAccountControlError(
         "no authenticated provider-specific account-control evidence verifier is installed"
     )
@@ -200,7 +204,10 @@ def _verify_authenticated_account_evidence_source(evidence: PaidApiAccountEviden
 
 def _resolve_current_provider_account_binding(provider: str) -> ProviderAccountBinding:
     """Resolve account, scope, and credential identity for the active client."""
-    del provider
+    if provider == "openrouter":
+        from deepr.providers.openrouter_account_controls import resolve_openrouter_account_binding
+
+        return resolve_openrouter_account_binding()
     raise ProviderAccountControlError("no provider-specific account and credential identity resolver is installed")
 
 
@@ -457,6 +464,35 @@ def _validate_clean_reconciliation(
         )
 
 
+def _bind_evidence_statement(
+    evidence: PaidApiAccountEvidence,
+    *,
+    store: ProviderAccountEvidenceStore,
+    current_snapshot: Any | None,
+) -> None:
+    """Require a clean billing import, or the OpenRouter current-key document."""
+    if evidence.provider == "openrouter":
+        # The authenticated current-key document is the hard-stop statement.
+        # A final invoice cannot exist before the first Deepr spend.
+        if evidence.billing_reconciliation_sha256 != evidence.source_evidence_sha256:
+            raise ProviderAccountControlError(
+                "OpenRouter account evidence must bind the current-key document as its statement"
+            )
+        return
+    reconciliation = store.load_reconciliation(evidence.billing_reconciliation_sha256)
+    _validate_clean_reconciliation(evidence, reconciliation, current_snapshot=current_snapshot)
+    loaded = store.load_reconciled_import(reconciliation)
+    if current_snapshot is None:
+        return
+    from deepr.observability.provider_billing import reconcile_billing
+
+    recomputed = reconcile_billing(loaded, current_snapshot)
+    if _canonical_bytes(recomputed) != _canonical_bytes(reconciliation):
+        raise ProviderAccountControlError(
+            "billing reconciliation clean status was not reproduced from immutable evidence"
+        )
+
+
 def verify_paid_api_authorization(
     evidence_ids: tuple[str, ...] | list[str],
     *,
@@ -498,17 +534,7 @@ def verify_paid_api_authorization(
             current=current,
             monthly_limit=monthly_limit,
         )
-        reconciliation = store.load_reconciliation(evidence.billing_reconciliation_sha256)
-        _validate_clean_reconciliation(evidence, reconciliation, current_snapshot=current_snapshot)
-        loaded = store.load_reconciled_import(reconciliation)
-        if current_snapshot is not None:
-            from deepr.observability.provider_billing import reconcile_billing
-
-            recomputed = reconcile_billing(loaded, current_snapshot)
-            if _canonical_bytes(recomputed) != _canonical_bytes(reconciliation):
-                raise ProviderAccountControlError(
-                    "billing reconciliation clean status was not reproduced from immutable evidence"
-                )
+        _bind_evidence_statement(evidence, store=store, current_snapshot=current_snapshot)
         evidence_by_provider[evidence.provider] = evidence
         valid_until_values.append(valid_until)
         hard_limits.append(hard_limit)

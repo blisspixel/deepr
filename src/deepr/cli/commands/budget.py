@@ -1,6 +1,7 @@
 """Budget management commands."""
 
 import json
+import os
 from collections.abc import Callable
 from datetime import UTC, datetime
 from math import isfinite
@@ -21,11 +22,31 @@ from deepr.core.cost_caps import (
     resolve_spend_caps,
     spend_policy_lock,
 )
+from deepr.experts.maximum_charge_contract import (
+    DEEPR_MAX_SPEND_CEILING_ENV,
+    MAX_RAISED_CEILING_USD,
+    absolute_deepr_ceiling_usd,
+)
 
 
 def get_budget_file() -> Path:
     """Get budget configuration file path."""
     return budget_file_path()
+
+
+def _persist_operator_ceiling(amount: float) -> Path | None:
+    """Write DEEPR_MAX_SPEND_CEILING_USD to ~/.deepr/.env when the operator raises it."""
+    if amount <= 0 or amount > MAX_RAISED_CEILING_USD:
+        return None
+    current = absolute_deepr_ceiling_usd()
+    if amount <= current:
+        return None
+    from deepr.cli.commands.keys import _user_env_path, _write_env_key
+
+    value = f"{amount:.2f}"
+    path = _write_env_key(DEEPR_MAX_SPEND_CEILING_ENV, value, path=_user_env_path())
+    os.environ[DEEPR_MAX_SPEND_CEILING_ENV] = value
+    return path
 
 
 def _next_month_start(now: datetime | None = None) -> datetime:
@@ -212,16 +233,18 @@ def budget():
 
 
 @budget.command()
-@click.argument("amount", type=click.FloatRange(min=0.0))
+@click.argument("amount", type=click.FloatRange(min=0.0, max=MAX_RAISED_CEILING_USD))
 def set(amount: float):
     """
     Set monthly research budget.
 
     Examples:
         deepr budget set 5       # Repository-wide $5/month ceiling
+        deepr budget set 20      # Raise the operator ceiling and monthly budget together
         deepr budget set 0       # Freeze paid API dispatch
     """
     print_header("Budget Configuration")
+    ceiling_path = _persist_operator_ceiling(amount)
 
     def update(config: dict[str, Any]) -> None:
         config["monthly_limit"] = amount
@@ -246,24 +269,34 @@ def set(amount: float):
 
     if amount == 0:
         click.echo("\nBudget: Paid API dispatch frozen ($0 hard ceiling)")
+        return
+    # Show the same reconciled number the approval gate uses. The session
+    # counter alone once displayed $0.00 while the canonical ledger held
+    # $37.99 of campaign spend - the display must never lie about money.
+    ledger_spend = _ledger_month_spend()
+    active_cost = _durable_active_cost()
+    settled = max(float(config.get("monthly_spending", 0) or 0), ledger_spend or 0.0)
+    effective_limit = resolve_spend_caps()["monthly"]
+    click.echo(f"\nConfigured budget: ${amount:.2f}/month")
+    click.echo(f"Deepr ceiling in force: ${absolute_deepr_ceiling_usd():.2f}")
+    click.echo(f"Effective hard ceiling: ${effective_limit:.2f}/month")
+    if ceiling_path is not None:
+        click.echo(f"Persisted {DEEPR_MAX_SPEND_CEILING_ENV}={amount:.2f} to {ceiling_path}")
+    if ledger_spend is None or active_cost is None:
+        click.echo("Current exposure: UNKNOWN")
+        click.echo("Warning: canonical money state is unreadable; paid dispatch remains blocked.")
     else:
-        # Show the same reconciled number the approval gate uses. The session
-        # counter alone once displayed $0.00 while the canonical ledger held
-        # $37.99 of campaign spend - the display must never lie about money.
-        ledger_spend = _ledger_month_spend()
-        active_cost = _durable_active_cost()
-        settled = max(float(config.get("monthly_spending", 0) or 0), ledger_spend or 0.0)
-        effective_limit = resolve_spend_caps()["monthly"]
-        click.echo(f"\nConfigured budget: ${amount:.2f}/month")
-        click.echo(f"Effective hard ceiling: ${effective_limit:.2f}/month")
-        if ledger_spend is None or active_cost is None:
-            click.echo("Current exposure: UNKNOWN")
-            click.echo("Warning: canonical money state is unreadable; paid dispatch remains blocked.")
-        else:
-            click.echo(f"Settled spending: ${settled:.2f}")
-            click.echo(f"Active durable holds: ${active_cost:.2f}")
-            click.echo(f"Current exposure: ${settled + active_cost:.2f}")
-        click.echo(f"Resets: {_next_month_start().strftime('%B %d, %Y')} UTC")
+        click.echo(f"Settled spending: ${settled:.2f}")
+        click.echo(f"Active durable holds: ${active_cost:.2f}")
+        click.echo(f"Current exposure: ${settled + active_cost:.2f}")
+    click.echo(f"Resets: {_next_month_start().strftime('%B %d, %Y')} UTC")
+    if effective_limit <= 0:
+        reason = str(config.get("freeze_reason") or "paid API account controls are not configured")
+        click.echo(f"Paid API remains frozen: {reason}")
+        click.echo("A configured amount is not spend authority.")
+        click.echo("Next: `deepr keys check --provider openrouter`")
+        click.echo("      `deepr budget credits add --amount 20`")
+        click.echo("      `deepr budget authorize openrouter`")
 
 
 def _render_wallet_status(
@@ -503,6 +536,118 @@ def unfreeze(evidence_ids: tuple[str, ...]) -> None:
 
     mutate_budget_config(update)
     click.echo(f"\nPaid API dispatch unfrozen with ${result['headroom']:.2f} monthly headroom.")
+
+
+def _require_frozen_openrouter_budget(config: dict[str, Any]) -> tuple[Any, Any]:
+    """Require a typed freeze, positive budget, and idle money state."""
+    current = parse_operator_budget(config)
+    if config.get("paid_api_frozen") is not True or not current.freeze_id or current.frozen_at is None:
+        raise click.ClickException(
+            "A current typed freeze ID and timestamp are required; paid dispatch remains frozen."
+        )
+    if current.monthly_limit <= 0:
+        raise click.ClickException("Set a positive finite monthly budget before authorizing OpenRouter.")
+    exposure = _atomic_monthly_exposure()
+    if exposure is None:
+        raise click.ClickException("Canonical money state is unreadable; paid dispatch remains frozen.")
+    if exposure.unresolved_count:
+        raise click.ClickException(
+            "Provider work has unresolved durable holds; paid dispatch remains frozen until settlement is reconciled."
+        )
+    if exposure.active_cost > 0:
+        raise click.ClickException(
+            "Active durable paid holds must be settled or refunded before authorizing paid dispatch."
+        )
+    return current, exposure
+
+
+def _apply_openrouter_authorization(config: dict[str, Any]) -> dict[str, object]:
+    """Inspect the live OpenRouter key and persist verified hard-stop authority."""
+    current, exposure = _require_frozen_openrouter_budget(config)
+    from deepr.observability.cost_ledger import current_cost_state_id
+    from deepr.providers.openrouter_account_controls import (
+        OpenRouterAccountControlError,
+        authorize_openrouter_paid_api,
+    )
+
+    try:
+        evidence_id, authorization = authorize_openrouter_paid_api(
+            freeze_id=current.freeze_id,
+            freeze_frozen_at=current.frozen_at,
+            monthly_limit_usd=current.monthly_limit,
+        )
+    except OpenRouterAccountControlError as exc:
+        raise click.ClickException(f"OpenRouter key could not authorize paid dispatch: {exc}") from exc
+    candidate = _with_verified_authorization(
+        OperatorBudget(
+            configured=True,
+            monthly_limit=current.monthly_limit,
+            frozen=True,
+            authorization_recovered_frozen_at=current.frozen_at,
+        ),
+        authorization,
+    )
+    effective_limit = resolve_spend_caps(
+        operator_budget=candidate,
+        provider=authorization.providers[0],
+    )["monthly"]
+    current_spending = (
+        max(float(config.get("monthly_spending", 0.0) or 0.0), exposure.monthly_settled_cost) + exposure.active_cost
+    )
+    if effective_limit <= 0:
+        raise click.ClickException(
+            "Effective ceiling is still $0. Add wallet credits with "
+            "`deepr budget credits add --amount 20` and raise "
+            f"{DEEPR_MAX_SPEND_CEILING_ENV} if the key limit is above $5."
+        )
+    if current_spending >= effective_limit:
+        raise click.ClickException(
+            f"Current monthly spend ${current_spending:.2f} has exhausted the ${effective_limit:.2f} hard ceiling."
+        )
+    config["paid_api_authorization"] = {
+        "authority": "verified_by_deepr",
+        "evidence_ids": list(authorization.evidence_ids),
+        "valid_until": authorization.valid_until.isoformat(),
+        "recovered_freeze_id": current.freeze_id,
+        "recovered_frozen_at": current.frozen_at.isoformat(),
+        "cost_state_id": current_cost_state_id(),
+    }
+    config["paid_api_frozen"] = False
+    config["freeze_reason"] = ""
+    config.pop("frozen_at", None)
+    config.pop("freeze_id", None)
+    config.pop("freeze_kind", None)
+    return {
+        "headroom": effective_limit - current_spending,
+        "hard_limit": authorization.hard_monthly_limit_usd,
+        "evidence_id": evidence_id,
+    }
+
+
+@budget.command("authorize")
+@click.argument("provider", type=click.Choice(["openrouter"]))
+def authorize(provider: str) -> None:
+    """Bind a live OpenRouter key limit as the provider hard stop.
+
+    Makes one authenticated no-inference GET /api/v1/key request. MCP,
+    schedules, and automatic fallback stay blocked. Attended completions still
+    need an OpenRouter adapter.
+    """
+    del provider
+    print_header("Authorize OpenRouter")
+    result: dict[str, object] = {}
+
+    def update(config: dict[str, Any]) -> None:
+        result.update(_apply_openrouter_authorization(config))
+
+    mutate_budget_config(update)
+    click.echo(
+        f"\nOpenRouter hard stop authorized at ${float(result['hard_limit']):.2f} "
+        f"with ${float(result['headroom']):.2f} headroom."
+    )
+    click.echo(f"Evidence ID: {result['evidence_id']}")
+    click.echo("MCP, schedules, and automatic fallback stay blocked.")
+    click.echo("Attended completions still need an OpenRouter adapter; this does not fire inference.")
 
 
 @budget.command()

@@ -46,7 +46,7 @@ profile creation through `deepr expert make --local` stays provider-free.
 | Source | Works now | Guardrail |
 |---|---|---|
 | Local Ollama | `expert make --local`, `expert absorb --local`, `expert sync --local`, `expert sync --local --fresh-context`, `expert sync --local --deep-context`, experimental `expert investigate`, `eval local`, `eval local-context`, and scored admission | No provider API key required; investigation pins native per-request context, requires exact `$0`, and has no fallback; automatic routing requires measured local quality evidence |
-| Provider APIs | Write-free request preview and offline billing reconciliation. OpenRouter adds seven exact cross-family, preview-only model slugs, a no-key public endpoint proof, and an explicit-source current-key control observation. The attended `expert absorb --api` transaction is complete but executes only when authenticated evidence also proves provider prepaid-no-overage or a hard provider ceiling. | Wallet funding is local Deepr authorization, not provider credit. Every call also requires verified provider controls, explicit consent, a finite job budget, durable reservation, exact settlement, and a Deepr-owned client binding. OpenRouter's current checks explicitly do not authorize dispatch. Exact returned model and provider identity, parent transaction adoption, ambiguous-outcome handling, append-only usage settlement, and final billing reconciliation remain missing. The wallet has no overdraft or automatic refill. Open postpaid accounts, MCP, schedules, loops, automatic fallback, hosted storage, standalone metered chat, and unsafe lifecycle dispatch remain blocked. |
+| Provider APIs | Write-free request preview and offline billing reconciliation. OpenRouter adds seven exact cross-family, preview-only model slugs, a no-key public endpoint proof, `deepr keys check --provider openrouter`, and `deepr budget authorize openrouter` to bind a finite key limit as a hard stop. The attended `expert absorb --api` transaction is complete but executes only when authenticated evidence also proves provider prepaid-no-overage or a hard provider ceiling. | Wallet funding is local Deepr authorization, not provider credit. Every call also requires verified provider controls, explicit consent, a finite job budget, durable reservation, exact settlement, and a Deepr-owned client binding. OpenRouter authorization is the current-key hard stop, not an inference client. Exact returned model and provider identity, parent transaction adoption, ambiguous-outcome handling, append-only usage settlement, and final billing reconciliation remain missing. The wallet has no overdraft or automatic refill. Open postpaid accounts, MCP, schedules, loops, automatic fallback, hosted storage, standalone metered chat, and unsafe lifecycle dispatch remain blocked. |
 | Plan-quota CLIs | Inventory and metadata inspection; explicit `--plan` command shapes remain available but refuse production execution | Claude managed-policy hooks are not confined by safe mode. Codex, OpenCode, Kiro, Grok, Antigravity, and Copilot retain their existing blocks. No production adapter is eligible; auth, live-overage, and trusted-quota observations cannot override confinement. |
 | CLI judges | Local-eval CLI judge flags remain visible for compatibility; consult-quality judging still has separate explicit local Ollama or safety-eligible `--plan <id>` paths | `--judge-cli`, `--judge-command`, and legacy `--allow-cli-judge` never start a local-eval vendor process because Deepr cannot prove its billing source, paid-overage posture, or total cost. The allow flag is not spend authority. API consult-quality judging shares the blocked provider-account authority gate. |
 
@@ -94,13 +94,15 @@ quarantined process copy when available, otherwise it parses only
 `OPENROUTER_API_KEY` from the bounded checkout-local `.env` without exporting
 it. The command makes one read-only current-key
 request, binds a domain-separated scrypt credential fingerprint, and requires
-a BYOK-inclusive monthly key limit no greater than `$5` with enough remaining
-headroom. Monthly headroom reconciles against current UTC month OpenRouter and
-BYOK usage; lifetime totals may be higher after a monthly reset. Monthly values
-greater than their corresponding lifetime totals remain inconsistent. It does not
-unquarantine or export the key, pass it to a child process, or inspect either
-local source without that flag. Neither check constructs an inference client or authorizes
-dispatch. A future adapter must also prove that account defaults cannot force
+a finite key limit no greater than the Deepr ceiling in force (default `$5`,
+owner-raisable through `DEEPR_MAX_SPEND_CEILING_USD`) with enough remaining
+headroom. A non-renewing total cap is accepted. Unused BYOK-exclusion is
+allowed; BYOK spend outside the cap fails closed. Monthly headroom reconciles
+against current UTC month OpenRouter and BYOK usage; a total cap reconciles
+against lifetime usage. `deepr keys check --provider openrouter` uses the
+stored or quarantined key. `deepr budget authorize openrouter` binds that
+limit as OpenRouter-only hard-stop evidence. Neither path constructs an
+inference client. MCP, schedules, and automatic fallback stay blocked. A future adapter must also prove that account defaults cannot force
 paid plugins, BYOK, response caching, a paid service tier, or a different
 retention posture. Router metadata must show direct routing, one attempt, no
 BYOK, and no pipeline stage, but it reports a provider display name rather than

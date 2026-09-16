@@ -384,11 +384,13 @@ Default posture:
 - `deepr providers openrouter-key-check --required-headroom 5` prompts without
   echo for one key. Add `--from-env` only to opt into the bounded local secret
   source. The command makes one read-only current-key request and requires a
-  BYOK-inclusive monthly limit at or below `$5`, sufficient remaining headroom,
-  reconciling current-month usage counters, and a live expiry when one is configured. Lifetime
-  usage is preserved separately and may exceed the current month's usage. Its
-  sanitized result always reports incomplete billing reconciliation and no
-  dispatch authority.
+  finite limit at or below the Deepr ceiling in force, sufficient remaining
+  headroom, reconciling usage counters, and a live expiry when one is
+  configured. A non-renewing total cap is accepted. Lifetime usage is preserved
+  separately and may exceed the current month's usage. `deepr keys check
+  --provider openrouter` uses the stored or quarantined key and does not take a
+  key argument. `deepr budget authorize openrouter` binds a control-eligible
+  key limit as hard-stop evidence. Completions still need an adapter.
 - OpenRouter permits nullable limit and reset controls. The v2 sanitized
   observation preserves an observed `null`, reports missing or non-monthly
   authority as ineligible, and never renders an absent limit as zero spend.
