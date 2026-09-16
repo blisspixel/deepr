@@ -1977,6 +1977,7 @@ Full assessment: [docs/design/code-health.md](docs/design/code-health.md).
     unchanged. (The test-only helper in `test_api/test_endpoints.py` is harness
     scaffolding, left as-is.)
 - [ ] **Q2 - Coverage honesty:** characterization tests for the largest coverage-omitted files (`web/app.py`, `experts.py`), then shrink the omit list so the headline number covers the hard parts
+  - 2026-09-16: measured `cli/ui.py`, `cli/startup_banner.py`, and `webhooks/` in the unit gate (combined 85.21%). Azure blob stays omitted because construction is blocked.
 - [ ] **Q3 - Decompose the giant files (after Q2 characterization):** `web/app.py` -> Flask blueprints + app factory; `cli/.../experts.py` -> per-area modules; extract cohesive units from `chat.py` and `mcp/server.py` (mcp stays strict-clean)
 - [ ] **Q4 - Pay down the backlog:** refactor worst C901 offenders and ratchet the cap to 10 blocking; resolve/justify the `S` findings and flip `S` blocking; add a function-length signal (Google's ~40-line split heuristic) alongside the file-size guard; set a mutation-score target on kernel modules (mutmut is wired) since coverage % is a floor, not proof tests catch faults
 - [ ] **Q5 - Staleness defense:** scheduled CI drift checks (dependencies + model registry) and a quarterly standards-review reminder

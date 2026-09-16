@@ -156,17 +156,12 @@ omit = [
     # CLI commands and rendering - covered by end-to-end tests, not units.
     "src/deepr/cli/commands/*",
     "src/deepr/cli/realtime_progress.py",
-    "src/deepr/cli/startup_banner.py",
-    "src/deepr/cli/ui.py",
     # Web app - large Flask surface, manually QA'd + smoke-tested.
     "src/deepr/web/*",
     # WebSocket / SocketIO event handlers require a live Flask context.
     "src/deepr/api/websockets/*",
-    # HTTP webhook server - long-lived deployment surface; focused auth tests
-    # cover the fail-closed request path while deployment behavior is exercised
-    # outside unit coverage.
-    "src/deepr/webhooks/*",
-    # S3 / blob storage - integration-tested against AWS.
+    # Azure blob remains blocked before client construction; security tests
+    # cover the namespace validator, not the billed Azure SDK path.
     "src/deepr/storage/blob.py",
     # Playwright/headless-browser backend.
     "src/deepr/tools/browser_backend.py",

@@ -6,21 +6,30 @@ Tests cover:
 - Various print functions with mocked console
 """
 
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from deepr.cli.ui import (
     QueryComplexity,
     classify_query_complexity,
+    print_command_help,
     print_divider,
     print_error,
+    print_mode_indicator,
+    print_session_summary,
     print_status,
     print_thinking,
     print_tool_summary,
     print_tool_use,
+    print_trace,
     print_user_input,
     print_welcome,
     stream_response,
+    stream_response_async,
 )
+from deepr.experts.commands import CommandCategory
 
 
 class TestQueryComplexity:
@@ -268,3 +277,99 @@ class TestPrintFunctions:
         mock_console.print.assert_called_once()
         call_args = mock_console.print.call_args[0][0]
         assert "Processing..." in call_args
+
+    @patch("deepr.cli.ui.console")
+    def test_print_session_summary_includes_research_jobs(self, mock_console):
+        print_session_summary(3, 0.12, 2, "local")
+        rendered = "\n".join(str(call.args[0]) for call in mock_console.print.call_args_list if call.args)
+        assert "Messages: 3" in rendered
+        assert "Research jobs: 2" in rendered
+        assert "local" in rendered
+
+    @patch("deepr.cli.ui.console")
+    def test_print_session_summary_hides_zero_research_jobs(self, mock_console):
+        print_session_summary(1, 0.0, 0, "local")
+        rendered = "\n".join(str(call.args[0]) for call in mock_console.print.call_args_list if call.args)
+        assert "Research jobs" not in rendered
+
+    @patch("deepr.cli.ui.console")
+    def test_print_mode_indicator_known_and_unknown(self, mock_console):
+        print_mode_indicator("ask")
+        print_mode_indicator("other")
+        rendered = " ".join(str(call.args[0]) for call in mock_console.print.call_args_list if call.args)
+        assert "[ask]" in rendered
+        assert "[other]" in rendered
+
+    @patch("deepr.cli.ui.console")
+    def test_print_status_daily_and_monthly_thresholds(self, mock_console):
+        print_status(
+            "Expert",
+            1,
+            0.5,
+            5.0,
+            0,
+            "local",
+            2,
+            daily_spent=4.0,
+            daily_limit=5.0,
+            monthly_spent=1.0,
+            monthly_limit=20.0,
+        )
+        rendered = "\n".join(str(call.args[0]) for call in mock_console.print.call_args_list if call.args)
+        assert "Daily spending" in rendered
+        assert "Monthly spending" in rendered
+
+    @patch("deepr.cli.ui.console")
+    def test_print_trace_empty_and_typed_steps(self, mock_console):
+        print_trace([])
+        print_trace(
+            [
+                {
+                    "step": "model_routing",
+                    "timestamp": "t",
+                    "query": "q",
+                    "selected_provider": "p",
+                    "selected_model": "m",
+                    "confidence": 0.9,
+                    "reasoning_effort": "high",
+                },
+                {
+                    "step": "search_knowledge_base",
+                    "timestamp": "t",
+                    "query": "q",
+                    "reasoning": "why",
+                    "results_count": 2,
+                    "sources": ["a", "b"],
+                },
+                {"step": "deep_research", "timestamp": "t", "query": "q", "reasoning": "why", "cost": 0.01},
+            ]
+        )
+        rendered = "\n".join(str(call.args[0]) for call in mock_console.print.call_args_list if call.args)
+        assert "No reasoning trace" in rendered
+        assert "model_routing" in rendered
+        assert "search_knowledge_base" in rendered
+        assert "deep_research" in rendered
+
+    @patch("deepr.cli.ui.console")
+    def test_print_command_help_lists_registry_commands(self, mock_console):
+        cmd = SimpleNamespace(name="help", args="", aliases=("h",), description="Show help")
+        registry = MagicMock()
+        registry.commands_by_category.return_value = {CommandCategory.UTILITY: [cmd]}
+        with patch("deepr.experts.commands.CommandRegistry.get_instance", return_value=registry):
+            print_command_help()
+        rendered = " ".join(str(call.args[0]) for call in mock_console.print.call_args_list if call.args)
+        assert "/help" in rendered
+        assert "/h" in rendered
+
+    @pytest.mark.asyncio
+    async def test_stream_response_async_prints_chunks(self):
+        async def chunks():
+            yield "hello "
+            yield "world"
+
+        with patch("deepr.cli.ui.console") as mock_console:
+            await stream_response_async("Exp", chunks())
+        printed = [str(call.args[0]) for call in mock_console.print.call_args_list if call.args]
+        assert "Exp" in printed[0]
+        assert "hello " in printed
+        assert "world" in printed
