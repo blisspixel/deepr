@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 import uuid
 from pathlib import Path
 
@@ -22,11 +20,7 @@ from deepr.experts.research_reservation_store import ResearchReservationStore
 from deepr.providers.base import ResearchRequest
 from deepr.providers.dispatch_authority import require_unproxied_paid_transport
 from deepr.providers.openrouter_account_controls import load_openrouter_api_key
-from deepr.providers.openrouter_completion import (
-    OpenRouterCompletionError,
-    build_openrouter_completion_request,
-    complete_openrouter_chat,
-)
+from deepr.providers.openrouter_completion import OpenRouterCompletionError, complete_openrouter_chat
 from deepr.providers.registry_pricing import get_resolved_model_capability
 from deepr.security.key_quarantine import temporarily_released_metered_keys
 from deepr.services.research_bounds import bounded_research_cost_estimate
@@ -144,25 +138,14 @@ def run_attended_openrouter_research(
         if not load_openrouter_api_key():
             refund_research_cost(reservation, provider_work_did_not_run=True)
             raise click.ClickException("OPENROUTER_API_KEY is not available")
-        body = build_openrouter_completion_request(
-            model=model,
-            system_message=_SYSTEM,
-            prompt=query,
-            max_tokens=request.max_output_tokens,
-            prompt_max_price=capability.input_cost_per_1m,
-            completion_max_price=capability.output_cost_per_1m,
-        )
-        request_sha256 = hashlib.sha256(
-            json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
-        ).hexdigest()
         ResearchReservationStore().mark_provider_work_may_have_run(
             reservation.reservation_id,
-            provider="openrouter",
-            model=model,
-            job_id=job_id,
+            provider=reservation.provider,
+            model=reservation.model,
+            job_id=reservation.job_id,
             reserved_cost=reservation.estimated_cost,
             dispatch_binding_id=reservation.dispatch_binding_id,
-            request_envelope_sha256=request_sha256,
+            request_envelope_sha256=reservation.request_envelope_sha256,
         )
         try:
             result = _dispatch_openrouter_completion(
