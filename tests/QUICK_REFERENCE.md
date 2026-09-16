@@ -12,7 +12,7 @@ ruff check src/deepr/
 ruff format --check src/deepr/
 
 # Strict type islands
-mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/core src/deepr/providers src/deepr/mcp src/deepr/security src/deepr/queue src/deepr/storage src/deepr/tools src/deepr/routing src/deepr/worker src/deepr/webhooks src/deepr/a2a src/deepr/skills src/deepr/backends src/deepr/agents src/deepr/evals
+mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/core src/deepr/providers src/deepr/mcp src/deepr/security src/deepr/queue src/deepr/storage src/deepr/tools src/deepr/routing src/deepr/worker src/deepr/webhooks src/deepr/a2a src/deepr/skills src/deepr/backends src/deepr/agents src/deepr/evals src/deepr/observability
 ```
 
 Do not run bare `pytest` and do not set provider keys for the unit suite. Live

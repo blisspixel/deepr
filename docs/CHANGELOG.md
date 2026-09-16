@@ -17,8 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Direct unused core/dev dependencies `aiofiles`, `colorama`, and `black`
   were removed. Windows color still arrives through Click. Ruff remains the
   formatter.
-- Blocking ``mypy --strict`` now includes ``backends/``, ``agents/``, and
-  ``evals/``. Observability and services stay on the non-blocking baseline.
+- Blocking ``mypy --strict`` now includes ``backends/``, ``agents/``,
+  ``evals/``, and ``observability/``. ``services/`` stays on the non-blocking
+  baseline. Cost-ledger file locks use ``sys.platform == "win32"`` so Linux
+  mypy does not type-check ``msvcrt``.
   Windows Job Object ctypes bindings type-check on Linux without claiming
   ``ctypes.WinDLL`` exists there.
 

@@ -218,7 +218,7 @@ class ProviderMetrics:
             }
         return result
 
-    def record_success(self, latency_ms: float, cost: float, task_type: str | None = None):
+    def record_success(self, latency_ms: float, cost: float, task_type: str | None = None) -> None:
         """Record a successful request.
 
         Args:
@@ -259,7 +259,7 @@ class ProviderMetrics:
                 self.task_type_stats[task_type] = {"success": 0, "failure": 0}
             self.task_type_stats[task_type]["success"] += 1
 
-    def record_failure(self, error: str, task_type: str | None = None):
+    def record_failure(self, error: str, task_type: str | None = None) -> None:
         """Record a failed request.
 
         Args:
@@ -533,7 +533,7 @@ class AutonomousProviderRouter:
         cost: float = 0.0,
         error: str = "",
         task_type: str | None = None,
-    ):
+    ) -> None:
         """Record a request result.
 
         Updates both metrics and circuit breaker state.
@@ -704,15 +704,11 @@ class AutonomousProviderRouter:
         Returns:
             Status dictionary
         """
-        status = {
-            "providers": {},
-            "healthy_count": 0,
-            "unhealthy_count": 0,
-            "total_requests": 0,
-            "total_cost": 0.0,
-            "recent_fallbacks": [],
-            "circuit_breakers": self.circuit_breaker.get_status(),
-        }
+        providers: dict[str, Any] = {}
+        healthy_count = 0
+        unhealthy_count = 0
+        total_requests = 0
+        total_cost = 0.0
 
         for key, metrics in self.metrics.items():
             provider, model = key
@@ -720,7 +716,7 @@ class AutonomousProviderRouter:
             circuit_available = self.circuit_breaker.is_available(provider, model)
             circuit = self.circuit_breaker.get_circuit(provider, model)
 
-            status["providers"][f"{provider}/{model}"] = {
+            providers[f"{provider}/{model}"] = {
                 "healthy": is_healthy,
                 "circuit_state": circuit.state.value,
                 "circuit_available": circuit_available,
@@ -734,17 +730,22 @@ class AutonomousProviderRouter:
             }
 
             if is_healthy and circuit_available:
-                status["healthy_count"] += 1
+                healthy_count += 1
             else:
-                status["unhealthy_count"] += 1
+                unhealthy_count += 1
 
-            status["total_requests"] += metrics.total_requests
-            status["total_cost"] += metrics.total_cost
+            total_requests += metrics.total_requests
+            total_cost += metrics.total_cost
 
-        # Recent fallbacks
-        status["recent_fallbacks"] = [e.to_dict() for e in self.fallback_events[-10:]]
-
-        return status
+        return {
+            "providers": providers,
+            "healthy_count": healthy_count,
+            "unhealthy_count": unhealthy_count,
+            "total_requests": total_requests,
+            "total_cost": total_cost,
+            "recent_fallbacks": [e.to_dict() for e in self.fallback_events[-10:]],
+            "circuit_breakers": self.circuit_breaker.get_status(),
+        }
 
     def get_benchmark_data(self) -> dict[str, Any]:
         """Get benchmark data for all providers.
@@ -754,7 +755,7 @@ class AutonomousProviderRouter:
         Returns:
             Dictionary with provider benchmarks and summary statistics
         """
-        benchmarks = []
+        benchmarks: list[dict[str, Any]] = []
 
         for key, metrics in self.metrics.items():
             provider, model = key
@@ -878,7 +879,7 @@ class AutonomousProviderRouter:
 
         return score
 
-    def _save(self):
+    def _save(self) -> None:
         """Save metrics to disk using atomic write pattern.
 
         Uses a temporary file and atomic rename to prevent corruption
@@ -919,7 +920,7 @@ class AutonomousProviderRouter:
                 if temp_path.exists():
                     temp_path.unlink()
 
-    def _load(self):
+    def _load(self) -> None:
         """Load metrics from disk.
 
         Logs errors and starts fresh if loading fails, rather than
@@ -939,6 +940,9 @@ class AutonomousProviderRouter:
                     self.metrics[key] = ProviderMetrics.from_dict(metrics_data)
 
             for event_data in data.get("fallback_events", []):
+                timestamp = _parse_datetime(event_data["timestamp"])
+                if timestamp is None:
+                    continue
                 self.fallback_events.append(
                     FallbackEvent(
                         original_provider=event_data["original_provider"],
@@ -947,7 +951,7 @@ class AutonomousProviderRouter:
                         fallback_model=event_data["fallback_model"],
                         reason=event_data["reason"],
                         success=event_data["success"],
-                        timestamp=_parse_datetime(event_data["timestamp"]),
+                        timestamp=timestamp,
                     )
                 )
 

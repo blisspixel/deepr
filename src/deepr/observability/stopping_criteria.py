@@ -50,7 +50,7 @@ class Finding:
     tokens: list[str] = field(default_factory=list)
     content_hash: str = ""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.tokens:
             self.tokens = self._tokenize(self.text)
         if not self.content_hash:
@@ -223,10 +223,16 @@ class EntropyStoppingCriteria:
             confidence = 0.6
 
         # Check for high duplicate rate
-        elif metrics["duplicate_rate"] > 0.5:
-            should_stop = True
-            reason = f"High duplicate rate ({metrics['duplicate_rate']:.1%})"
-            confidence = 0.75
+        else:
+            duplicate_rate = metrics["duplicate_rate"]
+            if (
+                isinstance(duplicate_rate, (int, float))
+                and not isinstance(duplicate_rate, bool)
+                and duplicate_rate > 0.5
+            ):
+                should_stop = True
+                reason = f"High duplicate rate ({float(duplicate_rate):.1%})"
+                confidence = 0.75
 
         return StoppingDecision(
             should_stop=should_stop,
@@ -300,7 +306,7 @@ class EntropyStoppingCriteria:
 
         # Extract dominant topics from recent findings
         recent = findings[-5:]
-        topic_counts: Counter = Counter()
+        topic_counts: Counter[str] = Counter()
 
         for finding in recent:
             for token in finding.tokens:
@@ -387,12 +393,12 @@ class EntropyStoppingCriteria:
 
         return self._calculate_entropy_trend() == "declining"
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset internal state for a new research session."""
         self._entropy_history.clear()
         self._content_hashes.clear()
 
-    def export_to_span(self, span) -> None:
+    def export_to_span(self, span: Any) -> None:
         """Export metrics to an observability span.
 
         Args:
