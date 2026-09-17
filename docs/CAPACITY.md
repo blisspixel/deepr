@@ -104,8 +104,8 @@ openrouter` uses the stored or quarantined key. `deepr budget authorize
 openrouter` binds that limit as OpenRouter-only hard-stop evidence. Those
 checks do not fire inference. After wallet credits and that hard stop,
 attended `deepr research --provider openrouter` can run one pinned no-tool
-completion and settle `usage.cost`. MCP, schedules, and automatic fallback
-stay blocked. A future unattended adapter must also prove that account
+completion and settle `usage.cost`. Omitting `--model` defaults to
+`qwen/qwen3.8-flash`. MCP, schedules, and automatic fallback stay blocked. A future unattended adapter must also prove that account
 defaults cannot force paid plugins, BYOK, response caching, a paid service
 tier, or a different retention posture. Router metadata must show direct
 routing, one attempt, no BYOK, and no pipeline stage, but it reports a

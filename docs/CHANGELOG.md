@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `deepr research --provider openrouter` without `--model` now defaults to
   `qwen/qwen3.8-flash`, the cheap attended catalog slug, not
   `openai/gpt-5.6-sol`.
+- Unit coverage now measures `cli/commands/budget.py`, `cli/commands/keys.py`,
+  and `experts/portraits.py`. Other CLI commands and the experts CLI dump stay
+  omitted until their own tests cover them.
 - Unit coverage now measures `cli/ui.py`, `cli/startup_banner.py`, and
   `webhooks/`. Azure blob stays omitted because construction is blocked until
   billed storage accounting exists.
@@ -26,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ``msvcrt``.
 - Legacy ``ResearchAPI.cancel_job`` now calls ``queue.cancel_job``, the
   real queue method.
-  Windows Job Object ctypes bindings type-check on Linux without claiming
+- Windows Job Object ctypes bindings type-check on Linux without claiming
   ``ctypes.WinDLL`` exists there.
 
 ### Fixed
