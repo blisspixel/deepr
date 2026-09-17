@@ -16,7 +16,8 @@ _PROVIDER_DEFAULT_MODELS = {
     "gemini": "gemini-3.6-flash",
     "xai": "grok-4.6",
     "grok": "grok-4.6",
-    "openrouter": "openai/gpt-5.6-sol",
+    # Cheap attended OpenRouter slug. Frontier OpenRouter slugs stay explicit.
+    "openrouter": "qwen/qwen3.8-flash",
 }
 _BOUNDED_TOOL_PROVIDERS = frozenset({"openai", "azure"})
 

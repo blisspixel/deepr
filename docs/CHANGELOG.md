@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `deepr research --provider openrouter` without `--model` now defaults to
+  `qwen/qwen3.8-flash`, the cheap attended catalog slug, not
+  `openai/gpt-5.6-sol`.
 - Unit coverage now measures `cli/ui.py`, `cli/startup_banner.py`, and
   `webhooks/`. Azure blob stays omitted because construction is blocked until
   billed storage accounting exists.
