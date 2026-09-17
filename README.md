@@ -117,7 +117,8 @@ deepr costs doctor
 
 OpenRouter catalog slugs can be previewed write-free. Automatic routing, expert
 routing, and evaluation stay blocked. Explicit attended research can run one
-pinned completion after `deepr budget authorize openrouter`. The public route
+pinned completion after `deepr budget authorize openrouter`. Omitting `--model`
+defaults to `qwen/qwen3.8-flash`. Frontier OpenRouter slugs stay explicit. The public route
 check needs no key; the separate current-key check uses a hidden prompt by
 default and makes no inference request. An explicit checkout-local `.env`
 source is documented for local use. Officially valid nullable limit controls

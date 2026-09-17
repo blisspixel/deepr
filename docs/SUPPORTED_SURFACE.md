@@ -163,9 +163,10 @@ must not be described as usable capacity.
   Unattended metered dispatch remains blocked until authenticated provider
   account-control and current credential-identity adapters are installed.
 - Attended OpenRouter research: explicit
-  `deepr research --provider openrouter --model <catalog slug>` after a stored
-  key, owner ceiling, wallet credits, and `deepr budget authorize openrouter`.
-  One pinned no-tool completion, cache off, no fallbacks, settlement from
+  `deepr research --provider openrouter` after a stored key, owner ceiling,
+  wallet credits, and `deepr budget authorize openrouter`. Omitting `--model`
+  defaults to `qwen/qwen3.8-flash`. Other catalog slugs stay explicit. One
+  pinned no-tool completion, cache off, no fallbacks, settlement from
   `usage.cost`. MCP, schedules, automatic routing, and automatic fallback
   stay blocked.
 - Budget ceilings, cost estimates, and the canonical append-only cost ledger.

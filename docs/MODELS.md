@@ -350,7 +350,9 @@ Registered provider-route proposals checked on 2026-09-01:
 Default posture:
 
 - The model argument uses the exact portion after `openrouter/`, such as
-  `qwen/qwen3.8-flash`.
+  `qwen/qwen3.8-flash`. That slug is the default when
+  `deepr research --provider openrouter` omits `--model`. Frontier OpenRouter
+  slugs stay explicit.
 - Catalog rates define preview caps for the currently matched standard endpoint
   tags above, not the lowest route across OpenRouter. Base tags can match
   non-tier variants, so the check fails if another such record appears. The
