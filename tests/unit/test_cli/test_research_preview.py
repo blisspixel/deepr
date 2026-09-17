@@ -189,7 +189,7 @@ class TestPreviewExplicitModel:
 
         assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
-        assert payload["model"] == "openai/gpt-5.6-sol"
+        assert payload["model"] == "qwen/qwen3.8-flash"
         assert payload["cost_estimate"]["max"] <= 5.0
 
     def test_openrouter_model_slug_infers_provider(self, runner: CliRunner) -> None:
