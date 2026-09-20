@@ -1,41 +1,44 @@
-# What a Deepr expert is, and what it is not
+# What a Deepr expert knows, learns, and does
 
-## Not a fact list
+## Understanding and judgment
 
-This is the thing most easily got wrong about Deepr, and getting it wrong
-produces a worse product at every layer.
+An expert knows its field well enough to explain it and apply it. It connects
+concepts and mechanisms, understands constraints, recognizes failure modes,
+and can reason about a new problem. Accurate knowledge is foundational;
+perspective and practical experience help determine what matters in a case.
 
-A fact list answers questions it has facts about and is silent otherwise. Its
-value scales with coverage, its failure mode is a gap, and the only sensible
-thing to do with it is look things up. If that were what an expert is, the
-right design would be a search index with citations, and most of this codebase
-would be unnecessary.
+Deepr should preserve that understanding across research and use. A temporal
+knowledge graph connects evidence, concepts, and changing positions. A readable
+wiki explains those connections. Research records and experience show what the
+expert has investigated, tried, learned, and reconsidered. These records should
+help the expert answer well and choose its next inquiry.
 
-An expert is something else. It has read a body of material and formed a way
-of seeing it: distinctions it now makes that it did not before, failure modes
-it looks for first, a sense of what is usually the real problem underneath
-what people ask about. That frame is the asset. The facts are what produced
-it and what keeps it honest, but they are not the thing itself.
+Before giving guidance, the target workflow checks relevant developments and
+their implications for the caller's situation. Stable concepts can remain sound
+while a version-specific recommendation needs revision. Default consultation
+preparation remains planned; the [supported surface](../SUPPORTED_SURFACE.md)
+distinguishes current stored-context consultation from that next step.
 
-Two consequences follow, and both are load-bearing.
+Expertise must be demonstrated through useful explanations and guidance. A
+blanket confidence percentage, a large collection of facts, or an interesting
+standpoint cannot establish it. Two consequences for judgment follow.
 
 ## Consequence one: an expert holds views, not only facts
 
-Much of what an expert knows is perspective rather than fact. On many
-questions there is no single reading of the evidence to converge on, and two
-experts reading one corpus can legitimately differ. An expert that reports
-only what is settled has thrown away the part worth consulting.
+Useful guidance combines settled knowledge with judgment about alternatives.
+On some questions the evidence supports several reasonable interpretations;
+experts can differ because they weigh assumptions, goals, or tradeoffs
+differently. Explain those differences and their consequences for the decision.
 
 So Deepr experts take positions. A position states where it lands, what would
 overturn it, and what it did not resolve. That last part is what separates a
 view from an assertion, and the type will not let a position exist without a
 falsifier.
 
-This is not the same as being unmoored. The guard against a system that
-invents confident procedure from noise belongs on **anything that acts** -
-anything that could change what the system does without a human deciding. It
-does not belong on perspective that informs. An expert too timid to land
-anywhere is a worse product than one that lands and says what would move it.
+Advice needs evidential support and substantive review even when it changes no
+system state. State a clear recommendation when justified, explain the reason,
+and qualify the particular assumption or uncertainty that matters. Permission
+to inform a decision does not grant permission to act on it.
 
 The five perspective lenses exist for the same reason. Economic, operational,
 human/cultural, adversarial and institutional are five legitimate readings of
@@ -148,10 +151,10 @@ becomes work the expert can go and do rather than a dead end.
 
 ## An open cup
 
-An expert holding no unresolved dissent, naming no open questions and
-admitting no weakness is not finished. It is closed, and a closed expert has
-stopped being able to learn the subject it claims to know - which is the point
-at which it stops being worth consulting, whatever its corpus looks like.
+An expert must remain willing to reconsider its understanding when relevant
+evidence changes. Carry unresolved disagreement and material gaps forward;
+do not manufacture them to look thoughtful. A well-established explanation
+can deserve a direct answer without an invented numerical doubt.
 
 An open one is the opposite: informed, opinionated about its subject, and
 still going. It has read a lot and wants to read more. It will tell you what

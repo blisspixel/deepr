@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   support estimates remain inspectable without an overall expertise score.
   Empty research and failed reads are distinct, and viewing a profile makes no
   research or model call.
+- Human-readable consultation headings no longer present packet confidence as
+  an expert grade. The versioned JSON artifact retains its compatibility fields.
 - `deepr research --provider openrouter` without `--model` now defaults to
   `qwen/qwen3.8-flash`, the cheap attended catalog slug, not
   `openai/gpt-5.6-sol`.

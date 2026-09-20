@@ -17,12 +17,12 @@ keep changing. Instead of rebuilding context for every run, they consult the
 same inspectable expert state through the CLI or MCP and can see what changed,
 what supports a position, and what remains unknown.
 
-Beliefs, sources, graphs, and notes are the expert's cognitive infrastructure,
-not the product definition. The product goal is an expert that develops through
-study, judgment, prospective predictions, observed outcomes, and review-gated
-revision, then performs better on future problems. Deepr now preserves those
-inputs as inspectable records; automatic outcome-driven learning and
-longitudinal proof of better judgment remain roadmap work.
+The expert's knowledge base connects research, concepts, explanations, and
+reasoned positions. Temporal records preserve changes; readable notebooks and
+memory views make the accumulated understanding inspectable. The product goal
+is an expert that develops through study, judgment, experience, and reviewed
+revision, then performs better on future problems. Automatic outcome-driven
+learning and longitudinal proof of better judgment remain roadmap work.
 
 The next user-facing milestone is **preparation before advice by default**:
 check developments relevant to the question and environment, reconsider the
@@ -54,10 +54,10 @@ that includes language and runtime behavior, computer-science fundamentals,
 testing and packaging, performance, security, and the tradeoffs behind advice.
 Breadth must come from retained research and demonstrated answers.
 
-The next profile should lead with the expert's perspective, reasoned positions,
-research coverage, open questions, and substantive review dates. Claim-level
-scores currently include age decay and source-trust limits; they are not an
-overall expertise rating or a calibrated probability of correctness. The
+The profile opens on the expert's perspective, positions and reasoning,
+supporting research, questions considered, and unresolved questions. Claim-level
+support estimates remain available for inspection with their basis and limits;
+they do not grade the expert's overall correctness. The
 [Python exemplar and profile acceptance criteria](docs/plans/living-expertise.md#python-exemplar-and-profile-acceptance)
 define what a replacement screenshot must demonstrate from real retained work.
 Reports, digests, and portable exports remain regenerable views of structured

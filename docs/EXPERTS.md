@@ -604,9 +604,10 @@ deepr expert reflect "Azure Architect" <job_id> --execute-followups --scheduled 
 
 ## Temporal Perspective Queries
 
-A corpus is what was read; a perspective is what is *believed* - claims with
-source-capped confidence, provenance, recency, and open conflicts. Three
-read-side, cost-$0 queries expose the perspective (CLI and MCP):
+Three read-side, cost-$0 queries expose belief changes, supporting history,
+and open conflicts through CLI and MCP. These are one part of the expert's
+larger understanding, alongside concepts, explanations, reasoned positions,
+research experience, and open questions:
 
 ### What Changed (re-sync)
 The perspective delta since a timestamp: beliefs added / revised / contested /

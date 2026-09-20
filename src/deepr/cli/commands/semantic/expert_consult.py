@@ -75,7 +75,8 @@ def _render(payload: dict[str, Any]) -> None:
     console.print("[bold]Mode:[/bold] one-shot stored-context council; experts do not exchange turns")
     console.print(f"[bold]Consulted {len(names)} expert(s):[/bold] {', '.join(names) or '(none)'}")
     for p in payload["perspectives"]:
-        console.print(f"\n[bold]{p['expert']}[/bold] [dim](conf {p['confidence']:.2f})[/dim]")
+        # Packet coverage or an average claim estimate is not expert accuracy.
+        console.print(f"\n[bold]{p['expert']}[/bold]")
         console.print(f"  {p['response'][:600]}")
     console.print("\n[bold]Synthesis[/bold]")
     console.print(payload["answer"][:1400] or "  [dim](no synthesis)[/dim]")
