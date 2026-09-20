@@ -1,6 +1,9 @@
 # Living expert research stack (Distillr + Learny + plan-quota + TKG)
 
-Status: design + active implementation, 2026-08-05.
+Status: historical integration design, 2026-08-05. Delivery order superseded
+2026-09-20 by the [active roadmap](../../ROADMAP.md#active-release-plan) and
+[living-expertise plan](../plans/living-expertise.md). Instrument and capacity
+observations below are dated research, not current execution guarantees.
 Parent: [exceptional-expert-quality.md](exceptional-expert-quality.md).
 Implementation plan: [../plans/living-expert-research-stack.md](../plans/living-expert-research-stack.md).
 Integrations baseline: [INTEGRATIONS.md](../INTEGRATIONS.md).

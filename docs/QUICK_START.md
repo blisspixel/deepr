@@ -137,6 +137,11 @@ not write beliefs or graph state. Use `--output FILE` to save the complete
 artifact explicitly. See [Three Expert Council And Learning Workflow](THREE_EXPERT_COUNCIL.md)
 for a three-domain example and strict `$5` monthly cap.
 
+Consultation does not automatically check the latest sources yet. Explicit
+fresh-context maintenance is available when currency matters; inspect its
+coverage before relying on updated guidance. Default preparation before advice
+is the [next user-facing milestone](../ROADMAP.md#living-expertise-and-evolving-perspective).
+
 All five steps avoid paid API calls. `study`, `brief`, and `consult` require an
 available local Ollama model. Use `deepr capacity` when local capacity is not
 ready.

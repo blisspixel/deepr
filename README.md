@@ -7,9 +7,10 @@
 
 **Persistent domain experts built from bounded, auditable research.**
 
-Deepr turns research into durable beliefs, gaps, contradictions, confidence,
-citations, provenance, and outcomes. It prefers owned local models, then proven
-subscription quota, with no automatic fallback to a paid API.
+Deepr develops inspectable expert understanding from retained research,
+concepts, positions, reasoning, temporal relationships, and experience. It
+prefers owned local models, then proven subscription quota, with no automatic
+fallback to a paid API.
 
 Deepr is for people and agent teams making recurring decisions in domains that
 keep changing. Instead of rebuilding context for every run, they consult the
@@ -22,6 +23,14 @@ study, judgment, prospective predictions, observed outcomes, and review-gated
 revision, then performs better on future problems. Deepr now preserves those
 inputs as inspectable records; automatic outcome-driven learning and
 longitudinal proof of better judgment remain roadmap work.
+
+The next user-facing milestone is **preparation before advice by default**:
+check developments relevant to the question and environment, reconsider the
+stored perspective, then answer from a dated context. Current consultation
+uses stored expert state; explicit fresh-context maintenance is available.
+See the [active sequence](ROADMAP.md#active-release-plan) and
+[delivery plan](docs/plans/living-expertise.md) for the baseline, preparation,
+durable learning, and repeated-use evidence gates.
 
 ## Build a durable expert fleet
 

@@ -4,6 +4,11 @@ Status: partly built, 2026-08-10. Completes prerequisites #2 and #4 of
 [expert-v2-architecture.md](expert-v2-architecture.md), which are the two of
 seven that were never built.
 
+Delivery update, 2026-09-20: finding history and complete temporal retrieval
+belong to S2 in the [active plan](../plans/living-expertise.md). S1 can prepare
+advice using temporary source evidence without changing canonical expert state.
+The historical analysis below does not create a separate release sequence.
+
 ## What is built
 
 Steps 0 through 2 of the order below have landed.
@@ -141,12 +146,12 @@ MarkLogic's LSQT, streaming watermarks - never a new dimension.
 **The expert's objection stands and is still honoured.** It was an argument
 against *conflation*, not for an axis. `held` stays first-class, structurally
 distinct, and never allowed to back a snapshot. Where a later record attests
-that a view was abandoned earlier, `as_of` returns the store's state for that
-moment *and* flags `contradicted_by_later_attestation`, which is strictly more
-information than a held-time snapshot would have given. The cost is named: that
-annotation is not deterministic across time, since a 2027 attestation changes
-what is flagged for June 2026. Acceptable for an overlay, disqualifying for an
-axis.
+that a view was abandoned earlier, strict `as_of` returns only the store's
+knowledge at that cutoff. A separate, explicitly requested retrospective
+overlay may flag later attestation, with its own observation cutoff and
+provenance. It cannot alter or enter the strict snapshot silently. This
+preserves reproducible historical evaluation while allowing a present-day
+explanation of what was learned later.
 
 The original objection, which produced all of this:
 
@@ -221,20 +226,22 @@ already is one) and epistemic entrenchment as a concrete priority order, which
 already exists as trust class, independent origin count, corroboration, recency.
 Skip partial-meet contraction, skip Recovery, skip the postulates.
 
-### Contradiction: the model proposes, deterministic logic decides
+### Contradiction: reviewed meaning, deterministic admission
 
 The single best design choice available, and the cheapest to get wrong.
 
-An LLM answers only "do these conflict?". Timestamp and subject logic decides
-what happens. Roughly forty lines, unit-testable, and it is the difference
-between a working system and the documented failure case: a production graph
+Model or human judgment must establish whether statements conflict in the same
+scope and whether revision is warranted. Deterministic checks enforce bound
+record identities, known intervals, selected operations, and write authority;
+they cannot infer a semantic retirement from recency or a shared subject. The
+historical failure motivating this distinction was a production graph
 where **1,616 of 3,950 facts (41%) carry an invalidation**, and a hand audit of
 four found three were collateral damage - "person administers company's source
 control org" retiring "person holds job title at company".
 
-The guard that would have prevented it is free and structural: **two findings
-can only contradict if they are about the same question.** Requiring a shared
-subject before permitting retirement needs no model call.
+A shared question or subject can route candidate comparisons. Matching it does
+not prove contradiction, and failing a lexical match does not prove the absence
+of one. Scope and semantic supersession need reviewed judgment before apply.
 
 The judge is also fragile exactly where it matters. Measured on a small model,
 contradiction detection scored 7/15 and got 1/3 on clear two-fact

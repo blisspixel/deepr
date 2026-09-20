@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Sequenced living expertise around a preserved value baseline, default
+  consultation preparation, durable temporal learning, perspective synthesis,
+  and repeated-use evidence before wider autonomy. Reconciled older planning
+  and feedback notes, documented a cumulative $10 validation ceiling with a
+  $0 initial path, and kept planned behavior distinct from current capabilities.
 - `deepr research --provider openrouter` without `--model` now defaults to
   `qwen/qwen3.8-flash`, the cheap attended catalog slug, not
   `openai/gpt-5.6-sol`.

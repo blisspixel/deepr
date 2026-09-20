@@ -37,22 +37,25 @@ self-model state, and metacognitive perspective state such as original ideas.
 It is useful for humans and host agents, but it is never canonical memory and
 should not be hand-edited as authority.
 
-## What Makes It Different
+## Current capabilities and the next milestone
 
-Traditional RAG systems:
-- Static documents in vector store
-- Query - retrieve - answer
-- Never changes, never grows
+Experts retain sources, studied findings, positions, reasoning, perspective
+history, and research pursuits. Explicit maintenance can acquire fresh context
+and submit verified changes. Generated notebooks and memory cards expose that
+state; their regeneration does not establish new learning.
 
-Deepr experts:
-- Recognize knowledge gaps
-- Propose research when needed; execution remains capacity- and user-gated
-- Integrate verified knowledge through an explicit graph-commit apply boundary
-- Track what they know vs don't know
-- Maintain concepts, hypotheses, stance, original ideas, and tradeoffs
-- Keep up with current developments on their topic
-- Explore new possibilities instead of only recalling stored claims
-- Build on previous learning
+Normal consultation currently uses stored expert state. Default preparation
+before advice is planned: check what changed for the question and target
+environment, reconsider its implications, and answer from a dated context.
+Until that ships, use the documented explicit fresh-context maintenance flow
+when currency matters. An update still needs review for coverage and usefulness.
+
+The [active roadmap](../ROADMAP.md#active-release-plan) sequences baseline
+measurement, prepared consultation, finding history and temporal retrieval,
+perspective synthesis, then repeated-use proof. The
+[delivery plan](plans/living-expertise.md) defines acceptance and recovery.
+Automatic outcome-driven learning and proven longitudinal benefit remain
+planned; inspectable records alone do not establish them.
 
 The point is not to preserve old answers. A stale expert can be worse than no
 expert because it may confidently carry forward assumptions it does not know are

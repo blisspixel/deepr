@@ -1,6 +1,6 @@
 # Deepr approach contract
 
-Status: normative approach document for the open-source tool, 2026-08-01.
+Status: normative approach document for the open-source tool, updated 2026-09-20.
 
 | Question | Document |
 | --- | --- |
@@ -70,6 +70,11 @@ It is not:
    theater.
 8. **Derived views are regenerable.** Digests, wikis, and `EXPERT.md` cards
    are not canonical memory.
+9. **Readiness is specific to the question.** The product target is preparation
+   before advice: check relevant current developments and the caller's setting,
+   reconsider the stored perspective, and expose what remains unchecked.
+   Preparation and lasting learning have separate write boundaries. This is
+   planned consultation behavior; the supported surface remains authoritative.
 
 ---
 
@@ -144,6 +149,13 @@ reconciliation does not, by itself, unfreeze paid capacity.
 
 An expert is **durable epistemic state plus bounded knowledge verbs**, not a
 chat persona and not a static FAQ.
+
+Its expertise includes accumulated research, conceptual understanding,
+reasoning, investigations, experience, and an evolving perspective. It should
+orient a newcomer, explain connections and tradeoffs, offer grounded insights,
+and choose useful further inquiry. Currency comes from substantive review of
+what bears on the question; elapsed time and document counts cannot establish
+it. Evidence-based retention of an older explanation is also a valid result.
 
 | Kind of state | Requirement |
 | --- | --- |

@@ -1,15 +1,17 @@
 # The feedback signal, and why the loop does not yet have one
 
-Status: proposed, 2026-08-10. Derived from consulting Deepr's own evaluation
-and harness experts about what Deepr is missing.
+Status: proposed, 2026-08-10; assumptions corrected 2026-09-20. Prediction
+registration and a read-only experience projection have since shipped.
+Reviewed resolution remains planned in S3 of the
+[delivery plan](../plans/living-expertise.md), after temporal lineage.
 
 ## The question
 
-Everything in the expert loop runs at zero marginal cost on prepaid quota or
-local models. An expert retains a corpus, reads it through lenses, forms
+The current admitted learning path uses owned local models; production plan
+adapters are blocked. An expert retains a corpus, reads it through lenses, forms
 positions that each state what would overturn them, writes its own standpoint
 with an append-only history, keeps a practice of live questions, and gets
-examined by a viva. Runs can repeat indefinitely for nothing.
+examined by a viva. Repeated runs still consume bounded compute and review time.
 
 So what stops that from being self-improving?
 
@@ -50,14 +52,17 @@ system already writes and currently never compares."
 
 ## Why this particular signal is worth having
 
-**It is contamination-proof by construction.** The falsifier is registered
-*before* the material that resolves it arrives. There is no way to score well
-by having read the answer, which is the failure mode that makes most
-self-evaluation worthless. Nothing else available here has that property.
+**It can reduce hindsight bias.** Freeze the criterion and registration time
+before collecting the resolving material. Preserve source cutoffs and access
+records; registration alone does not prove that a model or evaluator never saw
+the answer. Retrospective replay is distinct from prospective evidence.
 
-**It is free.** No judge model, no labelled set, no human. The expert already
-writes the falsifier as part of forming a position; the corpus already grows;
-the resolution is a comparison.
+**Resolution needs independent review.** Identity, dates, and explicitly
+computable criteria can be checked mechanically. Whether evidence supports,
+contradicts, or fails to resolve a natural-language expectation requires
+calibrated judgment. Local inference can have zero marginal API cost while
+review and compute still have costs. Inconclusive and unchecked outcomes must
+remain visible, and a resolution cannot directly change confidence or policy.
 
 **It separates generation from evaluation**, which both experts asked for
 independently. The position was written by one pass with no knowledge of what
@@ -97,17 +102,19 @@ work.
    arrives is not a prediction. This step now exists in the position ledger:
    dates before formation are refused, and `deepr expert experience` exposes
    registered predictions without resolving them or applying learning.
-2. **Resolve mechanically on acquisition.** When new material lands, check the
-   registered criteria against it. Deterministic where the criterion is
-   checkable, and otherwise a single bounded model call whose job is only "did
-   this observation occur", never "was the position good".
+2. **Propose a resolution from acquired evidence.** Check explicitly
+   computable criteria mechanically. Semantic criteria need a calibrated model
+   or human reviewer, with exact expectation and source bindings. Preserve
+   inconclusive and unchecked results; do not let the generating pass certify
+   its own prediction or treat one model call as inherently sufficient.
 3. **Record the discrepancy, do not act on it yet.** The first release writes
    the pairing and nothing else. A system that starts adjusting confidence
    before anyone has seen whether the resolutions are sane is optimising
    against an unvalidated signal.
-4. **Then, and only then, let it move confidence** - and only through the
-   existing shift machinery, so every adjustment lands as a recorded change of
-   mind with its cause attached rather than as a silent edit.
+4. **Evaluate a proposed update policy separately.** Only reviewed held-out
+   benefit can justify a later policy change, with rollback and retained-skill
+   checks. Any admitted revision uses the existing shift machinery and records
+   its cause. A resolved prediction does not automatically move confidence.
 
 ## What this deliberately does not claim
 

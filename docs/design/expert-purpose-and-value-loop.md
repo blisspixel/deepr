@@ -278,6 +278,14 @@ output path; previews and aggregation are otherwise read-only.
 
 ### v2.51 pilot protocol
 
+This is S0, the preserved baseline in the
+[living-expertise delivery plan](../plans/living-expertise.md). Default
+consultation preparation has a separate paired comparison in S1. S4 repeats
+the memory comparison on a new held-out history after durable learning and
+perspective synthesis. Do not silently change these arm policies or attribute
+additional source access to improved memory. Release ordering lives only in
+the [active roadmap](../../ROADMAP.md#active-release-plan).
+
 The next experiment is planned, not a published value result. Start with one
 flagship expert, three frozen source worlds, and 12 reviewed cases, producing
 48 arm cells. This pilot size is a practical starting point, not evidence of

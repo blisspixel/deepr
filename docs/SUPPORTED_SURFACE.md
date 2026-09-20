@@ -18,6 +18,12 @@ Source-world preflight remains write-free; briefing supports historical cutoffs.
 The next product gate is v2.51 value evidence, not paid dispatch or a
 generic agent runtime. See [what's next and why](../ROADMAP.md#active-release-plan).
 
+**Planned consultation preparation:** normal consultation currently uses stored
+expert state. Explicit fresh-context maintenance exists; automatic preparation
+for each question does not. The next user-facing increment checks relevant
+current sources before answering, without automatically applying expert-state
+changes. See [S1 and its acceptance gate](plans/living-expertise.md#s1-prepare-before-consultation-with-bounded-temporary-evidence).
+
 **v2.50.15: Claude plan execution is blocked.** Managed-policy
 hooks can survive safe mode and execute independently of the model tool list.
 No production plan adapter currently passes the complete confinement gate.
