@@ -23,6 +23,12 @@ The wiki is a navigable, derived account of that understanding. Neither a
 larger fact inventory nor regenerated prose proves learning. The release gate
 is useful, supported guidance that survives correction and repeated use.
 
+Strong expertise includes confident, well-supported answers to established
+questions. Candour about missing knowledge is necessary, but does not count as
+knowing the subject. Qualification needs both an absolute bar for useful
+answers within the declared scope and evidence of improvement over a baseline.
+Being better than an inadequate baseline is insufficient.
+
 ## Dependency order
 
 `S0 baseline -> S1 prepared consultation -> S2 durable temporal learning ->
@@ -116,6 +122,81 @@ prove longitudinal benefit. Default-on release requires these checks and
 reviewed advice; it does not require a successful forecast or self-improving
 harness.
 
+#### Python exemplar and profile acceptance
+
+The current README example was a narrow repository code-quality expert. Its
+claims about local test commands do not establish broad Python expertise.
+Qualify a Python exemplar using retained research and reviewed consultations;
+do not rename a narrow expert or inflate a score to imply broader coverage.
+
+Use the existing retain, study, brief, and consult loop for this foundation
+now. Basic understanding and reasoned positions must not wait for S3; S3
+extends their cumulative synthesis and inquiry. A weak exemplar is a product
+quality defect to investigate, not a screenshot selection problem. First build
+and examine useful expertise, then capture it. The
+[profile implementation design](../design/expert-perspective-profile.md)
+exposes this existing understanding without claiming new preparation behavior.
+
+The initial coverage map should include language/data-model semantics,
+standard-library and runtime behavior, algorithms and complexity, concurrency,
+typing/testing/packaging, performance and deployment, and security. Name limits
+where research is missing. Retain applicable official documentation, release
+notes, advisories, and independent technical analyses. Separate language
+guarantees, empirical findings, community conventions, and reasoned opinions.
+Explain when a recommendation applies, alternatives, and what could change it.
+No fixed source count certifies that every best practice has been learned.
+
+The knowledge graph and readable wiki should organize this understanding:
+concepts, mechanisms, relationships, research, practical experience, and insights.
+Temporal records preserve how that understanding changed and which versions it
+applies to. They support the expert's judgment; neither a graph nor a wiki alone
+demonstrates expertise. Connect positions back to this knowledge and let useful
+questions lead to further investigation and learning.
+
+Present guidance in a form suited to the specialty and the task. A Python expert
+may need runnable examples, version constraints, design alternatives, complexity,
+and a way to test the recommendation. Other specialties need different forms.
+Preserve a common evidence and preparation record without forcing every expert
+into the same answer template or substituting a confidence score for explanation.
+
+Use held-out questions about choosing asynchronous I/O versus threads or
+processes, algorithmic versus runtime bottlenecks, testing and packaging
+tradeoffs, and where Python is or is not a good fit. Include version-specific
+behavior and a relevant newly introduced security update. A source link alone
+does not pass: the answer must explain the mechanism, constraints, and impact
+on the caller's situation. Preparation must check relevant changes before
+guidance, even when the underlying concept is familiar.
+
+Freeze mandatory cases and unacceptable errors before examination. A critical
+misconception, unsafe recommendation, fabricated current check, or inability to
+answer a required foundational question leaves the affected scope unqualified.
+Repair the underlying acquisition, study, retrieval, or reasoning failure and
+use fresh questions to check transfer. Rephrasing the same examined answer is
+development feedback, not another held-out success. Preserve every attempt.
+
+The profile's primary view exposes existing perspective, useful questions
+it can address, reasoned positions, research coverage and sources, unresolved
+questions, and what changed. Deeper evidence and claim inspection remain
+accessible. Missing perspective or coverage is shown explicitly; presentation
+must not synthesize undocumented expertise merely to populate a screen.
+
+Keep three signals separate: depth demonstrated by work and reviewed answers;
+support and uncertainty of a particular position; and currency for a topic or
+question. An age-decayed, trust-capped claim estimate is not a calibrated truth
+probability or an overall expert grade. Expose its basis in claim inspection
+instead of making an unexplained percentage the main expertise signal.
+Last activity, last substantive study, and sources checked for this consultation
+are distinct. Never show planned automatic preparation as already running.
+
+**Screenshot gate:** use the actual built profile and retained expert state
+after these checks, with code version and capture date in its validation record.
+Show a substantive position and why it holds, useful coverage, and an honest
+currency state. Do not use generated mock expertise, polished unreviewed answers,
+or cosmetic score changes as evidence. A synthetic UI fixture is for behavior
+testing and must not be published as a validated expert. Keep a real expert
+example in the README once that qualification has been recorded; removing the
+example alone does not satisfy this requirement.
+
 ### S2: preserve learning and select the applicable historical state
 
 **Depends on:** S1 evidence and snapshot contracts. Reuse record identities,
@@ -137,6 +218,20 @@ selected revision through positions, findings, and supporting passages before
 truncation or ranking can lose the eligible evidence. Strict historical reads
 cannot include later observations. Present-day retrospective annotations are
 separate, explicitly dated views. Newest alone does not establish authority.
+
+Separate evidential support, applicability, review priority, and demonstrated
+competence. Elapsed time can make a version-specific recommendation due for
+review without turning an established concept into a coin-flip claim. Changing
+an applicability boundary or finding contrary evidence can justify revision;
+refreshing a timestamp cannot. Replace the overloaded legacy estimate only
+through a versioned migration and evaluation, preserving original values and
+their interpretation. Do not fix it by raising floors or removing uncertainty.
+
+Distinguish descriptive knowledge, conditional advice, preferences, hypotheses,
+and resolvable predictions. A language definition is not a forecast with a
+deadline, and an engineering tradeoff need not have an invented probability.
+Use support and scope appropriate to the kind of judgment. Keep calibrated
+forecasting measures for genuinely resolvable predictions.
 
 Write the additive migration and recovery design before code: retain old
 records, make repeat applies idempotent, recover interrupted projections, and

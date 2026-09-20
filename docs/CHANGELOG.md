@@ -14,6 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and repeated-use evidence before wider autonomy. Reconciled older planning
   and feedback notes, documented a cumulative $10 validation ceiling with a
   $0 initial path, and kept planned behavior distinct from current capabilities.
+- Removed the narrow repository-claims screenshot from the README and defined
+  a Python exemplar/profile gate based on research breadth, reasoned guidance,
+  and currency rather than an unexplained claim-confidence percentage.
+- Expert profiles now open on their retained perspective, with reasoned
+  positions, source evidence, revision conditions, and open questions. Claim
+  support estimates remain inspectable without an overall expertise score.
+  Empty research and failed reads are distinct, and viewing a profile makes no
+  research or model call.
 - `deepr research --provider openrouter` without `--model` now defaults to
   `qwen/qwen3.8-flash`, the cheap attended catalog slug, not
   `openai/gpt-5.6-sol`.
@@ -39,6 +47,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Local setup guidance now requires persistent `disable_ollama_cloud` settings;
+  environment-only configuration does not satisfy the existing local gate.
 - Attended OpenRouter research helpers are typed against
   `OpenRouterCompletionResult` instead of `object`.
 - Agent-tool JSON arguments that are not an object fail closed instead of

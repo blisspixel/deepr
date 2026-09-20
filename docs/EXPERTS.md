@@ -65,11 +65,12 @@ find where the expert needs to update its understanding.
 
 ## Quick Start
 
-Before using any local generation command, start Ollama with cloud features
-disabled by stable server config, for example `OLLAMA_NO_CLOUD=1`, and restart
-the server. Deepr checks native `/api/status` immediately before shared local
-requests and refuses unless it reports `cloud.disabled=true` with source
-`config`. Local OpenAI-compatible requests use a fixed credential allowlist,
+Before using any local generation command, set `disable_ollama_cloud` to `true`
+in `~/.ollama/server.json`, preserving other settings, and restart Ollama.
+An environment variable alone is insufficient. Deepr checks native
+`/api/status` immediately before shared local requests and refuses unless it
+reports `cloud.disabled=true` with source `config` or `both`.
+Local OpenAI-compatible requests use a fixed credential allowlist,
 ignore environment proxies, follow no redirects, and retry zero times. This
 prevents a signed-in Ollama cloud model or ambient provider credential from
 silently turning a local-labeled command into remote spend.

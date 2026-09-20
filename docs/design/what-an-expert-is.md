@@ -216,14 +216,15 @@ exam for another subject, because the thing being examined is different.
 
 That sounds like it makes evaluation impossible for a system that has to work
 on any topic. It does not, because the *method* can be general while the
-*test* is generated per subject, from that subject's own corpus. Three that
-work this way, none of which needs a human to know the field:
+*test* is designed per subject. Corpus-derived probes help, alongside objective
+checks, realistic decisions, and calibrated domain review. Three useful probes:
 
 **Hold a source back.** Take a document out before studying, then ask the
-expert what it would say about the question that document answers. An expert
-who has understood the field predicts it; one who has memorised its sources is
-surprised by it. Generated entirely from the corpus, and the answer key is the
-withheld document.
+expert to solve a problem whose answer is supported there and inferable from
+its permitted material. Check transfer rather than quotation recall. A newly
+reported observation may be impossible to infer; surprise at it is not itself
+failure. The withheld source also needs review, rather than becoming an
+infallible answer key.
 
 **Ask what the corpus cannot answer.** Build questions the material genuinely
 does not cover, alongside ones it does. A good expert distinguishes them. A
@@ -232,8 +233,9 @@ useful score is the pair, because always refusing wins a one-sided version.
 
 **Ask about something that does not exist.** Invent a plausible entity in the
 subject - a specification revision, a technique, a named result - and see
-whether the expert claims to know it. This costs nothing, cannot be satisfied
-by careful phrasing, and catches the failure a well-formed artifact hides best.
+whether the expert invents supporting evidence. Verify that the item is absent
+within the stated information boundary. Account for generation and review work;
+local execution can have zero API cost without being costless.
 
 None of these produces a letter. They produce evidence about a particular
 expert on a particular subject, which is the only form an answer to "is this
@@ -242,69 +244,40 @@ three of fifty need attention this week; the test is for finding out whether
 one of them knows anything. They are different questions and should not share
 a scale.
 
-## The word "expert" is carrying the wrong half of the idea
+## Expertise combines depth, application, and continuing learning
 
-"Expert" points at authority. An expert is someone who knows, whose job is to
-be correct, and who is finished - the credential marks the end of the learning,
-not the middle of it. Almost none of that describes what is actually being
-built here, and the word quietly pulls the design toward the fact list every
-time it is used.
+An expert knows a subject well enough to explain it, apply it to unfamiliar
+problems, and give useful guidance. Its perspective comes from accumulated
+knowledge, reasoning, research, and experience. A distinctive standpoint alone
+does not establish expertise, and continuing to learn does not excuse missing
+the foundations of the subject it claims to know.
 
-What the thing actually is: **a standpoint that accumulates**. An expert on
-philosophy answers philosophically. Not because it holds philosophy facts, but
-because a long time spent in that material shaped how it comes at anything put
-in front of it. The way of coming at things is the product. Depth of knowledge
-is what produced it and what keeps it honest, and it is downstream.
+Expertise also has a frontier. The expert distinguishes established knowledge
+from active disagreements, checks developments that could change advice, and
+revises its view when the evidence warrants it. It can be direct about what is
+well established while naming uncertainty precisely where it matters.
 
-Read that way, several things stop being surprising:
-
-- **A frame travels and a credential does not.** If what an expert has is a way
-  of seeing, lending it to furniture design is the normal case, not a trick.
-- **Growth is the point, not the maintenance cost.** A standpoint that has
-  taken in six months of material and six months of hard questions is a
-  different standpoint. An authority that has done the same is just an
-  authority with a longer bibliography.
-- **Not knowing is not a defect.** A perspective that keeps reading is supposed
-  to have a frontier. A credentialed authority with a frontier looks like a bad
-  credential.
-
-The name in the code stays `expert`, because renaming across a stored fleet,
-the CLI and the MCP surface would cost more than it returns. But when the two
-readings disagree, the growing-standpoint reading is the correct one, and the
-authority reading is the bug.
+Cross-domain analogies can help someone think, but remain labeled analogies.
+They do not transfer qualifications into another field. The name `expert` is a
+product promise to demonstrate depth and usefulness within a declared scope.
 
 ### What has to be true for that name to be earned
 
-Growth cannot be a description; it has to be something that happened to a file.
-Two halves, and today only one of them works:
+Growth needs retained evidence and a demonstrable effect on later work. A file
+change or a recorded gap establishes neither by itself.
 
-**The corpus grows from interactions, and this is real.** A consult that cannot
-answer records the gap in its trace, `gap_router` scores it, and acquisition
-goes and gets material. Ask a question the expert cannot answer and you have
-made it better at answering that question next time, without anyone deciding to
-do so.
+Today Deepr retains sources, studies them through independent lenses, forms
+briefs, carries earlier position questions into later briefing, and records
+position history, self-accounts, and examination results. Consultations can
+record missing coverage; acquisition and maintenance still require their
+documented capacity and execution paths. Asking a question does not guarantee
+automatic research or a better answer next time.
 
-**The standpoint barely does, and that is the gap.** Every study recomputes the
-brief from the corpus. Nothing about the brief carries forward. So an expert
-that has existed for six months has *read* more than a new one without the
-brief having *changed its mind* about anything, and the recomputation cannot
-tell a view held all along from one arrived at by being argued out of an
-earlier one.
-
-Two things now write to that second half, and both are narrow:
-
-- `deepr expert profile` keeps an append-only standpoint. When a re-read moves
-  it, the old reading is kept alongside what moved it. That history is the only
-  thing in an expert's directory that cannot be regenerated from the corpus,
-  which is why the command refuses to write at all rather than replace it with
-  an empty one.
-- `deepr expert viva` records `positions_that_moved`: a view revised under
-  questioning, with the question that did it. One real run moved nine.
-
-Both are artifacts rather than a mechanism. Nothing yet *uses* a prior
-standpoint to constrain the next brief, so the recomputation still happens and
-the history sits beside it. The general version is tracked in
-[skills-as-learning-systems.md](skills-as-learning-systems.md).
+Finding revision history, full historical justification, default preparation,
+and proof of cumulative benefit remain work in the
+[active delivery sequence](../plans/living-expertise.md). Changes of mind must
+retain their reason and evidence; holding a view after a serious review can
+also be useful learning. More revisions alone is not success.
 
 ## Examination without an answer key
 
@@ -315,27 +288,27 @@ under a position is load-bearing or whether it stops one question past the
 summary.
 
 A doctoral viva is the format that answers this, and the reason it works is the
-part that looks like a flaw: **the examiners frequently do not know the answer
-either.** They are not marking against a key. They probe - why this and not the
+part that differs from a factual test: some questions have no settled answer.
+The examiners probe - why this and not the
 alternative, which part is weakest, you lean on this and never mention that,
 what would change your mind - and what emerges is whether the candidate has
-thought it through. Both sides come out knowing more, which a graded exam
-structurally cannot do.
+thought it through. This complements objective testing; neither format alone
+establishes broad expertise.
 
 Three properties follow, and they are why this is a mode rather than another
 metric:
 
-**The examiners should be other experts, from other subjects.** They do not
-need the subject; they need somewhere to stand. An expert on provenance asks
+**Examiners can bring other subjects.** An expert on provenance asks
 different questions than one on evaluation design, and neither is asking as a
-specialist. Same property that makes cross-domain consulting work: a frame
-built elsewhere notices what an insider has stopped seeing.
+specialist. A frame built elsewhere can notice an overlooked assumption.
+Domain-specific factual verdicts still require adequate evidence and review;
+an outside viewpoint cannot certify technical correctness merely by agreeing.
 
 **An unanswered question is the output.** Some are genuinely open and the right
 answer is that nobody knows. Others are answerable from material that exists
-and the expert has not read it - which is a reading list someone else wrote for
-free. Telling those apart is most of the value, and it is the one judgement the
-examiner is well placed to make without knowing the field.
+and the expert has not read it. Distinguishing those cases creates a useful
+research agenda, but requires checking the proposed missing material. A
+confident examiner can also be wrong.
 
 **There is no score.** A viva produces a judgement, work to go and do, and
 occasionally the discovery that a position does not survive a good question.
@@ -364,9 +337,10 @@ serious practitioner would expect to see, and asking about it directly.
 human-factors research on alarm fatigue had been consulted, the expert said no
 and explained what it had used instead - a model answer to a coverage question,
 and a textbook gap. It was marked "answered" for being direct and well
-reasoned. The fix is to make the verdict mechanical and put it *before* any
-judgement of quality: does the reply contain the substance, or explain its
+reasoned. The fix is to ask an explicit substantive review question *before*
+judging presentation: does the reply contain the substance, or explain its
 absence? How gracefully the second is written does not turn it into the first.
+That is a semantic judgment, not a keyword or schema check.
 
 **Over-correcting produced a queue nobody could act on.** Entries like "the
 expert explaining its own confidence methodology" appeared, which no amount of
@@ -386,17 +360,22 @@ The design pressure runs one way throughout:
 |---|---|
 | coverage is the goal | a formed reading is the goal |
 | a gap is a failure | a named gap is information |
-| certainty is quality | certainty is a warning |
+| certainty alone is quality | the strength of the answer matches its evidence |
 | answer only in-domain | a frame travels, labeled as analogy |
-| more documents is better | more independent origins is better |
+| more documents is better | authoritative, relevant evidence supports useful understanding |
 | overwrite with the latest | keep what changed, and why |
-| test against an answer key | examine, where nobody has one |
+| recall an answer key | solve new problems, check objective answers, and examine open questions |
 | an authority who knows | a standpoint that accumulates |
 
-The last row is the one Deepr has least of today. The corpus accumulates and
-the understanding is recomputed on every pass, so an expert that has existed
-for six months has read more than a new one without having learned more. That
-gap is tracked in the roadmap and in
+An expert should answer established questions accurately and directly. Naming
+limits is essential, but habitual uncertainty or an elegant refusal does not
+establish competence. The [delivery plan](../plans/living-expertise.md) requires
+both useful answers within the declared scope and repeated-use evidence.
+
+Deepr now preserves position history and registered expectations, while finding
+revision history and longitudinal proof remain incomplete. More retained
+material or another recomputed brief still cannot establish better judgment.
+That gap is tracked in the roadmap and in
 [skills-as-learning-systems.md](skills-as-learning-systems.md).
 
 ## Related

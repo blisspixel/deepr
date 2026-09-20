@@ -252,7 +252,12 @@ must not be described as usable capacity.
 
 - Web dashboard and dashboard APIs. Create Expert saves an untrained local
   profile with zero monthly learning budget and makes no inference call.
-  Profiles open on Claims; saved chat remains inspectable and local
+  Profiles open on Perspective, showing the retained briefing, positions,
+  reasoning, revision conditions, study findings, and source links. Absent
+  records and failed reads remain distinct. Claim support estimates remain
+  inspectable with their interpretation, and no overall expertise probability
+  is inferred. Opening a profile does not check for current developments.
+  Saved chat remains inspectable and local
   consultation is an explicit CLI handoff. Browser chat and paid research
   retain their execution gates even when a wallet is funded.
 - Expert councils, task planning contracts, and approval flows. Standalone

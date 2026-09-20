@@ -48,13 +48,20 @@ and `deepr expert health` will say so. See the
 
 ## Turn evidence into reusable judgment
 
-<p align="center">
-  <img src="assets/expert-profile.png" width="100%" alt="A Deepr Python code quality expert profile showing 6 study sources and 670 findings at $0.00, with each claim carrying its own confidence, source count, and knowledge domain" />
-</p>
+An expert should help explain a field: what works, when it is appropriate,
+where approaches break down, and why reasonable people disagree. For Python,
+that includes language and runtime behavior, computer-science fundamentals,
+testing and packaging, performance, security, and the tradeoffs behind advice.
+Breadth must come from retained research and demonstrated answers.
 
-Expert profiles keep claims, confidence, source lineage, gaps, decisions, and
-history inspectable after a research run ends. The structured belief store is
-authoritative; reports, digests, and portable exports are regenerable views.
+The next profile should lead with the expert's perspective, reasoned positions,
+research coverage, open questions, and substantive review dates. Claim-level
+scores currently include age decay and source-trust limits; they are not an
+overall expertise rating or a calibrated probability of correctness. The
+[Python exemplar and profile acceptance criteria](docs/plans/living-expertise.md#python-exemplar-and-profile-acceptance)
+define what a replacement screenshot must demonstrate from real retained work.
+Reports, digests, and portable exports remain regenerable views of structured
+expert state.
 
 ## Keep the spend boundary visible
 

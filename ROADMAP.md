@@ -147,6 +147,15 @@ saved outcome cannot by itself certify currentness, usefulness, or improvement.
 The [delivery plan](docs/plans/living-expertise.md) carries the per-stage
 contracts and acceptance cases, without introducing another memory service.
 
+**Python exemplar and profile:** S1 also needs a profile that leads with
+perspective, reasoned guidance, research coverage, open questions, and currency.
+Repository test-command claims do not demonstrate general Python expertise.
+Qualify breadth and useful answers before publishing a replacement README
+screenshot. Keep claim-level support estimates, demonstrated expertise, and
+question-specific freshness distinct; an unexplained confidence percentage
+cannot stand in for them. See the
+[exemplar acceptance criteria](docs/plans/living-expertise.md#python-exemplar-and-profile-acceptance).
+
 **Validation ceiling:** $10 total for this campaign across all stages and
 validation instruments, including failed attempts and release checks. The
 initial path is $0 incremental external spend. Tighter account, wallet, job,

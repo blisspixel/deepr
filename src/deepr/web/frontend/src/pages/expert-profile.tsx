@@ -48,6 +48,7 @@ import { DetailSkeleton } from '@/components/ui/skeleton'
 import EmptyState from '@/components/shared/empty-state'
 import PartialQueryError from '@/components/shared/partial-query-error'
 import { ExpertPortrait } from '@/components/expert-portrait'
+import { ExpertPerspective } from '@/components/expert-perspective'
 import { localConsultPowerShellCommand, resolveExpertProfileTab, type ExpertProfileTab } from '@/lib/expert-profile-navigation'
 
 type TabKey = ExpertProfileTab
@@ -681,6 +682,7 @@ export default function ExpertProfile() {
   }
 
   const tabs: { key: TabKey; label: string }[] = [
+    { key: 'perspective', label: 'Perspective' },
     { key: 'claims', label: 'Claims' },
     { key: 'gaps', label: 'Knowledge Gaps' },
     { key: 'decisions', label: 'Decisions' },
@@ -797,6 +799,7 @@ export default function ExpertProfile() {
 
       {/* Content */}
       <div className="flex-1 overflow-auto">
+        {activeTab === 'perspective' && <ExpertPerspective key={decodedName} name={decodedName} />}
         {activeTab === 'chat' && (
           <div className="flex h-full">
             {/* Conversation sidebar */}
@@ -1155,6 +1158,7 @@ export default function ExpertProfile() {
 
         {activeTab === 'claims' && (
           <div className="p-6 space-y-3">
+            <p className="text-sm text-muted-foreground">These claim support estimates include age decay and source-trust limits. They are not calibrated probabilities of correctness or an overall expert rating.</p>
             {isClaimsError && claims && (
               <PartialQueryError
                 title="Claims refresh failed"
@@ -1182,7 +1186,7 @@ export default function ExpertProfile() {
                   <thead>
                     <tr className="border-b bg-muted/50">
                       <th className="text-left p-3 font-medium text-muted-foreground w-[52%]">Statement</th>
-                      <th className="text-left p-3 font-medium text-muted-foreground w-32">Confidence</th>
+                      <th className="text-left p-3 font-medium text-muted-foreground w-32">Support estimate</th>
                       <th className="text-left p-3 font-medium text-muted-foreground w-24">Sources</th>
                       <th className="text-left p-3 font-medium text-muted-foreground w-[28%]">Domain</th>
                     </tr>

@@ -1,9 +1,9 @@
-export const EXPERT_PROFILE_TABS = ['claims', 'gaps', 'decisions', 'history', 'skills', 'chat'] as const
+export const EXPERT_PROFILE_TABS = ['perspective', 'claims', 'gaps', 'decisions', 'history', 'skills', 'chat'] as const
 
 export type ExpertProfileTab = typeof EXPERT_PROFILE_TABS[number]
 
 export function resolveExpertProfileTab(value: string | null): ExpertProfileTab {
-  return EXPERT_PROFILE_TABS.find((tab) => tab === value) ?? 'claims'
+  return EXPERT_PROFILE_TABS.find((tab) => tab === value) ?? 'perspective'
 }
 
 export function localConsultPowerShellCommand(name: string): string {

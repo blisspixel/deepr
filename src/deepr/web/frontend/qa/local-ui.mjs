@@ -83,6 +83,21 @@ async function fixture(width, theme) {
     if (url.pathname.endsWith('/conversations')) return json({ conversations: [{ session_id: 'saved-1', preview: 'A retained conversation', message_count: 1, cost: 0 }] })
     if (url.pathname.endsWith('/conversations/saved-1')) return json({ session_id: 'saved-1', messages: [{ role: 'assistant', content: 'Retained conversation evidence.' }] })
     if (url.pathname.endsWith('/gaps')) return json({ gaps: [] })
+    if (url.pathname.endsWith('/hold')) {
+      if (state.mode === 'perspective-error') return json({ error: 'Synthetic perspective failure' }, 500)
+      if (state.mode === 'perspective-empty') return json({ error: 'No briefing' }, 404)
+      return json({ hold: {
+        orientation: 'A retained synthetic perspective for interface testing.',
+        positions: [{ question: 'What supports this view?', stance: 'A bounded synthetic position.',
+          reasoning: 'A mechanism explains why the condition matters.', supported_by: ['mechanism-123'],
+          would_change_my_mind: 'A contrary measurement.', unresolved_dissent: 'One alternative remains unmeasured.' }],
+        state: { unknown: ['An unresolved question.'] }, anticipated_questions: [],
+      } })
+    }
+    if (url.pathname.endsWith('/noticed')) return state.mode === 'study-error'
+      ? json({ error: 'Synthetic study failure' }, 500)
+      : json({ noticed: { started_at: '2026-09-05T10:00:00Z', outcomes: [{ findings: [{ finding_id: 'mechanism-123', title: 'Retained mechanism', anchors: ['A retained source passage.'], corpus_shas: ['source-1'], is_grounded: true }] }] } })
+    if (url.pathname.endsWith('/corpus')) return json({ corpus: { sources: [{ sha256: 'source-1', title: 'Synthetic reference', url: 'https://example.com/reference' }] } })
     if (url.pathname.startsWith('/api/experts/')) return state.mode === 'error' ? json({ error: 'Synthetic profile failure' }, 500) : json({ expert })
     if (url.pathname === '/api/results') {
       if (state.mode === 'error') return json({ error: 'Synthetic results failure' }, 500)
@@ -120,6 +135,14 @@ async function fixture(width, theme) {
   assert.ok(await card.evaluate((element) => element.matches(':focus-visible')))
   assert.notEqual(await card.evaluate((element) => getComputedStyle(element).boxShadow), 'none')
   await page.keyboard.press('Enter')
+  await page.getByText('A retained synthetic perspective for interface testing.').waitFor()
+  assert.equal(await page.getByRole('button', { name: 'Perspective', exact: true }).getAttribute('aria-pressed'), 'true')
+  await page.getByText('A mechanism explains why the condition matters.').waitFor()
+  await page.getByText('Evidence and conditions for revision', { exact: true }).click()
+  await page.getByText('A retained source passage.', { exact: true }).waitFor()
+  assert.equal(await page.getByRole('link', { name: 'Synthetic reference', exact: true }).first().getAttribute('href'), 'https://example.com/reference')
+  await checkLayout('perspective-and-evidence')
+  await page.getByRole('button', { name: 'Claims', exact: true }).click()
   await page.getByText('This is a retained synthetic claim.').waitFor()
   assert.equal(await page.getByRole('button', { name: 'Claims', exact: true }).getAttribute('aria-pressed'), 'true')
   assert.equal(await page.getByRole('button', { name: 'Chat (unavailable)', exact: true }).getAttribute('aria-pressed'), 'false')
@@ -137,12 +160,24 @@ async function fixture(width, theme) {
   await page.goBack()
   assert.equal(await page.getByRole('button', { name: 'Claims', exact: true }).getAttribute('aria-pressed'), 'true')
   state.mode = 'claims-error'
-  await page.goto(`${base}/experts/${encodeURIComponent(expertName)}`)
+  await page.goto(`${base}/experts/${encodeURIComponent(expertName)}?tab=claims`)
   await page.getByText('Claims unavailable', { exact: true }).waitFor()
   assert.equal(await page.getByText('No claims yet', { exact: true }).count(), 0)
   state.mode = 'claims-empty'
   await page.reload()
   await page.getByText('No claims yet', { exact: true }).waitFor()
+  state.mode = 'perspective-error'
+  await page.goto(`${base}/experts/${encodeURIComponent(expertName)}`)
+  await page.getByText('Perspective unavailable', { exact: true }).waitFor()
+  assert.equal(await page.getByText('No perspective recorded yet', { exact: true }).count(), 0)
+  state.mode = 'perspective-empty'
+  await page.reload()
+  await page.getByText('No perspective recorded yet', { exact: true }).waitFor()
+  state.mode = 'study-error'
+  await page.reload()
+  await page.getByText('Study unavailable', { exact: true }).waitFor()
+  await page.getByText('A mechanism explains why the condition matters.').waitFor()
+  await checkLayout('perspective-partial-failure')
   state.mode = 'populated'
   await page.goto(`${base}/experts`)
   await page.getByRole('textbox').fill('unmatched synthetic filter')

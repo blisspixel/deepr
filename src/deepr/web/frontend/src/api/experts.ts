@@ -13,8 +13,33 @@ import type {
   SourceValidation,
 } from '../types'
 import type { BrowserExpertChatRequestPayload } from '../lib/expert-chat-contract'
+import { ApiRequestError } from '../lib/dashboard-auth'
+import { parseExpertPerspective, parseExpertSources, parseExpertStudy } from '../lib/expert-perspective'
+
+async function retainedRecord(name: string, route: string, key: string): Promise<unknown | null> {
+  try {
+    const response = await apiClient.get<Record<string, unknown>>(`/experts/${name}/${route}`)
+    if (!(key in response.data)) throw new Error('The retained expert response is incomplete.')
+    return response.data[key]
+  } catch (error) {
+    if (error instanceof ApiRequestError && error.status === 404) return null
+    throw error
+  }
+}
 
 export const expertsApi = {
+  getPerspective: async (name: string) => {
+    const value = await retainedRecord(name, 'hold', 'hold')
+    return value === null ? null : parseExpertPerspective(value)
+  },
+  getStudy: async (name: string) => {
+    const value = await retainedRecord(name, 'noticed', 'noticed')
+    return value === null ? null : parseExpertStudy(value)
+  },
+  getSources: async (name: string) => {
+    const value = await retainedRecord(name, 'corpus', 'corpus')
+    return value === null ? null : parseExpertSources(value)
+  },
   list: async () => {
     const response = await apiClient.get<{ experts: Expert[] }>('/experts')
     return response.data.experts
