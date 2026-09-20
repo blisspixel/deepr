@@ -74,7 +74,8 @@ Normal CLI and MCP query/consult should follow one shared service flow:
 
 Reuse source packs, consult context, traces, and lifecycle records. Before
 implementation, define the additive preparation contract: operation identity,
-expert revision, question scope, environment/version constraints, source hashes
+caller and authorization scope, expert revision, question scope,
+environment/version constraints, source hashes
 and observation times, checked and unchecked assumptions, reuse policy, limits,
 attempts, stop reason, and context snapshot identity. Proposed field names and
 commands are not a supported interface until they land.
@@ -96,6 +97,8 @@ the caller's pinned environment. Enduring conceptual questions may need little
 new evidence, with that judgment recorded. Reuse requires matching scope,
 versions, observations, and freshness coverage. Empty search results, recent
 file timestamps, or unchanged page hashes cannot certify currentness.
+Packets containing private task context stay bound to their caller and source
+permissions. A matching expert or question cannot authorize cross-caller reuse.
 
 Make offline/frozen operation explicit and dated. Expose partial, failed,
 cancelled, and completed preparation separately. If checking fails, identify
@@ -104,7 +107,7 @@ preparation. Existing frozen conversations require explicit refresh or fork
 for later evidence; the prior snapshot stays reproducible.
 
 **Exit evidence:** CLI/MCP parity, visible preparation, applicable release and
-correction cases, scoped reuse, unavailable retrieval, timeout/cancellation,
+correction cases, scoped reuse, denied cross-caller reuse, unavailable retrieval, timeout/cancellation,
 duplicate requests, and unchanged canonical expert state. Run preparation
 enabled/disabled from the same revision in a separate paired experiment;
 freeze its sources and account for all extra work. Add a small dated live-source
