@@ -148,6 +148,9 @@ jobs:
           deepr --help
           deepr doctor --skip-connectivity
           deepr init --yes
+          deepr expert build --help
+          deepr expert knowledge --help
+          python -c "from deepr.utils.scrape import ContentExtractor; assert 'Reference content' in ContentExtractor().extract_main_content('<html><body><main><p>Reference content</p></main></body></html>')"
 
   agent-plugin:
     runs-on: ubuntu-latest

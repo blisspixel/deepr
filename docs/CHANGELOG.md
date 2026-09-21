@@ -9,6 +9,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Local expert creation now builds a bounded research foundation by default:
+  free search, retained sources, study, reasoned briefing, evidence graph and
+  linked Markdown. CLI and dashboard share durable progress, limits, retained
+  failures and explicit retries. `--profile-only` preserves empty setup;
+  `expert build` forms an untrained profile and `expert knowledge` regenerates
+  linked knowledge without inference. Completion does not certify expertise.
+  The existing HTML extractor dependency is included in core installs so that
+  this default does not silently require a document-processing extra.
+- Local study and consultation preserve the installed model's normal reasoning
+  behavior. Local consultation has an 8,000-token output ceiling and retains
+  time limits and explicit truncation failure.
+- Sequenced living expertise around a preserved value baseline, default
+  consultation preparation, durable temporal learning, perspective synthesis,
+  and repeated-use evidence before wider autonomy. Reconciled older planning
+  and feedback notes, documented a cumulative $10 validation ceiling with a
+  $0 initial path, and kept planned behavior distinct from current capabilities.
+- Removed the narrow repository-claims screenshot from the README and defined
+  a Python exemplar/profile gate based on research breadth, reasoned guidance,
+  and currency rather than an unexplained claim-confidence percentage.
+- Expert profiles now open on their retained perspective, with reasoned
+  positions, source evidence, revision conditions, and open questions. Claim
+  support estimates remain inspectable without an overall expertise score.
+  Empty research and failed reads are distinct, and viewing a profile makes no
+  research or model call.
+- Human-readable consultation headings no longer present packet confidence as
+  an expert grade. The versioned JSON artifact retains its compatibility fields.
+- Consultation synthesis receives bounded complete reasoning and evidence
+  blocks instead of a 1,000-character introduction. It preserves contributor
+  identities, reports omissions, ranks direct question evidence first, and
+  records the actual delivered prompts and hash in the saved artifact. A single
+  expert no longer receives a mandatory panel-answer template.
+- Evidence displays disclose partially unmatched quotations. A matched excerpt
+  establishes a source link, not the truth of the entire interpretation.
 - `deepr research --provider openrouter` without `--model` now defaults to
   `qwen/qwen3.8-flash`, the cheap attended catalog slug, not
   `openai/gpt-5.6-sol`.
@@ -34,6 +67,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Source acquisition rejects non-success HTTP responses, including transport
+  status zero, instead of retaining error text as evidence. Receipts preserve
+  actual status, final URL and observation time. Unknown graph dates remain
+  unknown rather than being replaced by the graph build time.
+- Local truncation diagnostics distinguish a shared context/output bound and
+  report observed tokens. Dashboard retries keep polling while local capacity
+  starts, including when an older failed operation is still visible.
+- Expert creation separates invalid input from internal failures; internal
+  exception details stay in server logs rather than API responses.
+- Local setup guidance now requires persistent `disable_ollama_cloud` settings;
+  environment-only configuration does not satisfy the existing local gate.
 - Attended OpenRouter research helpers are typed against
   `OpenRouterCompletionResult` instead of `object`.
 - Agent-tool JSON arguments that are not an object fail closed instead of

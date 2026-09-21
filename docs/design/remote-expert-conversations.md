@@ -7,6 +7,12 @@ snapshots, scoped-key ownership, and `deepr mcp validate-conversation` (managed
 loopback or authenticated HTTP) ship. One-shot consult and query remain the
 simple default; multi-turn conversation is an explicit opt-in handle.
 
+Planned preparation follows [S1](../plans/living-expertise.md#s1-prepare-before-consultation-with-bounded-temporary-evidence):
+new conversations freeze context after preparation. Existing frozen snapshots
+remain unchanged; a question requiring later evidence needs explicit refresh
+or fork. Read-only inspection does not acquire sources or update expert state.
+This integration is planned, not an expansion of the shipped handle contract.
+
 Cross-cuts expert consult, consult lifecycle, consult traces, MCP HTTP, scoped
 keys, A2A, capacity, and runtime storage. Read
 [AGENTIC_BALANCE.md](../plans/AGENTIC_BALANCE.md),

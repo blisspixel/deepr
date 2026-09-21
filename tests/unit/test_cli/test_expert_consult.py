@@ -163,6 +163,8 @@ def test_consult_human_render(monkeypatch):
     assert "Synthesis" in result.output
     assert "the synthesized answer" in result.output
     assert "Disagreements" in result.output
+    assert "(conf " not in result.output
+    assert "answer from A" in result.output
     assert "one-shot stored-context council; experts do not exchange turns" in result.output
     assert "Knowledge writes: none" in result.output
 

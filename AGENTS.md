@@ -2,7 +2,9 @@
 
 Multi-provider research automation: previews explicit local, plan-quota, and
 bounded API capacity, dispatches only when capability and cost are proven, and
-builds persistent domain experts (beliefs + confidence + gaps + citations).
+builds persistent domain experts from research, concepts, reasoned positions,
+source-linked knowledge, temporal history, and reviewed learning. Claim support
+estimates do not grade expertise; currentness and useful guidance need evidence.
 Global cheapest-first and automatic metered fallback are not shipped.
 Three layers: kernel (`core/`, `providers/`, `queue/`, `routing/`,
 `observability/`), primitives (`experts/`, `services/`, `tools/`, `storage/`),

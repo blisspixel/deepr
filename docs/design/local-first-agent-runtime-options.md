@@ -23,9 +23,10 @@ or make an account part of installation.
 This preserves the specialist-role contract in [Approach](../APPROACH.md) and
 the [external harness bridge](external-harness-investigation-bridge.md). It
 prepares design work behind the [active release plan](../../ROADMAP.md#active-release-plan):
-v2.51 value proof, v2.52 grounded prediction resolution, v2.53 parent
-transactions, v2.54 observation, then v2.55 control. A cloud demonstration does
-not satisfy or reorder those gates.
+S0 baseline measurement, S1 preparation, S2 temporal learning, S3 perspective,
+and S4 repeated-use evidence before S5 expansion. Remote observation, control
+and parent transactions remain separately gated with no assigned release.
+A cloud demonstration does not satisfy or reorder those gates.
 
 ## What the user would gain
 
@@ -330,9 +331,9 @@ only after the corresponding existing gate passes.
 | --- | --- | --- |
 | 0. Value proof first | Finish the frozen four-arm flagship experiment in v2.51 using the existing local runtime | Publish separate false-support, stale-memory, transfer, effort, cost, and outcome measures. No aggregate winner or automatic default change. |
 | 1. Local creator fixture | Assemble one reviewed expert role, one pointer skill, and one selected OKF export from synthetic sources | A clean local host can discover the available tools, inspect the intended expert, expose missing capabilities, and regenerate the same export hashes. No cloud or script execution. |
-| 2. Offline companion simulation | Simulate two clients, disconnects, duplicate delivery, revocation, and restart using the existing projection contracts and fake network | Every scoped read respects owner/run/expert boundaries; source revisions and expiry remain visible; no model, network, canonical write, or spend is introduced by observation. Promotion waits for v2.54. |
+| 2. Offline companion simulation | Simulate two clients, disconnects, duplicate delivery, revocation, and restart using the existing projection contracts and fake network | Every scoped read respects owner/run/expert boundaries; source revisions and expiry remain visible; no model, network, canonical write, or spend is introduced by observation. Promotion waits for repeated-use benefit and the separate observation gate. |
 | 3. Optional remote observation | Serve one explicitly reviewed synthetic projection through an exact pinned host profile | Prior account-wide cost and privacy gates pass, all resources are bounded and removable, and both outage and teardown are verified. If any gate is unavailable, retain the local simulation. |
-| 4. Queued local requests | One owner requests one allowed local operation and inspects a durable receipt | v2.53 parent authority and v2.55 control gates are complete. Fault injection proves no duplicate effects, authority refresh on reconnect, bounded expiry, and honest cancellation. |
+| 4. Queued local requests | One owner requests one allowed local operation and inspects a durable receipt | Separate parent-authority and remote-control gates are complete after the living-expertise evidence sequence. Fault injection proves no duplicate effects, authority refresh on reconnect, bounded expiry, and honest cancellation. |
 | 5. Explicit hosted execution | Compare one narrowly scoped job against the local baseline | A separate execution adapter proves identity, total liability, containment, state handoff, and recovery. Maintained-expert quality cannot regress to obtain availability. |
 
 Freeze pilot criteria before running it. Proposed mechanical acceptance is

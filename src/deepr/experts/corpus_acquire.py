@@ -46,6 +46,9 @@ class AcquiredSource:
     title: str = ""
     byte_len: int = 0
     detail: str = ""
+    observed_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    final_url: str = ""
+    http_status: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -146,12 +149,27 @@ async def acquire_sources(
         try:
             page = await fetch_page(url)
         except Exception as exc:
-            result.sources.append(AcquiredSource(url=url, status="fetch_failed", detail=str(exc)[:300]))
+            result.sources.append(
+                AcquiredSource(
+                    url=url, status="fetch_failed", detail=str(exc)[:300], observed_at=datetime.now(UTC).isoformat()
+                )
+            )
             continue
 
-        status_code = int(getattr(page, "status_code", 200) or 200)
-        if status_code >= 400:
-            result.sources.append(AcquiredSource(url=url, status="fetch_failed", detail=f"HTTP {status_code}"))
+        observed_at = datetime.now(UTC).isoformat()
+        status_code = getattr(page, "status_code", 0)
+        if isinstance(status_code, bool) or not isinstance(status_code, int):
+            status_code = 0
+        if not 200 <= status_code < 300:
+            result.sources.append(
+                AcquiredSource(
+                    url=url,
+                    status="fetch_failed",
+                    http_status=status_code,
+                    observed_at=observed_at,
+                    detail=(f"HTTP {status_code}" if status_code else "Fetch did not produce an HTTP response"),
+                )
+            )
             continue
 
         text = _as_source_text(page, url)
@@ -163,23 +181,34 @@ async def acquire_sources(
                 AcquiredSource(
                     url=url,
                     status="too_short",
+                    observed_at=observed_at,
+                    http_status=status_code,
                     detail=f"{body_len} chars of body; likely a nav shell or error page",
                 )
             )
             continue
         if len(text) > _MAX_SOURCE_CHARS:
-            result.sources.append(AcquiredSource(url=url, status="too_large", detail=f"{len(text)} chars"))
+            result.sources.append(
+                AcquiredSource(
+                    url=url,
+                    status="too_large",
+                    detail=f"{len(text)} chars",
+                    observed_at=observed_at,
+                    http_status=status_code,
+                )
+            )
             continue
 
+        final_url = str(getattr(page, "url", "") or url)
         entry, was_new = corpus.add(
             text,
-            origin_key=_origin_key_for(url),
+            origin_key=_origin_key_for(final_url),
             title=(getattr(page, "title", "") or url)[:200],
-            url=url,
-            publisher=_origin_key_for(url).removeprefix("url:"),
+            url=final_url,
+            publisher=_origin_key_for(final_url).removeprefix("url:"),
             kind="web_page",
             trust_class=trust_class,
-            fetched_at=datetime.now(UTC).isoformat(),
+            fetched_at=observed_at,
         )
         result.sources.append(
             AcquiredSource(
@@ -189,6 +218,9 @@ async def acquire_sources(
                 origin_key=entry.origin_key,
                 title=entry.title,
                 byte_len=entry.byte_len,
+                final_url=final_url,
+                observed_at=observed_at,
+                http_status=status_code,
             )
         )
 

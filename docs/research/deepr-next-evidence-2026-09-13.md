@@ -1,5 +1,11 @@
 # Deepr's next evidence milestone
 
+Sequencing note, 2026-09-20: this remains the rationale for the S0 baseline.
+The [active roadmap](../../ROADMAP.md#active-release-plan) now places default
+preparation, durable temporal learning, and perspective synthesis before wider
+authority. Future version assignments below describe the September 13 plan;
+current delivery contracts are in [S0-S5](../plans/living-expertise.md).
+
 Deepr should finish v2.51: measure whether maintaining one expert improves
 recurring decisions enough to justify its maintenance and review effort.
 Its distinctive promise is durable, revisable judgment with inspectable

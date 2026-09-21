@@ -1832,70 +1832,10 @@ def list_experts():
 
 @app.route("/api/experts", methods=["POST"])
 def create_expert():
-    """Create an untrained local profile without inference or paid capacity."""
-    try:
-        from deepr.backends.local import default_local_model
-        from deepr.experts.paths import expert_slug
-        from deepr.experts.profile import ExpertProfile
-        from deepr.experts.profile_store import ExpertStore
+    """Create and research a local expert; profile-only setup is explicit."""
+    from deepr.web.expert_creation import create_local_expert_request
 
-        data = request.json
-        if not data:
-            return jsonify({"error": "JSON body required"}), 400
-
-        name = str(data.get("name", "")).strip()
-        if not name:
-            return jsonify({"error": "Name required"}), 400
-        name_err = _validate_expert_name(name)
-        if name_err:
-            return jsonify({"error": name_err}), 400
-
-        # Description and domain must be strings - the React Expert Hub
-        # calls .toLowerCase() and renders them directly. A persisted object
-        # or array would trip the frontend error boundary for every client.
-        raw_description = data.get("description", "")
-        raw_domain = data.get("domain", "")
-        if not isinstance(raw_description, str):
-            return jsonify({"error": "description must be a string"}), 400
-        if not isinstance(raw_domain, str):
-            return jsonify({"error": "domain must be a string"}), 400
-        description = raw_description.strip()[:1000]
-        domain = raw_domain.strip()[:200]
-
-        store = ExpertStore(str(_experts_dir))
-        if store.exists(name):
-            return jsonify({"error": "Expert already exists"}), 409
-
-        profile = ExpertProfile(
-            name=name,
-            vector_store_id=f"local-only:{expert_slug(name)}",
-            description=description,
-            domain=domain,
-            provider="local",
-            model=default_local_model() or "ollama",
-            monthly_learning_budget=0.0,
-        )
-        store.save(profile)
-
-        return jsonify(
-            {
-                "expert": {
-                    "name": profile.name,
-                    "description": profile.description or "",
-                    "document_count": 0,
-                    "finding_count": 0,
-                    "gap_count": 0,
-                    "total_cost": 0,
-                    "last_active": profile.updated_at.isoformat(),
-                    "created_at": profile.created_at.isoformat(),
-                }
-            }
-        ), 201
-    except ImportError:
-        return jsonify({"error": "Expert system not available"}), 500
-    except Exception as e:
-        logger.error(f"Error creating expert: {e}")
-        return jsonify({"error": "Internal server error"}), 500
+    return create_local_expert_request(request.json, _experts_dir, _validate_expert_name)
 
 
 @app.route("/api/experts/<name>", methods=["GET"])

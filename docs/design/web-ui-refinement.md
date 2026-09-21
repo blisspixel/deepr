@@ -1,6 +1,6 @@
 # Web interface design language
 
-Updated September 5, 2026. The initial typography and surface refresh shipped
+Updated September 20, 2026. The initial typography and surface refresh shipped
 in June. The current local workflow and identity changes are specified in
 [Local-first interface polish](local-first-interface-polish.md).
 
@@ -26,7 +26,8 @@ blocked operation is executable.
   mark. Two open, nested contours suggest retained knowledge, depth, and room
   for revision. The wordmark remains live text.
 - **Navigation:** expert cards are native links with visible keyboard focus.
-  Profiles open on Claims and retain saved chat inspection. Local consultation
+  Profiles open on [Perspective](expert-perspective-profile.md), with retained
+  reasoning and evidence; claims and saved chat remain inspectable. Local consultation
   has an explicit PowerShell command handoff. Browser chat and paid research
   retain their execution gates.
 - **States:** loading failures, empty workspaces, and unmatched searches have

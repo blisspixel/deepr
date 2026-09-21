@@ -1,10 +1,18 @@
 # Level 5 and Level 6 Expert Maturity
 
-Reviewed: 2026-06-25
+Framework reviewed: 2026-06-25. Research and roadmap cross-check: 2026-09-20.
 
 This note defines what "Level 5" and "Level 6" mean for Deepr experts. These
 are self-improvement and reflective-continuity levels, not claims that Deepr
 has proven subjective experience, sentience, or unsupervised authority.
+
+These are project-specific targets, not a universal autonomy or intelligence
+scale. For example, [Levels of Autonomy for AI Agents](https://arxiv.org/abs/2506.12469)
+defines Level 5 by the human's observer role, which is a different axis from
+Deepr's bounded learning loop. Report demonstrated gates individually.
+The [September research assessment](living-expertise-research-2026-09.md)
+maps newer temporal-memory and harness results to current implementation gaps;
+it does not establish that Deepr has reached either target.
 
 ## Product Frame
 
@@ -161,11 +169,12 @@ boundaries:
 1. Detect a gap, stale belief, stale concept, outdated news context,
    contradiction, weak stance, failed consult, or poor answer from stored
    traces and loop state.
-2. Select the cheapest capable capacity: local, explicit plan quota, then
-   metered only with a budget gate.
-3. Gather or reuse material through the right instrument: existing expert
-   state, Distillr corpus, Recon, Primr, local/fresh web context, or a metered
-   research provider.
+2. Select admitted local capacity within observed limits. All production plan
+   adapters are currently blocked. Attended one-shot paid research is a
+   separate surface and cannot authorize learning, consultation, or fallback.
+3. Gather or reuse material through permitted acquisition: retained sources,
+   bounded fresh context, and admitted research instruments. Validate coverage
+   for the immediate question and target environment before reusing material.
 4. Compile material into source notes, concepts, claims, hypotheses, stance,
    original ideas, typed temporal graph edges, contradiction records, watch
    items, and gap updates.
@@ -217,9 +226,9 @@ strategies."
   `deepr_get_expert_info`, `deepr_expert_handoff`,
   `deepr_expert_loop_status`, `deepr_explain_belief`, and
   `deepr_consult_experts`.
-- MCP consults can stay off metered APIs by setting
-  `synthesis_backend="local"` or `synthesis_backend="plan"`, then checking
-  `capacity.live_metered_fallback=false`.
+- MCP consults use admitted local capacity and expose
+  `capacity.live_metered_fallback=false`. All production plan adapters are
+  currently blocked; a plan-shaped argument does not establish executability.
 - Expert loops already persist sync, gap-fill, reflection, and explicit
   health-check archive mutation or wait state with typed stop reasons. Ordinary
   health audits remain read-only and create no loop run.
@@ -246,12 +255,19 @@ strategies."
   contradiction handling, and trust floors.
 - Handoff payloads expose bounded context packets instead of dumping whole
   history into every agent call.
-- Distillr is installed here and the live `tools/list` check is green with 27
-  declared tools. Existing-corpus reads stay free; ingestion and synthesis stay
-  approval-gated.
+- A June 25 environment check recorded an installed corpus instrument with
+  27 declared tools. That historical observation is not current execution
+  authority; current acquisition must pass its own access and capacity checks.
 
 ## Level 5 Gaps
 
+- Normal consultation still needs default preparation for the question's
+  current context. Complete finding history and temporal retrieval, connect
+  synthesis to the research agenda, and demonstrate the repeated-use pilot in
+  [living expertise](../../ROADMAP.md#living-expertise-and-evolving-perspective).
+  Follow [S0-S5](../plans/living-expertise.md), reusing shipped prediction
+  registration, experience projection, and source-world preflight. Neither
+  the maturity labels nor the older integration checklist sets another order.
 - Concrete learning-policy effects still require measured before and after
   outcomes. Accepted self-model updates remain read-only guidance until that
   evidence exists.
@@ -293,9 +309,14 @@ no longer roadmap gaps.
 
 ## Rollout Gates
 
+These are capability gates, not another delivery sequence. Use
+[S0-S5](../plans/living-expertise.md) to order implementation and preserve the
+current production capacity restrictions.
+
 1. **Level 5 read/consult gate** - An external agent can list experts, read
    handoff state, inspect loop status, explain a belief, and run a no-metered
-   consult through local or explicit plan capacity.
+   consult through admitted local capacity. Additional capacity needs its own
+   restored proof before becoming part of this gate.
 2. **Level 5 learning gate** - A failed answer or stale belief becomes a trace,
    an eval case or gap, a source-pack refresh, verified belief updates, and a
    measurable before/after outcome.

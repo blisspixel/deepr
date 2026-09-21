@@ -1,0 +1,1603 @@
+{
+  "built_at": "2026-09-20T23:34:58.307261+00:00",
+  "edges": [
+    {
+      "from": "mechanism-51be47b0145600d1",
+      "kind": "anchored_in",
+      "to": "136007d31a85b9896563483d1f6e575b6879e3c18fc1346014294780463e76dd"
+    },
+    {
+      "from": "mechanism-ecde8aa25ff730e4",
+      "kind": "anchored_in",
+      "to": "136007d31a85b9896563483d1f6e575b6879e3c18fc1346014294780463e76dd"
+    },
+    {
+      "from": "mechanism-c9096d6b6f3e1126",
+      "kind": "anchored_in",
+      "to": "136007d31a85b9896563483d1f6e575b6879e3c18fc1346014294780463e76dd"
+    },
+    {
+      "from": "mechanism-8d772f36a3c6464b",
+      "kind": "anchored_in",
+      "to": "136007d31a85b9896563483d1f6e575b6879e3c18fc1346014294780463e76dd"
+    },
+    {
+      "from": "mechanism-02e55eb26b6e3f75",
+      "kind": "anchored_in",
+      "to": "136007d31a85b9896563483d1f6e575b6879e3c18fc1346014294780463e76dd"
+    },
+    {
+      "from": "mechanism-cba19a0154b8d2ae",
+      "kind": "anchored_in",
+      "to": "1cfb4d03e122466159a72eeadfb6389d6c98136b43d586b8a7ab82d37a807e47"
+    },
+    {
+      "from": "mechanism-1d73625c414b2bfb",
+      "kind": "anchored_in",
+      "to": "1cfb4d03e122466159a72eeadfb6389d6c98136b43d586b8a7ab82d37a807e47"
+    },
+    {
+      "from": "mechanism-5938774212903521",
+      "kind": "anchored_in",
+      "to": "1d58345500a7ed9ff67fc18521f32487a18203947977f89ef3e4bf3699a4ace6"
+    },
+    {
+      "from": "mechanism-f2ae0030799f8c49",
+      "kind": "anchored_in",
+      "to": "1d58345500a7ed9ff67fc18521f32487a18203947977f89ef3e4bf3699a4ace6"
+    },
+    {
+      "from": "mechanism-1e6a17d1a4dbde3c",
+      "kind": "anchored_in",
+      "to": "1d58345500a7ed9ff67fc18521f32487a18203947977f89ef3e4bf3699a4ace6"
+    },
+    {
+      "from": "mechanism-b653cd7ede0b5b99",
+      "kind": "anchored_in",
+      "to": "1d58345500a7ed9ff67fc18521f32487a18203947977f89ef3e4bf3699a4ace6"
+    },
+    {
+      "from": "mechanism-4e821cbd40a0abd8",
+      "kind": "anchored_in",
+      "to": "1d58345500a7ed9ff67fc18521f32487a18203947977f89ef3e4bf3699a4ace6"
+    },
+    {
+      "from": "mechanism-1b7f82eb7ca2619e",
+      "kind": "anchored_in",
+      "to": "1d58345500a7ed9ff67fc18521f32487a18203947977f89ef3e4bf3699a4ace6"
+    },
+    {
+      "from": "mechanism-659d62cc8a3338a3",
+      "kind": "anchored_in",
+      "to": "1d58345500a7ed9ff67fc18521f32487a18203947977f89ef3e4bf3699a4ace6"
+    },
+    {
+      "from": "mechanism-fd22b00f16067b7c",
+      "kind": "anchored_in",
+      "to": "1d58345500a7ed9ff67fc18521f32487a18203947977f89ef3e4bf3699a4ace6"
+    },
+    {
+      "from": "mechanism-6651ca818fd4dfdd",
+      "kind": "anchored_in",
+      "to": "1d58345500a7ed9ff67fc18521f32487a18203947977f89ef3e4bf3699a4ace6"
+    },
+    {
+      "from": "mechanism-01b47ca4d47d3bae",
+      "kind": "anchored_in",
+      "to": "1d58345500a7ed9ff67fc18521f32487a18203947977f89ef3e4bf3699a4ace6"
+    },
+    {
+      "from": "mechanism-6957624de89b8ded",
+      "kind": "anchored_in",
+      "to": "6e44b9aff7537451f8667f77cef98f051b71ad94793e3a1b7c6d8ec13d8e1027"
+    },
+    {
+      "from": "mechanism-79d4db6dc485caa9",
+      "kind": "anchored_in",
+      "to": "6e44b9aff7537451f8667f77cef98f051b71ad94793e3a1b7c6d8ec13d8e1027"
+    },
+    {
+      "from": "mechanism-e23b984c2c40f2eb",
+      "kind": "anchored_in",
+      "to": "6e44b9aff7537451f8667f77cef98f051b71ad94793e3a1b7c6d8ec13d8e1027"
+    },
+    {
+      "from": "mechanism-c7deda4146ebf347",
+      "kind": "anchored_in",
+      "to": "6e44b9aff7537451f8667f77cef98f051b71ad94793e3a1b7c6d8ec13d8e1027"
+    },
+    {
+      "from": "mechanism-ff16e4529d7dc660",
+      "kind": "anchored_in",
+      "to": "6e44b9aff7537451f8667f77cef98f051b71ad94793e3a1b7c6d8ec13d8e1027"
+    },
+    {
+      "from": "mechanism-aabd51f63b572bb7",
+      "kind": "anchored_in",
+      "to": "6e44b9aff7537451f8667f77cef98f051b71ad94793e3a1b7c6d8ec13d8e1027"
+    },
+    {
+      "from": "mechanism-2bd030a0d7b0158b",
+      "kind": "anchored_in",
+      "to": "6e44b9aff7537451f8667f77cef98f051b71ad94793e3a1b7c6d8ec13d8e1027"
+    },
+    {
+      "from": "mechanism-62b74e89ad7b9bb1",
+      "kind": "anchored_in",
+      "to": "6e44b9aff7537451f8667f77cef98f051b71ad94793e3a1b7c6d8ec13d8e1027"
+    },
+    {
+      "from": "mechanism-861c316063214407",
+      "kind": "anchored_in",
+      "to": "706e7c6881c9951d8a3a6c7812644e8e9331a40b4efdfe1c4d79e2c6178ed0d9"
+    },
+    {
+      "from": "mechanism-aa5ed11c8385a3f1",
+      "kind": "anchored_in",
+      "to": "779891ad6d8e6ea3949d5159c3bfabebd5463c2c236f90d345d46e529d8c96b8"
+    },
+    {
+      "from": "mechanism-c9b4d2910aa3e1ff",
+      "kind": "anchored_in",
+      "to": "779891ad6d8e6ea3949d5159c3bfabebd5463c2c236f90d345d46e529d8c96b8"
+    },
+    {
+      "from": "mechanism-68a956108ccec4ff",
+      "kind": "anchored_in",
+      "to": "779891ad6d8e6ea3949d5159c3bfabebd5463c2c236f90d345d46e529d8c96b8"
+    },
+    {
+      "from": "mechanism-0b6cb1391c7316e9",
+      "kind": "anchored_in",
+      "to": "7b65cafa83303efe176d77487f83f43cda9bb4b83f336b56a9f5b9063553ff3c"
+    },
+    {
+      "from": "mechanism-0b6cb1391c7316e9",
+      "kind": "anchored_in",
+      "to": "779891ad6d8e6ea3949d5159c3bfabebd5463c2c236f90d345d46e529d8c96b8"
+    },
+    {
+      "from": "mechanism-4a572b8b2af98072",
+      "kind": "anchored_in",
+      "to": "779891ad6d8e6ea3949d5159c3bfabebd5463c2c236f90d345d46e529d8c96b8"
+    },
+    {
+      "from": "mechanism-ff1e287ca3726d76",
+      "kind": "anchored_in",
+      "to": "779891ad6d8e6ea3949d5159c3bfabebd5463c2c236f90d345d46e529d8c96b8"
+    },
+    {
+      "from": "mechanism-a831c5b4e2f76772",
+      "kind": "anchored_in",
+      "to": "779891ad6d8e6ea3949d5159c3bfabebd5463c2c236f90d345d46e529d8c96b8"
+    },
+    {
+      "from": "mechanism-392da4a32974398c",
+      "kind": "anchored_in",
+      "to": "7b65cafa83303efe176d77487f83f43cda9bb4b83f336b56a9f5b9063553ff3c"
+    },
+    {
+      "from": "mechanism-6020c59dbf0b83e1",
+      "kind": "anchored_in",
+      "to": "779891ad6d8e6ea3949d5159c3bfabebd5463c2c236f90d345d46e529d8c96b8"
+    },
+    {
+      "from": "mechanism-c82cf6b728405500",
+      "kind": "anchored_in",
+      "to": "779891ad6d8e6ea3949d5159c3bfabebd5463c2c236f90d345d46e529d8c96b8"
+    },
+    {
+      "from": "mechanism-04468d15caa89db5",
+      "kind": "anchored_in",
+      "to": "aeb5334d7d4ba90f7fd724412cd51ee20f3289f77d0736c6632c8600ac7c07d1"
+    },
+    {
+      "from": "mechanism-188bc9cdfdc6a758",
+      "kind": "anchored_in",
+      "to": "aeb5334d7d4ba90f7fd724412cd51ee20f3289f77d0736c6632c8600ac7c07d1"
+    },
+    {
+      "from": "mechanism-c973258ffd57658d",
+      "kind": "anchored_in",
+      "to": "aeb5334d7d4ba90f7fd724412cd51ee20f3289f77d0736c6632c8600ac7c07d1"
+    },
+    {
+      "from": "mechanism-4c67a0e1cf7980eb",
+      "kind": "anchored_in",
+      "to": "aeb5334d7d4ba90f7fd724412cd51ee20f3289f77d0736c6632c8600ac7c07d1"
+    },
+    {
+      "from": "mechanism-f07d62bd42ac6aa4",
+      "kind": "anchored_in",
+      "to": "c7632e272b82b31bdf67c51df5c2383ba662f5ec575e3c5e3ec48d4df70530b4"
+    },
+    {
+      "from": "mechanism-e5e89126b296f3ee",
+      "kind": "anchored_in",
+      "to": "aeb5334d7d4ba90f7fd724412cd51ee20f3289f77d0736c6632c8600ac7c07d1"
+    },
+    {
+      "from": "mechanism-d299a89b5c9c5d95",
+      "kind": "anchored_in",
+      "to": "aeb5334d7d4ba90f7fd724412cd51ee20f3289f77d0736c6632c8600ac7c07d1"
+    },
+    {
+      "from": "mechanism-9bf38a70a29ce22e",
+      "kind": "anchored_in",
+      "to": "ca04f628426c35999ea0f571e445bc59bf6819d83e31be1ec55be1c885250781"
+    },
+    {
+      "from": "mechanism-c1f3ec85362a9fb9",
+      "kind": "anchored_in",
+      "to": "ca04f628426c35999ea0f571e445bc59bf6819d83e31be1ec55be1c885250781"
+    },
+    {
+      "from": "mechanism-e0cb2b3773117885",
+      "kind": "anchored_in",
+      "to": "ca04f628426c35999ea0f571e445bc59bf6819d83e31be1ec55be1c885250781"
+    },
+    {
+      "from": "mechanism-07ed251d13983da1",
+      "kind": "anchored_in",
+      "to": "ca04f628426c35999ea0f571e445bc59bf6819d83e31be1ec55be1c885250781"
+    },
+    {
+      "from": "mechanism-c99730d07ef5a137",
+      "kind": "anchored_in",
+      "to": "ca04f628426c35999ea0f571e445bc59bf6819d83e31be1ec55be1c885250781"
+    },
+    {
+      "from": "mechanism-657eafdfa160d207",
+      "kind": "anchored_in",
+      "to": "e2e7ea97d60e8f3f41b8e76101c7b7a9a87a03d096fdcb69a620a6b6358fba15"
+    },
+    {
+      "from": "mechanism-b32a6770ba2c571c",
+      "kind": "anchored_in",
+      "to": "e2e7ea97d60e8f3f41b8e76101c7b7a9a87a03d096fdcb69a620a6b6358fba15"
+    },
+    {
+      "from": "mechanism-f41448fd073c2999",
+      "kind": "anchored_in",
+      "to": "d8bab217c04b331bfe12f8054c02fc3cae711cf2d6d0213d05858972b41398b1"
+    },
+    {
+      "from": "mechanism-89842c668aede09c",
+      "kind": "anchored_in",
+      "to": "dcbc67cef2563d397ad00870b7b6829d3929c579d6ea6238e4b4a47b8b9e2391"
+    },
+    {
+      "from": "mechanism-ef80f211e48db760",
+      "kind": "anchored_in",
+      "to": "e2e7ea97d60e8f3f41b8e76101c7b7a9a87a03d096fdcb69a620a6b6358fba15"
+    },
+    {
+      "from": "mechanism-4a59d3068291aedc",
+      "kind": "anchored_in",
+      "to": "d8bab217c04b331bfe12f8054c02fc3cae711cf2d6d0213d05858972b41398b1"
+    },
+    {
+      "from": "mechanism-5d42b0e85a73fb43",
+      "kind": "anchored_in",
+      "to": "f798599ed55aa4648a87bf21e17a9d5e6b699d6d840ee58f5ea47d7df43431db"
+    },
+    {
+      "from": "mechanism-54bf9c4079988b6e",
+      "kind": "anchored_in",
+      "to": "f798599ed55aa4648a87bf21e17a9d5e6b699d6d840ee58f5ea47d7df43431db"
+    },
+    {
+      "from": "mechanism-5e5a78b354d9e05c",
+      "kind": "anchored_in",
+      "to": "f798599ed55aa4648a87bf21e17a9d5e6b699d6d840ee58f5ea47d7df43431db"
+    },
+    {
+      "from": "mechanism-9a469fe71e389943",
+      "kind": "anchored_in",
+      "to": "f798599ed55aa4648a87bf21e17a9d5e6b699d6d840ee58f5ea47d7df43431db"
+    },
+    {
+      "from": "mechanism-8b1daedd675120b7",
+      "kind": "anchored_in",
+      "to": "f798599ed55aa4648a87bf21e17a9d5e6b699d6d840ee58f5ea47d7df43431db"
+    },
+    {
+      "from": "mechanism-b63b770dcf1c6bef",
+      "kind": "anchored_in",
+      "to": "f798599ed55aa4648a87bf21e17a9d5e6b699d6d840ee58f5ea47d7df43431db"
+    },
+    {
+      "from": "failure-67bec0919340a1e1",
+      "kind": "anchored_in",
+      "to": "136007d31a85b9896563483d1f6e575b6879e3c18fc1346014294780463e76dd"
+    },
+    {
+      "from": "failure-e916dc12bf5ec1ab",
+      "kind": "anchored_in",
+      "to": "1cfb4d03e122466159a72eeadfb6389d6c98136b43d586b8a7ab82d37a807e47"
+    },
+    {
+      "from": "failure-3943ec9870ac72bc",
+      "kind": "anchored_in",
+      "to": "1cfb4d03e122466159a72eeadfb6389d6c98136b43d586b8a7ab82d37a807e47"
+    },
+    {
+      "from": "failure-1d785b9c688f5c2d",
+      "kind": "anchored_in",
+      "to": "1d58345500a7ed9ff67fc18521f32487a18203947977f89ef3e4bf3699a4ace6"
+    },
+    {
+      "from": "failure-1da9c8643adb547d",
+      "kind": "anchored_in",
+      "to": "1d58345500a7ed9ff67fc18521f32487a18203947977f89ef3e4bf3699a4ace6"
+    },
+    {
+      "from": "failure-ab49ce710ee31fc2",
+      "kind": "anchored_in",
+      "to": "1d58345500a7ed9ff67fc18521f32487a18203947977f89ef3e4bf3699a4ace6"
+    },
+    {
+      "from": "failure-68132b7fef56c325",
+      "kind": "anchored_in",
+      "to": "1f4647a721a124ac9c67a264f064466f0fd7da1ccc33a08d4262344c34bac879"
+    },
+    {
+      "from": "failure-2dc3948990b98e61",
+      "kind": "anchored_in",
+      "to": "6e44b9aff7537451f8667f77cef98f051b71ad94793e3a1b7c6d8ec13d8e1027"
+    },
+    {
+      "from": "failure-5746894def08af50",
+      "kind": "anchored_in",
+      "to": "6e44b9aff7537451f8667f77cef98f051b71ad94793e3a1b7c6d8ec13d8e1027"
+    },
+    {
+      "from": "failure-9d3d3e4ebfd0c0ce",
+      "kind": "anchored_in",
+      "to": "6e44b9aff7537451f8667f77cef98f051b71ad94793e3a1b7c6d8ec13d8e1027"
+    },
+    {
+      "from": "failure-d8e7400def8a9f59",
+      "kind": "anchored_in",
+      "to": "6e44b9aff7537451f8667f77cef98f051b71ad94793e3a1b7c6d8ec13d8e1027"
+    },
+    {
+      "from": "failure-e5f0fcb3410d2a94",
+      "kind": "anchored_in",
+      "to": "706e7c6881c9951d8a3a6c7812644e8e9331a40b4efdfe1c4d79e2c6178ed0d9"
+    },
+    {
+      "from": "failure-1f5bd77d7aea7ca8",
+      "kind": "anchored_in",
+      "to": "706e7c6881c9951d8a3a6c7812644e8e9331a40b4efdfe1c4d79e2c6178ed0d9"
+    },
+    {
+      "from": "failure-e0c9d3f41c6233fd",
+      "kind": "anchored_in",
+      "to": "706e7c6881c9951d8a3a6c7812644e8e9331a40b4efdfe1c4d79e2c6178ed0d9"
+    },
+    {
+      "from": "failure-65c558e2072aaccf",
+      "kind": "anchored_in",
+      "to": "706e7c6881c9951d8a3a6c7812644e8e9331a40b4efdfe1c4d79e2c6178ed0d9"
+    },
+    {
+      "from": "failure-a51edbf7dcd74482",
+      "kind": "anchored_in",
+      "to": "706e7c6881c9951d8a3a6c7812644e8e9331a40b4efdfe1c4d79e2c6178ed0d9"
+    },
+    {
+      "from": "failure-1e1e866d6684b6a3",
+      "kind": "anchored_in",
+      "to": "aeb5334d7d4ba90f7fd724412cd51ee20f3289f77d0736c6632c8600ac7c07d1"
+    },
+    {
+      "from": "failure-aee6b8bebee66bc9",
+      "kind": "anchored_in",
+      "to": "aeb5334d7d4ba90f7fd724412cd51ee20f3289f77d0736c6632c8600ac7c07d1"
+    },
+    {
+      "from": "failure-3d5731b958f86b53",
+      "kind": "anchored_in",
+      "to": "c7632e272b82b31bdf67c51df5c2383ba662f5ec575e3c5e3ec48d4df70530b4"
+    },
+    {
+      "from": "failure-c5d93c4d5d67fe08",
+      "kind": "anchored_in",
+      "to": "ca04f628426c35999ea0f571e445bc59bf6819d83e31be1ec55be1c885250781"
+    },
+    {
+      "from": "failure-5423d4029a9df34f",
+      "kind": "anchored_in",
+      "to": "ca04f628426c35999ea0f571e445bc59bf6819d83e31be1ec55be1c885250781"
+    },
+    {
+      "from": "failure-a2b33c6fe81350bd",
+      "kind": "anchored_in",
+      "to": "ca04f628426c35999ea0f571e445bc59bf6819d83e31be1ec55be1c885250781"
+    },
+    {
+      "from": "failure-f08c79cdce1862de",
+      "kind": "anchored_in",
+      "to": "ca04f628426c35999ea0f571e445bc59bf6819d83e31be1ec55be1c885250781"
+    },
+    {
+      "from": "failure-344a16c07e31fdf1",
+      "kind": "anchored_in",
+      "to": "dcbc67cef2563d397ad00870b7b6829d3929c579d6ea6238e4b4a47b8b9e2391"
+    },
+    {
+      "from": "failure-31b05d6d518447c7",
+      "kind": "anchored_in",
+      "to": "d8bab217c04b331bfe12f8054c02fc3cae711cf2d6d0213d05858972b41398b1"
+    },
+    {
+      "from": "failure-7949e70926eacf65",
+      "kind": "anchored_in",
+      "to": "e2e7ea97d60e8f3f41b8e76101c7b7a9a87a03d096fdcb69a620a6b6358fba15"
+    },
+    {
+      "from": "failure-4f45e1a0fd7a6b53",
+      "kind": "anchored_in",
+      "to": "e2e7ea97d60e8f3f41b8e76101c7b7a9a87a03d096fdcb69a620a6b6358fba15"
+    },
+    {
+      "from": "failure-497ec9279481ca26",
+      "kind": "anchored_in",
+      "to": "f798599ed55aa4648a87bf21e17a9d5e6b699d6d840ee58f5ea47d7df43431db"
+    },
+    {
+      "from": "failure-d87b95c91d376e07",
+      "kind": "anchored_in",
+      "to": "f798599ed55aa4648a87bf21e17a9d5e6b699d6d840ee58f5ea47d7df43431db"
+    },
+    {
+      "from": "failure-c00b65a0639e113d",
+      "kind": "anchored_in",
+      "to": "f798599ed55aa4648a87bf21e17a9d5e6b699d6d840ee58f5ea47d7df43431db"
+    },
+    {
+      "from": "position-78dc620ae6f653c1",
+      "kind": "rests_on",
+      "to": "mechanism-c9096d6b6f3e1126"
+    },
+    {
+      "from": "position-78dc620ae6f653c1",
+      "kind": "rests_on",
+      "to": "failure-67bec0919340a1e1"
+    },
+    {
+      "from": "position-d9a31736a1c88205",
+      "kind": "rests_on",
+      "to": "mechanism-f07d62bd42ac6aa4"
+    },
+    {
+      "from": "position-d9a31736a1c88205",
+      "kind": "rests_on",
+      "to": "failure-3d5731b958f86b53"
+    },
+    {
+      "from": "position-d2f2c16b599382c9",
+      "kind": "rests_on",
+      "to": "mechanism-ff16e4529d7dc660"
+    },
+    {
+      "from": "position-d2f2c16b599382c9",
+      "kind": "rests_on",
+      "to": "failure-2dc3948990b98e61"
+    },
+    {
+      "from": "position-3ceed316f16404a0",
+      "kind": "rests_on",
+      "to": "mechanism-1e6a17d1a4dbde3c"
+    },
+    {
+      "from": "position-3ceed316f16404a0",
+      "kind": "rests_on",
+      "to": "mechanism-5938774212903521"
+    },
+    {
+      "from": "position-3ceed316f16404a0",
+      "kind": "rests_on",
+      "to": "failure-1d785b9c688f5c2d"
+    },
+    {
+      "from": "position-a5e673feb34a3c3b",
+      "kind": "rests_on",
+      "to": "mechanism-cba19a0154b8d2ae"
+    },
+    {
+      "from": "position-a5e673feb34a3c3b",
+      "kind": "rests_on",
+      "to": "failure-67bec0919340a1e1"
+    },
+    {
+      "from": "position-a5e673feb34a3c3b",
+      "kind": "rests_on",
+      "to": "failure-e5f0fcb3410d2a94"
+    },
+    {
+      "from": "position-7e5aaa6e0891c9d9",
+      "kind": "rests_on",
+      "to": "mechanism-188bc9cdfdc6a758"
+    },
+    {
+      "from": "position-7e5aaa6e0891c9d9",
+      "kind": "rests_on",
+      "to": "failure-aee6b8bebee66bc9"
+    },
+    {
+      "from": "position-71fe714385b603f3",
+      "kind": "rests_on",
+      "to": "failure-e5f0fcb3410d2a94"
+    },
+    {
+      "from": "position-71fe714385b603f3",
+      "kind": "rests_on",
+      "to": "failure-65c558e2072aaccf"
+    },
+    {
+      "from": "position-71fe714385b603f3",
+      "kind": "rests_on",
+      "to": "failure-e0c9d3f41c6233fd"
+    }
+  ],
+  "expert": "Python Engineering",
+  "load_bearing_sources": [
+    {
+      "positions": 2,
+      "source": "Good Integration Practices - pytest documentation"
+    },
+    {
+      "positions": 2,
+      "source": "Security Considerations \u2014 Python 3.14.7 documentation"
+    },
+    {
+      "positions": 1,
+      "source": "threading \u2014 Thread-based parallelism \u2014 Python 3.14.7 documentation"
+    },
+    {
+      "positions": 1,
+      "source": "multiprocessing \u2014 Process-based parallelism \u2014 Python 3.14.7 documentation"
+    },
+    {
+      "positions": 1,
+      "source": "Coroutines and tasks \u2014 Python 3.14.7 documentation"
+    }
+  ],
+  "nodes": [
+    {
+      "first_seen": "2026-09-20T22:27:33.594040+00:00",
+      "id": "136007d31a85b9896563483d1f6e575b6879e3c18fc1346014294780463e76dd",
+      "kind": "source",
+      "label": "Good Integration Practices - pytest documentation",
+      "origin_key": "pytest.org",
+      "publisher": "Python documentation"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:45.009603+00:00",
+      "id": "1cfb4d03e122466159a72eeadfb6389d6c98136b43d586b8a7ab82d37a807e47",
+      "kind": "source",
+      "label": "Mailman 3 \nSeptember 2026 - Security-announce - python.org",
+      "origin_key": "python.org",
+      "publisher": "Python Software Foundation"
+    },
+    {
+      "first_seen": "2026-09-20T22:27:32.739892+00:00",
+      "id": "1d58345500a7ed9ff67fc18521f32487a18203947977f89ef3e4bf3699a4ace6",
+      "kind": "source",
+      "label": "Coroutines and tasks \u2014 Python 3.14.7 documentation",
+      "origin_key": "python.org",
+      "publisher": "Python documentation"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:45.031786+00:00",
+      "id": "1f4647a721a124ac9c67a264f064466f0fd7da1ccc33a08d4262344c34bac879",
+      "kind": "source",
+      "label": "PSF-2026-41",
+      "origin_key": "python.org",
+      "publisher": "Python Software Foundation"
+    },
+    {
+      "first_seen": "2026-09-20T22:27:33.275794+00:00",
+      "id": "6e44b9aff7537451f8667f77cef98f051b71ad94793e3a1b7c6d8ec13d8e1027",
+      "kind": "source",
+      "label": "multiprocessing \u2014 Process-based parallelism \u2014 Python 3.14.7 documentation",
+      "origin_key": "python.org",
+      "publisher": "Python documentation"
+    },
+    {
+      "first_seen": "2026-09-20T22:27:33.732037+00:00",
+      "id": "706e7c6881c9951d8a3a6c7812644e8e9331a40b4efdfe1c4d79e2c6178ed0d9",
+      "kind": "source",
+      "label": "Security Considerations \u2014 Python 3.14.7 documentation",
+      "origin_key": "python.org",
+      "publisher": "Python documentation"
+    },
+    {
+      "first_seen": "2026-09-20T22:27:34.007568+00:00",
+      "id": "779891ad6d8e6ea3949d5159c3bfabebd5463c2c236f90d345d46e529d8c96b8",
+      "kind": "source",
+      "label": "tarfile \u2014 Read and write tar archive files \u2014 Python 3.14.7 documentation",
+      "origin_key": "python.org",
+      "publisher": "Python documentation"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:45.025529+00:00",
+      "id": "7b65cafa83303efe176d77487f83f43cda9bb4b83f336b56a9f5b9063553ff3c",
+      "kind": "source",
+      "label": "PSF-2026-40",
+      "origin_key": "python.org",
+      "publisher": "Python Software Foundation"
+    },
+    {
+      "first_seen": "2026-09-20T22:27:34.224894+00:00",
+      "id": "8606c131d9d12bb73d1e6cd77daf2e33e7faf858c0d491b99743ec2bb0c5664b",
+      "kind": "source",
+      "label": "PEP 8 \u2013 Style Guide for Python Code | peps.python.org",
+      "origin_key": "python.org",
+      "publisher": "Python documentation"
+    },
+    {
+      "first_seen": "2026-09-20T22:27:33.339918+00:00",
+      "id": "aeb5334d7d4ba90f7fd724412cd51ee20f3289f77d0736c6632c8600ac7c07d1",
+      "kind": "source",
+      "label": "Python support for free threading \u2014 Python 3.14.7 documentation",
+      "origin_key": "python.org",
+      "publisher": "Python documentation"
+    },
+    {
+      "first_seen": "2026-09-20T22:27:32.857742+00:00",
+      "id": "c7632e272b82b31bdf67c51df5c2383ba662f5ec575e3c5e3ec48d4df70530b4",
+      "kind": "source",
+      "label": "threading \u2014 Thread-based parallelism \u2014 Python 3.14.7 documentation",
+      "origin_key": "python.org",
+      "publisher": "Python documentation"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:44.829445+00:00",
+      "id": "c96b3a4fa56740c41a933b02376168b3d98ba186b9a3a3c32fa59794b30f8550",
+      "kind": "source",
+      "label": "Download Python | Python.org",
+      "origin_key": "python.org",
+      "publisher": "Python Software Foundation"
+    },
+    {
+      "first_seen": "2026-09-20T22:27:32.598126+00:00",
+      "id": "ca04f628426c35999ea0f571e445bc59bf6819d83e31be1ec55be1c885250781",
+      "kind": "source",
+      "label": "3. Data model \u2014 Python 3.14.7 documentation",
+      "origin_key": "python.org",
+      "publisher": "Python documentation"
+    },
+    {
+      "first_seen": "2026-09-20T22:27:34.119893+00:00",
+      "id": "cae9ecb4ba50cdfb6285ec93953d0572c2b5a740645cefdc9ce5d86b3bc8fd10",
+      "kind": "source",
+      "label": "Python 3.14.7 and 3.13.15 are now available! | Python Insider",
+      "origin_key": "python.org",
+      "publisher": "Python documentation"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:44.932939+00:00",
+      "id": "d53c313e49d3bea2b57b157ab7836938dcd84532945f7466700fc71f07752e7b",
+      "kind": "source",
+      "label": "Python Release Python 3.14.7 | Python.org",
+      "origin_key": "python.org",
+      "publisher": "Python Software Foundation"
+    },
+    {
+      "first_seen": "2026-09-20T22:27:33.500339+00:00",
+      "id": "d8bab217c04b331bfe12f8054c02fc3cae711cf2d6d0213d05858972b41398b1",
+      "kind": "source",
+      "label": "bisect \u2014 Array bisection algorithm \u2014 Python 3.14.7 documentation",
+      "origin_key": "python.org",
+      "publisher": "Python documentation"
+    },
+    {
+      "first_seen": "2026-09-20T22:27:33.429864+00:00",
+      "id": "dcbc67cef2563d397ad00870b7b6829d3929c579d6ea6238e4b4a47b8b9e2391",
+      "kind": "source",
+      "label": "The Python Profilers \u2014 Python 3.14.7 documentation",
+      "origin_key": "python.org",
+      "publisher": "Python documentation"
+    },
+    {
+      "first_seen": "2026-09-20T22:27:33.679711+00:00",
+      "id": "e2e7ea97d60e8f3f41b8e76101c7b7a9a87a03d096fdcb69a620a6b6358fba15",
+      "kind": "source",
+      "label": "Type system concepts \u2014 typing  documentation",
+      "origin_key": "python.org",
+      "publisher": "Python documentation"
+    },
+    {
+      "first_seen": "2026-09-20T22:27:33.543646+00:00",
+      "id": "f798599ed55aa4648a87bf21e17a9d5e6b699d6d840ee58f5ea47d7df43431db",
+      "kind": "source",
+      "label": "src layout vs flat layout - Python Packaging User Guide",
+      "origin_key": "python.org",
+      "publisher": "Python documentation"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-51be47b0145600d1",
+      "kind": "finding",
+      "label": "The 'prepend' import mode modifies sys.path to enable test discovery, which inadvertently exposes the local application package for import during testing.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-ecde8aa25ff730e4",
+      "kind": "finding",
+      "label": "The requirement for unique test file names in 'prepend' mode is a direct consequence of importing tests as top-level modules without package context.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-c9096d6b6f3e1126",
+      "kind": "finding",
+      "label": "The 'importlib' mode is recommended because it avoids the side-effects of modifying sys.path, resulting in more predictable behavior.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-8d772f36a3c6464b",
+      "kind": "finding",
+      "label": "The 'src' layout is structurally necessary to prevent the local application code from being imported during tests when using the default 'prepend' mode.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-02e55eb26b6e3f75",
+      "kind": "finding",
+      "label": "The mechanism for deriving canonical import names in 'prepend' and 'append' modes relies on locating the first directory without an __init__.py file.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-cba19a0154b8d2ae",
+      "kind": "finding",
+      "label": "The 'tarfile' module's extraction filter logic contains a flaw where it ignores rejection signals during fallback operations on systems lacking link support.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-1d73625c414b2bfb",
+      "kind": "finding",
+      "label": "The vulnerability in 'tarfile' allows file modification outside the destination directory through specific archive structures involving hard links and symlinks.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-5938774212903521",
+      "kind": "finding",
+      "label": "Cancellation is a stateful flag that must be explicitly cleared to suppress errors",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-f2ae0030799f8c49",
+      "kind": "finding",
+      "label": "Task groups enforce a failure cascade where any non-cancellation exception triggers immediate termination of peers",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-1e6a17d1a4dbde3c",
+      "kind": "finding",
+      "label": "Cancellation is a mechanism for waking up suspended execution points rather than immediate termination",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-b653cd7ede0b5b99",
+      "kind": "finding",
+      "label": "Task groups distinguish between internal wake-up signals and external cancellation requests",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-4e821cbd40a0abd8",
+      "kind": "finding",
+      "label": "Cancellation counts are preserved across nested group boundaries",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-1b7f82eb7ca2619e",
+      "kind": "finding",
+      "label": "Cancellation propagation ensures nested groups do not lose cancellation signals",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-659d62cc8a3338a3",
+      "kind": "finding",
+      "label": "Cancellation exceptions are filtered from exception groups to prevent masking",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-fd22b00f16067b7c",
+      "kind": "finding",
+      "label": "Cancellation is a mechanism to prevent blocking of the event loop by IO-bound operations",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-6651ca818fd4dfdd",
+      "kind": "finding",
+      "label": "Cancellation state requires explicit cleanup logic via try/finally blocks",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-01b47ca4d47d3bae",
+      "kind": "finding",
+      "label": "Cancellation signals propagate through nested task groups sequentially",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-6957624de89b8ded",
+      "kind": "finding",
+      "label": "The spawn method isolates child processes by restarting the interpreter, inheriting only essential resources.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-79d4db6dc485caa9",
+      "kind": "finding",
+      "label": "The fork method duplicates the entire parent state, including all threads and resources, creating a copy of the interpreter.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-e23b984c2c40f2eb",
+      "kind": "finding",
+      "label": "Forking multithreaded processes is unsafe because system libraries may spawn threads during initialization, leading to crashes.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-c7deda4146ebf347",
+      "kind": "finding",
+      "label": "The forkserver method decouples process creation from the main application by using a dedicated single-threaded server.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-ff16e4529d7dc660",
+      "kind": "finding",
+      "label": "Performance and safety trade-offs drive the default start method selection across platforms.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-aabd51f63b572bb7",
+      "kind": "finding",
+      "label": "Named system resources require explicit tracking and cleanup because they are not automatically unlinked upon process death.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-2bd030a0d7b0158b",
+      "kind": "finding",
+      "label": "Resource leaks occur when processes are killed by signals, requiring manual system intervention for cleanup.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-62b74e89ad7b9bb1",
+      "kind": "finding",
+      "label": "Context objects enforce isolation boundaries that prevent cross-context object compatibility.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": false,
+      "id": "mechanism-af288e4234dfa21e",
+      "kind": "finding",
+      "label": "Frozen executables are incompatible with spawn and forkserver due to binary execution constraints.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-861c316063214407",
+      "kind": "finding",
+      "label": "Multiprocessing communication channels introduce security risks through deserialization.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-aa5ed11c8385a3f1",
+      "kind": "finding",
+      "label": "Extraction filters function as a pre-extraction validation gate that modifies or rejects TarInfo metadata before any filesystem operation occurs.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-c9b4d2910aa3e1ff",
+      "kind": "finding",
+      "label": "The 'data' filter's permission restrictions are a consequence of its design goal to ignore UNIX-specific features for cross-platform safety.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-68a956108ccec4ff",
+      "kind": "finding",
+      "label": "Path normalization is a defensive mechanism that alters the semantic meaning of archive entries to prevent traversal attacks.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-0b6cb1391c7316e9",
+      "kind": "finding",
+      "label": "The extraction process treats filter return values as binary decisions (proceed or skip) rather than just metadata updates.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-4a572b8b2af98072",
+      "kind": "finding",
+      "label": "The default security posture is a consequence of the recognition that full tar functionality poses inherent risks.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-ff1e287ca3726d76",
+      "kind": "finding",
+      "label": "Filter errors are consequences of explicit refusal logic that can be configured to either abort or continue.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-a831c5b4e2f76772",
+      "kind": "finding",
+      "label": "The filter mechanism allows dynamic state awareness, enabling checks against the current disk state rather than just archive contents.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-392da4a32974398c",
+      "kind": "finding",
+      "label": "Link extraction logic involves a dual-call mechanism where both the target and the link location are subject to filtering.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-6020c59dbf0b83e1",
+      "kind": "finding",
+      "label": "The 'fully_trusted' mode is a consequence of user intent to bypass safety checks in favor of raw archive fidelity.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-c82cf6b728405500",
+      "kind": "finding",
+      "label": "Filter errors are subclasses of a common base class that governs extraction behavior.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-04468d15caa89db5",
+      "kind": "finding",
+      "label": "The GIL is a runtime toggle rather than a compile-time constant in free-threaded builds",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-188bc9cdfdc6a758",
+      "kind": "finding",
+      "label": "Internal locking of built-in types is an implementation detail, not a guaranteed contract",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-c973258ffd57658d",
+      "kind": "finding",
+      "label": "Free-threaded builds incur a performance penalty even without parallelism",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-4c67a0e1cf7980eb",
+      "kind": "finding",
+      "label": "Thread safety in free-threaded builds is an aim, not a default guarantee for all types",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-f07d62bd42ac6aa4",
+      "kind": "finding",
+      "label": "The GIL is the primary constraint on CPU-bound parallelism in standard builds",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-e5e89126b296f3ee",
+      "kind": "finding",
+      "label": "Build configuration is determined by a specific compile-time variable",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-d299a89b5c9c5d95",
+      "kind": "finding",
+      "label": "Unmarked C-API extensions force re-enabling of the GIL in free-threaded builds",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-9bf38a70a29ce22e",
+      "kind": "finding",
+      "label": "Object Identity",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-c1f3ec85362a9fb9",
+      "kind": "finding",
+      "label": "Type Determinism",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-e0cb2b3773117885",
+      "kind": "finding",
+      "label": "Immutability vs. Value Stability",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-07ed251d13983da1",
+      "kind": "finding",
+      "label": "Garbage Collection Guarantees",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": false,
+      "id": "mechanism-ba24b87491b8a23a",
+      "kind": "finding",
+      "label": "Hash Consistency Requirement",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-c99730d07ef5a137",
+      "kind": "finding",
+      "label": "Insertion Order Preservation",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-657eafdfa160d207",
+      "kind": "finding",
+      "label": "Python's runtime type checking is a consequence of its dynamic nature rather than an independent feature.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-b32a6770ba2c571c",
+      "kind": "finding",
+      "label": "Static type checking in Python is an opt-in overlay that relies on the 'Any' type to maintain compatibility with the underlying dynamic system.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-f41448fd073c2999",
+      "kind": "finding",
+      "label": "The performance characteristics of bisect functions are constrained by the data structure's insertion mechanics rather than the search algorithm.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-89842c668aede09c",
+      "kind": "finding",
+      "label": "Profiling overhead is a structural artifact of the measurement tool, not an inherent property of the code being measured.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-ef80f211e48db760",
+      "kind": "finding",
+      "label": "The 'gradual guarantee' is a heuristic guideline rather than a strict enforcement mechanism within the type system.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-4a59d3068291aedc",
+      "kind": "finding",
+      "label": "Search functions in the bisect module are stateless by design, necessitating external caching for performance optimization.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-5d42b0e85a73fb43",
+      "kind": "finding",
+      "label": "The Python interpreter's default import resolution mechanism prioritizes the current working directory over installed packages.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-54bf9c4079988b6e",
+      "kind": "finding",
+      "label": "The primary function of the src layout is to enforce a separation between source code and the project root to prevent the interpreter from resolving local files over installed ones.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-5e5a78b354d9e05c",
+      "kind": "finding",
+      "label": "The requirement for installation to run code in src layout is a direct consequence of the interpreter's path resolution behavior when source files are not isolated.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-9a469fe71e389943",
+      "kind": "finding",
+      "label": "Editable installations using path configuration files expose non-importable project files to the import system, creating a discrepancy between editable and regular installation behaviors.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-8b1daedd675120b7",
+      "kind": "finding",
+      "label": "The inability to run command-line interfaces directly from the source tree in src layout is a constraint imposed by the requirement for installation.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "mechanism-b63b770dcf1c6bef",
+      "kind": "finding",
+      "label": "The distinction between flat and src layouts is defined by the physical location of importable code relative to the project root.",
+      "lens": "mechanism"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "failure-67bec0919340a1e1",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "failure-e916dc12bf5ec1ab",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "failure-3943ec9870ac72bc",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "failure-1d785b9c688f5c2d",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "failure-1da9c8643adb547d",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "failure-ab49ce710ee31fc2",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "failure-68132b7fef56c325",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "failure-2dc3948990b98e61",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "failure-5746894def08af50",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "failure-9d3d3e4ebfd0c0ce",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "failure-d8e7400def8a9f59",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "failure-e5f0fcb3410d2a94",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "failure-1f5bd77d7aea7ca8",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "failure-e0c9d3f41c6233fd",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "failure-65c558e2072aaccf",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "failure-a51edbf7dcd74482",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": false,
+      "id": "failure-43d46a339a2ad855",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": false,
+      "id": "failure-2d5499ddb79cbdc3",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": false,
+      "id": "failure-f7388398af90c0ce",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": false,
+      "id": "failure-af9dd062d4bfe28b",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": false,
+      "id": "failure-3a98023dfa390fa7",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": false,
+      "id": "failure-39774a9647d6a306",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "failure-1e1e866d6684b6a3",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "failure-aee6b8bebee66bc9",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "failure-3d5731b958f86b53",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": false,
+      "id": "failure-8949ccf11c7e94f8",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "failure-c5d93c4d5d67fe08",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "failure-5423d4029a9df34f",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": false,
+      "id": "failure-3078db2c25b70dd1",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "failure-a2b33c6fe81350bd",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": false,
+      "id": "failure-08153b975f4dd72e",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "failure-f08c79cdce1862de",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "failure-344a16c07e31fdf1",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "failure-31b05d6d518447c7",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "failure-7949e70926eacf65",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "failure-4f45e1a0fd7a6b53",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "failure-497ec9279481ca26",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "failure-d87b95c91d376e07",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "first_seen": "2026-09-20T23:34:58.307261+00:00",
+      "grounded": true,
+      "id": "failure-c00b65a0639e113d",
+      "kind": "finding",
+      "label": "failure finding",
+      "lens": "failure"
+    },
+    {
+      "confidence": "high",
+      "first_seen": "",
+      "id": "position-78dc620ae6f653c1",
+      "kind": "position",
+      "label": "What is the recommended pytest import mode for new projects?",
+      "likelihood": "almost certain",
+      "stance": "Use --import-mode=importlib instead of the default prepend mode."
+    },
+    {
+      "confidence": "high",
+      "first_seen": "",
+      "id": "position-d9a31736a1c88205",
+      "kind": "position",
+      "label": "Does Python 3.13 enable true parallelism with threads?",
+      "likelihood": "almost certain",
+      "stance": "No, standard Python 3.13 does not enable true parallelism with threads; the GIL remains active by default."
+    },
+    {
+      "confidence": "moderate",
+      "first_seen": "",
+      "id": "position-d2f2c16b599382c9",
+      "kind": "position",
+      "label": "What is the default multiprocessing start method on POSIX systems?",
+      "likelihood": "likely",
+      "stance": "The default start method on POSIX systems is 'forkserver', not 'fork'."
+    },
+    {
+      "confidence": "high",
+      "first_seen": "",
+      "id": "position-3ceed316f16404a0",
+      "kind": "position",
+      "label": "How does Python handle task cancellation in asyncio?",
+      "likelihood": "almost certain",
+      "stance": "Cancellation is a mechanism to wake up suspended execution points by injecting an exception at the next await point, not immediate termination. It requires explicit cleanup via try/finally blocks."
+    },
+    {
+      "confidence": "high",
+      "first_seen": "",
+      "id": "position-a5e673feb34a3c3b",
+      "kind": "position",
+      "label": "What are the security implications of using tarfile extraction?",
+      "likelihood": "almost certain",
+      "stance": "Using tarfile without an explicit filter is insecure; default behavior varies by version (pre-3.14 defaults to fully_trusted), allowing path traversal and symlink attacks."
+    },
+    {
+      "confidence": "high",
+      "first_seen": "",
+      "id": "position-7e5aaa6e0891c9d9",
+      "kind": "position",
+      "label": "How should one handle threading in free-threaded Python?",
+      "likelihood": "almost certain",
+      "stance": "Do not rely on internal locking of built-in types; use explicit synchronization primitives like threading.Lock."
+    },
+    {
+      "confidence": "high",
+      "first_seen": "",
+      "id": "position-71fe714385b603f3",
+      "kind": "position",
+      "label": "What is the recommended approach for handling untrusted input in Python?",
+      "likelihood": "almost certain",
+      "stance": "Avoid using pickle, shelve, or random module for untrusted data; use secure alternatives like secrets module and validate inputs strictly."
+    }
+  ],
+  "schema_version": "deepr-evidence-graph-v1",
+  "stats": {
+    "edges": 108,
+    "findings": 101,
+    "is_formed": true,
+    "positions": 7,
+    "sources": 19,
+    "unsupported_positions": 0,
+    "unused_findings": 75
+  }
+}

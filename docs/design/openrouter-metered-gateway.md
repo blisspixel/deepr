@@ -226,8 +226,9 @@ merely to make inference work and must not become runtime authority.
 ## Remaining Proof Gap
 
 Attended one-shot research now reserves, marks, and settles `usage.cost`.
-The following work remains ordered behind v2.53 for unattended graphs and
-final invoice join:
+The following work for unattended graphs and final invoice join is deferred
+without an assigned release. It follows the living-expertise evidence sequence
+and retains its separate provider-authority gates:
 
 1. Adopt `DurableParentBudget` for remaining metered surfaces and multi-call
    OpenRouter graphs, binding the complete request digest before any network

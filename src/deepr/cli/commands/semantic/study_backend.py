@@ -128,9 +128,12 @@ def _completion_from_native_ollama(
         )
         if result.stop_reason == "length":
             raise StudyBackendError(
-                f"response hit the {max_tokens}-token output limit and was cut off "
-                "mid-structure. Lower --max-corpus-chars so each call has less to "
-                "report on, or run fewer lenses per pass."
+                f"response reached its context or output bound ({context_tokens}-token context, "
+                f"{max_tokens}-token output ceiling; observed "
+                f"{getattr(result.usage, 'prompt_tokens', 'unknown')} input and "
+                f"{getattr(result.usage, 'completion_tokens', 'unknown')} generated tokens). "
+                "No complete result was accepted. Reduce the material per call; reasoning "
+                "and the final answer share the available generation budget."
             )
         return result.text
 

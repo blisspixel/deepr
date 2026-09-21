@@ -79,6 +79,10 @@ class ConsultContext:
     findings: list[StudyFinding] = field(default_factory=list)
     sources: list[tuple[str, str, str]] = field(default_factory=list)
     """(sha, origin_key, passage) so a claim can be checked, not just asserted."""
+    finding_sources: dict[str, tuple[str, str, str]] = field(default_factory=dict)
+    """Per-finding source windows, before shared-source condensation loses them."""
+    reference_passages: list[tuple[str, str, str]] = field(default_factory=list)
+    """Question-routed original passages, including details absent from study notes."""
     integrity_warnings: list[str] = field(default_factory=list)
     limitations: list[str] = field(default_factory=list)
 
@@ -92,7 +96,7 @@ class ConsultContext:
         """
         if any(p.is_grounded for p in self.positions):
             return "grounded"
-        if self.findings or self.sources:
+        if self.findings or self.sources or self.reference_passages:
             return "partial"
         return "uncovered"
 
@@ -113,6 +117,7 @@ class ConsultContext:
             + sum(len(p.stance) + len(p.reasoning) for p in self.positions)
             + sum(len(f.title) for f in self.findings)
             + sum(len(passage) for _, _, passage in self.sources)
+            + sum(len(passage) for _, _, passage in self.reference_passages)
         )
 
 
@@ -166,9 +171,8 @@ def gather_findings(question: str, result: StudyResult, positions: list[Position
     """
     cited = {fid for p in positions for fid in p.supported_by}
     by_id = {f.finding_id: f for f in result.findings if f.finding_id}
-    carried = [by_id[fid] for fid in sorted(cited) if fid in by_id]
-
     query = _tokens(question)
+    carried = [by_id[fid] for fid in sorted(cited) if fid in by_id]
     already = {f.finding_id for f in carried}
     scored = [
         (_overlap(query, _finding_text(f)), index, f)
@@ -177,7 +181,10 @@ def gather_findings(question: str, result: StudyResult, positions: list[Position
     ]
     matched = sorted((s for s in scored if s[0] > 0), key=lambda item: (-item[0], item[1]))
     room = max(0, _MAX_FINDINGS - len(carried))
-    return carried + [f for _, _, f in matched[:room]]
+    selected = carried + [f for _, _, f in matched[:room]]
+    # Support remains present, but alphabetical finding IDs must not put a
+    # tangential position's bibliography ahead of the question's direct evidence.
+    return sorted(selected, key=lambda finding: -_overlap(query, _finding_text(finding)))
 
 
 def _source_passage(text: str, anchors: list[str], max_chars: int) -> str:
@@ -190,14 +197,17 @@ def _source_passage(text: str, anchors: list[str], max_chars: int) -> str:
     for anchor in anchors:
         if not isinstance(anchor, str) or not anchor:
             continue
-        index = text.find(anchor)
-        end = index + len(anchor)
-        if index < 0 or any(start <= index and end <= stop for start, stop in spans):
+        pattern = r"\s+".join(re.escape(word) for word in anchor.split())
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if match is None:
+            continue
+        index, end = match.span()
+        if any(start <= index and end <= stop for start, stop in spans):
             continue
         allowance = remaining - (len(separator) if spans else 0)
-        if len(anchor) > allowance:
+        if end - index > allowance:
             continue
-        padding = min(120, (allowance - len(anchor)) // 2)
+        padding = min(120, (allowance - (end - index)) // 2)
         start, stop = max(0, index - padding), min(len(text), end + padding)
         remaining = allowance - (stop - start)
         spans.append((start, stop))
@@ -227,6 +237,35 @@ def gather_sources(findings: list[StudyFinding], corpus: CorpusStore) -> list[tu
     return seen
 
 
+def gather_finding_sources(context: ConsultContext, corpus: CorpusStore) -> dict[str, tuple[str, str, str]]:
+    """Keep the actual supporting window for each finding in the selected sources."""
+    retained = {sha: (origin, corpus.read(sha) or "") for sha, origin, _ in context.sources}
+    windows = {}
+    for finding in context.findings:
+        for sha in finding.corpus_shas:
+            if sha in retained:
+                origin, text = retained[sha]
+                windows[finding.finding_id] = (sha, origin, _source_passage(text, finding.anchors, 1200))
+                break
+    return windows
+
+
+def gather_reference_passages(question: str, corpus: CorpusStore) -> list[tuple[str, str, str]]:
+    """Route into a bounded reference library by overlap, never assert entailment."""
+    query = _tokens(question)
+    if not query:
+        return []
+    candidates = []
+    for entry, text in corpus.load_study_material(max_chars=240_000):
+        windows = [(_overlap(query, text[start : start + 1400]), start) for start in range(0, len(text), 800)]
+        if windows:
+            score, start = max(windows, key=lambda item: (item[0], -item[1]))
+            if score:
+                candidates.append((score, entry.sha256, entry.origin_key, text[start : start + 1400]))
+    candidates.sort(key=lambda item: (-item[0], item[1]))
+    return [(sha, origin, passage) for _, sha, origin, passage in candidates[:4]]
+
+
 def build_consult_context(
     *,
     expert_name: str,
@@ -250,6 +289,12 @@ def build_consult_context(
         context.findings = gather_findings(question, result, context.positions)
         if corpus is not None:
             context.sources = gather_sources(context.findings, corpus)
+            context.finding_sources = gather_finding_sources(context, corpus)
+    if corpus is not None:
+        context.reference_passages = gather_reference_passages(question, corpus)
+        context.limitations.append(
+            "Local reference lookup searched at most 240,000 retained characters and selected at most four passages by text overlap; this is not a relevance or currentness verdict."
+        )
     return context
 
 
@@ -289,6 +334,11 @@ def render_consult_packet(context: ConsultContext) -> str:
     that matters most, which is what is settled and therefore skippable.
     """
     blocks = [render_standing_header(context)]
+    if context.reference_passages:
+        blocks.append(
+            "Reference library lookup (bounded original excerpts, not newly verified):\n\n"
+            + "\n\n".join(f"--- {origin} ({sha}) ---\n{passage}" for sha, origin, passage in context.reference_passages)
+        )
 
     if context.positions:
         lines = ["Where I land on what you asked:", ""]

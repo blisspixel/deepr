@@ -1,8 +1,12 @@
 # Implementation plan: living expert research stack
 
-Status: active plan, 2026-08-05.
-**Order of operations is mandatory.** Later steps assume earlier steps are done
-or explicitly skipped with a written reason.
+Status: historical integration plan, 2026-08-05; sequencing superseded 2026-09-20.
+The [active roadmap](../../ROADMAP.md#active-release-plan) and
+[living-expertise delivery contracts](living-expertise.md) now govern order.
+Preserve the settled retention and admission decisions below as design history.
+The old council/instrument steps are not prerequisites for preparing one expert
+before advice. Historical capacity observations must be rechecked against
+[current capacity](../CAPACITY.md); all production plan adapters are now blocked.
 
 | Related doc | Role |
 |---|---|
@@ -52,7 +56,9 @@ as derived wiki views, temporal via the TKG.
 
 ## Order of operations (build sequence)
 
-Complete each step (or mark N/A with reason) before starting the next.
+This is the former integration sequence, retained for its scoped recipes and
+decisions. It does not override the current product milestones or require
+repeating work that has since shipped.
 
 ### Step 0 - Documentation and sequencing (foundation)
 

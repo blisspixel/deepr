@@ -206,7 +206,10 @@ part of "dramatically better experts."
 
 ## Implementation status
 
-Authoritative order and checkpoint: [../plans/living-expert-research-stack.md](../plans/living-expert-research-stack.md).
+Authoritative order: [active roadmap](../../ROADMAP.md#active-release-plan).
+Current delivery contracts: [living expertise](../plans/living-expertise.md).
+The [older integration checklist](../plans/living-expert-research-stack.md)
+retains historical decisions, not the active sequence.
 
 Verified against code 2026-08-05. Items previously marked done that did not
 survive that check are corrected here rather than deleted.

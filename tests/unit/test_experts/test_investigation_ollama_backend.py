@@ -106,7 +106,7 @@ async def test_native_ollama_backend_enforces_json_context_and_disables_thinking
     assert captured["url"] == "http://127.0.0.1:11434/api/chat"
     assert captured["payload"]["model"] == "review:30b"
     assert captured["payload"]["stream"] is False
-    assert captured["payload"]["think"] is False
+    assert "think" not in captured["payload"]  # Preserve the installed model's normal reasoning behavior.
     assert captured["payload"]["format"] == "json"
     assert captured["payload"]["options"] == {
         "num_ctx": 32_768,

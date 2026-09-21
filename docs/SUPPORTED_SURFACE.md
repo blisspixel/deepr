@@ -1,6 +1,8 @@
 # Supported Surface
 
-Status: v2.50.18 current main, 2026-09-16. This document defines what users and host
+Status: v2.50.18 current main package version, with unreleased changes described
+below; reviewed 2026-09-20. The latest published release is v2.50.18.
+This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -8,6 +10,14 @@ path is structurally complete but remains execution-blocked without verified
 provider prepaid-no-overage or hard-stop evidence. Attended OpenRouter research
 is the exception: one pinned no-tool completion after wallet credits and
 `deepr budget authorize openrouter`.
+
+**Unreleased local foundation:** local creation now starts bounded source
+research, study, briefing, a graph, and linked Markdown by default. `--profile-only`
+keeps empty setup explicit. Dashboard progress and `expert build` expose failed
+work and retries; `expert knowledge` regenerates derived views. Original-text
+lookup and exact context receipts improve inspectability. These changes are on
+the development checkout, not in the v2.50.18 release wheel. Practical guidance
+qualification and automatic current-source preparation remain open gates.
 
 **v2.50.18 keeps unattended metered dispatch frozen and spend gates fail-closed.** MCP
 research and expert validation never construct a paid client. OpenRouter catalog
@@ -17,6 +27,12 @@ Host-header CORS, empty bind hosts, and IPv4-mapped SSRF fail closed.
 Source-world preflight remains write-free; briefing supports historical cutoffs.
 The next product gate is v2.51 value evidence, not paid dispatch or a
 generic agent runtime. See [what's next and why](../ROADMAP.md#active-release-plan).
+
+**Planned consultation preparation:** normal consultation currently uses stored
+expert state. Explicit fresh-context maintenance exists; automatic preparation
+for each question does not. The next user-facing increment checks relevant
+current sources before answering, without automatically applying expert-state
+changes. See [S1 and its acceptance gate](plans/living-expertise.md#s1-prepare-before-consultation-with-bounded-temporary-evidence).
 
 **v2.50.15: Claude plan execution is blocked.** Managed-policy
 hooks can survive safe mode and execute independently of the model tool list.
@@ -244,9 +260,19 @@ must not be described as usable capacity.
 
 ## Experimental But Usable
 
-- Web dashboard and dashboard APIs. Create Expert saves an untrained local
-  profile with zero monthly learning budget and makes no inference call.
-  Profiles open on Claims; saved chat remains inspectable and local
+- Web dashboard and dashboard APIs. Create Expert starts a bounded local research
+  build by default, using the same formation service as `expert make --local`.
+  An explicit profile-only option saves an empty profile. One dashboard build
+  can run at a time; no hidden queue or paid fallback is created. Progress and
+  incomplete results remain visible in the profile, with an attended retry.
+  The build writes retained sources, study, a brief, graph and linked Markdown;
+  research completion remains distinct from practical qualification.
+  Profiles open on Perspective, showing the retained briefing, positions,
+  reasoning, revision conditions, study findings, and source links. Absent
+  records and failed reads remain distinct. Claim support estimates remain
+  inspectable with their interpretation, and no overall expertise probability
+  is inferred. Opening a profile does not check for current developments.
+  Saved chat remains inspectable and local
   consultation is an explicit CLI handoff. Browser chat and paid research
   retain their execution gates even when a wallet is funded.
 - Expert councils, task planning contracts, and approval flows. Standalone

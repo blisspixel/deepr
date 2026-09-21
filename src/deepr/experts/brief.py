@@ -152,12 +152,19 @@ Rules that make this honest rather than confident-sounding:
 - Every position must state an observation that would overturn it. Name something someone could
   actually go and check: a measurement, a document, a result. "If new evidence emerges" is not a
   falsifier, because nobody can check it. A position with no falsifier is an assertion.
+- Preserve the source's version, platform, operating conditions, and exceptions in the stance
+  itself. A conditional mechanism is not a universal recommendation. Source statements are not
+  proof that a proposed workflow is safe or suitable for every caller.
 - Turn a falsifier into a prospective prediction when a responsible check can be named. Set
   "falsifier_resolution_criterion" to the observable yes/no test and
   "falsifier_resolution_date" to the next date it should be checked in YYYY-MM-DD form. Today is
   {today}; never use an earlier date. If the evidence supports no responsible check date, leave
   both fields empty rather than inventing precision. A falsifier without both fields remains a
   falsifier, but it is not a registered prediction.
+- Standing definitions, documented behavior, and engineering recommendations are not forecasts.
+  Leave likelihood, falsifier_resolution_criterion, and falsifier_resolution_date empty for
+  these. A documentation revision can change advice without inventing a future deadline or
+  pretending a routine check is a prediction. Do not invent benchmark thresholds or API names.
 - "likelihood" and "confidence" are different things and must not be mixed. "likelihood" is how
   likely the stance is true. "confidence" is how sound your basis for saying so is. A claim can
   be a coin flip on excellent evidence, or near-certain on thin evidence.
@@ -173,7 +180,7 @@ House style, which applies to every field you return: write plain ASCII punctuat
 regular hyphen, never an en dash or em dash. Use straight quotes, never curly ones. No emoji.
 Prose, not decoration.
 {dissent_note}{prior_block}
-"likelihood" must be exactly one of: {_LIKELIHOOD_CHOICES}.
+"likelihood" must be empty for non-probabilistic advice, or exactly one of: {_LIKELIHOOD_CHOICES}.
 "confidence" must be exactly one of: {_CONFIDENCE_CHOICES}.
 "resolution" must be exactly one of: single (you land on one stance);
 conditional (the stance depends on an assumption, which you state); irreducible (the findings
@@ -188,7 +195,7 @@ Return JSON only, no prose outside it, with this shape:
     {{"question": "", "stance": "", "reasoning": "",
       "likelihood": "", "confidence": "", "resolution": "single",
       "would_change_my_mind": "", "falsifier_resolution_criterion": "",
-      "falsifier_resolution_date": "YYYY-MM-DD",
+      "falsifier_resolution_date": "",
       "supported_by": ["finding id, e.g. contention-4"],
       "unresolved_dissent": "", "confidence_basis": ""}}
   ],

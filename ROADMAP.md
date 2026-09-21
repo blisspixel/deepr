@@ -85,45 +85,128 @@ so empty model tools and disabled paid overage do not prove confinement.
 Local Ollama remains the executable v2.51 rehearsal lane. See the
 [containment decision](docs/design/claude-managed-policy-containment.md).
 
-**Next (v2.51):** one blinded four-arm evaluation of whether a *maintained*
-expert improves repeated decisions versus fresh research, static history, and
-compiled state.
+**Creation repair before the quality claim (2026-09-20):** local creation now
+connects bounded source acquisition, study, briefing, evidence graph and linked
+Markdown through one shared CLI/dashboard service. Its durable build record
+distinguishes research completion from reviewed expertise. See the
+[formation design](docs/design/expert-formation.md) and
+[Python examination](docs/validation/python-engineering-2026-09-20.md).
+The examination exposed evidence-delivery and reasoning-configuration defects;
+repairs do not by themselves establish that the exemplar is qualified.
 
-**Why v2.51 is next:** Deepr already stores beliefs, sources, briefs, and
-outcomes. It has not shown that using that stored state helps. More harness
-surface, expert-authored skills, paid APIs, or self-modifying loops would
-widen the product before the loop is closed. An unverified improvement loop
-is a degradation loop. See [Planning Principles](#planning-principles) and
-the [v2.51 pilot protocol](docs/design/expert-purpose-and-value-loop.md#v251-pilot-protocol).
+The [dated evidence bundle](docs/validation/artifacts/python-engineering-2026-09-20/README.md)
+preserves generated Markdown, graph links, source hashes and failed answers.
+The final five-case diagnostic completed without changing expert state but
+still failed practical guidance checks. The new build remains unreleased;
+v2.50.18 is the latest published version and the v2.51 evidence gate is open.
 
-The [September 13 evidence assessment](docs/research/deepr-next-evidence-2026-09-13.md)
-supports this order. The first same-model local rehearsal measures maintained
-state under frozen evidence access, not superiority over frontier web research.
-A completed negative pilot is useful evidence; a favorable result still needs
-held-out replication before learning-policy or routing-default changes.
+- [x] Live finding, 2026-09-20: repair dropped synthesis context, normalized
+  excerpt lookup, per-finding source windows and original-reference access;
+  retain the exact delivered context and explicit omissions.
+- [x] Live finding, 2026-09-20: reject failed/unknown source response statuses;
+  retain observation receipts and preserve unknown graph dates.
+- [x] Live finding, 2026-09-20: preserve local reasoning defaults and report
+  shared-context exhaustion accurately; truncated results do not replace a brief.
+- [ ] Qualify source selection and advice: distinguish a requested primary
+  library from the few pages that happened to arrive, reconcile platform and
+  version scope, check applicable code/examples, and calibrate semantic review.
+  More findings or a larger prompt did not resolve the observed errors.
+- [ ] Publish a replacement Python expert screenshot only after the scoped
+  guidance and currency evidence passes. Preserve unfavorable trials.
 
-**Not next, even if they look adjacent:** unattended or MCP OpenRouter,
-host subagent trees, expert-maintained skills, hosted observation,
-automatic belief changes from prediction outcomes, a trained gate over
-the expert roster, or rebranding the fleet as a neural mixture of
-experts. Those wait on later numbered gates, and only if v2.51 produces
-usable evidence.
+**Sequence updated 2026-09-20:** finish the formation and evidence-delivery
+repair, preserve the value baseline, then deliver preparation. An expert should get up to
+speed for the question, bring accumulated understanding to it, and learn from
+later evidence and experience. Default preparation is planned, not shipped.
 
-This order is dependency-gated, not a calendar. Deepr does not publish
-sprint, day, week, quarter, or release-date promises. A target advances only
-when its exit gate is supported by saved evidence. Parallel research may
-prepare design notes and fixtures, but it may not widen the shipped surface
-ahead of this sequence.
+The [delivery plan](docs/plans/living-expertise.md) defines the contracts,
+dependencies, recovery behavior, and validation budget for stages S0-S5 below.
+The [September research assessment](docs/design/living-expertise-research-2026-09.md)
+explains the supporting papers and their limits. The existing
+[v2.51 protocol](docs/design/expert-purpose-and-value-loop.md#v251-pilot-protocol)
+and [September 13 assessment](docs/research/deepr-next-evidence-2026-09-13.md)
+remain the baseline evidence; they do not establish a quality win.
 
-| Target | User-visible outcome | Why it is next | Exit gate |
-| --- | --- | --- | --- |
-| **v2.51** (next) | Publish one blinded four-arm longitudinal value evaluation for a flagship expert, comparing fresh research, static history, compiled expert state, and maintained expert state. | Persistent expert state is the product claim. Until it is measured, more memory, control, or host surface does not prove the claim. | Frozen source worlds, randomized review assignment, bound artifacts, operator attestations, and separate false-support, stale-memory, transfer, effort, cost, and outcome measures are reproducible. No aggregate score selects a winner or changes a default. |
-| **v2.52** | Resolve prospective expert predictions against later grounded observations and emit review-required learning proposals. | The value evaluation can identify whether the product helps. Prediction resolution closes the next part of the learning loop by showing why a view held or failed without granting self-modifying authority. | Each resolution binds the original prediction, later source evidence, world-valid time, observation time, and reviewer judgment. Frozen temporal fixtures reconstruct the same historical state and expose late or contradictory evidence. Accepted proposals demonstrate held-out before-and-after benefit. No prediction result directly mutates beliefs, prompts, routing, skills, or policy. |
-| **v2.53** | Complete the shared durable parent transaction for remaining metered surfaces and OpenRouter billing-export reconciliation. | Attended OpenRouter one-shot already reserves, marks, and settles `usage.cost`. Unattended graphs, generation-id post-mortem, and final invoice join remain. | Fault injection cannot overshoot or duplicate effects; fixtures prove exact credential, request, provider, response, generation, cache, BYOK, plugin, and total-cost handling; ambiguous outcomes consume the hold and freeze reconciliation. MCP, schedules, and automatic fallback stay blocked. |
-| **v2.54** | Expose owner-scoped, read-only investigation projections and validate exact host profiles for OpenClaw, DeepSeek Harness, Grok Build, Codex, and manual Grok Bot use. | Observation follows the value loop and authority substrate, while control still waits. Portable Agent Plugin packaging remains the primary lane. | Observation authority binds caller, `run_id`, expert roster, and cursor. Cross-run reads fail. Each host claim pins exact versions, tools, transport, runtime dependencies, and fixture or live `$0` evidence. |
-| **v2.55** | Add lineage-only follow-up, fork, pause, resume, cancel, and separately approved remote start. | Control can follow only after observation and ownership are proven. | Every transition is typed, idempotent, hash-bound, race-tested, budget-bound, and reconstructible from the canonical journal. |
-| **v2.56** | Admit bounded external workspace evidence and only the MCP extensions that remove a measured limitation. | Computer-produced evidence and protocol convenience must not become hidden authority. | Tainted artifacts remain evidence-only, derived views remain regenerable, and every Tasks, Skills-over-MCP, or Apps adapter has an explicit capability and authority boundary. |
-| **v3.0** | Freeze a portable, evidence-gated Level 5/6 expert contract. | Major-version stability should consolidate proven behavior, not collect unrelated features. | Approach, Supported Surface, capacity classes, migration guarantees, and multi-device continuity are stable. Any paid path is either independently proven and explicitly permitted or remains honestly frozen. |
+The order is dependency-gated, without calendar promises. A negative baseline
+is useful and does not block a targeted preparation repair. S1 prototypes can
+start after the S0 protocol is frozen; comparative claims require the preserved
+baseline. Promotion of unattended learning requires positive held-out evidence.
+Each release target below is provisional until its exit gate passes.
+
+| Target / stage | User-visible outcome | Prerequisite and exit gate |
+| --- | --- | --- |
+| **v2.51 / S0: baseline evidence** | One reviewed four-arm comparison of fresh research, static history, compiled state, and maintained state. | Reuse completed source preflight and operational evidence. Finish isolated inventories and exact blinded answer bindings, retain all 48 terminal cells, and publish separate quality, stale-reuse, transfer, effort, and cost results. A negative result can complete measurement; it cannot justify more autonomy. |
+| **v2.52 / S1: prepared consultation** | Normal CLI/MCP consultation checks relevant current developments before answering, with scoped reuse and explicit offline behavior. | Frozen S0 protocol; one shared preparation service; bounded current-source acquisition; dated context; partial/failure disclosure; no canonical expert mutation. Reviewed preparation-on/off cases and a bounded live-source smoke pass before default-on promotion. |
+| **v2.53 / S2: durable temporal learning** | Learning survives repeated study and answers use the applicable evidence and version. | Finding revision history, separate source study and reviewed reconciliation, consistent historical snapshots, citation lineage, replay and crash recovery. Later observations cannot leak into strict historical reads. Existing position history and prediction registration are reused. |
+| **v2.54 / S3: perspective and inquiry** | The expert explains connections, revises guidance, preserves dissent, and proposes useful next investigations. | S2 lineage; distinct synthesis over admitted evidence and prior perspective; navigable derived wiki; explicit change summaries; reviewed prediction resolutions and exact experience links. Resolution alone changes no policy or confidence. |
+| **v2.55 / S4: repeated-use proof** | One maintained expert demonstrates useful, current guidance through supervised renewal on a new held-out history. | S1-S3 and the preserved baseline. Separate memory and preparation effects, report total resources and harms, calibrate semantic review, and preserve null results. Unreviewed or inconclusive trials keep the value gate open. |
+| **Later 2.x / S5: earned expansion** | Bounded currency maintenance, then research-strategy improvement where evidence supports it. | S4 benefit plus recovery, capacity, shadow comparison, retained-capability checks, and rollback. New models and policies require revalidation. |
+| **Deferred, no release assigned** | Remaining paid parent transactions, host observation, remote controls, external workspace evidence, larger councils, and additional adapters. | Each must remove a demonstrated limitation and pass its own authority gate. These are not dependencies of S1-S4. Existing attended one-shot research remains a separate bounded surface. |
+| **v3.0** | Freeze the proven portable expert contract. | Stable Approach and Supported Surface, migration guarantees, validated continuity, and only the maturity gates actually demonstrated. A major version does not imply all experimental authority is enabled. |
+
+### Living expertise and evolving perspective
+
+**Source quality and access are core capabilities.** Build a reference library
+with excellent notes and fast original-text lookup. S1 adds current checks and
+bounded rendered acquisition where HTTP cannot supply the needed content.
+Inspect actual failure causes, preserve incomplete results and measure whether
+source access improves guidance. The
+[source-library and rendering design](docs/design/source-library-and-rendered-acquisition.md)
+records current code, inspected upstream revisions, license corrections,
+implementation order and acceptance gates without importing a crawler framework.
+
+An expert develops through research, study, reflection, investigation, and
+experience. Its retained understanding includes conceptual models, explanations,
+positions, hypotheses, insights, tradeoffs, dissent, and a learning agenda.
+Currency is part of expertise: a stored standpoint must be reconsidered when
+material changes affect the caller's question or environment.
+
+**Prepare before advising by default.** The planned consultation workflow
+identifies assumptions needing current evidence, checks applicable sources,
+considers their implications, and freezes a dated context before answering.
+A Python expert checks runtime/library versions, compatibility, and relevant
+changes rather than assuming that its last study is still sufficient. Reuse
+requires scope and freshness coverage; offline and incomplete preparation stay
+visible. Periodic upkeep is useful but does not replace this question-specific
+step.
+
+**Make currency inspectable.** Preparation must produce a dated Markdown review
+and linked evidence graph for the actual question: sources and hashes checked,
+observation times, applicable versions, new insights, implications for advice,
+and unresolved checks. Bind those records to the exact answer context. A recent
+file or graph timestamp proves only that a file was written. Source coverage,
+interpretation, and practical guidance each need validation before the expert
+is presented as ready for that scope.
+
+The temporal graph preserves evidence relationships and changing perspectives;
+the derived wiki explains their connections; consultation applies that
+understanding to a decision. Source-only study and later perspective synthesis
+remain separate. Factual support, interpretation, hypotheses, and original
+insights have distinct admission requirements. An insight needs defensible
+reasoning and relevance, not source repetition or novel wording alone.
+
+Keep expert understanding, scoped investigation progress, and operator purpose
+in their existing stores with distinct lifecycles. Read-only views cannot
+trigger research. Preparation may retain sources and stage proposals; durable
+learning follows reviewed admission. A successful fetch, completed answer, or
+saved outcome cannot by itself certify currentness, usefulness, or improvement.
+The [delivery plan](docs/plans/living-expertise.md) carries the per-stage
+contracts and acceptance cases, without introducing another memory service.
+
+**Python exemplar and profile:** S1 also needs a profile that leads with
+perspective, reasoned guidance, research coverage, open questions, and currency.
+Repository test-command claims do not demonstrate general Python expertise.
+Qualify breadth and useful answers before publishing a replacement README
+screenshot. Keep claim-level support estimates, demonstrated expertise, and
+question-specific freshness distinct; an unexplained confidence percentage
+cannot stand in for them. See the
+[exemplar acceptance criteria](docs/plans/living-expertise.md#python-exemplar-and-profile-acceptance).
+
+**Validation ceiling:** $10 total for this campaign across all stages and
+validation instruments, including failed attempts and release checks. The
+initial path is $0 incremental external spend. Tighter account, wallet, job,
+and calendar limits still apply; the allowance never resets per stage or run.
+No configuration or payment control is raised by this plan.
 
 ### Version and release discipline
 
@@ -139,11 +222,13 @@ ahead of this sequence.
   plugin artifacts are then verified, the GitHub Release points to that commit,
   the public installer is exercised, and the installed CLI version is checked.
   A failed live check becomes a roadmap finding and is fixed in a later patch.
-- Paid OpenRouter activation cannot be hidden inside v2.53. Under the current
-  hard rule, no paid inference call is allowed. If that rule is explicitly
-  revised after the complete proof, activation receives its own minor target
-  and requires a two-model validation under the smaller of the provider hard
-  limit, Deepr parent ceiling, and operator authorization.
+- Attended one-shot OpenRouter research is a separate existing capability.
+  Extending paid authority to other surfaces requires its own reviewed scope,
+  exact provider/account/request proof, and cumulative validation ceiling.
+  Consultation, learning, MCP, and schedules cannot inherit that authority.
+- A documentation-only planning change updates `Unreleased` and green `main`;
+  it does not require a new package release. Remove merged task branches and
+  keep `main` as the sole long-lived branch.
 
 Detailed topic gates live in [Detailed Promotion Gates](#detailed-promotion-gates).
 Completed behavior lives in [the changelog](docs/CHANGELOG.md), not in the
@@ -165,7 +250,15 @@ The kernel is designed to be embeddable in other agent projects. The primitives 
 
 **Interoperability model:** Deepr is built to be one role on a larger agent team, not the orchestrator. Experts produce structured, handoff-ready artifacts (reports with citations, belief states, gap backlogs) that downstream agents can consume directly. An external orchestrator assigns work to a Deepr expert the same way it would assign work to any other role - via MCP tool calls with budget contracts and trace IDs that stitch across agent boundaries. This means Deepr doesn't need to know about the full workflow; it just needs to do its job well and hand off cleanly.
 
-**Capability-adaptive principle:** the target is first-class operation on any OS with local Ollama (`$0`), verified non-metered plan capacity, or bounded cloud APIs. Explicit local work is executable after its owned-local proof passes. All production plan adapters are currently execution-blocked, including Claude because managed-policy hooks survive safe mode. Opaque CLI judges, arbitrary CLI tools, generic outbound MCP clients, metered APIs, and cloud provisioning are quarantined before dispatch. Metered request preview and accounting exist, and attended absorb has a complete wallet and job transaction, but production paid dispatch remains blocked until a provider-specific authenticated account-control verifier and current credential-identity resolver are installed. Selected scheduled expert-maintenance paths can choose admitted local or trusted-quota plan capacity; global cheapest-first runtime routing and automatic metered fallback are not shipped. `deepr init` detects all three tiers and `deepr capacity` distinguishes executable, visible/read-only, blocked, and waiting capacity. Cost-efficiency is the default policy, but execution claims follow proven capability rather than CLI presence.
+**Capability-adaptive principle:** owned local capacity executes only after
+its ownership and cloud-disable proofs pass. All production plan adapters are
+currently blocked. Attended one-shot OpenRouter research is a separate bounded
+exception requiring its exact account, wallet, request, and settlement proofs;
+other metered surfaces retain their own blocks. Consultation, learning,
+MCP, schedules, and automatic fallback cannot inherit that paid authority.
+`deepr capacity` distinguishes executable, visible/read-only, blocked, and
+waiting capacity. Broader adapters are planned only after their own proofs;
+installation or a budget flag does not establish executability.
 
 **Deep understanding loop:** Deepr's product direction is not "better RAG" and
 not "one more deep research button." Deepr should become a durable understanding
@@ -596,7 +689,7 @@ binds the credential used for a read-only request to a finite monthly limit,
 BYOK-inclusive usage, and remaining headroom. Both return
 `dispatch_authorized=false`; neither is final billing reconciliation. This does
 not change the immediate evidence loop below. Executable OpenRouter work remains
-behind the v2.53 maximum-charge and provider authority gate, including exact
+behind the remaining maximum-charge and provider authority gate, including exact
 response identity, account-level BYOK and plugin proof, durable parent adoption,
 ambiguous-outcome handling, provider total-cost evidence, and append-only usage
 settlement.
@@ -607,8 +700,8 @@ Quick Start, root help, command help, and post-create guidance agree on retain,
 study, brief, then consult. A no-network regression proves that a retained
 passage survives into grounded consult context without constructing a provider.
 Release-history and version drift now fail the documentation consistency gate,
-the four-arm value proof is the immediate evidence loop, and v2.54 remains
-design-gated until observation authority binds more than a known `run_id`.
+the four-arm value proof is the immediate evidence loop, and remote observation
+remains design-gated until authority binds more than a known `run_id`.
 
 **Shipped in v2.50.7 (see docs/CHANGELOG.md):** MCP job persistence now keeps
 plans, active tasks, temporal findings, and hypothesis history intact across
@@ -771,30 +864,11 @@ Several of those existed already and were wired to nothing. Six modules this
 round were found built, tested and unreachable, which is a pattern worth
 naming: a module with tests is not a shipped feature.
 
-**Next, in dependency order.** Order is the claim here; nothing below is a
-calendar, and the sequence is derived from what blocks what rather than from
-what looks appetising.
-
-**Immediate evidence loop before widening the public surface:** run one
-flagship expert through the shipped four-arm longitudinal value workbook with
-blinded, randomized semantic review, exact frozen source worlds, and explicit
-operator attestation. Publish the workbook, bound artifacts, and separate
-false-support, stale-memory, transfer, effort, cost, and outcome measures. This
-is validation of the current product, not authority to tune a default. The next
-implementation is resolving prospective predictions against later grounded
-material without applying a learning controller. Read-only MCP investigation
-projection stays design-gated until run ownership is stronger than knowledge
-of a `run_id`.
-
-The OpenRouter preview catalog and non-authorizing provider proofs are
-intentionally adjacent work, not the next product milestone. They broaden model
-comparison and validate route and key-control inputs without inference spend or
-mutation. Their text-inference proof closes cache-read, cache-write, reasoning,
-discount-markup, and fixed-request gaps without claiming that OpenRouter's
-`max_price` caps every price class. Executable gateway routing still waits for
-v2.53 parent adoption, clean account-default and no-BYOK proof, composite route
-and response evidence, mandatory total-cost settlement, and final billing
-reconciliation.
+**Sequencing:** the [Active Release Plan](#active-release-plan) is the sole
+delivery order. The completed foundations and topic prerequisites below remain
+reference detail. Baseline measurement precedes claims of improvement; default
+preparation precedes durable learning and wider autonomy. Host distribution
+and paid authority are separate deferred tracks.
 
 0. **Close the standards foundation before widening distribution.** The three
    current targets have separate jobs: OKF 0.2 carries selected knowledge,
@@ -908,7 +982,9 @@ reconciliation.
    pass the reversibility test - `source`, `study`, `graph`, `viva` - with a
    quota preflight rather than a schedule. Two runs died mid-flight on quota
    exhaustion in a single session; a loop that does not model remaining
-   capacity fails inside the most expensive step.
+   capacity fails inside the most expensive step. S4's held-out value and
+   recovery gates also apply; this historical prerequisite list cannot bypass
+   the active release sequence.
 
 **Refinements worth doing alongside, none of them blocking:**
 
@@ -975,7 +1051,7 @@ lexical verdict.
 | [docs/design/living-expert-research-stack.md](docs/design/living-expert-research-stack.md) | Research: Distillr, Learny, capacity |
 | [docs/design/diverse-expert-council.md](docs/design/diverse-expert-council.md) | Research: multi-axis mock councils |
 | [docs/design/mixture-of-experts-and-deepr-experts.md](docs/design/mixture-of-experts-and-deepr-experts.md) | Research: neural MoE vs the persistent fleet |
-| [docs/plans/living-expert-research-stack.md](docs/plans/living-expert-research-stack.md) | **Order of operations** Steps 0-8 (no calendar estimates) |
+| [docs/plans/living-expert-research-stack.md](docs/plans/living-expert-research-stack.md) | Historical integration checklist; active ordering is in the release plan |
 | [docs/design/exceptional-expert-quality.md](docs/design/exceptional-expert-quality.md) | Living expert / wiki quality bar |
 | [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) | Instrument independence |
 
@@ -1531,7 +1607,7 @@ design standard, not a closed story.
    operator-accepted, current, reusable state measurably helps over time.
 3. **Temporal knowledge graph completion and memory quality (continuing evidence track)** - first-class temporal edge qualifiers now surface in read-side perspective deltas, belief explanations, expert-memory quality checks, the host-agent `deepr_temporal_edges` filter surface, regenerated expert digests, and `deepr eval continuity` generated-view checks after default compiled sync applies verified graph commits and persists verifier-supplied temporal edge context. Semantic recall now has a first-class local `$0` construction path: `deepr expert refresh-semantic-recall --local-embedding-model` embeds missing or stale belief claims through a local Ollama embedding model on the existing local client seam, and `deepr expert semantic-recall --local-embedding-model` computes the query embedding locally so indexed vector recall works without any caller-side embedding pipeline; both paths are explicit, no-metered-fallback, and stay `candidate_only`. Compiled-sync claim verification can now use that index: `deepr expert sync --compile-claims --recall-embedding-model MODEL` embeds ready claim statements through the local `$0` embedder and routes verifier recall context through indexed belief vectors, degrading to lexical routing instead of blocking the gated verification call when the local embedder fails, and the persisted claim-verification sidecar records the exact recall packets the verifier prompt used so the per-candidate `method` field stays honest on the durable artifact. `deepr eval recall NAME --cases PATH` now provides that `$0` evidence surface: it compares lexical and indexed-vector routing on operator-labeled cases (local or precomputed query embeddings) and reports hit rate, mean reciprocal rank, and per-metric winners as routing evidence only. `deepr eval recall NAME --cases PATH --record-cases` now accumulates those operator-labeled cases in a runtime-local `deepr-recall-eval-case-library-v1` library, `deepr eval recall NAME --query TEXT --relevant-belief-id ID --record-cases` captures one reviewed case without a scratch JSON file, and `deepr eval recall NAME` can rerun against that accumulated set without touching graph state, beliefs, or vectors. Consult traces now preserve selected stored-belief ids and trace mining emits review-required `deepr-recall-eval-case-candidate-v1` drafts when a failed-check, low-context, or middle-context candidate has selected belief context; they are not auto-recorded as labels. Claim-verification decisions now use the same candidate contract for duplicate, contradiction, or temporal-scope memory blocks that had recall context, preserving candidate belief ids for operator review without asserting relevance. Recall eval reports now include a conservative scheduler-preference eligibility block: vector routing is eligible only after enough labeled cases, required vector metric wins, and complete current vectors for the requested model. Claim verification can now consume an explicit recall route preference block and try vector-only recall first while preserving lexical fallback when the preference is absent, ineligible, or produces no vector hits, and `deepr expert sync --compile-claims --recall-embedding-model MODEL --recall-preference-report PATH` validates a local recall eval report for the same expert and model before threading only its scheduler-preference block into the verifier prompt. A `$0` regression now validates that an accumulated recall case library can generate an eligible report before sync accepts only its scheduler-preference block, and sync now revalidates eligible reports for case count, required vector metric wins, an evaluated vector route, no ineligible reasons, and complete current vector coverage instead of trusting a hand-edited `eligible: true` flag. Next: keep default lexical-first routing unless an operator supplies a vetted report, and run live/operator validation on accumulated libraries before considering any scheduler default. Compiler claim verification can carry caller-supplied or store-backed recall context, and sync can run the budget-gated verifier, persist compiler and apply sidecars, and use `--stage-compiled-claims` for no-write envelope staging, but recall stays subordinate to the graph: recall finds candidates; the belief graph and verifier decide. Why: the expert should answer "what changed," "why do you believe it," "what is your current take," "what is contested," "what are you watching," and "what would change your mind," which no chunk store can answer.
    Cycle 103 update (2026-07-09): recall eval reports now carry `deepr-recall-operator-validation-v1`, an additive operator-facing block that says whether an accumulated-library run is ready for explicit sync preference and records that default routing remains lexical-first until an operator supplies a vetted saved report. Cycle 104 update (2026-07-09): `deepr eval recall-libraries` now emits `deepr-recall-library-inventory-v1`, a read-only inventory of accumulated recall libraries that flags invalid files and identifies which experts have enough operator-labeled cases for route-evidence evals before any explicit sync preference report is considered. Cycle 105 update (2026-07-09): `deepr eval recall-libraries --validation-plan --local-embedding-model MODEL` now emits `deepr-recall-library-validation-plan-v1`, a read-only command plan for ready accumulated libraries that does not execute retrieval, write state, or authorize default routing. Cycle 106 update (2026-07-09): `deepr-recall-eval-report-v2` replaces the three-case point-estimate eligibility gate with standard IR metrics, a 30-case operating floor, deterministic 95 percent paired bootstrap intervals, sync-side recomputation, a live model-specific belief/vector state-digest check, and exact top-k, expert-domain, and minimum-score binding for every eligible preference artifact. Default routing remains lexical-first. Design: [semantic-recall-evidence.md](docs/design/semantic-recall-evidence.md).
-4. **Protocol-native expert collaboration over MCP and A2A (target v2.55; after v2.51-v2.54)** - design:
+4. **Protocol-native expert collaboration over MCP and A2A (deferred; separate authority gate after S4)** - design:
    [remote-expert-conversations.md](docs/design/remote-expert-conversations.md),
    [bounded-expert-deliberation.md](docs/design/bounded-expert-deliberation.md),
    and [ADR 0005](docs/decisions/0005-protocol-neutral-expert-conversation-handles.md).
@@ -2022,7 +2098,8 @@ the same transport, tool profile, or authentication scheme.
 
 - Portable Agent Plugin packaging is the primary integration lane today.
 - Hosted observation follows the v2.51 value experiment and authority work.
-  Read-only projections and exact host qualification are v2.54 work.
+  Read-only projections and exact host qualification remain deferred; see the
+  active release plan for the current order.
 - Remote control, scheduling authority, and paid-agent execution remain behind
   their separate promotion gates. No cloud deployment is enabled here.
 
@@ -2237,28 +2314,13 @@ The active quality and verification work is sequenced in
 selection remains advisory where its current lexical router has not been
 confirmed by model judgment.
 
-**Multi-backend ensemble learning (the per-expert "wiki refresh" loop).** Today
-`expert learn`/`sync` runs one capacity source per refresh. The next increment is
-an ensemble pass: for a dated topic ("latest on <topic> as of <date>"), fan the
-research step out across the prepaid plan CLIs the operator has (codex, claude,
-grok, antigravity) plus local, each proposing current insights with sources;
-then the existing compiler merges all proposals through one verified absorb -
-extraction, confidence floor, source-trust ceiling, contradiction and dedup
-gates - into the canonical belief/edge store, and regenerates the derived
-wiki/digest view. This is the deep-fan-out ("heavy") pattern applied to learning
-rather than consult, and it is the literature's dual-track design: many cheap
-researchers, one trusted write path. It must obey the existing rules - the
-ensemble never writes canon directly (every claim passes the same gates), the
-wiki stays a regenerable derived view (Karpathy pattern, not hand-edited canon),
-spend stays on owned/prepaid capacity by default, and it is admitted only behind
-the loop gates (repeat demand, automated verification, explicit budget/capacity,
-failure diagnosis). Each backend's prompt delivery must be headless-safe (file or
-stdin, never a long argv - see [plan-quota-cli-backends.md](docs/design/plan-quota-cli-backends.md)).
-Why: an expert gets more current and better-grounded when several independent
-researchers propose and one verifier decides, instead of trusting a single
-model's single pass. This is the compiler's input fan-out; the compiler itself
-(source pack -> notes -> beliefs -> edges -> gaps -> regenerated wiki) is Next
-Order of Operations item 3.
+**Deferred ensemble learning.** Additional research backends are an experiment
+after S4, when a specific coverage or quality failure warrants the cost. Compare
+against the same total-resource single-backend baseline; correlated outputs do
+not count as independent evidence. Use only currently admitted capacity and the
+existing verified admission path. All production plan adapters are currently
+blocked. The next user-facing increment is S1 prepared consultation, not backend
+fan-out or a larger council.
 
 **2026-06-18 loop/OKF research update.** The useful part of the current loop
 engineering push is narrower than the hype: long-running agents work when the

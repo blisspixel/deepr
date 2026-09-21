@@ -1,0 +1,332 @@
+{
+  "retained_inventory": [
+    {
+      "sha256": "136007d31a85b9896563483d1f6e575b6879e3c18fc1346014294780463e76dd",
+      "url": "https://docs.pytest.org/en/stable/explanation/goodpractices.html",
+      "title": "Good Integration Practices - pytest documentation",
+      "origin_key": "pytest.org",
+      "publisher": "Python documentation",
+      "fetched_at": "",
+      "kind": ""
+    },
+    {
+      "sha256": "1cfb4d03e122466159a72eeadfb6389d6c98136b43d586b8a7ab82d37a807e47",
+      "url": "https://mail.python.org/archives/list/security-announce@python.org/2026/9/",
+      "title": "Mailman 3 \nSeptember 2026 - Security-announce - python.org",
+      "origin_key": "python.org",
+      "publisher": "Python Software Foundation",
+      "fetched_at": "2026-09-20T23:34:44.431447+00:00",
+      "kind": ""
+    },
+    {
+      "sha256": "1d58345500a7ed9ff67fc18521f32487a18203947977f89ef3e4bf3699a4ace6",
+      "url": "https://docs.python.org/3.14/library/asyncio-task.html",
+      "title": "Coroutines and tasks \u2014 Python 3.14.7 documentation",
+      "origin_key": "python.org",
+      "publisher": "Python documentation",
+      "fetched_at": "",
+      "kind": ""
+    },
+    {
+      "sha256": "1f4647a721a124ac9c67a264f064466f0fd7da1ccc33a08d4262344c34bac879",
+      "url": "https://raw.githubusercontent.com/psf/advisory-database/main/advisories/python/PSF-2026-41.json",
+      "title": "PSF-2026-41",
+      "origin_key": "python.org",
+      "publisher": "Python Software Foundation",
+      "fetched_at": "2026-09-20T23:34:44.337557+00:00",
+      "kind": ""
+    },
+    {
+      "sha256": "6e44b9aff7537451f8667f77cef98f051b71ad94793e3a1b7c6d8ec13d8e1027",
+      "url": "https://docs.python.org/3.14/library/multiprocessing.html",
+      "title": "multiprocessing \u2014 Process-based parallelism \u2014 Python 3.14.7 documentation",
+      "origin_key": "python.org",
+      "publisher": "Python documentation",
+      "fetched_at": "",
+      "kind": ""
+    },
+    {
+      "sha256": "706e7c6881c9951d8a3a6c7812644e8e9331a40b4efdfe1c4d79e2c6178ed0d9",
+      "url": "https://docs.python.org/3.14/library/security_warnings.html",
+      "title": "Security Considerations \u2014 Python 3.14.7 documentation",
+      "origin_key": "python.org",
+      "publisher": "Python documentation",
+      "fetched_at": "",
+      "kind": ""
+    },
+    {
+      "sha256": "779891ad6d8e6ea3949d5159c3bfabebd5463c2c236f90d345d46e529d8c96b8",
+      "url": "https://docs.python.org/3.14/library/tarfile.html",
+      "title": "tarfile \u2014 Read and write tar archive files \u2014 Python 3.14.7 documentation",
+      "origin_key": "python.org",
+      "publisher": "Python documentation",
+      "fetched_at": "",
+      "kind": ""
+    },
+    {
+      "sha256": "7b65cafa83303efe176d77487f83f43cda9bb4b83f336b56a9f5b9063553ff3c",
+      "url": "https://raw.githubusercontent.com/psf/advisory-database/main/advisories/python/PSF-2026-40.json",
+      "title": "PSF-2026-40",
+      "origin_key": "python.org",
+      "publisher": "Python Software Foundation",
+      "fetched_at": "2026-09-20T23:34:44.279710+00:00",
+      "kind": ""
+    },
+    {
+      "sha256": "8606c131d9d12bb73d1e6cd77daf2e33e7faf858c0d491b99743ec2bb0c5664b",
+      "url": "https://peps.python.org/pep-0008/",
+      "title": "PEP 8 \u2013 Style Guide for Python Code | peps.python.org",
+      "origin_key": "python.org",
+      "publisher": "Python documentation",
+      "fetched_at": "",
+      "kind": ""
+    },
+    {
+      "sha256": "aeb5334d7d4ba90f7fd724412cd51ee20f3289f77d0736c6632c8600ac7c07d1",
+      "url": "https://docs.python.org/3.14/howto/free-threading-python.html",
+      "title": "Python support for free threading \u2014 Python 3.14.7 documentation",
+      "origin_key": "python.org",
+      "publisher": "Python documentation",
+      "fetched_at": "",
+      "kind": ""
+    },
+    {
+      "sha256": "c7632e272b82b31bdf67c51df5c2383ba662f5ec575e3c5e3ec48d4df70530b4",
+      "url": "https://docs.python.org/3.14/library/threading.html",
+      "title": "threading \u2014 Thread-based parallelism \u2014 Python 3.14.7 documentation",
+      "origin_key": "python.org",
+      "publisher": "Python documentation",
+      "fetched_at": "",
+      "kind": ""
+    },
+    {
+      "sha256": "c96b3a4fa56740c41a933b02376168b3d98ba186b9a3a3c32fa59794b30f8550",
+      "url": "https://www.python.org/downloads/",
+      "title": "Download Python | Python.org",
+      "origin_key": "python.org",
+      "publisher": "Python Software Foundation",
+      "fetched_at": "2026-09-20T23:34:43.960299+00:00",
+      "kind": ""
+    },
+    {
+      "sha256": "ca04f628426c35999ea0f571e445bc59bf6819d83e31be1ec55be1c885250781",
+      "url": "https://docs.python.org/3.14/reference/datamodel.html",
+      "title": "3. Data model \u2014 Python 3.14.7 documentation",
+      "origin_key": "python.org",
+      "publisher": "Python documentation",
+      "fetched_at": "",
+      "kind": ""
+    },
+    {
+      "sha256": "cae9ecb4ba50cdfb6285ec93953d0572c2b5a740645cefdc9ce5d86b3bc8fd10",
+      "url": "https://blog.python.org/2026/08/python-3147-31315/",
+      "title": "Python 3.14.7 and 3.13.15 are now available! | Python Insider",
+      "origin_key": "python.org",
+      "publisher": "Python documentation",
+      "fetched_at": "",
+      "kind": ""
+    },
+    {
+      "sha256": "d53c313e49d3bea2b57b157ab7836938dcd84532945f7466700fc71f07752e7b",
+      "url": "https://www.python.org/downloads/release/python-3147/",
+      "title": "Python Release Python 3.14.7 | Python.org",
+      "origin_key": "python.org",
+      "publisher": "Python Software Foundation",
+      "fetched_at": "2026-09-20T23:34:43.961304+00:00",
+      "kind": ""
+    },
+    {
+      "sha256": "d8bab217c04b331bfe12f8054c02fc3cae711cf2d6d0213d05858972b41398b1",
+      "url": "https://docs.python.org/3.14/library/bisect.html",
+      "title": "bisect \u2014 Array bisection algorithm \u2014 Python 3.14.7 documentation",
+      "origin_key": "python.org",
+      "publisher": "Python documentation",
+      "fetched_at": "",
+      "kind": ""
+    },
+    {
+      "sha256": "dcbc67cef2563d397ad00870b7b6829d3929c579d6ea6238e4b4a47b8b9e2391",
+      "url": "https://docs.python.org/3.14/library/profile.html",
+      "title": "The Python Profilers \u2014 Python 3.14.7 documentation",
+      "origin_key": "python.org",
+      "publisher": "Python documentation",
+      "fetched_at": "",
+      "kind": ""
+    },
+    {
+      "sha256": "e2e7ea97d60e8f3f41b8e76101c7b7a9a87a03d096fdcb69a620a6b6358fba15",
+      "url": "https://typing.python.org/en/latest/spec/concepts.html",
+      "title": "Type system concepts \u2014 typing  documentation",
+      "origin_key": "python.org",
+      "publisher": "Python documentation",
+      "fetched_at": "",
+      "kind": ""
+    },
+    {
+      "sha256": "f798599ed55aa4648a87bf21e17a9d5e6b699d6d840ee58f5ea47d7df43431db",
+      "url": "https://packaging.python.org/en/latest/discussions/src-layout-vs-flat-layout/",
+      "title": "src layout vs flat layout - Python Packaging User Guide",
+      "origin_key": "python.org",
+      "publisher": "Python documentation",
+      "fetched_at": "",
+      "kind": ""
+    }
+  ],
+  "current_source_review": {
+    "created_at": "2026-09-20T23:34:45.033827+00:00",
+    "sources": [
+      {
+        "name": "downloads",
+        "url": "https://www.python.org/downloads/",
+        "path": "downloads.html",
+        "retrieved_at": "2026-09-20T23:34:43.960299+00:00",
+        "response_sha256": "bded80443c66159d0455ee63e9593e156fab5d7691cf1c3ebba12f1a3da14bb1",
+        "bytes": 215042,
+        "retained_sha256": "c96b3a4fa56740c41a933b02376168b3d98ba186b9a3a3c32fa59794b30f8550",
+        "retained_chars": 2574
+      },
+      {
+        "name": "release-3147",
+        "url": "https://www.python.org/downloads/release/python-3147/",
+        "path": "release-3147.html",
+        "retrieved_at": "2026-09-20T23:34:43.961304+00:00",
+        "response_sha256": "01e1aa629cedbf4a7ffedfe2772b95253da95524a613362a65cab311b3faf7be",
+        "bytes": 53646,
+        "retained_sha256": "d53c313e49d3bea2b57b157ab7836938dcd84532945f7466700fc71f07752e7b",
+        "retained_chars": 5705
+      },
+      {
+        "name": "september-security",
+        "url": "https://mail.python.org/archives/list/security-announce@python.org/2026/9/",
+        "path": "september-security.html",
+        "retrieved_at": "2026-09-20T23:34:44.431447+00:00",
+        "response_sha256": "917b3596b35c49885d5778913390c58ad36170961cc46bb66d65417f989fc5d1",
+        "bytes": 36335,
+        "retained_sha256": "1cfb4d03e122466159a72eeadfb6389d6c98136b43d586b8a7ab82d37a807e47",
+        "retained_chars": 3033
+      },
+      {
+        "name": "PSF-2026-33",
+        "url": "https://raw.githubusercontent.com/psf/advisory-database/main/advisories/python/PSF-2026-33.json",
+        "path": "PSF-2026-33.json",
+        "retrieved_at": "2026-09-20T23:34:43.938863+00:00",
+        "response_sha256": "a96e7c0f4293aadf2ff4774d2a59e8ab2331138387f3d0f2d73a75b4d0ee6a71",
+        "bytes": 2631,
+        "published_at": "2026-07-09T17:10:57.317Z",
+        "modified_at": "2026-08-11T00:23:59.064Z",
+        "aliases": [
+          "CVE-2026-15308"
+        ]
+      },
+      {
+        "name": "PSF-2026-34",
+        "url": "https://raw.githubusercontent.com/psf/advisory-database/main/advisories/python/PSF-2026-34.json",
+        "path": "PSF-2026-34.json",
+        "retrieved_at": "2026-09-20T23:34:44.052319+00:00",
+        "response_sha256": "bae161075642d8c9765c3b22ccebf564148880ef1a7f743172f7725fd78157f9",
+        "bytes": 2865,
+        "published_at": "2026-07-28T13:46:30.650Z",
+        "modified_at": "2026-08-11T00:22:31.120Z",
+        "aliases": [
+          "CVE-2026-6879"
+        ]
+      },
+      {
+        "name": "PSF-2026-35",
+        "url": "https://raw.githubusercontent.com/psf/advisory-database/main/advisories/python/PSF-2026-35.json",
+        "path": "PSF-2026-35.json",
+        "retrieved_at": "2026-09-20T23:34:44.107654+00:00",
+        "response_sha256": "9313ee6f767203deb864cbb69ee928de747b3036db3459a63817ee9cb4273d07",
+        "bytes": 2431,
+        "published_at": "2026-08-10T13:45:31.618Z",
+        "modified_at": "2026-08-12T00:27:53.702Z",
+        "aliases": [
+          "CVE-2026-18503"
+        ]
+      },
+      {
+        "name": "PSF-2026-36",
+        "url": "https://raw.githubusercontent.com/psf/advisory-database/main/advisories/python/PSF-2026-36.json",
+        "path": "PSF-2026-36.json",
+        "retrieved_at": "2026-09-20T23:34:44.107654+00:00",
+        "response_sha256": "fa21a072af75521ab4119a0e7674928d191ba3deffd732be83527023070c36c7",
+        "bytes": 3171,
+        "published_at": "2026-08-18T15:50:57.983Z",
+        "modified_at": "2026-08-21T00:21:36.215Z",
+        "aliases": [
+          "CVE-2026-15806"
+        ]
+      },
+      {
+        "name": "PSF-2026-37",
+        "url": "https://raw.githubusercontent.com/psf/advisory-database/main/advisories/python/PSF-2026-37.json",
+        "path": "PSF-2026-37.json",
+        "retrieved_at": "2026-09-20T23:34:44.162472+00:00",
+        "response_sha256": "500e57e07f1299603990a1ba7b1e2c5fffd1627a455022a798e5f24003a7f607",
+        "bytes": 2775,
+        "published_at": "2026-08-18T13:57:31.876Z",
+        "modified_at": "2026-09-10T00:35:47.485Z",
+        "aliases": [
+          "CVE-2026-17084"
+        ]
+      },
+      {
+        "name": "PSF-2026-38",
+        "url": "https://raw.githubusercontent.com/psf/advisory-database/main/advisories/python/PSF-2026-38.json",
+        "path": "PSF-2026-38.json",
+        "retrieved_at": "2026-09-20T23:34:44.232404+00:00",
+        "response_sha256": "c3a6e83f4b95331a499fb7f0cbd7e4d8db8f582f463b43b6adea74def783f0c7",
+        "bytes": 1660,
+        "published_at": "2026-08-19T15:24:08.616Z",
+        "modified_at": "2026-08-19T15:24:08.616Z",
+        "aliases": [
+          "CVE-2026-19672"
+        ]
+      },
+      {
+        "name": "PSF-2026-39",
+        "url": "https://raw.githubusercontent.com/psf/advisory-database/main/advisories/python/PSF-2026-39.json",
+        "path": "PSF-2026-39.json",
+        "retrieved_at": "2026-09-20T23:34:44.234032+00:00",
+        "response_sha256": "008e2e351e0090009b34b253b4015e1d1a66fa6f73f19816a4bbc236bc2c73b2",
+        "bytes": 2431,
+        "published_at": "2026-08-25T15:07:58.054Z",
+        "modified_at": "2026-09-17T00:35:26.077Z",
+        "aliases": [
+          "CVE-2026-15310"
+        ]
+      },
+      {
+        "name": "PSF-2026-40",
+        "url": "https://raw.githubusercontent.com/psf/advisory-database/main/advisories/python/PSF-2026-40.json",
+        "path": "PSF-2026-40.json",
+        "retrieved_at": "2026-09-20T23:34:44.279710+00:00",
+        "response_sha256": "7b44cc0a32c741c9e2b414507238afb6ff6f4e51d944b240a52114bfb4308047",
+        "bytes": 1703,
+        "published_at": "2026-09-11T17:27:04.339Z",
+        "modified_at": "2026-09-12T00:31:42.680Z",
+        "aliases": [
+          "CVE-2026-87910"
+        ],
+        "retained_sha256": "7b65cafa83303efe176d77487f83f43cda9bb4b83f336b56a9f5b9063553ff3c",
+        "retained_chars": 1933
+      },
+      {
+        "name": "PSF-2026-41",
+        "url": "https://raw.githubusercontent.com/psf/advisory-database/main/advisories/python/PSF-2026-41.json",
+        "path": "PSF-2026-41.json",
+        "retrieved_at": "2026-09-20T23:34:44.337557+00:00",
+        "response_sha256": "1ed35deb0009f55b22640a4bae75e38e73f76148d8242e3ed11572c5a863cf11",
+        "bytes": 1914,
+        "published_at": "2026-09-14T19:14:03.873Z",
+        "modified_at": "2026-09-15T00:34:01.076Z",
+        "aliases": [
+          "CVE-2026-82049"
+        ],
+        "retained_sha256": "1f4647a721a124ac9c67a264f064466f0fd7da1ccc33a08d4262344c34bac879",
+        "retained_chars": 2145
+      }
+    ],
+    "api_spend_usd": 0
+  }
+}

@@ -136,7 +136,6 @@ class NativeOllamaInvestigationBackend:
             "model": model,
             "messages": messages,
             "stream": False,
-            "think": False,
             "keep_alive": self.keep_alive,
             "options": {
                 "num_ctx": num_ctx,

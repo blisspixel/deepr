@@ -189,6 +189,13 @@ class TestWhatTheEdgesMakeVisible:
 
 
 class TestTemporal:
+    def test_graph_build_time_does_not_fill_unknown_observation_dates(self):
+        study = SimpleNamespace(findings=[_finding("f1", ["sha-a"])])
+        entry = SimpleNamespace(sha256="sha-a", title="Unknown date")
+        graph = _built(study=study, corpus_entries=[entry])
+        assert graph.sources[0].first_seen == ""
+        assert graph.findings[0].first_seen == ""
+
     def test_findings_carry_the_study_time_they_came_from(self):
         graph = _built()
         assert all(f.first_seen == "2026-08-01T00:00:00+00:00" for f in graph.findings)

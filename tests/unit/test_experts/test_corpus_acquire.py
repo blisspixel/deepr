@@ -61,6 +61,21 @@ class TestSourceIdentity:
 
 class TestRefresh:
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("status", [None, "200", True, 304, 302, 503])
+    async def test_unknown_or_non_success_status_does_not_abort_other_sources(self, store, status):
+        first = SimpleNamespace(text=_BODY, status_code=status)
+        result = await acquire_sources(
+            expert_name="E",
+            urls=["https://ex.com/bad", "https://ex.com/good"],
+            corpus=store,
+            fetch_page=_fetcher({"https://ex.com/bad": first, "https://ex.com/good": _page()}),
+        )
+        assert result.sources[0].status == "fetch_failed"
+        assert result.sources[0].observed_at
+        assert result.sources[1].status == "retained"
+        assert len(store.active_entries()) == 1
+
+    @pytest.mark.asyncio
     async def test_refetching_an_unchanged_page_adds_no_source(self, store):
         pages = {"https://ex.com/a": _page()}
 
@@ -98,6 +113,37 @@ class TestRefresh:
 
 
 class TestFailureIsolation:
+    @pytest.mark.asyncio
+    async def test_transport_failure_text_cannot_be_retained_as_a_source(self, store):
+        page = SimpleNamespace(text="Connection failed. " * 100, title="Error", status_code=0)
+        result = await acquire_sources(
+            expert_name="E",
+            urls=["https://ex.com/bad"],
+            corpus=store,
+            fetch_page=_fetcher({"https://ex.com/bad": page}),
+        )
+        assert result.sources[0].status == "fetch_failed"
+        assert result.sources[0].http_status == 0
+        assert result.sources[0].observed_at
+        assert not store.active_entries()
+
+    @pytest.mark.asyncio
+    async def test_redirected_source_keeps_actual_publisher_and_observation(self, store):
+        page = SimpleNamespace(
+            text=_BODY, title="Original reference", status_code=200, url="https://publisher.org/reference"
+        )
+        result = await acquire_sources(
+            expert_name="E",
+            urls=["https://ex.com/link"],
+            corpus=store,
+            fetch_page=_fetcher({"https://ex.com/link": page}),
+        )
+        source = result.sources[0]
+        assert source.url == "https://ex.com/link"
+        assert source.final_url == "https://publisher.org/reference"
+        assert source.origin_key == "url:publisher.org"
+        assert store.active_entries()[0].fetched_at == source.observed_at
+
     @pytest.mark.asyncio
     async def test_one_failed_url_does_not_abort_the_others(self, store):
         pages = {

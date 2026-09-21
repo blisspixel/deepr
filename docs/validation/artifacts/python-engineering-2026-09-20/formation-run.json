@@ -1,0 +1,119 @@
+{
+  "schema_version": "deepr-formation-v1",
+  "operation_id": "82dbd23964514a428bd038905405c5b7",
+  "expert": "Python Formation Trial",
+  "mission": "Python Formation Trial: Python concurrency engineering: event loops, CPU work, multiprocessing contexts and library design. Prefer official documentation and explain platform and version scope.",
+  "model": "qwen3.5:35b",
+  "capacity_source": "local:qwen3.5:35b",
+  "created_at": "2026-09-21T00:18:29.911057+00:00",
+  "status": "research_complete",
+  "stage": "review",
+  "limits": {
+    "max_queries": 4,
+    "max_urls": 4,
+    "max_corpus_chars": 28000,
+    "max_model_calls": 16,
+    "max_elapsed_seconds": 1200
+  },
+  "model_calls": 8,
+  "calls": [
+    {
+      "number": 1,
+      "started_at": "2026-09-21T00:18:29.922835+00:00",
+      "status": "returned",
+      "prompt_sha256": "9b73a6fed37d5b39ec069a7ac41a0dd5f57899ae603050a989156e0572a702f8",
+      "response_sha256": "dd56f65a641ba5de9549ec682d051b20a1f00048241ab520b5a2506c0204564b",
+      "finished_at": "2026-09-21T00:19:15.674700+00:00"
+    },
+    {
+      "number": 2,
+      "started_at": "2026-09-21T00:19:30.000580+00:00",
+      "status": "returned",
+      "prompt_sha256": "e4d0abb9e43e0a68b366201592d577b4f7a1e902ce47168e0388525e96460b9e",
+      "response_sha256": "1667a018ba82e769a0b51e19d585b53527d13d8820b205c503694b75f39b7987",
+      "finished_at": "2026-09-21T00:22:42.668467+00:00"
+    },
+    {
+      "number": 3,
+      "started_at": "2026-09-21T00:22:42.679386+00:00",
+      "status": "returned",
+      "prompt_sha256": "1cc185218d3a3333001e05292edcb2bbf72989b24fa397f1492102ece58ec55b",
+      "response_sha256": "041f82655f5df40070c9d1a12c522df1bebe38b7addc3d594e4f7a7a79864d34",
+      "finished_at": "2026-09-21T00:24:00.998812+00:00"
+    },
+    {
+      "number": 4,
+      "started_at": "2026-09-21T00:24:01.044864+00:00",
+      "status": "returned",
+      "prompt_sha256": "e448e825b8bc392530b02990a1d348a9c159fc2e69007cb31e2e0f162c294ad0",
+      "response_sha256": "b07526d6105f2f57ffa54984709abe9fe681bbf8ec2127d14006604cb4ae324d",
+      "finished_at": "2026-09-21T00:25:28.754340+00:00"
+    },
+    {
+      "number": 5,
+      "started_at": "2026-09-21T00:25:28.773843+00:00",
+      "status": "returned",
+      "prompt_sha256": "9b09c9ae62d841c97be824f5695fd2e23522b333a1e9b62502959d725df483b6",
+      "response_sha256": "cdca5541a75818494dc98e3d5b141544649b1deb9c9a644b600fc5d2d08228b2",
+      "finished_at": "2026-09-21T00:26:12.665430+00:00"
+    },
+    {
+      "number": 6,
+      "started_at": "2026-09-21T00:26:12.684818+00:00",
+      "status": "returned",
+      "prompt_sha256": "67964953d2b3b34b557e4ade96966debdb87ed1b1280c14fa139b7ce8ffccc9c",
+      "response_sha256": "e3089a972e18f979289968d99defc4ae57fdf7010ed5bf5575642edc60f30e6b",
+      "finished_at": "2026-09-21T00:27:52.357911+00:00"
+    },
+    {
+      "number": 7,
+      "started_at": "2026-09-21T00:27:52.372290+00:00",
+      "status": "returned",
+      "prompt_sha256": "8dc484b25f8d1768e8ed137409a208561353595dc0dc48e9181aa6a5596c2202",
+      "response_sha256": "2c0c36e2c81c87ef0cb9844d527a813be1e3853f1d86cb5547aaf6b07b632ea2",
+      "finished_at": "2026-09-21T00:28:32.910428+00:00"
+    },
+    {
+      "number": 8,
+      "started_at": "2026-09-21T00:28:32.940083+00:00",
+      "status": "returned",
+      "prompt_sha256": "1d5ee8d9ab057bd901054a2fdcb1b08fb9dde5f78ee8b5b7b4e8c2eb29748a82",
+      "response_sha256": "cdf1cba06bec0e33111ff05c8600c657dd0a7c7a45ec8994b83e8100113cd3c8",
+      "finished_at": "2026-09-21T00:30:55.597162+00:00"
+    }
+  ],
+  "api_cost_usd": 0,
+  "qualification": "not_reviewed",
+  "limitations": [
+    "1 source(s) collapse to 1.0 independent origin(s). Agreement between them is one publisher agreeing with itself, and any finding that reads as corroborated here is not.",
+    "Corpus was read in 2 chunk(s) of up to 14000 chars. Each lens saw one chunk at a time, so cross-chunk connections may be missed.",
+    "10 quoted anchor(s) were not found in the retained corpus. Those findings are labeled ungrounded, not removed; review before use.",
+    "No finding draws on more than one source, so nothing here compares sources. Disagreement reported by this pass is disagreement within a single document."
+  ],
+  "prior_artifacts": {
+    "noticed\\current.json": null,
+    "hold\\current.json": null,
+    "hold\\history.json": null
+  },
+  "updated_at": "2026-09-21T00:30:55.748473+00:00",
+  "elapsed_seconds": 745.83,
+  "progress": "Research foundation ready for review",
+  "retained_sources": 1,
+  "knowledge_index": "knowledge\\views\\e8464b2b19b472fa\\index.md",
+  "findings": 50,
+  "positions": 5,
+  "evidence_graph": {
+    "sources": 1,
+    "findings": 50,
+    "positions": 5,
+    "edges": 61,
+    "unsupported_positions": 0,
+    "unused_findings": 39,
+    "is_formed": true
+  },
+  "final_artifacts": {
+    "noticed\\current.json": "00a428b4113d8265f85ca83bb81b543822b882832ea93e3069d2406cadfa18e8",
+    "hold\\current.json": "2d2c9333abf246e3108d6779bd5555e8f12356578f522388906040a97cd54e32",
+    "hold\\history.json": "bb387e762a35cf59b4e1a576bd5ffc5c5d3bd5bdb5fad11fe124e3d99bbd92b6"
+  }
+}

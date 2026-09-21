@@ -37,22 +37,25 @@ self-model state, and metacognitive perspective state such as original ideas.
 It is useful for humans and host agents, but it is never canonical memory and
 should not be hand-edited as authority.
 
-## What Makes It Different
+## Current capabilities and the next milestone
 
-Traditional RAG systems:
-- Static documents in vector store
-- Query - retrieve - answer
-- Never changes, never grows
+Experts retain sources, studied findings, positions, reasoning, perspective
+history, and research pursuits. Explicit maintenance can acquire fresh context
+and submit verified changes. Generated notebooks and memory cards expose that
+state; their regeneration does not establish new learning.
 
-Deepr experts:
-- Recognize knowledge gaps
-- Propose research when needed; execution remains capacity- and user-gated
-- Integrate verified knowledge through an explicit graph-commit apply boundary
-- Track what they know vs don't know
-- Maintain concepts, hypotheses, stance, original ideas, and tradeoffs
-- Keep up with current developments on their topic
-- Explore new possibilities instead of only recalling stored claims
-- Build on previous learning
+Normal consultation currently uses stored expert state. Default preparation
+before advice is planned: check what changed for the question and target
+environment, reconsider its implications, and answer from a dated context.
+Until that ships, use the documented explicit fresh-context maintenance flow
+when currency matters. An update still needs review for coverage and usefulness.
+
+The [active roadmap](../ROADMAP.md#active-release-plan) sequences baseline
+measurement, prepared consultation, finding history and temporal retrieval,
+perspective synthesis, then repeated-use proof. The
+[delivery plan](plans/living-expertise.md) defines acceptance and recovery.
+Automatic outcome-driven learning and proven longitudinal benefit remain
+planned; inspectable records alone do not establish them.
 
 The point is not to preserve old answers. A stale expert can be worse than no
 expert because it may confidently carry forward assumptions it does not know are
@@ -62,11 +65,12 @@ find where the expert needs to update its understanding.
 
 ## Quick Start
 
-Before using any local generation command, start Ollama with cloud features
-disabled by stable server config, for example `OLLAMA_NO_CLOUD=1`, and restart
-the server. Deepr checks native `/api/status` immediately before shared local
-requests and refuses unless it reports `cloud.disabled=true` with source
-`config`. Local OpenAI-compatible requests use a fixed credential allowlist,
+Before using any local generation command, set `disable_ollama_cloud` to `true`
+in `~/.ollama/server.json`, preserving other settings, and restart Ollama.
+An environment variable alone is insufficient. Deepr checks native
+`/api/status` immediately before shared local requests and refuses unless it
+reports `cloud.disabled=true` with source `config` or `both`.
+Local OpenAI-compatible requests use a fixed credential allowlist,
 ignore environment proxies, follow no redirects, and retry zero times. This
 prevents a signed-in Ollama cloud model or ambient provider credential from
 silently turning a local-labeled command into remote spend.
@@ -82,7 +86,7 @@ deepr expert blueprint "Azure Architect" --from-file expert-blueprint.json --app
 # Create a local expert from documents.
 deepr expert make "Azure Architect" --local --files docs/*.md
 
-# Create a local-only expert profile with no provider API calls
+# Build a research foundation using free search and an installed local model
 deepr expert make "UI Experience Expert" --local -d "UI/UX for agentic research tools"
 
 # Consult stored expert knowledge on local capacity.
@@ -164,12 +168,22 @@ deepr expert sync "Expert Name" --local --fresh-context -y
 deepr expert sync "Expert Name" --local --deep-context -y
 ```
 
-`--local` creates the expert profile and local document folders without
-creating a provider vector store or uploading files. If you pass `--files`,
-Deepr copies the seed documents into the expert's local documents folder and
-records them in the profile. Local creation does not run the API-backed
-`--learn` curriculum; use subscriptions plus `expert sync --local` for $0
-maintenance.
+`--local` creates a profile and develops its research foundation by default:
+bounded free search, retained sources, three study lenses, a reasoned brief,
+evidence graph, and linked Markdown. `--files` adds UTF-8 seed documents;
+binary documents need text conversion before the initial study. Use
+`--no-discovery` to study only retained material or `--profile-only` to save
+identity and seeds without inference. The local `--learn` flag is redundant;
+the metered curriculum options remain refused.
+
+`expert build NAME` retries an incomplete foundation with a new bounded record;
+completed lenses can be reused when their model and corpus match. Default limits
+are 12 queries, 12 URLs, 120,000 study characters, 40 model calls and 45 minutes.
+`expert knowledge NAME` regenerates linked Markdown from actual study, brief,
+source and position-history records, with no model or network call. Inspect
+`formation/current.json` and `formation/runs/<operation>/review.md` for progress,
+failures and limitations. Research completion does not certify advice quality
+or question-specific currentness. See [the formation design](design/expert-formation.md).
 
 The current safety gate also blocks provider-backed `expert refresh` and
 `--synthesize`, API `fill-gaps` including consensus and deep modes, and API
@@ -600,9 +614,10 @@ deepr expert reflect "Azure Architect" <job_id> --execute-followups --scheduled 
 
 ## Temporal Perspective Queries
 
-A corpus is what was read; a perspective is what is *believed* - claims with
-source-capped confidence, provenance, recency, and open conflicts. Three
-read-side, cost-$0 queries expose the perspective (CLI and MCP):
+Three read-side, cost-$0 queries expose belief changes, supporting history,
+and open conflicts through CLI and MCP. These are one part of the expert's
+larger understanding, alongside concepts, explanations, reasoned positions,
+research experience, and open questions:
 
 ### What Changed (re-sync)
 The perspective delta since a timestamp: beliefs added / revised / contested /

@@ -19,13 +19,14 @@ def make_local_expert_profile(
     description: str | None,
     local_model: str | None,
     learning_options_used: bool,
+    profile_only: bool = False,
+    discover: bool = True,
 ) -> ExpertProfile | None:
-    """Create a local-only expert profile and print the next maintenance steps."""
+    """Create a local profile and form its research foundation by default."""
     if learning_options_used:
-        click.echo("Error: --local creates a $0 profile only; learning options are API-backed today.")
-        click.echo(f'Do this instead: deepr expert subscribe "{name}" "{description or name}"')
-        click.echo(f'Then run: deepr expert sync "{name}" --local --fresh-context -y')
-        return None
+        raise click.ClickException(
+            "Local formation uses bounded $0 research; metered curriculum budget/topic options do not apply."
+        )
 
     click.echo(f"Creating local expert: {name}...")
     try:
@@ -37,16 +38,21 @@ def make_local_expert_profile(
         )
     except ValueError as exc:
         raise click.ClickException(str(exc)) from exc
-    click.echo(f"\nLocal expert created: {profile.name}")
+    click.echo(f"\nLocal profile created: {profile.name}")
     click.echo(f"Provider: {profile.provider}")
     click.echo(f"Model: {profile.model}")
     click.echo(f"Documents: {profile.total_documents}")
-    click.echo("\nNext, build a consultable view from evidence you trust:")
-    click.echo(f'  deepr expert retain "{profile.name}" ./source.md --title "Trusted starting source"')
-    click.echo(f'  deepr expert study "{profile.name}" --local')
-    click.echo(f'  deepr expert brief "{profile.name}" --local')
-    click.echo(f'  deepr expert consult "What should we decide next?" --expert "{profile.name}" --local')
-    click.echo("\nFor fresh web context, use subscribe plus sync after reviewing the topic and capacity plan.")
+    if profile_only:
+        click.echo(f'Untrained profile. Build its knowledge with: deepr expert build "{profile.name}"')
+        return profile
+    from deepr.cli.commands.semantic.expert_build import build_local_expert
+
+    try:
+        build_local_expert(profile, model=local_model, discover=discover)
+    except (OSError, ValueError) as exc:
+        raise click.ClickException(
+            f'{exc}. Profile retained; resume with: deepr expert build "{profile.name}"'
+        ) from exc
     return profile
 
 
