@@ -520,7 +520,7 @@ the capabilities below do not authorize metered execution.
 
 Use `/` prefix in web, `\` prefix in CLI.
 
-In the unreleased source checkout, `/tools` and `/help tools` describe a
+In the current release, `/tools` and `/help tools` describe a
 configured inventory. Stored skills remain visible with execution blocked;
 neither a listed tool nor a mode switch grants capacity. The handler makes no
 provider call. `/model` reports the configured model; a legacy name argument

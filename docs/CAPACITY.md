@@ -7,7 +7,7 @@ Deepr has three capacity rungs:
 3. Metered provider APIs, with one narrow attended absorb path and every
    unattended path blocked.
 
-Unreleased correction, September 13, 2026: all production plan adapters are
+v2.50.15 safety correction, September 13, 2026: all production plan adapters are
 execution-blocked. Claude managed-policy hooks survive safe mode, so the
 existing flags cannot prove complete process confinement. Use owned local
 Ollama for the current expert workflow. Historical plan examples below are
