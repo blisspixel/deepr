@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/expert-value-source-copy-v1.json",
+  "title": "Deepr Expert Value Source Copy v1",
+  "description": "Read-only comparison of a separate source copy with a selected source world. Exact file integrity at observation time is not process confinement, execution authority, or semantic review.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "status",
+    "index_sha256",
+    "clock_basis",
+    "verified_source_file_count",
+    "verified_source_bytes",
+    "historical_availability_independently_verified",
+    "run_ready",
+    "execution_authorized",
+    "semantic_quality_assessed",
+    "process_isolation_verified",
+    "review_blinding_verified",
+    "network_access",
+    "provider_calls",
+    "evidence_writes",
+    "cost_usd",
+    "source_world_id",
+    "information_cutoff",
+    "original_manifest_sha256",
+    "copy_manifest_sha256",
+    "exact_inventory_verified",
+    "independent_regular_files_verified"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "deepr-expert-value-source-copy-v1"
+    },
+    "kind": {
+      "const": "deepr.expert.value_source_copy"
+    },
+    "status": {
+      "const": "source_copy_verified"
+    },
+    "index_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "clock_basis": {
+      "enum": [
+        "synthetic",
+        "historical_assertion"
+      ]
+    },
+    "verified_source_file_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "verified_source_bytes": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "historical_availability_independently_verified": {
+      "const": false
+    },
+    "run_ready": {
+      "const": false
+    },
+    "execution_authorized": {
+      "const": false
+    },
+    "semantic_quality_assessed": {
+      "const": false
+    },
+    "process_isolation_verified": {
+      "const": false
+    },
+    "review_blinding_verified": {
+      "const": false
+    },
+    "network_access": {
+      "const": false
+    },
+    "provider_calls": {
+      "const": 0
+    },
+    "evidence_writes": {
+      "const": 0
+    },
+    "cost_usd": {
+      "const": 0
+    },
+    "source_world_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+    },
+    "information_cutoff": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "original_manifest_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "copy_manifest_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "exact_inventory_verified": {
+      "const": true
+    },
+    "independent_regular_files_verified": {
+      "const": true
+    }
+  },
+  "x-deepr-linked-validator": {
+    "python": "deepr.evals.expert_value_source_copy:verify_source_world_copy",
+    "schema_only_is_sufficient": false,
+    "requires": [
+      "source index path",
+      "artifact root",
+      "selected source-world id",
+      "source copy root"
+    ]
+  }
+}

@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.50.19 current main and release; reviewed 2026-09-20.
+Status: v2.50.20 current main and release; reviewed 2026-09-21.
 This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
@@ -18,12 +18,15 @@ lookup and exact context receipts improve inspectability. The release wheel
 includes these repairs. Practical guidance qualification remains experimental;
 automatic current-source preparation is planned and is not enabled.
 
-**v2.50.19 keeps unattended metered dispatch frozen and spend gates fail-closed.** MCP
+**v2.50.20 keeps unattended metered dispatch frozen and spend gates fail-closed.** MCP
 research and expert validation never construct a paid client. OpenRouter catalog
 entries stay excluded from automatic routing. Explicit attended OpenRouter
 research can run one pinned completion. Unknown models no longer inherit o4-mini prices.
 Host-header CORS, empty bind hosts, and IPv4-mapped SSRF fail closed.
-Source-world preflight remains write-free; briefing supports historical cutoffs.
+Source-world preflight remains write-free. Explicit `--world --copy-root` checks
+a prepared copy against its selected world, including exact inventory and
+independent source files. It neither creates inputs nor proves process confinement.
+Briefing supports historical cutoffs.
 The next product gate is v2.51 value evidence, not paid dispatch or a
 generic agent runtime. See [what's next and why](../ROADMAP.md#active-release-plan).
 

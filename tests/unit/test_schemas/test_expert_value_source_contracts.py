@@ -7,6 +7,7 @@ from pathlib import Path
 import jsonschema
 import pytest
 
+from tests.unit.test_eval.test_expert_value_source_copy import make_copy, verify
 from tests.unit.test_eval.test_expert_value_sources import Bundle
 
 SCHEMA_DIR = Path(__file__).resolve().parents[3] / "docs" / "schemas"
@@ -40,3 +41,17 @@ def test_source_preflight_schema_cannot_claim_review_or_execution_authority(tmp_
     payload[field] = True
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.Draft202012Validator(schema).validate(payload)
+
+
+def test_copy_receipt_matches_schema_and_cannot_claim_execution_or_quality(tmp_path):
+    bundle = Bundle(tmp_path / "organizer")
+    payload = verify(bundle, make_copy(bundle, tmp_path / "worker"))
+    schema = json.loads((SCHEMA_DIR / "expert-value-source-copy-v1.json").read_text())
+    jsonschema.Draft202012Validator.check_schema(schema)
+    validator = jsonschema.Draft202012Validator(schema)
+    validator.validate(payload)
+    assert schema["x-deepr-linked-validator"]["schema_only_is_sufficient"] is False
+    for field in ("execution_authorized", "run_ready", "semantic_quality_assessed", "process_isolation_verified"):
+        changed = {**payload, field: True}
+        with pytest.raises(jsonschema.ValidationError):
+            validator.validate(changed)

@@ -173,7 +173,12 @@ def _regular_reference_path(reference: str, root: Path, field: str) -> Path:
 
 
 def read_bounded_artifact(
-    reference: str, artifact_root: Path, *, max_bytes: int, field_name: str = "artifact"
+    reference: str,
+    artifact_root: Path,
+    *,
+    max_bytes: int,
+    field_name: str = "artifact",
+    require_single_link: bool = False,
 ) -> bytes:
     """Read one bounded regular file without accepting links or changing state.
 
@@ -187,17 +192,23 @@ def read_bounded_artifact(
     try:
         path = _regular_reference_path(reference, root, field_name)
         before = path.lstat()
+        if require_single_link and before.st_nlink != 1:
+            raise ArtifactVerificationError(f"{field_name} must not share a hard link")
         if before.st_size > max_bytes:
             raise ArtifactVerificationError(f"{field_name} exceeds its byte ceiling")
         flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
         flags |= getattr(os, "O_NONBLOCK", 0)
         with os.fdopen(os.open(path, flags), "rb") as artifact:
             opened = os.fstat(artifact.fileno())
+            if require_single_link and opened.st_nlink != 1:
+                raise ArtifactVerificationError(f"{field_name} must not share a hard link")
             if not stat.S_ISREG(opened.st_mode) or _stat_identity(before) != _stat_identity(opened):
                 raise ArtifactVerificationError(f"{field_name} changed before reading")
             payload = artifact.read(max_bytes + 1)
             after = os.fstat(artifact.fileno())
         final_path = _regular_reference_path(reference, root, field_name)
+        if require_single_link and (after.st_nlink != 1 or final_path.lstat().st_nlink != 1):
+            raise ArtifactVerificationError(f"{field_name} must not share a hard link")
         if _stat_identity(before) != _stat_identity(after) or _stat_identity(before) != _file_identity(final_path):
             raise ArtifactVerificationError(f"{field_name} changed during reading")
     except OSError as exc:

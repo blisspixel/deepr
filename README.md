@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.50.19-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.19)
+[![Version](https://img.shields.io/badge/version-2.50.20-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.20)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -218,6 +218,9 @@ eras and published Agent Plugins `1.0.0`. See the
 for tested behavior and the distinction from draft standards and host certification.
 
 ## Direction
+
+v2.50.20 verifies prepared source-copy inventories before controlled comparisons.
+It adds no inference, research dispatch or expert-memory writes.
 
 v2.50.19 repairs local expert creation, preserves source and consultation
 evidence, and presents reasoned perspective without an overall expertise

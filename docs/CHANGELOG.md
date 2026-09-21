@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.20] - 2026-09-21
+
+### Fixed
+
+- Source-world preflight can now verify the actual files prepared for one
+  worker with explicit `--world` and `--copy-root` options. It checks selected
+  metadata, neutral source names, byte sizes and hashes, exact inventory and
+  independent regular files, including Windows link metadata. Missing, extra,
+  altered, linked or concurrently changed inputs fail without repair or writes.
+  Reports cannot be written inside either evidence root. The default preflight
+  and existing workbook verifier retain their behavior. This read-only repair
+  grants no execution or mutation authority; it does not prove confinement,
+  blinding, source meaning or expert value. See the
+  [offline CLI evidence](validation/source-world-copies-2026-09-21.md).
+
 ## [2.50.19] - 2026-09-20
 
 This release packages the local creation and evidence-delivery repairs below.

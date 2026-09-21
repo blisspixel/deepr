@@ -82,7 +82,49 @@ files matched, and which remaining gates were not evaluated. It keeps
 `run_ready`, semantic quality, blinding, model equivalence, and process isolation
 unproven. Default invocation writes nothing and makes no provider call.
 
-## Later materialization boundary
+## Selected-world copy verification
+
+The read-only `--world WORLD --copy-root PATH` mode checks a separately
+materialized input directory against the current preparation index. It does
+not create copies or launch workers. This closes the gap where validating the
+organizer's sources could be mistaken for validating the files a worker receives.
+The ordinary preflight contract and its default write-free behavior stay intact.
+
+```console
+deepr eval expert-value-sources --from-file ./pilot/index.json --artifact-root ./pilot --world world-1 --copy-root ./worker-input --json
+```
+
+A copy contains only `manifest.json` and a `sources/` directory. The manifest
+uses the existing source-world schema and preserves the selected world's
+metadata, source order, versions, dates, byte sizes and hashes. Replace each
+source reference with `sources/NNNN-SHA256.txt`, where `NNNN` is its zero-based,
+four-digit inventory position. Names reveal neither organizer paths nor arm
+identity. Source bytes are copied without normalization or interpretation.
+The manifest is the completion marker and must be written last by a materializer.
+
+Verification revalidates the original index and all nested sources, then checks
+the selected copy's complete inventory and bytes. It rejects source/copy overlap,
+links, junctions, multiply linked files, missing files, extra files or directories,
+metadata drift, and files that change during inspection. Directory enumeration
+is bounded and never follows unexpected entries. Report output must be outside
+both evidence roots. An interrupted copy without its manifest fails; an earlier
+receipt cannot authorize a changed copy. Failures neither repair nor delete it.
+
+This checks independent regular files at observation time. Separate directories
+do not stop an unconstrained worker from opening the organizer root or changing
+its own inputs. OS confinement, per-arm writable state, post-run checks, model
+settings and exact answer/review bindings remain runner responsibilities.
+Semantic clues inside source content and declared historical availability remain
+review questions. No new execution or mutation authority is granted.
+
+The implementation reuses the bounded reader and source-world validators.
+It avoids `copytree`, whose normal link-following behavior would be unsuitable
+for treating an arbitrary organizer tree as worker input. Python 3.12 remains
+the supported floor; [path operations](https://docs.python.org/3.12/library/pathlib.html)
+and [file metadata](https://docs.python.org/3.12/library/os.html#os.stat_result)
+were checked against the official documentation on September 21, 2026.
+
+## Later materialization and execution boundary
 
 Source inventories for the four arms must be byte-identical within each world.
 Use neutral content-addressed destination names and strip organizer-only
