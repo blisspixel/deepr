@@ -1,7 +1,9 @@
 # Creating an expert means developing its knowledge
 
-Status: implemented on the development branch, unreleased, 2026-09-20.
-The bounded live formation trial completed; guidance qualification remains open.
+Status: implementation released in v2.50.19; guidance qualification remains
+open. Design and validation reviewed 2026-09-20.
+The bounded live formation trial completed; its retained findings and limits
+are linked below.
 
 Local creation previously saved a profile and left acquisition, study, briefing,
 graph materialization, and examination to separate commands. The Python example

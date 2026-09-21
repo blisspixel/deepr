@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.19] - 2026-09-20
+
+This release packages the local creation and evidence-delivery repairs below.
+The [Python guidance examination](validation/python-engineering-2026-09-20.md)
+remains unsuccessful. Default preparation before advice and the v2.51 value
+evaluation are still pending; this release does not promote those capabilities.
+
 ### Changed
 
 - Refined project guidance around shared expert paths, source-backed quality

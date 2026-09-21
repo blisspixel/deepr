@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.50.18-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.18)
+[![Version](https://img.shields.io/badge/version-2.50.19-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.19)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -177,10 +177,9 @@ environment. PyPI publication is not enabled.
 
 ## Quick start
 
-The formation and knowledge commands below are available in the development
-checkout, following [Quick Start](docs/QUICK_START.md#installation-2-minutes).
-The latest published release remains v2.50.18; its installers do not yet include
-the new default research build.
+v2.50.19 includes the formation and knowledge commands below. Install the
+latest release above or follow [Quick Start](docs/QUICK_START.md#installation-2-minutes)
+for a source installation.
 
 ```bash
 deepr init
@@ -220,7 +219,12 @@ for tested behavior and the distinction from draft standards and host certificat
 
 ## Direction
 
-v2.50.18 adds live OpenRouter key inspection, a binding owner ceiling,
+v2.50.19 repairs local expert creation, preserves source and consultation
+evidence, and presents reasoned perspective without an overall expertise
+score. Practical guidance qualification remains open; current-source
+preparation before each answer is still planned.
+
+v2.50.18 added live OpenRouter key inspection, a binding owner ceiling,
 `budget authorize openrouter`, and attended one-shot research under the
 wallet and ledger. v2.50.17 added `deepr keys set openrouter`. v2.50.16
 added an owner-raisable local spend ceiling and a non-renewing OpenRouter

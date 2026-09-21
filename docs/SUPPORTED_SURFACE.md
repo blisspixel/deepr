@@ -1,7 +1,6 @@
 # Supported Surface
 
-Status: v2.50.18 current main package version, with unreleased changes described
-below; reviewed 2026-09-20. The latest published release is v2.50.18.
+Status: v2.50.19 current main and release; reviewed 2026-09-20.
 This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
@@ -11,15 +10,15 @@ provider prepaid-no-overage or hard-stop evidence. Attended OpenRouter research
 is the exception: one pinned no-tool completion after wallet credits and
 `deepr budget authorize openrouter`.
 
-**Unreleased local foundation:** local creation now starts bounded source
+**v2.50.19 local foundation:** local creation now starts bounded source
 research, study, briefing, a graph, and linked Markdown by default. `--profile-only`
 keeps empty setup explicit. Dashboard progress and `expert build` expose failed
 work and retries; `expert knowledge` regenerates derived views. Original-text
-lookup and exact context receipts improve inspectability. These changes are on
-the development checkout, not in the v2.50.18 release wheel. Practical guidance
-qualification and automatic current-source preparation remain open gates.
+lookup and exact context receipts improve inspectability. The release wheel
+includes these repairs. Practical guidance qualification remains experimental;
+automatic current-source preparation is planned and is not enabled.
 
-**v2.50.18 keeps unattended metered dispatch frozen and spend gates fail-closed.** MCP
+**v2.50.19 keeps unattended metered dispatch frozen and spend gates fail-closed.** MCP
 research and expert validation never construct a paid client. OpenRouter catalog
 entries stay excluded from automatic routing. Explicit attended OpenRouter
 research can run one pinned completion. Unknown models no longer inherit o4-mini prices.
@@ -40,7 +39,7 @@ No production plan adapter currently passes the complete confinement gate.
 Local Ollama remains usable after its existing ownership and cloud-disable
 proofs. [Decision and restoration requirements](design/claude-managed-policy-containment.md).
 
-**Unreleased compatibility corrections:** legacy MCP ping is supported;
+**Current compatibility behavior:** legacy MCP ping is supported;
 modern-era removal remains enforced. Malformed JSON-RPC envelopes fail at the
 shared boundary. Agent Plugins 1.0.0 package validation rejects null optional
 metadata, and installation checks use single-pass placeholders and contained
@@ -230,7 +229,7 @@ must not be described as usable capacity.
   operator responsibilities. It does not execute the four
   arms; those runs use separately governed capacity and may incur the costs
   recorded by the review.
-- **Unreleased source checkout:**
+- **Available in the release:**
   `deepr eval expert-value-sources --from-file INDEX --artifact-root ROOT`
   separately checks a strict preparation index, its nested source manifests,
   source byte sizes and SHA-256 digests, explicit availability cutoffs, and
@@ -827,7 +826,7 @@ must not be described as usable capacity.
   proof, conservative identity mismatch handling, cancellation settlement,
   canonical-ledger idempotency, concurrency, and ledger-failure regressions.
   Local and explicit plan read-only query is shipped and unaffected.
-  **Unreleased source checkout:** shared `/tools` and command help describe
+  **Available in the release:** shared `/tools` and command help describe
   configured inventory, explicitly mark skill execution blocked, and omit
   unbound free-search and price claims. A mode switch does not grant capacity;
   `/model` reports the current model without switching it. These corrections

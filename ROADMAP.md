@@ -71,8 +71,10 @@ Roadmap items are not approach claims until they land in
 
 ## Active Release Plan
 
-**Now (v2.50.18):** local experts, write-free OpenRouter previews, an
-owner-raisable local spend ceiling that actually binds the monthly clamp,
+**Now (v2.50.19):** bounded local expert formation, retained research, linked
+knowledge, source-context repairs, and perspective-first profiles, alongside
+write-free OpenRouter previews, an owner-raisable local spend ceiling that
+binds the monthly clamp,
 live OpenRouter key inspection, OpenRouter hard-stop authorization from the
 current-key limit, and attended one-shot `deepr research --provider
 openrouter` under the wallet and ledger. Python/MCP skill execution and
@@ -97,16 +99,13 @@ repairs do not by themselves establish that the exemplar is qualified.
 The [dated evidence bundle](docs/validation/artifacts/python-engineering-2026-09-20/README.md)
 preserves generated Markdown, graph links, source hashes and failed answers.
 The final five-case diagnostic completed without changing expert state but
-still failed practical guidance checks. The new build remains unreleased;
-v2.50.18 is the latest published version and the v2.51 evidence gate is open.
+still failed practical guidance checks. v2.50.19 releases the creation and
+evidence-delivery repairs; it does not qualify the exemplar. The v2.51 evidence
+gate remains open.
 
-- [x] Live finding, 2026-09-20: repair dropped synthesis context, normalized
-  excerpt lookup, per-finding source windows and original-reference access;
-  retain the exact delivered context and explicit omissions.
-- [x] Live finding, 2026-09-20: reject failed/unknown source response statuses;
-  retain observation receipts and preserve unknown graph dates.
-- [x] Live finding, 2026-09-20: preserve local reasoning defaults and report
-  shared-context exhaustion accurately; truncated results do not replace a brief.
+Completed source-status, context-delivery and reasoning repairs are recorded
+in the [v2.50.19 changelog](docs/CHANGELOG.md#25019---2026-09-20).
+
 - [ ] Qualify source selection and advice: distinguish a requested primary
   library from the few pages that happened to arrive, reconcile platform and
   version scope, check applicable code/examples, and calibrate semantic review.
@@ -114,9 +113,9 @@ v2.50.18 is the latest published version and the v2.51 evidence gate is open.
 - [ ] Publish a replacement Python expert screenshot only after the scoped
   guidance and currency evidence passes. Preserve unfavorable trials.
 
-**Sequence updated 2026-09-20:** finish the formation and evidence-delivery
-repair, preserve the value baseline, then deliver preparation. An expert should get up to
-speed for the question, bring accumulated understanding to it, and learn from
+**Sequence updated 2026-09-20:** formation and evidence-delivery repairs are
+released. Preserve the value baseline, then deliver preparation. An expert
+should get up to speed for the question, bring accumulated understanding to it, and learn from
 later evidence and experience. Default preparation is planned, not shipped.
 
 The [delivery plan](docs/plans/living-expertise.md) defines the contracts,
@@ -543,11 +542,12 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.18)
+## Current Status (v2.50.19)
 
-**Next is v2.51, not more dispatch.** v2.50.18 added attended OpenRouter
-one-shot research under a total cap. Unattended metered dispatch, MCP
-research, and automatic fallback stay frozen. The product question is still
+**Next is v2.51, not more dispatch.** v2.50.19 ships local formation and
+evidence-delivery repairs with guidance qualification still open. v2.50.18
+added attended OpenRouter one-shot research under a total cap. Unattended
+metered dispatch, MCP research, and automatic fallback stay frozen. The product question is still
 open: does a maintained expert beat fresh research and simpler memory on
 repeated decisions?
 
@@ -3826,7 +3826,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.18. This roadmap keeps
+v2.50.19. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 
