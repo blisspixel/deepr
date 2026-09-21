@@ -13,32 +13,32 @@ logger = logging.getLogger(__name__)
 
 def _creation_fields(data, validate_name):
     if not isinstance(data, dict) or not data:
-        raise ValueError("JSON object required")
+        return None, "JSON object required"
     name = str(data.get("name", "")).strip()
     if not name:
-        raise ValueError("Name required")
+        return None, "Name required"
     if error := validate_name(name):
-        raise ValueError(error)
+        return None, error
     for field in ("description", "domain"):
         if not isinstance(data.get(field, ""), str):
-            raise ValueError(f"{field} must be a string")
+            return None, f"{field} must be a string"
     profile_only = data.get("profile_only", False)
     if not isinstance(profile_only, bool):
-        raise ValueError("profile_only must be a boolean")
-    return name, data.get("description", "").strip()[:1000], data.get("domain", "").strip()[:200], profile_only
+        return None, "profile_only must be a boolean"
+    return (name, data.get("description", "").strip()[:1000], data.get("domain", "").strip()[:200], profile_only), None
 
 
 def create_local_expert_request(data, experts_dir, validate_name):
-    try:
-        name, description, domain, profile_only = _creation_fields(data, validate_name)
-    except ValueError:
-        return jsonify({"error": "Invalid expert name, description, domain, or profile_only option"}), 400
-
     try:
         from deepr.backends.local import default_local_model
         from deepr.experts.paths import expert_slug
         from deepr.experts.profile import ExpertProfile
         from deepr.experts.profile_store import ExpertStore
+
+        fields, error = _creation_fields(data, validate_name)
+        if error:
+            return jsonify({"error": error}), 400
+        name, description, domain, profile_only = fields
 
         store = ExpertStore(str(experts_dir))
         if store.exists(name):
