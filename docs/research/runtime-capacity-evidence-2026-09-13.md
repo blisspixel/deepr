@@ -1,5 +1,10 @@
 # Runtime and capacity evidence
 
+Sequencing note, 2026-09-20: future-version assignments below record the
+September 13 plan. The [active roadmap](../../ROADMAP.md#active-release-plan)
+now places preparation, temporal learning, perspective and repeated-use
+evidence before wider runtime or provider authority.
+
 Status: primary-source research and targeted static review. No model inference,
 provider account API, credential inspection, installation, or deployment was
 performed. This note is evidence for planning, not execution authority.

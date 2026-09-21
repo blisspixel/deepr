@@ -208,8 +208,9 @@ consistency, security scans, CI checks, and adapter compatibility.
 ## Recommended order
 
 The [active release plan](../../ROADMAP.md#active-release-plan) governs delivery.
-First complete the v2.51 value pilot and v2.52 reviewed prediction resolution;
-the harness-control sequence below belongs behind those gates. Latest upstream
+Preserve the S0 value baseline, then deliver prepared consultation, temporal
+learning and perspective under S1-S3. Wider harness control waits for S4 benefit
+and its own S5 authority gates. Latest upstream
 versions do not upgrade Deepr's pinned host fixtures or prove compatibility.
 
 The ranked implications of the September 5 review are:
@@ -246,7 +247,7 @@ without adding a memory engine. The
 [value pilot protocol](expert-purpose-and-value-loop.md#v251-pilot-protocol)
 tests excerpt loss, temporal changes, false premises, and arm isolation.
 
-For v2.52, borrow temporal provenance from
+For S2 temporal lineage and S3 reviewed resolution, borrow temporal provenance from
 [Graphiti](https://github.com/getzep/graphiti) through append-only resolution
 fixtures, not a new graph-service dependency. Deepr's current position ledger
 records when a position was stored; the experience view still reports every

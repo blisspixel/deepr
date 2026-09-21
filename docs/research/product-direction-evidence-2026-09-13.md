@@ -1,5 +1,10 @@
 # Product direction evidence
 
+Sequencing note, 2026-09-20: this dated assessment records the September 13 plan.
+The [active roadmap](../../ROADMAP.md#active-release-plan) now puts preparation,
+temporal learning, perspective and repeated-use evidence before wider authority.
+Older future-version assignments below are historical, not current delivery gates.
+
 Deepr's next meaningful release should remain v2.51: establish whether maintaining one expert helps recurring decisions compared with fresh research, static history, and compiled state. The immediate engineering increment is a verifiable blinded review package and an explicit isolated-arm run recipe. Source preparation already has a narrower, unreleased implementation. More provider routes, a new memory backend, or a larger runtime would not answer the product question.
 
 This is a repository review and primary-source research synthesis, not a value experiment. No blind pilot artifacts, answer keys, expert credentials, or model/provider execution were inspected or used. No paid API request was made. External sources were checked on 2026-09-13; an access date is not a publication date. The source set is selective, not a claim of exhaustive market coverage.
