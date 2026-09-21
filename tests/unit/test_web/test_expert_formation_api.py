@@ -100,3 +100,18 @@ def test_creation_rejects_malformed_options_before_saving(tmp_path, data):
         _, status = expert_creation.create_local_expert_request(data, tmp_path, lambda name: None)
     assert status == 400
     assert not list(tmp_path.glob("*/profile.json"))
+
+
+@pytest.mark.parametrize("exception", [ValueError, RuntimeError])
+def test_creation_does_not_expose_internal_failure_details(tmp_path, monkeypatch, exception):
+    monkeypatch.setattr(
+        "deepr.backends.local.default_local_model",
+        Mock(side_effect=exception("Private configuration at /operator/private/settings")),
+    )
+    with Flask(__name__).app_context():
+        response, status = expert_creation.create_local_expert_request(
+            {"name": "Example", "profile_only": True}, tmp_path, lambda name: None
+        )
+    assert status == 500
+    assert response.json == {"error": "Internal server error"}
+    assert not list(tmp_path.glob("*/profile.json"))

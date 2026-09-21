@@ -141,7 +141,7 @@ class TestFailureIsolation:
         source = result.sources[0]
         assert source.url == "https://ex.com/link"
         assert source.final_url == "https://publisher.org/reference"
-        assert "publisher.org" in source.origin_key
+        assert source.origin_key == "url:publisher.org"
         assert store.active_entries()[0].fetched_at == source.observed_at
 
     @pytest.mark.asyncio

@@ -74,6 +74,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Local truncation diagnostics distinguish a shared context/output bound and
   report observed tokens. Dashboard retries keep polling while local capacity
   starts, including when an older failed operation is still visible.
+- Expert creation separates invalid input from internal failures; internal
+  exception details stay in server logs rather than API responses.
 - Local setup guidance now requires persistent `disable_ollama_cloud` settings;
   environment-only configuration does not satisfy the existing local gate.
 - Attended OpenRouter research helpers are typed against

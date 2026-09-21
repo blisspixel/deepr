@@ -30,12 +30,15 @@ def _creation_fields(data, validate_name):
 
 def create_local_expert_request(data, experts_dir, validate_name):
     try:
+        name, description, domain, profile_only = _creation_fields(data, validate_name)
+    except ValueError:
+        return jsonify({"error": "Invalid expert name, description, domain, or profile_only option"}), 400
+
+    try:
         from deepr.backends.local import default_local_model
         from deepr.experts.paths import expert_slug
         from deepr.experts.profile import ExpertProfile
         from deepr.experts.profile_store import ExpertStore
-
-        name, description, domain, profile_only = _creation_fields(data, validate_name)
 
         store = ExpertStore(str(experts_dir))
         if store.exists(name):
@@ -69,8 +72,6 @@ def create_local_expert_request(data, experts_dir, validate_name):
                 }
             }
         ), 201
-    except ValueError as error:
-        return jsonify({"error": str(error)}), 400
     except ImportError:
         return jsonify({"error": "Expert system not available"}), 500
     except Exception as e:
