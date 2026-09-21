@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
+import pytest
 from click.testing import CliRunner
 
 from deepr.cli.main import cli
 from deepr.experts.brief_contracts import ExpertBrief, Position, SettledState
 from deepr.experts.consult_context import build_consult_context, load_brief, load_study, render_consult_packet
-from deepr.experts.corpus_store import CorpusStore
+from deepr.experts.corpus_store import CorpusStore, content_hash
 from deepr.experts.study_contracts import LensOutcome, StudyFinding, StudyResult
 
 
@@ -20,9 +21,11 @@ def _invoke(runner: CliRunner, args: list[str]) -> str:
     return result.output
 
 
-def test_documented_local_onboarding_builds_cited_consult_context(tmp_path, monkeypatch):
-    """Every public onboarding verb composes into the stored consult packet."""
-    from deepr.cli.commands.semantic import expert_consult, expert_study
+@pytest.mark.parametrize("setup", ["automatic", "chosen_sources"])
+def test_documented_local_onboarding_builds_cited_consult_context(tmp_path, monkeypatch, setup):
+    """Both documented creation paths produce inspectable, cited consult context."""
+    from deepr.cli.commands.semantic import expert_build, expert_consult, expert_study
+    from deepr.experts import formation
 
     expert_name = "Onboarding Contract Expert"
     question = "When are retry writes safe?"
@@ -36,28 +39,7 @@ def test_documented_local_onboarding_builds_cited_consult_context(tmp_path, monk
 
     runner = CliRunner()
     with patch("deepr.providers.create_provider", side_effect=AssertionError("provider constructed")) as provider:
-        make_output = _invoke(
-            runner,
-            [
-                "expert",
-                "make",
-                expert_name,
-                "--local",
-                "-d",
-                "Safe retry boundary decisions",
-            ],
-        )
-        for next_verb in ("retain", "study", "brief", "consult"):
-            assert f"expert {next_verb}" in make_output
-
-        _invoke(
-            runner,
-            ["expert", "retain", expert_name, str(source), "--title", "Trusted starting source"],
-        )
-        corpus = CorpusStore(expert_name)
-        entries = corpus.active_entries()
-        assert len(entries) == 1
-        source_sha = entries[0].sha256
+        source_sha = content_hash(source_text)
 
         study = StudyResult(
             expert_name=expert_name,
@@ -67,6 +49,8 @@ def test_documented_local_onboarding_builds_cited_consult_context(tmp_path, monk
             corpus_origins=1,
             corpus_chars=len(source_text),
             outcomes=[
+                LensOutcome(lens="synopsis", axis="interrogation", status="ok"),
+                LensOutcome(lens="mechanism", axis="interrogation", status="ok"),
                 LensOutcome(
                     lens="failure",
                     axis="interrogation",
@@ -84,12 +68,12 @@ def test_documented_local_onboarding_builds_cited_consult_context(tmp_path, monk
                             corpus_shas=[source_sha],
                         )
                     ],
-                )
+                ),
             ],
         )
 
         class FakeBackend:
-            capacity_source = "fixture"
+            capacity_source = "local:fixture-model"
             model = "fixture-model"
             cost_note = "$0 local fixture"
             chunk_chars = 8_000
@@ -102,9 +86,11 @@ def test_documented_local_onboarding_builds_cited_consult_context(tmp_path, monk
             assert kwargs["corpus"].read(source_sha) == source_text
             return study
 
-        monkeypatch.setattr(expert_study, "build_study_backend", lambda **_kwargs: FakeBackend())
-        monkeypatch.setattr(expert_study, "run_study", fake_run_study)
-        _invoke(runner, ["expert", "study", expert_name, "--local", "--lens", "failure", "--json"])
+        monkeypatch.setattr(expert_build, "build_study_backend", lambda **_kwargs: FakeBackend())
+        monkeypatch.setattr(formation, "run_study", fake_run_study)
+        discovery = AsyncMock(side_effect=AssertionError("Discovery was explicitly disabled"))
+        monkeypatch.setattr(formation, "run_search_plan", discovery)
+        monkeypatch.setattr("deepr.backends.local.release_local_model", AsyncMock(return_value=True))
 
         brief = ExpertBrief(
             expert_name=expert_name,
@@ -134,8 +120,27 @@ def test_documented_local_onboarding_builds_cited_consult_context(tmp_path, monk
         async def fake_build_brief(**_kwargs):
             return brief
 
-        monkeypatch.setattr("deepr.experts.brief.build_brief", fake_build_brief)
-        _invoke(runner, ["expert", "brief", expert_name, "--local", "--json"])
+        monkeypatch.setattr(formation, "build_brief", fake_build_brief)
+        make_args = ["expert", "make", expert_name, "--local", "-d", "Safe retry boundary decisions"]
+        if setup == "automatic":
+            build_output = _invoke(runner, [*make_args, "--files", str(source), "--no-discovery"])
+        else:
+            make_output = _invoke(runner, [*make_args, "--profile-only"])
+            assert "Untrained profile" in make_output
+            assert formation.read_formation_state(expert_name) is None
+            _invoke(runner, ["expert", "retain", expert_name, str(source), "--title", "Trusted starting source"])
+            build_output = _invoke(runner, ["expert", "build", expert_name, "--no-discovery"])
+        assert "Formation: research_complete" in build_output
+        state = formation.read_formation_state(expert_name)
+        assert state["qualification"] == "not_reviewed"
+        assert state["api_cost_usd"] == 0
+        assert len(CorpusStore(expert_name).active_entries()) == 1
+        directory = formation.canonical_expert_dir(expert_name)
+        assert (directory / state["knowledge_index"]).is_file()
+        assert (directory / "graph/evidence.json").is_file()
+        assert (directory / "formation/runs" / state["operation_id"] / "review.md").is_file()
+        _invoke(runner, ["expert", "knowledge", expert_name])
+        discovery.assert_not_awaited()
 
         saved_brief = load_brief(expert_study.canonical_brief_path(expert_name))
         saved_study = load_study(expert_study.canonical_study_path(expert_name))
@@ -173,10 +178,16 @@ def test_public_docs_teach_the_complete_expert_loop_in_order():
         text = (repo / relative_path).read_text(encoding="utf-8")
         commands = [
             "deepr expert make",
-            "deepr expert retain",
-            "deepr expert study",
-            "deepr expert brief",
+            "deepr expert knowledge",
             "deepr expert consult",
         ]
         offsets = [text.index(command) for command in commands]
         assert offsets == sorted(offsets), f"{relative_path} does not teach the complete loop in order"
+        assert "--profile-only" in text
+    quick_start = (repo / "docs/QUICK_START.md").read_text(encoding="utf-8")
+    chosen_sources = quick_start[quick_start.index("### Optional: Start From Chosen Sources") :]
+    offsets = [
+        chosen_sources.index(command) for command in ("deepr expert make", "deepr expert retain", "deepr expert build")
+    ]
+    assert offsets == sorted(offsets)
+    assert "--no-discovery" in chosen_sources

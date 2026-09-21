@@ -95,7 +95,7 @@ def test_set_openrouter_writes_user_env_when_cwd_has_none(env_file: Path, tmp_pa
     stored = (tmp_path / "user-deepr" / ".env").read_text(encoding="utf-8")
     assert f"OPENROUTER_API_KEY={secret}" in stored
     assert not env_file.exists()
-    assert "value not shown" in result.output
+    assert "value not shown" in " ".join(result.output.split())
 
 
 def test_set_prefers_existing_checkout_env(env_file: Path) -> None:
