@@ -234,16 +234,38 @@ def eval_expert_value(
 @click.option(
     "--output",
     type=click.Path(dir_okay=False, path_type=Path),
-    help="Explicit report path outside the evidence root. No default file writes.",
+    help="Explicit report path outside the evidence roots. No default file writes.",
+)
+@click.option("--world", help="Select one source-world id; requires --copy-root.")
+@click.option(
+    "--copy-root",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    help="Verify an existing separate source copy, including its exact inventory; requires --world.",
 )
 @click.option("--json", "json_output", is_flag=True, help="Emit the structural preflight report as JSON.")
-def eval_expert_value_sources(source: Path, artifact_root: Path, output: Path | None, json_output: bool) -> None:
+def eval_expert_value_sources(
+    source: Path,
+    artifact_root: Path,
+    output: Path | None,
+    world: str | None,
+    copy_root: Path | None,
+    json_output: bool,
+) -> None:
     """Check nested source bytes and declared availability without running an arm."""
     from deepr.evals.expert_value_sources import build_source_world_preflight
 
+    if (world is None) != (copy_root is None):
+        raise click.UsageError("--world and --copy-root must be supplied together")
     _validate_report_output(source, output, artifact_root)
+    if copy_root is not None:
+        _validate_report_output(source, output, copy_root)
     try:
-        report = build_source_world_preflight(source, artifact_root)
+        if copy_root is not None and world is not None:
+            from deepr.evals.expert_value_source_copy import verify_source_world_copy
+
+            report = verify_source_world_copy(source, artifact_root, world_id=world, copy_root=copy_root)
+        else:
+            report = build_source_world_preflight(source, artifact_root)
     except (OSError, ValueError) as exc:
         raise click.ClickException(f"Invalid source-world preparation: {exc}") from exc
     if output is not None:
@@ -251,11 +273,14 @@ def eval_expert_value_sources(source: Path, artifact_root: Path, output: Path | 
     if json_output:
         click.echo(json.dumps(report, indent=2, ensure_ascii=True))
         return
-    click.echo(
-        f"Source-world preflight: {report['source_world_count']} worlds, "
-        f"{report['source_reference_count']} source references, "
-        f"{report['verified_source_file_count']} verified source files."
-    )
+    if copy_root is not None:
+        click.echo(f"Source copy verified: {world}, {report['verified_source_file_count']} independent source files.")
+    else:
+        click.echo(
+            f"Source-world preflight: {report['source_world_count']} worlds, "
+            f"{report['source_reference_count']} source references, "
+            f"{report['verified_source_file_count']} verified source files."
+        )
     click.echo("Nested bytes and declared cutoff ordering match. Historical availability remains an assertion.")
     click.echo("Preparation only: execution, isolation, blinding, and semantic quality remain unproven.")
     if output is not None:

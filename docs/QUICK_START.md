@@ -3,7 +3,7 @@
 Set up local capacity, build one consultable expert from a source you trust,
 and optionally preview a bounded provider request without dispatch.
 
-This guide follows v2.50.19. Release installers include default research
+This guide follows v2.50.20. Release installers include default research
 formation, `expert build`, and `expert knowledge`. Research completion does
 not certify practical guidance; review retained evidence and answers.
 

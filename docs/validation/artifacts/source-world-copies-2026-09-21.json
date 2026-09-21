@@ -1,0 +1,339 @@
+{
+  "validated_at": "2026-09-21T15:26:56.638395+00:00",
+  "scope": "Synthetic offline CLI input-integrity validation; no inference, review, or process confinement claim.",
+  "runtime": "3.12.13",
+  "platform": "win32",
+  "source_index": {
+    "schema_version": "deepr-expert-value-source-index-v1",
+    "kind": "deepr.expert.value_source_index",
+    "source_worlds": [
+      {
+        "source_world_id": "world-1",
+        "predecessor_source_world_id": null,
+        "as_of": "2026-01-20T00:00:00Z",
+        "manifest_ref": "worlds/world-1.json",
+        "manifest_sha256": "52acb367bc7f5bc55ec345b6b39cd1562f5738b89bda2e25ece947f4818139b8"
+      },
+      {
+        "source_world_id": "world-2",
+        "predecessor_source_world_id": "world-1",
+        "as_of": "2026-02-20T00:00:00Z",
+        "manifest_ref": "worlds/world-2.json",
+        "manifest_sha256": "d94fafc496c3b66e846166b87707baba59f13eb21698bead11aa9c4a677aa5a6"
+      }
+    ]
+  },
+  "source_manifests": [
+    {
+      "schema_version": "deepr-expert-value-source-world-v1",
+      "kind": "deepr.expert.value_source_world",
+      "source_world_id": "world-1",
+      "predecessor_source_world_id": null,
+      "information_cutoff": "2026-01-20T00:00:00Z",
+      "clock_basis": "synthetic",
+      "sources": [
+        {
+          "source_version_id": "version-1",
+          "artifact_ref": "source files/source  one.txt",
+          "sha256": "31ab75da5c12af7998ccec3c37daa1b5d6aa573ff0487c66093c3e17f870300e",
+          "bytes": 28,
+          "available_at": "2026-01-01T00:00:00Z",
+          "snapshot_collected_at": "2026-09-05T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "schema_version": "deepr-expert-value-source-world-v1",
+      "kind": "deepr.expert.value_source_world",
+      "source_world_id": "world-2",
+      "predecessor_source_world_id": "world-1",
+      "information_cutoff": "2026-02-20T00:00:00Z",
+      "clock_basis": "synthetic",
+      "sources": [
+        {
+          "source_version_id": "version-1",
+          "artifact_ref": "source files/source  one.txt",
+          "sha256": "31ab75da5c12af7998ccec3c37daa1b5d6aa573ff0487c66093c3e17f870300e",
+          "bytes": 28,
+          "available_at": "2026-01-01T00:00:00Z",
+          "snapshot_collected_at": "2026-09-05T00:00:00Z"
+        },
+        {
+          "source_version_id": "version-2",
+          "artifact_ref": "source files/source-two.txt",
+          "sha256": "552b677acb01751a24688bda417d2fd35a346166f86a6f5f5a2742e226500df0",
+          "bytes": 28,
+          "available_at": "2026-02-01T00:00:00Z",
+          "snapshot_collected_at": "2026-09-05T00:00:00Z"
+        }
+      ]
+    }
+  ],
+  "source_text": [
+    "Synthetic source version 1.\n",
+    "Synthetic source version 2.\n"
+  ],
+  "source_index_sha256": "a9d33aa3e72719e7a71429ba1349abcf91e2648d1340309d12032ecb4d090595",
+  "copies": [
+    {
+      "arm": "fresh_research",
+      "world": "world-1",
+      "report": {
+        "schema_version": "deepr-expert-value-source-copy-v1",
+        "kind": "deepr.expert.value_source_copy",
+        "status": "source_copy_verified",
+        "index_sha256": "a9d33aa3e72719e7a71429ba1349abcf91e2648d1340309d12032ecb4d090595",
+        "source_world_id": "world-1",
+        "information_cutoff": "2026-01-20T00:00:00+00:00",
+        "clock_basis": "synthetic",
+        "original_manifest_sha256": "52acb367bc7f5bc55ec345b6b39cd1562f5738b89bda2e25ece947f4818139b8",
+        "copy_manifest_sha256": "3e6db4d3c93f4e2cb234c599ff409f06d01cf474fe5e7f70c46a87f0a5124005",
+        "verified_source_file_count": 1,
+        "verified_source_bytes": 28,
+        "exact_inventory_verified": true,
+        "independent_regular_files_verified": true,
+        "historical_availability_independently_verified": false,
+        "run_ready": false,
+        "execution_authorized": false,
+        "semantic_quality_assessed": false,
+        "process_isolation_verified": false,
+        "review_blinding_verified": false,
+        "network_access": false,
+        "provider_calls": 0,
+        "evidence_writes": 0,
+        "cost_usd": 0
+      }
+    },
+    {
+      "arm": "static_history",
+      "world": "world-1",
+      "report": {
+        "schema_version": "deepr-expert-value-source-copy-v1",
+        "kind": "deepr.expert.value_source_copy",
+        "status": "source_copy_verified",
+        "index_sha256": "a9d33aa3e72719e7a71429ba1349abcf91e2648d1340309d12032ecb4d090595",
+        "source_world_id": "world-1",
+        "information_cutoff": "2026-01-20T00:00:00+00:00",
+        "clock_basis": "synthetic",
+        "original_manifest_sha256": "52acb367bc7f5bc55ec345b6b39cd1562f5738b89bda2e25ece947f4818139b8",
+        "copy_manifest_sha256": "3e6db4d3c93f4e2cb234c599ff409f06d01cf474fe5e7f70c46a87f0a5124005",
+        "verified_source_file_count": 1,
+        "verified_source_bytes": 28,
+        "exact_inventory_verified": true,
+        "independent_regular_files_verified": true,
+        "historical_availability_independently_verified": false,
+        "run_ready": false,
+        "execution_authorized": false,
+        "semantic_quality_assessed": false,
+        "process_isolation_verified": false,
+        "review_blinding_verified": false,
+        "network_access": false,
+        "provider_calls": 0,
+        "evidence_writes": 0,
+        "cost_usd": 0
+      }
+    },
+    {
+      "arm": "compiled_expert",
+      "world": "world-1",
+      "report": {
+        "schema_version": "deepr-expert-value-source-copy-v1",
+        "kind": "deepr.expert.value_source_copy",
+        "status": "source_copy_verified",
+        "index_sha256": "a9d33aa3e72719e7a71429ba1349abcf91e2648d1340309d12032ecb4d090595",
+        "source_world_id": "world-1",
+        "information_cutoff": "2026-01-20T00:00:00+00:00",
+        "clock_basis": "synthetic",
+        "original_manifest_sha256": "52acb367bc7f5bc55ec345b6b39cd1562f5738b89bda2e25ece947f4818139b8",
+        "copy_manifest_sha256": "3e6db4d3c93f4e2cb234c599ff409f06d01cf474fe5e7f70c46a87f0a5124005",
+        "verified_source_file_count": 1,
+        "verified_source_bytes": 28,
+        "exact_inventory_verified": true,
+        "independent_regular_files_verified": true,
+        "historical_availability_independently_verified": false,
+        "run_ready": false,
+        "execution_authorized": false,
+        "semantic_quality_assessed": false,
+        "process_isolation_verified": false,
+        "review_blinding_verified": false,
+        "network_access": false,
+        "provider_calls": 0,
+        "evidence_writes": 0,
+        "cost_usd": 0
+      }
+    },
+    {
+      "arm": "maintained_expert",
+      "world": "world-1",
+      "report": {
+        "schema_version": "deepr-expert-value-source-copy-v1",
+        "kind": "deepr.expert.value_source_copy",
+        "status": "source_copy_verified",
+        "index_sha256": "a9d33aa3e72719e7a71429ba1349abcf91e2648d1340309d12032ecb4d090595",
+        "source_world_id": "world-1",
+        "information_cutoff": "2026-01-20T00:00:00+00:00",
+        "clock_basis": "synthetic",
+        "original_manifest_sha256": "52acb367bc7f5bc55ec345b6b39cd1562f5738b89bda2e25ece947f4818139b8",
+        "copy_manifest_sha256": "3e6db4d3c93f4e2cb234c599ff409f06d01cf474fe5e7f70c46a87f0a5124005",
+        "verified_source_file_count": 1,
+        "verified_source_bytes": 28,
+        "exact_inventory_verified": true,
+        "independent_regular_files_verified": true,
+        "historical_availability_independently_verified": false,
+        "run_ready": false,
+        "execution_authorized": false,
+        "semantic_quality_assessed": false,
+        "process_isolation_verified": false,
+        "review_blinding_verified": false,
+        "network_access": false,
+        "provider_calls": 0,
+        "evidence_writes": 0,
+        "cost_usd": 0
+      }
+    },
+    {
+      "arm": "fresh_research",
+      "world": "world-2",
+      "report": {
+        "schema_version": "deepr-expert-value-source-copy-v1",
+        "kind": "deepr.expert.value_source_copy",
+        "status": "source_copy_verified",
+        "index_sha256": "a9d33aa3e72719e7a71429ba1349abcf91e2648d1340309d12032ecb4d090595",
+        "source_world_id": "world-2",
+        "information_cutoff": "2026-02-20T00:00:00+00:00",
+        "clock_basis": "synthetic",
+        "original_manifest_sha256": "d94fafc496c3b66e846166b87707baba59f13eb21698bead11aa9c4a677aa5a6",
+        "copy_manifest_sha256": "29c067c110588ff637326d2d4c9f50e4c8fd6af629339f696ec20626e410ea77",
+        "verified_source_file_count": 2,
+        "verified_source_bytes": 56,
+        "exact_inventory_verified": true,
+        "independent_regular_files_verified": true,
+        "historical_availability_independently_verified": false,
+        "run_ready": false,
+        "execution_authorized": false,
+        "semantic_quality_assessed": false,
+        "process_isolation_verified": false,
+        "review_blinding_verified": false,
+        "network_access": false,
+        "provider_calls": 0,
+        "evidence_writes": 0,
+        "cost_usd": 0
+      }
+    },
+    {
+      "arm": "static_history",
+      "world": "world-2",
+      "report": {
+        "schema_version": "deepr-expert-value-source-copy-v1",
+        "kind": "deepr.expert.value_source_copy",
+        "status": "source_copy_verified",
+        "index_sha256": "a9d33aa3e72719e7a71429ba1349abcf91e2648d1340309d12032ecb4d090595",
+        "source_world_id": "world-2",
+        "information_cutoff": "2026-02-20T00:00:00+00:00",
+        "clock_basis": "synthetic",
+        "original_manifest_sha256": "d94fafc496c3b66e846166b87707baba59f13eb21698bead11aa9c4a677aa5a6",
+        "copy_manifest_sha256": "29c067c110588ff637326d2d4c9f50e4c8fd6af629339f696ec20626e410ea77",
+        "verified_source_file_count": 2,
+        "verified_source_bytes": 56,
+        "exact_inventory_verified": true,
+        "independent_regular_files_verified": true,
+        "historical_availability_independently_verified": false,
+        "run_ready": false,
+        "execution_authorized": false,
+        "semantic_quality_assessed": false,
+        "process_isolation_verified": false,
+        "review_blinding_verified": false,
+        "network_access": false,
+        "provider_calls": 0,
+        "evidence_writes": 0,
+        "cost_usd": 0
+      }
+    },
+    {
+      "arm": "compiled_expert",
+      "world": "world-2",
+      "report": {
+        "schema_version": "deepr-expert-value-source-copy-v1",
+        "kind": "deepr.expert.value_source_copy",
+        "status": "source_copy_verified",
+        "index_sha256": "a9d33aa3e72719e7a71429ba1349abcf91e2648d1340309d12032ecb4d090595",
+        "source_world_id": "world-2",
+        "information_cutoff": "2026-02-20T00:00:00+00:00",
+        "clock_basis": "synthetic",
+        "original_manifest_sha256": "d94fafc496c3b66e846166b87707baba59f13eb21698bead11aa9c4a677aa5a6",
+        "copy_manifest_sha256": "29c067c110588ff637326d2d4c9f50e4c8fd6af629339f696ec20626e410ea77",
+        "verified_source_file_count": 2,
+        "verified_source_bytes": 56,
+        "exact_inventory_verified": true,
+        "independent_regular_files_verified": true,
+        "historical_availability_independently_verified": false,
+        "run_ready": false,
+        "execution_authorized": false,
+        "semantic_quality_assessed": false,
+        "process_isolation_verified": false,
+        "review_blinding_verified": false,
+        "network_access": false,
+        "provider_calls": 0,
+        "evidence_writes": 0,
+        "cost_usd": 0
+      }
+    },
+    {
+      "arm": "maintained_expert",
+      "world": "world-2",
+      "report": {
+        "schema_version": "deepr-expert-value-source-copy-v1",
+        "kind": "deepr.expert.value_source_copy",
+        "status": "source_copy_verified",
+        "index_sha256": "a9d33aa3e72719e7a71429ba1349abcf91e2648d1340309d12032ecb4d090595",
+        "source_world_id": "world-2",
+        "information_cutoff": "2026-02-20T00:00:00+00:00",
+        "clock_basis": "synthetic",
+        "original_manifest_sha256": "d94fafc496c3b66e846166b87707baba59f13eb21698bead11aa9c4a677aa5a6",
+        "copy_manifest_sha256": "29c067c110588ff637326d2d4c9f50e4c8fd6af629339f696ec20626e410ea77",
+        "verified_source_file_count": 2,
+        "verified_source_bytes": 56,
+        "exact_inventory_verified": true,
+        "independent_regular_files_verified": true,
+        "historical_availability_independently_verified": false,
+        "run_ready": false,
+        "execution_authorized": false,
+        "semantic_quality_assessed": false,
+        "process_isolation_verified": false,
+        "review_blinding_verified": false,
+        "network_access": false,
+        "provider_calls": 0,
+        "evidence_writes": 0,
+        "cost_usd": 0
+      }
+    }
+  ],
+  "refusals": {
+    "altered_source": {
+      "exit_code": 1,
+      "error": "Error: Invalid source-world preparation: copied source SHA-256 digest does not match"
+    },
+    "extra_file": {
+      "exit_code": 1,
+      "error": "Error: Invalid source-world preparation: source copy contains an unexpected entry"
+    },
+    "missing_manifest": {
+      "exit_code": 1,
+      "error": "Error: Invalid source-world preparation: source copy is incomplete"
+    },
+    "hard_link": {
+      "exit_code": 1,
+      "error": "Error: Invalid source-world preparation: source copy files must not share a hard link"
+    },
+    "wrong_world": {
+      "exit_code": 1,
+      "error": "Error: Invalid source-world preparation: source copy is incomplete"
+    }
+  },
+  "organizer_unchanged": true,
+  "copy_inventories_equal_within_world": true,
+  "verification_writes": 0,
+  "provider_calls": 0,
+  "external_cost_usd": 0,
+  "archived_rehearsal_revalidated": false
+}

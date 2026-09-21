@@ -71,7 +71,7 @@ Roadmap items are not approach claims until they land in
 
 ## Active Release Plan
 
-**Now (v2.50.19):** bounded local expert formation, retained research, linked
+**Now (v2.50.20):** bounded local expert formation, retained research, linked
 knowledge, source-context repairs, and perspective-first profiles, alongside
 write-free OpenRouter previews, an owner-raisable local spend ceiling that
 binds the monthly clamp,
@@ -542,7 +542,7 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.19)
+## Current Status (v2.50.20)
 
 **Next is v2.51, not more dispatch.** v2.50.19 ships local formation and
 evidence-delivery repairs with guidance qualification still open. v2.50.18
@@ -556,8 +556,13 @@ Open v2.51 work:
 - [ ] **v2.51 preparation:** prepare equal source inventories for isolated
   arms and bind blinded review assignments to exact case and answer bytes.
   The existing `eval expert-value-sources` preflight verifies nested source
-  bytes and declared cutoff ordering. It does not materialize isolated arm
-  inputs or prove the answer-to-review mapping, blinding, or semantic support.
+  bytes and declared cutoff ordering. Its read-only `--world --copy-root`
+  check also verifies a selected world's exact independent input files and
+  rejects extra, incomplete, altered or linked copies. The
+  [September 21 validation](docs/validation/source-world-copies-2026-09-21.md)
+  covers synthetic copies; the archived rehearsal was unavailable locally.
+  Production materialization, process confinement, exact answer-to-review
+  mapping, blinding and semantic support remain open.
   The [pilot protocol](docs/design/expert-purpose-and-value-loop.md#v251-pilot-protocol)
   specifies three frozen worlds, 12 reviewed cases, and 48 arm cells, with
   blinded review and separate false-support, stale-reuse, transfer, effort,
@@ -3826,7 +3831,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.19. This roadmap keeps
+v2.50.20. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 

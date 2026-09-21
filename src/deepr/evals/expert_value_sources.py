@@ -203,8 +203,10 @@ def _verify_sources(worlds: list[SourceWorldManifest], root: Path) -> tuple[int,
     return len(checked), total_bytes
 
 
-def build_source_world_preflight(source: Path, artifact_root: Path) -> dict[str, Any]:
-    """Inspect current preparation bytes; never reuse an earlier report as proof."""
+def load_source_world_preparation(
+    source: Path, artifact_root: Path
+) -> tuple[bytes, SourceWorldIndex, list[SourceWorldManifest], int, int]:
+    """Read and validate one preparation chain and all its current source bytes."""
     root = artifact_root.resolve(strict=True)
     try:
         reference = source.absolute().relative_to(root).as_posix()
@@ -215,6 +217,12 @@ def build_source_world_preflight(source: Path, artifact_root: Path) -> dict[str,
     worlds = [_load_world(binding, root) for binding in index.source_worlds]
     _validate_version_history(worlds)
     unique_files, total_bytes = _verify_sources(worlds, root)
+    return index_bytes, index, worlds, unique_files, total_bytes
+
+
+def build_source_world_preflight(source: Path, artifact_root: Path) -> dict[str, Any]:
+    """Inspect current preparation bytes; never reuse an earlier report as proof."""
+    index_bytes, index, worlds, unique_files, total_bytes = load_source_world_preparation(source, artifact_root)
     return {
         "schema_version": "deepr-expert-value-source-preflight-v1",
         "kind": "deepr.expert.value_source_preflight",

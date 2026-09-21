@@ -74,7 +74,10 @@ input or a documented evidence gap.
 Freeze one expert's mission, decisions, source access, exact model identity,
 resource ceilings, arm policies, and reviewer rubric. Finish isolated input
 materialization and answer-to-review binding where evidence is missing. The
-existing 12 cases across four arms and three chronological worlds produce
+read-only source-copy verifier now checks exact independent files against a
+selected world. Its [synthetic CLI validation](../validation/source-world-copies-2026-09-21.md)
+does not replace archived run inputs, process confinement or reviewer bindings.
+The existing 12 cases across four arms and three chronological worlds produce
 48 terminal cells, including failures. Preserve development cases separately
 from held-out cases; reviewers do not see arm identities until labels freeze.
 

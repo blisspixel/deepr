@@ -6,3 +6,4 @@ docs/standards/** text eol=lf
 packages/deepr-agent-plugin/** text eol=lf
 tests/fixtures/hosts/** text eol=lf
 docs/validation/artifacts/python-engineering-2026-09-20/** text eol=lf
+docs/validation/artifacts/source-world-copies-2026-09-21.json text eol=lf
