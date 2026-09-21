@@ -14,10 +14,24 @@ steps.
 ```bash
 git clone https://github.com/blisspixel/deepr.git
 cd deepr
-uv pip install -e ".[dev,full]"   # [dev] alone is NOT enough - the suite imports
-                                  # azure/flask/etc. and fails collection without [full]
+uv sync --frozen --extra dev --extra full
+```
+
+Activate the environment before invoking its tools: `source .venv/bin/activate`
+on POSIX bash/zsh, or `. .venv/Scripts/Activate.ps1` in Windows PowerShell.
+Then install the local hooks:
+
+```bash
 pre-commit install
 ```
+
+`[dev]` alone is not enough for the suite's azure/flask imports. Frozen sync
+uses the committed lock; `uv pip install -e ".[dev,full]"` does not enforce it.
+An explicit virtual-environment Python path selects that interpreter but does
+not put subprocess entry points such as `deepr-mcp` on `PATH`. The unit tests
+exercise those installed entry points. See the official
+[environment activation](https://docs.python.org/3/library/venv.html#how-venvs-work)
+and [lock/sync behavior](https://docs.astral.sh/uv/concepts/projects/sync/).
 
 Requires Python 3.12+ (tested on 3.12 / 3.13 / 3.14). `uv` is the canonical
 toolchain; plain `pip` works too.
@@ -56,14 +70,14 @@ A change is done when all of these hold - not "the code works":
 
 - [ ] Tests added/updated; a bug fix ships with a regression test that fails
       without the fix.
-- [ ] `python -m pytest tests/unit/ --ignore=tests/data -q` is
+- [ ] `python -m pytest tests/unit/ --ignore=tests/data -q --cov=deepr --cov-report=term` is
       green (this is what CI runs). Do **not** run bare `pytest`:
       `tests/integration/` needs API keys and one test can hang without them.
       The unit gate blocks outbound sockets by default and only allows
       loopback hosts for local fixtures.
-- [ ] Coverage stays at or above the gate (80% branch, `fail_under` in
-      `pyproject.toml`; ratcheting toward 95).
-- [ ] `ruff check src/deepr/` and `ruff format src/deepr/` clean.
+- [ ] `python -m coverage report` independently enforces the 80% combined
+      statement/branch gate (`fail_under` in `pyproject.toml`; target 95).
+- [ ] `ruff check src/deepr/` and `ruff format --check src/deepr/` clean.
 - [ ] `python scripts/check_file_sizes.py` and
       `python scripts/check_ratchets.py` pass. These are local pre-commit hooks
       as well as blocking CI gates.
@@ -97,7 +111,9 @@ The repository stays tidy by rule, not by cleanup:
   work, not automatically opened branches. Merge green updates promptly and
   close incompatible updates in the same maintenance pass. Do not leave
   dependency branches or PRs sitting open.
-- **Nothing merges red.** A green CI run is the gate for every merge.
+- **Nothing merges red.** Require green checks on the current PR head and an
+  up-to-date base before merging. Verify CI on the exact resulting `main`
+  commit afterward; an earlier green run does not validate a later revision.
 - **Hosted CI has a separate billing boundary.** Workflow jobs have explicit
   timeouts, but Deepr's `$5` application ledger cannot cap GitHub Actions.
   Keep the repository public on standard hosted runners, or disable paid
@@ -142,8 +158,8 @@ not add day, sprint, week, quarter, or release-date estimates to active plans.
 ## Testing
 
 ```bash
-python -m pytest tests/unit/ --ignore=tests/data -q                        # the gate
-python -m pytest tests/unit/ --ignore=tests/data --cov=deepr --cov-report=term-missing
+python -m pytest tests/unit/ --ignore=tests/data -q --cov=deepr --cov-report=term
+python -m coverage report                                                 # independent coverage gate
 python -m pytest tests/unit/test_config -v                                  # one area
 ```
 

@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Refined project guidance around shared expert paths, source-backed quality
+  evidence, missing local codegraph tooling, frozen development setup, Windows
+  entry-point activation, and verification of the exact merged commit.
 - Local expert creation now builds a bounded research foundation by default:
   free search, retained sources, study, reasoned briefing, evidence graph and
   linked Markdown. CLI and dashboard share durable progress, limits, retained

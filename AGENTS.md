@@ -26,6 +26,8 @@ callers/tests. Distinguish planned, implemented, tested, released, deployed,
 and actually validated behavior; source, configuration, locks, and evidence
 outrank stale status prose. Verify change-sensitive facts against current
 primary sources before changing provider flags, protocols, or dependencies.
+Before adding a standing command, check its files, locked tooling and help,
+then exercise it safely; reconcile local/CI differences instead of copying prose.
 Preserve the Python/Click, React/TypeScript, and existing persistence stack.
 
 Reuse the owning seam under `src/deepr/` before adding another implementation:
@@ -33,6 +35,10 @@ Reuse the owning seam under `src/deepr/` before adding another implementation:
 - `config.py`: configured data, expert, report, and queue roots.
 - `experts/profile_store.py`, `experts/beliefs.py`: profile and belief authority;
   `utils/atomic_io.py`: atomic files and locked durable JSONL appends.
+- `experts/paths.py`: expert directory identity; `corpus_store.py`: retained
+  source bytes; `formation.py`: shared initial CLI/dashboard research build.
+  `consult_context.py` and `consult_prompt.py` own evidence delivery;
+  `knowledge_wiki.py` owns derived linked Markdown.
 - `providers/registry.py`, `backends/`, `experts/cost_safety.py`: model metadata,
   capacity admission, and spend authority. Interfaces do not create bypasses.
 - `mcp/protocol_compat.py`, `mcp/protocol_dispatch.py`: shared wire validation
@@ -44,9 +50,15 @@ docs and roadmap/changelog. Repeated failures should strengthen the shared
 boundary or regression tests, not add another warning. This file is the shared
 agent guide; do not create duplicate tool-specific engineering manifests.
 
+For expert-quality or currency claims, retain the actual sources, observation
+times, hashes, applicable versions, delivered context and reviewed answers.
+Graph size, matched quotations, a recent file date and green CI cannot qualify
+advice. Preserve failed trials; generated notebooks and screenshots must reflect
+canonical state. Use [the living-expertise gates](docs/plans/living-expertise.md).
+
 ## Dev environment
 
-- Install from `uv.lock`: `uv sync --frozen --extra dev --extra full`. Activate `.venv` before the commands below; on Windows, explicit `.venv/Scripts/python.exe` also avoids global-tool version drift. `[dev]` alone is NOT enough; the suite imports azure/flask/etc. and fails collection without `[full]`. The editable `uv pip install -e ".[dev,full]"` alternative does not itself enforce the lock.
+- Install from `uv.lock`: `uv sync --frozen --extra dev --extra full`. Activate `.venv` before the commands below; see [platform setup](CONTRIBUTING.md#setup). On Windows, explicit `.venv/Scripts/python.exe` selects the interpreter but does not add installed CLI entry points such as `deepr-mcp` to `PATH`. `[dev]` alone is NOT enough; the suite imports azure/flask/etc. and fails collection without `[full]`. The editable `uv pip install -e ".[dev,full]"` alternative does not itself enforce the lock.
 - Tests: `python -m pytest tests/unit/ --ignore=tests/data -q --cov=deepr --cov-report=term`, then `python -m coverage report` to enforce the configured gate independently. The unit suite must pass with **no API keys and no .env**, keeping the socket guard enabled. Do NOT run bare `pytest`: `tests/integration/` hits real provider APIs, fails wholesale without keys, and at least one test polls forever on 401.
 - Lint/format: `python -m ruff check src/deepr/` and `python -m ruff format --check src/deepr/`; omit `--check` to apply formatting. Pre-commit uses the pinned Ruff version.
 - Code-health ratchets: `python scripts/check_file_sizes.py` and
@@ -70,7 +82,7 @@ agent guide; do not create duplicate tool-specific engineering manifests.
   - Quarantined compatibility surfaces: local-eval CLI judges such as Grok remain blocked even with `--judge-cli ... --allow-cli-judge`; the legacy allow flag is not spend authority. Python and MCP expert skill execution, including `expert run-skill`, is also inventory-only until runtime network and credential confinement can be proven.
   - Roadmap language must distinguish `works now`, `visible/read-only`, and `planned adapter`. Do not market roadmap capacity as shipped UX.
 - The cost ledger is **append-only** and every spend source writes it. No silent-money paths.
-- Generated artifacts (expert digests, SKILL.md exports, reports) are **derived views**: regenerable from the structured belief store, never hand-edited as authoritative.
+- Generated artifacts (expert digests, SKILL.md exports, reports, linked knowledge) are **derived views**: regenerable from their owning canonical state, including corpus, study, brief, belief and history stores, never hand-edited as authoritative.
 - The reports root is config-sourced: `load_config()["results_dir"]` (env `DEEPR_REPORTS_PATH`, default `data/reports`). Never hardcode a `reports/` path - divergent roots was a real shipped bug.
 - `xfail` is disallowed in CI. Don't skip-to-green.
 - Windows is a first-class dev platform: UTF-8 console handling, cross-platform paths, no POSIX-only assumptions.
@@ -78,6 +90,9 @@ agent guide; do not create duplicate tool-specific engineering manifests.
 ## Conventions
 
 - Conventional commits (`feat:`/`fix:`/`docs:`/`chore:`); single `main` branch.
+- Author identity: Nick Seal <32712898+blisspixel@users.noreply.github.com>,
+  GitHub `blisspixel`. Follow the exact-head CI, title-only squash and release
+  rules in [CONTRIBUTING.md](CONTRIBUTING.md#branches-merges-and-hygiene).
 - **No AI attribution anywhere.** No AI-tool authorship trailers or notes in commits, tags, PRs, releases, code comments, or docs. Commits and releases are authored as the human maintainer, full stop.
 - **No emojis and no em/en dashes (`-` style only).** Do not use emoji or `-`/`-` in commit messages, tags, PRs, releases, code, or docs; use a plain hyphen `-` where a dash is needed.
 - Live-validation findings get a ROADMAP backlog entry and are checked off with a dated note when fixed.
@@ -85,8 +100,11 @@ agent guide; do not create duplicate tool-specific engineering manifests.
 - **Module shape (readability):** god-files and over-split confetti both hurt.
   Do not extract a file only to clear C901 or the file-size ratchet; extract
   only a named seam with tests. Prefer a package/section map over hop chains.
-  Rebuild `.agent/codegraph` before structure work; run
-  `python .agent/codegraph/fragmentation_scan.py`. Plan:
+  Before structure work, use a current `.agent/codegraph` if available and
+  rebuild with its actual tooling after verifying the builder exists. These
+  gitignored tools are not guaranteed in a fresh checkout. If absent, trace
+  the relevant symbols, callers and tests from source and record the limitation;
+  do not claim a graph rebuild or scan that did not run. Plan:
   [docs/design/module-shape-and-readability.md](docs/design/module-shape-and-readability.md).
 - **Continuity:** keep scratch, logs, intermediate research, and derived indexes
   in the existing gitignored `.agent/`, never credentials. Check the codegraph
