@@ -29,7 +29,28 @@ knowing the subject. Qualification needs both an absolute bar for useful
 answers within the declared scope and evidence of improvement over a baseline.
 Being better than an inadequate baseline is insufficient.
 
+**Expertise is open-book.** A high-quality source library, excellent notes, fast
+retrieval and appropriate tools are core expert capabilities. The system should
+inspect authoritative details when available rather than depend on model recall
+or a compressed summary. Preserve original source text, source identity,
+applicable editions/versions, rights and access limits, and useful links from
+concepts and guidance into the reference library. Notes explain connections and
+tradeoffs; the original source supplies details they may omit.
+
+Source count is not source quality. Review coverage of the expert's practical
+questions, primary authority, independent analysis, worked examples and known
+failure cases. A large corpus can still miss the relevant manual section.
+Current external access complements retained editions and versioned notes.
+Verify quotations and interpretations, and show which material actually reached
+the answering model. Search failure must not turn into confident recall.
+
 ## Dependency order
+
+The immediate creation repair connects the existing research, study, brief and
+provenance primitives into a bounded default build, and generates a linked
+Markdown view. The [formation design](../design/expert-formation.md) defines its
+limits and recovery. It repairs an incomplete user flow without asserting that
+graph connectivity qualifies an expert or that S0-S4 have passed.
 
 `S0 baseline -> S1 prepared consultation -> S2 durable temporal learning ->
 S3 perspective and inquiry -> S4 repeated-use proof -> S5 wider autonomy`
@@ -74,6 +95,11 @@ Normal CLI and MCP query/consult should follow one shared service flow:
 
 1. Establish the question, target environment, information date, and limits.
 2. Inspect the stored perspective and identify assumptions needing a check.
+   Retrieve the applicable original reference passages as well as the notes;
+   allow a bounded follow-up lookup when a needed detail is absent. Use permitted
+   computation or execution tools when the question warrants an empirical check,
+   retaining inputs, environment, outputs and limits. Tool results are evidence
+   to interpret, not a general correctness certificate.
 3. Reuse a matching preparation packet or acquire permitted current sources.
 4. Study relevant changes, unresolved conflicts, and implications for advice.
 5. Freeze the expert revision plus admitted temporary evidence, then answer.
@@ -87,6 +113,9 @@ attempts, stop reason, and context snapshot identity. Proposed field names and
 commands are not a supported interface until they land.
 
 The model chooses research direction and interprets relevance. Code enforces
+the [source acquisition contract](../design/source-library-and-rendered-acquisition.md),
+including a bounded rendered fallback only after its network and cleanup gates.
+Code also enforces
 finite source, byte, context, call, elapsed-time, and capacity limits. Every
 attempt, including a failed or cancelled one, consumes its applicable allowance.
 Repeated identical requests reuse an operation result; retries cannot create
@@ -106,6 +135,24 @@ file timestamps, or unchanged page hashes cannot certify currentness.
 Packets containing private task context stay bound to their caller and source
 permissions. A matching expert or question cannot authorize cross-caller reuse.
 
+**Show the check, not just a readiness label.** Every preparation result needs
+a dated Markdown review and a machine-readable evidence projection bound to
+the same operation and answer. Record source URLs and content hashes, actual
+observation times, publication/revision dates where known, applicable versions,
+checked assumptions, unchecked items, and material implications for guidance.
+Link each material insight to its source observation and the relevant retained
+finding or position. Include the exact delivered context and its omissions.
+A current release number alone does not establish advisory coverage; a fixed
+commit alone does not establish that an installed release contains the fix.
+
+The review and graph projection must agree and be rebuildable from the frozen
+packet. A changed recommendation needs a dated reason; an unchanged one needs
+the evidence actually reviewed. No-change, failed check, and unexamined are
+different results. This is a temporary evidence projection in S1, not a claim
+that canonical temporal learning is complete. S2 admits reviewed changes and
+preserves their history. A new Markdown timestamp or graph build time cannot
+stand in for a substantive review.
+
 Make offline/frozen operation explicit and dated. Expose partial, failed,
 cancelled, and completed preparation separately. If checking fails, identify
 the affected guidance and qualify or defer it. New conversations freeze after
@@ -121,6 +168,17 @@ smoke after frozen tests to establish real acquisition. A smoke test does not
 prove longitudinal benefit. Default-on release requires these checks and
 reviewed advice; it does not require a successful forecast or self-improving
 harness.
+Acceptance also checks that the Markdown, graph, source hashes, applicable
+versions, and delivered answer context resolve to the same frozen evidence.
+Deliberately mismatched dates, stale sources, missing links, and unsupported
+"up to date" claims must fail the check.
+Include details omitted from notes but present in full references, similar APIs
+with different version behavior, unavailable source access and contradictory
+references. In a separate controlled diagnostic, compare the same model with
+recall only, notes only, full-reference retrieval and prepared source/tool access.
+Keep the frozen S0 arms intact. Measure useful correct answers, citation
+entailment, detail retrieval, omissions, elapsed time and total resources; do not
+award success merely for searching or invoking a tool.
 
 #### Python exemplar and profile acceptance
 

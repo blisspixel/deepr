@@ -46,7 +46,7 @@ let browser
 
 async function fixture(width, theme) {
   const context = await browser.newContext({ viewport: { width, height: 900 }, colorScheme: theme })
-  const state = { mode: 'populated', unknownMoney: false, funded: false, created: false }
+  const state = { mode: 'populated', unknownMoney: false, funded: false, created: false, formation: null, buildRequested: false, pendingBuildReads: 0 }
   await context.routeWebSocket('**/*', (socket) => socket.close({ code: 1000, reason: 'Isolated interface fixture' }))
   await context.route('**/*', async (route) => {
     const request = route.request()
@@ -59,8 +59,14 @@ async function fixture(width, theme) {
     if (request.method() !== 'GET') {
       if (request.method() === 'POST' && url.pathname === '/api/experts') {
         assert.equal(request.postDataJSON().name, createdExpert.name)
+        assert.equal(request.postDataJSON().profile_only, false)
         state.created = true
         return json({ expert: createdExpert }, 201)
+      }
+      if (request.method() === 'POST' && url.pathname.endsWith('/build')) {
+        state.buildRequested = true
+        state.pendingBuildReads = 0
+        return json({ started: true }, 202)
       }
       if (url.pathname === '/api/cost/estimate') {
         return json({ allowed: true, estimate: { min_cost: 0.01, max_cost: 0.03, expected_cost: 0.02 } })
@@ -96,8 +102,15 @@ async function fixture(width, theme) {
     }
     if (url.pathname.endsWith('/noticed')) return state.mode === 'study-error'
       ? json({ error: 'Synthetic study failure' }, 500)
-      : json({ noticed: { started_at: '2026-09-05T10:00:00Z', outcomes: [{ findings: [{ finding_id: 'mechanism-123', title: 'Retained mechanism', anchors: ['A retained source passage.'], corpus_shas: ['source-1'], is_grounded: true }] }] } })
+      : json({ noticed: { started_at: '2026-09-05T10:00:00Z', outcomes: [{ findings: [{ finding_id: 'mechanism-123', title: 'Retained mechanism', anchors: ['A retained source passage.', 'An unmatched excerpt.'], corpus_shas: ['source-1'], is_grounded: true, ungrounded_anchor_count: 1 }] }] } })
     if (url.pathname.endsWith('/corpus')) return json({ corpus: { sources: [{ sha256: 'source-1', title: 'Synthetic reference', url: 'https://example.com/reference' }] } })
+    if (url.pathname.endsWith('/formation')) {
+      if (state.buildRequested && ++state.pendingBuildReads > 1) {
+        state.buildRequested = false
+        state.formation = { ...state.formation, status: 'running', progress: 'Studying retained sources' }
+      }
+      return json({ formation: state.formation })
+    }
     if (url.pathname.startsWith('/api/experts/')) return state.mode === 'error' ? json({ error: 'Synthetic profile failure' }, 500) : json({ expert })
     if (url.pathname === '/api/results') {
       if (state.mode === 'error') return json({ error: 'Synthetic results failure' }, 500)
@@ -140,6 +153,7 @@ async function fixture(width, theme) {
   await page.getByText('A mechanism explains why the condition matters.').waitFor()
   await page.getByText('Evidence and conditions for revision', { exact: true }).click()
   await page.getByText('A retained source passage.', { exact: true }).waitFor()
+  await page.getByText('Some recorded excerpts were not found in the retained text. Check their wording and relevance in the source.', { exact: true }).waitFor()
   assert.equal(await page.getByRole('link', { name: 'Synthetic reference', exact: true }).first().getAttribute('href'), 'https://example.com/reference')
   await checkLayout('perspective-and-evidence')
   await page.getByRole('button', { name: 'Claims', exact: true }).click()
@@ -173,6 +187,20 @@ async function fixture(width, theme) {
   state.mode = 'perspective-empty'
   await page.reload()
   await page.getByText('No perspective recorded yet', { exact: true }).waitFor()
+  state.formation = { schema_version: 'deepr-formation-v1', status: 'incomplete', stage: 'study', progress: 'Local runtime unavailable', model_calls: 2, updated_at: '2026-09-20T20:00:00Z', limitations: ['A retained source was unavailable.'] }
+  await page.reload()
+  await page.getByText('Local runtime unavailable', { exact: true }).waitFor()
+  await checkLayout('formation-incomplete')
+  await page.getByRole('button', { name: 'Retry local build', exact: true }).click()
+  await page.getByText('Developing knowledge', { exact: true }).waitFor()
+  assert.equal(await page.getByRole('button', { name: 'Retry local build', exact: true }).count(), 0)
+  await checkLayout('formation-running')
+  state.formation = { ...state.formation, status: 'research_complete', progress: 'Research foundation ready for review' }
+  state.mode = 'populated'
+  await page.reload()
+  await page.getByText('Research foundation built', { exact: true }).waitFor()
+  await checkLayout('formation-complete')
+  state.formation = null
   state.mode = 'study-error'
   await page.reload()
   await page.getByText('Study unavailable', { exact: true }).waitFor()

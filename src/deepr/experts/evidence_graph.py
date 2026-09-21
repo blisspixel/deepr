@@ -27,9 +27,10 @@ What having it as a graph makes cheap, none of which is cheap across two files:
   claims trace back to, which is the concentration question asked where it can
   actually be answered - per claim, rather than per document.
 
-It is temporal because every node records when it entered. An expert that has
-existed six months should be able to answer "what did you think in June, and
-what moved", and a graph whose nodes have no time cannot.
+Source and study observation times accompany this current-state projection.
+Unknown position dates remain empty. It is not a complete historical snapshot
+or bitemporal store: rebuilding current nodes cannot answer what the expert
+knew at an earlier cutoff without the corresponding retained revisions.
 """
 
 from __future__ import annotations
@@ -248,7 +249,7 @@ def _source_nodes(corpus_entries: list[Any], at: str) -> list[GraphNode]:
                 id=sha,
                 kind=NODE_SOURCE,
                 label=str(getattr(entry, "title", "") or getattr(entry, "origin_key", "") or sha[:12]),
-                first_seen=str(getattr(entry, "added_at", "") or getattr(entry, "fetched_at", "") or at),
+                first_seen=str(getattr(entry, "added_at", "") or getattr(entry, "fetched_at", "") or ""),
                 attrs={
                     "origin_key": str(getattr(entry, "origin_key", "") or ""),
                     "publisher": str(getattr(entry, "publisher", "") or ""),
@@ -287,7 +288,7 @@ def build_graph(
                 id=finding_id,
                 kind=NODE_FINDING,
                 label=str(getattr(finding, "title", "") or finding_id),
-                first_seen=str(getattr(study, "started_at", "") or at),
+                first_seen=str(getattr(study, "started_at", "") or ""),
                 attrs={
                     "lens": str(getattr(finding, "lens", "") or ""),
                     "grounded": bool(getattr(finding, "is_grounded", False)),

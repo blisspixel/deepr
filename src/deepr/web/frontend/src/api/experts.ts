@@ -15,6 +15,7 @@ import type {
 import type { BrowserExpertChatRequestPayload } from '../lib/expert-chat-contract'
 import { ApiRequestError } from '../lib/dashboard-auth'
 import { parseExpertPerspective, parseExpertSources, parseExpertStudy } from '../lib/expert-perspective'
+import { parseExpertFormation } from '../lib/expert-formation'
 
 async function retainedRecord(name: string, route: string, key: string): Promise<unknown | null> {
   try {
@@ -28,6 +29,14 @@ async function retainedRecord(name: string, route: string, key: string): Promise
 }
 
 export const expertsApi = {
+  getFormation: async (name: string) => {
+    const value = await retainedRecord(name, 'formation', 'formation')
+    return value === null ? null : parseExpertFormation(value)
+  },
+  build: async (name: string) => {
+    const response = await apiClient.post<{ started: boolean }>(`/experts/${name}/build`, {})
+    return response.data
+  },
   getPerspective: async (name: string) => {
     const value = await retainedRecord(name, 'hold', 'hold')
     return value === null ? null : parseExpertPerspective(value)
@@ -44,7 +53,7 @@ export const expertsApi = {
     const response = await apiClient.get<{ experts: Expert[] }>('/experts')
     return response.data.experts
   },
-  create: async (data: { name: string; description?: string; domain?: string }) => {
+  create: async (data: { name: string; description?: string; domain?: string; profile_only?: boolean }) => {
     const response = await apiClient.post<{ expert: Expert }>('/experts', data)
     return response.data.expert
   },

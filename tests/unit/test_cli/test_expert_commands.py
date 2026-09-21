@@ -152,6 +152,15 @@ class TestExpertMakeCommand:
         assert "openai" in output
         assert "gemini" in output or "azure" in output
 
+    def test_expert_make_local_builds_knowledge_by_default(self, runner, monkeypatch):
+        monkeypatch.setenv("DEEPR_LOCAL_MODEL", "test-local-model")
+        with patch("deepr.cli.commands.semantic.expert_build.build_local_expert") as build:
+            result = runner.invoke(cli, ["expert", "make", "Developing Expert", "--local", "-d", "Concurrency"])
+        assert result.exit_code == 0, result.output
+        build.assert_called_once()
+        assert build.call_args.args[0].name == "Developing Expert"
+        assert build.call_args.kwargs["discover"] is True
+
     def test_expert_make_local_creates_profile_without_provider(self, runner, monkeypatch):
         """Local creation must not call provider vector store setup."""
         from deepr.experts.profile import ExpertStore
@@ -166,13 +175,14 @@ class TestExpertMakeCommand:
                     "make",
                     "Local UX Expert",
                     "--local",
+                    "--profile-only",
                     "-d",
                     "UI/UX for local agentic research tools",
                 ],
             )
 
         assert result.exit_code == 0
-        assert "Local expert created: Local UX Expert" in result.output
+        assert "Local profile created: Local UX Expert" in result.output
         create_provider.assert_not_called()
 
         profile = ExpertStore().load("Local UX Expert")
@@ -193,14 +203,14 @@ class TestExpertMakeCommand:
         monkeypatch.setenv("DEEPR_LOCAL_MODEL", "first-local-model")
         first = runner.invoke(
             cli,
-            ["expert", "make", "Existing Local Expert", "--local", "-d", "Original domain"],
+            ["expert", "make", "Existing Local Expert", "--local", "--profile-only", "-d", "Original domain"],
         )
         assert first.exit_code == 0, first.output
 
         monkeypatch.setenv("DEEPR_LOCAL_MODEL", "replacement-model")
         second = runner.invoke(
             cli,
-            ["expert", "make", "Existing Local Expert", "--local", "-d", "Replacement domain"],
+            ["expert", "make", "Existing Local Expert", "--local", "--profile-only", "-d", "Replacement domain"],
         )
 
         assert second.exit_code != 0
@@ -227,6 +237,7 @@ class TestExpertMakeCommand:
                 "make",
                 "Local Docs Expert",
                 "--local",
+                "--profile-only",
                 "--files",
                 str(source),
             ],
@@ -242,12 +253,13 @@ class TestExpertMakeCommand:
         assert copied.parent == ExpertStore().get_documents_dir("Local Docs Expert")
 
     def test_expert_make_local_rejects_api_backed_learning_options(self, runner):
-        """Local make is only profile setup; learning runs through sync."""
-        result = runner.invoke(cli, ["expert", "make", "Local Expert", "--local", "--learn", "--budget", "1"])
+        """Metered curriculum flags cannot widen local formation authority."""
+        result = runner.invoke(
+            cli, ["expert", "make", "Local Expert", "--local", "--profile-only", "--learn", "--budget", "1"]
+        )
 
-        assert result.exit_code == 0
-        assert "--local creates a $0 profile only" in result.output
-        assert "expert sync" in result.output
+        assert result.exit_code != 0
+        assert "metered curriculum budget/topic options do not apply" in result.output
 
     def test_expert_make_api_profile_is_gated_before_confirmation_or_provider_setup(self, runner, tmp_path):
         """API profile setup fails closed before confirmation or provider construction."""

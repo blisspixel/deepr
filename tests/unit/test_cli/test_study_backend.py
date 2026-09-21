@@ -164,5 +164,20 @@ async def test_native_local_completion_reports_truncation():
         context_tokens=8192,
     )
 
-    with pytest.raises(StudyBackendError, match="2048-token output limit"):
+    with pytest.raises(StudyBackendError, match="8192-token context, 2048-token output ceiling"):
         await completion("Study this corpus")
+
+
+@pytest.mark.asyncio
+async def test_native_local_truncation_can_exhaust_context_before_output_ceiling():
+    class Backend:
+        async def complete(self, _request):
+            return ExpertChatResult(
+                message=SimpleNamespace(content=""),
+                usage=SimpleNamespace(prompt_tokens=11598, completion_tokens=4786),
+                stop_reason="length",
+            )
+
+    completion = _completion_from_native_ollama(Backend(), "fixture", max_tokens=16000, context_tokens=16384)
+    with pytest.raises(StudyBackendError, match="observed 11598 input and 4786 generated tokens"):
+        await completion("A large briefing")

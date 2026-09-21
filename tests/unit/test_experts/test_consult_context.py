@@ -13,6 +13,7 @@ from deepr.experts.brief_contracts import ExpertBrief, Position, SettledState
 from deepr.experts.consult_context import (
     ConsultContext,
     build_consult_context,
+    gather_findings,
     gather_sources,
     load_brief,
     rank_positions,
@@ -157,6 +158,19 @@ class TestSupportTravelsWithThePosition:
         )
         assert context.evidence_chars() > 200
 
+    def test_direct_question_evidence_precedes_alphabetical_position_support(self, study, brief):
+        direct = StudyFinding(
+            lens="mechanism",
+            axis="interrogation",
+            kind="facts",
+            finding_id="z-release",
+            title="September runtime patch release and security advisory",
+        )
+        study.outcomes[0].findings.append(direct)
+        findings = gather_findings("September runtime patch release security advisory", study, brief.positions)
+        assert findings[0] is direct
+        assert {"failure-1", "mechanism-1"} <= {finding.finding_id for finding in findings}
+
 
 @pytest.mark.parametrize("offset", [0, 1500, 2800, 10000])
 def test_cited_anchor_survives_source_selection_and_packet_rendering(tmp_path, offset):
@@ -183,6 +197,37 @@ def test_cited_anchor_survives_source_selection_and_packet_rendering(tmp_path, o
     assert len(sources[0][2]) <= 2000
     assert anchor in packet
     assert store.read(entry.sha256) == text
+
+
+def test_normalized_anchor_reaches_synthesis_as_original_source_bytes(tmp_path):
+    from deepr.experts.consult_prompt import brief_synthesis_blocks
+
+    original = "Libraries should allow their users to provide their own multiprocessing\ncontext."
+    corpus = CorpusStore("Runtime", storage_dir=tmp_path / "corpus")
+    entry, _ = corpus.add(
+        "Unrelated introduction. " * 500 + original + " More context." * 100, origin_key="docs.example"
+    )
+    finding = StudyFinding(
+        lens="mechanism",
+        axis="interrogation",
+        kind="concepts",
+        title="Caller context",
+        finding_id="context",
+        grounded_anchor_count=1,
+        corpus_shas=[entry.sha256],
+        anchors=[original.replace("\n", " ").lower()],
+    )
+    study = StudyResult(
+        expert_name="Runtime",
+        outcomes=[LensOutcome(lens="mechanism", axis="interrogation", status="ok", findings=[finding])],
+    )
+    context = build_consult_context(
+        expert_name="Runtime", question="Caller context", brief=None, result=study, corpus=corpus
+    )
+    prompt_blocks = "\n".join(brief_synthesis_blocks(context))
+    assert original in prompt_blocks
+    assert entry.sha256 in prompt_blocks
+    assert "Unrelated introduction." * 100 not in prompt_blocks
 
 
 def test_shared_source_keeps_distant_anchors_within_both_excerpt_budgets(tmp_path):
@@ -394,3 +439,24 @@ class TestBriefedExpertWithoutBeliefs:
 
         monkeypatch.setattr("deepr.experts.paths.canonical_expert_dir", lambda name: tmp_path)
         assert bp.briefed_perspective_without_beliefs("q", "E", "d", object) is None
+
+
+def test_reference_lookup_reaches_details_not_present_in_study_notes(tmp_path):
+    from deepr.experts.consult_context import gather_reference_passages
+    from deepr.experts.corpus_store import CorpusStore
+
+    corpus = CorpusStore("References", storage_dir=tmp_path / "corpus")
+    text = (
+        "General introduction. " * 300
+        + "\nLibraries should accept a caller-provided multiprocessing context. macOS uses spawn.\n"
+        + "Additional reference material. " * 100
+    )
+    source, _ = corpus.add(text, origin_key="reference.example", title="Process contexts")
+    passages = gather_reference_passages("macOS multiprocessing library caller-provided context", corpus)
+    assert len(passages) == 1
+    sha, origin, passage = passages[0]
+    assert sha == source.sha256 and origin == "reference.example"
+    assert "Libraries should accept" in passage
+    assert passage in corpus.read(sha)
+    assert len(passage) <= 1400
+    assert gather_reference_passages("", corpus) == []

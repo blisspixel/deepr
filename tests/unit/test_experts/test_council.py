@@ -693,8 +693,8 @@ Local answer.
     class FakeCompletions:
         async def create(self, **kwargs):
             assert kwargs["model"] == "qwen-local"
-            assert kwargs["max_tokens"] == 1200
-            assert kwargs["extra_body"] == {"reasoning_effort": "none"}
+            assert kwargs["max_tokens"] == 8000
+            assert "reasoning_effort" not in kwargs.get("extra_body", {})
             prompt = kwargs["messages"][1]["content"]
             assert prompt.index("AGREEMENTS") < prompt.index("SYNTHESIS")
             assert "only when the supplied evidence supports it" in prompt
@@ -855,7 +855,7 @@ async def test_local_reasoning_only_output_stays_typed_and_never_becomes_answer(
         async def create(self, **kwargs):
             nonlocal calls
             calls += 1
-            assert kwargs["extra_body"] == {"reasoning_effort": "none"}
+            assert "reasoning_effort" not in kwargs.get("extra_body", {})
             return SimpleNamespace(
                 choices=[
                     SimpleNamespace(

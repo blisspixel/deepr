@@ -846,6 +846,7 @@ source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
     { name = "anthropic" },
+    { name = "beautifulsoup4" },
     { name = "click" },
     { name = "filelock" },
     { name = "google-genai" },
@@ -895,7 +896,6 @@ dev = [
     { name = "types-pyyaml" },
 ]
 docs = [
-    { name = "beautifulsoup4" },
     { name = "docx2pdf" },
     { name = "python-docx" },
 ]
@@ -905,7 +905,6 @@ full = [
     { name = "azure-identity" },
     { name = "azure-servicebus" },
     { name = "azure-storage-blob" },
-    { name = "beautifulsoup4" },
     { name = "ddgs" },
     { name = "docx2pdf" },
     { name = "flasgger" },
@@ -945,7 +944,7 @@ requires-dist = [
     { name = "azure-identity", marker = "extra == 'azure-foundry'", specifier = ">=1.12.0,<2.0.0" },
     { name = "azure-servicebus", marker = "extra == 'azure'", specifier = ">=7.11.0,<8.0.0" },
     { name = "azure-storage-blob", marker = "extra == 'azure'", specifier = ">=12.19.0,<13.0.0" },
-    { name = "beautifulsoup4", marker = "extra == 'docs'", specifier = ">=4.12.0,<5.0.0" },
+    { name = "beautifulsoup4", specifier = ">=4.12.0,<5.0.0" },
     { name = "boto3", marker = "extra == 'aws'", specifier = "==1.43.58" },
     { name = "build", marker = "extra == 'dev'", specifier = ">=1.5.0,<2.0.0" },
     { name = "click", specifier = ">=8.1.0,<9.0.0" },

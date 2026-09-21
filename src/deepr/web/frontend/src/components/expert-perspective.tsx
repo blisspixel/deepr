@@ -4,6 +4,7 @@ import { expertsApi } from '@/api/experts'
 import { expertSourceUrl, expertStudyDate, type ExpertPosition, type ExpertSource, type ExpertStudy } from '@/lib/expert-perspective'
 import EmptyState from '@/components/shared/empty-state'
 import PartialQueryError from '@/components/shared/partial-query-error'
+import { ExpertFormation } from '@/components/expert-formation'
 
 function SourceLink({ source }: { source: ExpertSource }) {
   const url = expertSourceUrl(source.url)
@@ -34,6 +35,8 @@ function Position({ position, study, sources }: { position: ExpertPosition; stud
               <div key={id} className="rounded-lg border p-3 space-y-2">
                 <p className="font-medium text-foreground">{finding?.title || `Finding ${id} is not available in this study.`}</p>
                 {finding && !finding.is_grounded && <p>A matching source passage has not been verified.</p>}
+                {finding && (finding.ungrounded_anchor_count ?? 0) > 0 && <p>Some recorded excerpts were not found in the retained text. Check their wording and relevance in the source.</p>}
+                {!!finding?.anchors.length && <p className="font-medium">Recorded evidence excerpts</p>}
                 {finding?.anchors.map((anchor, index) => <blockquote key={index} className="border-l pl-3 leading-relaxed">{anchor}</blockquote>)}
                 {finding?.corpus_shas.map((sha) => {
                   const source = sources?.find((item) => item.sha256 === sha)
@@ -58,6 +61,7 @@ export function ExpertPerspective({ name }: { name: string }) {
 
   return (
     <div className="p-4 sm:p-6 space-y-6 break-words">
+      <ExpertFormation name={name} hasPerspective={!!brief} />
       {perspective.isError && <PartialQueryError title="Perspective unavailable" description="The retained perspective could not be loaded. Any previously loaded perspective below may be out of date." onRetry={() => void perspective.refetch()} retrying={perspective.isFetching} />}
       {study.isError && <PartialQueryError title="Study unavailable" description="Supporting findings and the study date could not be loaded." onRetry={() => void study.refetch()} retrying={study.isFetching} />}
       {sources.isError && <PartialQueryError title="Sources unavailable" description="The retained source inventory could not be loaded." onRetry={() => void sources.refetch()} retrying={sources.isFetching} />}

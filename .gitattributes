@@ -5,3 +5,4 @@ docs/schemas/vendor/** text eol=lf
 docs/standards/** text eol=lf
 packages/deepr-agent-plugin/** text eol=lf
 tests/fixtures/hosts/** text eol=lf
+docs/validation/artifacts/python-engineering-2026-09-20/** text eol=lf

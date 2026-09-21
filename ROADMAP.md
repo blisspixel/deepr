@@ -85,8 +85,37 @@ so empty model tools and disabled paid overage do not prove confinement.
 Local Ollama remains the executable v2.51 rehearsal lane. See the
 [containment decision](docs/design/claude-managed-policy-containment.md).
 
-**Sequence updated 2026-09-20:** preserve the current value baseline, then
-make preparation the first user-facing increment. An expert should get up to
+**Creation repair before the quality claim (2026-09-20):** local creation now
+connects bounded source acquisition, study, briefing, evidence graph and linked
+Markdown through one shared CLI/dashboard service. Its durable build record
+distinguishes research completion from reviewed expertise. See the
+[formation design](docs/design/expert-formation.md) and
+[Python examination](docs/validation/python-engineering-2026-09-20.md).
+The examination exposed evidence-delivery and reasoning-configuration defects;
+repairs do not by themselves establish that the exemplar is qualified.
+
+The [dated evidence bundle](docs/validation/artifacts/python-engineering-2026-09-20/README.md)
+preserves generated Markdown, graph links, source hashes and failed answers.
+The final five-case diagnostic completed without changing expert state but
+still failed practical guidance checks. The new build remains unreleased;
+v2.50.18 is the latest published version and the v2.51 evidence gate is open.
+
+- [x] Live finding, 2026-09-20: repair dropped synthesis context, normalized
+  excerpt lookup, per-finding source windows and original-reference access;
+  retain the exact delivered context and explicit omissions.
+- [x] Live finding, 2026-09-20: reject failed/unknown source response statuses;
+  retain observation receipts and preserve unknown graph dates.
+- [x] Live finding, 2026-09-20: preserve local reasoning defaults and report
+  shared-context exhaustion accurately; truncated results do not replace a brief.
+- [ ] Qualify source selection and advice: distinguish a requested primary
+  library from the few pages that happened to arrive, reconcile platform and
+  version scope, check applicable code/examples, and calibrate semantic review.
+  More findings or a larger prompt did not resolve the observed errors.
+- [ ] Publish a replacement Python expert screenshot only after the scoped
+  guidance and currency evidence passes. Preserve unfavorable trials.
+
+**Sequence updated 2026-09-20:** finish the formation and evidence-delivery
+repair, preserve the value baseline, then deliver preparation. An expert should get up to
 speed for the question, bring accumulated understanding to it, and learn from
 later evidence and experience. Default preparation is planned, not shipped.
 
@@ -117,6 +146,15 @@ Each release target below is provisional until its exit gate passes.
 
 ### Living expertise and evolving perspective
 
+**Source quality and access are core capabilities.** Build a reference library
+with excellent notes and fast original-text lookup. S1 adds current checks and
+bounded rendered acquisition where HTTP cannot supply the needed content.
+Inspect actual failure causes, preserve incomplete results and measure whether
+source access improves guidance. The
+[source-library and rendering design](docs/design/source-library-and-rendered-acquisition.md)
+records current code, inspected upstream revisions, license corrections,
+implementation order and acceptance gates without importing a crawler framework.
+
 An expert develops through research, study, reflection, investigation, and
 experience. Its retained understanding includes conceptual models, explanations,
 positions, hypotheses, insights, tradeoffs, dissent, and a learning agenda.
@@ -131,6 +169,14 @@ changes rather than assuming that its last study is still sufficient. Reuse
 requires scope and freshness coverage; offline and incomplete preparation stay
 visible. Periodic upkeep is useful but does not replace this question-specific
 step.
+
+**Make currency inspectable.** Preparation must produce a dated Markdown review
+and linked evidence graph for the actual question: sources and hashes checked,
+observation times, applicable versions, new insights, implications for advice,
+and unresolved checks. Bind those records to the exact answer context. A recent
+file or graph timestamp proves only that a file was written. Source coverage,
+interpretation, and practical guidance each need validation before the expert
+is presented as ready for that scope.
 
 The temporal graph preserves evidence relationships and changing perspectives;
 the derived wiki explains their connections; consultation applies that

@@ -16,7 +16,9 @@ def test_web_creation_persists_an_untrained_local_profile(tmp_path, monkeypatch)
     monkeypatch.setattr("deepr.backends.local.default_local_model", lambda: "fixture-local:2b")
     client = web_app.app.test_client()
 
-    response = client.post("/api/experts", json={"name": "Web Local Expert", "description": "Local evidence review"})
+    response = client.post(
+        "/api/experts", json={"name": "Web Local Expert", "description": "Local evidence review", "profile_only": True}
+    )
 
     assert response.status_code == 201
     profile = ExpertStore(str(tmp_path)).load("Web Local Expert")
@@ -37,7 +39,8 @@ def test_web_creation_without_a_runtime_cannot_inherit_paid_capacity(tmp_path, m
     client = web_app.app.test_client()
 
     response = client.post(
-        "/api/experts", json={"name": "Offline Expert", "provider": "openai", "monthly_learning_budget": 5.0}
+        "/api/experts",
+        json={"name": "Offline Expert", "provider": "openai", "monthly_learning_budget": 5.0, "profile_only": True},
     )
 
     assert response.status_code == 201

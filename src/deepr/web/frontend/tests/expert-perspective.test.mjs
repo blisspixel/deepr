@@ -29,6 +29,9 @@ test('missing evidence remains missing and superseded source metadata remains re
   const study = parseExpertStudy({ started_at: '', outcomes: [{ findings: [{ finding_id: 'a', is_grounded: 'true' }] }] })
   assert.equal(study.findings[0].is_grounded, false)
   assert.deepEqual(study.findings[0].anchors, [])
+  assert.equal(study.findings[0].ungrounded_anchor_count, null)
+  const partial = parseExpertStudy({ outcomes: [{ findings: [{ is_grounded: true, ungrounded_anchor_count: 2 }] }] })
+  assert.equal(partial.findings[0].ungrounded_anchor_count, 2)
   assert.equal(parseExpertSources({ sources: [{ sha256: 'old', superseded_by: 'new' }], active: [] })[0].sha256, 'old')
 })
 

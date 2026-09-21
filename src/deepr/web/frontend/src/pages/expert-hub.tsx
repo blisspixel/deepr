@@ -32,6 +32,7 @@ export default function ExpertHub() {
   const [sortBy, setSortBy] = useState('formed')
   const [rosterView, setRosterView] = useState<'flagship' | 'all' | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
+  const [profileOnly, setProfileOnly] = useState(false)
   const [newExpert, setNewExpert] = useState({ name: '', description: '', domain: '' })
 
   useEffect(() => {
@@ -53,7 +54,8 @@ export default function ExpertHub() {
       setDebouncedSearch('')
       setCreateOpen(false)
       setNewExpert({ name: '', description: '', domain: '' })
-      toast.success('Expert created')
+      toast.success(profileOnly ? 'Profile created' : 'Profile saved. Open it to follow the research build.')
+      setProfileOnly(false)
     },
     onError: () => {
       toast.error('Failed to create expert')
@@ -69,6 +71,7 @@ export default function ExpertHub() {
       name: newExpert.name.trim(),
       description: newExpert.description.trim() || undefined,
       domain: newExpert.domain.trim() || undefined,
+      profile_only: profileOnly,
     })
   }
 
@@ -301,7 +304,7 @@ export default function ExpertHub() {
             <DialogHeader>
               <DialogTitle>Create Expert</DialogTitle>
               <DialogDescription>
-                Create a local profile without a model call. Add trusted sources later with the local CLI.
+                Develop a research foundation with free web sources and your installed local model. Follow its progress in the expert profile. External API cost: $0.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
@@ -336,6 +339,10 @@ export default function ExpertHub() {
                   maxLength={200}
                 />
               </div>
+              <label className="flex items-start gap-2 text-sm text-muted-foreground">
+                <input type="checkbox" className="mt-1" checked={profileOnly} onChange={event => setProfileOnly(event.target.checked)} />
+                Create an empty profile only. Research it later.
+              </label>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>

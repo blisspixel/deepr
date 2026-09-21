@@ -3,20 +3,22 @@
 Set up local capacity, build one consultable expert from a source you trust,
 and optionally preview a bounded provider request without dispatch.
 
+This guide follows the development checkout. Default research formation,
+`expert build`, and `expert knowledge` are unreleased; v2.50.18 installers do
+not include them yet.
+
 ---
 
 ## Prerequisites
 
 - Python 3.12 or higher
-- At least one executable capacity source: local Ollama or a supported
-  non-metered plan CLI
+- Owned local Ollama with an installed model and cloud execution disabled
 - An API key only when intentionally running supported live credential checks
 
-Local and explicit plan expert workflows do not require an API key. General
-production API research remains blocked even when pricing, tools, output, and
-context can be bounded. The only complete metered transaction is attended
-expert absorption, and it remains unavailable until a shipped provider adapter
-proves prepaid-no-overage or an authenticated hard stop for the active account.
+Local expert workflows do not require an API key. No production plan adapter
+is currently execution-eligible. Attended OpenRouter research is a separate
+one-completion surface after explicit wallet and provider authorization;
+expert formation cannot use it or fall back to a paid provider.
 
 ---
 
@@ -80,51 +82,61 @@ If at least one intended capacity path is ready, continue.
 
 ## Build Your First Expert
 
-Creating a profile is not learning. The shortest complete local loop is:
-create the profile, retain evidence, study it, form a brief, then consult the
-stored view.
+Local creation connects research, study, a reasoned perspective, and linked
+knowledge in one bounded operation. Creating an empty profile is still available
+when that is intentional.
 
-### 1. Create the Local Profile
+### 1. Build The Research Foundation
 
 ```bash
 deepr expert make "Web Dev Expert" --local -d "Decisions about reliable web platform architecture"
 ```
 
-This creates identity and storage only. It does not claim the expert has
-learned anything.
+This uses free web search and your installed local model. It records progress
+while retaining sources, studying source summaries, mechanisms and failures,
+forming positions, and writing an evidence graph and linked Markdown. Defaults
+allow at most 12 queries, 12 URLs, 120,000 study characters, 40 model calls, and
+45 minutes. A failed or interrupted build retains its evidence and reason.
+It never falls back to a paid provider. Review the resulting guidance before use.
 
-### 2. Retain A Trusted Source
+### 2. Inspect The Knowledge And Build Record
 
-Save one UTF-8 source you are allowed to use as `source.md`, then run:
-
-```bash
-deepr expert retain "Web Dev Expert" ./source.md --title "Trusted starting source"
-```
-
-Retention is content-addressed and idempotent. It makes the source re-readable
-and preserves the passage behind later findings.
-
-### 3. Study The Evidence
+Regenerate the linked knowledge view without inference:
 
 ```bash
-deepr expert study "Web Dev Expert" --local
+deepr expert knowledge "Web Dev Expert"
 ```
 
-Study runs independent reading lenses on local Ollama capacity and saves cited
-findings. It does not write findings into the belief store or claim they are
-verified conclusions.
+The command prints the index path. Follow its positions to findings and retained
+source identities. The expert directory also contains `formation/current.json`
+and a dated `formation/runs/<operation>/review.md`. Unmatched excerpts, unknown
+dates and missing coverage stay visible. These are research records, not an
+automatic certificate of expertise.
 
-### 4. Form A Consultable Brief
+### Optional: Start From Chosen Sources
 
 ```bash
-deepr expert brief "Web Dev Expert" --local
+deepr expert make "Another Expert" --local --profile-only
+deepr expert retain "Another Expert" ./source.md --title "Trusted starting source"
+deepr expert build "Another Expert" --no-discovery
 ```
 
-The brief forms positions from grounded findings, keeps dissent visible, and
-records what would change each position. The retained corpus and structured
-state remain authoritative.
+Save a UTF-8 source you are allowed to use as `source.md` first. Retention is
+content-addressed. `--no-discovery` suppresses new search; it does not imply
+that retained material is current. For explicit later maintenance, the separate
+`expert study --local` and `expert brief --local` commands remain available.
 
-### 5. Consult The Expert
+### Recover An Incomplete Build
+
+```bash
+deepr expert build "Web Dev Expert"
+```
+
+Each retry has a new operation record and limits. It retains earlier attempts
+and offers completed study lenses for reuse only when model and corpus
+fingerprint match. Existing formed experts require explicit maintenance.
+
+### 3. Consult The Expert
 
 ```bash
 deepr expert consult "What should I verify next?" --expert "Web Dev Expert" --local
@@ -142,7 +154,7 @@ fresh-context maintenance is available when currency matters; inspect its
 coverage before relying on updated guidance. Default preparation before advice
 is the [next user-facing milestone](../ROADMAP.md#living-expertise-and-evolving-perspective).
 
-All five steps avoid paid API calls. `study`, `brief`, and `consult` require an
+These steps avoid paid API calls. Research building and consultation require an
 available local Ollama model. Use `deepr capacity` when local capacity is not
 ready.
 

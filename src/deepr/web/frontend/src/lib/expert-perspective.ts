@@ -22,6 +22,7 @@ export interface ExpertFinding {
   anchors: string[]
   corpus_shas: string[]
   is_grounded: boolean
+  ungrounded_anchor_count: number | null
 }
 
 export interface ExpertStudy {
@@ -88,6 +89,8 @@ export function parseExpertStudy(value: unknown): ExpertStudy {
       finding_id: text(finding.finding_id), title: text(finding.title),
       anchors: texts(finding.anchors), corpus_shas: texts(finding.corpus_shas),
       is_grounded: finding.is_grounded === true,
+      ungrounded_anchor_count: Number.isInteger(finding.ungrounded_anchor_count) && Number(finding.ungrounded_anchor_count) >= 0
+        ? Number(finding.ungrounded_anchor_count) : null,
     }))),
     limitations: texts(study.limitations),
   }

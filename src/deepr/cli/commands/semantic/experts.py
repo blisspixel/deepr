@@ -83,7 +83,8 @@ def expert(ctx, list_flag):
     type=click.Choice(["openai", "azure", "gemini"]),
     help="AI provider for expert",
 )
-@click.option("--local", is_flag=True, default=False, help="Create a local-only expert profile without provider setup")
+@click.option("--local", is_flag=True, default=False, help="Create and research a local expert at $0 API cost")
+@click.option("--profile-only", is_flag=True, help="With --local, create only an untrained profile without research")
 @click.option("--local-model", default=None, help="Local model name to record for local maintenance")
 @click.option("--learn", is_flag=True, default=False, help="Generate and execute autonomous learning curriculum")
 @click.option("--budget", type=float, default=None, help="Budget limit for autonomous learning (requires --learn)")
@@ -105,6 +106,7 @@ def make_expert(
     provider: str,
     local: bool,
     local_model: str | None,
+    profile_only: bool,
     learn: bool,
     budget: float | None,
     topics: int | None,
@@ -116,8 +118,6 @@ def make_expert(
     confirm_metered_profile: bool,
 ):
     """Create a new domain expert with a knowledge base."""
-    import asyncio
-
     from deepr.cli.validation import validate_budget, validate_expert_name, validate_upload_files
 
     try:
@@ -136,15 +136,15 @@ def make_expert(
     if local:
         from deepr.cli.commands.semantic.local_expert import make_local_expert_profile
 
-        learning_options_used = (
-            learn or no_discovery or any(value is not None for value in (budget, topics, docs, quick, deep))
-        )
+        learning_options_used = any(value is not None for value in (budget, topics, docs, quick, deep))
         make_local_expert_profile(
             name=name,
             files=files,
             description=description,
             local_model=local_model,
             learning_options_used=learning_options_used,
+            profile_only=profile_only,
+            discover=not no_discovery,
         )
         return
 

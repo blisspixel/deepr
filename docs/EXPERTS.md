@@ -86,7 +86,7 @@ deepr expert blueprint "Azure Architect" --from-file expert-blueprint.json --app
 # Create a local expert from documents.
 deepr expert make "Azure Architect" --local --files docs/*.md
 
-# Create a local-only expert profile with no provider API calls
+# Build a research foundation using free search and an installed local model
 deepr expert make "UI Experience Expert" --local -d "UI/UX for agentic research tools"
 
 # Consult stored expert knowledge on local capacity.
@@ -168,12 +168,22 @@ deepr expert sync "Expert Name" --local --fresh-context -y
 deepr expert sync "Expert Name" --local --deep-context -y
 ```
 
-`--local` creates the expert profile and local document folders without
-creating a provider vector store or uploading files. If you pass `--files`,
-Deepr copies the seed documents into the expert's local documents folder and
-records them in the profile. Local creation does not run the API-backed
-`--learn` curriculum; use subscriptions plus `expert sync --local` for $0
-maintenance.
+`--local` creates a profile and develops its research foundation by default:
+bounded free search, retained sources, three study lenses, a reasoned brief,
+evidence graph, and linked Markdown. `--files` adds UTF-8 seed documents;
+binary documents need text conversion before the initial study. Use
+`--no-discovery` to study only retained material or `--profile-only` to save
+identity and seeds without inference. The local `--learn` flag is redundant;
+the metered curriculum options remain refused.
+
+`expert build NAME` retries an incomplete foundation with a new bounded record;
+completed lenses can be reused when their model and corpus match. Default limits
+are 12 queries, 12 URLs, 120,000 study characters, 40 model calls and 45 minutes.
+`expert knowledge NAME` regenerates linked Markdown from actual study, brief,
+source and position-history records, with no model or network call. Inspect
+`formation/current.json` and `formation/runs/<operation>/review.md` for progress,
+failures and limitations. Research completion does not certify advice quality
+or question-specific currentness. See [the formation design](design/expert-formation.md).
 
 The current safety gate also blocks provider-backed `expert refresh` and
 `--synthesize`, API `fill-gaps` including consensus and deep modes, and API

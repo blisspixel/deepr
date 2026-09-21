@@ -1,0 +1,62 @@
+{
+  "schema_version": "deepr-python-validation-evidence-v1",
+  "exported_at": "2026-09-21T01:09:43.656520+00:00",
+  "status": "failed_development_validation",
+  "api_spend_usd": 0,
+  "validation_ceiling_usd": 10,
+  "scope": "Development review, not blinded qualification. Original sources remain linked and hashed; full source text and prompts are retained locally, not redistributed here.",
+  "canonical_inputs": {
+    "noticed/current.json": "adedbebd505b2c57b3278eb55083e356d8328c51ebc914a4de876e1baa00617e",
+    "hold/current.json": "19a0a22b666c7cf61226432a4c973ad11c4744a70825086c9f44f6ef342cdd7c",
+    "hold/history.json": "a45aeb6e45636eeda5c2bf57a04626488f4d53a40c0731cab706fddb6404aca3"
+  },
+  "source_bindings": {
+    "evidence.json": {
+      "source_path": "runtime/experts/python_engineering/knowledge/views/7492038612549b26/evidence.json",
+      "source_sha256": "d6532af55d1603355fd9698c59265aad30b3a4edb646e3ebaf4aab32950fbc83",
+      "exported_sha256": "d6532af55d1603355fd9698c59265aad30b3a4edb646e3ebaf4aab32950fbc83",
+      "transformation": "CRLF normalized to LF; content unchanged"
+    },
+    "knowledge.md": {
+      "source_path": "runtime/experts/python_engineering/hold/current.md",
+      "source_sha256": "1f35ea8f785ba7043133723093f6d45f0327ba5e9ac8b62680c610e633f37d04",
+      "exported_sha256": "03a384388de81961510ad1aa17f8a08cbd46a50b8a574f10ab9a28a638114709",
+      "transformation": "CRLF normalized to LF; content unchanged"
+    },
+    "knowledge-view-manifest.json": {
+      "source_path": "runtime/experts/python_engineering/knowledge/views/7492038612549b26/manifest.json",
+      "source_sha256": "8edb6b586c73dba5ca3478e8b87a7e66851b16fe0d0c54961fbf8438efff9e79",
+      "exported_sha256": "8edb6b586c73dba5ca3478e8b87a7e66851b16fe0d0c54961fbf8438efff9e79",
+      "transformation": "CRLF normalized to LF; content unchanged"
+    },
+    "formation-run.json": {
+      "source_path": "formation-live-result.json",
+      "source_sha256": "7a0c4b95d41d1a1b5441b2384d8b3b08c4865b1d951bd685342117d6f1a62e84",
+      "exported_sha256": "3361b428570b5d552192db2f2bda236c9b32046594d3c4111bd604870dbda054",
+      "transformation": "CRLF normalized to LF; content unchanged"
+    },
+    "executable-checks.json": {
+      "source_path": "executable-checks.json",
+      "source_sha256": "c3c2dbc8448e49a09ccf16a7d4a426f67702ce91fa803e6b05a9c60df7fe88b4",
+      "exported_sha256": "50475c9c4a44f0800829df10a2fb9f2a9ef19f2b88bc84d0e6e8556117d87aad",
+      "transformation": "CRLF normalized to LF; content unchanged"
+    },
+    "transfer-questions.json": {
+      "source_path": "transfer-evaluation.json",
+      "source_sha256": "59776ca35531230a59b821370303b0067ef5a21cf22c3b96fcdad78e5035b251",
+      "exported_sha256": "59776ca35531230a59b821370303b0067ef5a21cf22c3b96fcdad78e5035b251",
+      "transformation": "CRLF normalized to LF; content unchanged"
+    }
+  },
+  "files": {
+    "answers.json": "e55bce02ba448efb493ffe72244db1a7840d64dbd36769f10d95761a4f34fe6f",
+    "evidence.json": "d6532af55d1603355fd9698c59265aad30b3a4edb646e3ebaf4aab32950fbc83",
+    "executable-checks.json": "50475c9c4a44f0800829df10a2fb9f2a9ef19f2b88bc84d0e6e8556117d87aad",
+    "formation-run.json": "3361b428570b5d552192db2f2bda236c9b32046594d3c4111bd604870dbda054",
+    "knowledge-view-manifest.json": "8edb6b586c73dba5ca3478e8b87a7e66851b16fe0d0c54961fbf8438efff9e79",
+    "knowledge.md": "03a384388de81961510ad1aa17f8a08cbd46a50b8a574f10ab9a28a638114709",
+    "README.md": "6dd9caeb993017ee26b36a3e8e39c067fe3b70370af2364c88b26e379f5c10c9",
+    "sources.json": "d63363beaf3e45c102482e1df6ecfca299f726410eb1fb34be8dbae990824f23",
+    "transfer-questions.json": "59776ca35531230a59b821370303b0067ef5a21cf22c3b96fcdad78e5035b251"
+  }
+}

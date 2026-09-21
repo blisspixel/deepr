@@ -17,6 +17,7 @@ Nothing here should be called.
 from __future__ import annotations
 
 from deepr.cli.commands.semantic import expert_blueprint as _expert_blueprint  # noqa: F401
+from deepr.cli.commands.semantic import expert_build as _expert_build  # noqa: F401
 from deepr.cli.commands.semantic import expert_cleanup as _expert_cleanup  # noqa: F401
 from deepr.cli.commands.semantic import expert_consult as _expert_consult  # noqa: F401
 from deepr.cli.commands.semantic import expert_consult_quality as _expert_consult_quality  # noqa: F401
@@ -25,6 +26,7 @@ from deepr.cli.commands.semantic import expert_fleet_health as _expert_fleet_hea
 from deepr.cli.commands.semantic import expert_freshness as _expert_freshness  # noqa: F401
 from deepr.cli.commands.semantic import expert_gap_routes as _expert_gap_routes  # noqa: F401
 from deepr.cli.commands.semantic import expert_graph as _expert_graph  # noqa: F401
+from deepr.cli.commands.semantic import expert_knowledge as _expert_knowledge  # noqa: F401
 from deepr.cli.commands.semantic import expert_learn_web as _expert_learn_web  # noqa: F401
 from deepr.cli.commands.semantic import expert_loop_status as _expert_loop_status  # noqa: F401
 from deepr.cli.commands.semantic import expert_maintenance as _expert_maintenance  # noqa: F401

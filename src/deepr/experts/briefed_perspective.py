@@ -71,12 +71,14 @@ def build_briefed_perspective(query: str, name: str, domain: str, perspective_cl
         return None
 
     from deepr.experts.consult_context import render_consult_packet
+    from deepr.experts.consult_prompt import brief_synthesis_blocks
 
     return perspective_cls(
         expert_name=name,
         domain=domain,
         response=render_consult_packet(context),
         confidence=confidence_for_coverage(context.coverage),
+        synthesis_blocks=brief_synthesis_blocks(context),
         context={
             "source": "brief",
             "coverage": context.coverage,

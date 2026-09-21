@@ -37,6 +37,10 @@ The human-readable consultation heading likewise shows the expert name without
 an unexplained packet-confidence grade. Existing JSON fields stay compatible;
 the stored context and its evidence remain available for inspection.
 
+A finding can have both matching and unmatched evidence excerpts. Preserve
+that distinction in the evidence disclosure; its finding-level grounding flag
+does not certify every excerpt or establish the interpretation's correctness.
+
 Verify default and explicit navigation, populated and absent perspectives,
 partial retrieval failure, unsafe links, long text, and narrow screens. Inspect
 the rendered profile against real retained state. A README capture must have a

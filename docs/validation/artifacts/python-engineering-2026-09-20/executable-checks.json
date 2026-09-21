@@ -1,0 +1,10 @@
+{
+  "python": "3.12.13",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "checks": {
+    "tuple_references_and_hashability": "passed",
+    "annotation_is_not_runtime_validation": "passed",
+    "compound_cache_operation_can_duplicate_work": "passed on this build; not a free-threaded compatibility test",
+    "explicit_tar_data_filter_blocks_traversal": "passed; not a complete archive security assessment"
+  }
+}

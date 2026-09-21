@@ -18,12 +18,11 @@ from typing import Any
 from deepr.experts.briefed_perspective import briefed_perspective_without_beliefs, build_briefed_perspective
 from deepr.experts.constants import MAX_COUNCIL_CONCURRENCY, SYNTHESIS_BUDGET_FRACTION, UTILITY_MODEL
 from deepr.experts.consult_lifecycle import ConsultLifecycleError
+from deepr.experts.consult_prompt import build_synthesis_prompt, synthesis_delivery
 from deepr.experts.council_synthesis_costs import (
-    CouncilSynthesisCostError,
     SynthesisCostBound,
     attach_synthesis_settlement,
     failed_synthesis,
-    metered_synthesis_cost_bound,
     settle_cancelled_synthesis,
     settle_synthesis_cost,
     synthesis_accounting_envelope,
@@ -63,10 +62,11 @@ _SYNTHESIS_SYSTEM_PROMPT = (
     "conflicts with other stored beliefs. Lines marked '[invalidated]' or under "
     "'Recently invalidated or superseded claims' are retired history and must not be treated "
     "as current facts. Weigh corroboration and dissent alongside the stated "
-    "confidence; none of these is a guarantee of truth."
+    "confidence; none of these is a guarantee of truth. Repeat a verification label only "
+    "when the supplied claim actually carries it; never assign new verification labels."
 )
 _SYNTHESIS_OUTPUT_TOKENS = 800
-_LOCAL_SYNTHESIS_OUTPUT_TOKENS = 1200
+_LOCAL_SYNTHESIS_OUTPUT_TOKENS = 8000
 _TRUNCATED_STOP_REASONS = frozenset({"length", "max_tokens"})
 _EMPTY_SYNTHESIS_TEXT = "Synthesis unavailable: the model returned no visible answer."
 _EMPTY_TRUNCATED_SYNTHESIS_TEXT = (
@@ -165,14 +165,7 @@ class ExpertPerspective:
     confidence: float = 0.9
     cost: float = 0.0
     context: dict[str, Any] = field(default_factory=dict)
-
-
-def _render_synthesis_perspectives(perspectives: list[ExpertPerspective]) -> list[str]:
-    return [
-        f"**{perspective.expert_name}** ({perspective.domain}):\n{perspective.response[:1000]}"
-        for perspective in perspectives
-        if perspective.confidence > 0
-    ]
+    synthesis_blocks: list[str] = field(default_factory=list, repr=False)
 
 
 @dataclass(frozen=True)
@@ -899,6 +892,7 @@ class ExpertCouncil:
             "synthesis_status": synthesis.get("synthesis_status", "completed"),
             "synthesis_error_type": synthesis.get("synthesis_error_type", ""),
             "synthesis_stop_reason": synthesis.get("stop_reason", ""),
+            "context_delivery": synthesis.get("context_delivery", {}),
             "requested_budget_usd": budget,
             "total_cost": sum(perspective.cost for perspective in perspectives) + synthesis_cost,
         }
@@ -921,22 +915,11 @@ class ExpertCouncil:
                 "synthesis_status": "skipped_no_valid_perspectives",
             }
 
-        parts = _render_synthesis_perspectives(perspectives)
-
-        prompt = (
-            f"Query: {query}\n\n"
-            "Expert perspectives:\n\n" + "---\n".join(parts) + "\n\n"
-            "Return these sections in order and keep the complete response under 700 words:\n"
-            "1. AGREEMENTS: Points where experts agree (bullet list).\n"
-            "2. DISAGREEMENTS: Points where they diverge (bullet list). Preserve meaningful dissent.\n"
-            "3. SYNTHESIS: A unified answer combining the best insights without forcing consensus.\n"
-            "4. ASSUMPTIONS AND RISKS: Name weak evidence, missing data, and disconfirming evidence.\n"
-            "5. EXECUTION PLAN: Give concrete next actions, measures, verification, and stop rules.\n"
-            "Include quantitative analysis only when the supplied evidence supports it.\n"
-        )
-
+        try:
+            user_prompt = build_synthesis_prompt(query, perspectives)
+        except ValueError as error:
+            return failed_synthesis(error, cost_bound=None, dispatched=False)
         system_prompt = _SYNTHESIS_SYSTEM_PROMPT
-        user_prompt = prompt[:6000]
 
         output_tokens = (
             _LOCAL_SYNTHESIS_OUTPUT_TOKENS if self._synthesis_provider == "local" else _SYNTHESIS_OUTPUT_TOKENS
@@ -949,20 +932,6 @@ class ExpertCouncil:
             return failed_synthesis(error, cost_bound=None, dispatched=False)
         self._require_owned_synthesis_authority()
         cost_bound: SynthesisCostBound | None = None
-        if not _owned_synthesis_provider(self._synthesis_provider):
-            try:
-                cost_bound = metered_synthesis_cost_bound(
-                    provider=self._synthesis_provider,
-                    model=self._synthesis_model,
-                    system_prompt=system_prompt,
-                    user_prompt=user_prompt,
-                    output_token_ceiling=output_tokens,
-                    budget=budget,
-                )
-            except CouncilSynthesisCostError as error:
-                logger.warning("Council synthesis rejected before dispatch: %s", error)
-                return failed_synthesis(error, cost_bound=None, dispatched=False)
-
         dispatched = False
         try:
 
@@ -983,7 +952,10 @@ class ExpertCouncil:
                 cost_bound=cost_bound,
                 pre_dispatch_callback=mark_dispatch_started,
             )
-            return _shape_synthesis_response(response)
+            return {
+                **_shape_synthesis_response(response),
+                "context_delivery": synthesis_delivery(system_prompt, user_prompt),
+            }
         except asyncio.CancelledError as error:
             if dispatched and cost_bound is not None:
                 settlement = failed_synthesis(error, cost_bound=cost_bound, dispatched=True)

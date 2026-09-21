@@ -86,8 +86,6 @@ async def _openai_shape_synthesis(
         "temperature": 0.3,
         "max_tokens": output_tokens,
     }
-    if provider == "local":
-        params["extra_body"] = {"reasoning_effort": "none"}
     result = await completions_api.create(**params)
     choice = result.choices[0]
     owned = provider == "local" or provider.startswith("plan_quota:")

@@ -229,6 +229,7 @@ def build_consult_payload(question: str, result: dict[str, Any]) -> dict[str, An
         "synthesis_status": result.get("synthesis_status", "completed") or "completed",
         "synthesis_error_type": result.get("synthesis_error_type", "") or "",
         "synthesis_stop_reason": result.get("synthesis_stop_reason", "") or "",
+        "context_delivery": dict(result.get("context_delivery") or {}),
         "experts_consulted": [p.get("expert_name", "") for p in perspectives],
         "perspectives": shaped_perspectives,
         "agreements": list(result.get("agreements", []) or []),

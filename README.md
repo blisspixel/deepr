@@ -54,12 +54,21 @@ that includes language and runtime behavior, computer-science fundamentals,
 testing and packaging, performance, security, and the tradeoffs behind advice.
 Breadth must come from retained research and demonstrated answers.
 
+Expertise is open-book: strong source content, organized notes, and quick access
+to the original references matter as much as what the model recalls. Deepr's
+retained library supplies inspectable detail behind its guidance. Default live
+preparation and question-directed tool use remain the next delivery gate.
+
 The profile opens on the expert's perspective, positions and reasoning,
 supporting research, questions considered, and unresolved questions. Claim-level
 support estimates remain available for inspection with their basis and limits;
 they do not grade the expert's overall correctness. The
 [Python exemplar and profile acceptance criteria](docs/plans/living-expertise.md#python-exemplar-and-profile-acceptance)
 define what a replacement screenshot must demonstrate from real retained work.
+The [dated Python validation](docs/validation/python-engineering-2026-09-20.md)
+includes actual Markdown, a source-linked graph, source hashes, and reviewed
+answers. That example has not passed its guidance gate; it is evidence for the
+next repairs, not a qualified expert advertisement.
 Reports, digests, and portable exports remain regenerable views of structured
 expert state.
 
@@ -168,21 +177,29 @@ environment. PyPI publication is not enabled.
 
 ## Quick start
 
+The formation and knowledge commands below are available in the development
+checkout, following [Quick Start](docs/QUICK_START.md#installation-2-minutes).
+The latest published release remains v2.50.18; its installers do not yet include
+the new default research build.
+
 ```bash
 deepr init
 deepr doctor --skip-connectivity
 deepr capacity
 deepr expert make "My Domain Expert" --local -d "The decisions this expert supports"
-deepr expert retain "My Domain Expert" ./source.md --title "Trusted starting source"
-deepr expert study "My Domain Expert" --local
-deepr expert brief "My Domain Expert" --local
+deepr expert knowledge "My Domain Expert"
 deepr expert consult "What should we decide next?" --expert "My Domain Expert" --local
 ```
 
-Save one UTF-8 source you trust as `source.md` before running the retain step.
-Creating a profile is not learning: retain makes the evidence re-readable,
-study extracts cited findings, and brief forms the inspectable view that the
-consult actually uses. These commands make no paid API call.
+Local creation now develops a research foundation: bounded free web search,
+retained sources, study of mechanisms and failures, a reasoned brief, an evidence
+graph, and linked Markdown. It needs an installed local model and makes no paid
+API call. Review the build record and practical answers before relying on its
+guidance. A successful build is not a qualification score.
+
+Use `--profile-only` for an empty profile or `--no-discovery` to study only
+retained UTF-8 sources. `expert build NAME` retries an incomplete foundation;
+`expert knowledge NAME` regenerates its linked notebook without model calls.
 
 Consultation selects bounded literal excerpts around the study's cited source
 anchors, including evidence later in a document. Excerpt selection preserves
@@ -225,10 +242,10 @@ equal isolated source inventories and bind blinded reviews to exact answers.
 The [research assessment](docs/research/deepr-next-evidence-2026-09-13.md)
 explains the evidence, remaining gaps, and acceptance criteria.
 
-After that, v2.52 resolves predictions as review-required proposals without
-automatic learning. v2.53 finishes the durable parent transaction with
-OpenRouter still execution-disabled unless a later explicit rule change and
-two-model validation say otherwise. See [what's next and why](ROADMAP.md#active-release-plan).
+After the preserved baseline, v2.52 targets preparation before advice; v2.53
+targets durable temporal learning; v2.54 develops perspective and inquiry; and
+v2.55 tests repeated-use value. Broader execution follows demonstrated benefit
+and its own authority gates. See [what's next and why](ROADMAP.md#active-release-plan).
 
 The [local-first runtime proposal](docs/design/local-first-agent-runtime-options.md)
 considers a creator for reusable expert skills and selected OKF knowledge,
