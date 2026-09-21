@@ -134,7 +134,9 @@ not add day, sprint, week, quarter, or release-date estimates to active plans.
 3. Use a minor version only after its named promotion gate passes. If the gate
    fails, preserve the evidence and keep the surface experimental or blocked.
 4. When the candidate is complete, update the package, plugin, fixtures,
-   lockfile, release docs, and changelog to one exact version. Run the full
+   lockfile, release docs, and changelog to one exact version. Regenerate
+   `packages/deepr-agent-plugin/SHA256SUMS` after changing plugin content or
+   versions, then run the plugin package tests before pushing. Run the full
    Definition of Done before merging.
 5. Tag only the exact green `main` commit. Build and verify the release
    artifacts, publish the matching GitHub Release, validate the public
