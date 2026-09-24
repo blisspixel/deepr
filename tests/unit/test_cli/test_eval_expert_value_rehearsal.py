@@ -314,22 +314,37 @@ def test_subprocess_timeout_is_terminal(tmp_path: Path, monkeypatch: pytest.Monk
     assert rehearsal.subprocess_launcher(tmp_path / "spec.json", {}, tmp_path, timeout=1) == -1
 
 
+class _WarmupBackend:
+    def __init__(self, raw: dict[str, Any], digest: str = "a" * 64) -> None:
+        self.raw, self.last_attested_digest, self._digest = raw, "", digest
+        self.requests: list[Any] = []
+
+    async def complete(self, request: Any) -> Any:
+        self.requests.append(request)
+        self.last_attested_digest = self._digest
+        return type("Result", (), {"raw_response": self.raw})()
+
+
 def test_warmup_refuses_a_saturated_gpu_and_records_the_attempt(tmp_path: Path) -> None:
     policy = make_policy()
-    fast = rehearsal.warmup_throughput(
-        policy, min_tokens_per_second=5, post=lambda _p: {"eval_count": 80, "eval_duration": 2_000_000_000}
-    )
+    fast_backend = _WarmupBackend({"eval_count": 80, "eval_duration": 2_000_000_000})
+    fast = rehearsal.warmup_throughput(policy, min_tokens_per_second=5, backend=fast_backend)
     assert fast["warmup_tokens_per_second"] == 40.0
+    assert fast_backend.requests[0].extra["seed"] == policy.seed
     with pytest.raises(ValueError, match="below the 5 floor"):
         rehearsal.warmup_throughput(
-            policy, min_tokens_per_second=5, post=lambda _p: {"eval_count": 3, "eval_duration": 12_000_000_000}
+            policy, min_tokens_per_second=5, backend=_WarmupBackend({"eval_count": 3, "eval_duration": 12_000_000_000})
         )
     with pytest.raises(ValueError, match="0.00 tokens/s"):
-        rehearsal.warmup_throughput(policy, min_tokens_per_second=5, post=lambda _p: {})
+        rehearsal.warmup_throughput(policy, min_tokens_per_second=5, backend=_WarmupBackend({}))
+    with pytest.raises(ValueError, match="digest differs"):
+        rehearsal.warmup_throughput(
+            policy, min_tokens_per_second=5, backend=_WarmupBackend({"eval_count": 80, "eval_duration": 1}, "c" * 64)
+        )
     from deepr.observability.cost_ledger import CostLedger
 
     events = CostLedger().ledger_path.read_text(encoding="utf-8")
-    assert events.count("\"idempotency_key\": \"rehearsal-warmup:") == 3 and '"cost_usd": 0.0' in events
+    assert events.count('"idempotency_key": "rehearsal-warmup:') == 4 and '"cost_usd": 0.0' in events
 
 
 def test_run_refuses_when_warmup_is_too_slow(workspace: dict[str, Path], monkeypatch: pytest.MonkeyPatch) -> None:

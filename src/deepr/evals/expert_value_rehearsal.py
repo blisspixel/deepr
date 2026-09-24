@@ -172,26 +172,22 @@ def runtime_preflight(policy: RehearsalPolicy) -> dict[str, Any]:
 
 
 def warmup_throughput(
-    policy: RehearsalPolicy, *, min_tokens_per_second: float, post: Callable[..., Any] | None = None
+    policy: RehearsalPolicy, *, min_tokens_per_second: float, backend: Any | None = None
 ) -> dict[str, Any]:
     """One short $0 local generation; refuse a run the machine cannot currently sustain.
 
     A shared or saturated GPU can slow generation by orders of magnitude, and
     every later call would then end as a timeout that measures contention, not
-    the protocol. The warm-up is recorded in the canonical ledger like any call.
+    the protocol. The warm-up uses the same attested native backend as workers
+    and is recorded in the canonical ledger like any call.
     """
-    import httpx
+    import asyncio
 
+    from deepr.experts.chat_backends import ExpertChatRequest
+    from deepr.experts.investigation.ollama_backend import NativeOllamaInvestigationBackend
     from deepr.observability.cost_ledger import CostLedger
 
     request_id = f"rehearsal-warmup:{secrets.token_hex(8)}"
-    payload = {
-        "model": policy.model,
-        "messages": [{"role": "user", "content": "List the integers from 1 to 40, separated by spaces."}],
-        "stream": False,
-        "think": policy.think,
-        "options": {"num_ctx": policy.num_ctx, "num_predict": 96, "temperature": 0.0, "seed": policy.seed},
-    }
     CostLedger().record_event(
         operation="expert_value_rehearsal",
         provider="local",
@@ -203,11 +199,24 @@ def warmup_throughput(
         metadata={"status": "attempted", "purpose": "throughput_warmup"},
         require_fsync=True,
     )
-    if post is None:
-        with httpx.Client(timeout=min(policy.call_timeout_seconds, 600.0), trust_env=False) as client:
-            data = client.post(f"{policy.ollama_base_url}/api/chat", json=payload).json()
-    else:
-        data = post(payload)
+    client = backend or NativeOllamaInvestigationBackend(
+        model=policy.model, base_url=policy.ollama_base_url, timeout=min(policy.call_timeout_seconds, 600.0)
+    )
+    request = ExpertChatRequest(
+        model=policy.model,
+        messages=[{"role": "user", "content": "List the integers from 1 to 40, separated by spaces."}],
+        extra={
+            "num_ctx": policy.num_ctx,
+            "max_tokens": 96,
+            "temperature": 0.0,
+            "seed": policy.seed,
+            "think": policy.think,
+        },
+    )
+    result = asyncio.run(client.complete(request))
+    if client.last_attested_digest != policy.model_digest:
+        raise ValueError("warm-up model digest differs from the frozen policy")
+    data = result.raw_response or {}
     tokens = int(data.get("eval_count", 0) or 0)
     seconds = int(data.get("eval_duration", 0) or 0) / 1e9
     rate = tokens / seconds if seconds > 0 else 0.0
