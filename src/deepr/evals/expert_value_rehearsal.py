@@ -171,6 +171,54 @@ def runtime_preflight(policy: RehearsalPolicy) -> dict[str, Any]:
     return {"ollama_version": version.get("version"), "cloud_status": status, "model": entry}
 
 
+def warmup_throughput(
+    policy: RehearsalPolicy, *, min_tokens_per_second: float, post: Callable[..., Any] | None = None
+) -> dict[str, Any]:
+    """One short $0 local generation; refuse a run the machine cannot currently sustain.
+
+    A shared or saturated GPU can slow generation by orders of magnitude, and
+    every later call would then end as a timeout that measures contention, not
+    the protocol. The warm-up is recorded in the canonical ledger like any call.
+    """
+    import httpx
+
+    from deepr.observability.cost_ledger import CostLedger
+
+    request_id = f"rehearsal-warmup:{secrets.token_hex(8)}"
+    payload = {
+        "model": policy.model,
+        "messages": [{"role": "user", "content": "List the integers from 1 to 40, separated by spaces."}],
+        "stream": False,
+        "think": policy.think,
+        "options": {"num_ctx": policy.num_ctx, "num_predict": 96, "temperature": 0.0, "seed": policy.seed},
+    }
+    CostLedger().record_event(
+        operation="expert_value_rehearsal",
+        provider="local",
+        cost_usd=0,
+        model=policy.model,
+        request_id=request_id,
+        source="local_value_rehearsal",
+        idempotency_key=request_id,
+        metadata={"status": "attempted", "purpose": "throughput_warmup"},
+        require_fsync=True,
+    )
+    if post is None:
+        with httpx.Client(timeout=min(policy.call_timeout_seconds, 600.0), trust_env=False) as client:
+            data = client.post(f"{policy.ollama_base_url}/api/chat", json=payload).json()
+    else:
+        data = post(payload)
+    tokens = int(data.get("eval_count", 0) or 0)
+    seconds = int(data.get("eval_duration", 0) or 0) / 1e9
+    rate = tokens / seconds if seconds > 0 else 0.0
+    if rate < min_tokens_per_second:
+        raise ValueError(
+            f"local generation is {rate:.2f} tokens/s, below the {min_tokens_per_second:g} floor; "
+            "free the GPU and retry"
+        )
+    return {"warmup_tokens": tokens, "warmup_tokens_per_second": round(rate, 2), "warmup_request_id": request_id}
+
+
 def worker_environment(worker_dir: Path, policy: RehearsalPolicy) -> dict[str, str]:
     """Explicit allowlisted environment; nothing credential-bearing is inherited."""
     env = {name: os.environ[name] for name in _PASSTHROUGH_ENV if name in os.environ}

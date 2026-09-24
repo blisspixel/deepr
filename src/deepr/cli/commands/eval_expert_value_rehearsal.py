@@ -18,6 +18,7 @@ from deepr.evals.expert_value_rehearsal import (
     RehearsalRun,
     plan_from_blueprint,
     runtime_preflight,
+    warmup_throughput,
 )
 from deepr.evals.expert_value_sources import load_source_world_preparation
 
@@ -66,9 +67,22 @@ def plan_command(blueprint: Path, placement: Path, output: Path) -> None:
 @click.option("--from-file", "index_path", type=_FILE, required=True, help="Source-world preparation index.")
 @click.option("--artifact-root", type=_DIR, required=True, help="Root containing the index and sources.")
 @click.option("--run-root", type=click.Path(file_okay=False, path_type=Path), required=True, help="New run root.")
+@click.option(
+    "--min-tokens-per-second",
+    type=click.FloatRange(min=0),
+    default=5.0,
+    show_default=True,
+    help="Refuse to start when a short $0 warm-up generation is slower than this.",
+)
 @click.option("--json", "json_output", is_flag=True, help="Emit the run summary as JSON.")
 def run_command(
-    policy_path: Path, plan_path: Path, index_path: Path, artifact_root: Path, run_root: Path, json_output: bool
+    policy_path: Path,
+    plan_path: Path,
+    index_path: Path,
+    artifact_root: Path,
+    run_root: Path,
+    min_tokens_per_second: float,
+    json_output: bool,
 ) -> None:
     """Execute all cells on the owned local model; local calls are recorded at $0.
 
@@ -80,6 +94,7 @@ def run_command(
         policy = RehearsalPolicy.model_validate_json(policy_path.read_bytes())
         plan = RehearsalPlan.model_validate_json(plan_path.read_bytes())
         runtime = runtime_preflight(policy)
+        runtime.update(warmup_throughput(policy, min_tokens_per_second=min_tokens_per_second))
         run = RehearsalRun(
             policy=policy,
             plan=plan,

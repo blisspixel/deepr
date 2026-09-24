@@ -5,6 +5,29 @@ All notable changes to Deepr will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `deepr eval expert-value-rehearsal plan|run|blind|bind-labels` implements
+  the local four-arm operational rehearsal. Each construct, maintain and answer
+  phase runs in its own credential-free worker process with a newly
+  materialized, verified source copy and its own data and cost roots. The run
+  refuses before any work when the installed model digest or cloud-disabled
+  status differs from the frozen policy, and binds every call to that digest.
+  Construction and maintenance never receive a question; consultation memory
+  is a private checkpoint copy hashed before and after. Every cell ends
+  answered, failed or blocked, and each local call is recorded at `$0` in the
+  worker and canonical ledgers. `blind` writes a reviewer packet without arm
+  identity and a separate private key; `bind-labels` checks exactly one label
+  per answer against exact answer bytes. No score, reviewer identity, winner
+  or value claim is produced. See the
+  [design](design/local-four-arm-rehearsal.md#implementation-2026-09-24) and
+  [practice review](research/s0-s1-practice-2026-09-24.md).
+- The native Ollama investigation backend accepts a pinned integer `seed` and
+  boolean `think`, and exposes the digest observed by its per-dispatch model
+  attestation.
+
 ## [2.50.21] - 2026-09-23
 
 ### Added

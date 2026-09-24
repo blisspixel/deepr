@@ -49,6 +49,7 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Path
 
     monkeypatch.setattr(cli, "RehearsalRun", FakeRun)
     monkeypatch.setattr(cli, "runtime_preflight", lambda _policy: {"ollama_version": "fixture"})
+    monkeypatch.setattr(cli, "warmup_throughput", lambda _policy, **_kw: {"warmup_tokens_per_second": 40.0})
     return {
         "root": tmp_path,
         "index": bundle.index_path,
@@ -85,7 +86,10 @@ def test_plan_run_blind_and_bind_end_to_end(workspace: dict[str, Path]) -> None:
     assert result.exit_code == 0, result.output
     summary = json.loads(result.output)
     assert summary["terminal_cells"] == 8 and summary["api_cost_usd"] == 0
-    assert json.loads((run_root / "run.json").read_text())["runtime"] == {"ollama_version": "fixture"}
+    assert json.loads((run_root / "run.json").read_text())["runtime"] == {
+        "ollama_version": "fixture",
+        "warmup_tokens_per_second": 40.0,
+    }
     packet, key = w["root"] / "review" / "packet.json", w["root"] / "private" / "key.json"
     result = invoke(
         "blind",
@@ -308,3 +312,45 @@ def test_subprocess_timeout_is_terminal(tmp_path: Path, monkeypatch: pytest.Monk
 
     monkeypatch.setattr(subprocess, "run", slow)
     assert rehearsal.subprocess_launcher(tmp_path / "spec.json", {}, tmp_path, timeout=1) == -1
+
+
+def test_warmup_refuses_a_saturated_gpu_and_records_the_attempt(tmp_path: Path) -> None:
+    policy = make_policy()
+    fast = rehearsal.warmup_throughput(
+        policy, min_tokens_per_second=5, post=lambda _p: {"eval_count": 80, "eval_duration": 2_000_000_000}
+    )
+    assert fast["warmup_tokens_per_second"] == 40.0
+    with pytest.raises(ValueError, match="below the 5 floor"):
+        rehearsal.warmup_throughput(
+            policy, min_tokens_per_second=5, post=lambda _p: {"eval_count": 3, "eval_duration": 12_000_000_000}
+        )
+    with pytest.raises(ValueError, match="0.00 tokens/s"):
+        rehearsal.warmup_throughput(policy, min_tokens_per_second=5, post=lambda _p: {})
+    from deepr.observability.cost_ledger import CostLedger
+
+    events = CostLedger().ledger_path.read_text(encoding="utf-8")
+    assert events.count("\"idempotency_key\": \"rehearsal-warmup:") == 3 and '"cost_usd": 0.0' in events
+
+
+def test_run_refuses_when_warmup_is_too_slow(workspace: dict[str, Path], monkeypatch: pytest.MonkeyPatch) -> None:
+    w = workspace
+
+    def slow(_policy: Any, **_kw: Any) -> dict[str, Any]:
+        raise ValueError("local generation is 0.25 tokens/s, below the 5 floor; free the GPU and retry")
+
+    monkeypatch.setattr(cli, "warmup_throughput", slow)
+    result = invoke(
+        "run",
+        "--policy",
+        str(w["policy"]),
+        "--plan",
+        str(w["plan"]),
+        "--from-file",
+        str(w["index"]),
+        "--artifact-root",
+        str(w["artifacts"]),
+        "--run-root",
+        str(w["root"] / "run"),
+    )
+    assert result.exit_code != 0 and "free the GPU" in result.output
+    assert not (w["root"] / "run").exists()
