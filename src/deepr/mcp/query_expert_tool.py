@@ -58,8 +58,8 @@ QUERY_EXPERT_INPUT_SCHEMA: dict[str, Any] = {
         "plan": {
             "type": "string",
             "description": (
-                "Plan-quota backend id when backend='plan'. Claude is the current executable "
-                "adapter; other adapters remain visible but blocked."
+                "Plan-quota backend id when backend='plan'. No production plan adapter is "
+                "execution-eligible. The fleet-seat profile accepts local only."
             ),
         },
         "plan_model": {"type": "string", "description": "Optional model hint for the plan-quota CLI."},
@@ -119,12 +119,19 @@ async def query_expert_tool(
     plan_model: str | None = None,
 ) -> dict[str, Any]:
     """Query one expert through legacy chat or a no-metered read-only backend."""
+    from deepr.mcp.seat_consumer import seat_local_only_error
+
+    if not isinstance(backend, str):
+        return _make_error("INVALID_BACKEND", "backend must be one of: api, local, plan", category="validation")
+    backend_mode = (backend or "api").strip().lower()
+    seat_error = seat_local_only_error(backend_mode, field="backend")
+    if seat_error is not None:
+        return seat_error
     try:
         expert = store.load(expert_name)
         if not expert:
             return _make_error("EXPERT_NOT_FOUND", f"Expert '{expert_name}' not found")
 
-        backend_mode = (backend or "api").strip().lower()
         if backend_mode in {"local", "plan"}:
             return await _query_expert_via_readonly_backend(
                 expert=expert,

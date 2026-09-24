@@ -31,9 +31,31 @@ def host_profile(host: str, host_version: str | None, output: Path | None, force
     click.echo(f"Wrote MCP host profile: {output}")
 
 
+@click.command("seat-profile")
+@click.option("--output", type=click.Path(dir_okay=False, path_type=Path), help="Write canonical JSON here.")
+@click.option("--force", is_flag=True, help="Replace an existing output file atomically.")
+def seat_profile(output: Path | None, force: bool) -> None:
+    """Write the unvalidated fleet-seat MCP profile. It installs nothing."""
+    from deepr.mcp.seat_consumer import serialize_seat_profile
+    from deepr.utils.atomic_io import atomic_write_text
+
+    try:
+        text = serialize_seat_profile()
+        if output is None:
+            stream = click.get_binary_stream("stdout")
+            stream.write(text.encode("utf-8"))
+            stream.flush()
+            return
+        atomic_write_text(output, text, fsync=True, overwrite=force)
+    except (OSError, ValueError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(f"Wrote MCP seat profile: {output}")
+
+
 def register_host_profile_command(mcp_group: click.Group) -> None:
-    """Attach the host-profile command to the MCP command group."""
+    """Attach the host-profile commands to the MCP command group."""
     mcp_group.add_command(host_profile)
+    mcp_group.add_command(seat_profile)
 
 
-__all__ = ["host_profile", "register_host_profile_command"]
+__all__ = ["host_profile", "register_host_profile_command", "seat_profile"]

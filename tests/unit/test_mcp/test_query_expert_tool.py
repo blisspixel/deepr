@@ -10,7 +10,7 @@ def test_build_readonly_query_backend_uses_local_ollama_client(monkeypatch):
     from deepr.backends import local as local_backend
 
     plan_description = QUERY_EXPERT_INPUT_SCHEMA["properties"]["plan"]["description"]
-    assert "Claude is the current executable adapter" in plan_description
+    assert "No production plan adapter is execution-eligible" in plan_description
     assert "Codex" not in plan_description
 
     client = _mark_zero_dollar_client(SimpleNamespace(), capacity_source="local")

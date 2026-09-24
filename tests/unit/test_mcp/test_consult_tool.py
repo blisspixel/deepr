@@ -76,7 +76,7 @@ def test_consult_schema_defaults_to_owned_capacity_and_marks_api_disabled():
 
     assert properties["synthesis_backend"]["default"] == "local"
     assert "METERED_API_DISABLED" in properties["synthesis_backend"]["description"]
-    assert "current executable adapter" in properties["plan"]["description"]
+    assert "No production plan adapter is execution-eligible" in properties["plan"]["description"]
     assert "Codex" not in properties["plan"]["description"]
     assert "default" not in properties["budget"]
     assert properties["budget"]["minimum"] == 0

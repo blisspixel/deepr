@@ -20,6 +20,13 @@ _ZERO_SPEND_ENV = {
 }
 
 
+def build_contained_seat_env(root_placeholder: str) -> dict[str, str]:
+    """Return the read-only zero-spend environment with the fleet-seat mode."""
+    env = build_contained_read_only_env(root_placeholder, advertise_full_tool_list=True)
+    env["DEEPR_RESEARCH_MODE"] = "seat"
+    return env
+
+
 def build_contained_read_only_env(
     root_placeholder: str,
     *,
@@ -43,4 +50,4 @@ def build_contained_read_only_env(
     return env
 
 
-__all__ = ["build_contained_read_only_env"]
+__all__ = ["build_contained_read_only_env", "build_contained_seat_env"]

@@ -62,6 +62,9 @@ The reasoning behind contract-spanning choices, kept versioned with the code.
 - **[design/agent-harness-lessons-2026.md](design/agent-harness-lessons-2026.md)** -
   concrete lessons from current agent harnesses for run snapshots, approvals,
   steering, skill learning, and control-plane proof.
+- **[design/coordination-failures-and-cheap-routing.md](design/coordination-failures-and-cheap-routing.md)** -
+  how a Herdr or OpenRig seat, or a host-side cheap router, should call Deepr
+  without Deepr becoming that runtime or that router.
 - **[design/external-harness-investigation-bridge.md](design/external-harness-investigation-bridge.md)** -
   the projection-first integration plan for Grok Build, DeepSeek Harness,
   OpenClaw, NemoClaw, Codex, and workspace-equipped hosts without moving

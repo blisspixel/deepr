@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.50.20-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.20)
+[![Version](https://img.shields.io/badge/version-2.50.21-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.21)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -206,7 +206,7 @@ source references and does not certify that a claim is supported.
 
 See [Quick Start](docs/QUICK_START.md) and [Supported Surface](docs/SUPPORTED_SURFACE.md)
 for current workflows. The [MCP Agent Guide](docs/MCP_AGENT_TEST_GUIDE.md)
-covers the 36 MCP tools, dual-era `2026-07-28` protocol, and
+covers the 37 MCP tools, dual-era `2026-07-28` protocol, and
 `deepr mcp conformance`. The [Agent Plugins install guide](docs/INSTALL.md#agent-plugins-hosts)
 covers the portable skill and read-only MCP package, host PATH setup, and its
 isolated expert workspace. OKF export and the OpenClaw host-profile reference
@@ -219,6 +219,10 @@ for tested behavior and the distinction from draft standards and host certificat
 
 ## Direction
 
+v2.50.21 adds a local-only fleet-seat profile (`deepr mcp seat-profile`)
+so an external harness or host-side router can consult experts without a
+spend tool, and stops advertising Claude as an executable `$0` plan.
+
 v2.50.20 verifies prepared source-copy inventories before controlled comparisons.
 It adds no inference, research dispatch or expert-memory writes.
 
@@ -226,7 +230,6 @@ v2.50.19 repairs local expert creation, preserves source and consultation
 evidence, and presents reasoned perspective without an overall expertise
 score. Practical guidance qualification remains open; current-source
 preparation before each answer is still planned.
-
 v2.50.18 added live OpenRouter key inspection, a binding owner ceiling,
 `budget authorize openrouter`, and attended one-shot research under the
 wallet and ledger. v2.50.17 added `deepr keys set openrouter`. v2.50.16

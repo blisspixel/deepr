@@ -260,6 +260,7 @@ Add to `~/.config/zed/settings.json` under `"language_models"` -> `"mcp"`:
 | `deepr_expert_loop_status` | Durable expert loop-run status, stop reasons, and next actions | Free |
 | `deepr_semantic_recall` | Candidate belief recall for verifier or host-agent routing | Free |
 | `deepr_expert_handoff` | Versioned read-only expert handoff payload for downstream agents | Free |
+| `deepr_route_explain` | `$0` route card for an external harness. Overlap is a hint, not authority | Free |
 | `deepr_route_gaps` | Route an expert's gaps to the best fill instrument (recon/distillr/primr/research) | Free |
 | `deepr_expert_absorb` | Metered absorb contract; production provider dispatch is blocked | Gated |
 | `deepr_reflect` | Metered evaluation is gated in v2.40; use scheduled CLI reflection on local or plan capacity | Gated |
@@ -517,6 +518,6 @@ StdioServer (JSON-RPC transport)
 
 ---
 
-**Tools:** 36 (3 system + 5 research + 22 expert + 4 task management + 2 skills)
+**Tools:** 37 (3 system + 5 research + 23 expert + 4 task management + 2 skills)
 **Resources:** 10 URI schemes across 4 resource types
 **Prompts:** 3 templates

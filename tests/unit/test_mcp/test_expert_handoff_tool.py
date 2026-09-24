@@ -99,6 +99,17 @@ class TestExpertHandoffTool:
             include_claims=False,
             include_gaps=True,
             include_decisions=False,
+            context_section={
+                "schema_version": "deepr-expert-context-section-v1",
+                "purpose_status": "absent",
+                "mission": None,
+                "non_goals": [],
+                "decision_use_cases": [],
+                "authority": "context_only",
+                "may_authorize_spend": False,
+                "may_authorize_knowledge_writes": False,
+                "may_authorize_external_actions": False,
+            },
         )
 
     @pytest.mark.asyncio

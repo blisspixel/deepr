@@ -13,11 +13,13 @@ import pytest
 
 from deepr.mcp.expert_conversation import conversation_tool_dispatch
 from deepr.mcp.runtime_registry import create_runtime_registry
+from deepr.mcp.seat_consumer import seat_consumer_dispatch
 from deepr.mcp.security.scoped_keys import (
     ScopedMCPKeyContext,
     authorize_scoped_mcp_tool_call,
 )
 from deepr.mcp.security.tool_allowlist import (
+    SEAT_TOOL_NAMES,
     ResearchMode,
     ToolAllowlist,
     ToolConfig,
@@ -44,7 +46,11 @@ def _dispatch_tool_names() -> set[str]:
         static_names = {
             key.value for key in node.value.keys if isinstance(key, ast.Constant) and isinstance(key.value, str)
         }
-        return static_names | set(conversation_tool_dispatch(SimpleNamespace()))
+        return (
+            static_names
+            | set(conversation_tool_dispatch(SimpleNamespace()))
+            | set(seat_consumer_dispatch(SimpleNamespace()))
+        )
 
     raise AssertionError("could not find tool_dispatch mapping in _handle_tools_call")
 
@@ -54,6 +60,8 @@ def _all_mcp_tool_names() -> list[str]:
 
 
 def _declared_decision(config: ToolConfig, mode: ResearchMode) -> tuple[bool, bool]:
+    if mode is ResearchMode.SEAT:
+        return config.name in SEAT_TOOL_NAMES, False
     if mode in config.blocked_in:
         return False, False
 

@@ -111,3 +111,6 @@ with a pull command, not a paid dense fallback.
   existing local rung.
 - Do not change consult routing defaults or learning policy before v2.51
   produces usable evidence.
+- Do not fill that gap with a hosted or local System One classifier. The
+  2026-09-23 refusal is
+  [coordination failures and cheap routing](coordination-failures-and-cheap-routing.md).

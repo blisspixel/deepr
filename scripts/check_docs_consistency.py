@@ -70,6 +70,7 @@ def mcp_tool_count() -> int:
     for rel in (
         "src/deepr/mcp/server.py",
         "src/deepr/mcp/expert_conversation.py",
+        "src/deepr/mcp/seat_consumer.py",
     ):
         path = REPO_ROOT / rel
         if path.is_file():

@@ -117,8 +117,8 @@ CONSULT_EXPERTS_INPUT_SCHEMA: dict[str, Any] = {
         "plan": {
             "type": "string",
             "description": (
-                "Plan-quota backend id when synthesis_backend='plan'. Claude is the current "
-                "executable adapter; other adapters remain visible but blocked."
+                "Plan-quota backend id when synthesis_backend='plan'. No production plan "
+                "adapter is execution-eligible. The fleet-seat profile accepts local only."
             ),
         },
         "plan_model": {
@@ -251,6 +251,22 @@ def _requested_capacity(
     )
 
 
+def _blocked_consult_backend(backend_mode: str) -> dict[str, Any] | None:
+    """Refuse seat non-local backends and metered API synthesis before any client exists."""
+    from deepr.mcp.seat_consumer import seat_local_only_error
+
+    seat_error = seat_local_only_error(backend_mode, field="synthesis_backend")
+    if seat_error is not None:
+        return seat_error
+    if backend_mode != "api":
+        return None
+    return _error(
+        "METERED_API_DISABLED",
+        "Metered API synthesis is disabled for expert consults. Use synthesis_backend='local' or an "
+        "explicit safety-eligible plan. No consult transaction or provider client was created.",
+    )
+
+
 async def consult_experts_tool(
     *,
     question: str,
@@ -284,12 +300,9 @@ async def consult_experts_tool(
         return runtime_error
 
     backend_mode = synthesis_backend.strip().lower()
-    if backend_mode == "api":
-        return _error(
-            "METERED_API_DISABLED",
-            "Metered API synthesis is disabled for expert consults. Use synthesis_backend='local' or an "
-            "explicit safety-eligible plan. No consult transaction or provider client was created.",
-        )
+    blocked = _blocked_consult_backend(backend_mode)
+    if blocked is not None:
+        return blocked
     effective_budget = 0.0 if budget is None else float(budget)
 
     validation_error = _request_validation_error(

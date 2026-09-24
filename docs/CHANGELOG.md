@@ -5,7 +5,31 @@ All notable changes to Deepr will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.50.21] - 2026-09-23
+
+### Added
+
+- `DEEPR_RESEARCH_MODE=seat` and `deepr mcp seat-profile` expose one local-only
+  consult profile for external fleet seats and host-side routers. OpenRig,
+  Herdr, OpenClaw, OpenCode, Goose, Pi, Hermes, DeepSeek Harness, Claude Code,
+  Codex, Cursor, and Grok Build are named as unvalidated consumers. The profile
+  does not certify any of them.
+- `deepr_route_explain` returns the `$0` route card. Keyword overlap stays a
+  hint for the host, not a verdict and not spend authority.
+- Expert handoff payloads include `context_section`, an attested mission when
+  a blueprint exists, with authority flags that stay false.
+
+### Fixed
+
+- `deepr_capabilities` no longer advertises Claude as an executable `$0`
+  synthesis plan. Production plan adapters stay execution-blocked, and the
+  seat profile refuses plan and API synthesis before provider work.
+
+### Changed
+
+- Reviewed the published Agent Plugins 1.0.0 specification and schemas, and
+  the current MCP revision `2026-07-28`, on 2026-09-23. Deepr already targets
+  both. Agent Plugins 1.1.0 is still an unpublished draft.
 
 ## [2.50.20] - 2026-09-21
 

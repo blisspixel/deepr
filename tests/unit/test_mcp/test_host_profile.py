@@ -57,7 +57,7 @@ def test_tool_inventory_is_the_exact_runtime_read_only_surface() -> None:
     expected = tuple(sorted(tool.name for tool in registry.all_tools() if allowlist.is_allowed(tool.name)))
     profile = _profile()
 
-    assert registry.count() == 36
+    assert registry.count() == 37
     assert read_only_tool_names() == expected
     assert profile["capabilities"]["initial_advertised_tools"] == list(expected)
     assert profile["capabilities"]["effective_read_only_tools"] == list(expected)
