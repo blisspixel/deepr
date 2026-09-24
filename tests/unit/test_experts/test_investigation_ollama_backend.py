@@ -223,3 +223,41 @@ async def test_native_ollama_backend_rejects_unpinned_context() -> None:
                 messages=[{"role": "user", "content": "Question"}],
             )
         )
+
+
+@pytest.mark.asyncio
+async def test_native_backend_pins_seed_and_think_and_exposes_attested_digest() -> None:
+    captured: dict[str, Any] = {}
+
+    async def get_json(url: str, _timeout: float) -> dict[str, Any]:
+        if url.endswith("/api/status"):
+            return {"cloud": {"disabled": True, "source": "both"}}
+        return {"models": [_local_model("fixture:14b")]}
+
+    async def post_json(_url: str, payload: dict[str, Any], _timeout: float) -> dict[str, Any]:
+        captured["payload"] = payload
+        return {"message": {"content": "ok"}, "done_reason": "stop"}
+
+    backend = NativeOllamaInvestigationBackend(model="fixture:14b", get_json=get_json, post_json=post_json)
+    assert backend.last_attested_digest == ""
+    await backend.complete(
+        ExpertChatRequest(
+            model="fixture:14b",
+            messages=[{"role": "user", "content": "x"}],
+            extra={"num_ctx": 4096, "seed": 7, "think": False, "temperature": 0.0},
+        )
+    )
+    assert captured["payload"]["options"]["seed"] == 7
+    assert captured["payload"]["think"] is False
+    assert backend.last_attested_digest == "a" * 64
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("extra", [{"seed": "7"}, {"seed": 1.5}, {"think": "false"}, {"think": 1}])
+async def test_native_backend_rejects_malformed_seed_or_think(extra: dict[str, Any]) -> None:
+    async def never(*_args: Any) -> dict[str, Any]:
+        raise AssertionError("no dispatch expected")
+
+    backend = NativeOllamaInvestigationBackend(model="fixture:14b", get_json=never, post_json=never)
+    with pytest.raises(ExpertChatUnsupportedFeature):
+        await backend.complete(ExpertChatRequest(model="fixture:14b", messages=[], extra={"num_ctx": 4096, **extra}))

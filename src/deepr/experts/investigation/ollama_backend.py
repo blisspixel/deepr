@@ -63,6 +63,35 @@ async def _post_json(url: str, payload: dict[str, Any], timeout: float) -> dict[
     return data
 
 
+def _generation_fields(request_extra: dict[str, Any]) -> dict[str, Any]:
+    """Validate supported generation extras into native payload fields; refuse the rest."""
+    extra = dict(request_extra)
+    max_tokens = int(extra.pop("max_tokens", 4096) or 4096)
+    temperature = float(extra.pop("temperature", 0.2) or 0.0)
+    response_format = extra.pop("response_format", None)
+    num_ctx = int(extra.pop("num_ctx", 0) or 0)
+    seed = extra.pop("seed", None)
+    think = extra.pop("think", None)
+    if seed is not None and type(seed) is not int:
+        raise ExpertChatUnsupportedFeature("native Ollama seed must be an integer")
+    if think is not None and type(think) is not bool:
+        raise ExpertChatUnsupportedFeature("native Ollama think must be a boolean")
+    if num_ctx <= 0:
+        raise ExpertChatUnsupportedFeature("native Ollama investigation calls require num_ctx")
+    if extra:
+        fields = ", ".join(sorted(extra))
+        raise ExpertChatUnsupportedFeature(f"unsupported native Ollama options: {fields}")
+    options: dict[str, Any] = {"num_ctx": num_ctx, "num_predict": max_tokens, "temperature": temperature}
+    fields_out: dict[str, Any] = {"options": options}
+    if seed is not None:
+        options["seed"] = seed
+    if think is not None:
+        fields_out["think"] = think
+    if isinstance(response_format, dict) and response_format.get("type") == "json_object":
+        fields_out["format"] = "json"
+    return fields_out
+
+
 class NativeOllamaInvestigationBackend:
     """Call Ollama's native chat API so the hash-bound context limit is real."""
 
@@ -90,6 +119,9 @@ class NativeOllamaInvestigationBackend:
         self.keep_alive = keep_alive
         self._get_json = get_json or _get_json
         self._post_json = post_json or _post_json
+        # Digest observed by the most recent per-dispatch attestation, so a
+        # caller with a frozen model identity can bind each call to it.
+        self.last_attested_digest = ""
 
     async def _attest_model(self, model: str) -> None:
         preflight_timeout = min(self.timeout, 5.0)
@@ -108,6 +140,7 @@ class NativeOllamaInvestigationBackend:
             raise ExpertChatUnsupportedFeature(str(exc)) from exc
         if selected.get("name") != model:
             raise ExpertChatUnsupportedFeature("Owned local Ollama model attestation did not bind the request")
+        self.last_attested_digest = str(selected.get("digest", "") or "")
 
     async def complete(self, request: ExpertChatRequest) -> ExpertChatResult:
         if request.tools:
@@ -115,16 +148,7 @@ class NativeOllamaInvestigationBackend:
         model = (request.model or self.model or "").strip()
         if not model:
             raise ExpertChatUnsupportedFeature("native Ollama investigation backend requires a model")
-        extra = dict(request.extra)
-        max_tokens = int(extra.pop("max_tokens", 4096) or 4096)
-        temperature = float(extra.pop("temperature", 0.2) or 0.0)
-        response_format = extra.pop("response_format", None)
-        num_ctx = int(extra.pop("num_ctx", 0) or 0)
-        if num_ctx <= 0:
-            raise ExpertChatUnsupportedFeature("native Ollama investigation calls require num_ctx")
-        if extra:
-            fields = ", ".join(sorted(extra))
-            raise ExpertChatUnsupportedFeature(f"unsupported native Ollama options: {fields}")
+        generation = _generation_fields(request.extra)
         messages = [
             {
                 "role": str(message.get("role", "user")),
@@ -137,14 +161,8 @@ class NativeOllamaInvestigationBackend:
             "messages": messages,
             "stream": False,
             "keep_alive": self.keep_alive,
-            "options": {
-                "num_ctx": num_ctx,
-                "num_predict": max_tokens,
-                "temperature": temperature,
-            },
+            **generation,
         }
-        if isinstance(response_format, dict) and response_format.get("type") == "json_object":
-            payload["format"] = "json"
         await self._attest_model(model)
         data = await self._post_json(f"{self.base_url}/api/chat", payload, self.timeout)
         if data.get("error"):
