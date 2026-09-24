@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 
+from deepr.evals import expert_value_rehearsal as rehearsal_module
 from deepr.evals.expert_value_blinding import bind_review_labels, build_blind_assignment, load_cells, reviewer_criteria
 from deepr.evals.expert_value_rehearsal import (
     PLAN_SCHEMA,
@@ -101,7 +102,10 @@ class FakeLauncher:
             checkpoint = out / "checkpoint"
             checkpoint.mkdir()
             (checkpoint / "brief.md").write_text(f"memory from {spec['worker_id']}", encoding="utf-8")
-        (out / "result.json").write_text(json.dumps({"status": status, "error_type": "Fake" if action else None}))
+        package = str(Path(rehearsal_module.__file__).resolve().parents[1])
+        (out / "result.json").write_text(
+            json.dumps({"status": status, "error_type": "Fake" if action else None, "deepr_package": package})
+        )
         return 0 if status == "completed" else 1
 
 
@@ -130,6 +134,7 @@ def test_all_cells_terminal_with_arm_policy_and_isolation(tmp_path: Path, monkey
     assert summary["terminal_cells"] == summary["planned_cells"] == summary["answered"] == 8
     assert summary["equal_source_inventory_per_world"] is True
     assert summary["consultation_memory_unchanged"] is True
+    assert summary["worker_code_matches_orchestrator"] is True
     assert summary["frozen_checkpoints_unchanged"] is True
     assert summary["ledger_reconciled"] is True
     assert summary["canonical_ledger_events"] == summary["model_calls"]

@@ -258,7 +258,14 @@ async def _answer(spec: dict[str, Any], output: Path, dispatcher: _Dispatcher) -
 def run_worker(spec_path: Path) -> int:
     spec = json.loads(spec_path.read_text(encoding="utf-8"))
     output = Path(spec["output_dir"])
-    result: dict[str, Any] = {"worker_id": spec.get("worker_id"), "phase": spec.get("phase"), "started_at": _now()}
+    import deepr
+
+    result: dict[str, Any] = {
+        "worker_id": spec.get("worker_id"),
+        "phase": spec.get("phase"),
+        "started_at": _now(),
+        "deepr_package": str(Path(deepr.__file__).resolve().parent),
+    }
     try:
         check_worker_environment(dict(os.environ))
         if spec["phase"] not in PHASES:

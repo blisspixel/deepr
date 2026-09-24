@@ -262,6 +262,8 @@ def test_real_worker_subprocess_rejects_unknown_phase_without_credentials(
     assert code == 1
     assert result["status"] == "failed" and result["error"] == "unknown rehearsal phase"
     assert result["model_calls"] == 0
+    assert result["deepr_package"] == str(Path(rehearsal.__file__).resolve().parents[1])
+    assert env["PYTHONPATH"] == str(Path(rehearsal.__file__).resolve().parents[2])
 
 
 def test_runtime_preflight_binds_digest_and_cloud_status(monkeypatch: pytest.MonkeyPatch) -> None:

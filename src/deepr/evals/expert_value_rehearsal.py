@@ -181,6 +181,8 @@ def worker_environment(worker_dir: Path, policy: RehearsalPolicy) -> dict[str, s
     env.update(
         {
             "PATH": str(Path(sys.executable).parent),
+            # Workers import the same source tree as the orchestrator, not an ambient install.
+            "PYTHONPATH": str(Path(__file__).resolve().parents[2]),
             "HOME": str(home),
             "USERPROFILE": str(home),
             "APPDATA": str(home),
@@ -498,6 +500,9 @@ class RehearsalRun:
             "failed": statuses.count("failed"),
             "blocked": statuses.count("blocked"),
             "equal_source_inventory_per_world": all(len(v) == 1 for v in by_world.values()),
+            "worker_code_matches_orchestrator": all(
+                w.get("deepr_package") == str(Path(__file__).resolve().parents[1]) for w in self.workers
+            ),
             "consultation_memory_unchanged": all(c.get("memory_unchanged", True) for c in self.cells),
             "frozen_checkpoints_unchanged": checkpoints_unchanged,
             "model_calls": calls,
