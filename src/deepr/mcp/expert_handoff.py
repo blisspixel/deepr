@@ -4,13 +4,26 @@ from __future__ import annotations
 
 from typing import Any
 
-from deepr.experts.handoff import build_expert_handoff
+from deepr.experts.blueprint import BlueprintStorageError, ExpertBlueprintStore
+from deepr.experts.handoff import absent_context_section, build_expert_handoff, context_section_from_blueprint
 from deepr.experts.profile import ExpertStore
 from deepr.mcp.output_contracts import (
     EXPERT_HANDOFF_OUTPUT_CONTRACT,
     schema_validation_error,
     validate_published_output,
 )
+
+
+def _context_section_for(expert_name: str) -> dict[str, Any]:
+    try:
+        record = ExpertBlueprintStore().load_latest(expert_name)
+    except BlueprintStorageError:
+        section = absent_context_section()
+        section["purpose_status"] = "unreadable"
+        return section
+    if record is None:
+        return absent_context_section()
+    return context_section_from_blueprint(record)
 
 
 def _error(error_code: str, message: str) -> dict[str, Any]:
@@ -70,6 +83,7 @@ async def get_expert_handoff(
             include_claims=_parse_bool(include_claims, default=True),
             include_gaps=_parse_bool(include_gaps, default=True),
             include_decisions=_parse_bool(include_decisions, default=False),
+            context_section=_context_section_for(str(getattr(expert, "name", "") or expert_name)),
         )
         errors = validate_published_output(payload, EXPERT_HANDOFF_OUTPUT_CONTRACT)
         if errors:

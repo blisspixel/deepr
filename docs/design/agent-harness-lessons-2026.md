@@ -204,6 +204,11 @@ consistency, security scans, CI checks, and adapter compatibility.
   evidence envelope are stable.
 - Defer unconstrained subagent fan-out until children inherit bounded budget,
   capability snapshot, trace parent, cancellation, and evidence-merge rules.
+- Reject an in-Deepr Herdr or OpenRig civilization, and reject a Jev-style
+  cheap classifier as model, roster, or tool authority. A fleet seat or
+  host-side router may call a narrow Deepr profile. Diagnosis and the
+  2026-09-23 sources:
+  [coordination failures and cheap routing](coordination-failures-and-cheap-routing.md).
 
 ## Recommended order
 

@@ -67,14 +67,22 @@ def build_capabilities(
         "tools": tools,
         "zero_cost_synthesis": {
             "owned": "local",
-            "prepaid_plans": ["claude"],
+            "executable": ["local"],
+            "prepaid_plans": [],
+            "blocked_plan_synthesis": {
+                "status": "execution_blocked",
+                "reason": (
+                    "No production plan adapter is execution-eligible. Claude stays blocked "
+                    "because managed-policy hooks can survive safe mode."
+                ),
+            },
             "how": (
-                "pass synthesis_backend='local', or 'plan' with plan='claude', to run "
-                "deepr_consult_experts at $0 inside Deepr and disable silent metered fallback"
+                "pass synthesis_backend='local' to run deepr_consult_experts at $0 inside Deepr. "
+                "Plan and API synthesis are not executable zero-cost paths."
             ),
             "single_expert": (
                 "pass one expert name in deepr_consult_experts.experts, or call deepr_query_expert with "
-                "backend='local' or backend='plan', for a no-metered read-only one-expert turn"
+                "backend='local', for a no-metered read-only one-expert turn"
             ),
         },
         "cost_tiers": {

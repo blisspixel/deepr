@@ -350,17 +350,18 @@ def _check_capabilities_map(*, version: str) -> ConformanceCheck:
             expected=expected,
         )
     plans = zero_cost.get("prepaid_plans")
-    if not isinstance(plans, list) or "claude" not in plans:
+    blocked = zero_cost.get("blocked_plan_synthesis")
+    if plans != [] or not isinstance(blocked, dict) or blocked.get("status") != "execution_blocked":
         return _failed(
             "capabilities_map",
-            f"prepaid_plans={plans!r} must include claude",
+            f"prepaid_plans={plans!r} blocked={blocked!r}",
             expected=expected,
         )
     tools = payload.get("tools") if isinstance(payload, dict) else []
     tool_count = len(tools) if isinstance(tools, list) else 0
     return _passed(
         "capabilities_map",
-        f"{CAPABILITIES_SCHEMA_VERSION} with {tool_count} key tool(s); local+claude zero-cost paths",
+        f"{CAPABILITIES_SCHEMA_VERSION} with {tool_count} key tool(s); local zero-cost path",
         expected=expected,
     )
 

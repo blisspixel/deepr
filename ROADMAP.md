@@ -55,6 +55,7 @@
 | [Agent Harness Lessons 2026](docs/design/agent-harness-lessons-2026.md) | Hermes, OpenClaw, OpenCode, Pi, OpenHands, Goose, and Letta patterns relevant to Deepr |
 | [Local-First Agent Runtime Options](docs/design/local-first-agent-runtime-options.md) | Local expert and skill creation, selected OKF knowledge, and an optional gated hosted companion |
 | [Mixture of Experts and Deepr Experts](docs/design/mixture-of-experts-and-deepr-experts.md) | Neural MoE vs Mixture-of-Agents vs the persistent expert fleet; collapse telemetry and local MoE as fit policy, not a new capacity class |
+| [Coordination Failures and Cheap Routing](docs/design/coordination-failures-and-cheap-routing.md) | 2026-09-23 review of Herdr, OpenRig, and TypeSafe Jev; Deepr stays the specialist they call, and does not become the fleet runtime or the cheap router |
 | [External Harness Investigation Bridge](docs/design/external-harness-investigation-bridge.md) | Projection-first Grok Build, DeepSeek Harness, OpenClaw, NemoClaw, Codex, and workspace-host integration without moving orchestration authority into Deepr |
 | [Evidence-Gated Polyglot Evolution](docs/design/evidence-gated-polyglot-evolution.md) | Measured Python-first performance plan and explicit Rust, Go, Mojo, and free-threading extraction gates |
 | [Architecture](docs/ARCHITECTURE.md) | Technical details, security, observability |
@@ -71,9 +72,10 @@ Roadmap items are not approach claims until they land in
 
 ## Active Release Plan
 
-**Now (v2.50.20):** bounded local expert formation, retained research, linked
-knowledge, source-context repairs, and perspective-first profiles, alongside
-write-free OpenRouter previews, an owner-raisable local spend ceiling that
+**Now (v2.50.21):** a local-only fleet-seat profile for external harnesses
+and host-side routers, on top of bounded local expert formation, retained
+research, linked knowledge, source-context repairs, perspective-first profiles,
+write-free OpenRouter previews, and an owner-raisable local spend ceiling that
 binds the monthly clamp,
 live OpenRouter key inspection, OpenRouter hard-stop authorization from the
 current-key limit, and attended one-shot `deepr research --provider
@@ -112,6 +114,17 @@ in the [v2.50.19 changelog](docs/CHANGELOG.md#25019---2026-09-20).
   More findings or a larger prompt did not resolve the observed errors.
 - [ ] Publish a replacement Python expert screenshot only after the scoped
   guidance and currency evidence passes. Preserve unfavorable trials.
+
+**Not next, even if they look adjacent:** unattended or MCP OpenRouter,
+host subagent trees, an in-Deepr Herdr or OpenRig coding-agent civilization,
+a Jev-style cheap classifier as model, expert, or tool authority inside Deepr,
+expert-maintained skills, hosted observation,
+automatic belief changes from prediction outcomes, a trained gate over
+the expert roster, or rebranding the fleet as a neural mixture of
+experts. Working with those systems is the seat profile:
+`deepr mcp seat-profile` and `DEEPR_RESEARCH_MODE=seat`. Open-source and
+commercial hosts are unvalidated consumers. The review is
+[coordination failures and cheap routing](docs/design/coordination-failures-and-cheap-routing.md).
 
 **Sequence updated 2026-09-20:** formation and evidence-delivery repairs are
 released. Preserve the value baseline, then deliver preparation. An expert
@@ -542,9 +555,10 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.20)
+## Current Status (v2.50.21)
 
-**Next is v2.51, not more dispatch.** v2.50.19 ships local formation and
+**Next is v2.51, not more dispatch.** v2.50.21 lets an external seat consult
+locally and read the `$0` route card. v2.50.19 ships local formation and
 evidence-delivery repairs with guidance qualification still open. v2.50.18
 added attended OpenRouter one-shot research under a total cap. Unattended
 metered dispatch, MCP research, and automatic fallback stay frozen. The product question is still
@@ -1810,7 +1824,7 @@ These features work but APIs or behavior may change:
 - **Native Recon instrument** (v2.11.0): auto-discovery and the structured `deepr-recon-evidence-handoff-v1` contract are available when `recon-tool` is installed. Metered agentic-chat invocation is gated; evidence ingestion remains subject to the explicit local or owned-capacity workflow and belief-write verification gates.
 - **Native Distillr instrument** (v2.12): discovery and free `find_insights` corpus search remain available when `distill-mcp` is installed. Paid ingestion through metered expert chat is gated.
 - **Native Primr instrument** (v2.12): discovery and free `quick_lookup` context remain available when `primr-mcp` is installed. Paid deep-dives through metered expert chat are gated.
-- **MCP server**: Functional with 36 tools. Dual-era protocol support landed in v2.41.0: modern `2026-07-28` stateless requests (per-request `_meta` negotiation, mandatory `server/discover`, `resultType`/cache envelopes, `subscriptions/listen`, spec header validation and Origin enforcement on Streamable HTTP) alongside the legacy `initialize` handshake for `2025-06-18`/`2025-03-26`/`2024-11-05` clients. Deepr does not claim background Tasks support (no `extensions` capability), and the deprecated sampling/roots/logging features remain unadvertised.
+- **MCP server**: Functional with 37 tools. Dual-era protocol support landed in v2.41.0: modern `2026-07-28` stateless requests (per-request `_meta` negotiation, mandatory `server/discover`, `resultType`/cache envelopes, `subscriptions/listen`, spec header validation and Origin enforcement on Streamable HTTP) alongside the legacy `initialize` handshake for `2025-06-18`/`2025-03-26`/`2024-11-05` clients. Deepr does not claim background Tasks support (no `extensions` capability), and the deprecated sampling/roots/logging features remain unadvertised.
 - **Agentic expert chat**: metered dispatch is gated pending the P1
   per-call lifecycle, output-ceiling, parent-budget, and session-serialization
   contract. Local and explicit plan MCP query remains available as a read-only
@@ -1832,7 +1846,7 @@ These features work but APIs or behavior may change:
 - Read-only and derived expert surfaces: stored beliefs, gaps, contradictions, loop status, memory cards, handoffs, health audits, validation, exports, and local/plan consultation. Metered learning, chat, unsafe lifecycle mutation, and paid portraits remain gated; local portrait generation works.
 - Expert skill inventory and scaffolding: 7 built-in skills with Python and MCP metadata and three-tier storage. Skill execution remains quarantined.
 - Conversations API for browsing stored sessions. Resuming with a new metered turn remains gated.
-- MCP server with 36 tools, persistence, security, multi-runtime configs
+- MCP server with 37 tools, persistence, security, multi-runtime configs
 - Web dashboard (12 pages: overview, research studio, research live, results library, result detail, expert hub, expert profile, cost intelligence, models & benchmarks, trace explorer, help, settings). Protected launches gate the application shell on a read-only authenticated probe, keep the shared HTTP and Socket.IO token within the browser session, and distinguish rejected credentials, missing server authentication, and an unreachable server.
 - CLI trace flags (`--explain`, `--timeline`, `--full-trace`)
 - Output modes (`--verbose`, `--json`, `--quiet`)
@@ -3831,7 +3845,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.20. This roadmap keeps
+v2.50.21. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 

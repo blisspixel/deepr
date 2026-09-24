@@ -6,7 +6,7 @@ description: |
   analysis, a research cost preview, a domain expert or expert council, or
   inspection of durable beliefs, gaps, confidence, and provenance.
 metadata:
-  deepr-version: "2.50.20"
+  deepr-version: "2.50.21"
   deepr-mcp-server: "deepr"
 ---
 
@@ -93,21 +93,15 @@ deepr_query_expert(
 )
 ```
 
-```text
-deepr_query_expert(
-  expert_name="Security Analyst",
-  question="What evidence should guide this decision?",
-  backend="plan",
-  plan="claude",
-  agentic=false,
-  budget=0
-)
-```
+No production plan adapter is execution-eligible. Do not send `backend="plan"`
+or `synthesis_backend="plan"` as a zero-cost path. A fleet seat running with
+`DEEPR_RESEARCH_MODE=seat` refuses those backends before any provider work.
 
 For several experts, prefer `deepr_consult_experts` with
-`synthesis_backend="local"` or `synthesis_backend="plan"`. Keep the roster at
-10 or fewer, preserve disagreements, and verify that
-`capacity.live_metered_fallback` is `false`.
+`synthesis_backend="local"`. Keep the roster at 10 or fewer, preserve
+disagreements, and verify that `capacity.live_metered_fallback` is `false`.
+`deepr_route_explain` is the `$0` card an external router can read before it
+decides to consult. Overlap is a hint, not permission.
 
 An expert answer is a perspective over stored state, not ground truth. Surface
 confidence, contested beliefs, stale evidence, missing sources, and known gaps.

@@ -14,6 +14,7 @@ _RESEARCH_MODE_VALUES = (
     "standard",
     "extended",
     "unrestricted",
+    "seat",
 )
 
 
@@ -154,6 +155,39 @@ def register_bridge_tool_schemas(registry: ToolRegistry) -> None:
                     },
                 },
                 "required": ["expert_name", "skill_name"],
+            },
+            category="experts",
+            cost_tier="free",
+        )
+    )
+    registry.register(
+        ToolSchema(
+            name="deepr_route_explain",
+            description=(
+                "Explain which experts a consult would select and whether the next run has "
+                "admitted local capacity. Costs $0 and calls no model. Keyword overlap is a "
+                "recall hint for the host, not a quality verdict and not spend authority."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Question the host might consult."},
+                    "max_experts": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 10,
+                        "default": 3,
+                        "description": "How many overlapping experts would be consulted.",
+                    },
+                    "top_n": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 10,
+                        "default": 5,
+                        "description": "How many ranked candidates to return.",
+                    },
+                },
+                "required": ["query"],
             },
             category="experts",
             cost_tier="free",

@@ -24,6 +24,19 @@ from enum import Enum
 from typing import Any
 
 REMOTE_METERED_SPEND_METADATA_KEY = "remote_metered_spend"
+SEAT_TOOL_NAMES = (
+    "deepr_capabilities",
+    "deepr_consult_experts",
+    "deepr_explain_belief",
+    "deepr_expert_handoff",
+    "deepr_get_expert_info",
+    "deepr_list_experts",
+    "deepr_query_expert",
+    "deepr_route_explain",
+    "deepr_status",
+    "deepr_tool_search",
+    "deepr_what_changed",
+)
 
 
 class ResearchMode(Enum):
@@ -33,6 +46,7 @@ class ResearchMode(Enum):
     STANDARD = "standard"  # Normal research operations
     EXTENDED = "extended"  # Includes write operations with confirmation
     UNRESTRICTED = "unrestricted"  # All tools, no confirmation (use with caution)
+    SEAT = "seat"  # Local consult for an external fleet seat or router
 
 
 class ToolCategory(Enum):
@@ -244,6 +258,12 @@ class ToolAllowlist:
             requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
             blocked_in={ResearchMode.READ_ONLY},
         ),
+        "deepr_route_explain": ToolConfig(
+            name="deepr_route_explain",
+            category=ToolCategory.READ,
+            description="Zero-cost route card for an external harness or classifier",
+            blocked_in={ResearchMode.READ_ONLY},
+        ),
         # Temporal perspective queries - cost-$0 and read-only, but they
         # surface belief content (claims, evidence, conflicts), so SENSITIVE
         # like health_check rather than plain READ.
@@ -436,6 +456,13 @@ class ToolAllowlist:
             ToolCategory.EXECUTE: "allow",
             ToolCategory.SENSITIVE: "allow",
         },
+        ResearchMode.SEAT: {
+            ToolCategory.READ: "block",
+            ToolCategory.COMPUTE: "block",
+            ToolCategory.WRITE: "block",
+            ToolCategory.EXECUTE: "block",
+            ToolCategory.SENSITIVE: "block",
+        },
     }
 
     def __init__(
@@ -470,6 +497,8 @@ class ToolAllowlist:
             True if tool is allowed
         """
         mode = mode or self.mode
+        if mode == ResearchMode.SEAT:
+            return tool_name in SEAT_TOOL_NAMES
         tool_config = self._tools.get(tool_name)
 
         if not tool_config:

@@ -1466,8 +1466,8 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
     if "_approved" in arguments:
         arguments = {k: v for k, v in arguments.items() if k != "_approved"}
 
-    # Security: Sign the instruction for audit trail
     from deepr.mcp.expert_conversation import conversation_tool_dispatch
+    from deepr.mcp.seat_consumer import seat_consumer_dispatch
 
     instruction = {"tool": name, "arguments": arguments}
     signed = server.instruction_signer.sign(instruction)
@@ -1492,7 +1492,7 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
         "deepr_agentic_research": lambda args: server.deepr_agentic_research(**args),
         "deepr_list_experts": lambda args: server.list_experts(),
         "deepr_query_expert": lambda args: server.query_expert(**args),
-        "deepr_consult_experts": lambda args: server.consult_experts(**args),
+        **seat_consumer_dispatch(server),
         **conversation_tool_dispatch(server),
         "deepr_get_expert_info": lambda args: server.get_expert_info(
             expert_name=args.get("expert_name", ""),

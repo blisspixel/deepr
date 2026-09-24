@@ -99,6 +99,42 @@ def _contract() -> dict[str, Any]:
     }
 
 
+def absent_context_section() -> dict[str, Any]:
+    """Context pack section used when no attested purpose is available."""
+    return {
+        "schema_version": "deepr-expert-context-section-v1",
+        "purpose_status": "absent",
+        "mission": None,
+        "non_goals": [],
+        "decision_use_cases": [],
+        "authority": "context_only",
+        "may_authorize_spend": False,
+        "may_authorize_knowledge_writes": False,
+        "may_authorize_external_actions": False,
+    }
+
+
+def context_section_from_blueprint(blueprint: Any) -> dict[str, Any]:
+    """Copy an attested purpose into a section that grants no authority."""
+    cases = [
+        {"id": str(getattr(item, "id", "")), "question": str(getattr(item, "question", ""))}
+        for item in list(getattr(blueprint, "decision_use_cases", []) or [])[:8]
+    ]
+    return {
+        "schema_version": "deepr-expert-context-section-v1",
+        "purpose_status": "operator_attested",
+        "revision": int(getattr(blueprint, "revision", 0) or 0),
+        "content_hash": str(getattr(blueprint, "content_hash", "")),
+        "mission": str(getattr(blueprint, "mission", "")),
+        "non_goals": [str(item) for item in list(getattr(blueprint, "non_goals", []) or [])[:12]],
+        "decision_use_cases": cases,
+        "authority": "context_only",
+        "may_authorize_spend": False,
+        "may_authorize_knowledge_writes": False,
+        "may_authorize_external_actions": False,
+    }
+
+
 def build_expert_handoff(
     profile: Any,
     *,
@@ -108,6 +144,7 @@ def build_expert_handoff(
     include_claims: bool = True,
     include_gaps: bool = True,
     include_decisions: bool = False,
+    context_section: dict[str, Any] | None = None,
     manifest: Any | None = None,
     telemetry: dict[str, Any] | None = None,
     loop_status: dict[str, Any] | None = None,
@@ -169,6 +206,7 @@ def build_expert_handoff(
         "expert_state": resolved_telemetry,
         "perspective_state": perspective_state,
         "loop_status": resolved_loop_status,
+        "context_section": context_section if context_section is not None else absent_context_section(),
         "okf": {
             "schema_version": OKF_SCHEMA_VERSION,
             "okf_version": OKF_VERSION,
@@ -185,6 +223,7 @@ def build_expert_handoff(
             "deepr_explain_belief",
             "deepr_expert_loop_status",
             "deepr_expert_handoff",
+            "deepr_route_explain",
         ],
     }
 

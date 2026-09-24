@@ -275,15 +275,19 @@ class TestToolCategories:
     """Tests for tool category behavior."""
 
     def test_read_category_always_allowed(self):
-        """Test that READ category is always allowed."""
+        """Test that READ category is allowed outside the explicit seat allowlist."""
         for mode in ResearchMode:
+            if mode is ResearchMode.SEAT:
+                continue
             allowlist = ToolAllowlist(mode=mode)
             assert allowlist.is_allowed("web_search") is True
             assert allowlist.is_allowed("file_read") is True
 
     def test_compute_category_always_allowed(self):
-        """Test that COMPUTE category is always allowed."""
+        """Test that COMPUTE category is allowed outside the explicit seat allowlist."""
         for mode in ResearchMode:
+            if mode is ResearchMode.SEAT:
+                continue
             allowlist = ToolAllowlist(mode=mode)
             assert allowlist.is_allowed("summarize") is True
             assert allowlist.is_allowed("analyze") is True

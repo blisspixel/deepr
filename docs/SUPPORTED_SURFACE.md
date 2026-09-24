@@ -1,7 +1,6 @@
 # Supported Surface
 
-Status: v2.50.20 current main and release; reviewed 2026-09-21.
-This document defines what users and host
+Status: v2.50.21 current main, 2026-09-23. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -293,6 +292,9 @@ must not be described as usable capacity.
   `server/discover`, `subscriptions/listen`, Streamable HTTP header/Origin
   rules) while continuing to serve legacy `initialize`-era clients
   (`2025-06-18`, `2025-03-26`, `2024-11-05`) on both transports.
+  Reviewed 2026-09-23 against the published Agent Plugins 1.0.0 specification
+  and the current MCP revision `2026-07-28`. Both pins still match. Agent
+  Plugins 1.1.0 remains an unpublished draft and is not a conformance target.
   Local job persistence migrates legacy schemas without replacing parent rows,
   retains nested plans and belief history across partial saves, and marks
   interrupted jobs failed with no active tasks after restart. Terminal job
@@ -309,7 +311,12 @@ must not be described as usable capacity.
   including manifest-driven executable search, both MCP protocol eras, paths
   with spaces, and preserved data after package replacement. The ten-tool
   profile inspects existing expert metadata and results; generative consult is
-  absent. A new plugin workspace starts with no experts. Follow the
+  absent. `deepr mcp seat-profile` is a separate unvalidated consumer contract
+  for fleet seats and host-side routers: local consult, handoff, and
+  `deepr_route_explain`, with plan and API synthesis refused before provider
+  work. It does not certify OpenRig, Herdr, OpenCode, Goose, Pi, Hermes,
+  DeepSeek Harness, Claude Code, Codex, Cursor, or Grok Build. A new plugin
+  workspace starts with no experts. Follow the
   [Agent Plugins install guide](INSTALL.md#agent-plugins-hosts) for prerequisites
   and explicit workspace provisioning. External host versions need separate
   validation.
