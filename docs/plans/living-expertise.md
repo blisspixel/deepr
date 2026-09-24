@@ -114,6 +114,7 @@ environment/version constraints, source hashes
 and observation times, checked and unchecked assumptions, reuse policy, limits,
 attempts, stop reason, and context snapshot identity. Proposed field names and
 commands are not a supported interface until they land.
+The proposed contract is in [prepared consultation](../design/prepared-consultation.md).
 
 The model chooses research direction and interprets relevance. Code enforces
 the [source acquisition contract](../design/source-library-and-rendered-acquisition.md),
