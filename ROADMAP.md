@@ -115,6 +115,25 @@ in the [v2.50.19 changelog](docs/CHANGELOG.md#25019---2026-09-20).
 - [ ] Publish a replacement Python expert screenshot only after the scoped
   guidance and currency evidence passes. Preserve unfavorable trials.
 
+**S0 harness (2026-09-24, Unreleased):** isolated per-worker source copies,
+question-free construction and maintenance workers, frozen consultation
+checkpoints, terminal cell records and blinded answer-to-review binding now
+exist as `deepr eval expert-value-rehearsal`. See the
+[implementation record](docs/design/local-four-arm-rehearsal.md#implementation-2026-09-24).
+A one-phase live smoke built a checkpoint at `$0`. The first full attempt was
+interrupted after one checkpoint because an unrelated GPU workload cut local
+generation to about 0.25 tokens per second; it is preserved, and `run` now
+refuses when a recorded warm-up is too slow.
+
+- [ ] Execute the 48-cell operational rehearsal on the frozen local policy and
+  publish its dated validation record, including failures.
+- [ ] Human review of the blinded packet, with reviewer agreement and suspected
+  arm recorded before the key is revealed. Decide in advance what happens if
+  agreement is low. Tooling cannot supply these labels.
+- [ ] Before review, tag each case with the stale-memory probe it exercises and
+  run a derangement (wrong-memory) diagnostic separately from the four arms.
+  See the [practice review](docs/research/s0-s1-practice-2026-09-24.md).
+
 **Not next, even if they look adjacent:** unattended or MCP OpenRouter,
 host subagent trees, an in-Deepr Herdr or OpenRig coding-agent civilization,
 a Jev-style cheap classifier as model, expert, or tool authority inside Deepr,

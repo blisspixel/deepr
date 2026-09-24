@@ -85,3 +85,32 @@ Saved answers remain unreviewed. There are no reviewer identities, semantic
 attestations, correctness scores, or claims of successful blinding. The next
 value step remains review of the protocol and exact outputs, followed by the
 attested longitudinal evaluation; this rehearsal cannot promote itself.
+
+## Implementation (2026-09-24)
+
+`deepr eval expert-value-rehearsal` implements this protocol. Its seams are
+`evals/expert_value_materialize.py` (writing counterpart of the read-only copy
+verifier), `evals/expert_value_rehearsal.py` (policy, arm order, terminal
+cells), `evals/expert_value_rehearsal_worker.py` (one phase per process), and
+`evals/expert_value_blinding.py` (reviewer packet, private key, label binding).
+
+| Protocol requirement | Enforcement |
+| --- | --- |
+| Frozen model identity | `run` compares the installed digest before any work; each call compares the digest observed by the per-dispatch owned-local attestation |
+| Explicit generation settings | Policy pins `num_ctx`, output limit, temperature, seed and `think`; the native backend refuses unknown options |
+| Question-free construction and maintenance | The orchestrator refuses to put a question in their specs, and the worker refuses one if present |
+| Equal source interface | Every worker receives its own new copy of the selected world, verified against current preparation bytes; the summary checks one copy-manifest digest per world across answer cells |
+| Frozen consultation memory | Answers read a private checkpoint copy; both the copy and the frozen checkpoints are hashed before and after |
+| Credential-free workers | Allowlisted environment, `PYTHON_DOTENV_DISABLED=1`, redirected home and data roots; the worker refuses credential-like names |
+| Code identity | Run record holds the commit, clean-tree flag and module hashes; workers import the orchestrator's source tree and report it |
+| Failures and denominators | Failed fresh or compiled construction blocks dependent answers; failed maintenance keeps the last checkpoint and says so; timeouts and crashes are terminal |
+| `$0` accounting | Workers record every attempt before dispatch; the orchestrator mirrors each call into the canonical ledger idempotently and reconciles counts |
+| Blinding | The packet carries answers under random ids in random order with criteria and cutoffs, and refuses arm identifiers in its bytes; the private key is written to a different directory |
+
+Remaining limits: workers keep loopback network access for the model server,
+so this is process and data-root separation, not an OS sandbox. Fixed seeds do
+not guarantee byte-identical local output across loads, versions or
+platforms. The packet check detects arm identifiers, not an arm a reviewer
+could infer from answer content; reviewers should record suspected arms
+before the key is revealed. Label binding checks form, never label meaning or
+reviewer identity.

@@ -123,6 +123,7 @@ _COMMAND_SPECS: dict[str, _LazyCommandSpec] = {
             "deepr.cli.commands.eval_conversation",
             "deepr.cli.commands.eval_deliberation",
             "deepr.cli.commands.eval_expert_value",
+            "deepr.cli.commands.eval_expert_value_rehearsal",
             "deepr.cli.commands.eval_grounding_correctness",
             "deepr.cli.commands.eval_investigation",
             "deepr.cli.commands.eval_judge_calibration",
