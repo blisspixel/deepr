@@ -12,7 +12,7 @@ from click.testing import CliRunner
 from deepr.cli.commands import eval_expert_value_rehearsal as cli
 from deepr.cli.main import cli as root_cli
 from deepr.evals import expert_value_rehearsal as rehearsal
-from tests.unit.test_eval.test_expert_value_rehearsal import FakeLauncher, make_plan, make_policy
+from tests.unit.test_eval.test_expert_value_rehearsal import QUESTIONS, FakeLauncher, make_plan, make_policy
 from tests.unit.test_eval.test_expert_value_sources import Bundle
 
 
@@ -26,7 +26,7 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Path
     blueprint = tmp_path / "blueprint.json"
     blueprint.write_text(
         json.dumps(
-            {"acceptance_cases": [{"id": c, "question": f"{c}?", "success_criteria": ["s"]} for c in ("c1", "c2")]}
+            {"acceptance_cases": [{"id": c, "question": q, "success_criteria": ["s"]} for c, q in QUESTIONS.items()]}
         ),
         encoding="utf-8",
     )
@@ -106,7 +106,7 @@ def test_plan_run_blind_and_bind_end_to_end(workspace: dict[str, Path]) -> None:
         str(key),
     )
     assert result.exit_code == 0, result.output
-    assert "8 blinded answer(s)" in result.output
+    assert "8 of 8 planned answer(s)" in result.output
     entries = json.loads(key.read_text())["entries"]
     labels = w["root"] / "labels.json"
     labels.write_text(
@@ -175,6 +175,7 @@ def test_run_human_summary_and_invalid_inputs(workspace: dict[str, Path]) -> Non
         "run", "--policy", str(w["policy"]), "--plan", str(w["plan"]), *args, "--run-root", str(w["root"] / "run")
     )
     assert result.exit_code == 0 and "unreviewed" in result.output
+    assert "[8/8]" in result.output and "worker construct-compiled: completed" in result.output
     bad = w["root"] / "bad-plan.json"
     bad.write_text("{}", encoding="utf-8")
     result = invoke(
@@ -211,7 +212,7 @@ def test_blind_keeps_key_apart_and_reports_refusals(workspace: dict[str, Path]) 
         "--key-out",
         str(same / "k.json"),
     )
-    assert result.exit_code != 0 and "different directory" in result.output
+    assert result.exit_code != 0 and "outside the reviewer packet" in result.output
     (w["root"] / "empty" / "cells").mkdir(parents=True)
     result = invoke(
         "blind",
@@ -369,3 +370,147 @@ def test_run_refuses_when_warmup_is_too_slow(workspace: dict[str, Path], monkeyp
     )
     assert result.exit_code != 0 and "free the GPU" in result.output
     assert not (w["root"] / "run").exists()
+
+
+def test_blind_refuses_a_key_nested_under_the_packet_directory(workspace: dict[str, Path]) -> None:
+    w = workspace
+    result = invoke(
+        "blind",
+        "--run-root",
+        str(w["root"]),
+        "--blueprint",
+        str(w["blueprint"]),
+        "--placement",
+        str(w["placement"]),
+        "--from-file",
+        str(w["index"]),
+        "--artifact-root",
+        str(w["artifacts"]),
+        "--packet-out",
+        str(w["root"] / "share" / "packet.json"),
+        "--key-out",
+        str(w["root"] / "share" / "private" / "key.json"),
+    )
+    assert result.exit_code != 0 and "outside the reviewer packet" in result.output
+    assert not (w["root"] / "share").exists()
+
+
+def test_unreachable_local_server_is_a_clean_refusal(
+    workspace: dict[str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import httpx
+
+    w = workspace
+
+    def down(_policy: Any) -> dict[str, Any]:
+        raise httpx.ConnectError("connection refused")
+
+    monkeypatch.setattr(cli, "runtime_preflight", down)
+    result = invoke(
+        "run",
+        "--policy",
+        str(w["policy"]),
+        "--plan",
+        str(w["plan"]),
+        "--from-file",
+        str(w["index"]),
+        "--artifact-root",
+        str(w["artifacts"]),
+        "--run-root",
+        str(w["root"] / "run"),
+    )
+    assert result.exit_code != 0 and "refused before execution: connection refused" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_workbook_command_requires_matching_attested_blueprint(
+    workspace: dict[str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from deepr.cli.commands import eval_expert_value
+
+    w = workspace
+    run_root = w["root"] / "run"
+    common = ["--from-file", str(w["index"]), "--artifact-root", str(w["artifacts"])]
+    assert (
+        invoke(
+            "run", "--policy", str(w["policy"]), "--plan", str(w["plan"]), *common, "--run-root", str(run_root)
+        ).exit_code
+        == 0
+    )
+    packet, key = w["root"] / "review" / "packet.json", w["root"] / "private" / "key.json"
+    assert (
+        invoke(
+            "blind",
+            "--run-root",
+            str(run_root),
+            "--blueprint",
+            str(w["blueprint"]),
+            "--placement",
+            str(w["placement"]),
+            *common,
+            "--packet-out",
+            str(packet),
+            "--key-out",
+            str(key),
+        ).exit_code
+        == 0
+    )
+    labels = w["root"] / "labels.json"
+    labels.write_text(
+        json.dumps(
+            {
+                "reviewer": {"id": "r1"},
+                "labels": [{"opaque_id": e["opaque_id"]} for e in json.loads(key.read_text())["entries"]],
+            }
+        )
+    )
+    binding = w["root"] / "binding.json"
+    assert (
+        invoke(
+            "bind-labels",
+            "--run-root",
+            str(run_root),
+            "--key",
+            str(key),
+            "--packet",
+            str(packet),
+            "--labels",
+            str(labels),
+            "--output",
+            str(binding),
+        ).exit_code
+        == 0
+    )
+    claims = w["root"] / "claims.json"
+    claims.write_text(json.dumps({"source_worlds": []}))
+
+    class Mismatched:
+        expert_name, revision, content_hash = "Other", 1, "0" * 64
+        acceptance_cases: list[Any] = []
+
+    monkeypatch.setattr(eval_expert_value, "_load_current_blueprint", lambda _name: Mismatched())
+    result = invoke(
+        "workbook",
+        "--run-root",
+        str(run_root),
+        "--expert",
+        "Other",
+        "--placement",
+        str(w["placement"]),
+        "--world-claims",
+        str(claims),
+        "--key",
+        str(key),
+        "--binding",
+        str(binding),
+        "--review-set-id",
+        "r",
+        "--output",
+        str(w["root"] / "workbook.json"),
+    )
+    assert (
+        result.exit_code != 0
+        and "Workbook refused" in result.output
+        and "apply the reviewed blueprint" in result.output
+    )
+    assert not (w["root"] / "workbook.json").exists()

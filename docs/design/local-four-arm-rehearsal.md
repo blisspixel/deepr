@@ -91,26 +91,46 @@ attested longitudinal evaluation; this rehearsal cannot promote itself.
 `deepr eval expert-value-rehearsal` implements this protocol. Its seams are
 `evals/expert_value_materialize.py` (writing counterpart of the read-only copy
 verifier), `evals/expert_value_rehearsal.py` (policy, arm order, terminal
-cells), `evals/expert_value_rehearsal_worker.py` (one phase per process), and
-`evals/expert_value_blinding.py` (reviewer packet, private key, label binding).
+cells, integrity checks), `evals/expert_value_rehearsal_worker.py` (one phase
+per process), `evals/expert_value_blinding.py` (reviewer packet, private key,
+label binding), and `evals/expert_value_rehearsal_workbook.py` (assembly of the
+strict `deepr eval expert-value` workbook).
 
 | Protocol requirement | Enforcement |
 | --- | --- |
 | Frozen model identity | `run` compares the installed digest before any work; each call compares the digest observed by the per-dispatch owned-local attestation |
+| Usable capacity | A recorded `$0` warm-up must meet a tokens-per-second floor, so a contended GPU is a refusal rather than a run of timeouts |
 | Explicit generation settings | Policy pins `num_ctx`, output limit, temperature, seed and `think`; the native backend refuses unknown options |
 | Question-free construction and maintenance | The orchestrator refuses to put a question in their specs, and the worker refuses one if present |
-| Equal source interface | Every worker receives its own new copy of the selected world, verified against current preparation bytes; the summary checks one copy-manifest digest per world across answer cells |
-| Frozen consultation memory | Answers read a private checkpoint copy; both the copy and the frozen checkpoints are hashed before and after |
+| Answer bound to its question | Each answer reports its question digest; a mismatch fails the cell, and `blind` refuses criteria for a different question |
+| Equal source interface | Every worker receives its own new copy of the selected world; each answer reports the source digests it actually rendered, compared per world |
+| Frozen consultation memory | Answers read a private checkpoint copy; the copy and every accepted checkpoint, including fresh ones, are hashed before and after |
+| Canonical experts untouched | A path, size and mtime fingerprint of the operator's experts root is compared before and after the run |
 | Credential-free workers | Allowlisted environment, `PYTHON_DOTENV_DISABLED=1`, redirected home and data roots; the worker refuses credential-like names |
-| Code identity | Run record holds the commit, clean-tree flag and module hashes; workers import the orchestrator's source tree and report it |
-| Failures and denominators | Failed fresh or compiled construction blocks dependent answers; failed maintenance keeps the last checkpoint and says so; timeouts and crashes are terminal |
-| `$0` accounting | Workers record every attempt before dispatch; the orchestrator mirrors each call into the canonical ledger idempotently and reconciles counts |
-| Blinding | The packet carries answers under random ids in random order with criteria and cutoffs, and refuses arm identifiers in its bytes; the private key is written to a different directory |
+| Code identity | Run record holds the commit, clean-tree flag and module hashes; every worker reports the module hashes it imported |
+| Failures and denominators | Failed fresh or compiled construction blocks dependent answers; failed maintenance keeps the last checkpoint and says so; timeouts, crashes, empty answers, unreadable results and orchestrator errors all end as terminal cells |
+| Evidence retention | Each worker's orchestrator record (exit, timing, usage, memory digests, ledger counts) is written beside its outputs |
+| `$0` accounting | Workers record every attempt before dispatch; the orchestrator mirrors every attempt, including one killed mid-call or interrupted, into the canonical ledger idempotently |
+| Completion | `operationally_complete` requires every planned cell and no failed integrity check; a check with no applicable evidence reports `null`, never a vacuous pass |
+| Blinding | Instructions are identical for every arm; memory is rendered without harness identifiers; the packet masks harness markers an answer echoes (recording both digests), omits answer digests, refuses arm identifiers, and lists missing cells in the key; the key must live outside the packet directory |
+
+Workbook assembly fills execution facts from recorded evidence: answer and
+cell digests, worker completion times and latency, `$0` costs, and update
+completion. Fresh research and static history incorporate a world's update by
+construction; the compiled checkpoint does not; the maintained expert does
+only when its maintenance for that world completed. Labels come only from a
+frozen binding, and reviewer minutes from the labels. The protocol attestation
+is filled only when the operator passes `--protocol-attested-by`. Workbook v1
+cannot represent failed or blocked trials, so assembly refuses a run with
+unanswered cells and names them; the rehearsal summary keeps those failures.
 
 Remaining limits: workers keep loopback network access for the model server,
 so this is process and data-root separation, not an OS sandbox. Fixed seeds do
 not guarantee byte-identical local output across loads, versions or
-platforms. The packet check detects arm identifiers, not an arm a reviewer
-could infer from answer content; reviewers should record suspected arms
-before the key is revealed. Label binding checks form, never label meaning or
-reviewer identity.
+platforms. Masking removes harness markers, not an arm a reviewer could infer
+from an answer's substance; reviewers record suspected production before the
+key is revealed. The run root identifies arms by file name and must be
+withheld from reviewers along with the key. Label binding checks form, never
+label meaning or reviewer identity. Consultation memory is the rendered brief;
+earlier positions shaped that brief and remain in the checkpoint's position
+history for inspection.

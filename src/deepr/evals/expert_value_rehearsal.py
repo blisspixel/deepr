@@ -130,13 +130,16 @@ _IDENTITY_MODULES = (
 )
 
 
+def module_hashes() -> dict[str, str]:
+    """Hashes of the runtime sources a rehearsal phase depends on, as imported now."""
+    package = Path(__file__).resolve().parents[1]
+    return {name: _sha((package / name).read_bytes()) for name in _IDENTITY_MODULES}
+
+
 def application_identity() -> dict[str, Any]:
     """Commit and runtime source hashes, so software changes are separable from memory effects."""
     package = Path(__file__).resolve().parents[1]
-    identity: dict[str, Any] = {
-        "package_root": str(package),
-        "module_sha256": {name: _sha((package / name).read_bytes()) for name in _IDENTITY_MODULES},
-    }
+    identity: dict[str, Any] = {"package_root": str(package), "module_sha256": module_hashes()}
     git = shutil.which("git")
     try:
         if git is None:
@@ -261,19 +264,20 @@ def worker_environment(worker_dir: Path, policy: RehearsalPolicy) -> dict[str, s
 
 def subprocess_launcher(spec_path: Path, env: dict[str, str], cwd: Path, timeout: float) -> int:
     """Launch one worker process; timeout is a terminal failure, never a retry."""
-    try:
-        completed = subprocess.run(  # noqa: S603 - fixed interpreter and module
-            [sys.executable, "-m", WORKER_MODULE, str(spec_path)],
-            env=env,
-            cwd=cwd,
-            timeout=timeout,
-            stdin=subprocess.DEVNULL,
-            stdout=(cwd / "stdout.log").open("wb"),
-            stderr=(cwd / "stderr.log").open("wb"),
-            check=False,
-        )
-    except subprocess.TimeoutExpired:
-        return -1
+    with (cwd / "stdout.log").open("wb") as stdout, (cwd / "stderr.log").open("wb") as stderr:
+        try:
+            completed = subprocess.run(  # noqa: S603 - fixed interpreter and module
+                [sys.executable, "-m", WORKER_MODULE, str(spec_path)],
+                env=env,
+                cwd=cwd,
+                timeout=timeout,
+                stdin=subprocess.DEVNULL,
+                stdout=stdout,
+                stderr=stderr,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            return -1
     return completed.returncode
 
 
@@ -293,8 +297,10 @@ class RehearsalRun:
         run_root: Path,
         launcher: Launcher = subprocess_launcher,
         runtime: dict[str, Any] | None = None,
+        on_event: Callable[[dict[str, Any]], None] | None = None,
     ) -> None:
         self.policy, self.plan, self.launcher = policy, plan, launcher
+        self.on_event = on_event
         self.index_path, self.artifact_root = index_path, artifact_root.resolve(strict=True)
         _, _, worlds, _, _ = load_source_world_preparation(index_path, self.artifact_root)
         self.worlds = worlds
@@ -302,8 +308,8 @@ class RehearsalRun:
         unknown = {c.source_world_id for c in plan.cases} - set(world_ids)
         if unknown:
             raise ValueError("plan cases reference worlds outside the preparation index")
-        if len({c.case_id for c in plan.cases}) != len(plan.cases):
-            raise ValueError("plan case ids must be unique")
+        if len({c.case_id.casefold() for c in plan.cases}) != len(plan.cases):
+            raise ValueError("plan case ids must be unique, ignoring letter case")
         target = run_root.absolute()
         if target.exists():
             raise FileExistsError("rehearsal run root must be new")
@@ -315,6 +321,7 @@ class RehearsalRun:
         self.events = target / "events.jsonl"
         self.cells: list[dict[str, Any]] = []
         self.workers: list[dict[str, Any]] = []
+        self.checkpoint_hashes: dict[str, str] = {}
         self._write(
             "run.json",
             {
@@ -334,23 +341,21 @@ class RehearsalRun:
         path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     def event(self, kind: str, **fields: Any) -> None:
+        record = {"at": _now(), "event": kind, **fields}
         with open(self.events, "a", encoding="utf-8") as handle:
-            handle.write(json.dumps({"at": _now(), "event": kind, **fields}, sort_keys=True) + "\n")
+            handle.write(json.dumps(record, sort_keys=True) + "\n")
             handle.flush()
             os.fsync(handle.fileno())
+        if self.on_event is not None:
+            self.on_event(record)
 
-    def _worker(
-        self,
-        worker_id: str,
-        phase: str,
-        world_id: str,
-        *,
-        checkpoint: Path | None = None,
-        question: str | None = None,
-    ) -> dict[str, Any]:
-        worker_dir = self.root / "workers" / worker_id
-        worker_dir.mkdir(parents=True)
-        (worker_dir / "out").mkdir()
+    def _prepare(
+        self, worker_dir: Path, worker_id: str, phase: str, world_id: str, checkpoint: Path | None, question: str | None
+    ) -> tuple[Path, str, str | None]:
+        """Materialize inputs and write the spec; returns spec path, input digest and memory digest."""
+        if question is not None and phase != "answer":
+            raise ValueError("only answer workers receive a question")
+        (worker_dir / "out").mkdir(parents=True)
         world = next(w for w in self.worlds if w.source_world_id == world_id)
         copy = materialize_source_world_copy(
             self.index_path, self.artifact_root, world_id=world_id, output_root=worker_dir / "input"
@@ -371,49 +376,95 @@ class RehearsalRun:
             spec["prior_checkpoint"] = str(worker_dir / "memory")
             memory_before = tree_digest(worker_dir / "memory")
         if question is not None:
-            if phase != "answer":
-                raise ValueError("only answer workers receive a question")
             spec["question"] = question
         spec_path = worker_dir / "spec.json"
         spec_path.write_text(json.dumps(spec, indent=2, sort_keys=True), encoding="utf-8")
-        self.event("worker_started", worker_id=worker_id, phase=phase, world=world_id)
+        return spec_path, str(copy["copy_manifest_sha256"]), memory_before
+
+    def _worker(
+        self,
+        worker_id: str,
+        phase: str,
+        world_id: str,
+        *,
+        checkpoint: Path | None = None,
+        question: str | None = None,
+    ) -> dict[str, Any]:
+        """Run one phase; every outcome, including orchestrator errors, becomes a record."""
+        worker_dir = self.root / "workers" / worker_id
+        result: dict[str, Any] = {"status": "failed", "error_type": "OrchestratorError"}
         started = time.monotonic()
-        code = self.launcher(
-            spec_path, worker_environment(worker_dir, self.policy), worker_dir, self.policy.worker_timeout_seconds
-        )
-        result_path = worker_dir / "out" / "result.json"
-        result = json.loads(result_path.read_text(encoding="utf-8")) if result_path.is_file() else {}
-        if code == -1:
-            result.update(status="failed", error_type="WorkerTimeout")
-        elif not result:
-            result.update(status="failed", error_type="WorkerExited", exit_code=code)
+        code: int | None = None
+        memory_before: str | None = None
+        try:
+            spec_path, input_sha, memory_before = self._prepare(
+                worker_dir, worker_id, phase, world_id, checkpoint, question
+            )
+            result["input_copy_manifest_sha256"] = input_sha
+            self.event("worker_started", worker_id=worker_id, phase=phase, world=world_id)
+            code = self.launcher(
+                spec_path, worker_environment(worker_dir, self.policy), worker_dir, self.policy.worker_timeout_seconds
+            )
+            result = _reported_outcome(code, _json_object(worker_dir / "out" / "result.json"), result)
+        # Any failure preparing or launching becomes this phase's recorded terminal cause.
+        except Exception as error:
+            result.update(status="failed", error_type=type(error).__name__, error=str(error)[:500])
+        finally:
+            self._finish(worker_dir, result, worker_id, phase, world_id, code, started, memory_before)
+        return result
+
+    def _finish(
+        self,
+        worker_dir: Path,
+        result: dict[str, Any],
+        worker_id: str,
+        phase: str,
+        world_id: str,
+        code: int | None,
+        started: float,
+        memory_before: str | None,
+    ) -> None:
+        """Record timing, memory digests and ledger mirroring even when interrupted."""
         result.update(
             worker_id=worker_id,
             phase=phase,
             source_world_id=world_id,
             exit_code=code,
             wall_seconds=round(time.monotonic() - started, 3),
-            input_copy_manifest_sha256=copy["copy_manifest_sha256"],
             usage=_call_usage(worker_dir / "out" / "calls.jsonl"),
         )
         if memory_before is not None:
             result["memory_before_sha256"] = memory_before
             result["memory_after_sha256"] = tree_digest(worker_dir / "memory")
-        result["canonical_ledger_events"] = self._mirror_ledger(worker_dir / "out" / "calls.jsonl")
+        result["worker_ledger_events"] = len(_jsonl(worker_dir / "costs" / "cost_ledger.jsonl"))
+        try:
+            result["canonical_ledger_events"] = self._mirror_ledger(worker_dir)
+        # A mirroring failure is surfaced as an unreconciled ledger, never swallowed.
+        except Exception as error:
+            result.update(canonical_ledger_events=0, ledger_mirror_error=type(error).__name__)
+        if worker_dir.is_dir():
+            (worker_dir / "orchestrator.json").write_text(
+                json.dumps(result, indent=2, sort_keys=True), encoding="utf-8"
+            )
         self.workers.append(result)
         self.event("worker_finished", worker_id=worker_id, status=result.get("status"), exit_code=code)
-        return result
 
-    def _mirror_ledger(self, calls_path: Path) -> int:
-        """Record every dispatched worker call in the operator's canonical ledger at $0."""
+    def _mirror_ledger(self, worker_dir: Path) -> int:
+        """Mirror every attempt the worker recorded before dispatch into the canonical ledger.
+
+        The worker ledger is written before each call, so an attempt killed
+        mid-call is still mirrored; completion details are joined when present.
+        """
         from deepr.observability.cost_ledger import CostLedger
 
-        if not calls_path.is_file():
+        attempts = _jsonl(worker_dir / "costs" / "cost_ledger.jsonl")
+        if not attempts:
             return 0
+        completions = {call.get("request_id"): call for call in _jsonl(worker_dir / "out" / "calls.jsonl")}
         ledger = CostLedger()
-        count = 0
-        for line in calls_path.read_text(encoding="utf-8").splitlines():
-            call = json.loads(line)
+        for attempt in attempts:
+            request_id = str(attempt.get("request_id", ""))
+            call = completions.get(request_id, {})
             raw = call.get("raw_response") or {}
             ledger.record_event(
                 operation="expert_value_rehearsal",
@@ -422,21 +473,28 @@ class RehearsalRun:
                 model=self.policy.model,
                 tokens_input=int(raw.get("prompt_eval_count", 0) or 0),
                 tokens_output=int(raw.get("eval_count", 0) or 0),
-                request_id=call["request_id"],
+                request_id=request_id,
                 source="local_value_rehearsal",
-                idempotency_key=f"rehearsal:{call['request_id']}",
-                metadata={"status": call.get("status", "unknown"), "prompt_sha256": call.get("prompt_sha256", "")},
+                idempotency_key=f"rehearsal:{request_id}",
+                metadata={
+                    "status": call.get("status", "no_completion_record"),
+                    "prompt_sha256": (attempt.get("metadata") or {}).get("prompt_sha256", ""),
+                },
                 require_fsync=True,
             )
-            count += 1
-        return count
+        return len(attempts)
 
     def _accept_checkpoint(self, name: str, worker: dict[str, Any]) -> Path | None:
         source = self.root / "workers" / worker["worker_id"] / "out" / "checkpoint"
         if worker.get("status") != "completed" or not source.is_dir():
             return None
         target = self.root / "checkpoints" / name
-        shutil.copytree(source, target)
+        try:
+            shutil.copytree(source, target)
+        except OSError as error:
+            self.event("checkpoint_rejected", checkpoint=name, error_type=type(error).__name__)
+            return None
+        self.checkpoint_hashes[name] = tree_digest(target)
         return target
 
     def _cell(self, case: RehearsalCase, arm: str, **fields: Any) -> None:
@@ -445,6 +503,7 @@ class RehearsalRun:
             "acceptance_case_id": case.case_id,
             "source_world_id": case.source_world_id,
             "arm": arm,
+            "question_sha256": _sha(case.question.encode("utf-8")),
             **fields,
         }
         self.cells.append(record)
@@ -455,16 +514,24 @@ class RehearsalRun:
         worker_id = f"answer-{case.case_id}-{arm}"
         worker = self._worker(worker_id, "answer", case.source_world_id, checkpoint=checkpoint, question=case.question)
         answer = self.root / "workers" / worker_id / "out" / "answer.md"
-        status = "answered" if worker.get("status") == "completed" and answer.is_file() else "failed"
+        answered = worker.get("status") == "completed" and answer.is_file()
+        if answered and worker.get("question_sha256") != _sha(case.question.encode("utf-8")):
+            answered = False
+            worker["error_type"] = "QuestionMismatch"
+        before, after = worker.get("memory_before_sha256"), worker.get("memory_after_sha256")
+        digests = worker.get("source_digests")
         fields: dict[str, Any] = {
-            "status": status,
+            "status": "answered" if answered else "failed",
             "worker_id": worker_id,
             "memory_checkpoint": checkpoint.name if checkpoint else None,
-            "memory_unchanged": worker.get("memory_before_sha256") == worker.get("memory_after_sha256"),
-            "input_copy_manifest_sha256": worker["input_copy_manifest_sha256"],
+            "memory_unchanged": None if checkpoint is None else before is not None and before == after,
+            "input_copy_manifest_sha256": worker.get("input_copy_manifest_sha256"),
+            "source_digests_sha256": _sha(json.dumps(digests).encode("utf-8")) if digests else None,
+            "stop_reason": worker.get("stop_reason"),
+            "answer_truncated": worker.get("answer_truncated"),
             **extra,
         }
-        if status == "answered":
+        if answered:
             fields["answer_ref"] = answer.relative_to(self.root).as_posix()
             fields["answer_sha256"] = _sha(answer.read_bytes())
         else:
@@ -474,12 +541,10 @@ class RehearsalRun:
     def execute(self) -> dict[str, Any]:
         self.event("run_started")
         started = time.monotonic()
-        checkpoint_hashes: dict[str, str] = {}
+        experts_before = _experts_fingerprint()
         try:
             first = self.worlds[0].source_world_id
             compiled = self._accept_checkpoint("compiled-w1", self._worker("construct-compiled", "construct", first))
-            if compiled is not None:
-                checkpoint_hashes[compiled.name] = tree_digest(compiled)
             maintained: Path | None = compiled
             for index, world in enumerate(self.worlds):
                 world_id = world.source_world_id
@@ -494,19 +559,26 @@ class RehearsalRun:
                         }
                     else:
                         maintained = accepted
-                        checkpoint_hashes[accepted.name] = tree_digest(accepted)
                         maintenance = {"maintenance_status": "completed"}
                 for case in (c for c in self.plan.cases if c.source_world_id == world_id):
                     arms = list(ARM_ORDER)
                     secrets.SystemRandom().shuffle(arms)
                     self.event("case_arm_order", case=case.case_id, order=arms)
                     for arm in arms:
-                        self._run_arm(case, arm, compiled, maintained, maintenance)
+                        recorded = len(self.cells)
+                        try:
+                            self._run_arm(case, arm, compiled, maintained, maintenance)
+                        # One broken cell must not end the run; it is recorded as failed.
+                        except Exception as error:
+                            if len(self.cells) == recorded:
+                                self._cell(
+                                    case, arm, status="failed", reason=f"OrchestratorError:{type(error).__name__}"
+                                )
         except KeyboardInterrupt:
             self.event("run_interrupted")
             raise
         finally:
-            summary = self.summary(checkpoint_hashes, time.monotonic() - started)
+            summary = self.summary(time.monotonic() - started, experts_before)
             self._write("summary.json", summary)
             self.event("run_finished", status=summary["status"])
         return summary
@@ -535,37 +607,57 @@ class RehearsalRun:
         else:
             self._answer_cell(case, arm, maintained, **maintenance)
 
-    def summary(self, checkpoint_hashes: dict[str, str], elapsed: float) -> dict[str, Any]:
+    def _checks(self, experts_before: str | None) -> dict[str, bool | None]:
+        """Integrity checks; ``None`` means no applicable evidence, never a vacuous pass."""
+        answered = [c for c in self.cells if c["status"] == "answered"]
+        by_world: dict[str, set[Any]] = {}
+        for cell in answered:
+            key = (cell.get("input_copy_manifest_sha256"), cell.get("source_digests_sha256"))
+            by_world.setdefault(cell["source_world_id"], set()).add(key)
+        with_memory = [c for c in self.cells if c.get("memory_unchanged") is not None]
+        expected_modules = module_hashes()
+        calls = sum(w["usage"]["calls"] for w in self.workers)
+        ledgers = sum(w.get("worker_ledger_events", 0) for w in self.workers)
+        mirrored = sum(w.get("canonical_ledger_events", 0) for w in self.workers)
+        checkpoints = self.checkpoint_hashes.items()
+        return {
+            "equal_source_inventory_per_world": all(len(v) == 1 for v in by_world.values()) if answered else None,
+            "worker_code_matches_orchestrator": (
+                all(w.get("module_sha256") == expected_modules for w in self.workers) if self.workers else None
+            ),
+            "consultation_memory_unchanged": all(c["memory_unchanged"] for c in with_memory) if with_memory else None,
+            "frozen_checkpoints_unchanged": (
+                all(tree_digest(self.root / "checkpoints" / n) == d for n, d in checkpoints) if checkpoints else None
+            ),
+            "canonical_experts_unchanged": None if experts_before is None else _experts_fingerprint() == experts_before,
+            "ledger_reconciled": ledgers == mirrored and calls <= ledgers,
+        }
+
+    def summary(self, elapsed: float, experts_before: str | None = None) -> dict[str, Any]:
+        """Operational completeness requires every cell and no failed integrity check."""
         planned = len(self.plan.cases) * len(ARM_ORDER)
         statuses = [c["status"] for c in self.cells]
-        by_world: dict[str, set[str]] = {}
-        for cell in self.cells:
-            if "input_copy_manifest_sha256" in cell:
-                by_world.setdefault(cell["source_world_id"], set()).add(cell["input_copy_manifest_sha256"])
-        checkpoints_unchanged = all(
-            tree_digest(self.root / "checkpoints" / name) == digest for name, digest in checkpoint_hashes.items()
-        )
+        checks = self._checks(experts_before)
+        failed_checks = sorted(name for name, value in checks.items() if value is False)
         calls = sum(w["usage"]["calls"] for w in self.workers)
-        ledgers = sum(_ledger_events(self.root / "workers" / w["worker_id"] / "costs") for w in self.workers)
-        mirrored = sum(w.get("canonical_ledger_events", 0) for w in self.workers)
+        ledgers = sum(w.get("worker_ledger_events", 0) for w in self.workers)
+        complete = len(self.cells) == planned and not failed_checks
         return {
             "schema_version": SUMMARY_SCHEMA,
-            "status": "operationally_complete" if len(self.cells) == planned else "incomplete",
+            "status": "operationally_complete" if complete else "incomplete",
             "planned_cells": planned,
             "terminal_cells": len(self.cells),
             "answered": statuses.count("answered"),
             "failed": statuses.count("failed"),
             "blocked": statuses.count("blocked"),
-            "equal_source_inventory_per_world": all(len(v) == 1 for v in by_world.values()),
-            "worker_code_matches_orchestrator": all(
-                w.get("deepr_package") == str(Path(__file__).resolve().parents[1]) for w in self.workers
-            ),
-            "consultation_memory_unchanged": all(c.get("memory_unchanged", True) for c in self.cells),
-            "frozen_checkpoints_unchanged": checkpoints_unchanged,
+            "truncated_answers": sum(1 for c in self.cells if c.get("answer_truncated")),
+            **checks,
+            "failed_checks": failed_checks,
+            "checkpoint_sha256": dict(sorted(self.checkpoint_hashes.items())),
             "model_calls": calls,
             "worker_ledger_events": ledgers,
-            "canonical_ledger_events": mirrored,
-            "ledger_reconciled": calls == ledgers == mirrored,
+            "canonical_ledger_events": sum(w.get("canonical_ledger_events", 0) for w in self.workers),
+            "attempts_without_completion_record": ledgers - calls,
             "resources_by_phase": _resources(self.workers),
             "elapsed_seconds": round(elapsed, 3),
             "api_cost_usd": 0,
@@ -578,24 +670,64 @@ class RehearsalRun:
 
 def _call_usage(calls_path: Path) -> dict[str, int]:
     usage = {"calls": 0, "returned": 0, "prompt_tokens": 0, "output_tokens": 0}
-    if not calls_path.is_file():
-        return usage
-    for line in calls_path.read_text(encoding="utf-8").splitlines():
-        record = json.loads(line)
-        usage["calls"] += 1
+    for record in _jsonl(calls_path):
         raw = record.get("raw_response") or {}
-        if record.get("status") == "returned":
-            usage["returned"] += 1
+        usage["calls"] += 1
+        usage["returned"] += record.get("status") == "returned"
         usage["prompt_tokens"] += int(raw.get("prompt_eval_count", 0) or 0)
         usage["output_tokens"] += int(raw.get("eval_count", 0) or 0)
     return usage
 
 
-def _ledger_events(cost_dir: Path) -> int:
-    ledger = cost_dir / "cost_ledger.jsonl"
-    if not ledger.is_file():
-        return 0
-    return sum(1 for line in ledger.read_text(encoding="utf-8").splitlines() if line.strip())
+def _reported_outcome(code: int, reported: dict[str, Any] | None, pending: dict[str, Any]) -> dict[str, Any]:
+    """Combine the launcher's exit with the worker's own record; the worker never overrides a timeout."""
+    if code == -1:
+        return {**pending, "error_type": "WorkerTimeout"}
+    if reported is None:
+        return {**pending, "error_type": "WorkerResultMissing"}
+    merged = {**pending, **reported}
+    if reported.get("status") == "completed":
+        merged.pop("error_type", None)
+    return merged
+
+
+def _json_object(path: Path) -> dict[str, Any] | None:
+    """A worker's result record, or None when missing or unreadable."""
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def _experts_fingerprint() -> str | None:
+    """Cheap path, size and mtime digest of the operator's canonical experts root."""
+    from deepr.config import experts_root
+
+    root = experts_root()
+    if not root.is_dir():
+        return None
+    digest = hashlib.sha256()
+    for path in sorted(p for p in root.rglob("*") if p.is_file()):
+        info = path.stat()
+        line = f"{path.relative_to(root).as_posix()}|{info.st_size}|{info.st_mtime_ns}"
+        digest.update(line.encode("utf-8") + b"\n")
+    return digest.hexdigest()
+
+
+def _jsonl(path: Path) -> list[dict[str, Any]]:
+    """Complete JSON lines of an append-only record; a torn final line is ignored."""
+    if not path.is_file():
+        return []
+    records: list[dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            records.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    return records
 
 
 def _resources(workers: list[dict[str, Any]]) -> dict[str, dict[str, float]]:

@@ -38,6 +38,33 @@ Consequence: `run` now performs one recorded `$0` warm-up generation and
 refuses to start below a tokens-per-second floor (default 5), so contention
 yields a refusal rather than a run of timeout cells.
 
+## Independent review and end-to-end check
+
+An independent adversarial review of the merged harness found eleven defects,
+including a blinding leak through memory-specific prompt wording and harness
+identifiers, a completion status that ignored integrity checks, orchestrator
+errors that could end the run instead of a cell, and per-worker evidence that
+was never written. All were fixed with regression tests before any full run.
+
+The real CLI, worker subprocesses, native backend attestation and ledgers were
+then exercised against a loopback stand-in for the Ollama API that returns
+contract-shaped responses. This checks the harness, not any model:
+
+- 48 of 48 cells answered; every integrity check passed; 93 attempts matched
+  93 canonical ledger events; 15 checkpoints were hashed before and after.
+- `blind` produced 12 cases of 4 answers with per-case label fields and no arm
+  names, run-root paths, answer digests or harness identifiers.
+- Clearly synthetic labels were bound and assembled into a 48-trial workbook in
+  an isolated expert store; the existing `deepr eval expert-value` verifier
+  accepted it and re-verified every artifact hash under the run root.
+
+The same check exposed a shared product defect: study prompts embedded the
+sanitizer result's Python repr, so each source appeared three times with
+escaped newlines. The morning attempt's prompts confirm it affected real local
+studies. It is fixed with a regression test; earlier study outputs stay
+preserved as pre-fix evidence.
+
 ## Full run
 
-Pending. It needs the GPU to itself and uses a new run root.
+Pending. It needs the GPU to itself, uses a new run root, and should run on
+the fixed study prompt.

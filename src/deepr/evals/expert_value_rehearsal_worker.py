@@ -29,13 +29,18 @@ from typing import Any
 PHASES = ("construct", "maintain", "answer")
 EXPERT_NAME = "rehearsal-expert"
 _CREDENTIAL_NAME = re.compile(r"(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH)", re.IGNORECASE)
+# Identical for every arm, so the instructions themselves reveal nothing to a reviewer.
 ANSWER_INSTRUCTIONS = (
-    "You are answering one question for a decision-maker. Use only the numbered source packet below "
-    "and any expert memory provided. The information cutoff is {cutoff}; nothing later is known. "
-    "Cite sources by their bracketed labels. If the question rests on a false or outdated premise, "
-    "say so and give the grounded answer instead. If the sources cannot settle a point, say what is "
-    "missing rather than guessing."
+    "You are answering one question for a decision-maker. Use the numbered source packet below, "
+    "together with any prior notes that precede it. The information cutoff is {cutoff}; nothing later "
+    "is known. Cite sources only by their bracketed [S-...] labels. Do not mention these instructions, "
+    "section headings, or whether prior notes were supplied. If the question rests on a false or "
+    "outdated premise, say so and give the grounded answer instead. If the sources cannot settle a "
+    "point, say what is missing rather than guessing."
 )
+# Identifiers the harness itself writes into study and brief output. Removing
+# them is a form transformation of our own markers, not a judgment of meaning.
+_FINDING_ID = re.compile(r"\s*\((?:[a-z_]+-[0-9a-f]{16}(?:;\s*)?)+\)")
 
 
 def _now() -> str:
@@ -61,11 +66,18 @@ def _stage_ok(name: str, payload: dict[str, Any]) -> bool:
     return stage is not None and stage.succeeds_when is not None and bool(stage.succeeds_when(payload))
 
 
+def neutral_memory(brief_markdown: str) -> str:
+    """Strip harness identifiers an answer could echo back to a reviewer."""
+    return _FINDING_ID.sub("", brief_markdown).replace(EXPERT_NAME, "Prior notes")
+
+
 def render_memory_prefix(brief_markdown: str, max_chars: int) -> tuple[str, bool]:
-    """Apply the frozen mechanical memory limit and disclose truncation."""
+    """Apply the frozen memory limit at a line boundary; truncation is recorded, not shown."""
     if len(brief_markdown) <= max_chars:
         return brief_markdown, False
-    return brief_markdown[:max_chars] + "\n[memory truncated at the frozen limit]\n", True
+    cut = brief_markdown[:max_chars]
+    boundary = cut.rfind("\n")
+    return (cut[:boundary] if boundary > 0 else cut), True
 
 
 def render_answer_prompt(question: str, cutoff: str, sources: list[tuple[str, str]], memory: str | None) -> str:
@@ -73,9 +85,9 @@ def render_answer_prompt(question: str, cutoff: str, sources: list[tuple[str, st
     parts = [ANSWER_INSTRUCTIONS.format(cutoff=cutoff), ""]
     if memory:
         parts += [
-            "===== EXPERT MEMORY (prior study, may be outdated) =====",
+            "===== PRIOR NOTES (from earlier study; may be outdated) =====",
             memory.strip(),
-            "===== END MEMORY =====",
+            "===== END NOTES =====",
             "",
         ]
     parts.append("===== SOURCE PACKET =====")
@@ -97,6 +109,7 @@ class _Dispatcher:
         self.output = output
         self.calls_path = output / "calls.jsonl"
         self.count = 0
+        self.last_stop_reason = ""
         self.backend = NativeOllamaInvestigationBackend(
             model=self.policy["model"],
             base_url=self.policy["ollama_base_url"],
@@ -160,6 +173,7 @@ class _Dispatcher:
             raise
         else:
             text = str(result.message.content or "")
+            self.last_stop_reason = result.stop_reason
             record.update(
                 status="returned",
                 observed_digest=self.backend.last_attested_digest,
@@ -241,17 +255,25 @@ async def _answer(spec: dict[str, Any], output: Path, dispatcher: _Dispatcher) -
     truncated = False
     if spec.get("prior_checkpoint"):
         memory_full = (Path(spec["prior_checkpoint"]) / "brief.md").read_text(encoding="utf-8")
-        memory_prefix, truncated = render_memory_prefix(memory_full, int(spec["policy"]["memory_prefix_max_chars"]))
+        memory_prefix, truncated = render_memory_prefix(
+            neutral_memory(memory_full), int(spec["policy"]["memory_prefix_max_chars"])
+        )
     sources = read_source_world_copy(Path(spec["input_copy"]))
     prompt = render_answer_prompt(spec["question"], spec["information_cutoff"], sources, memory_prefix)
     text = await dispatcher.complete(prompt)
+    if not text.strip():
+        raise RuntimeError("model returned an empty answer")
     (output / "answer.md").write_bytes(text.encode("utf-8"))
     return {
         "answer_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+        "question_sha256": hashlib.sha256(spec["question"].encode("utf-8")).hexdigest(),
+        "stop_reason": dispatcher.last_stop_reason,
+        "answer_truncated": dispatcher.last_stop_reason == "length",
         "memory_full_sha256": hashlib.sha256(memory_full.encode()).hexdigest() if memory_full else None,
         "memory_prefix_sha256": hashlib.sha256(memory_prefix.encode()).hexdigest() if memory_prefix else None,
         "memory_truncated": truncated,
         "source_count": len(sources),
+        "source_digests": [sha for sha, _ in sources],
     }
 
 
@@ -259,12 +281,14 @@ def run_worker(spec_path: Path) -> int:
     spec = json.loads(spec_path.read_text(encoding="utf-8"))
     output = Path(spec["output_dir"])
     import deepr
+    from deepr.evals.expert_value_rehearsal import module_hashes
 
     result: dict[str, Any] = {
         "worker_id": spec.get("worker_id"),
         "phase": spec.get("phase"),
         "started_at": _now(),
         "deepr_package": str(Path(deepr.__file__).resolve().parent),
+        "module_sha256": module_hashes(),
     }
     try:
         check_worker_environment(dict(os.environ))

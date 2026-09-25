@@ -9,24 +9,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `deepr eval expert-value-rehearsal plan|run|blind|bind-labels` implements
-  the local four-arm operational rehearsal. Each construct, maintain and answer
-  phase runs in its own credential-free worker process with a newly
-  materialized, verified source copy and its own data and cost roots. The run
-  refuses before any work when the installed model digest or cloud-disabled
-  status differs from the frozen policy, and binds every call to that digest.
-  Construction and maintenance never receive a question; consultation memory
-  is a private checkpoint copy hashed before and after. Every cell ends
-  answered, failed or blocked, and each local call is recorded at `$0` in the
-  worker and canonical ledgers. `blind` writes a reviewer packet without arm
-  identity and a separate private key; `bind-labels` checks exactly one label
-  per answer against exact answer bytes. No score, reviewer identity, winner
-  or value claim is produced. See the
-  [design](design/local-four-arm-rehearsal.md#implementation-2026-09-24) and
-  [practice review](research/s0-s1-practice-2026-09-24.md).
+- `deepr eval expert-value-rehearsal plan|run|blind|bind-labels|workbook`
+  implements the local four-arm operational rehearsal and connects it to the
+  existing value workbook.
+  - `run` refuses before any work when the installed model digest,
+    cloud-disabled status or a recorded `$0` warm-up throughput floor fails.
+    Each construct, maintain and answer phase runs in its own credential-free
+    worker process with a newly materialized, verified source copy and its own
+    data and cost roots, and every call is bound to the frozen digest.
+  - Construction and maintenance never receive a question. Answers use
+    identical instructions for every arm, read a private checkpoint copy hashed
+    before and after, and are bound to their question digest.
+  - Every cell ends answered, failed or blocked, including after launcher,
+    copy or result-file failures; empty answers fail and length-stopped answers
+    are flagged. Every attempt, including one interrupted or killed mid-call,
+    is recorded at `$0` in the worker and canonical ledgers.
+  - `operationally_complete` requires every planned cell plus reconciled
+    ledgers, unchanged consultation memory, checkpoints and canonical experts,
+    and matching worker code and rendered sources. A check without evidence
+    reports `null` rather than passing.
+  - `blind` writes a reviewer packet without arm identity, masks harness
+    markers an answer echoes while keeping both digests in the key, lists the
+    label fields each case needs and any missing cells, and requires the key
+    to live outside the packet directory. `bind-labels` checks exactly one
+    label per answer against exact answer bytes.
+  - `workbook` assembles the strict `deepr eval expert-value` workbook from
+    recorded execution and bound labels; the protocol attestation is filled
+    only when the operator supplies their identity. Workbook v1 cannot
+    represent failed trials, so a run with unanswered cells is refused.
+  - No score, reviewer identity, winner or value claim is produced. See the
+    [design](design/local-four-arm-rehearsal.md#implementation-2026-09-24) and
+    [practice review](research/s0-s1-practice-2026-09-24.md).
 - The native Ollama investigation backend accepts a pinned integer `seed` and
   boolean `think`, and exposes the digest observed by its per-dispatch model
   attestation.
+
+### Fixed
+
+- Local study prompts (`expert make --local`, `expert study`, formation) now
+  place each source once inside the untrusted-content boundary. They had
+  embedded the sanitizer result's Python repr, repeating every source three
+  times with escaped newlines, which inflated prompts and could keep quoted
+  anchors from matching the retained corpus. Existing study outputs are not
+  rewritten; re-study to benefit.
 
 ## [2.50.21] - 2026-09-23
 
