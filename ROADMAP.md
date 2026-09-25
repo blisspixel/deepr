@@ -72,8 +72,10 @@ Roadmap items are not approach claims until they land in
 
 ## Active Release Plan
 
-**Now (v2.50.21):** a local-only fleet-seat profile for external harnesses
-and host-side routers, on top of bounded local expert formation, retained
+**Now (v2.50.22):** the local four-arm rehearsal harness with blinded review
+binding, verified resume and workbook assembly, and a study-prompt repair,
+on top of a local-only fleet-seat profile for external harnesses and
+host-side routers, bounded local expert formation, retained
 research, linked knowledge, source-context repairs, perspective-first profiles,
 write-free OpenRouter previews, and an owner-raisable local spend ceiling that
 binds the monthly clamp,
@@ -115,7 +117,7 @@ in the [v2.50.19 changelog](docs/CHANGELOG.md#25019---2026-09-20).
 - [ ] Publish a replacement Python expert screenshot only after the scoped
   guidance and currency evidence passes. Preserve unfavorable trials.
 
-**S0 harness (2026-09-24, Unreleased):** isolated per-worker source copies,
+**S0 harness (2026-09-24, v2.50.22):** isolated per-worker source copies,
 question-free construction and maintenance workers, frozen consultation
 checkpoints, terminal cell records and blinded answer-to-review binding now
 exist as `deepr eval expert-value-rehearsal`. See the
@@ -584,10 +586,12 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.21)
+## Current Status (v2.50.22)
 
-**Next is v2.51, not more dispatch.** v2.50.21 lets an external seat consult
-locally and read the `$0` route card. v2.50.19 ships local formation and
+**Next is v2.51, not more dispatch.** v2.50.22 ships the harness that runs,
+blinds and binds the four-arm comparison locally at `$0`; the full run and its
+human review remain open. v2.50.21 lets an external seat consult locally and
+read the `$0` route card. v2.50.19 ships local formation and
 evidence-delivery repairs with guidance qualification still open. v2.50.18
 added attended OpenRouter one-shot research under a total cap. Unattended
 metered dispatch, MCP research, and automatic fallback stay frozen. The product question is still
@@ -596,8 +600,10 @@ repeated decisions?
 
 Open v2.51 work:
 
-- [ ] **v2.51 preparation:** prepare equal source inventories for isolated
-  arms and bind blinded review assignments to exact case and answer bytes.
+- [x] **v2.51 preparation (2026-09-24, v2.50.22):** equal source inventories
+  for isolated arms and blinded review assignments bound to exact case and
+  answer bytes now exist in `deepr eval expert-value-rehearsal`. OS-level
+  process confinement remains open. Earlier notes follow.
   The existing `eval expert-value-sources` preflight verifies nested source
   bytes and declared cutoff ordering. Its read-only `--world --copy-root`
   check also verifies a selected world's exact independent input files and
@@ -3874,7 +3880,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.21. This roadmap keeps
+v2.50.22. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 
