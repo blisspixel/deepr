@@ -33,6 +33,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     label fields each case needs and any missing cells, and requires the key
     to live outside the packet directory. `bind-labels` checks exactly one
     label per answer against exact answer bytes.
+  - `run --resume` continues an interrupted run only with byte-identical
+    policy, plan and code, after re-verifying recorded cells, answers and
+    checkpoints. Unfinished phases are kept as abandoned evidence and rerun
+    under a new attempt id; an OS-level lock admits one writer per run root.
   - `workbook` assembles the strict `deepr eval expert-value` workbook from
     recorded execution and bound labels; the protocol attestation is filled
     only when the operator supplies their identity. Workbook v1 cannot

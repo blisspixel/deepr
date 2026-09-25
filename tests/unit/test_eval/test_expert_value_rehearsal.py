@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -87,7 +88,8 @@ class FakeLauncher:
         if action == "interrupt":
             (cwd / "costs").mkdir(exist_ok=True)
             (cwd / "costs" / "cost_ledger.jsonl").write_text(
-                json.dumps({"request_id": f"x:{spec['worker_id']}:1", "metadata": {}}) + "\n", encoding="utf-8"
+                json.dumps({"request_id": f"x:{spec['worker_id']}:{spec['attempt_id']}:1", "metadata": {}}) + "\n",
+                encoding="utf-8",
             )
             raise KeyboardInterrupt
         if action == "corrupt-result":
@@ -97,7 +99,7 @@ class FakeLauncher:
             handle.write(
                 json.dumps(
                     {
-                        "request_id": f"x:{spec['worker_id']}:1",
+                        "request_id": f"x:{spec['worker_id']}:{spec['attempt_id']}:1",
                         "status": "returned",
                         "raw_response": {"prompt_eval_count": 5, "eval_count": 2},
                     }
@@ -106,9 +108,17 @@ class FakeLauncher:
             )
         costs = cwd / "costs"
         costs.mkdir(exist_ok=True)
-        attempts = [{"request_id": f"x:{spec['worker_id']}:1", "cost_usd": 0, "metadata": {"prompt_sha256": "p"}}]
+        attempts = [
+            {
+                "request_id": f"x:{spec['worker_id']}:{spec['attempt_id']}:1",
+                "cost_usd": 0,
+                "metadata": {"prompt_sha256": "p"},
+            }
+        ]
         if action == "killed-mid-call":
-            attempts.append({"request_id": f"x:{spec['worker_id']}:2", "cost_usd": 0, "metadata": {}})
+            attempts.append(
+                {"request_id": f"x:{spec['worker_id']}:{spec['attempt_id']}:2", "cost_usd": 0, "metadata": {}}
+            )
         (costs / "cost_ledger.jsonl").write_text(
             "".join(json.dumps(item) + "\n" for item in attempts), encoding="utf-8"
         )
@@ -224,6 +234,8 @@ def test_fresh_construction_failure_timeout_and_crash_are_terminal(tmp_path: Pat
     assert cell(rehearsal, "c2", "static_history")["reason"] == "WorkerTimeout"
     assert cell(rehearsal, "c2", "compiled_expert")["reason"] == "WorkerResultMissing"
     assert summary["failed"] == 2 and summary["blocked"] == 1 and summary["terminal_cells"] == 8
+    # Workers that never reported code (timeout, crash) are not counted as a code mismatch.
+    assert summary["worker_code_matches_orchestrator"] is True and summary["status"] == "operationally_complete"
 
 
 def test_consultation_write_to_memory_copy_is_detected(tmp_path: Path) -> None:
@@ -448,7 +460,7 @@ def test_attempt_killed_mid_call_still_reaches_the_canonical_ledger(tmp_path: Pa
     assert summary["worker_ledger_events"] == summary["canonical_ledger_events"] == summary["model_calls"] + 1
     assert summary["ledger_reconciled"] is True
     events = CostLedger().ledger_path.read_text(encoding="utf-8")
-    assert "x:construct-compiled:2" in events and "no_completion_record" in events
+    assert re.search(r"x:construct-compiled:[0-9a-f]{8}:2", events) and "no_completion_record" in events
 
 
 # -- hardening regressions -----------------------------------------------------
@@ -489,7 +501,7 @@ def test_interrupt_still_mirrors_the_attempt_and_writes_a_summary(tmp_path: Path
         run(tmp_path, launcher)
     summary = json.loads((tmp_path / "run" / "summary.json").read_text())
     assert summary["status"] == "incomplete" and summary["terminal_cells"] < 8
-    assert "x:answer-c1-static_history:1" in CostLedger().ledger_path.read_text(encoding="utf-8")
+    assert re.search(r"x:answer-c1-static_history:[0-9a-f]{8}:1", CostLedger().ledger_path.read_text(encoding="utf-8"))
     assert (tmp_path / "run" / "workers" / "answer-c1-static_history" / "orchestrator.json").is_file()
 
 
@@ -598,3 +610,129 @@ def test_harness_markers_are_masked_with_both_digests_in_the_key(tmp_path: Path)
     assert entry["masked_markers"] == 2 and entry["display_sha256"] != entry["answer_sha256"]
     assert json.loads(key)["answers_with_masked_markers"] == 1
     assert answered["answer_sha256"] not in text
+
+
+# -- verified resume -----------------------------------------------------------
+
+
+def _resumable(tmp_path: Path, launcher: FakeLauncher, **overrides: Any) -> tuple[Bundle, RehearsalRun]:
+    bundle = Bundle(tmp_path / "organizer")
+    first = RehearsalRun(
+        policy=make_policy(),
+        plan=make_plan(),
+        index_path=bundle.index_path,
+        artifact_root=bundle.root,
+        run_root=tmp_path / "run",
+        launcher=launcher,
+    )
+    return bundle, first
+
+
+def _resume(bundle: Bundle, tmp_path: Path, launcher: FakeLauncher, **overrides: Any) -> RehearsalRun:
+    return RehearsalRun(
+        policy=overrides.get("policy", make_policy()),
+        plan=overrides.get("plan", make_plan()),
+        index_path=bundle.index_path,
+        artifact_root=bundle.root,
+        run_root=tmp_path / "run",
+        launcher=launcher,
+        resume=True,
+    )
+
+
+def test_resume_continues_without_rerunning_finished_phases(tmp_path: Path) -> None:
+    from deepr.observability.cost_ledger import CostLedger
+
+    interrupted = FakeLauncher(lambda spec, _cwd: "interrupt" if spec["worker_id"] == "construct-fresh-c2" else None)
+    bundle, first = _resumable(tmp_path, interrupted)
+    with pytest.raises(KeyboardInterrupt):
+        first.execute()
+    done_before = {(c["acceptance_case_id"], c["arm"]) for c in first.cells}
+    order_before = json.loads(
+        next(
+            line
+            for line in (tmp_path / "run" / "events.jsonl").read_text().splitlines()
+            if '"c2"' in line and "case_arm_order" in line
+        )
+    )["order"]
+
+    fresh = FakeLauncher()
+    resumed = _resume(bundle, tmp_path, fresh)
+    summary = resumed.execute()
+    assert summary["status"] == "operationally_complete" and summary["terminal_cells"] == 8, summary["failed_checks"]
+    launched = {spec["worker_id"] for spec in fresh.specs}
+    assert "construct-compiled" not in launched and "maintain-world-2" not in launched
+    assert "construct-fresh-c2" in launched
+    assert not any(f"answer-{case}-{arm}" in launched for case, arm in done_before)
+    assert (tmp_path / "run" / "workers" / "construct-fresh-c2.abandoned-1").is_dir()
+    ledger_text = CostLedger().ledger_path.read_text(encoding="utf-8")
+    assert len(set(re.findall(r"x:construct-fresh-c2:[0-9a-f]{8}:1", ledger_text))) == 2
+    events = [json.loads(line) for line in (tmp_path / "run" / "events.jsonl").read_text().splitlines()]
+    assert [e["event"] for e in events].count("run_started") == 1
+    assert any(e["event"] == "run_resumed" for e in events)
+    assert any(e["event"] == "worker_abandoned" for e in events)
+    assert [e["order"] for e in events if e["event"] == "case_arm_order" and e["case"] == "c2"] == [order_before]
+    assert summary["ledger_reconciled"] is True
+
+
+def test_resume_reuses_a_finished_answer_whose_cell_was_not_written(tmp_path: Path) -> None:
+    interrupted = FakeLauncher(lambda spec, _cwd: "interrupt" if spec["worker_id"] == "construct-fresh-c2" else None)
+    bundle, first = _resumable(tmp_path, interrupted)
+    with pytest.raises(KeyboardInterrupt):
+        first.execute()
+    lost = next((tmp_path / "run" / "cells").rglob("static_history.json"))
+    lost.unlink()
+    fresh = FakeLauncher()
+    summary = _resume(bundle, tmp_path, fresh).execute()
+    assert summary["terminal_cells"] == 8
+    assert "answer-c1-static_history" not in {spec["worker_id"] for spec in fresh.specs}
+    assert lost.is_file()
+
+
+@pytest.mark.parametrize("tamper", ["policy", "plan", "code", "answer", "checkpoint", "missing"])
+def test_resume_refuses_anything_it_cannot_verify(tmp_path: Path, tamper: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    interrupted = FakeLauncher(lambda spec, _cwd: "interrupt" if spec["worker_id"] == "construct-fresh-c2" else None)
+    bundle, first = _resumable(tmp_path, interrupted)
+    with pytest.raises(KeyboardInterrupt):
+        first.execute()
+    overrides: dict[str, Any] = {}
+    if tamper == "policy":
+        overrides["policy"] = make_policy(seed=2)
+    elif tamper == "plan":
+        overrides["plan"] = RehearsalPlan.model_validate(
+            {
+                "schema_version": PLAN_SCHEMA,
+                "cases": [{"case_id": "c1", "source_world_id": "world-1", "question": "Other?"}],
+            }
+        )
+    elif tamper == "code":
+        monkeypatch.setattr(rehearsal_module, "module_hashes", lambda: {"changed": "x"})
+    elif tamper == "answer":
+        answered = next(c for c in first.cells if c["status"] == "answered")
+        (tmp_path / "run" / answered["answer_ref"]).write_text("edited", encoding="utf-8")
+    elif tamper == "checkpoint":
+        (tmp_path / "run" / "checkpoints" / "compiled-w1" / "brief.md").write_text("edited", encoding="utf-8")
+    else:
+        import shutil
+
+        shutil.rmtree(tmp_path / "run")
+    with pytest.raises(ValueError):
+        _resume(bundle, tmp_path, FakeLauncher(), **overrides)
+
+
+def test_resume_refuses_a_finished_run(tmp_path: Path) -> None:
+    bundle, first = _resumable(tmp_path, FakeLauncher())
+    first.execute()
+    with pytest.raises(ValueError, match="already finished"):
+        _resume(bundle, tmp_path, FakeLauncher())
+
+
+def test_a_second_writer_is_refused_while_a_run_holds_its_root(tmp_path: Path) -> None:
+    interrupted = FakeLauncher(lambda spec, _cwd: "interrupt" if spec["worker_id"] == "construct-fresh-c2" else None)
+    bundle, first = _resumable(tmp_path, interrupted)
+    with pytest.raises(ValueError, match="another process"):
+        _resume(bundle, tmp_path, FakeLauncher())
+    with pytest.raises(KeyboardInterrupt):
+        first.execute()
+    # The interrupted run released the root, so a verified resume may now take it.
+    assert _resume(bundle, tmp_path, FakeLauncher()).execute()["status"] == "operationally_complete"

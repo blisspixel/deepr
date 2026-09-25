@@ -112,6 +112,8 @@ strict `deepr eval expert-value` workbook).
 | Evidence retention | Each worker's orchestrator record (exit, timing, usage, memory digests, ledger counts) is written beside its outputs |
 | `$0` accounting | Workers record every attempt before dispatch; the orchestrator mirrors every attempt, including one killed mid-call or interrupted, into the canonical ledger idempotently |
 | Completion | `operationally_complete` requires every planned cell and no failed integrity check; a check with no applicable evidence reports `null`, never a vacuous pass |
+| One writer | An OS-level lock on the run root refuses a second orchestrator; the OS releases it if the holder dies |
+| Interruption | `run --resume` continues an interrupted run only with byte-identical policy, plan and hashed modules. It re-verifies recorded cells, answer bytes and accepted checkpoint digests, keeps finished phases, moves unfinished worker directories aside as abandoned evidence (mirroring their attempts), reuses recorded arm orders and the experts baseline, and gives every launch a unique attempt id so reruns never reuse a request id |
 | Blinding | Instructions are identical for every arm; memory is rendered without harness identifiers; the packet masks harness markers an answer echoes (recording both digests), omits answer digests, refuses arm identifiers, and lists missing cells in the key; the key must live outside the packet directory |
 
 Workbook assembly fills execution facts from recorded evidence: answer and

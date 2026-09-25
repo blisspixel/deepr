@@ -298,6 +298,7 @@ class RehearsalRun:
         launcher: Launcher = subprocess_launcher,
         runtime: dict[str, Any] | None = None,
         on_event: Callable[[dict[str, Any]], None] | None = None,
+        resume: bool = False,
     ) -> None:
         self.policy, self.plan, self.launcher = policy, plan, launcher
         self.on_event = on_event
@@ -311,17 +312,32 @@ class RehearsalRun:
         if len({c.case_id.casefold() for c in plan.cases}) != len(plan.cases):
             raise ValueError("plan case ids must be unique, ignoring letter case")
         target = run_root.absolute()
-        if target.exists():
-            raise FileExistsError("rehearsal run root must be new")
         if target.resolve().is_relative_to(self.artifact_root):
             raise ValueError("rehearsal run root must be outside the preparation artifact root")
-        target.mkdir(parents=True)
         self.root = target
-        self.run_id = secrets.token_hex(8)
         self.events = target / "events.jsonl"
         self.cells: list[dict[str, Any]] = []
         self.workers: list[dict[str, Any]] = []
         self.checkpoint_hashes: dict[str, str] = {}
+        self.finished_workers: dict[str, dict[str, Any]] = {}
+        self.arm_orders: dict[str, list[str]] = {}
+        self.experts_baseline: str | None = None
+        self.resumed = resume
+        if resume:
+            if not target.is_dir():
+                raise ValueError("resume needs an existing rehearsal run root")
+            self._lock = _exclusive_run_lock(target)
+            try:
+                self._load_existing(runtime)
+            except BaseException:
+                self._lock.release()
+                raise
+            return
+        if target.exists():
+            raise FileExistsError("rehearsal run root must be new; pass resume to continue an interrupted run")
+        target.mkdir(parents=True)
+        self._lock = _exclusive_run_lock(target)
+        self.run_id = secrets.token_hex(8)
         self._write(
             "run.json",
             {
@@ -334,6 +350,89 @@ class RehearsalRun:
         )
         self._write("policy.json", policy.model_dump())
         self._write("plan.json", plan.model_dump())
+
+    def _load_existing(self, runtime: dict[str, Any] | None) -> None:
+        """Verify an interrupted run and restore its state; never assume a file is valid.
+
+        Resume requires byte-identical policy, plan and hashed modules, so one
+        run never mixes code versions. Finished phases keep their records and
+        are not rerun. A worker directory without an orchestrator record was
+        interrupted: it is moved aside as abandoned evidence, its recorded
+        attempts are mirrored to the ledger, and the phase runs again.
+        """
+        if not (self.root / "run.json").is_file():
+            raise ValueError("resume needs an existing rehearsal run root")
+        record = json.loads((self.root / "run.json").read_text(encoding="utf-8"))
+        if record["application"]["module_sha256"] != module_hashes():
+            raise ValueError("rehearsal code changed since this run started; start a new run root")
+        stored_policy = json.loads((self.root / "policy.json").read_text(encoding="utf-8"))
+        stored_plan = json.loads((self.root / "plan.json").read_text(encoding="utf-8"))
+        if stored_policy != self.policy.model_dump() or stored_plan != self.plan.model_dump():
+            raise ValueError("resume needs the run's original policy and plan")
+        summary = _json_object(self.root / "summary.json") or {}
+        if summary.get("status") == "operationally_complete":
+            raise ValueError("this run already finished; nothing to resume")
+        self.run_id = record["run_id"]
+        events = _jsonl(self.events)
+        started = next((e for e in events if e["event"] == "run_started"), {})
+        self.experts_baseline = started.get("experts_fingerprint")
+        for event in events:
+            if event["event"] == "case_arm_order":
+                self.arm_orders.setdefault(event["case"], list(event["order"]))
+            elif event["event"] == "checkpoint_accepted":
+                self.checkpoint_hashes[event["checkpoint"]] = event["sha256"]
+        self._verify_checkpoints()
+        self._verify_cells()
+        self._restore_workers()
+        self.event("run_resumed", cells=len(self.cells), finished_workers=len(self.finished_workers), runtime=runtime)
+
+    def _verify_checkpoints(self) -> None:
+        for name, digest in self.checkpoint_hashes.items():
+            if tree_digest(self.root / "checkpoints" / name) != digest:
+                raise ValueError(f"accepted checkpoint {name} changed; start a new run root")
+        base = self.root / "checkpoints"
+        for path in sorted(base.iterdir()) if base.is_dir() else []:
+            if path.is_dir() and path.name not in self.checkpoint_hashes and ".abandoned-" not in path.name:
+                path.rename(_abandoned_name(path))
+
+    def _verify_cells(self) -> None:
+        questions = {c.case_id: _sha(c.question.encode("utf-8")) for c in self.plan.cases}
+        for path in sorted((self.root / "cells").rglob("*.json")) if (self.root / "cells").is_dir() else []:
+            cell = json.loads(path.read_text(encoding="utf-8"))
+            if cell.get("question_sha256") != questions.get(cell["acceptance_case_id"]):
+                raise ValueError(f"recorded cell {path.name} does not match the plan")
+            if (
+                cell["status"] == "answered"
+                and _sha((self.root / cell["answer_ref"]).read_bytes()) != cell["answer_sha256"]
+            ):
+                raise ValueError(f"answer bytes changed for {cell['acceptance_case_id']}/{cell['arm']}")
+            self.cells.append(cell)
+
+    def _restore_workers(self) -> None:
+        base = self.root / "workers"
+        for path in sorted(base.iterdir()) if base.is_dir() else []:
+            if not path.is_dir() or ".abandoned-" in path.name:
+                continue
+            finished = _json_object(path / "orchestrator.json")
+            if finished is not None and finished.get("status") != "interrupted":
+                self.finished_workers[path.name] = finished
+                self.workers.append(finished)
+                continue
+            moved = path.rename(_abandoned_name(path))
+            spec = _json_object(moved / "spec.json") or {}
+            record = {
+                "worker_id": moved.name,
+                "phase": spec.get("phase", "unknown"),
+                "status": "abandoned",
+                "usage": _call_usage(moved / "out" / "calls.jsonl"),
+                "wall_seconds": 0.0,
+                "module_sha256": module_hashes(),
+                "worker_ledger_events": len(_jsonl(moved / "costs" / "cost_ledger.jsonl")),
+                "canonical_ledger_events": self._mirror_ledger(moved),
+            }
+            (moved / "orchestrator.json").write_text(json.dumps(record, indent=2, sort_keys=True), encoding="utf-8")
+            self.workers.append(record)
+            self.event("worker_abandoned", worker_id=path.name, moved_to=moved.name)
 
     def _write(self, relative: str, payload: Any) -> None:
         path = self.root / relative
@@ -363,6 +462,8 @@ class RehearsalRun:
         spec: dict[str, Any] = {
             "run_id": self.run_id,
             "worker_id": worker_id,
+            # Unique per launch, so a phase rerun after an interruption never reuses a request id.
+            "attempt_id": secrets.token_hex(4),
             "phase": phase,
             "input_copy": str(worker_dir / "input"),
             "information_cutoff": world.information_cutoff,
@@ -391,6 +492,8 @@ class RehearsalRun:
         question: str | None = None,
     ) -> dict[str, Any]:
         """Run one phase; every outcome, including orchestrator errors, becomes a record."""
+        if worker_id in self.finished_workers:
+            return self.finished_workers[worker_id]
         worker_dir = self.root / "workers" / worker_id
         result: dict[str, Any] = {"status": "failed", "error_type": "OrchestratorError"}
         started = time.monotonic()
@@ -409,6 +512,10 @@ class RehearsalRun:
         # Any failure preparing or launching becomes this phase's recorded terminal cause.
         except Exception as error:
             result.update(status="failed", error_type=type(error).__name__, error=str(error)[:500])
+        except BaseException:
+            # Marked so a resume reruns this phase instead of trusting a half-finished record.
+            result.update(status="interrupted", error_type="Interrupted")
+            raise
         finally:
             self._finish(worker_dir, result, worker_id, phase, world_id, code, started, memory_before)
         return result
@@ -489,12 +596,15 @@ class RehearsalRun:
         if worker.get("status") != "completed" or not source.is_dir():
             return None
         target = self.root / "checkpoints" / name
+        if name in self.checkpoint_hashes and target.is_dir():
+            return target
         try:
             shutil.copytree(source, target)
         except OSError as error:
             self.event("checkpoint_rejected", checkpoint=name, error_type=type(error).__name__)
             return None
         self.checkpoint_hashes[name] = tree_digest(target)
+        self.event("checkpoint_accepted", checkpoint=name, sha256=self.checkpoint_hashes[name])
         return target
 
     def _cell(self, case: RehearsalCase, arm: str, **fields: Any) -> None:
@@ -539,49 +649,66 @@ class RehearsalRun:
         self._cell(case, arm, **fields)
 
     def execute(self) -> dict[str, Any]:
-        self.event("run_started")
         started = time.monotonic()
-        experts_before = _experts_fingerprint()
+        if self.resumed:
+            experts_before = self.experts_baseline
+        else:
+            experts_before = _experts_fingerprint()
+            self.event("run_started", experts_fingerprint=experts_before)
         try:
             first = self.worlds[0].source_world_id
             compiled = self._accept_checkpoint("compiled-w1", self._worker("construct-compiled", "construct", first))
             maintained: Path | None = compiled
             for index, world in enumerate(self.worlds):
-                world_id = world.source_world_id
-                maintenance: dict[str, Any] = {"maintenance_status": "not_applicable"}
-                if index > 0 and maintained is not None:
-                    update = self._worker(f"maintain-{world_id}", "maintain", world_id, checkpoint=maintained)
-                    accepted = self._accept_checkpoint(f"maintained-{world_id}", update)
-                    if accepted is None:
-                        maintenance = {
-                            "maintenance_status": "failed_kept_last_checkpoint",
-                            "maintenance_error": update.get("error_type"),
-                        }
-                    else:
-                        maintained = accepted
-                        maintenance = {"maintenance_status": "completed"}
-                for case in (c for c in self.plan.cases if c.source_world_id == world_id):
-                    arms = list(ARM_ORDER)
-                    secrets.SystemRandom().shuffle(arms)
-                    self.event("case_arm_order", case=case.case_id, order=arms)
-                    for arm in arms:
-                        recorded = len(self.cells)
-                        try:
-                            self._run_arm(case, arm, compiled, maintained, maintenance)
-                        # One broken cell must not end the run; it is recorded as failed.
-                        except Exception as error:
-                            if len(self.cells) == recorded:
-                                self._cell(
-                                    case, arm, status="failed", reason=f"OrchestratorError:{type(error).__name__}"
-                                )
+                maintained, maintenance = self._maintain(index, world.source_world_id, maintained)
+                for case in (c for c in self.plan.cases if c.source_world_id == world.source_world_id):
+                    self._run_case(case, compiled, maintained, maintenance)
         except KeyboardInterrupt:
             self.event("run_interrupted")
             raise
         finally:
-            summary = self.summary(time.monotonic() - started, experts_before)
-            self._write("summary.json", summary)
-            self.event("run_finished", status=summary["status"])
+            try:
+                summary = self.summary(time.monotonic() - started, experts_before)
+                self._write("summary.json", summary)
+                self.event("run_finished", status=summary["status"])
+            finally:
+                self._lock.release()
         return summary
+
+    def _maintain(self, index: int, world_id: str, maintained: Path | None) -> tuple[Path | None, dict[str, Any]]:
+        """Update the maintained checkpoint before a later world; a failure keeps the last one."""
+        if index == 0 or maintained is None:
+            return maintained, {"maintenance_status": "not_applicable"}
+        update = self._worker(f"maintain-{world_id}", "maintain", world_id, checkpoint=maintained)
+        accepted = self._accept_checkpoint(f"maintained-{world_id}", update)
+        if accepted is None:
+            return maintained, {
+                "maintenance_status": "failed_kept_last_checkpoint",
+                "maintenance_error": update.get("error_type"),
+            }
+        return accepted, {"maintenance_status": "completed"}
+
+    def _run_case(
+        self, case: RehearsalCase, compiled: Path | None, maintained: Path | None, maintenance: dict[str, Any]
+    ) -> None:
+        """Every arm of one case, in its recorded or newly drawn order; recorded cells are skipped."""
+        arms = self.arm_orders.get(case.case_id)
+        if arms is None:
+            arms = list(ARM_ORDER)
+            secrets.SystemRandom().shuffle(arms)
+            self.arm_orders[case.case_id] = arms
+            self.event("case_arm_order", case=case.case_id, order=arms)
+        done = {(c["acceptance_case_id"], c["arm"]) for c in self.cells}
+        for arm in arms:
+            if (case.case_id, arm) in done:
+                continue
+            recorded = len(self.cells)
+            try:
+                self._run_arm(case, arm, compiled, maintained, maintenance)
+            # One broken cell must not end the run; it is recorded as failed.
+            except Exception as error:
+                if len(self.cells) == recorded:
+                    self._cell(case, arm, status="failed", reason=f"OrchestratorError:{type(error).__name__}")
 
     def _run_arm(
         self,
@@ -616,6 +743,8 @@ class RehearsalRun:
             by_world.setdefault(cell["source_world_id"], set()).add(key)
         with_memory = [c for c in self.cells if c.get("memory_unchanged") is not None]
         expected_modules = module_hashes()
+        # Only workers that ran far enough to report their imported code can be compared.
+        reported = [w for w in self.workers if "module_sha256" in w]
         calls = sum(w["usage"]["calls"] for w in self.workers)
         ledgers = sum(w.get("worker_ledger_events", 0) for w in self.workers)
         mirrored = sum(w.get("canonical_ledger_events", 0) for w in self.workers)
@@ -623,7 +752,7 @@ class RehearsalRun:
         return {
             "equal_source_inventory_per_world": all(len(v) == 1 for v in by_world.values()) if answered else None,
             "worker_code_matches_orchestrator": (
-                all(w.get("module_sha256") == expected_modules for w in self.workers) if self.workers else None
+                all(w["module_sha256"] == expected_modules for w in reported) if reported else None
             ),
             "consultation_memory_unchanged": all(c["memory_unchanged"] for c in with_memory) if with_memory else None,
             "frozen_checkpoints_unchanged": (
@@ -689,6 +818,26 @@ def _reported_outcome(code: int, reported: dict[str, Any] | None, pending: dict[
     if reported.get("status") == "completed":
         merged.pop("error_type", None)
     return merged
+
+
+def _exclusive_run_lock(root: Path) -> Any:
+    """Hold the run root for one writer; the OS releases it if the holder dies."""
+    from filelock import FileLock, Timeout
+
+    lock = FileLock(str(root / ".run.lock"), timeout=0)
+    try:
+        lock.acquire()
+    except Timeout as error:
+        raise ValueError("another process is running this rehearsal run root") from error
+    return lock
+
+
+def _abandoned_name(path: Path) -> Path:
+    """A new sibling name that preserves an interrupted directory as evidence."""
+    index = 1
+    while (candidate := path.with_name(f"{path.name}.abandoned-{index}")).exists():
+        index += 1
+    return candidate
 
 
 def _json_object(path: Path) -> dict[str, Any] | None:
