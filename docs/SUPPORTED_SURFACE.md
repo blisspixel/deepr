@@ -278,21 +278,27 @@ must not be described as usable capacity.
   retain their execution gates even when a wallet is funded.
 - Expert councils, task planning contracts, and approval flows. Standalone
   metered expert chat is gated as described under Visible Or Planned Only.
-- `deepr eval expert-value-rehearsal plan|run|blind|bind-labels` runs the
-  local four-arm operational rehearsal on the owned local Ollama model at `$0`.
-  `plan` copies only case questions. `run` refuses before any work unless the
-  installed model digest, cloud-disabled status and a new run root match the
-  frozen policy. Each construct, maintain or answer phase runs in its own
-  worker process with a newly materialized and verified source copy, an
-  allowlisted environment without credentials or dotenv loading, and its own
-  data and cost roots. Construction and maintenance never receive a question.
-  Answers read a private copy of a frozen checkpoint, hashed before and after.
-  Every cell ends answered, failed or blocked, and every call is recorded in
-  the worker and canonical ledgers. `blind` writes a reviewer packet without
-  arm identity and a separate private key; `bind-labels` checks one label per
-  answer against exact answer bytes. Loopback network access remains available
-  to workers, so this is not an OS sandbox. No score, reviewer identity,
-  winner or value claim is produced.
+- `deepr eval expert-value-rehearsal plan|run|blind|bind-labels|workbook`
+  runs the local four-arm operational rehearsal on the owned local Ollama model
+  at `$0`. `plan` copies only case questions. `run` refuses before any work
+  unless the installed model digest, cloud-disabled status, a recorded warm-up
+  throughput floor and a new run root all pass. Each construct, maintain or
+  answer phase runs in its own worker process with a newly materialized and
+  verified source copy, an allowlisted environment without credentials or
+  dotenv loading, and its own data and cost roots. Construction and maintenance
+  never receive a question. Answers use identical instructions for every arm,
+  read a private copy of a frozen checkpoint hashed before and after, and are
+  bound to their question digest. Every cell ends answered, failed or blocked,
+  and every attempt is recorded in the worker and canonical ledgers.
+  `operationally_complete` requires every planned cell and no failed integrity
+  check. `blind` writes a reviewer packet without arm identity, masks harness
+  markers an answer echoes, and keeps a private key outside the packet
+  directory; `bind-labels` checks one label per answer against exact answer
+  bytes; `workbook` assembles the strict `deepr eval expert-value` workbook from
+  recorded execution and bound labels, and fills the protocol attestation only
+  when the operator supplies their identity. Loopback network access remains
+  available to workers, so this is not an OS sandbox. No score, reviewer
+  identity, winner or value claim is produced.
 - `deepr eval consult --structured-local` is an eval-only owned-local graph. It
   freezes selected expert packets, generates independent question-specific
   positions, requires every branch, and performs one local synthesis under

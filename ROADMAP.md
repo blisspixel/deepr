@@ -125,6 +125,16 @@ interrupted after one checkpoint because an unrelated GPU workload cut local
 generation to about 0.25 tokens per second; it is preserved, and `run` now
 refuses when a recorded warm-up is too slow.
 
+- [x] **2026-09-24 finding, fixed:** study prompts embedded the sanitizer
+  result's Python repr instead of its delimited text, so every local study
+  since the untrusted-content quarantine landed saw each source three times
+  with escaped newlines. That could inflate prompts and cost grounded anchors.
+  `build_study_prompt` now uses the quarantine boundary directly, with a
+  regression test. Found while testing the rehearsal harness end to end.
+- [ ] Re-examine the [Python exemplar](docs/validation/python-engineering-2026-09-20.md)
+  with the corrected study prompt before attributing its failed guidance to
+  other causes. Earlier study outputs and briefs stay preserved as pre-fix
+  evidence.
 - [ ] Execute the 48-cell operational rehearsal on the frozen local policy and
   publish its dated validation record, including failures.
 - [ ] Human review of the blinded packet, with reviewer agreement and suspected

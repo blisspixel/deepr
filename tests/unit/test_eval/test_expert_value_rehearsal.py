@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +24,7 @@ from deepr.evals.expert_value_rehearsal import (
 )
 from tests.unit.test_eval.test_expert_value_sources import Bundle
 
+QUESTIONS = {"c1": "First question?", "c2": "Second question?"}
 ARMS = {"fresh_research", "static_history", "compiled_expert", "maintained_expert"}
 
 
@@ -79,6 +82,17 @@ class FakeLauncher:
             return -1
         if action == "crash":
             return 3
+        if action == "launcher-error":
+            raise RuntimeError("launcher broke")
+        if action == "interrupt":
+            (cwd / "costs").mkdir(exist_ok=True)
+            (cwd / "costs" / "cost_ledger.jsonl").write_text(
+                json.dumps({"request_id": f"x:{spec['worker_id']}:1", "metadata": {}}) + "\n", encoding="utf-8"
+            )
+            raise KeyboardInterrupt
+        if action == "corrupt-result":
+            (out / "result.json").write_text("{not json", encoding="utf-8")
+            return 0
         with open(out / "calls.jsonl", "w", encoding="utf-8") as handle:
             handle.write(
                 json.dumps(
@@ -92,7 +106,12 @@ class FakeLauncher:
             )
         costs = cwd / "costs"
         costs.mkdir(exist_ok=True)
-        (costs / "cost_ledger.jsonl").write_text('{"cost_usd": 0}\n', encoding="utf-8")
+        attempts = [{"request_id": f"x:{spec['worker_id']}:1", "cost_usd": 0, "metadata": {"prompt_sha256": "p"}}]
+        if action == "killed-mid-call":
+            attempts.append({"request_id": f"x:{spec['worker_id']}:2", "cost_usd": 0, "metadata": {}})
+        (costs / "cost_ledger.jsonl").write_text(
+            "".join(json.dumps(item) + "\n" for item in attempts), encoding="utf-8"
+        )
         status = "failed" if action == "fail" else "completed"
         if status == "completed" and spec["phase"] == "answer":
             (out / "answer.md").write_text(f"Answer to {spec['question']}", encoding="utf-8")
@@ -102,10 +121,22 @@ class FakeLauncher:
             checkpoint = out / "checkpoint"
             checkpoint.mkdir()
             (checkpoint / "brief.md").write_text(f"memory from {spec['worker_id']}", encoding="utf-8")
-        package = str(Path(rehearsal_module.__file__).resolve().parents[1])
-        (out / "result.json").write_text(
-            json.dumps({"status": status, "error_type": "Fake" if action else None, "deepr_package": package})
-        )
+        result: dict[str, Any] = {
+            "status": status,
+            "error_type": "Fake" if action == "fail" else None,
+            "module_sha256": {"x": "y"} if action == "other-code" else rehearsal_module.module_hashes(),
+            "finished_at": datetime.now(UTC).isoformat(),
+        }
+        if status == "completed" and spec["phase"] == "answer":
+            manifest = json.loads((Path(spec["input_copy"]) / "manifest.json").read_text(encoding="utf-8"))
+            question = "a different question" if action == "wrong-question" else spec["question"]
+            result.update(
+                question_sha256=hashlib.sha256(question.encode("utf-8")).hexdigest(),
+                source_digests=[source["sha256"] for source in manifest["sources"]],
+                stop_reason="length" if action == "truncated" else "stop",
+                answer_truncated=action == "truncated",
+            )
+        (out / "result.json").write_text(json.dumps(result))
         return 0 if status == "completed" else 1
 
 
@@ -191,7 +222,7 @@ def test_fresh_construction_failure_timeout_and_crash_are_terminal(tmp_path: Pat
     rehearsal, summary = run(tmp_path, FakeLauncher(behavior))
     assert cell(rehearsal, "c1", "fresh_research") | {"status": "blocked"} == cell(rehearsal, "c1", "fresh_research")
     assert cell(rehearsal, "c2", "static_history")["reason"] == "WorkerTimeout"
-    assert cell(rehearsal, "c2", "compiled_expert")["reason"] == "WorkerExited"
+    assert cell(rehearsal, "c2", "compiled_expert")["reason"] == "WorkerResultMissing"
     assert summary["failed"] == 2 and summary["blocked"] == 1 and summary["terminal_cells"] == 8
 
 
@@ -289,7 +320,7 @@ def blinded(tmp_path: Path, launcher: FakeLauncher | None = None) -> tuple[Path,
     criteria = reviewer_criteria(
         {
             "acceptance_cases": [
-                {"id": c, "question": f"{c}?", "success_criteria": ["s"], "failure_conditions": ["f"]}
+                {"id": c, "question": QUESTIONS[c], "success_criteria": ["s"], "failure_conditions": ["f"]}
                 for c in ("c1", "c2")
             ]
         },
@@ -375,7 +406,7 @@ def test_answer_changed_before_blinding_is_refused(tmp_path: Path) -> None:
     (tmp_path / "run" / answered["answer_ref"]).write_text("edited", encoding="utf-8")
     assert first["schema_version"].endswith("-v1")
     with pytest.raises(ValueError, match="answer bytes changed"):
-        build_blind_assignment(tmp_path / "run", {c: {} for c in ("c1", "c2")})
+        build_blind_assignment(tmp_path / "run", {c: {"question": q} for c, q in QUESTIONS.items()})
 
 
 def test_missing_criteria_and_empty_run_are_refused(tmp_path: Path) -> None:
@@ -405,4 +436,165 @@ def test_arm_identifier_in_answer_text_blocks_the_packet(tmp_path: Path) -> None
     answered["answer_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
     cell_path.write_text(json.dumps(answered), encoding="utf-8")
     with pytest.raises(ValueError, match="arm identifiers"):
-        build_blind_assignment(tmp_path / "run", {c: {"question": c} for c in ("c1", "c2")})
+        build_blind_assignment(tmp_path / "run", {c: {"question": q} for c, q in QUESTIONS.items()})
+
+
+def test_attempt_killed_mid_call_still_reaches_the_canonical_ledger(tmp_path: Path) -> None:
+    from deepr.observability.cost_ledger import CostLedger
+
+    launcher = FakeLauncher(lambda spec, _cwd: "killed-mid-call" if spec["worker_id"] == "construct-compiled" else None)
+    _, summary = run(tmp_path, launcher)
+    assert summary["attempts_without_completion_record"] == 1
+    assert summary["worker_ledger_events"] == summary["canonical_ledger_events"] == summary["model_calls"] + 1
+    assert summary["ledger_reconciled"] is True
+    events = CostLedger().ledger_path.read_text(encoding="utf-8")
+    assert "x:construct-compiled:2" in events and "no_completion_record" in events
+
+
+# -- hardening regressions -----------------------------------------------------
+
+
+def test_launcher_error_and_corrupt_result_become_failed_cells_and_the_run_continues(tmp_path: Path) -> None:
+    def behavior(spec: dict[str, Any], _cwd: Path) -> str | None:
+        return {"answer-c1-static_history": "launcher-error", "answer-c2-static_history": "corrupt-result"}.get(
+            spec["worker_id"]
+        )
+
+    rehearsal, summary = run(tmp_path, FakeLauncher(behavior))
+    assert cell(rehearsal, "c1", "static_history")["reason"] == "RuntimeError"
+    assert cell(rehearsal, "c2", "static_history")["reason"] == "WorkerResultMissing"
+    assert summary["terminal_cells"] == 8 and summary["failed"] == 2
+    record = json.loads((tmp_path / "run" / "workers" / "answer-c1-static_history" / "orchestrator.json").read_text())
+    assert record["status"] == "failed" and record["error"] == "launcher broke"
+
+
+def test_question_mismatch_and_truncation_are_recorded(tmp_path: Path) -> None:
+    def behavior(spec: dict[str, Any], _cwd: Path) -> str | None:
+        return {"answer-c1-compiled_expert": "wrong-question", "answer-c2-compiled_expert": "truncated"}.get(
+            spec["worker_id"]
+        )
+
+    rehearsal, summary = run(tmp_path, FakeLauncher(behavior))
+    assert cell(rehearsal, "c1", "compiled_expert")["reason"] == "QuestionMismatch"
+    truncated = cell(rehearsal, "c2", "compiled_expert")
+    assert truncated["status"] == "answered" and truncated["answer_truncated"] is True
+    assert summary["truncated_answers"] == 1
+
+
+def test_interrupt_still_mirrors_the_attempt_and_writes_a_summary(tmp_path: Path) -> None:
+    from deepr.observability.cost_ledger import CostLedger
+
+    launcher = FakeLauncher(lambda spec, _cwd: "interrupt" if spec["worker_id"] == "answer-c1-static_history" else None)
+    with pytest.raises(KeyboardInterrupt):
+        run(tmp_path, launcher)
+    summary = json.loads((tmp_path / "run" / "summary.json").read_text())
+    assert summary["status"] == "incomplete" and summary["terminal_cells"] < 8
+    assert "x:answer-c1-static_history:1" in CostLedger().ledger_path.read_text(encoding="utf-8")
+    assert (tmp_path / "run" / "workers" / "answer-c1-static_history" / "orchestrator.json").is_file()
+
+
+def test_unreconciled_ledger_or_foreign_code_makes_the_run_incomplete(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original = RehearsalRun._mirror_ledger
+
+    def flaky(self: RehearsalRun, worker_dir: Path) -> int:
+        if worker_dir.name == "answer-c1-static_history":
+            raise OSError("ledger locked")
+        return original(self, worker_dir)
+
+    monkeypatch.setattr(RehearsalRun, "_mirror_ledger", flaky)
+    _, summary = run(tmp_path / "a", FakeLauncher())
+    assert summary["ledger_reconciled"] is False and summary["status"] == "incomplete"
+    assert "ledger_reconciled" in summary["failed_checks"]
+    monkeypatch.setattr(RehearsalRun, "_mirror_ledger", original)
+    launcher = FakeLauncher(lambda spec, _cwd: "other-code" if spec["worker_id"] == "construct-compiled" else None)
+    _, summary = run(tmp_path / "b", launcher)
+    assert summary["worker_code_matches_orchestrator"] is False and summary["status"] == "incomplete"
+
+
+def test_canonical_expert_writes_during_the_run_are_detected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    experts = tmp_path / "experts"
+    (experts / "someone").mkdir(parents=True)
+    (experts / "someone" / "profile.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("DEEPR_EXPERTS_PATH", str(experts))
+
+    def behavior(spec: dict[str, Any], _cwd: Path) -> str | None:
+        if spec["worker_id"] == "answer-c2-static_history":
+            (experts / "someone" / "profile.json").write_text('{"changed": true}', encoding="utf-8")
+        return None
+
+    _, summary = run(tmp_path, FakeLauncher(behavior))
+    assert summary["canonical_experts_unchanged"] is False
+    assert summary["status"] == "incomplete"
+
+
+def test_checks_without_evidence_are_none_not_vacuous_passes(tmp_path: Path) -> None:
+    _, summary = run(tmp_path, FakeLauncher(lambda spec, _cwd: "fail"))
+    assert summary["answered"] == 0
+    assert summary["consultation_memory_unchanged"] is None
+    assert summary["equal_source_inventory_per_world"] is None
+    assert summary["frozen_checkpoints_unchanged"] is None
+    assert summary["status"] == "operationally_complete"  # every cell terminal and no check failed
+    assert summary["failed"] + summary["blocked"] == 8
+
+
+def test_case_ids_differing_only_by_letter_case_are_refused(tmp_path: Path) -> None:
+    bundle = Bundle(tmp_path / "organizer")
+    plan = RehearsalPlan.model_validate(
+        {
+            "schema_version": PLAN_SCHEMA,
+            "cases": [
+                {"case_id": "Case", "source_world_id": "world-1", "question": "q"},
+                {"case_id": "case", "source_world_id": "world-1", "question": "q"},
+            ],
+        }
+    )
+    with pytest.raises(ValueError, match="letter case"):
+        RehearsalRun(
+            policy=make_policy(),
+            plan=plan,
+            index_path=bundle.index_path,
+            artifact_root=bundle.root,
+            run_root=tmp_path / "r",
+        )
+
+
+def test_blind_requires_a_finished_run_and_lists_missing_cells(tmp_path: Path) -> None:
+    run(tmp_path, FakeLauncher())
+    summary = tmp_path / "run" / "summary.json"
+    criteria = {c: {"question": q} for c, q in QUESTIONS.items()}
+    removed = next((tmp_path / "run" / "cells").rglob("static_history.json"))
+    removed.unlink()
+    _, key = build_blind_assignment(tmp_path / "run", criteria)
+    parsed = json.loads(key)
+    assert parsed["planned_cells"] == 8 and parsed["terminal_cells"] == 7
+    assert [e["status"] for e in parsed["non_reviewable"]] == ["missing"]
+    summary.unlink()
+    with pytest.raises(ValueError, match="no summary"):
+        build_blind_assignment(tmp_path / "run", criteria)
+
+
+def test_harness_markers_are_masked_with_both_digests_in_the_key(tmp_path: Path) -> None:
+    run(tmp_path, FakeLauncher())
+    answered = next(c for c in load_cells(tmp_path / "run") if c["status"] == "answered")
+    path = tmp_path / "run" / answered["answer_ref"]
+    path.write_text("Per the Prior Notes (synopsis-0123456789abcdef), yes.", encoding="utf-8")
+    answered["answer_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+    cell_path = (
+        tmp_path
+        / "run"
+        / "cells"
+        / answered["source_world_id"]
+        / answered["acceptance_case_id"]
+        / f"{answered['arm']}.json"
+    )
+    cell_path.write_text(json.dumps(answered), encoding="utf-8")
+    packet, key = build_blind_assignment(tmp_path / "run", {c: {"question": q} for c, q in QUESTIONS.items()})
+    text = packet.decode("utf-8")
+    assert "synopsis-0123456789abcdef" not in text and "Prior Notes" not in text
+    assert "[harness marker removed]" in text
+    entry = next(e for e in json.loads(key)["entries"] if e["answer_sha256"] == answered["answer_sha256"])
+    assert entry["masked_markers"] == 2 and entry["display_sha256"] != entry["answer_sha256"]
+    assert json.loads(key)["answers_with_masked_markers"] == 1
+    assert answered["answer_sha256"] not in text

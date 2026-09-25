@@ -182,7 +182,7 @@ def build_study_prompt(lens: StudyLens, material: list[tuple[CorpusEntry, str]])
         if entry.title:
             header += f" | title={entry.title}"
         header += " ====="
-        blocks.append(f"{header}\n{sanitize_untrusted_content(text)}")
+        blocks.append(f"{header}\n{sanitize_untrusted_content(text).delimited}")
 
     return (
         f"{lens.prompt}\n\n"

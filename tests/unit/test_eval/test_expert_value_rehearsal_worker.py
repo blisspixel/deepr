@@ -25,6 +25,8 @@ class FakeBackend:
     prompts: list[str] = []
     digest = DIGEST
     fail_on: str | None = None
+    answer_text = "Grounded answer citing [S-abc]."
+    stop_reason = "stop"
 
     def __init__(self, **_kwargs: Any) -> None:
         self.last_attested_digest = ""
@@ -36,7 +38,7 @@ class FakeBackend:
         if FakeBackend.fail_on and FakeBackend.fail_on in prompt:
             raise RuntimeError("fake local failure")
         if "Question:" in prompt:
-            text = "Grounded answer citing [S-abc]."
+            text = FakeBackend.answer_text
         elif '"orientation"' in prompt:
             ids = sorted(set(re.findall(r"(?:synopsis|change)-[0-9a-f]{16}", prompt)))
             text = json.dumps(
@@ -54,7 +56,7 @@ class FakeBackend:
         return SimpleNamespace(
             message=SimpleNamespace(content=text),
             raw_response={"prompt_eval_count": 10, "eval_count": 3},
-            stop_reason="stop",
+            stop_reason=FakeBackend.stop_reason,
         )
 
 
@@ -87,6 +89,7 @@ def phase(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("DEEPR_COST_DATA_DIR", str(tmp_path / "costs"))
     monkeypatch.setattr(ollama_backend, "NativeOllamaInvestigationBackend", FakeBackend)
     FakeBackend.prompts, FakeBackend.digest, FakeBackend.fail_on = [], DIGEST, None
+    FakeBackend.answer_text, FakeBackend.stop_reason = "Grounded answer citing [S-abc].", "stop"
     bundle = Bundle(tmp_path / "organizer")
 
     def run(name: str, phase_name: str, world: str = "world-2", **extra: Any) -> dict[str, Any]:
@@ -135,8 +138,10 @@ def test_construct_then_maintain_then_answer_with_memory(phase) -> None:
     assert answered["memory_truncated"] is True
     assert answered["source_count"] == 2
     prompt = FakeBackend.prompts[-1]
-    assert "[memory truncated at the frozen limit]" in prompt
-    assert prompt.index("EXPERT MEMORY") < prompt.index("SOURCE PACKET") < prompt.index("Question:")
+    assert "truncated" not in prompt and "rehearsal-expert" not in prompt
+    assert not re.search(r"(synopsis|change)-[0-9a-f]{16}", prompt)
+    assert prompt.index("PRIOR NOTES") < prompt.index("SOURCE PACKET") < prompt.index("Question:")
+    assert answered["question_sha256"] and len(answered["source_digests"]) == 2
     assert (answered["out"] / "answer.md").read_text(encoding="utf-8") == "Grounded answer citing [S-abc]."
     calls = [json.loads(line) for line in (answered["out"] / "calls.jsonl").read_text().splitlines()]
     assert calls[0]["options"]["seed"] == 1 and calls[0]["observed_digest"] == DIGEST
@@ -148,7 +153,7 @@ def test_answer_without_memory_has_no_memory_block(phase) -> None:
     answered = phase("static", "answer", question="Which version applies?")
     assert answered["status"] == "completed"
     assert answered["memory_prefix_sha256"] is None
-    assert "EXPERT MEMORY" not in FakeBackend.prompts[-1]
+    assert "PRIOR NOTES" not in FakeBackend.prompts[-1]
 
 
 def test_construction_refuses_a_question(phase) -> None:
@@ -188,3 +193,43 @@ def test_environment_guard_refuses_dotenv_and_credentials() -> None:
 def test_unknown_phase_is_a_terminal_failure(phase) -> None:
     result = phase("odd", "judge")
     assert result["status"] == "failed" and result["model_calls"] == 0
+
+
+def test_instructions_are_identical_with_and_without_memory() -> None:
+    sources = [("a" * 64, "Source text.")]
+    with_memory = worker.render_answer_prompt("Q?", "2026-01-01", sources, "notes")
+    without = worker.render_answer_prompt("Q?", "2026-01-01", sources, None)
+    assert with_memory.splitlines()[0] == without.splitlines()[0]
+    assert "memory" not in without.lower()
+
+
+def test_neutral_memory_and_line_boundary_truncation() -> None:
+    brief = "\n".join(
+        [
+            "# rehearsal-expert: brief",
+            "- Rests on: A (synopsis-0123456789abcdef); B (change-fedcba9876543210)",
+            "last line",
+        ]
+    )
+    neutral = worker.neutral_memory(brief)
+    assert neutral.splitlines() == ["# Prior notes: brief", "- Rests on: A; B", "last line"]
+    cut, truncated = worker.render_memory_prefix(neutral, 30)
+    assert truncated is True and cut == "# Prior notes: brief"
+    assert worker.render_memory_prefix("short", 30) == ("short", False)
+
+
+def test_empty_answer_fails_and_length_stop_is_flagged(phase) -> None:
+    FakeBackend.answer_text = "   "
+    empty = phase("empty", "answer", question="q")
+    assert empty["status"] == "failed" and "empty answer" in empty["error"]
+    assert not (empty["out"] / "answer.md").exists()
+    FakeBackend.answer_text, FakeBackend.stop_reason = "Partial answer", "length"
+    cut = phase("cut", "answer", question="q")
+    assert cut["status"] == "completed" and cut["answer_truncated"] is True and cut["stop_reason"] == "length"
+
+
+def test_worker_reports_its_module_hashes(phase) -> None:
+    from deepr.evals.expert_value_rehearsal import module_hashes
+
+    result = phase("hashes", "answer", question="q")
+    assert result["module_sha256"] == module_hashes()

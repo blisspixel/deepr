@@ -326,6 +326,18 @@ class TestPrompt:
         assert "reconciler applies desired state" in prompt
         assert LENSES["adversarial"].output_field in prompt
 
+    def test_source_text_appears_once_verbatim_inside_the_quarantine_boundary(self, tmp_path):
+        """Regression: the prompt embedded the sanitizer result's repr, tripling and escaping the text."""
+        store = CorpusStore("Prompt Expert", storage_dir=tmp_path / "corpus")
+        text = "First line of the source.\nSecond line keeps its break."
+        store.add(text, origin_key="source:one", title="One")
+        prompt = build_study_prompt(LENSES["synopsis"], store.load_study_material())
+        assert "UntrustedContentResult(" not in prompt
+        assert prompt.count("First line of the source.") == 1
+        assert "First line of the source.\nSecond line keeps its break." in prompt
+        assert prompt.index("DEEPR_UNTRUSTED_CONTENT_BEGIN") < prompt.index("First line of the source.")
+        assert prompt.index("First line of the source.") < prompt.index("DEEPR_UNTRUSTED_CONTENT_END")
+
 
 class TestRunStudy:
     @pytest.mark.asyncio
