@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.50.21-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.21)
+[![Version](https://img.shields.io/badge/version-2.50.22-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.22)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -218,6 +218,12 @@ eras and published Agent Plugins `1.0.0`. See the
 for tested behavior and the distinction from draft standards and host certification.
 
 ## Direction
+
+v2.50.22 adds `deepr eval expert-value-rehearsal`: the local four-arm
+rehearsal with isolated worker inputs, blinded review binding, verified
+resume and assembly of the value workbook, at `$0`. It also repairs local
+study prompts, which had repeated every source three times. No review or
+value result is claimed; the full run is pending.
 
 v2.50.21 adds a local-only fleet-seat profile (`deepr mcp seat-profile`)
 so an external harness or host-side router can consult experts without a

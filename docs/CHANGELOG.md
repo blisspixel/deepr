@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.22] - 2026-09-25
+
+This release packages the S0 rehearsal harness and a local study-prompt
+repair. It adds no spend, mutation or remote authority, and it reports no
+review, score or value result: the full 48-cell run and its human review are
+still pending.
+
 ### Added
 
 - `deepr eval expert-value-rehearsal plan|run|blind|bind-labels|workbook`
