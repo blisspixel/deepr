@@ -109,6 +109,11 @@ def plan_command(blueprint: Path, placement: Path, output: Path) -> None:
     show_default=True,
     help="Refuse to start when a short $0 warm-up generation is slower than this.",
 )
+@click.option(
+    "--resume",
+    is_flag=True,
+    help="Continue an interrupted run root after verifying it; requires the same policy, plan and code.",
+)
 @click.option("--json", "json_output", is_flag=True, help="Emit the run summary as JSON.")
 def run_command(
     policy_path: Path,
@@ -117,6 +122,7 @@ def run_command(
     artifact_root: Path,
     run_root: Path,
     min_tokens_per_second: float,
+    resume: bool,
     json_output: bool,
 ) -> None:
     """Execute all cells on the owned local model; local calls are recorded at $0.
@@ -141,6 +147,7 @@ def run_command(
             run_root=run_root,
             runtime=runtime,
             on_event=None if json_output else _progress(len(plan.cases) * 4),
+            resume=resume,
         )
     except (
         OSError,

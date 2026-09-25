@@ -64,6 +64,26 @@ escaped newlines. The morning attempt's prompts confirm it affected real local
 studies. It is fixed with a regression test; earlier study outputs stay
 preserved as pre-fix evidence.
 
+## Second attempt: interrupted by the host
+
+Run root `expert-value-rehearsal-2026-09-24-r2`, code `a8fc0f5e` from a clean
+frozen worktree, on the fixed study prompt. The warm-up measured 6.86 tokens
+per second, and live generation held near 7 tokens per second with other GPU
+workloads resident. After 4 of 48 terminal cells, Claude Code stopped the
+background job because the workstation was critically low on memory; an
+unrelated virtual machine held about 29 GB of 64 GB. The four answered cells
+used 10 local calls, all mirrored to the canonical ledger. The attempt is
+preserved with an interruption event and was not resumed: it predates resume
+support, and resume requires identical code.
+
+Consequence: `run --resume` and a single-writer run-root lock. A loopback check
+with real worker processes hard-killed a run after 10 cells mid-construction,
+then resumed it through the CLI: 48 of 48 answered, no duplicate cells, the
+killed construction preserved as abandoned evidence and rerun, and 96 attempts
+matched 96 canonical ledger events. An earlier version of that check exposed
+that a surviving orchestrator and a resume could write one run root at once;
+the lock now refuses the second writer.
+
 ## Full run
 
 Pending. It needs the GPU to itself, uses a new run root, and should run on

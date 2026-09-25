@@ -290,6 +290,10 @@ must not be described as usable capacity.
   read a private copy of a frozen checkpoint hashed before and after, and are
   bound to their question digest. Every cell ends answered, failed or blocked,
   and every attempt is recorded in the worker and canonical ledgers.
+  One OS-level lock admits a single writer per run root. `run --resume`
+  continues an interrupted run only with the same policy, plan and code,
+  after re-verifying recorded cells and checkpoints; unfinished phases are
+  kept as abandoned evidence and rerun.
   `operationally_complete` requires every planned cell and no failed integrity
   check. `blind` writes a reviewer packet without arm identity, masks harness
   markers an answer echoes, and keeps a private key outside the packet

@@ -105,7 +105,8 @@ class _Dispatcher:
         from deepr.observability.cost_ledger import CostLedger
 
         self.policy = spec["policy"]
-        self.worker_id = f"{spec['run_id']}:{spec['worker_id']}"
+        attempt = f":{spec['attempt_id']}" if spec.get("attempt_id") else ""
+        self.worker_id = f"{spec['run_id']}:{spec['worker_id']}{attempt}"
         self.output = output
         self.calls_path = output / "calls.jsonl"
         self.count = 0
