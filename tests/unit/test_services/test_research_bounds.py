@@ -177,8 +177,9 @@ def test_current_gemini_aliases_enforce_provider_output_limit(model: str) -> Non
         ("gemini-2.5-pro", "gemini", 200_001, 1.300005),
         ("gemini-3.1-pro-preview", "gemini", 200_000, 1.04),
         ("gemini-3.1-pro-preview", "gemini", 200_001, 1.960008),
-        ("gpt-5.6", "openai", 272_000, 3.32),
-        ("gpt-5.6", "openai", 272_001, 6.34002),
+        # Reviewed $4/$20 per MTok; above 272K, input is 2x and output 1.5x.
+        ("gpt-5.6", "openai", 272_000, 2.576),
+        ("gpt-5.6", "openai", 272_001, 4.952016),
         ("grok-4.6", "xai", 199_999, 0.919996),
         ("grok-4.6", "xai", 200_000, 1.84),
         ("grok-4.6", "xai", 200_001, 1.840008),
