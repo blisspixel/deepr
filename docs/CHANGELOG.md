@@ -28,6 +28,13 @@ No new model, paid dispatch, or expert-quality claim is promoted.
 
 ### Changed
 
+- Updated frontend Axios, brace-expansion, source-map-js, selector-parser, and
+  KaTeX dependencies for published advisories. Explicit overrides preserve
+  existing plugin APIs; selector, Markdown math and trust-refusal regressions
+  accompany the regenerated frontend archive. The npm audit reports no known
+  vulnerabilities without suppressions.
+- Regenerated Agent Plugin checksums from the package's required LF bytes,
+  correcting the Windows/Linux mismatch found by hosted CI.
 - Updated the locked multidict, PyJWT, urllib3, virtualenv, and Werkzeug releases
   for published dependency advisories found during the currency review. The
   follow-up dependency audit reports no known vulnerabilities, with no added

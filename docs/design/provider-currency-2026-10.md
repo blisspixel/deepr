@@ -107,6 +107,28 @@ workspace budget does not prove a per-key monthly ceiling or invoice total.
 Unattended dispatch remains quarantined. See [current-key schema](https://openrouter.ai/docs/api/api-reference/api-keys/get-current-api-key)
 and [spend controls](https://openrouter.ai/docs/guides/best-practices/spend-controls).
 
+## Hosted CI dependency and packaging follow-up
+
+The first candidate's hosted frontend audit exposed Axios, brace-expansion and
+source-map-js advisories. Update those within compatible ranges. Three parent
+packages still pin vulnerable transitive releases: Tailwind typography uses
+selector-parser 6.0.10, and rehype-katex plus micromark math use KaTeX 0.16.x. Use a scoped
+selector-parser override for Tailwind and an explicit override for the shared
+KaTeX dependency, at 7.1.6 and 0.18.2 respectively, the published patched
+versions. Downgrading the parent plugins to obsolete versions is rejected.
+Verify the typography consumer's selector API, Markdown math rendering, and
+KaTeX trust refusal as well as the existing build and browser checks. The
+Python dependency audit alone does not qualify the frontend dependency tree.
+References: [Axios release](https://github.com/axios/axios/releases/tag/v1.20.0),
+[selector-parser advisory](https://github.com/advisories/GHSA-rj75-hqrm-r3gf),
+[source-map-js advisory](https://github.com/advisories/GHSA-68fv-2mgg-jv7q), and
+[KaTeX advisory](https://github.com/advisories/GHSA-238p-pmpm-9mq7).
+
+Hosted plugin validation also exposed a checksum generated from CRLF working
+bytes that Git normalizes to LF. Regenerate the package checksum from its
+mandated LF content, then verify the archive on both platforms. No checksum
+validation is relaxed.
+
 ## Alternatives and validation
 
 Changing all defaults to the newest names would confound the frozen continuity
