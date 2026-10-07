@@ -81,7 +81,7 @@ class TestAliasResolution:
     @pytest.mark.parametrize(
         ("alias", "model", "input_rate", "output_rate", "cached_rate"),
         [
-            ("gpt-5.6", "gpt-5.6-sol", 5.00, 30.00, 0.50),
+            ("gpt-5.6", "gpt-5.6-sol", 4.00, 20.00, 0.40),
             ("grok-code-fast-1", "grok-build-0.1", 1.00, 2.00, 0.20),
             ("grok-code-fast-1-0825", "grok-build-0.1", 1.00, 2.00, 0.20),
         ],
@@ -135,3 +135,22 @@ class TestPartialMatchOrdering:
         flash_prices = get_token_pricing("gemini-2.5-flash")
         # The two should be distinct: Flash-Lite is cheaper.
         assert lite_prices["input"] <= flash_prices["input"]
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        "gpt-5.6-sol-pro-unregistered",
+        "gpt-6.1-sol-future",
+        "foreign/gpt-6.1-sol",
+        "fake-grok-4.20-reasoning",
+        "grok-4.20-unregistered-reasoning",
+        "qwen/qwen3.8-flash-unregistered",
+    ],
+)
+def test_unknown_variants_cannot_inherit_registered_billing_identity(model):
+    assert get_resolved_model_capability(model) is None
+    assert get_resolved_model_contract_identity(model) is None
+    assert get_cached_input_pricing(model) is None
+    with pytest.raises(ValueError, match="No registry pricing"):
+        get_token_pricing(model)

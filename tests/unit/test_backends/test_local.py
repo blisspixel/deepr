@@ -510,7 +510,9 @@ class TestOllamaChatClientTimeout:
 
         import openai
 
-        monkeypatch.setattr(httpx, "AsyncClient", FakeHttpClient)
+        import httpx2
+
+        monkeypatch.setattr(httpx2, "AsyncClient", FakeHttpClient)
         monkeypatch.setattr(openai, "AsyncOpenAI", FakeAsyncOpenAI)
         return captured
 
@@ -577,7 +579,9 @@ async def test_shared_local_request_guard_requires_cloud_disabled_and_strips_hea
                 json=lambda: {"cloud": {"disabled": True, "source": "both"}},
             )
 
-    request = httpx.Request(
+    import httpx2
+
+    request = httpx2.Request(
         "POST",
         "http://127.0.0.1:11434/v1/chat/completions",
         headers={

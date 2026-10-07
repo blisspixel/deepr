@@ -72,7 +72,7 @@ Roadmap items are not approach claims until they land in
 
 ## Active Release Plan
 
-**Now (v2.50.22):** the local four-arm rehearsal harness with blinded review
+**Now (v2.50.23):** the local four-arm rehearsal harness with blinded review
 binding, verified resume and workbook assembly, and a study-prompt repair,
 on top of a local-only fleet-seat profile for external harnesses and
 host-side routers, bounded local expert formation, retained
@@ -162,6 +162,14 @@ released. Preserve the value baseline, then deliver preparation. An expert
 should get up to speed for the question, bring accumulated understanding to it, and learn from
 later evidence and experience. Default preparation is planned, not shipped.
 
+Accumulated expertise carries an obligation to prepare, explain, and revise.
+The stages below must earn confidence through evidence and judgment rather
+than personality or memory volume. Preparation must assess whether additional
+research could materially change consequential advice. Answers must distinguish
+observations, interpretations, hypotheses, and recommendations, preserve source
+qualifications and cultural scope, and allow respectful, reasoned dissent.
+Revisions must identify their evidence and affected earlier conclusions.
+
 The [delivery plan](docs/plans/living-expertise.md) defines the contracts,
 dependencies, recovery behavior, and validation budget for stages S0-S5 below.
 The [September research assessment](docs/design/living-expertise-research-2026-09.md)
@@ -212,6 +220,17 @@ changes rather than assuming that its last study is still sufficient. Reuse
 requires scope and freshness coverage; offline and incomplete preparation stay
 visible. Periodic upkeep is useful but does not replace this question-specific
 step.
+
+**Dependability acceptance:** test an expert advising from retained evidence,
+then receiving credible contrary evidence and explaining what changes, what
+remains valid, and what is still uncertain. Include a misleading user premise:
+the expert must correct it respectfully rather than elaborate an unsupported
+conclusion. Review attribution and culturally situated disagreements as well
+as correction. S1 tests the prepared answer without canonical mutation; S2-S3
+test admitted revision history and effects on related guidance; S0/S4 compare
+continuity with a fresh, appropriately supplied baseline. The
+[shared acceptance cases](docs/plans/living-expertise.md#dependability-acceptance-cases)
+define evidence and review requirements. These remain open delivery gates.
 
 **Make currency inspectable.** Preparation must produce a dated Markdown review
 and linked evidence graph for the actual question: sources and hashes checked,
@@ -586,9 +605,12 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.22)
+## Current Status (v2.50.23)
 
-**Next is v2.51, not more dispatch.** v2.50.22 ships the harness that runs,
+**Next is v2.51, not more dispatch.** v2.50.23 updates provider SDKs and
+reviewed pricing, repairs model identity and OpenRouter budget accounting,
+and strengthens the documented expertise acceptance gates. No new model is
+promoted to automatic routing. v2.50.22 ships the harness that runs,
 blinds and binds the four-arm comparison locally at `$0`; the full run and its
 human review remain open. v2.50.21 lets an external seat consult locally and
 read the `$0` route card. v2.50.19 ships local formation and
@@ -1958,6 +1980,10 @@ This is the canonical plan for remaining work. Keep each item in one place only;
   its own sake" are not justifications. When a refactor keeps breaking adjacent
   things, stop - the juice is not worth the squeeze.
 - Prioritize research infrastructure over chat novelty.
+- Treat accumulated expertise as an obligation to prepare, attribute, explain,
+  and revise. Confidence follows reviewed evidence and judgment. Preserved
+  knowledge, confident prose, and expert personality cannot establish value;
+  correction, reasoned dissent, and a fair fresh baseline must be tested.
 - Preserve budgeted autonomy, auditability, and provider portability.
 - Ship capabilities that improve measurable quality, cost-efficiency, and reliability.
 - Keep orchestration bounded: no unbounded swarms, no opaque autonomy.
@@ -3698,6 +3724,19 @@ A mock panel (business buyer, indie hacker, enterprise AI architect, research sc
 
 ### Backlog (Not in Active Sequence)
 
+- [ ] **Provider currency follow-up (2026-10-06):** promote reviewed GPT-6,
+  Claude 5.5/Fable 5.1, Gemini 3.8 Flash, and Grok 4.7 candidates only after
+  adapter parameters, usage buckets, limits, and cost settlement are proved.
+  Defaults and frozen S0 arms remain pinned. OpenAI 3.26 and Anthropic 1.11
+  custom clients are migrated to HTTPX2; Azure AI Projects is updated to 2.8.
+  Offline transport checks preserve guards without proving new model quality.
+  See [the currency decision](docs/design/provider-currency-2026-10.md).
+- [ ] **Live validation finding (2026-10-06, no-key OpenRouter catalog):** six
+  proposals pass, but `deepseek/deepseek-v4-flash-0731` has no endpoint for its
+  pinned `deepseek` route. Keep it refused. Review a replacement only with exact
+  endpoint, cache-write, override, and settlement evidence; do not substitute
+  an upstream or loosen uniqueness to restore a green catalog check.
+
 - [~] CLI conformance to mid-2026 best practices (audited 2026-06-12 against clig.dev / kubectl / uv / Heroku / no-color.org; deep-research verified). Deepr already does most of it well: tiered `--verbose/--json/--quiet` with mutual-exclusion, `error_code` in JSON output, stderr discipline in quiet mode, no secrets in argv (keys via env only), kebab-case flags, hidden deprecated commands with warnings + model auto-migration, UTF-8 console handling. Shipped 2026-06-12: non-TTY no-args prints help instead of launching interactive (agent/CI safety); `deepr completion <shell>` for tab-completion. Remaining, by ROI:
   - [x] Structured error envelope for agent consumers (RFC 9457 / Cloudflare agent-error pattern), shipped across all four error surfaces (2026-06-12): `DeeprError`, the provider-layer `ProviderError`, the MCP `ToolError` (always-present `category`/`retryable`, `from_exception`), and the CLI `OperationResult` JSON error (`from_exception`) all carry `category` + `retryable` (+ `retry_after`). `ProviderError` auto-classifies from its `original_error` via `classify_provider_exception`, so the envelope is populated on every provider path (all adapters) with no per-site wiring. An agent can classify a failure and drive backoff without scraping prose. Pairs with the Phase 5 handoff-schema work.
   - [x] Progress/spinner stream discipline (2026-06-12): the MINIMAL/VERBOSE spinner and verbose `progress()` messages now render to the stderr `Console` (out-of-band info per clig.dev); result lines stay on stdout. `deepr ... > out` no longer risks spinner control codes in piped output. Regression-tested (progress -> stderr, success line -> stdout).
@@ -3880,7 +3919,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.22. This roadmap keeps
+v2.50.23. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 

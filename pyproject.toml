@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "deepr-research"
-version = "2.50.22"
+version = "2.50.23"
 description = "Research automation platform that replicates human research team workflows using AI"
 readme = "README.md"
 license = "Apache-2.0"
@@ -26,14 +26,17 @@ keywords = ["research", "ai", "automation", "deep-research", "knowledge-graph", 
 
 # Core dependencies - minimal install for CLI research
 dependencies = [
-    "anthropic>=0.40.0,<1.0.0",
-    "openai>=1.0.0,<3.0.0",
+    "anthropic>=1.11.0,<2.0.0",
+    "openai>=3.26.0,<4.0.0",
     "google-genai>=1.75.0,<3.0.0",
     "python-dotenv>=1.0.0,<2.0.0",
     "click>=8.1.0,<9.0.0",
     "pydantic>=2.0.0,<3.0.0",
     "rich>=13.0.0,<16.0.0",
     "httpx>=0.23.0,<1.0.0",
+    # OpenAI 3.x and Anthropic 1.x require HTTPX2 custom clients. Keep httpx
+    # for Google and existing raw HTTP adapters; never alias either globally.
+    "httpx2>=2.13.1,<3.0.0",
     # h2 arrives transitively through the httpx/httpcore HTTP-2 path. Pinned
     # forward for CVE-2026-71554, which 4.4.0 carries and 4.4.1 fixes; the
     # blocking pip-audit gate in CI is what surfaced it.
@@ -82,7 +85,7 @@ azure = [
 
 # Azure AI Foundry deep research
 azure-foundry = [
-    "azure-ai-projects>=1.0.0b4",
+    "azure-ai-projects>=2.8.0,<3.0.0",
     "azure-ai-agents>=1.0.0b4",
     "azure-identity>=1.12.0,<2.0.0",
 ]

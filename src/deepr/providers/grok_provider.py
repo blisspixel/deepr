@@ -15,7 +15,7 @@ import os
 from datetime import UTC, datetime
 from typing import Any
 
-import httpx
+import httpx2
 import openai
 
 from .base import (
@@ -72,7 +72,7 @@ class GrokProvider(DeepResearchProvider):
             base_url=self._paid_endpoint,
             timeout=timeout,
             max_retries=0,
-            http_client=httpx.AsyncClient(
+            http_client=httpx2.AsyncClient(
                 timeout=timeout,
                 trust_env=False,
                 follow_redirects=False,

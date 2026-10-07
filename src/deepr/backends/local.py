@@ -112,12 +112,12 @@ def ollama_chat_client(base_url: str | None = None, *, timeout: float | None = N
     legitimate run, so default to a generous timeout (``DEEPR_LOCAL_TIMEOUT``
     seconds, default 3600). Raise ``DEEPR_LOCAL_TIMEOUT`` for very slow runs.
     """
-    import httpx
+    import httpx2
     from openai import AsyncOpenAI
 
     if timeout is None:
         timeout = float(os.getenv("DEEPR_LOCAL_TIMEOUT", "3600"))
-    http_client = httpx.AsyncClient(
+    http_client = httpx2.AsyncClient(
         timeout=timeout,
         trust_env=False,
         follow_redirects=False,

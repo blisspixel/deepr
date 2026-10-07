@@ -228,11 +228,12 @@ def test_paid_boundary_rejects_gemini_client_with_proxy_aware_transport(tmp_path
     assert "Gemini client does not disable proxy inheritance and redirects" in capsys.readouterr().out
 
 
-def test_paid_boundary_rejects_unreviewed_httpx_client(tmp_path: Path, monkeypatch, capsys) -> None:
+@pytest.mark.parametrize("package", ["httpx", "httpx2"])
+def test_paid_boundary_rejects_unreviewed_httpx_client(tmp_path: Path, monkeypatch, capsys, package: str) -> None:
     scan_root = tmp_path / "src" / "deepr"
     scan_root.mkdir(parents=True)
     (scan_root / "unsafe.py").write_text(
-        "import httpx\nclient = httpx.AsyncClient(timeout=10)\n",
+        f"import {package}\nclient = {package}.AsyncClient(timeout=10)\n",
         encoding="utf-8",
     )
 
@@ -245,11 +246,12 @@ def test_paid_boundary_rejects_unreviewed_httpx_client(tmp_path: Path, monkeypat
     assert "httpx client must set trust_env=False and follow_redirects=False" in capsys.readouterr().out
 
 
-def test_paid_boundary_accepts_hardened_httpx_clients(tmp_path: Path, monkeypatch, capsys) -> None:
+@pytest.mark.parametrize("package", ["httpx", "httpx2"])
+def test_paid_boundary_accepts_hardened_httpx_clients(tmp_path: Path, monkeypatch, capsys, package: str) -> None:
     scan_root = tmp_path / "src" / "deepr"
     scan_root.mkdir(parents=True)
     (scan_root / "safe.py").write_text(
-        "from httpx import AsyncClient, Client\n"
+        f"from {package} import AsyncClient, Client\n"
         "sync_client = Client(trust_env=False, follow_redirects=False)\n"
         "async_client = AsyncClient(trust_env=False, follow_redirects=False)\n",
         encoding="utf-8",

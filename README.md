@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.50.22-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.22)
+[![Version](https://img.shields.io/badge/version-2.50.23-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.23)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -47,6 +47,37 @@ and `deepr expert health` will say so. See the
 [validation record](docs/validation/local-workflows-2026-09-05.md).
 
 ## Turn evidence into reusable judgment
+
+Possessing information means retaining sources, notes, and earlier answers.
+Becoming more dependable means using that information responsibly: preparing
+for the actual question, explaining the basis and limits of advice, and
+revising when credible evidence warrants it. Accumulated expertise carries
+an obligation to prepare, explain, and revise. Confidence must be earned
+through evidence and judgment, not an authoritative personality or the amount
+the expert remembers.
+
+The development standard and planned consultation gates require an expert to:
+
+- Before consequential advice, inspect the question, relevant retained
+  knowledge, source freshness, known disagreements, and gaps. Explain whether
+  further research could materially change the answer, within permitted limits.
+- Distinguish sourced observations, interpretations, hypotheses, and
+  recommendations. Attribute ideas to their sources, preserve qualifications,
+  and identify cultural or disciplinary scope rather than imply universal
+  consensus. A confident writing style cannot erase these distinctions.
+- Challenge a misleading premise respectfully and explain when a requested
+  conclusion lacks support. Reasoned dissent is part of useful advice.
+- Explain revisions: which evidence changed the view, what remains valid,
+  what is uncertain, and which earlier conclusions need reconsideration.
+  Preserve earlier positions and the reasons for changing them.
+
+These are acceptance requirements, not a claim that every consultation already
+meets them. Current consultation uses stored state; default preparation and
+complete revision lineage remain planned. The proof must include advice
+followed by credible contrary evidence, a case with a misleading premise, and a
+controlled comparison with a fresh baseline supplied appropriate evidence.
+A maintained knowledge base alone does not demonstrate better judgment. See
+the [dependability acceptance cases](docs/plans/living-expertise.md#dependability-acceptance-cases).
 
 An expert should help explain a field: what works, when it is appropriate,
 where approaches break down, and why reasonable people disagree. For Python,
@@ -104,14 +135,14 @@ Store an OpenRouter key with a hidden prompt, never as a command argument:
 deepr keys set openrouter
 deepr keys list
 deepr keys check --provider openrouter
-deepr budget set 20
-deepr budget credits add --amount 20
+deepr budget set 5
+deepr budget credits add --amount 5
 deepr budget authorize openrouter
 ```
 
-A stored key is optional paid capacity. `budget set 20` persists the owner
+A stored key is optional paid capacity. `budget set 5` persists the owner
 ceiling and the monthly window; it is not spend authority by itself. Wallet
-credits are the non-renewing `$20` cap. `budget authorize openrouter` proves
+credits are the non-renewing `$5` cap. `budget authorize openrouter` proves
 the live key limit is a provider hard stop. MCP, schedules, and automatic
 fallback stay blocked. Attended `deepr research --provider openrouter` can
 then run one pinned completion under the wallet and ledger.
@@ -219,6 +250,13 @@ for tested behavior and the distinction from draft standards and host certificat
 
 ## Direction
 
+v2.50.23 updates reviewed model pricing and provider SDKs, excludes retired
+models from direct selectors, and repairs OpenRouter price-limit serialization
+and overrun settlement. Unknown model variants cannot inherit registered billing
+contracts. New model candidates remain gated; the `$5` ceiling and attended-only
+OpenRouter scope stay in force. The development standard now requires evidence,
+preparation, attribution, revision, dissent, and calibrated uncertainty.
+
 v2.50.22 adds `deepr eval expert-value-rehearsal`: the local four-arm
 rehearsal with isolated worker inputs, blinded review binding, verified
 resume and assembly of the value workbook, at `$0`. It also repairs local
@@ -287,17 +325,20 @@ remain the default; hosted observation and execution are planned and gated.
 ## Development
 
 ```bash
-uv pip install -e ".[dev,full]"
-python -m pytest tests/unit/ --ignore=tests/data -q
-ruff check src/deepr/
-ruff format --check src/deepr/
+uv sync --frozen --extra dev --extra full
+python -m pytest tests/unit/ --ignore=tests/data -q --cov=deepr --cov-report=term
+python -m coverage report
+python -m ruff check src/deepr/
+python -m ruff format --check src/deepr/
 python scripts/check_file_sizes.py
 python scripts/check_ratchets.py
 python scripts/check_paid_api_boundaries.py
 ```
 
-Do not run bare `pytest`: integration tests can contact real providers. The
-blocking unit suite requires at least 80 percent branch coverage.
+Activate `.venv` before these commands as described in
+[Contributing](CONTRIBUTING.md#setup). Do not run bare `pytest`: integration
+tests can contact real providers. The blocking unit suite requires at least
+80 percent combined statement/branch coverage, with branch measurement enabled.
 
 ## License
 

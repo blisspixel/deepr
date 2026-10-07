@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
-import httpx
+import httpx2
 from azure.identity.aio import DefaultAzureCredential
 from openai import APIConnectionError, APITimeoutError, AsyncAzureOpenAI, RateLimitError
 from openai import APIError as OpenAIAPIError
@@ -81,8 +81,8 @@ class AzureProvider(DeepResearchProvider):
                 api_version=self.api_version,
                 azure_ad_token_provider=get_token,
                 max_retries=0,
-                http_client=httpx.AsyncClient(
-                    timeout=httpx.Timeout(600.0, connect=5.0),
+                http_client=httpx2.AsyncClient(
+                    timeout=httpx2.Timeout(600.0, connect=5.0),
                     trust_env=False,
                     follow_redirects=False,
                 ),
@@ -100,8 +100,8 @@ class AzureProvider(DeepResearchProvider):
                 azure_endpoint=self.endpoint,
                 api_version=self.api_version,
                 max_retries=0,
-                http_client=httpx.AsyncClient(
-                    timeout=httpx.Timeout(600.0, connect=5.0),
+                http_client=httpx2.AsyncClient(
+                    timeout=httpx2.Timeout(600.0, connect=5.0),
                     trust_env=False,
                     follow_redirects=False,
                 ),

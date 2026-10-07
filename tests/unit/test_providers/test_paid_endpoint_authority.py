@@ -6,7 +6,7 @@ import hashlib
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
-import httpx
+import httpx2
 import pytest
 from anthropic import AsyncAnthropic
 from azure.ai.projects import AIProjectClient
@@ -110,7 +110,7 @@ def test_false_google_mode_switches_are_not_treated_as_enabled(monkeypatch: pyte
 
 @pytest.mark.asyncio
 async def test_recognized_sdk_endpoint_can_be_inspected_but_generic_paid_client_stays_frozen() -> None:
-    transport = httpx.AsyncClient(trust_env=False, follow_redirects=False)
+    transport = httpx2.AsyncClient(trust_env=False, follow_redirects=False)
     client = AsyncOpenAI(
         api_key="test-key",
         base_url=default_paid_endpoint("openai"),
@@ -138,7 +138,7 @@ async def test_deepr_minted_attended_client_binds_wallet_model_and_transport() -
             settled_cost_baseline_usd=ResearchReservationStore().exposure_snapshot().total_settled_cost,
         )
     )
-    transport = httpx.AsyncClient(trust_env=False, follow_redirects=False)
+    transport = httpx2.AsyncClient(trust_env=False, follow_redirects=False)
     client = AsyncOpenAI(
         api_key="test-key",
         base_url=default_paid_endpoint("openai"),
@@ -166,20 +166,20 @@ async def test_live_sdk_endpoint_inspection_covers_every_paid_provider_family() 
         api_key="test-key",
         base_url=default_paid_endpoint("anthropic"),
         max_retries=0,
-        http_client=httpx.AsyncClient(trust_env=False, follow_redirects=False),
+        http_client=httpx2.AsyncClient(trust_env=False, follow_redirects=False),
     )
     xai = AsyncOpenAI(
         api_key="test-key",
         base_url=default_paid_endpoint("xai"),
         max_retries=0,
-        http_client=httpx.AsyncClient(trust_env=False, follow_redirects=False),
+        http_client=httpx2.AsyncClient(trust_env=False, follow_redirects=False),
     )
     azure = AsyncAzureOpenAI(
         api_key="test-key",
         azure_endpoint="https://research.openai.azure.com",
         api_version="2024-10-21",
         max_retries=0,
-        http_client=httpx.AsyncClient(trust_env=False, follow_redirects=False),
+        http_client=httpx2.AsyncClient(trust_env=False, follow_redirects=False),
     )
     gemini = genai.Client(
         api_key="test-key",

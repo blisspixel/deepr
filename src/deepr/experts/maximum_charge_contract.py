@@ -92,7 +92,7 @@ def absolute_deepr_ceiling_usd() -> float:
         requested = float(raw)
     except (TypeError, ValueError):
         return ABSOLUTE_DEEPR_CEILING_USD
-    if requested <= 0 or requested > MAX_RAISED_CEILING_USD:
+    if not math.isfinite(requested) or requested <= 0 or requested > MAX_RAISED_CEILING_USD:
         return ABSOLUTE_DEEPR_CEILING_USD
     # A value below the default is honoured rather than clamped up: an operator
     # asking for a stricter ceiling is asking for less exposure, and refusing

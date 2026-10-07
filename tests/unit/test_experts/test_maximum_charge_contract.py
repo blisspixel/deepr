@@ -179,8 +179,19 @@ class TestOperatorRaisableCeiling:
 
     @pytest.mark.parametrize(
         "value",
-        ["", "   ", "abc", "0", "-5", str(MAX_RAISED_CEILING_USD + 0.01), "1e9"],
-        ids=["empty", "blank", "unparseable", "zero", "negative", "over-bound", "huge"],
+        ["", "   ", "abc", "0", "-5", str(MAX_RAISED_CEILING_USD + 0.01), "1e9", "nan", "inf", "-inf"],
+        ids=[
+            "empty",
+            "blank",
+            "unparseable",
+            "zero",
+            "negative",
+            "over-bound",
+            "huge",
+            "nan",
+            "positive-infinity",
+            "negative-infinity",
+        ],
     )
     def test_anything_unusable_falls_back_to_the_default(self, monkeypatch, value):
         monkeypatch.setenv(DEEPR_MAX_SPEND_CEILING_ENV, value)

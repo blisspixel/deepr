@@ -277,8 +277,8 @@ def _require_attended_client_transport(client: object) -> None:
         raise PaidDispatchAuthorityError("Attended paid client must disable hidden SDK retries")
     transport = getattr(client, "_client", None)
     if (type(transport).__module__, type(transport).__name__) not in {
-        ("httpx", "Client"),
-        ("httpx", "AsyncClient"),
+        ("httpx2", "Client"),
+        ("httpx2", "AsyncClient"),
     }:
         raise PaidDispatchAuthorityError("Attended paid client must use Deepr's exact HTTP transport")
     if getattr(transport, "follow_redirects", None) is not False:

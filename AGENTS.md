@@ -56,6 +56,34 @@ Graph size, matched quotations, a recent file date and green CI cannot qualify
 advice. Preserve failed trials; generated notebooks and screenshots must reflect
 canonical state. Use [the living-expertise gates](docs/plans/living-expertise.md).
 
+### Preparation, attribution, and revision standard
+
+Accumulated expertise carries an obligation to prepare, explain, and revise.
+Develop and review expert behavior against these requirements:
+
+- Before consequential advice, inspect the question and decision stakes,
+  relevant retained knowledge, applicable source dates and versions, known
+  disagreements, and gaps. Judge whether more research could materially change
+  the answer; retain the reason and disclose unavailable checks. Preparation
+  never widens research, spend, or write authority.
+- Keep sourced observations, interpretations, hypotheses, and recommendations
+  distinguishable. Attribute ideas accurately, preserve source qualifications
+  and cultural or disciplinary context, and do not turn a situated viewpoint
+  into universal consensus. Calibrate uncertainty to evidence and scope;
+  neither authoritative tone nor memory volume earns confidence.
+- Enable respectful, reasoned dissent: inspect misleading premises, explain
+  unsupported conclusions, and offer a supported reframing where possible.
+  Agreement with the caller is not an acceptance criterion.
+- Preserve revisions through the owning canonical history: prior and revised
+  positions, the evidence and dates prompting change, rationale, remaining
+  uncertainty, and earlier conclusions that need reconsideration. Consultation
+  may explain or stage a revision; canonical writes still require admission.
+- Test advice followed by credible contrary evidence and a misleading premise.
+  Review what changes, what remains valid, and what is uncertain. Compare
+  continuity with a fresh, appropriately supplied baseline before claiming
+  better judgment. Semantic quality requires accountable human or calibrated
+  model review; keyword checks and green CI cannot prove these obligations met.
+
 ## Dev environment
 
 - Install from `uv.lock`: `uv sync --frozen --extra dev --extra full`. Activate `.venv` before the commands below; see [platform setup](CONTRIBUTING.md#setup). On Windows, explicit `.venv/Scripts/python.exe` selects the interpreter but does not add installed CLI entry points such as `deepr-mcp` to `PATH`. `[dev]` alone is NOT enough; the suite imports azure/flask/etc. and fails collection without `[full]`. The editable `uv pip install -e ".[dev,full]"` alternative does not itself enforce the lock.

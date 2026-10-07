@@ -44,6 +44,37 @@ Current external access complements retained editions and versioned notes.
 Verify quotations and interpretations, and show which material actually reached
 the answering model. Search failure must not turn into confident recall.
 
+### Dependability acceptance cases
+
+Accumulated expertise carries an obligation to prepare, explain, and revise.
+These planned acceptance cases apply across S0-S4, using the existing source
+worlds, consultation traces, canonical history, and blinded review. They add no
+execution or write authority and do not assert that the current surface passes.
+Freeze new development fixtures separately from the existing S0 pilot; do not
+change its cases or rubric after seeing answers.
+
+| Case | Required behavior and retained evidence | Stage |
+| --- | --- | --- |
+| Consequential advice | Inspect the decision, relevant retained passages, dates and applicability, known disagreements, and gaps. Explain whether further research could materially change the answer and why; identify checks prevented by limits. Retain the preparation rationale, exact delivered context, omissions, and answer. | S1 |
+| Contrary evidence | Advise on a bounded topic, then supply credible evidence that changes one assumption while leaving another conclusion supported. Explain what changes and why, what remains valid and why, and what is still uncertain. Retain both answers and source observations. After reviewed admission, link prior and revised positions to the prompting evidence, dates, rationale, and related conclusions needing reconsideration. Rebuild history without erasing the earlier view. | S1 temporary advice; S2-S3 durable revision |
+| Misleading premise | Supply a question that invites a conclusion contradicted by the available evidence. Correct the premise respectfully, explain the evidential conflict, and give a supported reframing or state the limit. Do not build an elaborate answer on the false premise. Include a control with a sound premise to detect unwarranted dissent. | S1 and S3 |
+| Attribution and situated disagreement | Supply sources with meaningful qualifications and different cultural or disciplinary perspectives. Distinguish observations, interpretations, hypotheses, and recommendations; attribute ideas accurately and preserve scope. Do not manufacture universal consensus, or give unsupported views equal weight merely because they disagree. Bind review to the actual passages delivered. | S1 and S3 |
+| Continuity versus fresh preparation | Compare a maintained expert with a fresh baseline given sources relevant to the question and the preparation access promised by its frozen policy. Use matched models and answer limits, isolated inputs, and blinded review; report total resources separately. Test revision quality, premise correction, retained valid understanding, and uncertainty alongside decision usefulness. | S0 baseline; S4 held-out proof |
+
+Review reasons and evidence, not required phrases or section headings. A change
+of view is not automatically a success: the contrary evidence must warrant it.
+Include weak or inapplicable contrary material as a control against reflexive
+reversal. Calibrated uncertainty explains which claims are supported, which
+depend on interpretation or assumptions, and which missing evidence matters.
+Generic disclaimers, excessive abstention, and confident tone earn no credit.
+
+An accountable human or calibrated model judges relevance, source meaning,
+revision, dissent, and usefulness. Deterministic checks bind identities, hashes,
+dates, snapshots, and admission boundaries; they cannot decide semantic quality.
+Preserve failures and unreviewed cases. A passing fixture or a coherent change
+summary does not establish longitudinal benefit. Report negative or inconclusive
+comparisons with a fresh baseline without promoting a confidence or autonomy claim.
+
 ## Dependency order
 
 The immediate creation repair connects the existing research, study, brief and
@@ -98,6 +129,10 @@ Normal CLI and MCP query/consult should follow one shared service flow:
 
 1. Establish the question, target environment, information date, and limits.
 2. Inspect the stored perspective and identify assumptions needing a check.
+   Consider decision stakes, relevant knowledge, source freshness, known
+   disagreements, and gaps. Record whether further research could materially
+   change the answer and why, rather than treating every question as requiring
+   the same amount of retrieval.
    Retrieve the applicable original reference passages as well as the notes;
    allow a bounded follow-up lookup when a needed detail is absent. Use permitted
    computation or execution tools when the question warrants an empirical check,
@@ -106,6 +141,10 @@ Normal CLI and MCP query/consult should follow one shared service flow:
 3. Reuse a matching preparation packet or acquire permitted current sources.
 4. Study relevant changes, unresolved conflicts, and implications for advice.
 5. Freeze the expert revision plus admitted temporary evidence, then answer.
+   Distinguish sourced observations, interpretations, hypotheses, and
+   recommendations; preserve attribution and qualifications. Correct a
+   misleading premise respectfully or explain why the requested conclusion
+   is unsupported. Identify uncertainty that matters to the decision.
 
 Reuse source packs, consult context, traces, and lifecycle records. Before
 implementation, define the additive preparation contract: operation identity,
@@ -268,6 +307,10 @@ within this stage: reasoning, uncertainty, assumptions, counterevidence, and
 revision signals must survive serialization and participate in version identity.
 Historical position reads cannot claim complete perspective reconstruction
 while those fields are lost.
+An admitted revision must link prior and revised conclusions to the actual
+evidence and observation dates prompting change, explain its rationale, and
+identify earlier related guidance for reconsideration. Preserve what remains
+valid and unresolved; a revision need not invalidate every earlier conclusion.
 Add finding revision history with a rebuildable current projection. Source-only
 study remains independent of prior conclusions; reconciliation happens after
 that study. Exact replay is mechanical. Semantic equivalence, contradiction,
