@@ -297,15 +297,15 @@ def _print_check_follow_up(result: dict[str, object], *, ceiling: float) -> None
     if result.get("status") == "ineligible" and "exceeds Deepr maximum" in str(result.get("reason") or ""):
         console.print(
             f"        Deepr ceiling in force: ${ceiling:.2f}. "
-            "Run `deepr budget set 20` to persist DEEPR_MAX_SPEND_CEILING_USD "
-            "in ~/.deepr/.env (max $100), then check again.",
+            f"Lower the provider key monthly limit to no more than ${ceiling:.2f}, then check again. "
+            "An owner ceiling change requires an explicit `deepr budget set <amount>` (max $100).",
             markup=False,
         )
     if result.get("status") == "valid" and result.get("provider") == "openrouter":
         console.print(
             f"        Deepr ceiling in force: ${ceiling:.2f}. "
             "A stored key is not spend authority. Next: "
-            "`deepr budget credits add --amount 20` then "
+            f"`deepr budget credits add --amount {min(ceiling, 5.0):.2f}` then "
             "`deepr budget authorize openrouter`.",
             markup=False,
         )

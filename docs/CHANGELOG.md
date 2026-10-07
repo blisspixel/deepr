@@ -7,13 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [2.50.23] - 2026-10-06
+## [2.50.23] - 2026-10-07
 
 Provider currency, guarded SDK migrations, and budget accounting corrections.
 No new model, paid dispatch, or expert-quality claim is promoted.
 
 ### Fixed
 
+- Key-check guidance now names the provider limit that needs tightening
+  instead of suggesting a blind `$20` ceiling raise. Funding examples respect
+  the `$5` default or a tighter ceiling; existing operator settings are preserved.
 - An unusable non-finite operator ceiling now falls back to the documented
   default. `NaN` previously escaped range comparisons and propagated as a cap.
 - Attended OpenRouter now passes the full reported `usage.cost` to durable

@@ -129,6 +129,13 @@ bytes that Git normalizes to LF. Regenerate the package checksum from its
 mandated LF content, then verify the archive on both platforms. No checksum
 validation is relaxed.
 
+The final read-only CLI review found that an ineligible key limit prompted a
+blind `budget set 20` raise, while valid-key guidance suggested `$20` wallet
+funding. Correct guidance to name the provider limit that needs tightening,
+make any owner raise deliberate, and keep the funding example at `$5` or less.
+Existing configured ceilings and wallet balances are not changed. The live key
+check is operational validation, not spend authority or an inference call.
+
 ## Alternatives and validation
 
 Changing all defaults to the newest names would confound the frozen continuity
