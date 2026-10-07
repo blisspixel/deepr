@@ -77,7 +77,7 @@ class TestModelCapabilities:
 
         # Should be cheaper than all other models
         for cap in MODEL_CAPABILITIES.values():
-            if not cap.preview_only:
+            if not cap.preview_only and not cap.deprecated:
                 assert cheapest.cost_per_query <= cap.cost_per_query
 
     def test_get_fastest_model(self):
@@ -87,7 +87,7 @@ class TestModelCapabilities:
 
         # Should be faster than all other models
         for cap in MODEL_CAPABILITIES.values():
-            if not cap.preview_only:
+            if not cap.preview_only and not cap.deprecated:
                 assert fastest.latency_ms <= cap.latency_ms
 
     def test_get_largest_context_model(self):
@@ -97,19 +97,19 @@ class TestModelCapabilities:
 
         # Should have largest context window
         for cap in MODEL_CAPABILITIES.values():
-            if not cap.preview_only:
+            if not cap.preview_only and not cap.deprecated:
                 assert largest.context_window >= cap.context_window
 
-        # xAI Grok 4.1 has 2M context (largest in registry)
-        assert largest.provider == "xai"
-        assert largest.context_window >= 2_000_000
+        # Retired 2M Grok entries remain inventory, not selectable capacity.
+        assert not largest.deprecated
+        assert largest.context_window >= 1_000_000
 
     def test_openai_models(self):
         """Test OpenAI model capabilities."""
         expected_56 = {
-            "gpt-5.6-sol": (5.00, 0.50, 30.00),
-            "gpt-5.6-terra": (2.50, 0.25, 15.00),
-            "gpt-5.6-luna": (1.00, 0.10, 6.00),
+            "gpt-5.6-sol": (4.00, 0.40, 20.00),
+            "gpt-5.6-terra": (2.00, 0.20, 12.00),
+            "gpt-5.6-luna": (0.20, 0.02, 1.20),
         }
         for model, (input_rate, cached_rate, output_rate) in expected_56.items():
             capability = get_model_capability("openai", model)

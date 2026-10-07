@@ -33,6 +33,8 @@ _TARGETS = {
 _HTTPX_CLIENT_CONSTRUCTORS = {
     "httpx.Client",
     "httpx.AsyncClient",
+    "httpx2.Client",
+    "httpx2.AsyncClient",
 }
 _FIXED_ENDPOINT_SDK_CONSTRUCTORS = {
     "openai.OpenAI",

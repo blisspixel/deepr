@@ -26,7 +26,7 @@ import os
 from datetime import UTC, datetime
 from typing import Any
 
-import httpx
+import httpx2
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +150,7 @@ class AnthropicProvider(DeepResearchProvider):
             base_url=self._paid_endpoint,
             timeout=1200.0,
             max_retries=0,
-            http_client=httpx.Client(
+            http_client=httpx2.Client(
                 timeout=1200.0,
                 trust_env=False,
                 follow_redirects=False,

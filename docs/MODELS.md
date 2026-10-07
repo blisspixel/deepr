@@ -1,17 +1,21 @@
 # Model Selection Guide
 
-Status: current with Deepr v2.50.22. Last reviewed: 2026-09-25.
+Status: Deepr v2.50.23 currency review. Last reviewed: 2026-10-06.
 
 The source of truth for model IDs, pricing estimates, context windows, and
 routing metadata is [src/deepr/providers/registry.py](../src/deepr/providers/registry.py),
 with the preview-only OpenRouter catalog in
 [src/deepr/providers/openrouter_catalog.py](../src/deepr/providers/openrouter_catalog.py).
+New public releases awaiting adapter validation live in
+[src/deepr/providers/reviewed_catalog.py](../src/deepr/providers/reviewed_catalog.py).
 This guide explains how to use that registry safely. Provider docs and prices
 change faster than prose, so treat this document as an operating guide, not a
 billing authority.
 
-Direct-provider model docs checked through 2026-08-13. OpenRouter route and
-current-key docs were checked through 2026-09-02:
+Latest public text-model listings and relevant prices were reviewed on
+2026-10-06. This does not establish every historical model's currency. The
+OpenRouter public endpoint check was rerun without a key on that date;
+current-key and spend-control documentation were also rechecked on that date:
 
 - OpenAI Models and Pricing:
   <https://developers.openai.com/api/docs/models>,
@@ -44,7 +48,36 @@ current-key docs were checked through 2026-09-02:
   <https://openrouter.ai/docs/guides/overview/auth/byok>,
   <https://openrouter.ai/docs/guides/features/service-tiers>
 
-## 2026-08-13 Verification Matrix
+## 2026-10-06 Currency Review
+
+The newest reviewed models are catalog candidates, excluded from automatic
+routing and new benchmark targets. Existing defaults and the frozen expert
+comparison stay pinned. A provider listing establishes availability in its
+documentation; account access and Deepr compatibility still need proof.
+
+| Provider | Newest reviewed public candidates | Remaining compatibility work |
+|----------|----------------------------------|------------------------------|
+| OpenAI | `gpt-6-astra`, `gpt-6.1-sol`, `gpt-6-luna` | Reasoning settings, Responses versus Chat tool constraints, 922K input limit, cache writes, and settlement. |
+| Anthropic | `claude-fable-5-1`, `claude-opus-5-5`, `claude-sonnet-5-5` | Adaptive thinking, refusal accounting, and cache duration prices. Haiku 4.5 remains current. Mythos 5.1 is limited-access and absent. |
+| Google | `gemini-3.8-flash` | Thinking-level request shape and separately billed search/cache storage. Registry estimates retain the higher January 2027 caps. |
+| xAI | `grok-4-7` | Encrypted reasoning and long-context accounting. Product-only Grok 4.7 Fast is absent. |
+| Azure | Deployment-specific inventory | Published GPT-6 entries do not create verified deployments or globally selectable routes. |
+| OpenRouter | Six of seven existing route proposals pass the no-key check | The pinned DeepSeek endpoint is absent; that proposal is refused. No replacement upstream or new dispatch authority is introduced. |
+
+See [the dated decision and sources](design/provider-currency-2026-10.md).
+The lock now uses OpenAI 3.26.0, Anthropic 1.11.0, Google GenAI 2.28.0,
+Azure AI Projects 2.8.0, and HTTPX2 2.13.1. OpenAI-compatible and Anthropic
+custom clients use HTTPX2 with the existing proxy, redirect, retry, endpoint,
+and local sanitation guards. Google and raw HTTP adapters retain HTTPX, without
+global aliasing. Azure AI Agents 1.2.0b6 is the newest published preview;
+downgrading it to stable 1.1 would discard the existing preview API contract.
+Offline serialization tests establish SDK compatibility, not live account
+access or the answer quality of the new candidate models.
+
+## Retained 2026-08-13 Implementation Matrix
+
+This historical matrix explains the established entries below. The October
+review above supersedes its external-currentness descriptions.
 
 | Provider | Current external signal | Deepr status | Action |
 |----------|-------------------------|--------------|--------|
@@ -91,8 +124,8 @@ explicitly updated.
 
 Pricing notes:
 
-- GPT-5.6 standard rates per MTok are `$5/$0.50/$30` for Sol,
-  `$2.50/$0.25/$15` for Terra, and `$1/$0.10/$6` for Luna, in
+- GPT-5.6 standard rates reviewed on 2026-10-06 per MTok are `$4/$0.40/$20` for Sol,
+  `$2/$0.20/$12` for Terra, and `$0.20/$0.02/$1.20` for Luna, in
   input/cached-input/output order.
 - GPT-5.6 prompts above 272K input tokens use 2x input and cached-input rates
   plus 1.5x output rates for the full request. Deepr applies this boundary in
@@ -103,6 +136,10 @@ Pricing notes:
 - Gemini free-tier and quota-inclusive entries are useful for setup guidance,
   but automatic routing still depends on the local Deepr capacity profile,
   provider keys, quota posture, and budget gates.
+- Gemini 3.6, 3.7, and 3.8 Flash standard text rates through 2026-12-31 are
+  `$0.75/$0.075/$3.75` in input/cached-input/output order. Deepr retains
+  `$1.50/$0.15/$7.50`, the published January 2027 rates, as conservative
+  estimates. Cache storage and tool charges remain separate.
 
 ## Operating Rules
 
@@ -130,14 +167,18 @@ Pricing notes:
   automatic routing candidates just because a provider page mentions them.
 - Deprecated registry entries stay visible only for migration and cost safety.
   A deprecated model must not be promoted as a preferred default.
+  Sonnet 4.5 was deprecated on 2026-09-30; its announced retirement is
+  2026-11-30. Its pricing remains available for historical reconciliation.
 
 ## Current Deepr Registry Snapshot
 
-The registry currently contains 72 models: 65 direct-provider contracts across
+The registry currently contains 80 models: 73 direct-provider entries across
 OpenAI, Gemini, xAI, Anthropic, and Azure AI Foundry, plus seven OpenRouter
-routes that stay excluded from automatic routing. The list below mirrors the registry on 2026-08-31; run the
+routes that stay excluded from automatic routing. Eight direct-provider entries
+are the October reviewed candidates above, also excluded from automatic routing.
+The lists below describe the established entries; run the
 offline command above for exact pricing and context values. The web
-Models page intentionally reports 48 active benchmarkable public text or
+Models page intentionally reports 47 active benchmarkable public text or
 research models because Azure AI Foundry entries are deployment targets, premium
 media entries are not chat capacity, and deprecated or preview-only entries are
 hidden from new benchmark target lists.
@@ -337,6 +378,10 @@ preferred future long-lived source.
 
 Registered provider-route proposals checked on 2026-09-01:
 
+Rechecked 2026-10-06: the DeepSeek proposal no longer resolves to its pinned
+endpoint and is refused. The other six proposals pass the public metadata
+check. Public metadata eligibility does not authorize inference.
+
 | Model slug | Current endpoint metadata tag | Input / output cap per 1M | Cached input cap per 1M | Cache-write cap per 1M |
 |---|---|---:|---:|---:|
 | `openai/gpt-5.6-sol` | `openai` | `$2.00 / $10.00` | `$0.20` | `$2.50` |
@@ -356,8 +401,9 @@ Default posture:
 - Catalog rates define preview caps for the currently matched standard endpoint
   tags above, not the lowest route across OpenRouter. Base tags can match
   non-tier variants, so the check fails if another such record appears. The
-  DeepSeek caps conservatively cover every current time-dependent override
-  reachable by the 128K input envelope.
+  DeepSeek's retained caps covered the September time-dependent overrides
+  reachable by the 128K input envelope; the October check refuses its absent
+  endpoint before any inference.
 - The checker bounds prompt, completion, cached input, cache-write, reasoning,
   and fixed-request pricing. It rejects negative discount markups, malformed or
   unknown pricing classes, and a fixed request charge above zero. Reasoning

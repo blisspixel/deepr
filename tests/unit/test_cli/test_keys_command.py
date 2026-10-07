@@ -173,7 +173,9 @@ def test_check_openrouter_reports_ineligible_key_limit_above_ceiling(
     assert secret not in result.output
     assert "ineligible" in result.output
     assert "exceeds Deepr maximum" in result.output
-    assert "deepr budget set 20" in result.output.lower()
+    assert "provider key monthly limit" in result.output.lower()
+    assert "no more than $5.00" in result.output.lower()
+    assert "deepr budget set 20" not in result.output.lower()
 
 
 def test_check_invalid_openrouter_key_shows_provider_http_status(
@@ -234,3 +236,11 @@ def test_check_blocks_present_keys_before_network(env_file: Path) -> None:
             "reason": "external_metadata_cost_unverified",
         }
     ]
+
+
+@pytest.mark.parametrize("ceiling, amount", [(5.0, "5.00"), (20.0, "5.00"), (1.5, "1.50")])
+def test_key_check_funding_example_respects_small_default_and_tighter_ceiling(ceiling, amount, capsys):
+    keys_module._print_check_follow_up({"provider": "openrouter", "status": "valid"}, ceiling=ceiling)
+    output = capsys.readouterr().out
+    assert f"credits add --amount {amount}" in output
+    assert "credits add --amount 20" not in output

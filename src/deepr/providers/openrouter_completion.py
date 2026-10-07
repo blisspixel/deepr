@@ -133,10 +133,10 @@ def build_openrouter_completion_request(
             "order": [tag],
             "allow_fallbacks": False,
             "require_parameters": True,
-        },
-        "max_price": {
-            "prompt": prompt_max_price,
-            "completion": completion_max_price,
+            "max_price": {
+                "prompt": _money(prompt_max_price, field_name="provider.max_price.prompt"),
+                "completion": _money(completion_max_price, field_name="provider.max_price.completion"),
+            },
         },
     }
 

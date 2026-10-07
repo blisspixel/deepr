@@ -5,7 +5,7 @@ import logging
 import os
 from typing import Any
 
-import httpx
+import httpx2
 import openai
 
 logger = logging.getLogger(__name__)
@@ -66,8 +66,8 @@ class OpenAIProvider(DeepResearchProvider):
             base_url=self._paid_endpoint,
             organization=organization,
             max_retries=0,
-            http_client=httpx.AsyncClient(
-                timeout=httpx.Timeout(600.0, connect=5.0),
+            http_client=httpx2.AsyncClient(
+                timeout=httpx2.Timeout(600.0, connect=5.0),
                 trust_env=False,
                 follow_redirects=False,
             ),

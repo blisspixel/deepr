@@ -12,6 +12,7 @@ from deepr.cli.commands.budget import check_budget_approval
 from deepr.core.cost_caps import paid_api_provider_scope, resolve_spend_caps
 from deepr.experts.parent_budget_transaction import open_parent_budget_transaction
 from deepr.experts.research_cost_gate import (
+    PaidCostCeilingDivergence,
     ResearchCostBlocked,
     refund_research_cost,
     reserve_research_cost,
@@ -173,25 +174,16 @@ def run_attended_openrouter_research(
                 actual_cost_reported=False,
             )
             raise
-        if result.cost_usd > reservation.estimated_cost:
+        try:
             settle_research_cost(
                 reservation,
-                actual_cost=reservation.estimated_cost,
+                actual_cost=result.cost_usd,
                 tokens=result.completion_tokens,
                 request_id=result.generation_id,
-                source="openrouter_attended.over_hold",
+                source="openrouter_attended",
             )
-            raise click.ClickException(
-                f"OpenRouter usage.cost ${result.cost_usd:.6f} exceeded the "
-                f"${reservation.estimated_cost:.4f} hold; the hold was consumed"
-            )
-        settle_research_cost(
-            reservation,
-            actual_cost=result.cost_usd,
-            tokens=result.completion_tokens,
-            request_id=result.generation_id,
-            source="openrouter_attended",
-        )
+        except PaidCostCeilingDivergence as exc:
+            raise click.ClickException(str(exc)) from exc
         parent.close()
         _print_and_store(query=query, model=model, job_id=job_id, result=result)
 

@@ -6,8 +6,8 @@ Used by ModelRouter to make intelligent routing decisions.
 
 from .model_capability import ModelCapability as ModelCapability
 from .openrouter_catalog import OPENROUTER_CAPABILITIES
+from .reviewed_catalog import REVIEWED_CAPABILITIES
 
-# Model capabilities registry
 MODEL_CAPABILITIES: dict[str, ModelCapability] = {
     # OpenAI Models
     "openai/gpt-5.6-sol": ModelCapability(
@@ -17,11 +17,11 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         latency_ms=2500,
         context_window=1_050_000,
         specializations=["reasoning", "coding", "agentic", "tool_calling", "synthesis", "large_context"],
-        strengths=["Current OpenAI frontier model", "1.05M context and 128K max output", "GPT-5.6 alias target"],
+        strengths=["Retained OpenAI task default", "1.05M context and 128K max output", "GPT-5.6 alias target"],
         weaknesses=["Higher cost than Terra or Luna", "Long-context rates apply above 272K input tokens"],
-        input_cost_per_1m=5.00,
-        output_cost_per_1m=30.00,
-        cached_input_cost_per_1m=0.50,
+        input_cost_per_1m=4.00,
+        output_cost_per_1m=20.00,
+        cached_input_cost_per_1m=0.40,
         max_output_tokens=128_000,
     ),
     "openai/gpt-5.6-terra": ModelCapability(
@@ -33,9 +33,9 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         specializations=["reasoning", "coding", "agentic", "balanced", "large_context"],
         strengths=["GPT-5.6 intelligence and cost balance", "1.05M context and 128K max output"],
         weaknesses=["Less capable than Sol", "Long-context rates apply above 272K input tokens"],
-        input_cost_per_1m=2.50,
-        output_cost_per_1m=15.00,
-        cached_input_cost_per_1m=0.25,
+        input_cost_per_1m=2.00,
+        output_cost_per_1m=12.00,
+        cached_input_cost_per_1m=0.20,
         max_output_tokens=128_000,
     ),
     "openai/gpt-5.6-luna": ModelCapability(
@@ -47,9 +47,9 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         specializations=["reasoning", "speed", "cost", "general", "large_context"],
         strengths=["Cost-sensitive GPT-5.6 tier", "1.05M context and 128K max output"],
         weaknesses=["Less capable than Sol or Terra", "Long-context rates apply above 272K input tokens"],
-        input_cost_per_1m=1.00,
-        output_cost_per_1m=6.00,
-        cached_input_cost_per_1m=0.10,
+        input_cost_per_1m=0.20,
+        output_cost_per_1m=1.20,
+        cached_input_cost_per_1m=0.02,
         max_output_tokens=128_000,
     ),
     "openai/gpt-5.4": ModelCapability(
@@ -1009,6 +1009,8 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
     "anthropic/claude-sonnet-4-5": ModelCapability(
         provider="anthropic",
         model="claude-sonnet-4-5",
+        deprecated=True,
+        successor="anthropic/claude-sonnet-5-5",
         cost_per_query=0.48,  # Estimated with 16K thinking budget
         latency_ms=3000,
         context_window=200_000,  # 1M beta available
@@ -1030,8 +1032,6 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         output_cost_per_1m=15.00,
     ),
     # Azure AI Foundry
-    # Deep research (o3) available in: West US, Norway East, South Central US
-    # GPT-4.1/5 available globally (20+ regions via Global Standard deployment)
     "azure-foundry/o3-deep-research": ModelCapability(
         provider="azure-foundry",
         model="o3-deep-research",
@@ -1199,7 +1199,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         output_cost_per_1m=5.00,
     ),
 }
-MODEL_CAPABILITIES.update(OPENROUTER_CAPABILITIES)
+MODEL_CAPABILITIES.update(OPENROUTER_CAPABILITIES | REVIEWED_CAPABILITIES)
 
 
 def get_token_pricing(model: str, input_tokens: int | None = None) -> dict[str, float]:
@@ -1247,33 +1247,32 @@ def get_models_by_specialization(specialization: str) -> list[ModelCapability]:
         List of models with that specialization, sorted by cost
     """
     matching = [
-        cap for cap in MODEL_CAPABILITIES.values() if not cap.preview_only and specialization in cap.specializations
+        cap
+        for cap in MODEL_CAPABILITIES.values()
+        if not cap.preview_only and not cap.deprecated and specialization in cap.specializations
     ]
     return sorted(matching, key=lambda x: x.cost_per_query)
 
 
 def get_cheapest_model() -> ModelCapability:
-    """Get the cheapest available model.
-
-    Returns:
-        ModelCapability for cheapest model
-    """
-    return min((cap for cap in MODEL_CAPABILITIES.values() if not cap.preview_only), key=lambda x: x.cost_per_query)
+    """Select the cheapest non-preview, non-deprecated model."""
+    return min(
+        (cap for cap in MODEL_CAPABILITIES.values() if not cap.preview_only and not cap.deprecated),
+        key=lambda x: x.cost_per_query,
+    )
 
 
 def get_fastest_model() -> ModelCapability:
-    """Get the fastest available model.
-
-    Returns:
-        ModelCapability for fastest model
-    """
-    return min((cap for cap in MODEL_CAPABILITIES.values() if not cap.preview_only), key=lambda x: x.latency_ms)
+    """Select the fastest non-preview, non-deprecated model."""
+    return min(
+        (cap for cap in MODEL_CAPABILITIES.values() if not cap.preview_only and not cap.deprecated),
+        key=lambda x: x.latency_ms,
+    )
 
 
 def get_largest_context_model() -> ModelCapability:
-    """Get the model with largest context window.
-
-    Returns:
-        ModelCapability for model with largest context
-    """
-    return max((cap for cap in MODEL_CAPABILITIES.values() if not cap.preview_only), key=lambda x: x.context_window)
+    """Select the largest context among non-preview, non-deprecated models."""
+    return max(
+        (cap for cap in MODEL_CAPABILITIES.values() if not cap.preview_only and not cap.deprecated),
+        key=lambda x: x.context_window,
+    )

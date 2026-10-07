@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.50.22 current main, 2026-09-25. This document defines what users and host
+Status: v2.50.23 current main, 2026-10-06. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -8,6 +8,14 @@ path is structurally complete but remains execution-blocked without verified
 provider prepaid-no-overage or hard-stop evidence. Attended OpenRouter research
 is the exception: one pinned no-tool completion after wallet credits and
 `deepr budget authorize openrouter`.
+
+**v2.50.23 maintenance:** current provider SDKs use guarded transports. Eight
+reviewed public model candidates remain preview-only, with defaults pinned.
+Pricing resolves exact identities, finite aliases and numeric snapshots;
+unknown variants are refused. Attended OpenRouter sends `provider.max_price`
+and settles full reported charges, freezing paid work after an overrun.
+Preparation and explainable revision are documented acceptance gates; this
+release does not claim improved expert judgment.
 
 **v2.50.19 local foundation:** local creation now starts bounded source
 research, study, briefing, a graph, and linked Markdown by default. `--profile-only`

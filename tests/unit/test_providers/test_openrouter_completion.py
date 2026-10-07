@@ -29,6 +29,8 @@ def test_completion_request_pins_one_route_and_forbids_tools() -> None:
     assert "plugins" not in body
     assert "models" not in body
     assert body["stream"] is False
+    assert body["provider"]["max_price"] == {"prompt": 0.15, "completion": 0.47}
+    assert "max_price" not in body
 
 
 def test_completion_rejects_cache_status_and_byok(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -102,7 +104,13 @@ def test_completion_settles_reported_cost(monkeypatch: pytest.MonkeyPatch) -> No
             del chunk_size
             yield json.dumps(payload).encode()
 
-    monkeypatch.setattr("deepr.providers.openrouter_completion.pinned_post", lambda *args, **kwargs: _Response())
+    calls = []
+
+    def post(url, **kwargs):
+        calls.append((url, kwargs))
+        return _Response()
+
+    monkeypatch.setattr("deepr.providers.openrouter_completion.pinned_post", post)
     monkeypatch.setattr("deepr.providers.openrouter_completion.close_pinned_response", lambda value: None)
     result = complete_openrouter_chat(
         api_key="sk-or-v1-" + "a" * 64,
@@ -116,6 +124,15 @@ def test_completion_settles_reported_cost(monkeypatch: pytest.MonkeyPatch) -> No
     assert result.content == "memo"
     assert result.cost_usd == 0.0012
     assert result.provider_name == "Alibaba"
+
+    assert len(calls) == 1
+    url, options = calls[0]
+    assert url == "https://openrouter.ai/api/v1/chat/completions"
+    body = json.loads(options["data"])
+    assert body["provider"]["max_price"] == {"prompt": 0.15, "completion": 0.47}
+    assert "max_price" not in body
+    assert options["headers"]["X-OpenRouter-Cache"] == "false"
+    assert options["allow_redirects"] is False
 
 
 def test_completion_accepts_list_content_parts(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -152,3 +169,16 @@ def test_completion_accepts_list_content_parts(monkeypatch: pytest.MonkeyPatch) 
         completion_max_price=0.47,
     )
     assert result.content == "part-a\npart-b"
+
+
+@pytest.mark.parametrize("price", [float("nan"), float("inf"), -1.0, True])
+def test_completion_rejects_invalid_price_limits_before_dispatch(price):
+    with pytest.raises(OpenRouterCompletionError, match="provider.max_price.prompt"):
+        build_openrouter_completion_request(
+            model="qwen/qwen3.8-flash",
+            system_message="sys",
+            prompt="hello",
+            max_tokens=64,
+            prompt_max_price=price,
+            completion_max_price=0.47,
+        )

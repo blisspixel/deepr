@@ -156,7 +156,7 @@ def build_attended_openai_client(*, model: str) -> Any:
     construction in one helper prevents the CLI and the lazy fallback from
     drifting on endpoint pinning, retry policy, or dispatch attestation.
     """
-    import httpx
+    import httpx2
     from openai import AsyncOpenAI
 
     api_key = os.getenv("OPENAI_API_KEY")
@@ -171,7 +171,7 @@ def build_attended_openai_client(*, model: str) -> Any:
         api_key=api_key,
         base_url=default_paid_endpoint("openai"),
         max_retries=0,
-        http_client=httpx.AsyncClient(trust_env=False, follow_redirects=False),
+        http_client=httpx2.AsyncClient(trust_env=False, follow_redirects=False),
     )
     _mint_attended_paid_client_attestation(client, "openai", model)
     return client

@@ -2,7 +2,7 @@
 
 Prices are proposed request caps for one pinned provider route tag per model,
 checked against OpenRouter's public endpoint metadata on 2026-09-01.
-OpenRouter dispatch is not implemented.
+Only the separately authorized attended one-shot path can dispatch.
 """
 
 from .model_capability import ModelCapability

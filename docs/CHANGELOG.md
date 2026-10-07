@@ -7,6 +7,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.23] - 2026-10-07
+
+Provider currency, guarded SDK migrations, and budget accounting corrections.
+No new model, paid dispatch, or expert-quality claim is promoted.
+
+### Fixed
+
+- Key-check guidance now names the provider limit that needs tightening
+  instead of suggesting a blind `$20` ceiling raise. Funding examples respect
+  the `$5` default or a tighter ceiling; existing operator settings are preserved.
+- An unusable non-finite operator ceiling now falls back to the documented
+  default. `NaN` previously escaped range comparisons and propagated as a cap.
+- Attended OpenRouter now passes the full reported `usage.cost` to durable
+  settlement. An overrun is recorded in the append-only ledger, freezes paid
+  authority, and fails the command before report publication. Previously the
+  caller clipped the charge to its hold and hid the divergence.
+- OpenRouter token price limits now serialize under `provider.max_price`, as
+  required by the current routing API. Invalid prices are refused before POST.
+- Unknown model variants and foreign gateway slugs no longer inherit a
+  registered family's pricing or billing identity through substring matching.
+  Exact entries, finite aliases, and anchored numeric snapshots remain valid.
+
+### Changed
+
+- Updated frontend Axios, brace-expansion, source-map-js, selector-parser, and
+  KaTeX dependencies for published advisories. Explicit overrides preserve
+  existing plugin APIs; selector, Markdown math and trust-refusal regressions
+  accompany the regenerated frontend archive. The npm audit reports no known
+  vulnerabilities without suppressions.
+- Regenerated Agent Plugin checksums from the package's required LF bytes,
+  correcting the Windows/Linux mismatch found by hosted CI.
+- Updated the locked multidict, PyJWT, urllib3, virtualenv, and Werkzeug releases
+  for published dependency advisories found during the currency review. The
+  follow-up dependency audit reports no known vulnerabilities, with no added
+  advisory ignores.
+- Reviewed current official provider catalogs on 2026-10-06, added eight public
+  text-model candidates excluded from automatic routing, corrected GPT-5.6
+  token prices, and marked Sonnet 4.5 deprecated while retaining its historical
+  pricing. Defaults and the frozen expert comparison remain pinned. Gemini
+  Flash estimates retain documented January 2027 rates as conservative caps.
+- Excluded deprecated migration entries from direct cheapest, fastest, largest
+  context, and specialization selectors, matching automatic routing's existing
+  exclusion. A regression ensures a retired model cannot win these selectors.
+- Migrated to OpenAI 3.26.0 and Anthropic 1.11.0 with explicit HTTPX2 custom
+  clients, preserving endpoint, proxy, redirect, retry, local cloud-disable,
+  and header sanitation guards. Updated Google GenAI to 2.28.0 and Azure AI
+  Projects to 2.8.0. Extended the paid-boundary checker to cover HTTPX2 and
+  verified real SDK serialization and status handling with offline transports.
+- The no-key OpenRouter recheck refuses the absent DeepSeek endpoint; the other
+  six existing proposals pass. No spend authority or new executable provider
+  adapter is introduced.
+- Clarified the distinction between possessing information and becoming more
+  dependable in the README and development standard. The existing living
+  expertise roadmap now requires preparation, contextual attribution,
+  calibrated uncertainty, reasoned dissent, and explainable revisions, with
+  acceptance cases for contrary evidence, misleading premises, and comparisons
+  with a fair fresh baseline. These are planned gates, not new capabilities or
+  demonstrated improvements in judgment.
+- Aligned README development commands with the frozen lock and independent
+  combined statement/branch coverage gate; kept the active budget example
+  within the default `$5` ceiling.
+
 ## [2.50.22] - 2026-09-25
 
 This release packages the S0 rehearsal harness and a local study-prompt

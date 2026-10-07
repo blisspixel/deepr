@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from .registry import MODEL_CAPABILITIES, ModelCapability
@@ -30,6 +31,9 @@ class _TokenPricingTier:
 
 
 _TIERED_PRICING: dict[str, _TokenPricingTier] = {
+    "gpt-6-astra": _TokenPricingTier(272_000, 2.0, 1.5, inclusive=False),
+    "gpt-6.1-sol": _TokenPricingTier(272_000, 2.0, 1.5, inclusive=False),
+    "gpt-6-luna": _TokenPricingTier(272_000, 2.0, 1.5, inclusive=False),
     # GPT-5.6 applies the long-context rate only above 272K input tokens.
     "gpt-5.6-sol": _TokenPricingTier(272_000, 2.0, 1.5, inclusive=False),
     "gpt-5.6-terra": _TokenPricingTier(272_000, 2.0, 1.5, inclusive=False),
@@ -40,6 +44,7 @@ _TIERED_PRICING: dict[str, _TokenPricingTier] = {
     "gemini-3.1-pro-preview": _TokenPricingTier(200_000, 2.0, 1.5, inclusive=False),
     "gemini-3-pro-preview": _TokenPricingTier(200_000, 2.0, 1.5, inclusive=False),
     # xAI applies these Grok long-context rates at 200K prompt tokens and above.
+    "grok-4-7": _TokenPricingTier(200_000, 2.0, 2.0, inclusive=True),
     "grok-4-6": _TokenPricingTier(200_000, 2.0, 2.0, inclusive=True),
     "grok-build-0-1": _TokenPricingTier(200_000, 2.0, 2.0, inclusive=True),
     "grok-4-5": _TokenPricingTier(200_000, 2.0, 2.0, inclusive=True),
@@ -131,14 +136,17 @@ def _find_model_capability(model: str, *, require_token_pricing: bool = False) -
 
 
 def _model_matches(cap_model: str, needle: str) -> bool:
-    """Return true when a registry model matches a provider model id."""
-    if cap_model in needle:
+    """Match an exact identity or anchored numeric provider snapshot."""
+    if cap_model == needle:
+        return True
+    snapshot = r"(?:[0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{8}|[0-9]{4})"
+    if re.fullmatch(rf"{re.escape(cap_model)}-{snapshot}", needle):
         return True
     for suffix in ("multi-agent", "non-reasoning", "reasoning"):
         marker = f"-{suffix}"
         if cap_model.endswith(marker):
             prefix = cap_model[: -len(marker)]
-            return needle.startswith(f"{prefix}-") and needle.endswith(marker)
+            return re.fullmatch(rf"{re.escape(prefix)}-{snapshot}{marker}", needle) is not None
     return False
 
 
