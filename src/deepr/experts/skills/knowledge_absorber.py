@@ -145,7 +145,7 @@ class KnowledgeAbsorber:
         items = self._extract_items(tool_response)
 
         for item in items:
-            text = item.get("text", "") or item.get("value", "") or str(item)
+            text = _finding_text(item, "text", "value")
             confidence = self._compute_confidence(item, base_confidence)
 
             findings.append(

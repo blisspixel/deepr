@@ -4,6 +4,8 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
+from deepr.utils.prompt_security import sanitize_untrusted_content
+
 logger = logging.getLogger(__name__)
 
 
@@ -98,7 +100,8 @@ class ContentSynthesizer:
 
         for url, content in scraped_data.items():
             combined.append(f"Source: {url}\n")
-            combined.append(content)
+            sanitized = sanitize_untrusted_content(content, source_label=url).delimited
+            combined.append(sanitized)
             combined.append("\n" + "=" * 80 + "\n")
 
         return "\n".join(combined)

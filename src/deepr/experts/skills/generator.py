@@ -180,9 +180,16 @@ def generate_skill_from_report(
 
 def _slugify(text: str) -> str:
     """Convert text to a valid skill name (lowercase, hyphens)."""
+    from deepr.utils.security import reserved_windows_device_stem
+
     slug = re.sub(r"[^\w\s-]", "", text.lower())
     slug = re.sub(r"[\s_]+", "-", slug)
-    return slug.strip("-")[:50]
+    cleaned = slug.strip("-")[:50]
+    if not cleaned:
+        cleaned = "unnamed-skill"
+    if reserved_windows_device_stem(cleaned) is not None:
+        cleaned = f"{cleaned}-skill"
+    return cleaned
 
 
 def _extract_keywords(content: str, max_keywords: int = 20) -> list[str]:

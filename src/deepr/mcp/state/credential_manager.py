@@ -225,7 +225,7 @@ class CredentialManager:
         domain = self._normalize_domain(domain)
 
         # Generate ID and hash
-        cred_id = f"cred_{hashlib.md5(f'{domain}:{credential_type.value}'.encode()).hexdigest()[:12]}"  # Non-crypto: stable lookup ID for gated credential records. Actual secret value is hashed separately with stronger method.
+        cred_id = f"cred_{hashlib.md5(f'{domain}:{credential_type.value}'.encode(), usedforsecurity=False).hexdigest()[:12]}"  # Non-crypto: stable lookup ID for gated credential records. Actual secret value is hashed separately with stronger method.
         value_hash = self._hash_value(value)
 
         now = _utc_now()
