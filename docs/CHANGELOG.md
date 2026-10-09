@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.24] - 2026-10-09
+
+Security hardening across A2A, MCP scoped keys, transport concurrency, dashboard auth, and scraping logs.
+Addresses security tracking issues 20 through 27.
+
+### Security
+
+- A2A slow-header parsing and connection exhaustion defense: bounded concurrent connections
+  with an internal semaphore, enforced an aggregate 10.0s header phase deadline, capped header line
+  count at 64, and limited cumulative header size to 16 KiB. Returns 431 Request Header Fields Too Large
+  and 503 Service Unavailable when saturated.
+- MCP subscriptions and SSE streams retained-resource bounds: added global (1024) and per-owner (64)
+  subscription quotas in SubscriptionManager, deduplicated identical subscriptions for the same owner,
+  bounded legacy SSE stream queues to 1024 entries, and required listen-slot acquisition before serving
+  the legacy /stream endpoint.
+- Expert-scoped MCP key route isolation: route explanation now accepts and filters by allowed experts,
+  injecting the key's allowed experts and denying queries targeting experts outside the allowlist.
+- MCP scoped-key verification concurrency and DoS mitigation: HTTP POST requests now reserve concurrency
+  slots before authentication, PBKDF2 hash verification runs asynchronously off the event loop throttled
+  by a concurrency semaphore with per-peer failure rate limiting, keys use prefix indexing for candidate
+  lookup, verification executes outside the mutation lock, last_used_at writes are coalesced to at most
+  once per 60 seconds, and key store capacity is capped at 500 keys.
+- Dashboard cookie authentication scope: restricted session cookie acceptance strictly to portrait routes
+  (/portraits/), preventing same-site CSRF on state-changing API endpoints.
+- Lemonade local-image request proxy confinement: configured HTTP client with trust_env=False and
+  follow_redirects=False to guarantee local image requests never route through ambient proxies or escape
+  loopback.
+- Installed skill metadata DoS and symlink defense: validated regexes to reject catastrophic backtracking
+  nested quantifiers, enforced file size caps (64 KiB manifest, 256 KiB prompt) and item counts, prevented
+  symlink traversal, and enforced an aggregate 512 KiB budget on active skill prompts.
+- Scraping URL logging redaction: sanitized URLs in web scraping fetch and redirect logs to redact sensitive
+  query parameters and embedded credentials.
+
 ## [2.50.23] - 2026-10-07
 
 Provider currency, guarded SDK migrations, and budget accounting corrections.

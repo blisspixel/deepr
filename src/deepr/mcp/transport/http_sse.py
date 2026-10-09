@@ -104,7 +104,7 @@ async def serve_legacy_stream(
         except asyncio.QueueFull:
             logger.debug("Legacy stream sentinel dropped for subscriber %s (queue full)", subscriber_id)
 
-    queue: asyncio.Queue[Any] = asyncio.Queue()
+    queue: asyncio.Queue[Any] = asyncio.Queue(maxsize=1024)
     subscribers[subscriber_id] = queue
     stats.active_streams += 1
     try:

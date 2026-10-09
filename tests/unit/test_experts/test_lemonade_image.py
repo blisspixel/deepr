@@ -67,6 +67,19 @@ class TestRemoteUrlRejected:
             L.base_url()
 
 
+class TestProxyIsolation:
+    def test_client_disables_trust_env_and_redirects(self, monkeypatch):
+        monkeypatch.setenv("HTTP_PROXY", "http://evil-proxy.internal:8080")
+        monkeypatch.setenv("HTTPS_PROXY", "http://evil-proxy.internal:8080")
+        monkeypatch.setenv("ALL_PROXY", "socks5://evil-proxy.internal:1080")
+        client = L._lemonade_client(timeout=5)
+        try:
+            assert client.trust_env is False
+            assert client.follow_redirects is False
+        finally:
+            client.close()
+
+
 class TestPortraitIntegration:
     def test_lemonade_is_zero_dollar(self):
         assert portrait_cost("lemonade") == 0.0

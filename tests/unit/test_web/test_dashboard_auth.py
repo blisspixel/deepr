@@ -108,7 +108,12 @@ def test_portraits_require_dashboard_secret_when_configured(client, monkeypatch,
     cookie = accepted.headers.get("Set-Cookie", "")
     assert "deepr_dashboard=" in cookie
     assert "HttpOnly" in cookie
+    assert "Path=/portraits/" in cookie
     assert "Secure" not in cookie
+
+    # Ambient portrait cookie must not authenticate /api/ routes
+    api_with_cookie = client.get("/api/cost/limits")
+    assert api_with_cookie.status_code == 401
 
 
 def test_dashboard_cookie_is_secure_on_https(client, monkeypatch, tmp_path) -> None:

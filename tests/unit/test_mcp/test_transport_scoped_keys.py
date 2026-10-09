@@ -704,3 +704,33 @@ class TestStreamingHttpScopedKeys:
 
         with pytest.raises(RuntimeError, match="scoped key"):
             await transport.start()
+
+    @pytest.mark.asyncio
+    async def test_legacy_stream_respects_listen_slot_limit(self, tmp_path):
+        store = ScopedMCPKeyStore(tmp_path / "keys.json")
+        secret, _ = store.create_key("agent", secret="secret")
+        transport = StreamingHttpTransport(scoped_key_store=store, max_concurrent_requests=1)
+        # Saturate listen slot
+        assert transport._try_acquire_listen_slot()
+
+        req = MagicMock()
+        req.headers = {"Authorization": f"Bearer {secret}"}
+        req.query = {}
+        req.remote = "127.0.0.1"
+
+        res = await transport._handle_stream(req)
+        assert res.status == 429
+        transport._release_listen_slot()
+
+    @pytest.mark.asyncio
+    async def test_post_concurrency_limit_trips_before_auth(self, tmp_path):
+        store = ScopedMCPKeyStore(tmp_path / "keys.json")
+        store.create_key("agent", secret="secret")
+        transport = StreamingHttpTransport(scoped_key_store=store, max_concurrent_requests=1)
+        # Saturate request slot
+        assert transport._try_acquire_request_slot()
+
+        req = _request({"jsonrpc": "2.0", "id": "1", "method": "initialize", "params": {}}, "invalid_secret")
+        res = await transport._handle_post(req)
+        assert res.status == 429
+        transport._release_request_slot()

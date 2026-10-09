@@ -75,6 +75,7 @@ async def explain_route_tool(
     max_experts: int = 3,
     top_n: int = 5,
     admissions_path: Path | None = None,
+    allowed_experts: set[str] | list[str] | tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
     """Return the $0 route card. Overlap is a hint, not a verdict or a permission."""
     if not isinstance(query, str) or not query.strip():
@@ -90,6 +91,7 @@ async def explain_route_tool(
         max_experts=parsed_max,
         top_n=parsed_top,
         admissions_path=admissions_path,
+        allowed_experts=allowed_experts,
     )
 
 
@@ -101,6 +103,7 @@ def seat_consumer_dispatch(server: Any) -> dict[str, Callable[[dict[str, Any]], 
             query=args.get("query", ""),
             max_experts=args.get("max_experts", 3),
             top_n=args.get("top_n", 5),
+            allowed_experts=args.get("allowed_experts") or args.get("experts"),
         ),
     }
 

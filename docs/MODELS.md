@@ -1,6 +1,6 @@
 # Model Selection Guide
 
-Status: Deepr v2.50.23 currency review. Last reviewed: 2026-10-06.
+Status: Deepr v2.50.24 currency review. Last reviewed: 2026-10-06.
 
 The source of truth for model IDs, pricing estimates, context windows, and
 routing metadata is [src/deepr/providers/registry.py](../src/deepr/providers/registry.py),

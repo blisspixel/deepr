@@ -28,10 +28,14 @@ from deepr.utils.atomic_io import atomic_write_json
 KEY_SCHEMA_VERSION = "deepr-mcp-key-v1"
 AUDIT_SCHEMA_VERSION = "deepr-mcp-remote-audit-v1"
 AUDIT_KIND = "deepr.mcp.remote_audit"
+MAX_STORED_KEYS = 500
+_LAST_USED_COALESCE_SECONDS = 60
 _HASH_ALGORITHM = "pbkdf2_sha256"
 _HASH_ITERATIONS = 210_000
-_EXPERT_ARG_NAMES = ("expert_name", "name", "experts")
-_ALLOWLIST_INJECTED_EXPERT_TOOLS = frozenset({"deepr_consult_experts", "deepr_start_expert_conversation"})
+_EXPERT_ARG_NAMES = ("expert_name", "name", "experts", "allowed_experts")
+_ALLOWLIST_INJECTED_EXPERT_TOOLS = frozenset(
+    {"deepr_consult_experts", "deepr_start_expert_conversation", "deepr_route_explain"}
+)
 _UNSCOPED_SPEND_TOOLS = frozenset({"deepr_research"})
 _BUDGET_ARGUMENT_TOOLS = frozenset(
     {
@@ -340,7 +344,7 @@ class ScopedMCPKeyStore:
         secret: str | None = None,
     ) -> tuple[str, ScopedMCPKeyRecord]:
         resolved_id = key_id or f"mcp_{secrets.token_hex(6)}"
-        resolved_secret = secret or f"deepr_mcp_{secrets.token_urlsafe(32)}"
+        resolved_secret = secret or f"deepr_mcp_{resolved_id}_{secrets.token_urlsafe(32)}"
         record = ScopedMCPKeyRecord(
             key_id=resolved_id,
             secret_hash=_hash_secret(resolved_secret),
@@ -351,6 +355,8 @@ class ScopedMCPKeyStore:
         )
         with self._mutation_guard():
             records = {item.key_id: item for item in self._read_records()}
+            if len(records) >= MAX_STORED_KEYS and resolved_id not in records:
+                raise ValueError(f"Maximum stored MCP keys limit reached ({MAX_STORED_KEYS})")
             if resolved_id in records:
                 raise ValueError(f"MCP key already exists: {resolved_id}")
             records[record.key_id] = record
@@ -371,29 +377,55 @@ class ScopedMCPKeyStore:
     def has_active_keys(self) -> bool:
         return any(not item.revoked for item in self.list_keys())
 
-    def authenticate(self, secret: str | None) -> ScopedMCPKeyContext | None:
-        if not secret:
-            return None
+    def _find_candidate_records(self, secret: str, records: list[ScopedMCPKeyRecord]) -> list[ScopedMCPKeyRecord]:
+        if secret.startswith("deepr_mcp_"):
+            matching = [r for r in records if not r.revoked and secret.startswith(f"deepr_mcp_{r.key_id}_")]
+            if matching:
+                return matching
+        return [r for r in records if not r.revoked]
+
+    def _touch_last_used(self, key_id: str, timestamp: datetime) -> ScopedMCPKeyContext | None:
         with self._mutation_guard():
             records = self._read_records()
             for index, record in enumerate(records):
-                if record.revoked or not _verify_secret(secret, record.secret_hash):
-                    continue
-                records[index] = ScopedMCPKeyRecord(
-                    key_id=record.key_id,
-                    secret_hash=record.secret_hash,
-                    mode=record.mode,
-                    expert_allowlist=record.expert_allowlist,
-                    budget_limit_usd=record.budget_limit_usd,
-                    rate_limit_per_minute=record.rate_limit_per_minute,
-                    revoked=record.revoked,
-                    schema_version=record.schema_version,
-                    created_at=record.created_at,
-                    last_used_at=_utc_now(),
-                )
-                self._write_records(records)
-                return records[index].to_context()
+                if record.key_id == key_id and not record.revoked:
+                    records[index] = ScopedMCPKeyRecord(
+                        key_id=record.key_id,
+                        secret_hash=record.secret_hash,
+                        mode=record.mode,
+                        expert_allowlist=record.expert_allowlist,
+                        budget_limit_usd=record.budget_limit_usd,
+                        rate_limit_per_minute=record.rate_limit_per_minute,
+                        revoked=record.revoked,
+                        schema_version=record.schema_version,
+                        created_at=record.created_at,
+                        last_used_at=timestamp,
+                    )
+                    self._write_records(records)
+                    return records[index].to_context()
         return None
+
+    def authenticate(self, secret: str | None) -> ScopedMCPKeyContext | None:
+        if not secret:
+            return None
+        records = self._read_records()
+        if not records:
+            return None
+
+        candidates = self._find_candidate_records(secret, records)
+        matched = next((r for r in candidates if _verify_secret(secret, r.secret_hash)), None)
+        if matched is None:
+            return None
+
+        now = _utc_now()
+        if (
+            matched.last_used_at is not None
+            and (now - matched.last_used_at).total_seconds() < _LAST_USED_COALESCE_SECONDS
+        ):
+            return matched.to_context()
+
+        updated = self._touch_last_used(matched.key_id, now)
+        return updated or matched.to_context()
 
     def revoke(self, key_id: str) -> bool:
         with self._mutation_guard():
@@ -454,6 +486,8 @@ def constrain_scoped_mcp_expert_arguments(
         return arguments
     if _extract_requested_experts(arguments):
         return arguments
+    if tool_name == "deepr_route_explain":
+        return {**arguments, "allowed_experts": list(context.expert_allowlist)}
     return {**arguments, "experts": list(context.expert_allowlist)}
 
 

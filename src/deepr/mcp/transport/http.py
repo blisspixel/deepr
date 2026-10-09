@@ -196,6 +196,8 @@ class StreamingHttpTransport:
         self._listen_queues: set[asyncio.Queue[Any]] = set()
         self._listen_slots = 0
         self._running = False
+        self._auth_semaphore = asyncio.Semaphore(16)
+        self._failed_auth_by_peer: dict[str, list[float]] = {}
 
     def on_message(self, handler: Callable[[HttpMessage], Awaitable[HttpMessage | None]]) -> None:
         """Set the message handler for incoming requests."""
@@ -323,6 +325,27 @@ class StreamingHttpTransport:
         if self._auth_token and not self._shared_token_matches(provided):
             return None, self._unauthorized_response()
         return None, None
+
+    async def _authenticate_request_async(
+        self, request: "web.Request"
+    ) -> tuple[ScopedMCPKeyContext | None, web.Response | None]:
+        """Authenticate request with concurrency throttling and per-peer rate limiting."""
+        peer = request.remote or "unknown"
+        if not _request_peer_is_loopback(request, bind_host=self._host):
+            now = datetime.now().timestamp()
+            recent = [t for t in self._failed_auth_by_peer.get(peer, []) if now - t < 60]
+            self._failed_auth_by_peer[peer] = recent
+            if len(recent) >= 20:
+                return None, web.Response(
+                    text=json.dumps({"error": "Too many failed authentication attempts"}),
+                    status=429,
+                    content_type="application/json",
+                )
+        async with self._auth_semaphore:
+            context, unauthorized = await asyncio.to_thread(self._authenticate_request, request)
+        if unauthorized is not None and not _request_peer_is_loopback(request, bind_host=self._host):
+            self._failed_auth_by_peer.setdefault(peer, []).append(datetime.now().timestamp())
+        return context, unauthorized
 
     def _request_identity(
         self,
@@ -639,18 +662,18 @@ class StreamingHttpTransport:
         origin_rejection = self._origin_rejection(request)
         if origin_rejection is not None:
             return origin_rejection
-        auth_context, unauthorized = self._authenticate_request(request)
-        if unauthorized is not None:
-            self._stats.errors += 1
-            return unauthorized
         if not self._try_acquire_request_slot():
             self._stats.errors += 1
             return self._concurrency_limited_response()
+        slot_transferred = False
         message_id: Any = None
         header_version = request.headers.get("MCP-Protocol-Version")
         modern = header_version is not None and header_version not in LEGACY_PROTOCOL_VERSIONS
-        slot_transferred = False
         try:
+            auth_context, unauthorized = await self._authenticate_request_async(request)
+            if unauthorized is not None:
+                self._stats.errors += 1
+                return unauthorized
             body = await request.read()
             self._stats.bytes_received += len(body)
             self._stats.requests_received += 1
@@ -662,17 +685,9 @@ class StreamingHttpTransport:
             message_id = mcp_response_id(data)
             message = HttpMessage.from_dict(validate_mcp_envelope(data))
 
-            # 2026-07-28 transport validation: Origin was checked above;
-            # metadata headers must match the body on modern requests. The
-            # legacy Mcp-Session-Id / Last-Event-ID headers are ignored per
-            # spec (protocol sessions and SSE resumability are gone).
             validation = validate_streamable_http_request(request.headers, message)
 
             if validation.modern and message.method == "subscriptions/listen":
-                # The POST slot pool exists for request/response work; a
-                # long-lived stream would otherwise pin one slot per stream
-                # and N idle streams would starve every other request. Hand
-                # the slot back now; streams are capped separately.
                 self._release_request_slot()
                 slot_transferred = True
                 return await self._handle_subscriptions_listen(request, auth_context, message)
@@ -869,18 +884,24 @@ class StreamingHttpTransport:
         if unauthorized is not None:
             self._stats.errors += 1
             return unauthorized
-        # Namespace the client-supplied id by the authenticated caller so one
-        # client cannot evict another client's stream by guessing its id.
-        identity = self._request_identity(request, self._authenticate_request(request)[0])
-        requested_id = request.query.get("subscriber_id", str(id(request)))
-        subscriber_id = f"{identity.owner_id or identity.authentication}:{requested_id}"
-        return await http_sse.serve_legacy_stream(
-            request,
-            subscriber_id=subscriber_id,
-            subscribers=self._subscribers,
-            stats=self._stats,
-            is_running=lambda: self._running,
-        )
+        if not self._try_acquire_listen_slot():
+            self._stats.errors += 1
+            return self._concurrency_limited_response()
+        try:
+            # Namespace the client-supplied id by the authenticated caller so one
+            # client cannot evict another client's stream by guessing its id.
+            identity = self._request_identity(request, self._authenticate_request(request)[0])
+            requested_id = request.query.get("subscriber_id", str(id(request)))
+            subscriber_id = f"{identity.owner_id or identity.authentication}:{requested_id}"
+            return await http_sse.serve_legacy_stream(
+                request,
+                subscriber_id=subscriber_id,
+                subscribers=self._subscribers,
+                stats=self._stats,
+                is_running=lambda: self._running,
+            )
+        finally:
+            self._release_listen_slot()
 
     async def _handle_health(self, request: web.Request) -> web.Response:
         """Health check endpoint."""
@@ -904,31 +925,30 @@ class StreamingHttpTransport:
         )
 
     async def broadcast(self, notification: dict[str, Any]) -> int:
-        """
-        Broadcast a notification to all connected subscribers.
-
-        Returns the number of subscribers notified.
-        """
+        """Broadcast a notification to all connected subscribers."""
         count = 0
-        for queue in self._subscribers.values():
+        for queue in list(self._subscribers.values()):
             try:
-                await queue.put(notification)
+                queue.put_nowait(notification)
                 count += 1
+            except asyncio.QueueFull:
+                self._stats.errors += 1
+                logger.warning("Dropped notification for full legacy subscriber queue")
             except Exception as exc:
                 self._stats.errors += 1
                 logger.warning("Failed to broadcast MCP notification to subscriber: %s", exc)
         return count
 
     async def send_to(self, subscriber_id: str, notification: dict[str, Any]) -> bool:
-        """
-        Send a notification to a specific subscriber.
-
-        Returns True if sent, False if subscriber not found.
-        """
+        """Send a notification to a specific subscriber."""
         queue = self._subscribers.get(subscriber_id)
         if queue:
-            await queue.put(notification)
-            return True
+            try:
+                queue.put_nowait(notification)
+                return True
+            except asyncio.QueueFull:
+                self._stats.errors += 1
+                return False
         return False
 
     @property

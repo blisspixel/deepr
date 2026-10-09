@@ -87,3 +87,23 @@ def test_invalid_bounds_raise(monkeypatch, tmp_path):
         build_route_explanation("q", max_experts=0, admissions_path=tmp_path / "none.jsonl")
     with pytest.raises(ValueError, match="top_n"):
         build_route_explanation("q", top_n=0, admissions_path=tmp_path / "none.jsonl")
+
+
+def test_allowed_experts_filters_candidates(monkeypatch, tmp_path):
+    _patch_experts(
+        monkeypatch,
+        [
+            _expert("Alpha Expert", domain="security"),
+            _expert("Secret Expert", domain="security and finance"),
+            _expert("Beta Expert", domain="security"),
+        ],
+    )
+    payload = build_route_explanation(
+        "security",
+        allowed_experts=["Alpha Expert", "Beta Expert"],
+        admissions_path=tmp_path / "none.jsonl",
+    )
+    candidate_names = [c["name"] for c in payload["expert_routing"]["candidates"]]
+    assert "Secret Expert" not in candidate_names
+    assert set(candidate_names) == {"Alpha Expert", "Beta Expert"}
+    assert payload["expert_routing"]["expert_count"] == 2

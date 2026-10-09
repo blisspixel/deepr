@@ -362,11 +362,10 @@ Budget remaining: ${budget_remaining:.2f}
                 base_message += f"  - {skill.get_summary()}\n"
             base_message += "\nThese skills activate automatically when relevant.\n"
 
-        # Active skill prompts (full content loaded only when triggered)
-        for skill in self.active_skills:
-            prompt = skill.load_prompt()
-            if prompt:
-                base_message += f"\n\n--- ACTIVE SKILL: {skill.name} ---\n{prompt}\n"
+        # Active skill prompts (full content loaded only when triggered, bounded)
+        from deepr.experts.skills.manager import build_active_skills_prompt
+
+        base_message += build_active_skills_prompt(self.active_skills)
 
         # Autonomous recon findings (native first-class, zero-cost infrastructure context)
         if self._last_recon_findings:

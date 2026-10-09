@@ -125,6 +125,25 @@ class Subscription:
         return self.uri == target_uri
 
 
+def _resolve_subscription_uri(uri: str, wildcard: bool) -> str:
+    """Validate and return canonical subscription URI."""
+    if wildcard:
+        match = re.fullmatch(
+            r"deepr://(?P<type>campaigns|experts)/(?P<id>[a-zA-Z0-9_-]+)/\*",
+            uri,
+        )
+        if not match or reserved_windows_device_stem(match.group("id")):
+            raise ValueError(f"Invalid resource URI: {uri}")
+        return uri[:-2]
+    if parse_resource_uri(uri) is None:
+        raise ValueError(f"Invalid resource URI: {uri}")
+    return uri
+
+
+MAX_GLOBAL_SUBSCRIPTIONS = 1024
+MAX_OWNER_SUBSCRIPTIONS = 64
+
+
 class SubscriptionManager:
     """
     Manages resource subscriptions and event dispatch.
@@ -137,6 +156,22 @@ class SubscriptionManager:
         self._subscriptions: dict[str, Subscription] = {}
         self._uri_index: dict[str, set[str]] = {}  # uri -> subscription_ids
         self._lock = asyncio.Lock()
+
+    def _check_and_deduplicate(
+        self, subscription_uri: str, wildcard: bool, owner_id: str | None, callback: Callable[..., Any]
+    ) -> str | None:
+        if owner_id is not None:
+            for existing in self._subscriptions.values():
+                if existing.owner_id == owner_id and existing.uri == subscription_uri and existing.wildcard == wildcard:
+                    existing.callback = callback
+                    return existing.id
+        if len(self._subscriptions) >= MAX_GLOBAL_SUBSCRIPTIONS:
+            raise ValueError(f"Global subscription limit reached ({MAX_GLOBAL_SUBSCRIPTIONS})")
+        if owner_id is not None:
+            owner_count = sum(1 for s in self._subscriptions.values() if s.owner_id == owner_id)
+            if owner_count >= MAX_OWNER_SUBSCRIPTIONS:
+                raise ValueError(f"Owner subscription limit reached ({MAX_OWNER_SUBSCRIPTIONS})")
+        return None
 
     async def subscribe(
         self,
@@ -153,29 +188,22 @@ class SubscriptionManager:
             uri: Resource URI to subscribe to
             callback: Async function called with update data
             wildcard: If True, subscribe to all subresources
+            owner_id: Optional owner scope for subscription limits
 
         Returns:
             Subscription ID for later unsubscribe
 
         Raises:
-            ValueError: If URI is invalid
+            ValueError: If URI is invalid or subscription limit is reached
         """
-        if wildcard:
-            wildcard_match = re.fullmatch(
-                r"deepr://(?P<type>campaigns|experts)/(?P<id>[a-zA-Z0-9_-]+)/\*",
-                uri,
-            )
-            if not wildcard_match or reserved_windows_device_stem(wildcard_match.group("id")):
-                raise ValueError(f"Invalid resource URI: {uri}")
-            subscription_uri = uri[:-2]
-        else:
-            if parse_resource_uri(uri) is None:
-                raise ValueError(f"Invalid resource URI: {uri}")
-            subscription_uri = uri
-
+        subscription_uri = _resolve_subscription_uri(uri, wildcard)
         sub_id = f"sub_{uuid.uuid4().hex[:12]}"
 
         async with self._lock:
+            existing_id = self._check_and_deduplicate(subscription_uri, wildcard, owner_id, callback)
+            if existing_id is not None:
+                return existing_id
+
             subscription = Subscription(
                 id=sub_id,
                 uri=subscription_uri,
@@ -193,6 +221,18 @@ class SubscriptionManager:
             self._uri_index[index_key].add(sub_id)
 
         return sub_id
+
+    async def remove_owner_subscriptions(self, owner_id: str) -> int:
+        """Remove all subscriptions belonging to an owner."""
+        async with self._lock:
+            to_remove = [sub_id for sub_id, sub in self._subscriptions.items() if sub.owner_id == owner_id]
+            for sub_id in to_remove:
+                sub = self._subscriptions.pop(sub_id)
+                if sub.uri in self._uri_index:
+                    self._uri_index[sub.uri].discard(sub_id)
+                    if not self._uri_index[sub.uri]:
+                        del self._uri_index[sub.uri]
+            return len(to_remove)
 
     async def unsubscribe(self, subscription_id: str, *, owner_id: str | None = None) -> bool:
         """

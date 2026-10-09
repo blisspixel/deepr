@@ -39,6 +39,7 @@ def build_route_explanation(
     max_experts: int = 3,
     top_n: int = 5,
     admissions_path: Path | None = None,
+    allowed_experts: set[str] | list[str] | tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
     """Explain how a query would route, deterministically and at $0 (no model call).
 
@@ -56,6 +57,15 @@ def build_route_explanation(
     from deepr.experts.profile import ExpertStore
 
     experts = ExpertStore().list_all()
+    if allowed_experts is not None:
+        allowed_names = set(allowed_experts)
+        experts = [
+            entry
+            for entry in experts
+            if (getattr(entry, "name", None) or (entry.get("name") if isinstance(entry, dict) else None))
+            in allowed_names
+        ]
+
     scored = score_experts_for_query(query, experts)
     would_consult_names = {entry["name"] for entry in select_top_experts(scored, max_experts=max_experts)}
 
