@@ -463,3 +463,56 @@ class TestRemoteMCPAuditLog:
 
         assert log.count_for_key_since("agent", now - timedelta(seconds=60)) == 1
         assert log.retry_after_seconds_for_key("agent", now=now, window_seconds=60) == 30
+
+    def test_route_explain_scoped_key_constraints(self):
+        context = ScopedMCPKeyContext("agent", ResearchMode.UNRESTRICTED, ("alpha", "beta"))
+
+        missing = authorize_scoped_mcp_tool_call(context, "deepr_route_explain", {"query": "q"})
+        assert not missing.allowed
+        assert missing.error_code == "EXPERT_SCOPE_REQUIRED"
+
+        constrained = constrain_scoped_mcp_expert_arguments(context, "deepr_route_explain", {"query": "q"})
+        assert constrained["allowed_experts"] == ["alpha", "beta"]
+
+        allowed = authorize_scoped_mcp_tool_call(context, "deepr_route_explain", constrained)
+        assert allowed.allowed
+
+        outside = authorize_scoped_mcp_tool_call(
+            context,
+            "deepr_route_explain",
+            {"query": "q", "allowed_experts": ["gamma"]},
+        )
+        assert not outside.allowed
+        assert outside.error_code == "EXPERT_SCOPE_DENIED"
+
+    def test_scoped_key_prefix_and_coalesce_last_used(self, tmp_path):
+        store = ScopedMCPKeyStore(tmp_path / "keys.json")
+        secret, record = store.create_key("agent_1")
+
+        assert secret.startswith(f"deepr_mcp_{record.key_id}_")
+
+        # Authenticate first time updates last_used_at
+        auth1 = store.authenticate(secret)
+        assert auth1 is not None
+        assert auth1.key_id == "agent_1"
+
+        records1 = store.list_keys()
+        first_used = records1[0].last_used_at
+        assert first_used is not None
+
+        # Immediate re-auth coalesces write (does not re-write)
+        auth2 = store.authenticate(secret)
+        assert auth2 is not None
+        records2 = store.list_keys()
+        assert records2[0].last_used_at == first_used
+
+    def test_scoped_key_store_limit_enforced(self, tmp_path, monkeypatch):
+        from deepr.mcp.security import scoped_keys
+
+        monkeypatch.setattr(scoped_keys, "MAX_STORED_KEYS", 2)
+        store = ScopedMCPKeyStore(tmp_path / "keys.json")
+        store.create_key("key_1")
+        store.create_key("key_2")
+
+        with pytest.raises(ValueError, match="Maximum stored MCP keys limit reached"):
+            store.create_key("key_3")

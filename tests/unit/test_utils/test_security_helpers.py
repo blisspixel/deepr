@@ -28,6 +28,7 @@ from deepr.utils.security import (
     resolve_safe_url_ips,
     sanitize_log_message,
     sanitize_name,
+    sanitize_url_for_logging,
     validate_api_key,
     validate_file_extension,
     validate_file_size,
@@ -313,3 +314,24 @@ class TestSanitizeLogMessage:
     def test_passthrough_for_safe_text(self):
         s = sanitize_log_message("Just a normal log line.")
         assert s == "Just a normal log line." or "REDACTED" not in s
+
+
+class TestSanitizeUrlForLogging:
+    def test_redacts_credentials_query_fragment_and_path(self):
+        url = "https://user:pass@example.com:8443/secret/capability/path?token=secret123#frag"
+        sanitized = sanitize_url_for_logging(url)
+        assert "user" not in sanitized
+        assert "pass" not in sanitized
+        assert "secret123" not in sanitized
+        assert "frag" not in sanitized
+        assert "capability" not in sanitized
+        assert sanitized == "https://example.com:8443"
+
+    def test_handles_default_ports(self):
+        assert sanitize_url_for_logging("https://example.com:443/path") == "https://example.com"
+        assert sanitize_url_for_logging("http://example.com:80/path") == "http://example.com"
+
+    def test_handles_invalid_and_empty(self):
+        assert sanitize_url_for_logging("") == "<invalid-url>"
+        assert sanitize_url_for_logging("   ") == "<invalid-url>"
+        assert sanitize_url_for_logging(":::not-a-url:::") == "<invalid-url>"

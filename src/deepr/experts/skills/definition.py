@@ -70,7 +70,11 @@ class SkillTrigger:
     # community share. Cap length and reject obvious catastrophic-
     # backtrack shapes so a poisoned manifest can't burn the loop.
     _MAX_PATTERN_LENGTH = 256
-    _BACKTRACK_RE = re.compile(r"\((?:[^()]|\([^)]*\))*\)[+*]\??[+*]")
+    _BACKTRACK_PATTERNS = (
+        re.compile(r"\((?:[^()]|\([^)]*\))*\)[+*]\??[+*]"),
+        re.compile(r"\([^)]*([+*]|\{\d+,?\d*\})[^)]*\)([+*]|\{\d+,?\d*\})"),
+        re.compile(r"([+*]|\{\d+,?\d*\}){2,}"),
+    )
 
     def __post_init__(self):
         self._compiled = []
@@ -80,7 +84,7 @@ class SkillTrigger:
                     "Skipping over-long trigger pattern (%d chars)", len(pattern) if isinstance(pattern, str) else 0
                 )
                 continue
-            if self._BACKTRACK_RE.search(pattern):
+            if any(regex.search(pattern) for regex in self._BACKTRACK_PATTERNS):
                 logger.warning("Skipping trigger pattern with nested-quantifier backtrack risk: %r", pattern)
                 continue
             try:
@@ -177,6 +181,13 @@ class SkillBudget:
     default_budget: float = 5.0
 
 
+_MAX_MANIFEST_BYTES = 64 * 1024  # 64 KiB
+_MAX_PROMPT_BYTES = 256 * 1024  # 256 KiB
+_MAX_KEYWORDS = 100
+_MAX_PATTERNS = 50
+_MAX_TOOLS = 50
+
+
 @dataclass
 class SkillDefinition:
     """Complete parsed skill definition."""
@@ -214,6 +225,12 @@ class SkillDefinition:
         manifest_path = skill_dir / "skill.yaml"
         if not manifest_path.exists():
             raise FileNotFoundError(f"No skill.yaml in {skill_dir}")
+        if manifest_path.is_symlink():
+            raise ValueError(f"skill.yaml in {skill_dir} is a symlink; symlinks are rejected for security")
+        if not manifest_path.is_file():
+            raise ValueError(f"skill.yaml in {skill_dir} is not a regular file")
+        if manifest_path.stat().st_size > _MAX_MANIFEST_BYTES:
+            raise ValueError(f"skill.yaml in {skill_dir} exceeds maximum size limit ({_MAX_MANIFEST_BYTES} bytes)")
 
         with open(manifest_path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
@@ -222,14 +239,20 @@ class SkillDefinition:
             raise ValueError(f"Invalid skill.yaml in {skill_dir}: expected mapping")
 
         # Parse triggers
-        trigger_data = data.get("triggers", {})
+        trigger_data = data.get("triggers", {}) if isinstance(data.get("triggers"), dict) else {}
+        raw_keywords = trigger_data.get("keywords", [])
+        raw_patterns = trigger_data.get("patterns", [])
+        keywords = raw_keywords[:_MAX_KEYWORDS] if isinstance(raw_keywords, list) else []
+        patterns = raw_patterns[:_MAX_PATTERNS] if isinstance(raw_patterns, list) else []
         triggers = SkillTrigger(
-            keywords=trigger_data.get("keywords", []),
-            patterns=trigger_data.get("patterns", []),
+            keywords=keywords,
+            patterns=patterns,
         )
 
         # Parse tools
-        tools = [SkillTool.from_dict(t) for t in data.get("tools", [])]
+        raw_tools = data.get("tools", [])
+        tools_list = raw_tools[:_MAX_TOOLS] if isinstance(raw_tools, list) else []
+        tools = [SkillTool.from_dict(t) for t in tools_list if isinstance(t, dict)]
 
         # Parse budget (clamp community-supplied ceilings)
         budget_data = data.get("budget", {}) if isinstance(data.get("budget"), dict) else {}
@@ -286,8 +309,18 @@ class SkillDefinition:
             self._prompt_content = ""
             return ""
 
+        raw_prompt_path = self.path / self.prompt_file
+        if raw_prompt_path.is_symlink():
+            logger.warning(
+                "Skill %s: prompt_file %r is a symlink; ignoring",
+                self.name,
+                self.prompt_file,
+            )
+            self._prompt_content = ""
+            return ""
+
         skill_root = self.path.resolve()
-        prompt_path = (self.path / self.prompt_file).resolve()
+        prompt_path = raw_prompt_path.resolve()
         try:
             prompt_path.relative_to(skill_root)
         except ValueError:
@@ -300,7 +333,16 @@ class SkillDefinition:
             return ""
 
         if prompt_path.is_file():
-            self._prompt_content = prompt_path.read_text(encoding="utf-8")
+            if prompt_path.stat().st_size > _MAX_PROMPT_BYTES:
+                logger.warning(
+                    "Skill %s: prompt_file %r exceeds maximum size limit (%d bytes); ignoring",
+                    self.name,
+                    self.prompt_file,
+                    _MAX_PROMPT_BYTES,
+                )
+                self._prompt_content = ""
+                return ""
+            self._prompt_content = prompt_path.read_text(encoding="utf-8")[:_MAX_PROMPT_BYTES]
         else:
             self._prompt_content = ""
         return self._prompt_content

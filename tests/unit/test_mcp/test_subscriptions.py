@@ -431,3 +431,54 @@ async def test_emit_callback_failure_logs_and_continues(caplog):
     assert count == 1
     assert len(received) == 1
     assert "Subscription callback failed" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_subscribe_deduplicates_same_owner_and_uri():
+    manager = SubscriptionManager()
+
+    async def cb1(_data):
+        pass
+
+    async def cb2(_data):
+        pass
+
+    sub_id1 = await manager.subscribe("deepr://campaigns/abc/status", cb1, owner_id="owner_1")
+    sub_id2 = await manager.subscribe("deepr://campaigns/abc/status", cb2, owner_id="owner_1")
+
+    assert sub_id1 == sub_id2
+    assert manager.count() == 1
+
+
+@pytest.mark.asyncio
+async def test_owner_subscription_quota_enforced(monkeypatch):
+    from deepr.mcp.state import subscriptions
+
+    monkeypatch.setattr(subscriptions, "MAX_OWNER_SUBSCRIPTIONS", 2)
+    manager = SubscriptionManager()
+
+    async def cb(_data):
+        pass
+
+    await manager.subscribe("deepr://campaigns/abc1/status", cb, owner_id="owner_1")
+    await manager.subscribe("deepr://campaigns/abc2/status", cb, owner_id="owner_1")
+
+    with pytest.raises(ValueError, match="Owner subscription limit reached"):
+        await manager.subscribe("deepr://campaigns/abc3/status", cb, owner_id="owner_1")
+
+
+@pytest.mark.asyncio
+async def test_remove_owner_subscriptions():
+    manager = SubscriptionManager()
+
+    async def cb(_data):
+        pass
+
+    await manager.subscribe("deepr://campaigns/abc1/status", cb, owner_id="owner_1")
+    await manager.subscribe("deepr://campaigns/abc2/status", cb, owner_id="owner_1")
+    await manager.subscribe("deepr://campaigns/abc3/status", cb, owner_id="owner_2")
+
+    assert manager.count() == 3
+    removed = await manager.remove_owner_subscriptions("owner_1")
+    assert removed == 2
+    assert manager.count() == 1

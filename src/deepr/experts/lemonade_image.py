@@ -78,14 +78,29 @@ def base_url(value: str | None = None) -> str:
     return f"{checked}/api/v1"
 
 
-def _list_models(root: str) -> list[dict[str, Any]]:
+def _lemonade_client(*, timeout: float) -> Any:
+    """Return an HTTPX client configured for direct, loopback-only communication.
+
+    Ambient proxy environment variables are explicitly disabled (trust_env=False)
+    and redirects are blocked (follow_redirects=False) to ensure requests cannot
+    be intercepted or routed off-box.
+    """
     import httpx
 
-    response = httpx.get(f"{root}/models", timeout=_LISTING_TIMEOUT_S)
-    response.raise_for_status()
-    payload = response.json()
-    data = payload.get("data") if isinstance(payload, dict) else None
-    return [item for item in data if isinstance(item, dict)] if isinstance(data, list) else []
+    return httpx.Client(
+        trust_env=False,
+        follow_redirects=False,
+        timeout=timeout,
+    )
+
+
+def _list_models(root: str) -> list[dict[str, Any]]:
+    with _lemonade_client(timeout=_LISTING_TIMEOUT_S) as client:
+        response = client.get(f"{root}/models")
+        response.raise_for_status()
+        payload = response.json()
+        data = payload.get("data") if isinstance(payload, dict) else None
+        return [item for item in data if isinstance(item, dict)] if isinstance(data, list) else []
 
 
 def _is_attested(entry: dict[str, Any]) -> bool:
@@ -145,8 +160,6 @@ def render(prompt: str) -> bytes:
         RuntimeError: When no attested local model is available, or the server
             returns no image.
     """
-    import httpx
-
     api_root = base_url()
     selection = attested_model(api_root)
     if selection is None:
@@ -159,13 +172,13 @@ def render(prompt: str) -> bytes:
         raise RuntimeError(f"Lemonade image execution is blocked because {detail}")
 
     model, _checkpoint = selection
-    response = httpx.post(
-        f"{api_root}/images/generations",
-        json={"model": model, "prompt": prompt, "n": 1},
-        timeout=_RENDER_TIMEOUT_S,
-    )
-    response.raise_for_status()
-    payload = response.json()
+    with _lemonade_client(timeout=_RENDER_TIMEOUT_S) as client:
+        response = client.post(
+            f"{api_root}/images/generations",
+            json={"model": model, "prompt": prompt, "n": 1},
+        )
+        response.raise_for_status()
+        payload = response.json()
     entries = payload.get("data") if isinstance(payload, dict) else None
     encoded = (
         entries[0].get("b64_json") if isinstance(entries, list) and entries and isinstance(entries[0], dict) else None

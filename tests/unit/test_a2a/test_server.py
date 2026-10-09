@@ -134,6 +134,83 @@ class TestTransportResponses:
         assert "incomplete" in text.lower() or "timed out" in text.lower()
         assert writer.closed is True
 
+    @pytest.mark.asyncio
+    async def test_excess_headers_return_431(self, server: A2AServer) -> None:
+        """Exceeding max header count returns 431 Request Header Fields Too Large."""
+
+        class _ExcessHeaderReader:
+            def __init__(self) -> None:
+                self._n = 0
+
+            async def readline(self) -> bytes:
+                self._n += 1
+                if self._n == 1:
+                    return b"GET /.well-known/agent-card.json HTTP/1.1\r\n"
+                if self._n <= 70:
+                    return f"X-Header-{self._n}: test\r\n".encode()
+                return b"\r\n"
+
+        class _Writer:
+            def __init__(self) -> None:
+                self.buf = bytearray()
+                self.closed = False
+
+            def write(self, data: bytes) -> None:
+                self.buf.extend(data)
+
+            async def drain(self) -> None:
+                return None
+
+            def close(self) -> None:
+                self.closed = True
+
+            async def wait_closed(self) -> None:
+                return None
+
+        writer = _Writer()
+        await server._handle_connection(_ExcessHeaderReader(), writer)  # type: ignore[arg-type]
+        text = writer.buf.decode()
+        assert "HTTP/1.1 431 Request Header Fields Too Large" in text
+        assert writer.closed is True
+
+    @pytest.mark.asyncio
+    async def test_connection_semaphore_rejection_returns_503(self, server: A2AServer) -> None:
+        """When connection semaphore is locked, new connections receive 503."""
+
+        class _Reader:
+            async def readline(self) -> bytes:
+                return b"GET /.well-known/agent-card.json HTTP/1.1\r\n"
+
+        class _Writer:
+            def __init__(self) -> None:
+                self.buf = bytearray()
+                self.closed = False
+
+            def write(self, data: bytes) -> None:
+                self.buf.extend(data)
+
+            async def drain(self) -> None:
+                return None
+
+            def close(self) -> None:
+                self.closed = True
+
+            async def wait_closed(self) -> None:
+                return None
+
+        writer = _Writer()
+        # Acquire all permits
+        for _ in range(server._connection_semaphore._value):
+            await server._connection_semaphore.acquire()
+        try:
+            await server._handle_connection(_Reader(), writer)  # type: ignore[arg-type]
+            text = writer.buf.decode()
+            assert "HTTP/1.1 503 Service Unavailable" in text
+            assert writer.closed is True
+        finally:
+            for _ in range(64):
+                server._connection_semaphore.release()
+
 
 class TestTaskCreation:
     """Test POST /tasks."""

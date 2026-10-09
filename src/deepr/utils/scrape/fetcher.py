@@ -18,7 +18,7 @@ from deepr.utils.pinned_http import (
 from deepr.utils.pinned_http import (
     pinned_get as _pinned_get,
 )
-from deepr.utils.security import SSRFError, is_safe_url, validate_url
+from deepr.utils.security import SSRFError, is_safe_url, sanitize_url_for_logging, validate_url
 
 from .config import USER_AGENTS, ScrapeConfig
 
@@ -118,17 +118,17 @@ class ContentFetcher:
         Returns:
             FetchResult with content and metadata
         """
-        logger.info(f"Fetching: {url}")
+        logger.info("Fetching: %s", sanitize_url_for_logging(url))
 
         # Security: Validate URL to prevent SSRF attacks
         try:
             validate_url(url, allow_private=False)
-        except SSRFError as e:
-            logger.warning(f"SSRF protection blocked URL: {url} - {e}")
+        except SSRFError:
+            logger.warning("SSRF protection blocked URL: %s", sanitize_url_for_logging(url))
             return FetchResult(
                 url=url,
                 success=False,
-                error=f"URL blocked for security reasons: {e}",
+                error="URL blocked for security reasons",
                 security_blocked=True,
             )
 
@@ -192,10 +192,10 @@ class ContentFetcher:
         # Robots.txt enforcement is not implemented in this fetcher yet; callers
         # that need strict crawl compliance should disable fetching upstream.
         if not self.config.respect_robots:
-            logger.debug(f"robots.txt check disabled for {url}")
+            logger.debug("robots.txt check disabled for %s", sanitize_url_for_logging(url))
             return True
 
-        logger.warning(f"robots.txt checking not implemented yet for {url}")
+        logger.warning("robots.txt checking not implemented yet for %s", sanitize_url_for_logging(url))
         logger.warning("Proceeding anyway - set respect_robots=True to enforce")
         return True
 
@@ -300,12 +300,12 @@ class ContentFetcher:
             )
         try:
             validate_url(next_url, allow_private=False)
-        except SSRFError as redirect_error:
-            logger.warning("SSRF protection blocked redirect target: %s", next_url)
+        except SSRFError:
+            logger.warning("SSRF protection blocked redirect target: %s", sanitize_url_for_logging(next_url))
             return FetchResult(
                 url=original_url,
                 success=False,
-                error=f"Redirect target blocked for security reasons: {redirect_error}",
+                error="Redirect target blocked for security reasons",
                 security_blocked=True,
             )
         if redirect_count >= MAX_SAFE_REDIRECTS:
@@ -514,7 +514,7 @@ class ContentFetcher:
                     try:
                         target = request_obj.url
                         if not is_safe_url(target, allow_private=False):
-                            logger.warning("Playwright SSRF guard blocked %s", target)
+                            logger.warning("Playwright SSRF guard blocked %s", sanitize_url_for_logging(target))
                             await route.abort("blockedbyclient")
                             return
                     except Exception as exc:
@@ -538,8 +538,8 @@ class ContentFetcher:
                     if final_url and final_url != url:
                         try:
                             validate_url(final_url, allow_private=False)
-                        except SSRFError as exc:
-                            logger.warning("Playwright final URL blocked: %s (%s)", final_url, exc)
+                        except SSRFError:
+                            logger.warning("Playwright final URL blocked: %s", sanitize_url_for_logging(final_url))
                             return FetchResult(
                                 url=url,
                                 success=False,

@@ -8,7 +8,7 @@ from pathlib import Path
 import yaml
 
 import deepr.experts.skills.manager as manager_mod
-from deepr.experts.skills.manager import SkillManager
+from deepr.experts.skills.manager import SkillManager, build_active_skills_prompt
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -662,3 +662,37 @@ class TestTierOverride:
         assert skill.domains == ["tier3"]
         assert skill.tier == "expert-local"
         assert len(mgr.list_all()) == 1
+
+
+class TestBuildActiveSkillsPrompt:
+    def test_concatenates_prompts_within_budget(self):
+        class _FakeSkill:
+            def __init__(self, name: str, prompt: str):
+                self.name = name
+                self._prompt = prompt
+
+            def load_prompt(self) -> str:
+                return self._prompt
+
+        s1 = _FakeSkill("s1", "prompt one")
+        s2 = _FakeSkill("s2", "prompt two")
+        result = build_active_skills_prompt([s1, s2])  # type: ignore[list-item]
+        assert "ACTIVE SKILL: s1" in result
+        assert "ACTIVE SKILL: s2" in result
+
+    def test_caps_aggregate_prompt_budget(self, caplog):
+        class _FakeSkill:
+            def __init__(self, name: str, prompt: str):
+                self.name = name
+                self._prompt = prompt
+
+            def load_prompt(self) -> str:
+                return self._prompt
+
+        s1 = _FakeSkill("s1", "a" * 100)
+        s2 = _FakeSkill("s2", "b" * 100)
+        with caplog.at_level(logging.WARNING):
+            result = build_active_skills_prompt([s1, s2], max_bytes=150)  # type: ignore[list-item]
+        assert "ACTIVE SKILL: s1" in result
+        assert "ACTIVE SKILL: s2" not in result
+        assert "Aggregate active skill prompt budget" in caplog.text

@@ -38,6 +38,13 @@ logger = logging.getLogger(__name__)
 # Content-Length from buffering arbitrary memory.
 _MAX_REQUEST_BODY_BYTES = 1 * 1024 * 1024  # 1 MiB
 
+# Connection and header limits to prevent unauthenticated resource exhaustion.
+_MAX_CONCURRENT_CONNECTIONS = 64
+_MAX_HEADER_PHASE_TIMEOUT_S = 10.0
+_MAX_HEADER_COUNT = 64
+_MAX_TOTAL_HEADER_BYTES = 16 * 1024  # 16 KiB
+_MAX_HEADER_LINE_BYTES = 4096
+
 # Minimal reason phrases for the lightweight transport. Unknown codes fall
 # back to a safe generic token so clients never see "200 OK" on errors.
 _HTTP_REASON: dict[int, str] = {
@@ -51,6 +58,7 @@ _HTTP_REASON: dict[int, str] = {
     409: "Conflict",
     413: "Payload Too Large",
     429: "Too Many Requests",
+    431: "Request Header Fields Too Large",
     500: "Internal Server Error",
     503: "Service Unavailable",
 }
@@ -96,6 +104,7 @@ class A2AServer:
             allow_unauthenticated_loopback = env_flag("DEEPR_A2A_ALLOW_UNAUTHENTICATED_LOOPBACK")
         self._allow_unauthenticated_loopback = allow_unauthenticated_loopback
         self._active_runs: dict[str, asyncio.Task[Any]] = {}
+        self._connection_semaphore = asyncio.Semaphore(_MAX_CONCURRENT_CONNECTIONS)
 
     async def start(self, host: str = "localhost", port: int = 8080) -> None:
         """Start the A2A HTTP server."""
@@ -317,12 +326,19 @@ class A2AServer:
             queue.put_nowait(progress)
 
     @staticmethod
-    async def _read_request_target(reader: asyncio.StreamReader) -> tuple[str, str] | None:
+    async def _read_request_target(
+        reader: asyncio.StreamReader,
+        deadline: float | None = None,
+    ) -> tuple[str, str] | None:
+        loop = asyncio.get_running_loop()
+        timeout = 10.0 if deadline is None else max(deadline - loop.time(), 0.0)
+        if timeout <= 0:
+            return None
         try:
-            request_line = await asyncio.wait_for(reader.readline(), timeout=10.0)
+            request_line = await asyncio.wait_for(reader.readline(), timeout=timeout)
         except TimeoutError:
             return None
-        if not request_line:
+        if not request_line or len(request_line) > _MAX_HEADER_LINE_BYTES:
             return None
         parts = request_line.decode(errors="replace").strip().split(" ")
         if len(parts) < 2:
@@ -333,6 +349,7 @@ class A2AServer:
         self,
         reader: asyncio.StreamReader,
         writer: asyncio.StreamWriter,
+        deadline: float | None = None,
     ) -> tuple[int, str] | None:
         """Read the bounded headers used by the minimal A2A transport.
 
@@ -342,9 +359,21 @@ class A2AServer:
         """
         content_length = 0
         auth_header = ""
+        header_count = 0
+        total_header_bytes = 0
+        loop = asyncio.get_running_loop()
+
         while True:
+            remaining = _MAX_HEADER_PHASE_TIMEOUT_S if deadline is None else max(deadline - loop.time(), 0.0)
+            if remaining <= 0:
+                await self._send_simple(
+                    writer,
+                    408,
+                    {"error": "Timed out reading HTTP headers"},
+                )
+                return None
             try:
-                line = await asyncio.wait_for(reader.readline(), timeout=10.0)
+                line = await asyncio.wait_for(reader.readline(), timeout=remaining)
             except TimeoutError:
                 await self._send_simple(
                     writer,
@@ -354,6 +383,17 @@ class A2AServer:
                 return None
             if line in (b"\r\n", b"\n", b""):
                 return content_length, auth_header
+
+            header_count += 1
+            total_header_bytes += len(line)
+            if header_count > _MAX_HEADER_COUNT or total_header_bytes > _MAX_TOTAL_HEADER_BYTES:
+                await self._send_simple(
+                    writer,
+                    431,
+                    {"error": "Request header fields too large"},
+                )
+                return None
+
             raw = line.decode(errors="replace").strip()
             header_lower = raw.lower()
             if header_lower.startswith("content-length:"):
@@ -387,8 +427,8 @@ class A2AServer:
         try:
             writer.close()
             await writer.wait_closed()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Closing A2A client connection failed: %s", exc)
 
     async def _handle_connection(
         self,
@@ -396,47 +436,58 @@ class A2AServer:
         writer: asyncio.StreamWriter,
     ) -> None:
         """Handle a raw TCP connection (minimal HTTP parsing)."""
-        try:
-            target = await self._read_request_target(reader)
-            if target is None:
-                # Incomplete or empty request line: answer so clients do not
-                # hang on a silent TCP close.
-                await self._send_simple(
-                    writer,
-                    400,
-                    {"error": "Malformed or incomplete HTTP request line"},
-                )
-                return
-            headers = await self._read_headers(reader, writer)
-            if headers is None:
-                # Header path may already have sent 400/413; otherwise bail.
-                return
-            content_length, auth_header = headers
-            body = await self._read_body(reader, content_length)
-            if body is None:
-                await self._send_simple(
-                    writer,
-                    408,
-                    {"error": "Request body timed out or was incomplete"},
-                )
-                return
-            method, path = target
-            status, response = await self.handle_request(method, path, body, auth_header=auth_header)
-            await self._send_simple(writer, status, response)
-        except Exception:
-            logger.exception("Error handling A2A connection")
-            # Intent: one bad A2A connection or request must not crash the server
-            # process; still try to return a structured 500 before close.
-            try:
-                await self._send_simple(
-                    writer,
-                    500,
-                    {"error": "Internal server error handling A2A request"},
-                )
-            except Exception:
-                logger.exception("Failed to send A2A 500 response")
-        finally:
+        if self._connection_semaphore.locked():
+            await self._send_simple(
+                writer,
+                503,
+                {"error": "Maximum concurrent connections reached"},
+            )
             await self._close_writer(writer)
+            return
+
+        async with self._connection_semaphore:
+            try:
+                deadline = asyncio.get_running_loop().time() + _MAX_HEADER_PHASE_TIMEOUT_S
+                target = await self._read_request_target(reader, deadline=deadline)
+                if target is None:
+                    # Incomplete or empty request line: answer so clients do not
+                    # hang on a silent TCP close.
+                    await self._send_simple(
+                        writer,
+                        400,
+                        {"error": "Malformed or incomplete HTTP request line"},
+                    )
+                    return
+                headers = await self._read_headers(reader, writer, deadline=deadline)
+                if headers is None:
+                    # Header path may already have sent 400/413/431; otherwise bail.
+                    return
+                content_length, auth_header = headers
+                body = await self._read_body(reader, content_length)
+                if body is None:
+                    await self._send_simple(
+                        writer,
+                        408,
+                        {"error": "Request body timed out or was incomplete"},
+                    )
+                    return
+                method, path = target
+                status, response = await self.handle_request(method, path, body, auth_header=auth_header)
+                await self._send_simple(writer, status, response)
+            except Exception:
+                logger.exception("Error handling A2A connection")
+                # Intent: one bad A2A connection or request must not crash the server
+                # process; still try to return a structured 500 before close.
+                try:
+                    await self._send_simple(
+                        writer,
+                        500,
+                        {"error": "Internal server error handling A2A request"},
+                    )
+                except Exception:
+                    logger.exception("Failed to send A2A 500 response")
+            finally:
+                await self._close_writer(writer)
 
     @staticmethod
     async def _send_simple(writer: asyncio.StreamWriter, status: int, body: dict[str, Any]) -> None:

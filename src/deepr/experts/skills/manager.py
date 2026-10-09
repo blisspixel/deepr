@@ -132,3 +132,30 @@ class SkillManager:
                     suggestions.append(skill)
                     break
         return suggestions
+
+
+_MAX_AGGREGATE_ACTIVE_PROMPT_BYTES = 512 * 1024  # 512 KiB
+
+
+def build_active_skills_prompt(
+    skills: list[SkillDefinition],
+    max_bytes: int = _MAX_AGGREGATE_ACTIVE_PROMPT_BYTES,
+) -> str:
+    """Build concatenated active skill prompt bounded by an aggregate byte ceiling."""
+    total_bytes = 0
+    parts: list[str] = []
+    for skill in skills:
+        prompt = skill.load_prompt()
+        if not prompt:
+            continue
+        encoded_len = len(prompt.encode("utf-8"))
+        if total_bytes + encoded_len > max_bytes:
+            logger.warning(
+                "Aggregate active skill prompt budget (%d bytes) reached; omitting skill %s",
+                max_bytes,
+                skill.name,
+            )
+            break
+        total_bytes += encoded_len
+        parts.append(f"\n\n--- ACTIVE SKILL: {skill.name} ---\n{prompt}\n")
+    return "".join(parts)

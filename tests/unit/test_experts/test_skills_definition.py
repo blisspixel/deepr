@@ -107,6 +107,22 @@ class TestSkillTrigger:
         trigger = SkillTrigger()
         assert not trigger.matches("anything at all")
 
+    def test_nested_quantifier_patterns_are_rejected(self, caplog):
+        """Nested quantifier patterns with catastrophic backtrack risk are rejected."""
+        with caplog.at_level(logging.WARNING):
+            trigger = SkillTrigger(
+                patterns=[
+                    r"^(a+)+$",
+                    r"((a*)+)*",
+                    r"([a-z]+)+",
+                    r"(foo+)+",
+                    r"a++",
+                    r"valid .+ pattern",
+                ]
+            )
+        assert len(trigger._compiled) == 1
+        assert "nested-quantifier backtrack risk" in caplog.text
+
 
 # ---------------------------------------------------------------------------
 # SkillTool
@@ -486,6 +502,34 @@ output_templates:
             "detail": "templates/detail.md",
         }
 
+    def test_load_oversized_manifest_raises(self, tmp_path):
+        """Oversized skill.yaml files (>64 KiB) are rejected."""
+        skill_dir = tmp_path / "oversized"
+        skill_dir.mkdir()
+        # Create a file exceeding 64 KiB
+        large_yaml = "name: large\ndescription: " + ("x" * (65 * 1024))
+        (skill_dir / "skill.yaml").write_text(large_yaml, encoding="utf-8")
+        with pytest.raises(ValueError, match="exceeds maximum size limit"):
+            SkillDefinition.load(skill_dir, tier="built-in")
+
+    def test_load_symlink_manifest_raises(self, tmp_path):
+        """Symlinked skill.yaml files are rejected."""
+        target_dir = tmp_path / "target"
+        target_dir.mkdir()
+        real_file = target_dir / "real.yaml"
+        real_file.write_text("name: symlinked\n", encoding="utf-8")
+
+        skill_dir = tmp_path / "symlinked-skill"
+        skill_dir.mkdir()
+        link_path = skill_dir / "skill.yaml"
+        try:
+            link_path.symlink_to(real_file)
+        except OSError:
+            pytest.skip("Symlinks not supported on this platform without elevated privileges")
+
+        with pytest.raises(ValueError, match="symlink"):
+            SkillDefinition.load(skill_dir, tier="built-in")
+
 
 class TestSkillDefinitionLoadPrompt:
     """Tests for SkillDefinition.load_prompt()."""
@@ -560,6 +604,42 @@ prompt_file: "system.md"
 
         defn = SkillDefinition.load(skill_dir, tier="built-in")
         assert defn.load_prompt() == "Custom prompt content"
+
+    def test_oversized_prompt_file_is_ignored(self, tmp_path, caplog):
+        """Prompt files exceeding 256 KiB are rejected and return empty."""
+        skill_dir = tmp_path / "oversized-prompt"
+        skill_dir.mkdir()
+        (skill_dir / "skill.yaml").write_text("name: test\n", encoding="utf-8")
+        large_prompt = "x" * (257 * 1024)
+        (skill_dir / "prompt.md").write_text(large_prompt, encoding="utf-8")
+
+        defn = SkillDefinition.load(skill_dir, tier="built-in")
+        with caplog.at_level(logging.WARNING):
+            result = defn.load_prompt()
+        assert result == ""
+        assert "exceeds maximum size limit" in caplog.text
+
+    def test_symlink_prompt_file_is_ignored(self, tmp_path, caplog):
+        """Symlinked prompt files are rejected and return empty."""
+        target_dir = tmp_path / "secret"
+        target_dir.mkdir()
+        secret_file = target_dir / "secret.txt"
+        secret_file.write_text("secret prompt content", encoding="utf-8")
+
+        skill_dir = tmp_path / "symlinked-prompt-skill"
+        skill_dir.mkdir()
+        (skill_dir / "skill.yaml").write_text("name: test\n", encoding="utf-8")
+        link_path = skill_dir / "prompt.md"
+        try:
+            link_path.symlink_to(secret_file)
+        except OSError:
+            pytest.skip("Symlinks not supported on this platform without elevated privileges")
+
+        defn = SkillDefinition.load(skill_dir, tier="built-in")
+        with caplog.at_level(logging.WARNING):
+            result = defn.load_prompt()
+        assert result == ""
+        assert "symlink" in caplog.text
 
 
 class TestSkillDefinitionGetSummary:

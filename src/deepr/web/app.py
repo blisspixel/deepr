@@ -130,10 +130,12 @@ def _presented_dashboard_secret() -> str:
     )
     if presented:
         return presented
-    return presented_secret_from_dashboard_cookie(
-        cookie_value=request.cookies.get(_DASHBOARD_COOKIE, ""),
-        configured_secret=_API_KEY,
-    )
+    if request.path.startswith("/portraits/"):
+        return presented_secret_from_dashboard_cookie(
+            cookie_value=request.cookies.get(_DASHBOARD_COOKIE, ""),
+            configured_secret=_API_KEY,
+        )
+    return ""
 
 
 @app.before_request
@@ -180,7 +182,7 @@ def _attach_dashboard_cookie(response):
                 httponly=True,
                 samesite="Lax",
                 secure=request.is_secure,
-                path="/",
+                path="/portraits/",
             )
     return response
 

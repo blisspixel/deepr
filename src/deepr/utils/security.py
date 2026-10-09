@@ -216,6 +216,26 @@ def resolve_all_ips(hostname: str) -> list[str]:
         return []
 
 
+def sanitize_url_for_logging(url: str) -> str:
+    """Return a sanitized version of URL safe for log messages.
+
+    Removes userinfo, queries, fragments, and sensitive path details,
+    retaining only the safe scheme and host (with port if non-default).
+    """
+    if not isinstance(url, str) or not url.strip():
+        return "<invalid-url>"
+    try:
+        parsed = urlparse(url.strip())
+        scheme = parsed.scheme or "http"
+        host = parsed.hostname
+        if not host:
+            return "<invalid-url>"
+        port = f":{parsed.port}" if parsed.port and parsed.port not in (80, 443) else ""
+        return f"{scheme}://{host}{port}"
+    except Exception:
+        return "<invalid-url>"
+
+
 def is_safe_url(url: str, allow_private: bool = False) -> bool:
     """
     Check if a URL is safe to fetch (SSRF protection).
