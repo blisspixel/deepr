@@ -14,13 +14,12 @@ from datetime import UTC, datetime, timedelta
 from functools import partial
 from pathlib import Path
 
-from dotenv import load_dotenv
 from flask import Flask, g, jsonify, render_template, request, send_from_directory
 from flask_cors import CORS
 from flask_socketio import SocketIO
 from werkzeug.utils import safe_join, secure_filename
 
-from deepr.config import runtime_data_path
+from deepr.config import load_configuration_environment, runtime_data_path
 from deepr.security.http_auth import (
     SharedSecretDecision,
     check_shared_secret,
@@ -45,7 +44,7 @@ from deepr.web.expert_loop_status_api import register_expert_read_apis
 from deepr.web.metered_expert_gate import metered_expert_mutation_block
 from deepr.web.portrait_api import generate_expert_portrait_response
 
-load_dotenv()
+load_configuration_environment()
 
 # Serve the Vite-built frontend from frontend/dist/
 _frontend_dist = Path(__file__).parent / "frontend" / "dist"

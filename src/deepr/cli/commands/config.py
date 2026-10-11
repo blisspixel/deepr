@@ -206,6 +206,9 @@ def show(unified: bool, legacy: bool):
             from deepr.config import load_config
 
             config = load_config()
+            from deepr.config import configuration_source_summary
+
+            click.echo(configuration_source_summary())
 
             click.echo("\nProvider:")
             click.echo(f"   Type: {config.get('provider', 'openai')}")
@@ -232,7 +235,7 @@ def show(unified: bool, legacy: bool):
         else:
             # New consolidated Settings format (default)
             settings = _get_settings()
-            console.print(settings.show(mask_keys=True))
+            console.print(settings.show(mask_keys=True), markup=False)
 
     except Exception as e:
         print_error(f"Error: {e}")
@@ -253,35 +256,14 @@ def set(key: str, value: str):
     print_section_header(f"Set Configuration: {key}")
 
     try:
-        from pathlib import Path
+        from deepr.config import configuration_env_path, upsert_configuration_env_file
 
         normalized_key, normalized_value = _normalize_config_key_value(key, value)
-        env_file = Path(".env")
+        env_file = configuration_env_path()
+        upsert_configuration_env_file(env_file, {normalized_key: normalized_value})
 
-        if not env_file.exists():
-            print_error(".env file not found. Copy .env.example first.")
-            raise click.Abort()
-
-        # Read current content
-        lines = env_file.read_text().splitlines()
-
-        # Find and update or append
-        found = False
-        new_lines = []
-        for line in lines:
-            if line.startswith(f"{normalized_key}="):
-                new_lines.append(f"{normalized_key}={normalized_value}")
-                found = True
-            else:
-                new_lines.append(line)
-
-        if not found:
-            new_lines.append(f"{normalized_key}={normalized_value}")
-
-        # Write back
-        env_file.write_text("\n".join(new_lines) + "\n")
-
-        print_success(f"Configuration updated: {normalized_key}={normalized_value}")
+        print_success(f"Configuration updated: {normalized_key}")
+        console.print(f"Config file: {env_file}", markup=False)
         console.print("\nRestart any running services for changes to take effect")
 
     except click.ClickException as e:

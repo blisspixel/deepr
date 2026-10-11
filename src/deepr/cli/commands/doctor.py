@@ -51,6 +51,19 @@ async def check_local_ollama(*, skip_connectivity: bool) -> list[DiagnosticCheck
     return [check]
 
 
+def check_configuration_sources() -> list[DiagnosticCheck]:
+    """Name the files read at startup without probing providers or showing keys."""
+    from deepr.config import configuration_source_summary, load_configuration_environment
+
+    observed = load_configuration_environment()
+    check = DiagnosticCheck("Configuration files", "Configuration")
+    check.passed = True
+    check.message = configuration_source_summary()
+    check.details.extend(f"Not found: {path}" for path in observed.missing_files)
+    check.details.extend(f"{name}: {source}" for name, source in sorted(observed.variables.items()))
+    return [check]
+
+
 async def check_api_keys(config) -> list[DiagnosticCheck]:
     """Check if API keys are configured."""
     checks = []
@@ -425,6 +438,7 @@ def doctor(skip_connectivity: bool):
         # Load config
         try:
             config = load_config()
+            all_checks.extend(check_configuration_sources())
         except Exception as exc:
             raise click.ClickException("Could not load configuration. Review local settings and retry.") from exc
 

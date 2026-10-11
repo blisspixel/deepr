@@ -22,6 +22,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and unconfirmed budgets. Preview and execution keep the same resolved route.
   Keyless preview remains available; attended OpenRouter requires a terminal and
   confirmation and refuses JSON, quiet, `-y`, and noninteractive execution.
+- Installed CLI initialization and configuration updates share the per-user
+  `.env` or explicit `DEEPR_ENV_FILE`. Project setup uses `init --local-env`;
+  ambient files are not discovered. Chosen data paths remain stable across
+  folders, dotenv quoting and unrelated comments survive updates, and settings
+  inspection and doctor report file/variable origins without exposing secrets.
+  HTTP app imports share the one-shot loader and cannot restore quarantined keys.
+  Selected and fallback files stay bound across directory and selector changes.
+  OpenRouter credential lookup shares that selection and quoted-value parser,
+  without discovering ambient project files or changing account controls.
+
 - Generic knowledge absorption accepts scalar response items instead of
   crashing. Skill names handle empty input and Windows device names, and
   conversation storage rejects invalid busy timeouts before opening a database.

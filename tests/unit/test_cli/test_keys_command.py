@@ -17,7 +17,9 @@ from deepr.cli.commands import keys as keys_module
 
 @pytest.fixture
 def env_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    monkeypatch.setattr("deepr.config._configuration_environment", None)
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("DEEPR_ENV_FILE", str(tmp_path / ".env"))
     monkeypatch.setattr("deepr.config.default_data_dir", lambda: tmp_path / "user-deepr")
     from deepr.security.key_quarantine import QUARANTINE_PREFIX
 
@@ -83,7 +85,8 @@ def test_check_reports_no_key_without_network(env_file: Path, monkeypatch: pytes
     assert calls == []  # nothing to validate, nothing pinged
 
 
-def test_set_openrouter_writes_user_env_when_cwd_has_none(env_file: Path, tmp_path: Path) -> None:
+def test_set_openrouter_writes_user_env_by_default(env_file: Path, tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.delenv("DEEPR_ENV_FILE")
     secret = "sk-or-v1-" + "b" * 64
     result = CliRunner().invoke(
         keys_module.keys,
@@ -98,7 +101,7 @@ def test_set_openrouter_writes_user_env_when_cwd_has_none(env_file: Path, tmp_pa
     assert "value not shown" in " ".join(result.output.split())
 
 
-def test_set_prefers_existing_checkout_env(env_file: Path) -> None:
+def test_set_uses_explicitly_selected_project_env(env_file: Path) -> None:
     env_file.write_text("XAI_API_KEY=keep-me\n", encoding="utf-8")
     secret = "sk-or-v1-" + "e" * 64
     result = CliRunner().invoke(

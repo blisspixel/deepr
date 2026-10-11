@@ -235,6 +235,14 @@ deepr expert knowledge "My Domain Expert"
 deepr expert consult "What should we decide next?" --expert "My Domain Expert" --local
 ```
 
+`init`, `config set`, and `keys set` save to `~/.deepr/.env` by default, which
+the installed CLI reads from any working folder. Set `DEEPR_ENV_FILE` to an
+explicit project file to use it ahead of the user file. `init --local-env`
+creates the current folder's `.env` and prints how to select it; ambient files
+are not discovered automatically. `config show` and offline doctor name the
+files read. Process variables win, and services need a restart after file edits.
+The selected absolute configuration paths stay fixed until that restart.
+
 Local creation now develops a research foundation: bounded free web search,
 retained sources, study of mechanisms and failures, a reasoned brief, an evidence
 graph, and linked Markdown. It needs an installed local model and makes no paid

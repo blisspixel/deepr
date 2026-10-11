@@ -15,7 +15,7 @@ import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from deepr.config import default_data_dir
+from deepr.config import load_configuration_environment, read_configuration_env_file
 from deepr.experts.maximum_charge_contract import absolute_deepr_ceiling_usd
 from deepr.observability.provider_account_controls import (
     PaidApiAccountEvidence,
@@ -42,13 +42,7 @@ _MAX_ENV_BYTES = 64 * 1024
 def _parse_env_file(path: Path) -> dict[str, str]:
     if not path.exists() or path.stat().st_size > _MAX_ENV_BYTES:
         return {}
-    entries: dict[str, str] = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if stripped and not stripped.startswith("#") and "=" in stripped:
-            name, value = stripped.split("=", 1)
-            entries[name.strip()] = value.strip()
-    return entries
+    return read_configuration_env_file(path)
 
 
 class OpenRouterAccountControlError(ProviderAccountControlError):
@@ -63,8 +57,10 @@ def load_openrouter_api_key() -> str:
     quarantined = os.environ.get(QUARANTINE_PREFIX + _OPENROUTER_KEY_NAME, "").strip()
     if quarantined:
         return quarantined
-    merged = dict(_parse_env_file(default_data_dir() / ".env"))
-    merged.update(_parse_env_file(Path(".env")))
+    observed = load_configuration_environment()
+    merged: dict[str, str] = {}
+    for path in dict.fromkeys((observed.user_file, observed.selected_file)):
+        merged.update(_parse_env_file(Path(path)))
     return str(merged.get(_OPENROUTER_KEY_NAME, "")).strip()
 
 

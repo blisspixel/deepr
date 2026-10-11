@@ -1,13 +1,11 @@
 """`deepr init` - guided first-run setup.
 
-Collapses the manual setup path (copy .env.example, hand-edit a key, set a
-budget, run doctor) into one command. It detects which provider keys are
-already in the environment, creates or patches the (gitignored) ``.env`` in
-the current directory, sets a budget ceiling, and prints the exact first
-command to run.
+Detects provider keys, creates or patches the selected per-user configuration
+file, sets a budget ceiling, and prints safe next commands. Explicit project
+configuration uses DEEPR_ENV_FILE or --local-env.
 
 Security: API keys are entered through hidden prompts, never echoed, and only
-ever written to ``.env`` (which is gitignored). ``--yes`` runs
+ever written to the selected private ``.env``. ``--yes`` runs
 non-interactively (no secret prompts) so the command is safe in scripts and CI.
 """
 
@@ -20,6 +18,12 @@ from typing import NamedTuple
 import click
 
 from deepr.cli.colors import console, print_section_header, print_success
+from deepr.config import (
+    configuration_env_path,
+    ensure_configuration_env_file,
+    read_configuration_env_file,
+    upsert_configuration_env_file,
+)
 
 # Provider label, env var, and where to get a key. Order is the recommended
 # setup order (cheapest-to-validate first); mirrors README + doctor.
@@ -65,11 +69,11 @@ def _resolve_data_dir_updates(env_file: dict[str, str], *, yes: bool, data_dir: 
         chosen = entered or None
     if not chosen:
         return {}
-    base = chosen.rstrip("/\\")
+    base = Path(chosen).expanduser().resolve()
     return {
-        _DATA_DIR: base,
-        _EXPERTS_PATH: f"{base}/experts",
-        _REPORTS_PATH: f"{base}/reports",
+        _DATA_DIR: str(base),
+        _EXPERTS_PATH: str(base / "experts"),
+        _REPORTS_PATH: str(base / "reports"),
     }
 
 
@@ -81,33 +85,13 @@ def _key_is_set(value: str | None) -> bool:
 
 
 def _read_env_file(path: Path) -> dict[str, str]:
-    """Parse a ``.env`` file into a dict (ignores comments and blank lines)."""
-    values: dict[str, str] = {}
-    if not path.exists():
-        return values
-    for line in path.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#") or "=" not in stripped:
-            continue
-        key, _, val = stripped.partition("=")
-        values[key.strip()] = val.strip()
-    return values
+    """Parse a dotenv file without changing the process environment."""
+    return read_configuration_env_file(path)
 
 
 def _upsert_env(path: Path, updates: dict[str, str]) -> None:
     """Update existing keys in place, append new ones, preserving the rest."""
-    lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
-    remaining = dict(updates)
-    out: list[str] = []
-    for line in lines:
-        key = line.split("=", 1)[0].strip() if "=" in line and not line.lstrip().startswith("#") else None
-        if key is not None and key in remaining:
-            out.append(f"{key}={remaining.pop(key)}")
-        else:
-            out.append(line)
-    for key, val in remaining.items():
-        out.append(f"{key}={val}")
-    path.write_text("\n".join(out) + "\n", encoding="utf-8")
+    upsert_configuration_env_file(path, updates)
 
 
 def _resolved(env_file: dict[str, str], var: str) -> str | None:
@@ -115,15 +99,9 @@ def _resolved(env_file: dict[str, str], var: str) -> str | None:
     return os.getenv(var) or env_file.get(var)
 
 
-def _ensure_env_file(env_path: Path, example_path: Path) -> bool:
-    """Create ``.env`` from the example (or a stub) if missing. Returns created?"""
-    if env_path.exists():
-        return False
-    if example_path.exists():
-        env_path.write_text(example_path.read_text(encoding="utf-8"), encoding="utf-8")
-    else:
-        env_path.write_text("# Deepr configuration\n", encoding="utf-8")
-    return True
+def _ensure_env_file(env_path: Path, example_path: Path | None = None) -> bool:
+    """Create a private stub, or copy an explicitly scoped local example."""
+    return ensure_configuration_env_file(env_path, example_path)
 
 
 def _collect_provider_keys(env_file: dict[str, str], *, yes: bool) -> dict[str, str]:
@@ -243,6 +221,7 @@ def _print_summary(env_file: dict[str, str], presence: _CapacityPresence) -> Non
 
 @click.command(name="init")
 @click.option("-y", "--yes", is_flag=True, help="Non-interactive: accept defaults, no secret prompts.")
+@click.option("--local-env", is_flag=True, help="Write this folder's .env; select it later with DEEPR_ENV_FILE.")
 @click.option(
     "--budget",
     type=float,
@@ -255,8 +234,8 @@ def _print_summary(env_file: dict[str, str], presence: _CapacityPresence) -> Non
     default=None,
     help="Folder for experts + research (e.g. a synced OneDrive/Dropbox dir to share across machines).",
 )
-def init(yes: bool, budget: float | None, data_dir: str | None):
-    """Guided first-run setup: detect keys, write .env, set a budget.
+def init(yes: bool, budget: float | None, data_dir: str | None, local_env: bool):
+    """Guided setup: detect keys, write ~/.deepr/.env, set a ceiling.
 
     Examples:
         deepr init                       # interactive wizard
@@ -266,10 +245,12 @@ def init(yes: bool, budget: float | None, data_dir: str | None):
     """
     print_section_header("Deepr setup")
 
-    env_path = Path(".env")
-    created = _ensure_env_file(env_path, Path(".env.example"))
+    env_path = configuration_env_path(local=local_env)
+    created = _ensure_env_file(env_path, Path(".env.example") if local_env else None)
     env_file = _read_env_file(env_path)
     console.print(f"\nConfig file: [bold]{env_path.resolve()}[/bold]" + ("  (created)" if created else ""))
+    if local_env:
+        console.print("Set DEEPR_ENV_FILE to this absolute path for later commands; ambient .env files are not loaded.")
 
     updates: dict[str, str] = {}
     updates.update(_collect_provider_keys(env_file, yes=yes))
