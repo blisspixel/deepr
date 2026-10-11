@@ -59,6 +59,7 @@ def research_failure_boundary(function):
     @wraps(function)
     def wrapped(*args, **kwargs):
         from deepr.experts.research_cost_gate import ResearchCostBlocked
+        from deepr.routing.auto_mode import AutoRoutingUnavailable
 
         output_context = kwargs["output_context"]
         try:
@@ -67,7 +68,7 @@ def research_failure_boundary(function):
             fail_research(output_context, "Research cancelled.", error_code="CANCELLED")
         except click.UsageError as exc:
             fail_research(output_context, exc, error_code="INVALID_INPUT")
-        except (click.ClickException, ResearchRequestBoundsError, ResearchCostBlocked) as exc:
+        except (click.ClickException, ResearchRequestBoundsError, ResearchCostBlocked, AutoRoutingUnavailable) as exc:
             fail_research(output_context, exc)
 
     return wrapped

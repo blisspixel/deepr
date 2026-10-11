@@ -12,8 +12,14 @@ chmod +x scripts/install.sh
 ```
 
 Resolves the latest supported Deepr wheel from GitHub Releases and installs it
-with pipx. Re-running the script updates the installation. A network failure or
-a release without a wheel stops before the existing installation is changed.
+with the existing uv/pipx owner, or preferably uv for a fresh installation.
+Fresh uv environments explicitly require managed CPython 3.13; pipx receives a
+verified stable CPython 3.12, 3.13 or 3.14 interpreter. A manager must already be
+installed; the scripts never bootstrap `pip --user`. Re-running updates or
+repairs through the same owner. Ambiguous/unmanaged copies require explicit
+cleanup. A network failure or release without a wheel stops before the existing
+Deepr installation is changed. Uninstall uses that same owner and preserves
+reports, experts and configuration.
 
 ### Windows Installation
 
@@ -22,7 +28,7 @@ scripts\install.bat
 ```
 
 The batch wrapper delegates to `install.ps1`, which uses the same GitHub
-Releases and pipx flow as the Linux/macOS installer.
+Releases, ownership and supported-interpreter flow as the Linux/macOS installer.
 
 ### Build Script (Windows)
 ```batch

@@ -318,7 +318,18 @@ class TestDoctorSeverity:
         real = DiagnosticCheck("broken", "c")  # default failure_severity = error
 
         counts = _summarize([ok, optional, advisory, real])
-        assert counts == {"total": 4, "passed": 1, "errors": 1, "warnings": 1, "info": 1}
+        assert counts == {
+            "total": 4,
+            "passed": 1,
+            "errors": 1,
+            "warnings": 1,
+            "info": 1,
+            "required": 2,
+            "required_passed": 1,
+            "advisory": 1,
+            "optional": 1,
+            "unverified": 0,
+        }
 
     async def test_provider_connectivity_is_offline_and_cost_blocked(self, monkeypatch):
         from deepr.cli.commands.doctor import check_provider_connectivity

@@ -203,7 +203,10 @@ def _print_summary(env_file: dict[str, str], presence: _CapacityPresence) -> Non
         console.print("Then: deepr doctor --skip-connectivity")
         return
     print_success("Capacity sources detected. Workflow-specific gates still decide execution.")
-    console.print(f"Per-job budget ceiling: ${float(env_file.get(_BUDGET_JOB, _DEFAULT_JOB_BUDGET)):.2f}")
+    console.print(f"Requested per-job budget ceiling: ${float(env_file.get(_BUDGET_JOB, _DEFAULT_JOB_BUDGET)):.2f}")
+    console.print(
+        "Numeric ceilings do not authorize paid execution; inspect effective limits with `deepr config show`."
+    )
     data_dir = env_file.get(_DATA_DIR)
     if data_dir:
         console.print(f"Data location: {data_dir} (experts + research; portable across machines)")
@@ -238,6 +241,8 @@ def init(yes: bool, budget: float | None, data_dir: str | None, local_env: bool)
     """Guided setup: detect keys, write ~/.deepr/.env, set a ceiling.
 
     Examples:
+
+    \b
         deepr init                       # interactive wizard
         deepr init --yes                 # scriptable: defaults, no prompts
         deepr init --budget 3            # set the per-job ceiling

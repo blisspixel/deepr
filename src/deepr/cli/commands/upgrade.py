@@ -5,10 +5,12 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import sysconfig
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from importlib import metadata as importlib_metadata
+from pathlib import Path
 
 import click
 
@@ -33,7 +35,7 @@ class ReleaseInfo:
 def _detect_origin() -> str:
     """Best-effort detection of how deepr was installed.
 
-    Returns one of: "editable" (source checkout), "pipx", or "pip".
+    Returns editable, uv, pipx, or pip, preserving the installed owner.
     """
     try:
         dist = importlib_metadata.distribution(PACKAGE)
@@ -47,6 +49,10 @@ def _detect_origin() -> str:
     except (importlib_metadata.PackageNotFoundError, OSError, ValueError):
         pass
 
+    if (Path(sys.prefix) / "uv-receipt.toml").is_file():
+        return "uv"
+    if (Path(sys.prefix) / "pipx_metadata.json").is_file():
+        return "pipx"
     prefix = sys.prefix.replace("\\", "/").lower()
     if "/pipx/" in prefix or prefix.endswith("/pipx"):
         return "pipx"
@@ -126,9 +132,19 @@ def _fetch_latest_release() -> ReleaseInfo | None:
 
 def _upgrade_command(origin: str, wheel_url: str) -> list[str] | None:
     """The argv to upgrade for a given install origin (None = manual steps)."""
+    if origin == "uv":
+        return ["uv", "tool", "install", "--force", "--python", "3.13", "--managed-python", wheel_url]
     if origin == "pipx":
-        return ["pipx", "install", "--force", wheel_url]
+        if (
+            sys.implementation.name != "cpython"
+            or sys.version_info[:2] not in {(3, 12), (3, 13), (3, 14)}
+            or sys.version_info.releaselevel != "final"
+        ):
+            return None
+        return ["pipx", "install", "--force", "--python", getattr(sys, "_base_executable", sys.executable), wheel_url]
     if origin == "pip":
+        if sys.prefix == sys.base_prefix and (Path(sysconfig.get_path("stdlib")) / "EXTERNALLY-MANAGED").is_file():
+            return None
         return [sys.executable, "-m", "pip", "install", "--upgrade", wheel_url]
     return None  # editable: handled with guidance, never auto-run
 
@@ -154,7 +170,7 @@ def _release_for_command(ctx: click.Context, *, check: bool) -> ReleaseInfo | No
 def upgrade(ctx: click.Context, check: bool) -> None:
     """Update deepr to the latest released version.
 
-    Detects how deepr was installed (pipx, pip, or an editable source
+    Detects how deepr was installed (uv, pipx, pip, or an editable source
     checkout) and runs the right update. Use --check to see whether a newer
     version exists without installing anything.
     """
@@ -194,7 +210,9 @@ def upgrade(ctx: click.Context, check: bool) -> None:
 
     cmd = _upgrade_command(origin, release.wheel_url)
     if cmd is None:  # pragma: no cover - defensive; origin is pipx/pip here
-        print_error("Could not determine how to upgrade this installation.")
+        print_error(
+            "Automatic upgrade is unavailable for this interpreter or managed system environment. Rerun the installer to select a supported isolated tool environment."
+        )
         ctx.exit(1)
 
     click.echo(f"==> Upgrading via: {' '.join(cmd)}")

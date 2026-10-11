@@ -29,7 +29,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 
-from deepr.config import configuration_source_summary, environment_variable_source, load_configuration_environment
+from deepr.config import environment_variable_source, load_configuration_environment
 from deepr.core.cost_caps import clamp_spend_authority
 
 logger = logging.getLogger(__name__)
@@ -428,6 +428,8 @@ class Settings:
     _source: str = field(default="defaults", repr=False)
     _overrides: dict[str, str] = field(default_factory=dict, repr=False)
     _config_path: Path | None = field(default=None, repr=False)
+    _requested_budget: dict[str, float] = field(default_factory=dict, repr=False)
+    _budget_reason: str = field(default="Settings were not loaded through spend authority.", repr=False)
 
     # Singleton instance
     _instance: ClassVar[Settings | None] = None
@@ -472,7 +474,10 @@ class Settings:
 
         if settings._overrides and settings._source == "defaults":
             settings._source = "environment/CLI overrides"
-        clamp_spend_authority(settings.budget)
+        settings._requested_budget = {
+            key: getattr(settings.budget, key) for key in ("max_cost_per_job", "daily_limit", "monthly_limit")
+        }
+        settings._budget_reason = clamp_spend_authority(settings.budget)
 
         # Cache as singleton
         cls._instance = settings
@@ -996,63 +1001,10 @@ class Settings:
         }
 
     def show(self, mask_keys: bool = True) -> str:
-        """Generate human-readable configuration display.
+        """Generate the human configuration display without changing authority."""
+        from deepr.core.settings_display import format_settings
 
-        Args:
-            mask_keys: Whether to mask API keys
-
-        Returns:
-            Formatted configuration string
-        """
-        lines = [
-            "Deepr Configuration",
-            "=" * 50,
-            f"Source: {self._source}",
-            configuration_source_summary(),
-            "",
-            "Core Settings:",
-            f"  Environment: {self.environment}",
-            f"  Debug: {self.debug}",
-            f"  Log Level: {self.log_level}",
-            f"  Data Dir: {self.data_dir}",
-            "",
-            "Provider Settings:",
-            f"  Default Provider: {self.default_provider}",
-            f"  Default Model: {self.default_model}",
-            f"  Deep Research Provider: {self.deep_research_provider}",
-            f"  Deep Research Model: {self.deep_research_model}",
-            "",
-            "Configured Providers:",
-        ]
-
-        for name, config in self.providers.items():
-            key_display = "***" if mask_keys and config.api_key else (config.api_key or "(not set)")
-            status = "enabled" if config.enabled and config.is_configured() else "disabled"
-            lines.append(f"  {name}:")
-            lines.append(f"    API Key: {key_display}")
-            lines.append(f"    Model: {config.default_model or '(default)'}")
-            lines.append(f"    Status: {status}")
-
-        lines.extend(
-            [
-                "",
-                "Storage:",
-                f"  Type: {self.storage.type.value}",
-                f"  Path: {self.storage.local_path}",
-                "",
-                "Budget Limits:",
-                f"  Per Job: ${self.budget.max_cost_per_job:.2f}",
-                f"  Daily: ${self.budget.daily_limit:.2f}",
-                f"  Monthly: ${self.budget.monthly_limit:.2f}",
-            ]
-        )
-
-        if self._overrides:
-            lines.extend(["", "Overrides:"])
-            for key, source in sorted(self._overrides.items()):
-                lines.append(f"  {key}: from {source}")
-
-        return "\n".join(lines)
+        return format_settings(self, mask_keys=mask_keys)
 
 
 # =============================================================================

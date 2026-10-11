@@ -23,42 +23,131 @@ function Write-Ok($msg)   { Write-Host $msg -ForegroundColor Green }
 function Write-Warn($msg) { Write-Host $msg -ForegroundColor Yellow }
 function Write-Err($msg)  { Write-Host $msg -ForegroundColor Red }
 
+function Invoke-Pipx {
+    if ($script:PipxModule) { & $script:PipxHost -m pipx @args }
+    else { & pipx @args }
+}
 function Test-PipxAvailable($PythonCommand) {
     try {
         & $PythonCommand -m pipx --version *> $null
         return ($LASTEXITCODE -eq 0)
-    } catch {
-        # Windows PowerShell can promote a missing module's native stderr to a
-        # terminating error when ErrorActionPreference is Stop. Missing pipx
-        # is an expected bootstrap condition, not an installer failure.
-        return $false
-    }
+    } catch { return $false }
 }
 
-# --- Uninstall path ---------------------------------------------------------
-if ($Uninstall) {
-    Write-Step "Uninstalling $Package ..."
-    if (Get-Command pipx -ErrorAction SilentlyContinue) {
-        pipx uninstall $Package
-        Write-Ok "Uninstalled. (Your reports, experts, and .env are untouched.)"
-    } else {
-        Write-Warn "pipx not found; nothing to uninstall via pipx."
+$uvAvailable = [bool](Get-Command uv -ErrorAction SilentlyContinue)
+$pipxAvailable = [bool](Get-Command pipx -ErrorAction SilentlyContinue)
+$script:PipxModule = $false
+$script:PipxHost = "python"
+if (-not $pipxAvailable -and (Get-Command python -ErrorAction SilentlyContinue)) {
+    $pipxAvailable = Test-PipxAvailable "python"
+    $script:PipxModule = $pipxAvailable
+}
+$uvOwns = $false
+$pipxOwns = $false
+if ($uvAvailable) {
+    $tools = & uv tool list 2>$null | Out-String
+    if ($LASTEXITCODE -ne 0) { Write-Err "Error: uv ownership could not be read. No changes were made."; exit 1 }
+    $uvOwns = $tools -match '(?m)(^|\s)deepr-research(\s|$)'
+}
+if ($pipxAvailable) {
+    $tools = Invoke-Pipx list 2>$null | Out-String
+    if ($LASTEXITCODE -ne 0) { Write-Err "Error: pipx ownership could not be read. No changes were made."; exit 1 }
+    $pipxOwns = $tools -match '(?m)(^|\s)deepr-research(\s|$)'
+}
+if ($uvOwns -and $pipxOwns) {
+    Write-Err "Error: both uv and pipx own Deepr. Remove the unwanted copy explicitly before retrying."
+    exit 1
+}
+$manager = if ($uvOwns) { "uv" } elseif ($pipxOwns) { "pipx" } else { "" }
+if (-not $manager -and (Get-Command $Cli -ErrorAction SilentlyContinue)) {
+    Write-Err "Error: Deepr exists outside the detected tool managers. Update or remove that copy explicitly."
+    exit 1
+}
+$visibleCli = Get-Command $Cli -ErrorAction SilentlyContinue
+if ($manager -and $visibleCli) {
+    $managedBin = if ($manager -eq "uv") { & uv tool dir --bin } else { Invoke-Pipx environment --value PIPX_BIN_DIR }
+    if ($LASTEXITCODE -ne 0 -or -not $managedBin -or -not $visibleCli.Source -or
+        -not [string]::Equals([System.IO.Path]::GetFullPath($visibleCli.Source), [System.IO.Path]::GetFullPath((Join-Path $managedBin "$Cli.exe")), [System.StringComparison]::OrdinalIgnoreCase)) {
+        Write-Err "Error: the visible Deepr command shadows the $manager installation. Resolve PATH or remove that copy explicitly."
+        exit 1
     }
+}
+if ($Uninstall) {
+    if ($manager -eq "uv") { & uv tool uninstall $Package }
+    elseif ($manager -eq "pipx") { Invoke-Pipx uninstall $Package }
+    else { Write-Host "No managed Deepr installation found."; exit 0 }
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    Write-Ok "Uninstalled. Your reports, experts and configuration are untouched."
     exit 0
 }
-
-# --- Locate a suitable Python ----------------------------------------------
-$python = "python"
-if (-not (Get-Command $python -ErrorAction SilentlyContinue)) { $python = "py" }
-if (-not (Get-Command $python -ErrorAction SilentlyContinue)) {
-    Write-Err "Error: Python 3.12+ is required. Install it from https://www.python.org/downloads/"
-    exit 1
+if (-not $manager) {
+    if ($uvAvailable) { $manager = "uv" }
+    elseif ($pipxAvailable) { $manager = "pipx" }
+    else {
+        Write-Err "Error: install uv (recommended) or pipx through its official instructions, then retry."
+        Write-Host "https://docs.astral.sh/uv/getting-started/installation/"
+        Write-Host "https://pipx.pypa.io/stable/installation/"
+        exit 1
+    }
 }
 
-$ver = & $python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null
-if (-not $ver -or ([version]$ver -lt [version]"3.12")) {
-    Write-Err "Error: Python 3.12+ is required (found $ver)."
-    exit 1
+# Explicitly select stable CI-supported CPython, never arbitrary prerelease PATH Python.
+$pythonProbe = "import sys; ok = sys.implementation.name == 'cpython' and sys.version_info[:2] in {(3,12),(3,13),(3,14)} and sys.version_info.releaselevel == 'final'; print(getattr(sys, '_base_executable', sys.executable)) if ok else None; raise SystemExit(not ok)"
+$python = $null
+if (Get-Command py -ErrorAction SilentlyContinue) {
+    foreach ($version in @("-3.13", "-3.12", "-3.14")) {
+        try {
+            $candidatePath = & py $version -c $pythonProbe 2>$null
+            if ($LASTEXITCODE -eq 0 -and $candidatePath) { $python = $candidatePath; break }
+        } catch { }
+    }
+}
+foreach ($candidate in @("python3.13", "python3.12", "python3.14", "python", "py")) {
+    if ($python) { break }
+    if (Get-Command $candidate -ErrorAction SilentlyContinue) {
+        try {
+            & $candidate -c $pythonProbe *> $null
+            if ($LASTEXITCODE -eq 0) { $python = $candidate; break }
+        } catch { }
+    }
+}
+# --force does not migrate an existing pipx environment to --python.
+$pipxPython = $null
+if ($manager -eq "pipx") {
+    if ($python) {
+        try {
+            $pipxPython = & $python -c $pythonProbe 2>$null
+            if ($LASTEXITCODE -ne 0) { $pipxPython = $null }
+        } catch { $pipxPython = $null }
+    }
+    if ($pipxOwns) {
+        $ownedBase = $null
+        try {
+            $pipxVenvs = Invoke-Pipx environment --value PIPX_LOCAL_VENVS 2>$null
+            if ($LASTEXITCODE -eq 0 -and $pipxVenvs -is [string] -and [System.IO.Path]::IsPathRooted($pipxVenvs)) {
+                $ownedPython = Join-Path $pipxVenvs "$Package/Scripts/python.exe"
+                $ownedBase = & $ownedPython -c $pythonProbe 2>$null
+                if ($LASTEXITCODE -ne 0) { $ownedBase = $null }
+            }
+        } catch { $ownedBase = $null }
+        if (-not $ownedBase) {
+            Write-Err "Error: the existing pipx environment does not have a verifiable stable CPython 3.12, 3.13 or 3.14. No changes were made."
+            if (-not $pipxPython) {
+                $pipxPython = "C:\path\to\supported\python.exe"
+                Write-Host "Install a supported stable interpreter and replace C:\path\to\supported\python.exe with its executable."
+            }
+            $pipxCommand = if ($script:PipxModule) { "& '" + $PipxHost.Replace("'", "''") + "' -m pipx" } else { "pipx" }
+            $quotedPython = "'" + $pipxPython.Replace("'", "''") + "'"
+            Write-Host "Rebuild it explicitly with a supported interpreter:"
+            Write-Host "  $pipxCommand reinstall $Package --python $quotedPython"
+            Write-Host "Then rerun this installer to update the recorded package source to the latest release."
+            exit 1
+        }
+        $pipxPython = $ownedBase
+    } elseif (-not $pipxPython) {
+        Write-Err "Error: pipx requires stable CPython 3.12, 3.13 or 3.14. Install a supported interpreter and retry."
+        exit 1
+    }
 }
 
 # --- Resolve the latest versioned wheel from GitHub Releases ---------------
@@ -99,75 +188,44 @@ if (-not $releaseVersion -or -not $asset) {
 $wheelUrl = [string]$asset.browser_download_url
 Write-Step "Resolved $releaseTag from GitHub Releases."
 
-# --- Ensure pipx ------------------------------------------------------------
-if (-not (Test-PipxAvailable $python)) {
-    Write-Step "pipx not found. Installing pipx ..."
-    & $python -m pip install --user pipx --quiet
-    if ($LASTEXITCODE -ne 0) {
-        Write-Err "Error: pipx installation failed. No Deepr installation changes were made."
-        exit $LASTEXITCODE
-    }
-    & $python -m pipx ensurepath
-    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "User") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+function Invoke-ManagedInstall([switch]$Force) {
+    $forceArgs = @()
+    if ($Force) { $forceArgs = @("--force") }
+    if ($manager -eq "uv") { & uv tool install --python 3.13 --managed-python @forceArgs $wheelUrl }
+    else { Invoke-Pipx install --python $pipxPython @forceArgs $wheelUrl }
 }
-
-# --- Does the CLI actually run? (used to verify + self-heal) ----------------
+function Remove-ManagedInstall {
+    if ($manager -eq "uv") { & uv tool uninstall $Package }
+    else { Invoke-Pipx uninstall $Package }
+}
+if ($manager -eq "uv") {
+    & uv python install 3.13
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
 function Test-DeeprWorks {
     if (-not (Get-Command $Cli -ErrorAction SilentlyContinue)) { return $false }
-    try {
-        & $Cli --version *> $null
-        return ($LASTEXITCODE -eq 0)
-    } catch { return $false }
+    try { & $Cli --version *> $null; return ($LASTEXITCODE -eq 0) } catch { return $false }
 }
-
-# --- Install, update, or repair (idempotent + self-healing) -----------------
-$installed = $false
-try {
-    $list = & $python -m pipx list 2>$null | Out-String
-    if ($list -match [regex]::Escape($Package)) { $installed = $true }
-} catch { }
-
-if ($installed) {
-    Write-Step "$Package already installed. Updating from $releaseTag ..."
-} else {
-    Write-Step "Installing $Package from $releaseTag (CLI: $Cli) ..."
-}
-
-& $python -m pipx install --force $wheelUrl
+Write-Step "Installing or updating $Package via $manager from $releaseTag ..."
+Invoke-ManagedInstall -Force
 if ($LASTEXITCODE -ne 0) {
-    Write-Warn "Install failed; repairing the isolated environment ..."
-    & $python -m pipx uninstall $Package
-    & $python -m pipx install $wheelUrl
-    if ($LASTEXITCODE -ne 0) {
-        Write-Err "Error: installation from GitHub release $releaseTag failed."
-        exit $LASTEXITCODE
-    }
+    Write-Warn "Install failed; repairing with the same manager and interpreter ..."
+    Remove-ManagedInstall
+    Invoke-ManagedInstall
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
-
-# --- Verify it runs; one automatic clean reinstall if not -------------------
 if (-not (Test-DeeprWorks)) {
-    Write-Warn "$Cli did not run cleanly; attempting a clean reinstall ..."
-    & $python -m pipx uninstall $Package
-    & $python -m pipx install $wheelUrl
-    if ($LASTEXITCODE -ne 0) {
-        Write-Err "Error: clean installation from GitHub release $releaseTag failed."
-        exit $LASTEXITCODE
-    }
+    Write-Warn "$Cli did not run cleanly; attempting one clean reinstall via $manager ..."
+    Remove-ManagedInstall
+    Invoke-ManagedInstall
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
-
-# --- Report version + warn about a shadowing (non-pipx) install -------------
-$shownVersion = $false
-if (Test-DeeprWorks) {
-    try { & $Cli --version; $shownVersion = $true } catch { }
-    $src = (Get-Command $Cli -ErrorAction SilentlyContinue).Source
-    if ($src -and $src -notlike "*\.local\*" -and $src -notlike "*pipx*") {
-        Write-Warn "Note: '$Cli' on PATH resolves to $src, which is not the pipx-managed copy."
-        Write-Warn "If the version above looks wrong, remove that copy: pip uninstall $Package (in that Python)."
-    }
-} else {
-    Write-Err "Install completed but '$Cli' still does not run. Try a new terminal, or: pipx reinstall $Package"
+if (-not (Test-DeeprWorks)) {
+    Write-Err "Install completed but '$Cli' still does not run. Check PATH or rerun this installer to repair via $manager."
     exit 1
 }
+& $Cli --version
+$shownVersion = $true
 
 Write-Host ""
 Write-Ok "==> Done."
@@ -186,5 +244,5 @@ Write-Host "Update later:  re-run this one-liner, or '$Cli upgrade'"
 Write-Host "Uninstall:     re-run this one-liner with -Uninstall"
 Write-Host ""
 Write-Host "Dev / editable from source:"
-Write-Host "  git clone https://github.com/blisspixel/deepr.git; cd deepr; pipx install -e ."
+Write-Host "  git clone https://github.com/blisspixel/deepr.git; cd deepr; uv tool install --python 3.13 --managed-python -e ."
 Write-Host ""

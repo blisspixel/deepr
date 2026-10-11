@@ -5,6 +5,7 @@ from __future__ import annotations
 import subprocess
 from types import SimpleNamespace
 
+import pytest
 from click.testing import CliRunner
 
 from deepr.cli.commands import upgrade as upgrade_mod
@@ -159,7 +160,16 @@ class TestUpgradeRun:
         result = CliRunner().invoke(upgrade, [])
 
         assert result.exit_code == 0
-        assert calls == [["pipx", "install", "--force", WHEEL_URL]]
+        assert calls == [
+            [
+                "pipx",
+                "install",
+                "--force",
+                "--python",
+                getattr(upgrade_mod.sys, "_base_executable", upgrade_mod.sys.executable),
+                WHEEL_URL,
+            ]
+        ]
         assert "complete" in result.output.lower()
 
     def test_pip_failure_propagates_nonzero_exit(self, monkeypatch):
@@ -198,3 +208,36 @@ class TestUpgradeRun:
 
         assert result.exit_code == 1
         assert "no supported deepr wheel asset" in result.output.lower()
+
+
+def test_detect_origin_uses_uv_receipt_even_with_custom_tool_directory(monkeypatch, tmp_path):
+    prefix = tmp_path / "custom-tools" / "deepr-research"
+    prefix.mkdir(parents=True)
+    (prefix / "uv-receipt.toml").write_text("[tool]\n")
+    monkeypatch.setattr(upgrade_mod.sys, "prefix", str(prefix))
+    monkeypatch.setattr(
+        upgrade_mod.importlib_metadata, "distribution", lambda _: SimpleNamespace(read_text=lambda _: None)
+    )
+    assert upgrade_mod._detect_origin() == "uv"
+
+
+def test_uv_upgrade_keeps_manager_and_requires_managed_stable_python(monkeypatch):
+    monkeypatch.setattr(upgrade_mod, "_fetch_latest_release", lambda: _release())
+    monkeypatch.setattr(upgrade_mod, "_detect_origin", lambda: "uv")
+    calls = []
+    monkeypatch.setattr(subprocess, "run", lambda cmd, **_: calls.append(cmd) or subprocess.CompletedProcess(cmd, 0))
+    result = CliRunner().invoke(upgrade, [])
+    assert result.exit_code == 0
+    assert calls == [["uv", "tool", "install", "--force", "--python", "3.13", "--managed-python", WHEEL_URL]]
+
+
+def test_externally_managed_pip_upgrade_refuses_without_subprocess(monkeypatch, tmp_path):
+    (tmp_path / "EXTERNALLY-MANAGED").write_text("[externally-managed]\n")
+    monkeypatch.setattr(upgrade_mod.sys, "prefix", upgrade_mod.sys.base_prefix)
+    monkeypatch.setattr(upgrade_mod.sysconfig, "get_path", lambda _: str(tmp_path))
+    monkeypatch.setattr(upgrade_mod, "_fetch_latest_release", lambda: _release())
+    monkeypatch.setattr(upgrade_mod, "_detect_origin", lambda: "pip")
+    monkeypatch.setattr(subprocess, "run", lambda *_args, **_kwargs: pytest.fail("system environment must not mutate"))
+    result = CliRunner().invoke(upgrade, [])
+    assert result.exit_code != 0
+    assert "supported isolated tool environment" in " ".join(result.output.split())

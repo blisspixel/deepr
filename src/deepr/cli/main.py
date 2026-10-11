@@ -198,7 +198,7 @@ _COMMAND_SPECS: dict[str, _LazyCommandSpec] = {
     "research": _LazyCommandSpec(
         "deepr.cli.commands.semantic",
         "research",
-        "Preview bounded metered research requests without dispatch.",
+        "Preview research or run explicit attended OpenRouter.",
     ),
     "route": _LazyCommandSpec(
         "deepr.cli.commands.route",
@@ -335,8 +335,14 @@ def cli():
                                                    Consult stored expert state at $0
 
     \b
-    Metered research is preview-only in the current release:
+    Preview metered research without dispatch:
       deepr research "your question" --provider openai --model o4-mini-deep-research --preview
+
+    \b
+    Explicit attended OpenRouter can run one pinned completion after setup:
+      deepr budget authorize openrouter            Bind provider spend authority
+      deepr research "your question" --provider openrouter
+    Stored keys, owner ceiling, wallet credits and per-run confirmation are required.
 
     \b
     deepr doctor verifies your setup. Everything else lives under

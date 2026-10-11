@@ -26,6 +26,8 @@ class DiagnosticCheck:
         # Only "error" counts against the health summary, so a working setup
         # with optional pieces unset reads as healthy instead of crying wolf.
         self.failure_severity = "error"
+        self.unverified = False
+        self.visible = True
 
     @property
     def severity(self) -> str:
@@ -37,6 +39,7 @@ async def check_local_ollama(*, skip_connectivity: bool) -> list[DiagnosticCheck
     check = DiagnosticCheck("Local Ollama generation", "Local Capacity")
     if skip_connectivity:
         check.failure_severity = "info"
+        check.unverified = True
         check.message = "Unverified: provider connectivity checks were skipped"
         check.details.append("Run `deepr capacity` for read-only local cloud/model proof; it performs no inference.")
         return [check]
@@ -60,6 +63,7 @@ async def check_local_ollama(*, skip_connectivity: bool) -> list[DiagnosticCheck
             )
     if proof.reason == "unreachable" and not os.getenv("OLLAMA_HOST"):
         check.failure_severity = "info"
+        check.unverified = True
     return [check]
 
 
@@ -76,112 +80,58 @@ def check_configuration_sources() -> list[DiagnosticCheck]:
     return [check]
 
 
+_PROVIDER_CHECKS = (
+    ("OpenAI", "openai"),
+    ("Gemini", "gemini"),
+    ("xAI Grok", "xai"),
+    ("Anthropic", "anthropic"),
+    ("Azure OpenAI", "azure"),
+    ("OpenRouter", "openrouter"),
+)
+
+
 async def check_api_keys(config) -> list[DiagnosticCheck]:
-    """Check if API keys are configured."""
+    """Inspect stored credentials without releasing keys or constructing clients."""
+    from deepr.cli.commands.provider_factory import credential_presence
+
     checks = []
-
-    # OpenAI
-    check = DiagnosticCheck("OpenAI API Key", "API Keys")
-    openai_key = os.getenv("OPENAI_API_KEY")
-    if openai_key and openai_key != "your-openai-api-key":
-        check.passed = True
-        check.message = "Configured"
-        masked = openai_key[:8] + "..." + openai_key[-4:]
-        check.details.append(f"Key: {masked}")
-    else:
+    for label, provider in _PROVIDER_CHECKS:
+        present, variable = credential_presence(provider)
+        check = DiagnosticCheck(f"{label} API Key" if provider != "azure" else "Azure OpenAI Key", "API Keys")
         check.failure_severity = "info"
-        check.message = "Not configured (optional)"
-        check.details.append("Set OPENAI_API_KEY in .env")
-    checks.append(check)
-
-    # Gemini
-    check = DiagnosticCheck("Gemini API Key", "API Keys")
-    gemini_key = os.getenv("GEMINI_API_KEY")
-    if gemini_key and gemini_key != "your-gemini-api-key":
-        check.passed = True
-        check.message = "Configured"
-        masked = gemini_key[:8] + "..." + gemini_key[-4:]
-        check.details.append(f"Key: {masked}")
-    else:
-        check.failure_severity = "info"
-        check.message = "Not configured (optional)"
-        check.details.append("Set GEMINI_API_KEY in .env")
-    checks.append(check)
-
-    # xAI Grok
-    check = DiagnosticCheck("xAI Grok API Key", "API Keys")
-    xai_key = os.getenv("XAI_API_KEY")
-    if xai_key and xai_key != "your-xai-api-key":
-        check.passed = True
-        check.message = "Configured"
-        masked = xai_key[:8] + "..." + xai_key[-4:]
-        check.details.append(f"Key: {masked}")
-    else:
-        check.failure_severity = "info"
-        check.message = "Not configured (optional)"
-        check.details.append("Set XAI_API_KEY in .env")
-    checks.append(check)
-
-    # Azure
-    check = DiagnosticCheck("Azure OpenAI Key", "API Keys")
-    azure_key = os.getenv("AZURE_OPENAI_API_KEY")
-    azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-    if azure_key and azure_key != "your-azure-key":
-        check.passed = True
-        check.message = "Configured"
-        masked = azure_key[:8] + "..." + azure_key[-4:]
-        check.details.append(f"Key: {masked}")
-        if azure_endpoint:
-            check.details.append(f"Endpoint: {azure_endpoint}")
-    else:
-        check.failure_severity = "info"
-        check.message = "Not configured (optional)"
-        check.details.append("Set AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT in .env")
-    checks.append(check)
-
-    # Anthropic (Claude)
-    check = DiagnosticCheck("Anthropic API Key", "API Keys")
-    anthropic_key = os.getenv("ANTHROPIC_API_KEY")
-    if anthropic_key and anthropic_key != "your-anthropic-api-key":
-        check.passed = True
-        check.message = "Configured"
-        check.details.append(f"Key: {anthropic_key[:8]}...{anthropic_key[-4:]}")
-    else:
-        check.failure_severity = "info"
-        check.message = "Not configured (optional)"
-        check.details.append("Set ANTHROPIC_API_KEY in .env")
-    checks.append(check)
-
+        check.passed = present
+        check.visible = present
+        check.message = (
+            "Stored credential detected (validity and authority unverified)" if present else "Not configured (optional)"
+        )
+        if present:
+            check.details.append(f"Source: stored/process/quarantined {variable}; no key was released or checked")
+        checks.append(check)
     summary = DiagnosticCheck("Metered API capacity", "API Keys")
-    if any(c.passed for c in checks):
-        summary.passed = True
-        summary.message = "At least one API key is configured"
-    else:
-        summary.failure_severity = "info"
-        summary.message = "No metered API keys; local and explicit plan workflows remain available"
-        summary.details.append("Run `deepr capacity` to inventory local, plan, and API sources")
+    summary.failure_severity = "info"
+    summary.passed = any(check.passed for check in checks)
+    summary.message = (
+        "Stored credentials detected; provider execution and spend gates still apply"
+        if summary.passed
+        else "No metered API keys; inspect local and explicit plan capacity with deepr capacity"
+    )
     checks.append(summary)
-
     return checks
 
 
 async def check_provider_connectivity(config) -> list[DiagnosticCheck]:
     """Report configured providers without making external metadata requests."""
-    _ = config
-    provider_keys = (
-        ("OpenAI API Connectivity", "OPENAI_API_KEY", "your-openai-api-key"),
-        ("Gemini API Connectivity", "GEMINI_API_KEY", "your-gemini-api-key"),
-        ("xAI Grok API Connectivity", "XAI_API_KEY", "your-xai-api-key"),
-        ("Anthropic API Connectivity", "ANTHROPIC_API_KEY", "your-anthropic-api-key"),
-        ("Azure OpenAI Connectivity", "AZURE_OPENAI_API_KEY", "your-azure-key"),
-    )
-    checks: list[DiagnosticCheck] = []
-    for name, env_name, placeholder in provider_keys:
-        value = os.getenv(env_name)
-        if not value or value == placeholder:
+    from deepr.cli.commands.provider_factory import credential_presence
+
+    checks = []
+    for label, provider in _PROVIDER_CHECKS:
+        if not credential_presence(provider)[0]:
             continue
-        check = DiagnosticCheck(name, "Connectivity")
+        check = DiagnosticCheck(
+            f"{label} API Connectivity" if provider != "azure" else "Azure OpenAI Connectivity", "Connectivity"
+        )
         check.failure_severity = "info"
+        check.unverified = True
         check.message = "Configured; live metadata request blocked"
         check.details.append(
             "External connectivity is not tested because Deepr cannot prove endpoint or proxy marginal cost"
@@ -314,12 +264,17 @@ async def check_deprecated_models(config) -> list[DiagnosticCheck]:
     try:
         app_config = AppConfig.from_env()
         models_to_check = {
-            "Default Model": app_config.provider.default_model,
-            "Deep Research Model": app_config.provider.deep_research_model,
+            "Default Model": (app_config.provider.default_provider, app_config.provider.default_model),
+            "Deep Research Model": (
+                app_config.provider.deep_research_provider,
+                app_config.provider.deep_research_model,
+            ),
         }
 
-        for label, model in models_to_check.items():
-            if not model:
+        from deepr.cli.commands.provider_factory import credential_presence
+
+        for label, (provider, model) in models_to_check.items():
+            if not model or not credential_presence(provider)[0]:
                 continue
             dep_entry = check_deprecation(model)
             if dep_entry:
@@ -339,12 +294,6 @@ async def check_deprecated_models(config) -> list[DiagnosticCheck]:
                 check.details.append(dep_entry.warning)
                 checks.append(check)
 
-        if not checks:
-            check = DiagnosticCheck("Model Deprecation", "Deprecated Models")
-            check.passed = True
-            check.message = "No deprecated models in use"
-            checks.append(check)
-
     except Exception as e:
         check = DiagnosticCheck("Model Deprecation", "Deprecated Models")
         check.message = f"Check failed: {str(e)[:50]}"
@@ -363,6 +312,11 @@ def _summarize(checks: list[DiagnosticCheck]) -> dict[str, int]:
         "errors": sum(1 for c in checks if c.severity == "error"),
         "warnings": sum(1 for c in checks if c.severity == "warning"),
         "info": sum(1 for c in checks if c.severity == "info"),
+        "required": sum(1 for c in checks if c.failure_severity == "error" and not c.unverified),
+        "required_passed": sum(1 for c in checks if c.failure_severity == "error" and c.passed and not c.unverified),
+        "advisory": sum(1 for c in checks if c.failure_severity == "warning" and not c.unverified),
+        "optional": sum(1 for c in checks if c.failure_severity == "info" and not c.unverified),
+        "unverified": sum(1 for c in checks if c.unverified),
     }
 
 
@@ -373,6 +327,8 @@ def print_checks(checks: list[DiagnosticCheck]):
     # Group by category
     categories: dict[str, list[DiagnosticCheck]] = {}
     for check in checks:
+        if not check.visible:
+            continue
         if check.category not in categories:
             categories[check.category] = []
         categories[check.category].append(check)
@@ -405,7 +361,10 @@ def print_checks(checks: list[DiagnosticCheck]):
     counts = _summarize(checks)
 
     console.print()
-    console.print(f"[bold]Summary:[/bold] {counts['passed']}/{counts['total']} checks passed")
+    console.print(
+        f"[bold]Summary:[/bold] {counts['required_passed']}/{counts['required']} required checks passed; "
+        f"{counts['advisory']} advisory, {counts['optional']} optional, {counts['unverified']} unverified"
+    )
 
     if counts["errors"]:
         console.print(
@@ -416,11 +375,11 @@ def print_checks(checks: list[DiagnosticCheck]):
             f"\n[yellow]{get_symbol('warning')}[/yellow] No blocking issues; {counts['warnings']} advisory warning(s)."
         )
     else:
-        unchecked = any(check.name == "Local Ollama generation" and not check.passed for check in checks)
+        unchecked = counts["unverified"] > 0
         message = (
-            "No blocking configuration issues; local generation is unverified."
+            "No blocking configuration issues; skipped or blocked checks remain unverified."
             if unchecked
-            else "All good. Optional items above are not problems."
+            else "Required configuration checks passed; optional items are not blocking."
         )
         console.print(f"\n[green]{get_symbol('success')}[/green] {message}")
 
@@ -528,7 +487,8 @@ def print_next_step(checks: list[DiagnosticCheck]) -> None:
         click.echo("Next: deepr capacity")
     else:
         click.echo(
-            '\nDiagnostics passed. Preview before spending: deepr research "Your question here" --auto --preview'
+            "\nNo blocking configuration errors. Execution proof remains separate. "
+            'Preview a route: deepr research "Your question here" --preview'
         )
 
 

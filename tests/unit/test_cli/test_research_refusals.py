@@ -253,3 +253,91 @@ def test_attended_budget_approval_still_requires_confirmation(monkeypatch):
     with pytest.raises(click.ClickException, match="Cancelled"):
         attended._confirm_openrouter_spend(max_cost=0.01, yes=False)
     confirm.assert_called_once()
+
+
+@pytest.mark.parametrize("flags", [[], ["--json"], ["-q"], ["-v"]])
+@pytest.mark.parametrize("forbid_constructor", [False, True])
+def test_real_company_scrape_failure_is_nonzero_and_respects_output(monkeypatch, flags, forbid_constructor):
+    from deepr.core import company_research
+
+    constructor = Mock(
+        return_value=object(),
+        side_effect=AssertionError("scrape-only must not construct a provider") if forbid_constructor else None,
+    )
+    monkeypatch.setattr(company_research.CompanyResearchOrchestrator, "_build_research_orchestrator", constructor)
+    monkeypatch.setattr(
+        company_research,
+        "scrape_for_company_research",
+        lambda **_: {"success": False, "error": "offline transport failed"},
+    )
+    result = CliRunner().invoke(cli, ["research", "company", "Acme", "https://example.test", "--scrape-only", *flags])
+    assert_refusal(result, flags, "COMPANY_CAPTURE_FAILED")
+    assert "offline transport failed" in result.output
+    constructor.assert_not_called()
+
+
+@pytest.mark.parametrize("batch", [False, True])
+@pytest.mark.parametrize("flags", [[], ["--preview"], ["--json"], ["--preview", "--json"], ["-q"]])
+def test_auto_without_keys_returns_actionable_refusal(monkeypatch, tmp_path, batch, flags):
+    monkeypatch.setenv("DEEPR_AUTO_EVAL", "false")
+    monkeypatch.setenv("DEEPR_DATA_DIR", str(tmp_path / "data"))
+    args = ["research", QUERY, "--auto", *flags]
+    if batch:
+        path = tmp_path / "queries.txt"
+        path.write_text("What is Python?\nCompare API contracts\n")
+        args.extend(["--batch", str(path)])
+    result = CliRunner().invoke(cli, args)
+    assert_refusal(result, flags, "AUTO_ROUTE_UNAVAILABLE")
+    assert "explicit" in result.output and "--preview" in result.output
+
+
+@pytest.mark.parametrize("flags", [[], ["--json"], ["-q"]])
+def test_real_auto_batch_preview_renders_routes_without_dispatch(monkeypatch, tmp_path, flags):
+    monkeypatch.setenv("DEEPR_AUTO_EVAL", "false")
+    monkeypatch.setenv("DEEPR_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("OPENAI_API_KEY", SECRET)
+    path = tmp_path / "queries.txt"
+    path.write_text("What is Python?\nCompare API contracts\n")
+    result = CliRunner().invoke(cli, ["research", QUERY, "--auto", "--batch", str(path), "--preview", *flags])
+    assert result.exit_code == 0, result.output
+    assert SECRET not in result.output
+    if "--json" in flags:
+        payload = json.loads(result.stdout)
+        assert payload["dry_run"] is True
+        assert payload["executed"] is False
+        assert len(payload["decisions"]) == 2
+    elif "-q" in flags:
+        assert result.output == ""
+    else:
+        assert "What is Python?" in result.output
+        assert "Compare API contracts" in result.output
+        assert "openai/" in result.output
+        assert "no queries will be executed" in result.output
+
+
+@pytest.mark.parametrize("flags", [["--json"], ["-q"]])
+def test_company_local_capture_success_needs_no_provider_and_respects_output(monkeypatch, tmp_path, flags):
+    from deepr.core import company_research
+
+    constructor = Mock(side_effect=AssertionError("local capture cannot construct a provider"))
+    monkeypatch.setattr(company_research.CompanyResearchOrchestrator, "_build_research_orchestrator", constructor)
+    monkeypatch.setattr(company_research.tempfile, "tempdir", str(tmp_path))
+    monkeypatch.setattr(
+        company_research,
+        "scrape_for_company_research",
+        lambda **_: {
+            "success": True,
+            "pages_scraped": 1,
+            "scraped_data": {"https://example.test": "Retained company content"},
+        },
+    )
+    result = CliRunner().invoke(cli, ["research", "company", "Acme", "https://example.test", "--scrape-only", *flags])
+    assert result.exit_code == 0, result.output
+    if "--json" in flags:
+        payload = json.loads(result.stdout)
+        assert payload["status"] == "success"
+        assert payload["cost_usd"] == 0
+        assert "Retained company content" in Path(payload["report_path"]).read_text()
+    else:
+        assert result.output == ""
+    constructor.assert_not_called()

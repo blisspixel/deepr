@@ -11,7 +11,9 @@ not certify practical guidance; review retained evidence and answers.
 
 ## Prerequisites
 
-- Python 3.12 or higher
+- uv or pipx for release installation; fresh uv manages CPython 3.13, while
+  pipx requires installed stable CPython 3.12, 3.13 or 3.14
+- Python 3.12 or higher for an explicit source environment
 - Owned local Ollama with an installed model and cloud execution disabled
 - An API key only when intentionally running supported live credential checks
 
