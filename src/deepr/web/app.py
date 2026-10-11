@@ -3472,6 +3472,7 @@ def _run_loopback_development_server(*, host: str, port: int, debug: bool) -> No
     socketio.run(
         app,
         debug=debug,
+        use_debugger=False,
         host=host,
         port=port,
         allow_unsafe_werkzeug=True,

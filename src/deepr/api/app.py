@@ -1025,4 +1025,4 @@ if __name__ == "__main__":
     if not _api_token:
         print("  WARNING: explicit unauthenticated loopback compatibility mode")
     print("=" * 70 + "\n")
-    app.run(debug=debug, host=host, port=port)
+    app.run(debug=debug, host=host, port=port, use_debugger=False)

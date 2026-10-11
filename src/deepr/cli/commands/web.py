@@ -81,6 +81,7 @@ def web(host: str, port: int, debug: bool, allow_unauthenticated_loopback: bool)
     web_app.socketio.run(
         web_app.app,
         debug=debug,
+        use_debugger=False,
         host=host,
         port=port,
         allow_unsafe_werkzeug=loopback,

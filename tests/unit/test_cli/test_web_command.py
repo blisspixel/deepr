@@ -47,6 +47,7 @@ def test_explicit_unauthenticated_mode_is_loopback_only(monkeypatch) -> None:
     run.assert_called_once_with(
         web_app.app,
         debug=False,
+        use_debugger=False,
         host="127.0.0.1",
         port=5000,
         allow_unsafe_werkzeug=True,

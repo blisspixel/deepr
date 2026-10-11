@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hashes explicitly declare nonsecurity use, and SQL values remain bound
   parameters. The security-lint baseline decreases from 52 to 48 findings.
 
+### Security
+
+- Disabled Werkzeug's executable browser debugger in the API module,
+  dashboard module, and `deepr web` launcher. Explicit debug mode and automatic
+  reload remain available under the existing authentication and bind controls.
+
 ## [2.50.24] - 2026-10-09
 
 Security hardening across A2A, MCP scoped keys, transport concurrency, dashboard auth, and scraping logs.
