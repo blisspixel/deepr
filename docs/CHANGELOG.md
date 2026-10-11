@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Local expert formation checks owned Ollama capacity before source retention
+  or discovery and reports persistent-cloud configuration refusals directly.
+  Refused studies stop, retain completed lenses and chunks, and return nonzero.
+  A later capacity refusal also stops cleanup unload requests.
+  Init, capacity inventory and connected doctor expose cloud/model evidence;
+  offline doctor explicitly leaves it unchecked. Setup guidance distinguishes
+  the daemon user's home and service restart from interactive installations.
+
 - Generic knowledge absorption accepts scalar response items instead of
   crashing. Skill names handle empty input and Windows device names, and
   conversation storage rejects invalid busy timeouts before opening a database.

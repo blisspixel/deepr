@@ -4,6 +4,7 @@ from typing import Any
 
 import pytest
 
+from deepr.backends.capacity import OwnedLocalCapacityRefused
 from deepr.experts.chat_backends import ExpertChatRequest, ExpertChatUnsupportedFeature
 from deepr.experts.investigation.ollama_backend import (
     NativeOllamaInvestigationBackend,
@@ -139,7 +140,7 @@ async def test_native_backend_requires_stable_cloud_disabled_proof(status: dict[
         raise AssertionError("request must not be dispatched")
 
     backend = NativeOllamaInvestigationBackend(model="fixture:14b", get_json=get_json, post_json=post_json)
-    with pytest.raises(ExpertChatUnsupportedFeature, match=r"cloud\.disabled=true"):
+    with pytest.raises(OwnedLocalCapacityRefused, match=r"cloud\.disabled=true"):
         await backend.complete(
             ExpertChatRequest(
                 model="fixture:14b",
@@ -176,7 +177,7 @@ async def test_native_backend_rejects_unmaterialized_or_remote_model(entry: dict
 
     requested = str(entry["name"])
     backend = NativeOllamaInvestigationBackend(model=requested, get_json=get_json, post_json=post_json)
-    with pytest.raises(ExpertChatUnsupportedFeature, match="zero-cost authority gate"):
+    with pytest.raises(OwnedLocalCapacityRefused, match="zero-cost authority gate"):
         await backend.complete(
             ExpertChatRequest(
                 model=requested,
@@ -199,7 +200,7 @@ async def test_native_backend_rejects_request_model_missing_from_exact_inventory
         raise AssertionError("request must not be dispatched")
 
     backend = NativeOllamaInvestigationBackend(model="fixture:14b", get_json=get_json, post_json=post_json)
-    with pytest.raises(ExpertChatUnsupportedFeature, match="not an exact entry"):
+    with pytest.raises(OwnedLocalCapacityRefused, match="not an exact entry"):
         await backend.complete(
             ExpertChatRequest(
                 model="fixture:14b",

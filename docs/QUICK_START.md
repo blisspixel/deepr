@@ -22,6 +22,50 @@ expert formation cannot use it or fall back to a paid provider.
 
 ---
 
+## Local Ollama setup
+
+Set this field in the Ollama daemon user's `.ollama/server.json`, merging it
+into the existing JSON object and preserving all other settings:
+
+```json
+{"disable_ollama_cloud": true}
+```
+
+The home belongs to the process running Ollama, which may differ from the user
+running Deepr. For interactive `ollama serve`, it is your `~/.ollama/server.json`.
+Stop that server and run `ollama serve` again after saving the setting. For the
+standard Linux system service, the user is `ollama`, its home is
+`/usr/share/ollama`, and the file is `/usr/share/ollama/.ollama/server.json`.
+Use `sudo systemctl restart ollama` after saving it with permissions that allow
+that service user to read it. Custom and user services may use another home or
+service name; use their actual daemon user and restart command. On Windows or
+macOS desktop installs, quit and reopen Ollama after editing that user's file.
+Deepr never changes daemon settings or restarts a service automatically.
+
+Upstream also accepts `OLLAMA_NO_CLOUD=1`, but environment-only disablement does
+not satisfy Deepr's persistent-proof requirement. The running server must report
+`cloud.disabled=true` with source `config` or `both` at `/api/status`.
+Run `deepr capacity` to inspect this read-only evidence and local model
+availability without inference. A skipped or unavailable proof is unverified;
+`deepr doctor --skip-connectivity` deliberately makes no provider HTTP request.
+Connected `deepr doctor` reports the local proof and any actionable refusal.
+
+For owned remote hardware, an operator-established SSH local forward can expose
+the remote daemon at an accepted loopback port:
+
+```bash
+ssh -N -L 127.0.0.1:11435:127.0.0.1:11434 user@garage
+```
+
+In another terminal, set `OLLAMA_HOST=http://127.0.0.1:11435` for Deepr's process
+(PowerShell: `$env:OLLAMA_HOST = 'http://127.0.0.1:11435'`). Configure cloud
+disablement on the remote daemon, under its daemon user's home. Direct LAN and
+public endpoints remain refused; the forward does not bypass cloud or exact
+materialized-model checks, and every generation revalidates current proof.
+
+See the official [cloud configuration](https://docs.ollama.com/faq#how-do-i-disable-ollama-cloud-features)
+and [Linux service setup](https://docs.ollama.com/linux#adding-ollama-as-a-startup-service-recommended).
+
 ## Installation (2 minutes)
 
 ### 1. Clone and Install

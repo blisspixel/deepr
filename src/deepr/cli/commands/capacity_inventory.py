@@ -34,6 +34,10 @@ def print_sources(sources: Iterable[CapacitySource]) -> None:
             }[kind]
             status = present if source.available else absent
             click.echo(f"  [{mark}] {source.name:24s} {status:14s} {source.marginal_cost:16s} {source.detail}")
+            if source.local_generation is not None:
+                proof = source.local_generation
+                cloud = f"disabled={proof.cloud_disabled}, source={proof.cloud_source or 'unknown'}"
+                click.echo(f"      Local generation: {proof.status} ({cloud}). {proof.detail}")
         click.echo("")
 
     click.echo("Inventory only: detection, installation, or credential presence does not prove execution.")

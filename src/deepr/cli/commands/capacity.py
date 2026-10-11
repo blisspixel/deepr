@@ -95,6 +95,8 @@ def _source_to_dict(
     }[source.kind]
     d["execution_eligible"] = None if source.available else False
     if source.kind == BackendKind.LOCAL:
+        if source.local_generation is not None and source.local_generation.status != "ready":
+            d["execution_eligible"] = False
         d["eligibility_command"] = "deepr capacity next --task-class sync"
     elif source.kind == BackendKind.PLAN_QUOTA and get_adapter_by_executable(source.backend_id):
         d["eligibility_command"] = "deepr capacity fleet"

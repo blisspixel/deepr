@@ -77,6 +77,7 @@ def test_documented_local_onboarding_builds_cited_consult_context(tmp_path, monk
             model = "fixture-model"
             cost_note = "$0 local fixture"
             chunk_chars = 8_000
+            preflight = AsyncMock()
 
             @staticmethod
             async def completion(_prompt: str) -> str:
@@ -131,6 +132,7 @@ def test_documented_local_onboarding_builds_cited_consult_context(tmp_path, monk
             _invoke(runner, ["expert", "retain", expert_name, str(source), "--title", "Trusted starting source"])
             build_output = _invoke(runner, ["expert", "build", expert_name, "--no-discovery"])
         assert "Formation: research_complete" in build_output
+        FakeBackend.preflight.assert_awaited_once()
         state = formation.read_formation_state(expert_name)
         assert state["qualification"] == "not_reviewed"
         assert state["api_cost_usd"] == 0

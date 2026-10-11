@@ -17,6 +17,7 @@ same terms-of-service notes apply.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -64,6 +65,7 @@ class StudyBackend:
     picks for itself and Deepr sees the process rather than that decision.
     Recorded so an artifact can say which model read the corpus - the single
     largest determinant of what a study pass finds, and previously discarded."""
+    preflight: Callable[[], Awaitable[None]] | None = None
 
 
 def _completion_from_chat_client(client: Any, model: str, *, max_tokens: int) -> StudyCompletion:
@@ -266,6 +268,7 @@ def _build_local_backend(
         ),
         capacity_source=f"local:{local_model}",
         model=local_model,
+        preflight=backend.preflight,
         cost_note=f"$0 (local model {local_model} @ {context_tokens} ctx){fit_note}",
     )
 

@@ -32,6 +32,25 @@ class DiagnosticCheck:
         return "ok" if self.passed else self.failure_severity
 
 
+async def check_local_ollama(*, skip_connectivity: bool) -> list[DiagnosticCheck]:
+    """Report owned generation proof without treating skipped checks as ready."""
+    check = DiagnosticCheck("Local Ollama generation", "Local Capacity")
+    if skip_connectivity:
+        check.failure_severity = "info"
+        check.message = "Unverified: provider connectivity checks were skipped"
+        check.details.append("Run `deepr capacity` for read-only local cloud/model proof; it performs no inference.")
+        return [check]
+    from deepr.backends.capacity import observe_local_ollama_generation
+
+    proof = await asyncio.to_thread(observe_local_ollama_generation)
+    check.passed = proof.status == "ready"
+    check.message = f"{proof.status}: {proof.detail}"
+    check.details.append(f"Cloud disabled: {proof.cloud_disabled}; source: {proof.cloud_source or 'unknown'}")
+    if proof.reason == "unreachable" and not os.getenv("OLLAMA_HOST"):
+        check.failure_severity = "info"
+    return [check]
+
+
 async def check_api_keys(config) -> list[DiagnosticCheck]:
     """Check if API keys are configured."""
     checks = []
@@ -372,7 +391,13 @@ def print_checks(checks: list[DiagnosticCheck]):
             f"\n[yellow]{get_symbol('warning')}[/yellow] No blocking issues; {counts['warnings']} advisory warning(s)."
         )
     else:
-        console.print(f"\n[green]{get_symbol('success')}[/green] All good. Optional items above are not problems.")
+        unchecked = any(check.name == "Local Ollama generation" and not check.passed for check in checks)
+        message = (
+            "No blocking configuration issues; local generation is unverified."
+            if unchecked
+            else "All good. Optional items above are not problems."
+        )
+        console.print(f"\n[green]{get_symbol('success')}[/green] {message}")
 
 
 @click.command()
@@ -382,13 +407,13 @@ def doctor(skip_connectivity: bool):
 
     Checks:
     - Provider API keys are configured
-    - Supported provider connectivity checks (unless --skip-connectivity)
+    - Owned local Ollama cloud/model proof (unless --skip-connectivity)
     - File system read/write permissions
     - Database access
 
     Examples:
         deepr doctor --skip-connectivity
-        deepr doctor  # contact configured OpenAI, Gemini, and xAI providers
+        deepr doctor  # read-only local proof; external provider calls remain blocked
     """
     click.echo("Running Deepr diagnostics...\n")
     if skip_connectivity:
@@ -404,8 +429,11 @@ def doctor(skip_connectivity: bool):
             raise click.ClickException("Could not load configuration. Review local settings and retry.") from exc
 
         # Run all checks
-        with click.progressbar(length=9, label="Running checks") as bar:
+        with click.progressbar(length=10, label="Running checks") as bar:
             all_checks.extend(await check_api_keys(config))
+            bar.update(1)
+
+            all_checks.extend(await check_local_ollama(skip_connectivity=skip_connectivity))
             bar.update(1)
 
             if not skip_connectivity:
@@ -470,7 +498,7 @@ def print_next_step(checks: list[DiagnosticCheck]) -> None:
     if metered is None:
         return
     if not metered.passed:
-        click.echo("\nNo metered API keys are configured; local and explicit plan workflows remain available.")
+        click.echo("\nNo metered API keys are configured. Local and plan workflows require their own capacity proof.")
         click.echo("Next: deepr capacity")
     else:
         click.echo(

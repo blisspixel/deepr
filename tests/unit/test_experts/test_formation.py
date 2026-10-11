@@ -19,12 +19,20 @@ def environment(tmp_path, monkeypatch):
     monkeypatch.setattr("deepr.experts.paths.canonical_expert_dir", lambda name: tmp_path)
     monkeypatch.setattr(formation, "canonical_expert_dir", lambda name: tmp_path)
     monkeypatch.setattr(formation, "CostLedger", Mock())
-    profile = SimpleNamespace(name="Example", domain="Coordination", description="Coordination")
+    profile = SimpleNamespace(
+        name="Example",
+        domain="Coordination",
+        description="Coordination",
+        provider="local",
+        model="fixture",
+        total_documents=0,
+    )
     backend = SimpleNamespace(
         model="fixture",
         capacity_source="local:fixture",
         chunk_chars=14000,
         completion=AsyncMock(return_value="local result"),
+        preflight=AsyncMock(),
     )
 
     async def plan(topic, completion):
@@ -108,6 +116,9 @@ async def test_formation_connects_acquisition_understanding_graph_and_markdown(e
     assert json.loads((directory / "graph/evidence.json").read_text())["stats"]["is_formed"]
     assert (directory / "hold/current.md").is_file()
     assert (directory / "formation/runs" / result["operation_id"] / "review.md").is_file()
+    from deepr.backends.local import release_local_model
+
+    release_local_model.assert_awaited_once_with(backend.model)
 
 
 @pytest.mark.asyncio
