@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from functools import wraps
+from typing import NoReturn
+
 import click
 
+from deepr.cli.output import OperationResult, OutputContext, OutputFormatter
 from deepr.core.costs import CostEstimate
 from deepr.services.research_bounds import (
     ResearchRequestBoundsError,
@@ -14,8 +19,101 @@ from deepr.services.research_bounds import (
 )
 
 
+class ResearchCLIError(click.ClickException):
+    """A research refusal with a stable machine-readable code."""
+
+    def __init__(self, message: str, code: str) -> None:
+        super().__init__(message)
+        self.error_code = code
+
+
 def _as_click_error(exc: ResearchRequestBoundsError) -> click.ClickException:
-    return click.ClickException(f"{exc.code}: {exc}")
+    return ResearchCLIError(f"{exc.code}: {exc}", exc.code)
+
+
+def fail_research(
+    output_context: OutputContext,
+    error: str | Exception,
+    *,
+    error_code: str | None = None,
+    category: str = "validation",
+    formatter: OutputFormatter | None = None,
+) -> NoReturn:
+    """Finish one refused CLI operation without reporting successful execution."""
+    result = OperationResult(
+        success=False,
+        duration_seconds=0.0,
+        cost_usd=0.0,
+        error=str(error),
+        error_code=error_code or getattr(error, "error_code", None) or getattr(error, "code", "RESEARCH_REFUSED"),
+        category=category,
+        retryable=False,
+    )
+    (formatter or OutputFormatter(output_context)).complete(result, error_to_stderr=True)
+    raise SystemExit(1)
+
+
+def research_failure_boundary(function):
+    """Adapt known command refusals to the existing CLI operation envelope."""
+
+    @wraps(function)
+    def wrapped(*args, **kwargs):
+        from deepr.experts.research_cost_gate import ResearchCostBlocked
+
+        output_context = kwargs["output_context"]
+        try:
+            return function(*args, **kwargs)
+        except click.Abort:
+            fail_research(output_context, "Research cancelled.", error_code="CANCELLED")
+        except click.UsageError as exc:
+            fail_research(output_context, exc, error_code="INVALID_INPUT")
+        except (click.ClickException, ResearchRequestBoundsError, ResearchCostBlocked) as exc:
+            fail_research(output_context, exc)
+
+    return wrapped
+
+
+def require_research_credential(provider: str, output_context: OutputContext) -> None:
+    """Check presence only; this is neither credential validity nor spend authority."""
+    from deepr.cli.commands.keys import PROVIDERS
+    from deepr.cli.commands.provider_factory import credential_presence
+
+    present, name = credential_presence(provider)
+    if not present:
+        setup = (
+            f"'deepr keys set {provider}' or the environment" if provider in PROVIDERS else ".env or the environment"
+        )
+        fail_research(
+            output_context,
+            f"No credential found for provider '{provider}'. Set {name} using {setup}. "
+            "Use --preview to inspect the route without a key.",
+            error_code="MISSING_API_KEY",
+            category="auth",
+        )
+
+
+def require_budget_confirmation(
+    yes: bool,
+    estimated_cost: float,
+    output_context: OutputContext,
+    formatter: OutputFormatter,
+    approval_check: Callable[[bool, float, OutputContext], bool],
+) -> None:
+    """Finish the operation on unconfirmed cost, including an aborted prompt."""
+    try:
+        if approval_check(yes, estimated_cost, output_context):
+            return
+    except click.Abort:
+        fail_research(output_context, "Research cancelled.", error_code="CANCELLED", formatter=formatter)
+    fail_research(
+        output_context,
+        f"Budget gate: estimated ${estimated_cost:.2f} is not approved. "
+        "-y cannot consent past the gate. Inspect 'deepr budget show', "
+        "run interactively with --verbose to confirm, or use --preview without spending.",
+        error_code="BUDGET_NOT_APPROVED",
+        category="budget",
+        formatter=formatter,
+    )
 
 
 def require_storage() -> None:

@@ -426,18 +426,21 @@ class OutputFormatter:
             # they never mingle with primary output on stdout.
             self._stderr_console.print(f"[dim]{message}[/dim]")
 
-    def complete(self, result: OperationResult) -> None:
+    def complete(self, result: OperationResult, *, error_to_stderr: bool = False) -> None:
         """Show completion with result.
 
         Args:
             result: The operation result to display
+            error_to_stderr: Route human failures to stderr; preserve JSON on stdout
         """
         # Stop any running progress indicator
         if self._progress:
             self._progress.stop()
             self._progress = None
 
-        if self.context.mode == OutputMode.JSON:
+        if error_to_stderr and not result.success and self.context.mode != OutputMode.JSON:
+            self._complete_quiet(result)
+        elif self.context.mode == OutputMode.JSON:
             self._complete_json(result)
         elif self.context.mode == OutputMode.QUIET:
             self._complete_quiet(result)

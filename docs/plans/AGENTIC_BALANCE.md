@@ -16,6 +16,13 @@ brittle rule - it encodes a boundary that no longer matches the code.
 
 ## The axis
 
+Research CLI refusal handling is a workflow boundary: validation, credential
+presence, route continuity, budget confirmation, output mode, and terminal
+attendance guard execution form and side effects. They make no semantic verdict
+about the query or result. Keyless preview remains available; attended OpenRouter
+refuses noninteractive, JSON, quiet, and `-y` execution even with stored authority.
+See [the refusal contract](../design/research-execution-refusals.md).
+
 Anthropic draws the load-bearing distinction. A **workflow** is a system "where
 LLMs and tools are orchestrated through predefined code paths." An **agent** is a
 system "where LLMs dynamically direct their own processes and tool usage,

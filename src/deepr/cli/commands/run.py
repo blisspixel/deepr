@@ -373,6 +373,7 @@ async def _run_single(
     user_specified_provider: bool = True,
     user_specified_model: bool = False,
     system_message: str | None = None,
+    route_resolved: bool = False,
 ):
     """Execute one bounded research job without automatic metered fallback.
 
@@ -397,6 +398,7 @@ async def _run_single(
         trace_flags: Optional trace visibility flags
         no_fallback: Compatibility flag; automatic metered fallback is disabled
         user_specified_provider: True when user explicitly passed --provider
+        route_resolved: Keep a route already resolved by the CLI entry point
     """
     if upload:
         from deepr.services.research_bounds import require_research_storage_accounting
@@ -435,7 +437,7 @@ async def _run_single(
     # provider nor model. An explicit -m must always win (live finding
     # 2026-06-11: -m o4-mini-deep-research was silently overridden to the
     # pinned default, which also made the cheaper model unselectable).
-    if not user_specified_provider and not user_specified_model:
+    if not route_resolved and not user_specified_provider and not user_specified_model:
         try:
             selected_provider, selected_model = router.select_provider(
                 task_type="research",
@@ -446,7 +448,7 @@ async def _run_single(
                 console.print(f"  [dim]Router selected: {provider}/{model}[/dim]")
         except Exception as exc:
             logger.debug("Router selection failed; using requested/default provider: %s", exc, exc_info=exc)
-    elif user_specified_model and not user_specified_provider:
+    elif not route_resolved and user_specified_model and not user_specified_provider:
         # Honor the explicit model; just resolve which provider serves it.
         inferred = _provider_for_model(model)
         if inferred and inferred != provider:
@@ -493,7 +495,7 @@ async def _run_single(
             "model": model,
             "web_search": not no_web,
             "code_interpreter": not no_code,
-            "router_selected": not user_specified_provider,
+            "router_selected": not route_resolved and not user_specified_provider and not user_specified_model,
         },
     )
     op.set_model(model, provider)
@@ -523,9 +525,13 @@ async def _run_single(
         enabled=output_context.mode == OutputMode.VERBOSE,
     ) as live_status:
         live_status.update("Checking budget...")
-        if not _check_budget(yes, estimated_cost, output_context):
+        from deepr.cli.commands.research_safety import require_budget_confirmation
+
+        try:
+            require_budget_confirmation(yes, estimated_cost, output_context, formatter, _check_budget)
+        except SystemExit:
             emitter.fail_task(op, "budget_declined")
-            return
+            raise
 
         if no_web and no_code and not upload and supports_vector_stores(provider) and "deep-research" in model:
             _handle_missing_tools_error(None, model, formatter, start_time)
@@ -959,19 +965,10 @@ def _check_budget(yes: bool, estimated_cost: float, output_context: OutputContex
 
     # Gate says this spend needs a human decision.
     if yes:
-        click.echo(
-            f"Budget gate: estimated ${estimated_cost:.2f} needs confirmation "
-            "(over/near the monthly budget, or above the $1 cautious-mode floor) "
-            "and -y cannot consent to it. Raise the budget with "
-            "'deepr budget set <amount>' to authorize headless spend at this level, "
-            "or run interactively.",
-            err=True,
-        )
         return False
 
     if output_context.mode == OutputMode.VERBOSE:
         if not click.confirm(f"Proceed with estimated cost ${estimated_cost:.2f}?"):
-            click.echo("Cancelled.")
             return False
         return True
 
