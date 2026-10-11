@@ -195,21 +195,20 @@ async def test_paid_capacity_cannot_enter_formation(environment):
 
 
 @pytest.mark.asyncio
-async def test_retry_offers_completed_candidate_lenses_and_preserves_failed_attempt(environment, monkeypatch):
+async def test_retry_rejects_legacy_lens_reuse_and_preserves_failed_attempt(environment, monkeypatch):
     directory, profile, backend = environment
     first = await formation.form_expert(profile, backend, limits=formation.FormationLimits(max_model_calls=2))
     original = formation.run_study
     resumed = []
 
     async def capture(**kwargs):
-        resumed.extend(kwargs["resume_from"])
+        resumed.append(kwargs["resume_from"])
         return await original(**kwargs)
 
     monkeypatch.setattr(formation, "run_study", capture)
     second = await formation.form_expert(profile, backend, discover=False)
     assert second["status"] == "research_complete"
-    assert second["resume_candidate"] == first["operation_id"]
-    assert len(resumed) == 3
+    assert resumed == [None], "legacy lenses cannot prove the exact chunk/model contract"
     prior = json.loads((directory / "formation/runs" / first["operation_id"] / "run.json").read_text())
     assert prior["status"] == "incomplete"
 

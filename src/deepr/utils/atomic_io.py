@@ -56,22 +56,49 @@ def _link_tempfile_without_replacement(tmp_path: Path, target: Path) -> None:
         logger.warning("Unable to remove temporary link after an atomic no-replace write")
 
 
+def _fsync_parent_chain(directory: Path) -> None:
+    """Persist entries in every ancestor, including directories just created.
+
+    Python does not expose a portable directory flush on Windows. There the
+    supported guarantee remains file fsync plus atomic replacement.
+    """
+    if os.name == "nt":
+        return
+    current = directory.absolute()
+    for _ in range(64):
+        descriptor = os.open(current, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+        if current.parent == current:
+            return
+        current = current.parent
+    raise OSError("Directory ancestry exceeds the durable-write depth limit")
+
+
 def atomic_write_bytes(
     path: str | os.PathLike[str],
     data: bytes,
     *,
     fsync: bool = False,
+    fsync_parent: bool = False,
     overwrite: bool = True,
 ) -> None:
     """Atomically write ``data`` to ``path``.
 
     Writes to a tempfile in the same directory, then renames onto the target.
-    If ``fsync`` is true the file is fsync'd before rename - slow, but the
-    only way to survive a power-loss event without a corrupt or zero-byte
-    file. Off by default; opt in for ledgers and other write-once records. If
+    If ``fsync`` is true the file is fsync'd before rename. ``fsync_parent``
+    additionally persists every ancestor directory after replacement on POSIX,
+    covering newly created directory entries. It requires file fsync and
+    propagates flush failures. Windows supports file fsync and atomic replacement
+    here, without a portable directory-durability guarantee. Both are off by
+    default; callers choose the guarantee their records need. If
     ``overwrite`` is false, atomically create the complete target or raise
     ``FileExistsError`` without changing the existing target.
     """
+    if fsync_parent and not fsync:
+        raise ValueError("fsync_parent requires file fsync")
     target = Path(path)
     parent = target.parent
     if not parent.exists():
@@ -90,6 +117,8 @@ def atomic_write_bytes(
             _replace_tempfile(tmp_path, target)
         else:
             _link_tempfile_without_replacement(tmp_path, target)
+        if fsync_parent:
+            _fsync_parent_chain(parent)
     except Exception:
         try:
             if tmp_path.exists():
@@ -105,10 +134,11 @@ def atomic_write_text(
     *,
     encoding: str = "utf-8",
     fsync: bool = False,
+    fsync_parent: bool = False,
     overwrite: bool = True,
 ) -> None:
     """Atomically write a text string to ``path``."""
-    atomic_write_bytes(path, text.encode(encoding), fsync=fsync, overwrite=overwrite)
+    atomic_write_bytes(path, text.encode(encoding), fsync=fsync, fsync_parent=fsync_parent, overwrite=overwrite)
 
 
 def atomic_write_json(
@@ -119,6 +149,7 @@ def atomic_write_json(
     sort_keys: bool = False,
     default: Any = None,
     fsync: bool = False,
+    fsync_parent: bool = False,
     overwrite: bool = True,
 ) -> None:
     """Atomically write ``data`` as JSON to ``path``.
@@ -128,7 +159,7 @@ def atomic_write_json(
     the target is left untouched.
     """
     payload = json.dumps(data, indent=indent, sort_keys=sort_keys, default=default)
-    atomic_write_text(path, payload, fsync=fsync, overwrite=overwrite)
+    atomic_write_text(path, payload, fsync=fsync, fsync_parent=fsync_parent, overwrite=overwrite)
 
 
 def append_jsonl_durable(

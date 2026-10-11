@@ -33,6 +33,7 @@ import click
 from deepr.cli.colors import console, print_header, print_key_value, print_warning
 from deepr.cli.commands.semantic.experts import expert
 from deepr.experts.expert_layout import resolve_relative
+from deepr.experts.formation import read_formation_state
 from deepr.experts.paths import canonical_expert_dir
 from deepr.experts.stage_contract import STAGES, evaluate_all, next_stage
 
@@ -109,6 +110,10 @@ def expert_status(name: str, as_json: bool) -> None:
     """
     profile = _load_profile(name)
     states = evaluate_all(_read_artifacts(canonical_expert_dir(profile.name)))
+    try:
+        formation = read_formation_state(profile.name)
+    except (OSError, ValueError):
+        formation = {"status": "unreadable", "progress": "Inspect formation/current.json before retrying the build."}
 
     if as_json:
         payload = {
@@ -116,11 +121,15 @@ def expert_status(name: str, as_json: bool) -> None:
             "stages": [state.to_dict() for state in states],
             "next": (nxt.name if (nxt := next_stage(states)) else None),
             "cost_usd": 0.0,
+            "formation": formation,
         }
         click.echo(json.dumps(payload, indent=2))
         return
 
     print_header(f"Status: {profile.name}")
+    if formation:
+        print_key_value("Formation", f"{formation.get('status', 'unknown')}: {formation.get('progress', '')}")
+        print_key_value("Formation observed", formation.get("updated_at", "unknown"))
     for state in states:
         colour = _STATUS_COLOR.get(state.status, "white")
         console.print(f"  [{colour}]{state.status:8s}[/{colour}] {state.name:10s} [dim]{state.success_means}[/dim]")

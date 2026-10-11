@@ -10,6 +10,11 @@ from deepr.backends.local_capacity import (
 )
 
 
+@pytest.fixture(autouse=True)
+def no_host_drm_devices(monkeypatch):
+    monkeypatch.setattr("deepr.backends.local_capacity.read_drm_devices", lambda: ())
+
+
 def _completed(stdout: str, *, returncode: int = 0, stderr: str = "") -> subprocess.CompletedProcess[str]:
     return subprocess.CompletedProcess(["nvidia-smi"], returncode, stdout=stdout, stderr=stderr)
 

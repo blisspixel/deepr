@@ -6,11 +6,15 @@ Verifies the crash-safe write helpers used across the storage layer.
 from __future__ import annotations
 
 import json
+import os
+import stat
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 
+from deepr.utils import atomic_io
 from deepr.utils.atomic_io import (
     append_jsonl_durable,
     atomic_write_bytes,
@@ -95,11 +99,73 @@ class TestAtomicWriteBytes:
         assert path.read_bytes() == b"\x00\x01\x02"
 
     def test_with_fsync(self, tmp_path: Path):
-        # Should not raise even when fsync isn't supported on the
-        # underlying filesystem; the helper swallows fsync errors.
         path = tmp_path / "out.bin"
         atomic_write_bytes(path, b"payload", fsync=True)
         assert path.read_bytes() == b"payload"
+
+    def test_directory_sync_is_opt_in(self, tmp_path: Path, monkeypatch):
+        sync = patch.object(atomic_io, "_fsync_parent_chain")
+        with sync as observed:
+            atomic_write_bytes(tmp_path / "default.bin", b"default", fsync=True)
+            observed.assert_not_called()
+            atomic_write_bytes(tmp_path / "durable.bin", b"durable", fsync=True, fsync_parent=True)
+            observed.assert_called_once_with(tmp_path)
+
+    def test_directory_sync_requires_file_sync_before_creating_parent(self, tmp_path: Path):
+        path = tmp_path / "new" / "out.bin"
+        with pytest.raises(ValueError, match="requires file fsync"):
+            atomic_write_bytes(path, b"payload", fsync_parent=True)
+        assert not path.parent.exists()
+
+    def test_durable_write_syncs_new_directory_ancestry(self, tmp_path: Path, monkeypatch):
+        path = tmp_path / "new-operation" / "study-chunks" / "out.bin"
+        if os.name == "nt":
+            # Windows has no portable directory fsync. Its documented guarantee
+            # is file fsync plus atomic replacement, exercised by this write.
+            atomic_write_bytes(path, b"payload", fsync=True, fsync_parent=True)
+            assert path.read_bytes() == b"payload"
+            return
+        real_open, real_close, real_fsync = os.open, os.close, os.fsync
+        opened = {}
+        directories = []
+        events = []
+
+        def open_descriptor(name, flags, *args, **kwargs):
+            descriptor = real_open(name, flags, *args, **kwargs)
+            opened[descriptor] = Path(name)
+            return descriptor
+
+        def close_descriptor(descriptor):
+            opened.pop(descriptor, None)
+            return real_close(descriptor)
+
+        def sync_descriptor(descriptor):
+            directory = stat.S_ISDIR(os.fstat(descriptor).st_mode)
+            if directory:
+                assert path.read_bytes() == b"payload", "replacement precedes directory persistence"
+                directories.append(opened[descriptor])
+            events.append("directory" if directory else "file")
+            return real_fsync(descriptor)
+
+        monkeypatch.setattr(atomic_io.os, "open", open_descriptor)
+        monkeypatch.setattr(atomic_io.os, "close", close_descriptor)
+        monkeypatch.setattr(atomic_io.os, "fsync", sync_descriptor)
+        atomic_write_bytes(path, b"payload", fsync=True, fsync_parent=True)
+        assert events[0] == "file"
+        assert directories == [path.parent, *path.parent.parents]
+
+    def test_windows_directory_flush_has_honest_portable_fallback(self, tmp_path: Path, monkeypatch):
+        # Replace this module's os reference without changing pathlib's host OS.
+        monkeypatch.setattr(atomic_io, "os", SimpleNamespace(name="nt"))
+        atomic_io._fsync_parent_chain(tmp_path)
+
+    def test_directory_sync_failure_propagates(self, tmp_path: Path, monkeypatch):
+        def fail(_):
+            raise OSError("directory sync failed")
+
+        monkeypatch.setattr(atomic_io, "_fsync_parent_chain", fail)
+        with pytest.raises(OSError, match="directory sync failed"):
+            atomic_write_bytes(tmp_path / "out.bin", b"payload", fsync=True, fsync_parent=True)
 
 
 class TestAppendJsonlDurable:

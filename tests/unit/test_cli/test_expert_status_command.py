@@ -62,6 +62,19 @@ def _build(home, *, sources=3, findings=10, grounded=8, positions=1, standpoint=
 
 
 class TestItSeparatesFailedFromDone:
+    def test_json_status_includes_read_only_formation_progress(self, profile, expert_home, monkeypatch):
+        monkeypatch.setattr(
+            "deepr.cli.commands.semantic.expert_status.read_formation_state",
+            lambda _: {
+                "status": "incomplete",
+                "progress": "2/5 chunks checkpointed",
+                "study_progress": {"chunks_completed": 2, "estimated_remaining_seconds": None},
+            },
+        )
+        payload = json.loads(CliRunner().invoke(expert, ["status", "Subject", "--json"]).output)
+        assert payload["formation"]["study_progress"]["chunks_completed"] == 2
+        assert payload["formation"]["study_progress"]["estimated_remaining_seconds"] is None
+
     def test_an_artifact_that_carries_nothing_reads_as_failed(self, profile, expert_home):
         """The exact case: a timed-out synthesis wrote a parseable, empty brief."""
         _build(expert_home, positions=0)
@@ -118,6 +131,20 @@ class TestWhatToDoNext:
 
 
 class TestReadingArtifacts:
+    def test_unreadable_formation_is_visible_without_hiding_stage_status(self, profile, expert_home, monkeypatch):
+        _build(expert_home)
+
+        def unreadable(_):
+            raise ValueError("duplicate JSON key")
+
+        monkeypatch.setattr("deepr.cli.commands.semantic.expert_status.read_formation_state", unreadable)
+        result = CliRunner().invoke(expert, ["status", "Subject", "--json"])
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        assert payload["formation"]["status"] == "unreadable"
+        assert "formation/current.json" in payload["formation"]["progress"]
+        assert payload["stages"]
+
     def test_an_unparseable_artifact_is_treated_as_missing(self, profile, expert_home):
         """Treating a corrupt file as present is how corruption travels."""
         d = _build(expert_home)

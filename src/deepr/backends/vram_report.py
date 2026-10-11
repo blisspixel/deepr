@@ -20,6 +20,8 @@ import subprocess
 from dataclasses import dataclass, field
 from typing import Any
 
+from deepr.backends.drm import read_drm_devices
+
 # Applications that commonly hold hundreds of MB and that an operator can close
 # without losing work in progress. Used only to order suggestions; anything not
 # listed is still reported, just not singled out.
@@ -54,6 +56,8 @@ class VramReport:
     processes: list[str] = field(default_factory=list)
     per_process_available: bool = False
     detail: str = ""
+    devices: list[dict[str, Any]] = field(default_factory=list)
+    shared_memory: bool = False
 
     @property
     def reclaimable_candidates(self) -> list[str]:
@@ -79,6 +83,8 @@ class VramReport:
             "per_process_available": self.per_process_available,
             "reclaimable_candidates": self.reclaimable_candidates,
             "detail": self.detail,
+            "devices": self.devices,
+            "shared_memory": self.shared_memory,
         }
 
 
@@ -95,7 +101,7 @@ def _run_nvidia_smi(args: list[str]) -> str:
     return result.stdout if result.returncode == 0 else ""
 
 
-def collect_vram_report() -> VramReport:
+def _collect_nvidia_report() -> VramReport:
     """Read GPU totals and attached processes. Never raises."""
     totals = _run_nvidia_smi(["--query-gpu=name,memory.total,memory.used,memory.free", "--format=csv,noheader,nounits"])
     if not totals.strip():
@@ -138,6 +144,25 @@ def collect_vram_report() -> VramReport:
     return report
 
 
+def collect_vram_report() -> VramReport:
+    report = _collect_nvidia_report()
+    devices = read_drm_devices()
+    report.devices = [device.to_dict() for device in devices]
+    if report.total_bytes > 0 or not devices:
+        return report
+    primary = next((device for device in devices if device.vram_total_bytes), devices[0])
+    report.gpu_name = f"{primary.driver} {primary.vendor}:{primary.device} ({primary.card})"
+    report.shared_memory = True
+    report.total_bytes = primary.vram_total_bytes or 0
+    report.used_bytes = primary.vram_used_bytes or 0
+    report.free_bytes = max(0, report.total_bytes - report.used_bytes)
+    report.detail = (
+        "Dedicated VRAM only; shared system-memory capacity and per-process usage are not measured. "
+        "Unknown counters do not imply CPU execution."
+    )
+    return report
+
+
 def describe_headroom(report: VramReport, *, needed_bytes: int) -> list[str]:
     """Explain, in operator terms, what the current VRAM state costs.
 
@@ -158,7 +183,7 @@ def describe_headroom(report: VramReport, *, needed_bytes: int) -> list[str]:
         candidates = report.reclaimable_candidates
         if candidates:
             lines.append("Closing these would return VRAM: " + ", ".join(candidates[:8]))
-    if needed_bytes > report.free_bytes and needed_bytes <= report.total_bytes:
+    if not report.shared_memory and needed_bytes > report.free_bytes and needed_bytes <= report.total_bytes:
         shortfall = needed_bytes - report.free_bytes
         lines.append(
             f"A better model needs about {needed_bytes / 1e9:.1f} GB; that is "

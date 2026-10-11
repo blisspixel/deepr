@@ -4,12 +4,42 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
+from typing import Any
 
 import click
 
 from deepr.backends.local import default_local_model
 from deepr.experts.profile import ExpertProfile, ExpertStore, get_expert_system_message
 from deepr.utils.security import sanitize_name
+
+
+def local_formation_options(command: Any) -> Any:
+    """The shared explicit operator bounds for local creation and build."""
+    command = click.option(
+        "--max-minutes",
+        type=click.IntRange(1, 360),
+        default=45,
+        show_default=True,
+        help="Owned-local formation time limit; completed chunks survive retry",
+    )(command)
+    return click.option(
+        "--max-corpus-chars",
+        type=click.IntRange(1, 120_000),
+        default=120_000,
+        show_default=True,
+        help="Explicit local formation corpus budget per lens",
+    )(command)
+
+
+def local_creation_options(command: Any) -> Any:
+    command = local_formation_options(command)
+    command = click.option("--local", is_flag=True, help="Create and research a local expert at $0 API cost")(command)
+    command = click.option("--profile-only", is_flag=True, help="With --local, create only an untrained profile")(
+        command
+    )
+    return click.option("--local-model", default=None, help="Installed local model for formation and maintenance")(
+        command
+    )
 
 
 def make_local_expert_profile(
@@ -21,12 +51,18 @@ def make_local_expert_profile(
     learning_options_used: bool,
     profile_only: bool = False,
     discover: bool = True,
+    max_minutes: int = 45,
+    max_corpus_chars: int = 120_000,
 ) -> ExpertProfile | None:
     """Create a local profile and form its research foundation by default."""
     if learning_options_used:
         raise click.ClickException(
             "Local formation uses bounded $0 research; metered curriculum budget/topic options do not apply."
         )
+    from deepr.experts.formation import FormationLimits
+
+    limits = FormationLimits(max_elapsed_seconds=max_minutes * 60, max_corpus_chars=max_corpus_chars)
+    limits.validate()
 
     click.echo(f"Creating local expert: {name}...")
     try:
@@ -48,7 +84,9 @@ def make_local_expert_profile(
     from deepr.cli.commands.semantic.expert_build import build_local_expert
 
     try:
-        build_local_expert(profile, model=local_model, discover=discover)
+        build_local_expert(
+            profile, model=local_model, discover=discover, limits=limits, fresh_default=local_model is None
+        )
     except (OSError, ValueError) as exc:
         raise click.ClickException(
             f'{exc}. Profile retained; resume with: deepr expert build "{profile.name}"'

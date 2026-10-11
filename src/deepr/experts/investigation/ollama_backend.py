@@ -125,6 +125,7 @@ class NativeOllamaInvestigationBackend:
         # Digest observed by the most recent per-dispatch attestation, so a
         # caller with a frozen model identity can bind each call to it.
         self.last_attested_digest = ""
+        self.pinned_digest = ""
 
     async def _attest_model(self, model: str) -> None:
         preflight_timeout = min(self.timeout, 5.0)
@@ -151,6 +152,11 @@ class NativeOllamaInvestigationBackend:
         if selected.get("name") != model:
             raise OwnedLocalCapacityRefused("Owned local Ollama model attestation did not bind the request")
         self.last_attested_digest = str(selected.get("digest", "") or "")
+        if self.pinned_digest and self.last_attested_digest != self.pinned_digest:
+            raise OwnedLocalCapacityRefused(
+                "The selected local model changed after preflight; restart explicitly with the current model.",
+                reason="model_identity_changed",
+            )
 
     async def preflight(self) -> None:
         """Observe current capacity without caching authority for dispatch."""

@@ -339,3 +339,23 @@ def test_dashboard_worker_retains_early_capacity_refusal(environment, monkeypatc
     assert state["model_calls"] == 0
     assert "set daemon config" in state["progress"]
     backend.completion.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_pinned_digest_replacement_is_refused_before_generation():
+    entry = {"name": "fixture", "model": "fixture", "size": 1024, "digest": "a" * 64, "details": {"format": "gguf"}}
+    get = AsyncMock(
+        side_effect=[
+            {"cloud": {"disabled": True, "source": "config"}},
+            {"models": [entry]},
+            {"cloud": {"disabled": True, "source": "config"}},
+            {"models": [{**entry, "digest": "b" * 64}]},
+        ]
+    )
+    post = AsyncMock()
+    native = NativeOllamaInvestigationBackend(model="fixture", get_json=get, post_json=post)
+    await native.preflight()
+    native.pinned_digest = native.last_attested_digest
+    with pytest.raises(OwnedLocalCapacityRefused, match="changed after preflight"):
+        await native.complete(ExpertChatRequest(model="fixture", messages=[], extra={"num_ctx": 4096}))
+    post.assert_not_awaited()

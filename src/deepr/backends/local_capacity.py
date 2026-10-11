@@ -14,6 +14,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
+from deepr.backends.drm import read_drm_devices
+
 LOCAL_CAPACITY_OBSERVATION_SCHEMA_VERSION = "deepr-local-capacity-observation-v1"
 DEFAULT_LOCAL_GPU_BUSY_THRESHOLD_PERCENT = 35.0
 DEFAULT_LOCAL_GPU_PROBE_TIMEOUT_SECONDS = 2.0
@@ -39,6 +41,7 @@ class LocalCapacityObservation:
     gpu_utilization_percent: tuple[float, ...] = ()
     busy_threshold_percent: float = DEFAULT_LOCAL_GPU_BUSY_THRESHOLD_PERCENT
     schema_version: str = LOCAL_CAPACITY_OBSERVATION_SCHEMA_VERSION
+    devices: tuple[dict[str, Any], ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -50,6 +53,7 @@ class LocalCapacityObservation:
             "busy_threshold_percent": self.busy_threshold_percent,
             "read_only": True,
             "cost_usd": 0.0,
+            "devices": list(self.devices),
         }
 
 
@@ -86,7 +90,7 @@ def _parse_nvidia_utilization(output: str) -> tuple[float, ...] | None:
     return tuple(samples) if samples else None
 
 
-def probe_local_gpu_occupancy(
+def _probe_nvidia_occupancy(
     *,
     which: WhichProbe = shutil.which,
     run: RunProbe = subprocess.run,
@@ -148,6 +152,52 @@ def probe_local_gpu_occupancy(
         ),
         gpu_utilization_percent=samples,
         busy_threshold_percent=busy_threshold_percent,
+    )
+
+
+def probe_local_gpu_occupancy(
+    *,
+    which: WhichProbe = shutil.which,
+    run: RunProbe = subprocess.run,
+    timeout_seconds: float = DEFAULT_LOCAL_GPU_PROBE_TIMEOUT_SECONDS,
+    busy_threshold_percent: float = DEFAULT_LOCAL_GPU_BUSY_THRESHOLD_PERCENT,
+) -> LocalCapacityObservation:
+    """Observe NVIDIA and Linux DRM devices without confusing VRAM with load."""
+    nvidia = _probe_nvidia_occupancy(
+        which=which, run=run, timeout_seconds=timeout_seconds, busy_threshold_percent=busy_threshold_percent
+    )
+    devices = read_drm_devices()
+    if not devices:
+        return nvidia
+    drm_samples = tuple(device.utilization_percent for device in devices if device.utilization_percent is not None)
+    samples = nvidia.gpu_utilization_percent + drm_samples
+    unknown = any(
+        device.utilization_percent is None
+        and not (device.driver == "nvidia" and nvidia.state != LocalCapacityState.UNKNOWN)
+        for device in devices
+    )
+    busy = any(sample >= busy_threshold_percent for sample in samples)
+    state = (
+        LocalCapacityState.BUSY
+        if busy
+        else LocalCapacityState.UNKNOWN
+        if unknown or not samples
+        else LocalCapacityState.FREE
+    )
+    detail = "; ".join(
+        f"{device.card} {device.driver}: "
+        + (f"{device.utilization_percent:g}% busy" if device.utilization_percent is not None else "occupancy unknown")
+        for device in devices
+    )
+    if nvidia.gpu_utilization_percent:
+        detail = nvidia.detail + "; " + detail
+    return LocalCapacityObservation(
+        state=state,
+        source="linux-drm-sysfs" + ("+nvidia-smi" if nvidia.gpu_utilization_percent else ""),
+        detail=detail,
+        gpu_utilization_percent=samples,
+        busy_threshold_percent=busy_threshold_percent,
+        devices=tuple(device.to_dict() for device in devices),
     )
 
 

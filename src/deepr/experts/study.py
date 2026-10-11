@@ -28,6 +28,7 @@ Boundaries, which are the whole reason this can be trusted:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import time
@@ -39,6 +40,14 @@ from deepr.backends.capacity import OwnedLocalCapacityRefused
 from deepr.experts.corpus_independence import measure_independence
 from deepr.experts.corpus_store import CorpusEntry, CorpusStore
 from deepr.experts.record_identity import finding_thread_id
+from deepr.experts.study_checkpoint import (
+    StudyCheckpoint,
+    StudyExecutionStopped,
+    decode_json,
+    identity,
+    material_identity,
+    response_items,
+)
 from deepr.experts.study_contracts import LensOutcome, StudyFinding, StudyResult
 from deepr.experts.study_coverage import build_coverage_report
 from deepr.experts.study_lenses import StudyLens, resolve_lenses
@@ -118,18 +127,6 @@ def _is_capacity_failure(exc: BaseException) -> bool:
         pass
     text = str(exc).lower()
     return any(marker in text for marker in _CAPACITY_MARKERS)
-
-
-def corpus_fingerprint(material: list[tuple[CorpusEntry, str]]) -> str:
-    """A stable id for exactly the sources a pass read.
-
-    Sorted shas, hashed. Adding a source changes it, so a lens outcome from
-    before that source arrived can be recognized as stale rather than reused.
-    """
-    import hashlib
-
-    shas = sorted(entry.sha256 for entry, _ in material)
-    return hashlib.sha256("|".join(shas).encode("utf-8")).hexdigest()[:16]
 
 
 def _lens_progress(
@@ -214,15 +211,15 @@ def extract_json_object(raw: str) -> tuple[dict[str, Any] | None, str]:
             candidate = segment.strip()
             if candidate.lower().startswith("json"):
                 candidate = candidate[4:].strip()
-            if candidate.startswith("{"):
+            if candidate.startswith(("{", "[")):
                 text = candidate
                 break
     start, end = text.find("{"), text.rfind("}")
-    if start < 0 or end <= start:
+    if start < 0 or end <= start or "[" in text[:start]:
         return None, "no JSON object in response"
     try:
-        parsed = json.loads(text[start : end + 1])
-    except json.JSONDecodeError as exc:
+        parsed = decode_json(text[start : end + 1])
+    except ValueError as exc:
         return None, f"invalid JSON: {exc}"
     if not isinstance(parsed, dict):
         return None, "top-level JSON was not an object"
@@ -302,17 +299,14 @@ def _title_for(item: dict[str, Any], lens: StudyLens, corpus_shas: list[str] | N
 def _lens_items(lens: StudyLens, parsed: dict[str, Any]) -> list[Any]:
     """Pull the item array out of a lens response.
 
-    Falls back to the first array under any key: a model that used a synonym for
-    the contracted field still did the work, and discarding it would waste a
-    call for a naming difference.
+    Accept established array aliases as well as the contracted field. This
+    handles naming differences without treating arbitrary JSON as completed
+    work. Structural validation does not judge the findings' meaning.
     """
-    items = parsed.get(lens.output_field)
-    if isinstance(items, list):
-        return items
-    for value in parsed.values():
-        if isinstance(value, list):
-            return value
-    return []
+    try:
+        return response_items(parsed, lens.output_field)
+    except ValueError:
+        return []
 
 
 def _read_anchors(item: dict[str, Any]) -> list[str]:
@@ -461,6 +455,9 @@ async def _run_lenses(
     resume_from: list[LensOutcome] | None,
     on_progress: ProgressCallback | None,
     checkpoint: CheckpointCallback | None,
+    fingerprints: dict[str, str],
+    chunk_checkpoint: StudyCheckpoint | None,
+    on_chunk_progress: Callable[[dict[str, Any]], None] | None,
 ) -> None:
     """Run each lens, reusing any an earlier pass already completed.
 
@@ -468,15 +465,14 @@ async def _run_lenses(
     would make one bad interruption permanent, which is the opposite of what
     resuming is for.
     """
-    fingerprint = corpus_fingerprint(material)
-    reusable = [o for o in (resume_from or []) if o.status in {"ok", "partial"}]
+    reusable = [o for o in (resume_from or []) if o.status == "ok"] if chunk_checkpoint is None else []
     # Fail closed. An outcome that cannot say which corpus it read is stale by
     # definition: trusting it was the fail-open branch of this guard, and it
     # defeated exactly what the fingerprint exists for. Measured on a live
     # expert - every outcome on disk carried an empty fingerprint, so every
     # lens was reused unconditionally however much the corpus had grown.
-    stale = [o for o in reusable if o.corpus_fingerprint != fingerprint]
-    done = {o.lens: o for o in reusable if o.corpus_fingerprint == fingerprint}
+    stale = [o for o in reusable if o.corpus_fingerprint != fingerprints.get(o.lens)]
+    done = {o.lens: o for o in reusable if o.corpus_fingerprint == fingerprints.get(o.lens)}
     if done:
         result.limitations.append(f"Resumed: {len(done)} lens(es) reused from an earlier run and not re-read.")
     if stale:
@@ -501,6 +497,8 @@ async def _run_lenses(
                 material,
                 completion,
                 on_progress=_lens_progress(on_progress, lens.key, index, len(lenses)),
+                chunk_checkpoint=chunk_checkpoint,
+                on_chunk_progress=on_chunk_progress,
             )
         except Exception as exc:
             if not _is_capacity_failure(exc):
@@ -510,7 +508,7 @@ async def _run_lenses(
         if _record_lens_outcome(
             result,
             outcome,
-            fingerprint=fingerprint,
+            fingerprint=fingerprints[lens.key],
             elapsed_s=time.monotonic() - started,
             on_progress=_lens_progress(on_progress, lens.key, index, len(lenses)),
             checkpoint=checkpoint,
@@ -531,17 +529,19 @@ async def run_study(
     on_progress: ProgressCallback | None = None,
     checkpoint: CheckpointCallback | None = None,
     resume_from: list[LensOutcome] | None = None,
+    chunk_checkpoint: StudyCheckpoint | None = None,
+    on_chunk_progress: Callable[[dict[str, Any]], None] | None = None,
 ) -> StudyResult:
     """Run every requested lens over the retained corpus.
 
     A lens that fails is recorded and the pass continues: one bad parse should
     not discard the work of five other lenses.
 
-    Recovery is structural, not conversational. ``checkpoint`` is called after
-    each lens with the result so far, and ``resume_from`` carries completed
-    lenses back in, so a pass killed at lens seven of eight resumes rather than
-    restarting. Without it every interruption costs the whole run again, which
-    on a real corpus is tens of model calls that already succeeded.
+    Recovery is structural, not conversational. ``chunk_checkpoint`` retains
+    each valid response before the next dispatch and verifies the effective
+    study contract on reuse. ``checkpoint`` also exposes the merged result
+    after each lens; ``resume_from`` remains a legacy complete-lens interface
+    whose fingerprint must match the current contract.
 
     ``on_progress`` is called before each model call. A chunked study over a
     real corpus is tens of calls and runs for many minutes; without it the run
@@ -586,6 +586,45 @@ async def run_study(
     # summary where a 43k-char prompt produced valid structured output from the
     # same model - so the corpus is sliced and findings are merged.
     chunks = corpus.iter_study_chunks(chunk_chars=chunk_chars, max_chars=max_corpus_chars) or [material]
+    prompts = {
+        f"{lens.key}-{index:04d}": hashlib.sha256(build_study_prompt(lens, chunk).encode()).hexdigest()
+        for lens in lenses
+        for index, chunk in enumerate(chunks, 1)
+    }
+    contract = {
+        "schema_version": "deepr-study-contract-v2",
+        "material": material_identity(material),
+        "chunks": [material_identity(chunk) for chunk in chunks],
+        "chunk_chars": chunk_chars,
+        "max_corpus_chars": max_corpus_chars,
+        "capacity_source": capacity_source,
+        "model": model,
+        "model_contract": chunk_checkpoint.model_contract if chunk_checkpoint else {},
+        "lenses": [
+            {"key": lens.key, "axis": lens.axis, "prompt": lens.prompt, "output_field": lens.output_field}
+            for lens in lenses
+        ],
+        "prompts": prompts,
+    }
+    fingerprints = {
+        lens.key: identity(
+            {
+                **contract,
+                "lenses": [contract["lenses"][index]],
+                "prompts": {key: value for key, value in prompts.items() if key.startswith(lens.key + "-")},
+            }
+        )
+        for index, lens in enumerate(lenses)
+    }
+    if chunk_checkpoint is not None:
+        chunk_checkpoint.prepare(contract, prompts)
+        result.limitations.extend(chunk_checkpoint.notes)
+        if chunk_checkpoint.reused:
+            result.limitations.append(
+                f"Resumed: {chunk_checkpoint.reused} completed chunk(s) reused from verified checkpoints."
+            )
+        if on_chunk_progress:
+            on_chunk_progress(chunk_checkpoint.progress())
     if len(chunks) > 1:
         result.limitations.append(
             f"Corpus was read in {len(chunks)} chunk(s) of up to {chunk_chars} chars. "
@@ -601,6 +640,9 @@ async def run_study(
         resume_from=resume_from,
         on_progress=on_progress,
         checkpoint=checkpoint,
+        fingerprints=fingerprints,
+        chunk_checkpoint=chunk_checkpoint,
+        on_chunk_progress=on_chunk_progress,
     )
 
     result.elapsed_s = time.monotonic() - started
@@ -645,59 +687,43 @@ async def _run_lens_over_chunks(
     material: list[tuple[CorpusEntry, str]],
     completion: StudyCompletion,
     on_progress: ProgressCallback | None = None,
+    chunk_checkpoint: StudyCheckpoint | None = None,
+    on_chunk_progress: Callable[[dict[str, Any]], None] | None = None,
 ) -> LensOutcome:
     """Run one lens across every chunk, merging findings.
 
     A chunk that fails does not discard the chunks that succeeded: partial
-    findings from a large corpus beat none. The outcome is ``ok`` when any chunk
-    parsed, and carries a note about the ones that did not.
+    findings from a large corpus beat none. The outcome is ``ok`` only when
+    every chunk completed; failures produce partial or parse-failed outcomes.
     """
     findings: list[StudyFinding] = []
     failures: list[str] = []
+    successful = 0
 
     for index, chunk in enumerate(chunks, 1):
+        key = f"{lens.key}-{index:04d}"
+        if chunk_checkpoint is not None and (cached := chunk_checkpoint.lookup(key)) is not None:
+            _absorb(findings, build_findings(lens, cached, chunk))
+            successful += 1
+            continue
         if on_progress:
             on_progress(f"chunk {index}/{len(chunks)}")
         prompt = build_study_prompt(lens, chunk)
+        started = time.monotonic()
         try:
-            raw = await completion(prompt)
-        except Exception as exc:
-            if isinstance(exc, OwnedLocalCapacityRefused):
-                return LensOutcome(
-                    lens=lens.key,
-                    axis=lens.axis,
-                    status="capacity_refused",
-                    findings=findings,
-                    detail=f"{str(exc)[:1000]} Refused chunk {index}/{len(chunks)}; later chunks were not attempted.",
-                    chunks_total=len(chunks),
-                    chunks_failed=len(failures) + 1,
-                )
-            if _is_capacity_failure(exc):
-                # Stop the whole pass. Catching this as a per-chunk failure kept
-                # calling a dead backend for every remaining chunk and lens and
-                # then wrote a complete-looking study.json whose findings were
-                # thin, with the reason recorded only as prose in `limitations`
-                # that no downstream code reads. `brief` then read it as truth.
-                #
-                # Measured: a study "completed" with 44 findings from two of
-                # eight lenses after the backend exhausted mid-run, and nothing
-                # in the artifact said so in a way a machine could act on.
-                #
-                # "The corpus had nothing to say" and "I could not ask" are
-                # different results, and the difference has to survive into the
-                # artifact rather than being flattened into a failure count.
-                raise
-            failures.append(f"chunk {index}: {str(exc)[:160]}")
-            continue
-
-        parsed, error = extract_json_object(raw)
+            parsed, error = await _read_study_chunk(completion, prompt, lens)
+        except OwnedLocalCapacityRefused as exc:
+            return LensOutcome(
+                lens=lens.key,
+                axis=lens.axis,
+                status="capacity_refused",
+                findings=findings,
+                detail=f"{str(exc)[:1000]} Refused chunk {index}/{len(chunks)}; later chunks were not attempted.",
+                chunks_total=len(chunks),
+                chunks_failed=len(failures) + 1,
+            )
         if parsed is None:
-            # Include what actually came back. "no JSON object in response" is
-            # true and useless: it does not distinguish a model that answered in
-            # prose, one that was cut off mid-structure, and one that returned
-            # nothing at all, and those need different fixes.
-            snippet = " ".join((raw or "").split())[:160]
-            failures.append(f"chunk {index}: {error}. Began: {snippet!r}" if snippet else f"chunk {index}: {error}")
+            failures.append(f"chunk {index}: {error}")
             continue
 
         # Ground against the chunk the lens was actually shown, not the whole
@@ -706,9 +732,15 @@ async def _run_lens_over_chunks(
         # a finding could be credited to a document the lens never read. Shared
         # boilerplate makes that the common case, not an edge case, and the
         # coverage report then reports the true source as untouched.
-        _absorb(findings, build_findings(lens, parsed, chunk))
+        accepted = build_findings(lens, parsed, chunk)
+        if chunk_checkpoint is not None:
+            chunk_checkpoint.complete(key, parsed, time.monotonic() - started)
+            if on_chunk_progress:
+                on_chunk_progress(chunk_checkpoint.progress())
+        _absorb(findings, accepted)
+        successful += 1
 
-    if findings or not failures:
+    if successful or not failures:
         detail = f"{len(failures)} of {len(chunks)} chunk(s) failed: " + "; ".join(failures[:2]) if failures else ""
         # "ok" with nine of ten chunks failed is what a scheduler reads as a
         # clean run. Partial is its own status so the exit code can say so.
@@ -728,3 +760,24 @@ async def _run_lens_over_chunks(
         status="parse_failed",
         detail="; ".join(failures[:3]),
     )
+
+
+async def _read_study_chunk(
+    completion: StudyCompletion, prompt: str, lens: StudyLens
+) -> tuple[dict[str, Any] | None, str]:
+    """Separate recoverable model answers from hard execution boundaries."""
+    try:
+        raw = await completion(prompt)
+    except Exception as error:
+        if isinstance(error, (OwnedLocalCapacityRefused, StudyExecutionStopped)) or _is_capacity_failure(error):
+            raise
+        return None, str(error)[:160]
+    parsed, error = extract_json_object(raw)
+    if parsed is None:
+        snippet = " ".join((raw or "").split())[:160]
+        return None, f"{error}. Began: {snippet!r}" if snippet else error
+    try:
+        response_items(parsed, lens.output_field)
+    except ValueError as error:
+        return None, str(error)
+    return parsed, ""

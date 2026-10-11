@@ -16,6 +16,7 @@ from deepr.cli.colors import (
     print_success,
     print_warning,
 )
+from deepr.cli.commands.semantic.local_expert import local_creation_options, make_local_expert_profile
 from deepr.experts.claim_inventory import format_knowledge_status, read_claim_inventory
 from deepr.experts.metered_mutation_gate import (
     MeteredExpertMutationDisabledError,
@@ -83,9 +84,7 @@ def expert(ctx, list_flag):
     type=click.Choice(["openai", "azure", "gemini"]),
     help="AI provider for expert",
 )
-@click.option("--local", is_flag=True, default=False, help="Create and research a local expert at $0 API cost")
-@click.option("--profile-only", is_flag=True, help="With --local, create only an untrained profile without research")
-@click.option("--local-model", default=None, help="Local model name to record for local maintenance")
+@local_creation_options
 @click.option("--learn", is_flag=True, default=False, help="Generate and execute autonomous learning curriculum")
 @click.option("--budget", type=float, default=None, help="Budget limit for autonomous learning (requires --learn)")
 @click.option(
@@ -107,6 +106,8 @@ def make_expert(
     local: bool,
     local_model: str | None,
     profile_only: bool,
+    max_minutes: int,
+    max_corpus_chars: int,
     learn: bool,
     budget: float | None,
     topics: int | None,
@@ -134,17 +135,16 @@ def make_expert(
             return
 
     if local:
-        from deepr.cli.commands.semantic.local_expert import make_local_expert_profile
-
-        learning_options_used = any(value is not None for value in (budget, topics, docs, quick, deep))
         make_local_expert_profile(
             name=name,
             files=files,
             description=description,
             local_model=local_model,
-            learning_options_used=learning_options_used,
+            learning_options_used=any(value is not None for value in (budget, topics, docs, quick, deep)),
             profile_only=profile_only,
             discover=not no_discovery,
+            max_minutes=max_minutes,
+            max_corpus_chars=max_corpus_chars,
         )
         return
 
