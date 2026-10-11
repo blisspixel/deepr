@@ -3782,6 +3782,11 @@ A mock panel (business buyer, indie hacker, enterprise AI architect, research sc
     invalid input and unconfirmed budgets with nonzero human or JSON results;
     preview and execution preserve one resolved provider/model route. Attended
     OpenRouter requires a terminal and per-invocation confirmation.
+  - [x] Issue 200, fixed 2026-10-11: installed init, config and credential
+    commands use the same per-user or explicit project dotenv file. Explicit
+    data relocation stores absolute paths; both configuration views and doctor
+    report startup files and origins, and shared one-shot loading preserves key
+    quarantine. See [the configuration decision](docs/design/installed-cli-configuration.md).
   - [x] Unit tests still relied on convention rather than tooling to avoid outbound network access. Fixed 2026-06-29: the dev pytest environment now uses a socket guard that disables outbound sockets by default and allows only loopback hosts for local fixtures, so accidental provider or web calls fail inside the unit gate instead of leaking to a developer network.
   - [x] `tests/integration/` was not behind the `DEEPR_RUN_LIVE_TESTS=1` double opt-in: on a keyless machine, dozens of integration tests failed by attempting real provider calls and `test_two_phase_curriculum.py` hung *forever* (the learner poll loop only logged `get_status` exceptions, leaving the job pending and retrying a 401 every 30s with no cap, and never recording the failure so the circuit breaker could not trip). Fixed 2026-06-12: (1) `tests/integration/conftest.py` skips the whole tree unless `DEEPR_RUN_LIVE_TESTS=1` (bare `pytest` is now safe); (2) the poller records each `get_status` failure (breaker can trip) and fails the job fast when the error is non-retryable - reading `retryable` off the provider error envelope, the first real payoff of that work; (3) `pytest-timeout` added as a dev dependency. Regression tests cover fail-fast-on-auth and breaker-trips-on-transient.
   - [x] `tests/unit/test_core/test_company_research.py` only passed when `OPENAI_API_KEY` happened to be set (dev .env, or other modules' import-time `os.environ.setdefault` during full-suite collection - an inter-test ordering dependency). Fixed 2026-06-12: autouse fake-key fixture makes the file self-sufficient in any ordering on any machine.

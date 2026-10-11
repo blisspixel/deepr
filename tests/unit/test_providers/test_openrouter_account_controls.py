@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
+from deepr import config as configuration
 from deepr.observability import provider_account_controls as account_controls_module
 from deepr.observability.provider_account_controls import (
     PaidApiAccountEvidence,
@@ -28,11 +30,120 @@ from deepr.providers.openrouter_account_controls import (
     openrouter_account_id,
 )
 from deepr.providers.openrouter_key_controls import OpenRouterKeyControlObservation
+from deepr.security.key_quarantine import QUARANTINE_PREFIX, quarantine_metered_keys
 
 _SCRYPT = "scrypt:" + "ab" * 32
 _SOURCE = "a" * 64
 _ACCOUNT_REF = "b" * 64
 _OBSERVED = datetime(2026, 9, 15, 12, tzinfo=UTC)
+
+
+@pytest.fixture
+def credential_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(os, "environ", dict(os.environ))
+    home = tmp_path / "user"
+    home.mkdir()
+    working = tmp_path / "working"
+    working.mkdir()
+    monkeypatch.chdir(working)
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+    monkeypatch.setattr(configuration, "_configuration_environment", None)
+    monkeypatch.setenv("PYTHON_DOTENV_DISABLED", "1")
+    monkeypatch.delenv("DEEPR_ENV_FILE", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.delenv(QUARANTINE_PREFIX + "OPENROUTER_API_KEY", raising=False)
+    user = home / ".deepr/.env"
+    user.parent.mkdir()
+    return user, working / "selected.env"
+
+
+def test_credential_lookup_excludes_ambient_cwd_file(credential_files):
+    from deepr.providers.openrouter_account_controls import load_openrouter_api_key
+
+    user, _ = credential_files
+    Path(".env").write_text("OPENROUTER_API_KEY=ambient-key\n", encoding="utf-8")
+    assert load_openrouter_api_key() == ""
+    user.write_text("OPENROUTER_API_KEY=user-key\n", encoding="utf-8")
+    assert load_openrouter_api_key() == "user-key"
+
+
+@pytest.mark.parametrize(
+    "assignment,expected",
+    [
+        ('export OPENROUTER_API_KEY = "quoted-selected-key" # comment\n', "quoted-selected-key"),
+        ("OPENROUTER_API_KEY='single-quoted-key'\n", "single-quoted-key"),
+        ("OPENROUTER_API_KEY='literal${KEY_SUFFIX}'\n", "literal${KEY_SUFFIX}"),
+        ("OPENROUTER_API_KEY=\n", ""),
+    ],
+)
+def test_credential_lookup_uses_selected_file_and_shared_dotenv_syntax(
+    credential_files, monkeypatch, assignment, expected
+):
+    from deepr.providers.openrouter_account_controls import load_openrouter_api_key
+
+    user, selected = credential_files
+    user.write_text("OPENROUTER_API_KEY=user-key\n", encoding="utf-8")
+    selected.write_text(assignment, encoding="utf-8")
+    monkeypatch.setenv("DEEPR_ENV_FILE", str(selected))
+    monkeypatch.setenv("KEY_SUFFIX", "must-not-interpolate-file-inventory")
+    assert load_openrouter_api_key() == expected
+    assert "OPENROUTER_API_KEY" not in os.environ
+    assert QUARANTINE_PREFIX + "OPENROUTER_API_KEY" not in os.environ
+
+
+def test_credential_lookup_falls_back_from_bound_missing_selection(credential_files, monkeypatch, tmp_path):
+    from deepr.providers.openrouter_account_controls import load_openrouter_api_key
+
+    user, missing = credential_files
+    user.write_text("OPENROUTER_API_KEY='fallback quoted key'\n", encoding="utf-8")
+    monkeypatch.setenv("DEEPR_ENV_FILE", str(missing))
+    configuration.load_configuration_environment()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("DEEPR_ENV_FILE", "different.env")
+    assert load_openrouter_api_key() == "fallback quoted key"
+
+
+@pytest.mark.parametrize(
+    "process,quarantined,expected",
+    [("process-key", "quarantined-key", "process-key"), ("", "quarantined-key", "quarantined-key")],
+)
+def test_credential_lookup_prefers_process_then_quarantine_without_file_reads(
+    credential_files, monkeypatch, process, quarantined, expected
+):
+    from deepr.providers import openrouter_account_controls as controls
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", process)
+    monkeypatch.setenv(QUARANTINE_PREFIX + "OPENROUTER_API_KEY", quarantined)
+    monkeypatch.setattr(controls, "_parse_env_file", lambda path: pytest.fail("credential precedence must skip files"))
+    assert controls.load_openrouter_api_key() == expected
+
+
+@pytest.mark.parametrize("oversized", ["selected", "user"])
+def test_credential_lookup_preserves_file_size_bound(credential_files, monkeypatch, oversized):
+    from deepr.providers import openrouter_account_controls as controls
+
+    user, selected = credential_files
+    monkeypatch.setenv("DEEPR_ENV_FILE", str(selected))
+    user.write_text("OPENROUTER_API_KEY=user-key\n", encoding="utf-8")
+    selected.write_text("OPENROUTER_API_KEY=selected-key\n", encoding="utf-8")
+    target = selected if oversized == "selected" else user
+    target.write_text("OPENROUTER_API_KEY=" + "x" * controls._MAX_ENV_BYTES, encoding="utf-8")
+    assert controls.load_openrouter_api_key() == ("user-key" if oversized == "selected" else "selected-key")
+
+
+def test_startup_interpolation_and_quarantine_remain_authoritative(credential_files, monkeypatch):
+    from deepr.providers import openrouter_account_controls as controls
+
+    user, _ = credential_files
+    user.write_text("KEY_SUFFIX=file-key\nOPENROUTER_API_KEY=${KEY_SUFFIX}\n", encoding="utf-8")
+    monkeypatch.setenv("KEY_SUFFIX", "process-expanded-key")
+    monkeypatch.setenv("PYTHON_DOTENV_DISABLED", "0")
+    configuration.load_configuration_environment()
+    quarantine_metered_keys()
+    user.write_text("OPENROUTER_API_KEY=changed-key\n", encoding="utf-8")
+    monkeypatch.setattr(controls, "_parse_env_file", lambda path: pytest.fail("quarantine must skip file reads"))
+    assert controls.load_openrouter_api_key() == "process-expanded-key"
+    assert "OPENROUTER_API_KEY" not in os.environ
 
 
 def _observation(*, eligible: bool = True, limit: float | None = 20.0) -> OpenRouterKeyControlObservation:

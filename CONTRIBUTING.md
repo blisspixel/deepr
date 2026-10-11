@@ -36,6 +36,11 @@ and [lock/sync behavior](https://docs.astral.sh/uv/concepts/projects/sync/).
 Requires Python 3.12+ (tested on 3.12 / 3.13 / 3.14). `uv` is the canonical
 toolchain; plain `pip` works too.
 
+Runtime setup uses `deepr init` and the per-user `~/.deepr/.env`. For an
+explicit checkout configuration, use `deepr init --local-env` and set
+`DEEPR_ENV_FILE` to its printed absolute path. Ambient project `.env` files are
+not automatically loaded. Unit tests disable dotenv loading and provider calls.
+
 ## How we work
 
 The loop, from smallest to largest change:

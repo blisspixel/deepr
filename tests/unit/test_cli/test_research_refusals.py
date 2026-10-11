@@ -2,15 +2,16 @@
 
 import json
 import os
+from pathlib import Path
 from unittest.mock import Mock
 
 import click
 import pytest
 from click.testing import CliRunner
 
-from deepr.cli.commands import keys, provider_factory, research_safety, run
+from deepr import config as configuration
+from deepr.cli.commands import provider_factory, research_safety, run
 from deepr.cli.main import cli
-from deepr.providers import openrouter_account_controls
 from deepr.security.key_quarantine import METERED_KEY_NAMES, QUARANTINE_PREFIX
 from deepr.services import openrouter_attended_research as attended
 
@@ -22,10 +23,12 @@ SECRET = "offline-fixture-never-dispatch"
 def offline_research(monkeypatch, tmp_path):
     """Fresh-install state, empty credential roots, and explicit forbidden sinks."""
     monkeypatch.chdir(tmp_path)
-    user_dir = tmp_path / "user"
+    user_dir = tmp_path / ".deepr"
     user_dir.mkdir()
-    monkeypatch.setattr(keys, "_user_env_path", lambda: user_dir / ".env")
-    monkeypatch.setattr(openrouter_account_controls, "default_data_dir", lambda: user_dir)
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    monkeypatch.setattr(configuration, "_configuration_environment", None)
+    monkeypatch.setenv("PYTHON_DOTENV_DISABLED", "1")
+    monkeypatch.delenv("DEEPR_ENV_FILE", raising=False)
     for name in tuple(os.environ):
         if name in METERED_KEY_NAMES or name.startswith(QUARANTINE_PREFIX):
             monkeypatch.delenv(name, raising=False)
@@ -121,6 +124,8 @@ def test_stored_credentials_reach_budget_without_becoming_authority(monkeypatch,
     else:
         path = offline_research / ".env" if source == "user-file" else offline_research.parent / ".env"
         path.write_text(f"OPENAI_API_KEY={SECRET}\n", encoding="utf-8")
+        if source == "cwd-file":
+            monkeypatch.setenv("DEEPR_ENV_FILE", str(path.resolve()))
     result = CliRunner().invoke(cli, ["research", QUERY, "--json"])
     payload = assert_refusal(result, ["--json"], "BUDGET_NOT_APPROVED")
     assert payload["category"] == "budget"

@@ -47,9 +47,8 @@ def web(host: str, port: int, debug: bool, allow_unauthenticated_loopback: bool)
 
     from deepr.security.key_quarantine import quarantine_metered_keys
 
-    # web.app calls load_dotenv() at import time, which can restore metered
-    # keys the CLI already quarantined. Put them back out of process env
-    # before the poller constructs a provider client.
+    # Keep the web process clean even when imported by a different host;
+    # the shared one-shot loader never restores removed keys.
     quarantine_metered_keys()
 
     api_key = os.getenv("DEEPR_API_KEY", "").strip()

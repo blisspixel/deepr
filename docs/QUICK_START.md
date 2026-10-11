@@ -88,11 +88,21 @@ pip install -e ".[full]"                # All features
 ### 2. Optionally Configure API Credentials
 
 ```bash
-cp .env.example .env
+deepr init --yes
 ```
 
-For an intentional provider readiness check, edit `.env` and add only the key
-you intend to inspect. This does not enable production metered dispatch:
+Setup writes `~/.deepr/.env`, so installed commands read the same settings from
+any folder. An explicit `--data-dir` is stored as an absolute path. Without
+relocation, the existing expert, report and runtime defaults remain in effect.
+For project settings, run `deepr init --local-env`, then set `DEEPR_ENV_FILE` to
+the printed absolute file path. The explicit file wins over the user file;
+process variables win over both. Ambient `.env` files and parent folders are
+not searched. `PYTHON_DOTENV_DISABLED=1` disables file loading.
+
+For an intentional provider readiness check, edit the selected file and add
+only the key you intend to inspect. `config set` and hidden-prompt `keys set`
+write that same file. Restart running services after edits. This does not
+enable production metered dispatch:
 
 ```bash
 # Configure only providers you intend to use:
@@ -114,6 +124,8 @@ only when you intentionally want supported live checks for configured OpenAI,
 Gemini, and xAI credentials. Anthropic and Azure remain configuration-only in
 doctor. Base capacity directs local users to `capacity next`, registered plan
 adapters to `capacity fleet`, and API research users to an exact preview.
+`config show`, `config show --legacy`, and doctor report the files read;
+consolidated settings and doctor also show variable origins without key values.
 
 Cancellation succeeds only when Deepr confirms the job transition,
 cost-reservation closure, and provider-resource cleanup. A nonzero exit means cancellation was not fully

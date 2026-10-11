@@ -3,10 +3,12 @@
 import json
 import logging
 import os
+import re
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv, set_key
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
@@ -64,12 +66,120 @@ def queue_db_path() -> str:
     return "queue/research_queue.db"
 
 
-# Load .env: the current directory first (local/dev), then the per-user global
-# ~/.deepr/.env, so a globally-installed CLI finds its config from ANY working
-# directory. load_dotenv does not override already-set vars, so a local .env
-# wins over the global one.
-load_dotenv()
-load_dotenv(default_data_dir() / ".env")
+def configuration_env_path(*, local: bool = False) -> Path:
+    """Return the startup write target, or an explicitly requested local file."""
+    if local:
+        return Path.cwd() / ".env"
+    return Path(load_configuration_environment().selected_file)
+
+
+@dataclass(frozen=True)
+class ConfigurationEnvironment:
+    """File observations and variable origins, never their credential values."""
+
+    loaded_files: tuple[str, ...] = ()
+    missing_files: tuple[str, ...] = ()
+    variables: dict[str, str] = field(default_factory=dict)
+    disabled: bool = False
+    selected_file: str = ""
+    user_file: str = ""
+
+
+_configuration_environment: ConfigurationEnvironment | None = None
+
+
+def load_configuration_environment() -> ConfigurationEnvironment:
+    """Load explicit then user dotenv files once, before startup key quarantine.
+
+    Repeated Settings/AppConfig access must never put removed keys back. A
+    running process therefore requires a restart to read changed dotenv files.
+    Process variables, including deliberately empty ones, keep precedence.
+    """
+    global _configuration_environment
+    if _configuration_environment is not None:
+        return _configuration_environment
+    # Bind selection before dotenv can introduce a selector or cwd can change.
+    user_file = (default_data_dir() / ".env").resolve()
+    selector = os.getenv("DEEPR_ENV_FILE")
+    selected_file = Path(selector).expanduser().resolve() if selector else user_file
+    if os.getenv("PYTHON_DOTENV_DISABLED", "").casefold() in {"1", "true", "t", "yes", "y"}:
+        _configuration_environment = ConfigurationEnvironment(
+            disabled=True, selected_file=str(selected_file), user_file=str(user_file)
+        )
+        return _configuration_environment
+    paths = dict.fromkeys((selected_file, user_file))
+    loaded: list[str] = []
+    missing: list[str] = []
+    variables: dict[str, str] = {}
+    for path in paths:
+        if not path.is_file():
+            missing.append(str(path))
+            continue
+        values = dotenv_values(path, interpolate=False)
+        prior = set(os.environ)
+        load_dotenv(path, override=False)
+        loaded.append(str(path))
+        for name, value in values.items():
+            if value is not None and name in os.environ:
+                variables.setdefault(name, "env" if name in prior else f"file:{path}")
+    _configuration_environment = ConfigurationEnvironment(
+        tuple(loaded), tuple(missing), variables, selected_file=str(selected_file), user_file=str(user_file)
+    )
+    return _configuration_environment
+
+
+def environment_variable_source(name: str) -> str:
+    """Return a variable's startup origin without exposing its value."""
+    return load_configuration_environment().variables.get(name, "env")
+
+
+def configuration_source_summary() -> str:
+    """Describe the dotenv files actually read, or why none were read."""
+    observed = load_configuration_environment()
+    if observed.disabled:
+        return "Dotenv loading disabled (PYTHON_DOTENV_DISABLED)"
+    summary = "Dotenv files: " + (", ".join(observed.loaded_files) or "none loaded")
+    if observed.missing_files:
+        summary += "; not found: " + ", ".join(observed.missing_files)
+    return summary
+
+
+def read_configuration_env_file(path: Path) -> dict[str, str]:
+    """Parse existing dotenv syntax without changing the process environment."""
+    return {name: value for name, value in dotenv_values(path, interpolate=False).items() if value is not None}
+
+
+def ensure_configuration_env_file(path: Path, example: Path | None = None) -> bool:
+    """Create a private configuration file; never replace an existing file."""
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    try:
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        return False
+    with os.fdopen(descriptor, "w", encoding="utf-8") as target:
+        text = (
+            example.read_text(encoding="utf-8")
+            if example is not None and example.is_file()
+            else "# Deepr configuration\n"
+        )
+        target.write(text)
+    return True
+
+
+def upsert_configuration_env_file(path: Path, updates: dict[str, str]) -> None:
+    """Preserve other dotenv entries/comments and round-trip literal quotes."""
+    ensure_configuration_env_file(path)
+    for name, value in updates.items():
+        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name) is None:
+            raise ValueError("Configuration keys must be environment variable names")
+        literal = value
+        if re.fullmatch(r"[A-Za-z0-9_./:@+\-]+", value) is None:
+            escaped = value.replace("\\", "\\\\").replace("'", "\\'")
+            literal = f"'{escaped}'"
+        set_key(path, name, literal, quote_mode="never", encoding="utf-8")
+
+
+load_configuration_environment()
 
 
 class ProviderConfig(BaseModel):
@@ -430,6 +540,7 @@ class AppConfig(BaseModel):
         - DEEPR_ENVIRONMENT: local or cloud
         - DEEPR_DEBUG: true or false
         """
+        load_configuration_environment()
         # Determine provider type
         provider_type = os.getenv("DEEPR_PROVIDER", "openai")
 

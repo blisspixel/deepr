@@ -51,44 +51,37 @@ def _mask(value: str) -> str:
     return f"{prefix}... ({len(value)} chars)"
 
 
-def _cwd_env_path() -> Path:
-    return Path(".env")
-
-
 def _user_env_path() -> Path:
-    from deepr.config import default_data_dir
+    from deepr.config import load_configuration_environment
 
-    return default_data_dir() / ".env"
+    return Path(load_configuration_environment().user_file)
 
 
 def _parse_env_file(path: Path) -> dict[str, str]:
     """Parse one .env file. Values stay in memory and are never printed."""
+    from deepr.config import read_configuration_env_file
+
     if not path.exists():
         return {}
     if path.stat().st_size > _MAX_ENV_BYTES:
         raise click.ClickException(f"{path} is too large to read safely")
-    entries: dict[str, str] = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if stripped and not stripped.startswith("#") and "=" in stripped:
-            name, value = stripped.split("=", 1)
-            entries[name.strip()] = value.strip()
-    return entries
+    return read_configuration_env_file(path)
 
 
 def _read_env_file() -> dict[str, str]:
-    """Merge user-home then cwd `.env`. Cwd wins, matching `load_dotenv` order."""
+    """Inspect user then explicitly selected files without loading credentials."""
+    from deepr.config import configuration_env_path
+
     merged = dict(_parse_env_file(_user_env_path()))
-    merged.update(_parse_env_file(_cwd_env_path()))
+    merged.update(_parse_env_file(configuration_env_path()))
     return merged
 
 
 def _target_env_path() -> Path:
-    """Write the checkout `.env` when it exists; otherwise `~/.deepr/.env`."""
-    cwd = _cwd_env_path()
-    if cwd.exists():
-        return cwd
-    return _user_env_path()
+    """Write the same explicitly selected or user file as init/config set."""
+    from deepr.config import configuration_env_path
+
+    return configuration_env_path()
 
 
 def _near_miss_names(env_file: dict[str, str]) -> list[tuple[str, str]]:
@@ -131,32 +124,12 @@ def _key_state(provider: str) -> dict[str, object]:
 
 def _write_env_key(name: str, value: str, *, path: Path | None = None) -> Path:
     """Replace or append one assignment without printing the secret."""
-    from deepr.utils.atomic_io import atomic_write_text
+    from deepr.config import upsert_configuration_env_file
 
     path = path or _target_env_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if path.exists():
-        if path.stat().st_size > _MAX_ENV_BYTES:
-            raise click.ClickException(f"{path} is too large to update safely")
-        existing = path.read_text(encoding="utf-8").splitlines()
-    else:
-        existing = []
-    lines: list[str] = []
-    replaced = False
-    for line in existing:
-        stripped = line.strip()
-        if stripped and not stripped.startswith("#") and "=" in stripped:
-            key = stripped.split("=", 1)[0].strip()
-            if key == name:
-                lines.append(f"{name}={value}")
-                replaced = True
-                continue
-        lines.append(line)
-    if not replaced:
-        if lines and lines[-1] != "":
-            lines.append("")
-        lines.append(f"{name}={value}")
-    atomic_write_text(path, "\n".join(lines) + "\n")
+    if path.exists() and path.stat().st_size > _MAX_ENV_BYTES:
+        raise click.ClickException(f"{path} is too large to update safely")
+    upsert_configuration_env_file(path, {name: value})
     return path
 
 

@@ -2,9 +2,17 @@
 
 from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
 
 from deepr.cli.main import cli
+
+
+@pytest.fixture(autouse=True)
+def explicit_project_configuration(monkeypatch, tmp_path):
+    monkeypatch.setattr("deepr.config._configuration_environment", None)
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    monkeypatch.setenv("DEEPR_ENV_FILE", ".env")
 
 
 def test_config_set_cli_branding_alias_writes_env_key():

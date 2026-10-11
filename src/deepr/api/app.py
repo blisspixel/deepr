@@ -8,13 +8,13 @@ including OpenAPI documentation via Swagger UI at /api/docs.
 import logging
 import os
 
-from dotenv import load_dotenv
 from flasgger import Swagger
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 from deepr.api.middleware.errors import register_error_handlers
 from deepr.api.middleware.rate_limiter import create_limiter, limit_job_status, limit_job_submit, limit_listing
+from deepr.config import load_configuration_environment
 from deepr.security import http_auth
 from deepr.security.key_quarantine import quarantine_metered_keys
 from deepr.security.metered_consent import metered_api_consent_error
@@ -23,7 +23,7 @@ from deepr.security.metered_consent import metered_api_consent_error
 from deepr.utils.async_runner import run_async_command as run_async
 from deepr.utils.security import is_loopback_bind_host
 
-load_dotenv()
+load_configuration_environment()
 quarantine_metered_keys()
 
 logger = logging.getLogger(__name__)

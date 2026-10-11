@@ -34,8 +34,14 @@ def _capacity_source(
 
 
 @pytest.fixture(autouse=True)
-def _clear_env(monkeypatch):
+def _clear_env(monkeypatch, tmp_path):
     """Determinism: no provider/budget vars leak in from the host machine."""
+    from pathlib import Path
+
+    monkeypatch.setattr("deepr.config._configuration_environment", None)
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    monkeypatch.setattr("deepr.backends.capacity.detect_capacity", lambda **kwargs: [])
+    monkeypatch.delenv("DEEPR_ENV_FILE", raising=False)
     for var in (
         "OPENAI_API_KEY",
         "GEMINI_API_KEY",
@@ -75,7 +81,7 @@ class TestInitYes:
     def test_creates_env_and_default_budget_when_missing(self):
         runner = CliRunner()
         with runner.isolated_filesystem():
-            result = runner.invoke(init, ["--yes"])
+            result = runner.invoke(init, ["--local-env", "--yes"])
             assert result.exit_code == 0
             env = _read_env_file(__import__("pathlib").Path(".env"))
             assert env["DEEPR_MAX_COST_PER_JOB"] == "1.0"
@@ -86,14 +92,14 @@ class TestInitYes:
         monkeypatch.setenv("GEMINI_API_KEY", "real-gemini-key-123")
         runner = CliRunner()
         with runner.isolated_filesystem():
-            result = runner.invoke(init, ["--yes"])
+            result = runner.invoke(init, ["--local-env", "--yes"])
             assert result.exit_code == 0
             assert "Gemini" in result.output
 
     def test_budget_option_sets_per_job_ceiling(self):
         runner = CliRunner()
         with runner.isolated_filesystem():
-            result = runner.invoke(init, ["--yes", "--budget", "2.5"])
+            result = runner.invoke(init, ["--local-env", "--yes", "--budget", "2.5"])
             assert result.exit_code == 0
             env = _read_env_file(__import__("pathlib").Path(".env"))
             assert env["DEEPR_MAX_COST_PER_JOB"] == "2.5"
@@ -104,7 +110,7 @@ class TestInitYes:
             from pathlib import Path
 
             Path(".env").write_text("DEEPR_MAX_COST_PER_JOB=7.0\n", encoding="utf-8")
-            result = runner.invoke(init, ["--yes"])
+            result = runner.invoke(init, ["--local-env", "--yes"])
             assert result.exit_code == 0
             assert _read_env_file(Path(".env"))["DEEPR_MAX_COST_PER_JOB"] == "7.0"
 
@@ -114,7 +120,7 @@ class TestInitYes:
             from pathlib import Path
 
             Path(".env").write_text("MY_OTHER_VAR=keepme\nGEMINI_API_KEY=real-key-abc\n", encoding="utf-8")
-            result = runner.invoke(init, ["--yes"])
+            result = runner.invoke(init, ["--local-env", "--yes"])
             assert result.exit_code == 0
             env = _read_env_file(Path(".env"))
             assert env["MY_OTHER_VAR"] == "keepme"
@@ -125,7 +131,7 @@ class TestInitYes:
         with runner.isolated_filesystem():
             from pathlib import Path
 
-            result = runner.invoke(init, ["--yes", "--data-dir", "/synced/deepr"])
+            result = runner.invoke(init, ["--local-env", "--yes", "--data-dir", "/synced/deepr"])
             assert result.exit_code == 0
             env = _read_env_file(Path(".env"))
             assert env["DEEPR_DATA_DIR"] == "/synced/deepr"
@@ -139,7 +145,7 @@ class TestInitYes:
         )
         runner = CliRunner()
         with runner.isolated_filesystem():
-            result = runner.invoke(init, ["--yes"])
+            result = runner.invoke(init, ["--local-env", "--yes"])
 
         assert result.exit_code == 0
         assert "capacity next --task-class sync" in result.output
@@ -155,7 +161,7 @@ class TestInitYes:
         )
         runner = CliRunner()
         with runner.isolated_filesystem():
-            result = runner.invoke(init, ["--yes"])
+            result = runner.invoke(init, ["--local-env", "--yes"])
 
         assert result.exit_code == 0
         assert 'research "Your question here" --auto --preview' in result.output
@@ -168,7 +174,7 @@ class TestInitYes:
         )
         runner = CliRunner()
         with runner.isolated_filesystem():
-            result = runner.invoke(init, ["--yes"])
+            result = runner.invoke(init, ["--local-env", "--yes"])
 
         assert result.exit_code == 0
         assert "capacity fleet" in result.output
@@ -207,7 +213,7 @@ class TestInitYes:
         monkeypatch.setattr("deepr.backends.capacity.detect_capacity", lambda **_: [source])
         runner = CliRunner()
         with runner.isolated_filesystem():
-            result = runner.invoke(init, ["--yes"])
+            result = runner.invoke(init, ["--local-env", "--yes"])
 
         assert result.exit_code == 0
         assert expected_evidence in result.output
@@ -227,7 +233,7 @@ class TestInitYes:
         with runner.isolated_filesystem():
             with open(".env.example", "w", encoding="utf-8") as handle:
                 handle.write("GEMINI_API_KEY=your-gemini-api-key\n")
-            result = runner.invoke(init, ["--yes"])
+            result = runner.invoke(init, ["--local-env", "--yes"])
 
         assert result.exit_code == 0
         assert seen_env["GEMINI_API_KEY"] == "real-process-key"
@@ -241,7 +247,7 @@ class TestInitInteractive:
             from pathlib import Path
 
             # Gemini: yes + key; decline OpenAI/Grok/Anthropic; budget 4; default data dir.
-            result = runner.invoke(init, [], input="y\nreal-gemini-xyz\nn\nn\nn\n4\n\n")
+            result = runner.invoke(init, ["--local-env"], input="y\nreal-gemini-xyz\nn\nn\nn\n4\n\n")
             assert result.exit_code == 0
             env = _read_env_file(Path(".env"))
             assert env["GEMINI_API_KEY"] == "real-gemini-xyz"
@@ -252,7 +258,7 @@ class TestInitInteractive:
         with runner.isolated_filesystem():
             from pathlib import Path
 
-            result = runner.invoke(init, [], input="n\nn\nn\nn\n5\n\n")
+            result = runner.invoke(init, ["--local-env"], input="n\nn\nn\nn\n5\n\n")
             assert result.exit_code == 0
             env = _read_env_file(Path(".env"))
             assert "GEMINI_API_KEY" not in env

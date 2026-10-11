@@ -1,17 +1,9 @@
 """Consolidated settings management for Deepr.
 
-This module provides a single source of truth for all configuration through
-the Settings class. It consolidates:
-- Environment variables (DEEPR_*, provider API keys)
-- Config files (~/.deepr/config.yaml, .deepr/config.yaml)
-- CLI flags (passed at runtime)
-- Defaults (in code)
-
-Configuration hierarchy (lowest to highest priority):
-1. Defaults (hardcoded)
-2. Config file (YAML/JSON)
-3. Environment variables
-4. CLI flags
+Priority: defaults, YAML/JSON config, environment, then CLI overrides.
+``deepr.config`` loads explicit/per-user dotenv files once before startup key
+quarantine; process variables override file values. Settings shares that loader
+and reports file/variable origins without retaining credential values.
 
 Usage:
     from deepr.core.settings import get_settings, Settings
@@ -32,11 +24,12 @@ import json
 import logging
 import os
 from contextlib import suppress
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 
+from deepr.config import configuration_source_summary, environment_variable_source, load_configuration_environment
 from deepr.core.cost_caps import clamp_spend_authority
 
 logger = logging.getLogger(__name__)
@@ -460,6 +453,7 @@ class Settings:
         Returns:
             Settings instance
         """
+        load_configuration_environment()
         # Return cached instance if available
         if cls._instance is not None and not reset_singleton and not cli_overrides:
             return cls._instance
@@ -476,6 +470,8 @@ class Settings:
         if cli_overrides:
             settings._apply_cli_overrides(cli_overrides)
 
+        if settings._overrides and settings._source == "defaults":
+            settings._source = "environment/CLI overrides"
         clamp_spend_authority(settings.budget)
 
         # Cache as singleton
@@ -550,26 +546,28 @@ class Settings:
             self.providers["azure"].azure_use_managed_identity = _parse_bool(
                 os.getenv("AZURE_USE_MANAGED_IDENTITY", "false")
             )
-            self._overrides["providers.azure"] = "env"
+            self._overrides["providers.azure"] = environment_variable_source("AZURE_OPENAI_ENDPOINT")
 
         # Storage settings
         storage_type = os.getenv("DEEPR_STORAGE")
         if storage_type:
             self.storage.type = StorageType(storage_type)
-            self._overrides["storage.type"] = "env"
+            self._overrides["storage.type"] = environment_variable_source("DEEPR_STORAGE")
 
         self._apply_env("DEEPR_REPORTS_PATH", "storage.local_path")
 
         azure_conn = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
         if azure_conn:
             self.storage.azure_connection_string = azure_conn
-            self._overrides["storage.azure_connection_string"] = "env"
+            self._overrides["storage.azure_connection_string"] = environment_variable_source(
+                "AZURE_STORAGE_CONNECTION_STRING"
+            )
 
         # Database settings
         db_type = os.getenv("DEEPR_DATABASE_TYPE")
         if db_type:
             self.database.type = DatabaseType(db_type)
-            self._overrides["database.type"] = "env"
+            self._overrides["database.type"] = environment_variable_source("DEEPR_DATABASE_TYPE")
 
         self._apply_env("DEEPR_JSONL_PATH", "database.jsonl_path")
         self._apply_env("DEEPR_SQLITE_PATH", "database.sqlite_path")
@@ -599,7 +597,7 @@ class Settings:
         research_mode = os.getenv("DEEPR_DEFAULT_RESEARCH_MODE")
         if research_mode:
             self.research.default_mode = ResearchMode(research_mode)
-            self._overrides["research.default_mode"] = "env"
+            self._overrides["research.default_mode"] = environment_variable_source("DEEPR_DEFAULT_RESEARCH_MODE")
 
         # Expert settings
         self._apply_env("DEEPR_EXPERT_DEFAULT_TOPICS", "expert.default_topics", type_=int)
@@ -819,7 +817,7 @@ class Settings:
             elif type_ is float:
                 value = float(value)
             self._set_nested(setting_path, value)
-            self._overrides[setting_path] = "env"
+            self._overrides[setting_path] = environment_variable_source(env_var)
 
     def _load_provider_from_env(self, name: str, key_var: str, url_var: str | None, default_model: str) -> None:
         """Load provider configuration from environment."""
@@ -832,7 +830,7 @@ class Settings:
                 base_url = os.getenv(url_var)
                 if base_url:
                     self.providers[name].base_url = base_url
-            self._overrides[f"providers.{name}"] = "env"
+            self._overrides[f"providers.{name}"] = environment_variable_source(key_var)
 
     def _set_nested(self, path: str, value: Any) -> None:
         """Set a nested configuration value using dot notation."""
@@ -994,6 +992,7 @@ class Settings:
             "security": self.security.to_dict(),
             "_source": self._source,
             "_overrides": self._overrides,
+            "_environment": asdict(load_configuration_environment()),
         }
 
     def show(self, mask_keys: bool = True) -> str:
@@ -1009,6 +1008,7 @@ class Settings:
             "Deepr Configuration",
             "=" * 50,
             f"Source: {self._source}",
+            configuration_source_summary(),
             "",
             "Core Settings:",
             f"  Environment: {self.environment}",

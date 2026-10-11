@@ -384,10 +384,10 @@ def main():
     # a guard has to be reached, an absent variable cannot be read at all.
     # Load `.env` before quarantine. Lazy command imports otherwise load
     # config later and put metered keys back into the process environment.
-    from deepr.config import default_data_dir
+    from deepr.config import load_configuration_environment
     from deepr.security.key_quarantine import quarantine_metered_keys
 
-    default_data_dir()
+    load_configuration_environment()
     quarantine_metered_keys()
 
     if "NO_COLOR" in os.environ:
