@@ -130,6 +130,7 @@ class ResolvedSpendPolicy:
 
     caps: dict[str, float]
     calendar_periods: frozenset[str]
+    reason: str = "Tightest configured, operator and absolute ceilings apply."
 
 
 @dataclass(frozen=True)
@@ -695,6 +696,13 @@ def _wallet_spend_policy(
     return ResolvedSpendPolicy(
         caps={"per_job": per_job, "daily": daily, "weekly": weekly, "monthly": monthly},
         calendar_periods=frozenset(calendar_periods),
+        reason=operator.freeze_reason
+        if operator.frozen
+        else (
+            "Paid provider authority is unverified."
+            if not provider_authority_verified
+            else "Verified wallet authority is still bounded by configured and absolute ceilings."
+        ),
     )
 
 
@@ -776,6 +784,13 @@ def resolve_spend_policy(
             "monthly": monthly,
         },
         calendar_periods=frozenset(("daily", "weekly", "monthly")),
+        reason=operator.freeze_reason
+        if operator.frozen
+        else (
+            "Paid work is disabled by a zero or missing monthly ceiling."
+            if monthly == 0
+            else "Tightest configured, operator and absolute ceilings apply."
+        ),
     )
 
 
@@ -795,15 +810,18 @@ def resolve_spend_caps(
     )
 
 
-def clamp_spend_authority(settings: MutableSpendLimits) -> None:
+def clamp_spend_authority(settings: MutableSpendLimits) -> str:
     """Narrow settings, collapsing every paid limit to zero on policy errors."""
     try:
-        caps = resolve_spend_caps()
+        policy = resolve_spend_policy()
+        caps, reason = policy.caps, policy.reason
     except SpendCapConfigurationError:
         caps = {"per_job": 0.0, "daily": 0.0, "weekly": 0.0, "monthly": 0.0}
+        reason = "Spend policy is invalid or unreadable; paid limits fail closed."
     settings.max_cost_per_job = min(settings.max_cost_per_job, caps["per_job"])
     settings.daily_limit = min(settings.daily_limit, caps["daily"])
     settings.monthly_limit = min(settings.monthly_limit, caps["monthly"])
+    return reason
 
 
 def apply_paid_api_freeze(

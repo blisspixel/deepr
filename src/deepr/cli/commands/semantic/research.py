@@ -1,13 +1,15 @@
 """Research, learn, team, and check commands."""
 
 import asyncio
+import time
 
 import click
 
 from deepr.cli.async_runner import run_async_command
-from deepr.cli.colors import console, print_error, print_header, print_key_value
+from deepr.cli.colors import console, print_header, print_key_value
 from deepr.cli.commands.research_safety import (
     bounded_admission_estimate,
+    fail_research,
     print_explicit_research_preview,
     require_dispatchable_admission,
     require_metered_interface,
@@ -18,7 +20,7 @@ from deepr.cli.commands.research_safety import (
 )
 from deepr.cli.commands.research_support import bounded_tool_disable_flags, resolve_research_route
 from deepr.cli.commands.run import TraceFlags, _run_campaign, _run_single, _run_team
-from deepr.cli.output import OutputContext, OutputMode, output_options
+from deepr.cli.output import OperationResult, OutputContext, OutputFormatter, OutputMode, output_options
 
 
 def detect_research_mode(prompt: str) -> str:
@@ -260,7 +262,8 @@ def research(
         # Run company research workflow
         from deepr.core.company_research import CompanyResearchOrchestrator
 
-        print_header("Strategic Company Research")
+        if output_context.mode == OutputMode.VERBOSE:
+            print_header("Strategic Company Research")
 
         orchestrator = CompanyResearchOrchestrator()
         result = run_async_command(
@@ -277,18 +280,23 @@ def research(
         )
 
         if not result.get("success"):
-            print_error(result.get("error", "Unknown error"))
-            return
-
-        print_header("Company Research Complete")
-
-        if result.get("job_id"):
-            print_key_value("Job ID", result["job_id"])
-            print_key_value("Scraped Content", result["scraped_file"])
+            fail_research(
+                output_context,
+                f"{result.get('error', 'Company capture failed')}. Check the URL and retry local capture.",
+                error_code="COMPANY_CAPTURE_FAILED",
+                category="network",
+            )
+        if output_context.mode == OutputMode.VERBOSE:
             print_key_value("Pages Captured", str(result["pages_scraped"]))
-        else:
-            print_key_value("Scraped Content", result["scraped_file"])
-            print_key_value("Pages Captured", str(result["pages_scraped"]))
+        OutputFormatter(output_context).complete(
+            OperationResult(
+                success=True,
+                duration_seconds=max(0.0, time.time() - output_context.start_time),
+                cost_usd=0.0,
+                report_path=result["scraped_file"],
+                job_id=result.get("job_id"),
+            )
+        )
 
         return
 
@@ -740,7 +748,7 @@ def _run_batch_research(
 
     # Dry run - just show routing decisions
     if dry_run:
-        if output_context.mode == OutputMode.VERBOSE:
+        if output_context.mode not in (OutputMode.JSON, OutputMode.QUIET):
             console.print("[dim]Dry run - no queries will be executed[/dim]")
             console.print()
             console.print("[bold]Routing Decisions:[/bold]")
@@ -755,12 +763,13 @@ def _run_batch_research(
 
             result = {
                 "dry_run": True,
+                "executed": False,
                 "total_queries": len(routing.decisions),
                 "total_cost_estimate": routing.total_cost_estimate,
                 "decisions": [d.to_dict() for d in routing.decisions],
                 "summary": routing.summary,
             }
-            console.print(json.dumps(result, indent=2))
+            click.echo(json.dumps(result, indent=2))
         return
 
     require_parent_budget("Auto-batch research")
@@ -881,7 +890,7 @@ def _run_auto_research(
     # Always print in preview/dry-run mode (so the user can see what would
     # happen without executing). In normal runs, only print under VERBOSE.
     show_decision = dry_run or output_context.mode == OutputMode.VERBOSE
-    if show_decision and output_context.mode != OutputMode.JSON:
+    if show_decision and output_context.mode not in (OutputMode.JSON, OutputMode.QUIET):
         console.print()
         console.print("[bold]Auto Mode Routing[/bold]")
         console.print(f"[dim]{'─' * 40}[/dim]")

@@ -235,6 +235,14 @@ def show(unified: bool, legacy: bool):
         else:
             # New consolidated Settings format (default)
             settings = _get_settings()
+            from deepr.cli.commands.research_support import resolve_research_route
+
+            provider, model = resolve_research_route(None, None)
+            console.print(f"Research workflow default: {provider} / {model}", markup=False)
+            console.print(
+                "Metered routes are preview-only except explicit attended OpenRouter after authorization and checks."
+            )
+            console.print("Expert workflows use explicit owned-local or safety-eligible plan capacity.\n")
             console.print(settings.show(mask_keys=True), markup=False)
 
     except Exception as e:

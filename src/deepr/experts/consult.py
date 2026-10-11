@@ -18,8 +18,10 @@ Spend still goes through cost admission, not this package.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import math
+import os
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -53,6 +55,7 @@ class ConsultSynthesisBackend:
     allow_live_fallback: bool = False
     note: str = ""
     tos_note: str = ""
+    model_selection: str = ""
 
 
 def _sha256(value: str) -> str:
@@ -185,6 +188,30 @@ def build_synthesis_backend(
         "Metered API synthesis is disabled for expert consults. Use local Ollama or an explicit "
         "safety-eligible plan-quota backend. No provider client was constructed."
     )
+
+
+async def resolve_consult_local_model(experts: list[str], explicit_model: str | None) -> tuple[str | None, str]:
+    """Resolve one named profile read-only within the host transaction deadline."""
+    from deepr.backends.local import resolve_local_maintenance_model_async
+    from deepr.experts.profile import ExpertStore
+
+    profile = None
+    if not (explicit_model or "").strip() and len(experts) == 1:
+        store = ExpertStore(create=False)
+        profile = await asyncio.to_thread(store.load, experts[0], persist_migration=False)
+    model = await resolve_local_maintenance_model_async(profile, explicit_model=explicit_model)
+    if explicit_model and explicit_model.strip():
+        source = "explicit operation model"
+    elif (
+        profile is not None
+        and str(profile.provider).strip().lower() == "local"
+        and model == str(profile.model).strip()
+        and model != "ollama"
+    ):
+        source = f"local expert profile: {profile.name}"
+    else:
+        source = "DEEPR_LOCAL_MODEL" if os.getenv("DEEPR_LOCAL_MODEL") else "installed local inventory"
+    return model, source
 
 
 def build_consult_payload(question: str, result: dict[str, Any]) -> dict[str, Any]:

@@ -29,6 +29,17 @@
 > (rule is fine) or encoding meaning (route to the model)? If it is neither of
 > those *and* a user does not feel it - **cut it.**
 
+## First-run consistency
+
+- [x] **Implemented 2026-10-11, release pending (issue 204):** requested and
+  effective budget explanation, canonical research-route help, honest doctor
+  categories and read-only credential presence, single-profile consult model
+  precedence across CLI/MCP/A2A, manager-owned release install/repair/update/
+  uninstall, and actionable company/auto research refusals and previews.
+  Focused offline controls cover these boundaries; integrated release validation
+  remains separate. No spend, provider, plan, daemon or fallback authority is
+  widened. See [design](docs/design/first-run-experience.md).
+
 ## Quick Links
 
 | Document | Description |

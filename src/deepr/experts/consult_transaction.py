@@ -184,6 +184,7 @@ def _resolved_capacity(backend_mode: str, backend: Any) -> dict[str, object]:
         "synthesis_backend": backend_mode,
         "provider": str(backend.provider),
         "model": str(backend.model or ""),
+        "model_selection": str(getattr(backend, "model_selection", "")),
         "live_metered_fallback": False,
     }
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 from math import isfinite
 from typing import Any
 
@@ -112,7 +113,7 @@ CONSULT_EXPERTS_INPUT_SCHEMA: dict[str, Any] = {
         },
         "local_model": {
             "type": "string",
-            "description": "Optional Ollama model when synthesis_backend='local'.",
+            "description": "Explicit local model override. Otherwise one named local profile wins, then environment/inventory.",
         },
         "plan": {
             "type": "string",
@@ -330,11 +331,12 @@ async def consult_experts_tool(
 
     async def build_backend() -> consult_core.ConsultSynthesisBackend:
         resolved_local_model = local_model
-        if backend_mode == "local" and not resolved_local_model:
-            from deepr.backends.local import default_local_model_async
-
-            resolved_local_model = await default_local_model_async()
-        return await asyncio.to_thread(
+        selection = ""
+        if backend_mode == "local":
+            resolved_local_model, selection = await consult_core.resolve_consult_local_model(
+                requested_experts, local_model
+            )
+        backend = await asyncio.to_thread(
             consult_core.build_synthesis_backend,
             use_local=backend_mode == "local",
             local_model=resolved_local_model,
@@ -343,6 +345,7 @@ async def consult_experts_tool(
             api_provider=provider if backend_mode == "api" else None,
             api_model=model if backend_mode == "api" else None,
         )
+        return replace(backend, model_selection=selection) if backend_mode == "local" else backend
 
     try:
         return await execute_consult_transaction(

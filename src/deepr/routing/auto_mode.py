@@ -13,8 +13,6 @@ quality scores derived from pricing tier and specializations, so they
 participate in routing immediately. Operators may opt in to background
 auto-eval with ``DEEPR_AUTO_EVAL=true`` to refine these estimates when new
 models are detected.
-
-This enables processing 20+ queries for $1-2 instead of $20-40.
 """
 
 import hashlib
@@ -36,6 +34,13 @@ from deepr.config import runtime_data_path
 from deepr.experts.router import ModelRouter
 from deepr.observability.provider_router import AutonomousProviderRouter
 from deepr.providers.registry import MODEL_CAPABILITIES, ModelCapability
+
+
+class AutoRoutingUnavailable(RuntimeError):
+    """No configured provider can supply an advisory research route."""
+
+    error_code = "AUTO_ROUTE_UNAVAILABLE"
+
 
 _MAX_ROUTE_BUDGET_USD = 5.0
 
@@ -809,11 +814,8 @@ class AutoModeRouter:
             p, m, c = candidates[0]
             return (p, m, c, f"Cheapest available -> {p}/{m} (${c:.3f})")
 
-        # Absolute last resort - but pick a USABLE provider. The previous
-        # behaviour hard-coded ``openai/gpt-4.1-mini`` regardless of
-        # which providers had API keys, so a user with only Gemini/XAI
-        # configured would receive an openai model the dispatcher
-        # couldn't actually call.
+        # Last resort still requires a configured provider; routing never
+        # grants execution or spend authority.
         for cap in sorted(MODEL_CAPABILITIES.values(), key=lambda c: c.cost_per_query):
             if (
                 not cap.preview_only
@@ -831,9 +833,11 @@ class AutoModeRouter:
         # If we reach here, no provider is usable at all. Surface that
         # honestly rather than handing back a model that will fail at
         # provider creation.
-        raise RuntimeError(
-            "No provider with credentials is configured; cannot route research. "
-            "Set at least one of: OPENAI_API_KEY, GEMINI_API_KEY, XAI_API_KEY, ANTHROPIC_API_KEY."
+        raise AutoRoutingUnavailable(
+            "No provider with credentials is configured; cannot auto-route research. "
+            "Use an explicit --provider and --model with --preview to inspect a keyless route, "
+            "or configure a provider credential with 'deepr keys set <provider>'. "
+            "Credentials and routing do not grant execution or spend authority."
         )
 
     def _apply_auto_rules(

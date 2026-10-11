@@ -64,6 +64,21 @@ function python {
     if ($args[2] -eq 'install') { $global:installCount += 1 }
     Add-Content -LiteralPath $env:DEEPR_INSTALL_TEST_OPERATIONS -Value $args[2]
 }
+function pipx {
+    if ($args[0] -eq 'environment') {
+        $global:LASTEXITCODE = 0
+        if ($args[2] -eq 'PIPX_LOCAL_VENVS') { '/owned' } else { '/shim/bin' }
+        return
+    }
+    python -m pipx @args
+}
+Set-Alias -Name (Join-Path '/owned' 'deepr-research/Scripts/python.exe') -Value python
+function Get-Command {
+    param($Name, $ErrorAction)
+    if ($Name -eq 'deepr') { return [pscustomobject]@{ Source = '/shim/bin/deepr.exe' } }
+    Microsoft.PowerShell.Core\\Get-Command -Name $Name -ErrorAction SilentlyContinue
+}
+function uv { $global:LASTEXITCODE = 0; if ($args[0] -ne 'tool' -or $args[1] -ne 'list') { throw 'unexpected uv mutation' } }
 function deepr {
     if ($env:DEEPR_INSTALL_TEST_BEHAVIOR -eq 'stays_broken' -or
         ($env:DEEPR_INSTALL_TEST_BEHAVIOR -eq 'repair_works' -and $global:installCount -lt 2)) {
@@ -93,6 +108,14 @@ python3() {
         *) return 90 ;;
     esac
 }
+pipx() {
+    if [ "$1" = environment ]; then
+        if [ "$3" = PIPX_LOCAL_VENVS ]; then printf '/owned\\n'; else printf '/shim/bin\\n'; fi
+    else python3 -m pipx "$@"; fi
+}
+/owned/deepr-research/bin/python() { python3 "$@"; }
+command() { if [ "$1" = -v ] && [ "$2" = deepr ]; then printf '/shim/bin/deepr\\n'; else builtin command "$@"; fi; }
+uv() { [ "$1" = tool ] && [ "$2" = list ]; }
 curl() { printf '%s' "$DEEPR_INSTALL_TEST_RELEASE"; }
 deepr() {
     if [ "$DEEPR_INSTALL_TEST_BEHAVIOR" = stays_broken ] ||
@@ -139,14 +162,16 @@ def test_installers_resolve_a_repository_release_wheel(relative_path: str) -> No
     assert "Add at least one API key" not in text
 
 
-def test_windows_installer_bootstraps_when_pipx_probe_raises() -> None:
+def test_windows_installer_does_not_bootstrap_into_user_or_venv_python() -> None:
     text = (ROOT / "scripts/install.ps1").read_text(encoding="utf-8")
 
     assert "function Test-PipxAvailable($PythonCommand)" in text
     assert "& $PythonCommand -m pipx --version *> $null" in text
     assert "catch {" in text
     assert "return $false" in text
-    assert "if (-not (Test-PipxAvailable $python))" in text
+    assert "pip install --user" not in text
+    assert "official instructions" in text
+    assert "--managed-python" in text
 
 
 def test_makefile_exposes_only_explicit_manual_pypi_publication() -> None:

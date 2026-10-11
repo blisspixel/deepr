@@ -31,15 +31,11 @@ class CompanyResearchOrchestrator:
         Args:
             config: Optional configuration dict. If None, loads from environment.
 
-        ResearchOrchestrator takes positional ``provider, storage,
-        document_manager, report_generator`` arguments - the previous
-        implementation passed a single ``config`` dict, so every call to
-        ``research_company`` crashed at construction. We build the real
-        collaborators here from config the same way ``mcp/server.py``
-        does.
+        Provider construction is deferred until the provider-backed phase.
+        Local capture needs neither a credential nor a provider client.
         """
         self.config = config or load_config()
-        self.research_orchestrator = self._build_research_orchestrator(self.config)
+        self.research_orchestrator: ResearchOrchestrator | None = None
 
     @staticmethod
     def _build_research_orchestrator(config: dict[str, Any]) -> ResearchOrchestrator:
@@ -160,6 +156,8 @@ class CompanyResearchOrchestrator:
         # the configured ResearchOrchestrator; CLI confirmation happens before
         # this wrapper is invoked.
         try:
+            if self.research_orchestrator is None:
+                self.research_orchestrator = self._build_research_orchestrator(self.config)
             job_id = await self.research_orchestrator.submit_research(
                 prompt=research_prompt,
                 model=model,

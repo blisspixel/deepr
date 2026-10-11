@@ -24,10 +24,32 @@ curl -fsSL https://raw.githubusercontent.com/blisspixel/deepr/main/scripts/insta
 ```
 
 The installers resolve the latest supported wheel from GitHub Releases and
-install it in an isolated pipx environment. They exit without changing an
-existing Deepr installation when GitHub is unreachable or the latest release
+preserve an existing uv or pipx owner. A fresh install prefers uv and explicitly
+requires managed stable CPython 3.13. A Python version request alone does not
+require a managed interpreter. If uv is unavailable, an existing pipx uses an
+explicit stable CPython 3.12, 3.13 or 3.14 interpreter. Install a manager first:
+[uv installation](https://docs.astral.sh/uv/getting-started/installation/) or
+[pipx installation](https://pipx.pypa.io/stable/installation/). The scripts never
+bootstrap pipx with `pip --user` into a venv or externally managed interpreter.
+
+Install, repair, `deepr upgrade`, and uninstall preserve the selected manager.
+Conflicting uv/pipx installations or an unmanaged CLI require explicit cleanup
+before retrying. The installers exit without changing an existing Deepr
+installation when GitHub is unreachable or the latest release
 does not contain a supported wheel. If the CLI still fails after the automatic
 repair attempt, the installer exits with a failure status and recovery guidance.
+
+An existing pipx environment must itself run stable CPython 3.12, 3.13 or 3.14;
+a supported Python elsewhere on PATH does not repair its interpreter. An
+unsupported or unreadable environment stops before any package changes and
+prints an explicit `pipx reinstall deepr-research --python <supported-python>`
+command. Run that command, then rerun the installer for the latest release:
+pipx reinstall restores the recorded package source, which may be older.
+Supported environments retain their base interpreter through updates and repair.
+They remain updatable even when PATH has no separate supported Python. A fresh
+pipx installation still requires one. If neither the owned environment nor PATH
+has a supported interpreter, the guidance explains how to supply one explicitly.
+Uninstall remains available even when the environment's interpreter is unusable.
 
 ### Development or source install
 
@@ -68,7 +90,7 @@ deepr --version
 **Alternative with pipx** (simplest for CLI tools - handles isolation + PATH automatically):
 
 ```bash
-pipx install -e .
+pipx install --python python3.13 -e .
 ```
 
 ### Bare / fast path

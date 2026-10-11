@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import json as _json
 import sys
+from dataclasses import replace
 from math import isfinite
 from pathlib import Path
 from typing import Any
@@ -129,6 +130,7 @@ def _requested_capacity(
 
 def _make_backend_factory(
     *,
+    experts: tuple[str, ...],
     use_local: bool,
     local_model: str | None,
     plan_backend: str | None,
@@ -139,11 +141,12 @@ def _make_backend_factory(
 ):
     async def build_backend():
         resolved_local_model = local_model
-        if use_local and not resolved_local_model:
-            from deepr.backends.local import default_local_model_async
+        selection = ""
+        if use_local:
+            from deepr.experts.consult import resolve_consult_local_model
 
-            resolved_local_model = await default_local_model_async()
-        return await asyncio.to_thread(
+            resolved_local_model, selection = await resolve_consult_local_model(list(experts), local_model)
+        backend = await asyncio.to_thread(
             _build_cli_synthesis_backend,
             use_local=use_local,
             local_model=resolved_local_model,
@@ -152,6 +155,11 @@ def _make_backend_factory(
             api_provider=api_provider,
             api_model=api_model,
             json_output=json_output,
+        )
+        return (
+            replace(backend, model_selection=selection, note=f"{backend.note}; model selection: {selection}")
+            if use_local
+            else backend
         )
 
     return build_backend
@@ -272,7 +280,11 @@ def _emit_consult_result(
 )
 @click.option("--model", "api_model", default=None, help="Compatibility input only. Metered API synthesis is disabled.")
 @click.option("--local", "use_local", is_flag=True, help="Use local Ollama synthesis at $0. This is the default.")
-@click.option("--local-model", default=None, help="Local Ollama model for synthesis. Defaults to detected model.")
+@click.option(
+    "--local-model",
+    default=None,
+    help="Local model: explicit override, then one named local profile, then environment/inventory.",
+)
 @click.option("--plan", "plan_backend", default=None, help="Use an explicit plan-quota CLI for synthesis.")
 @click.option("--plan-model", default=None, help="Model hint for the plan-quota CLI.")
 @click.option(
@@ -348,6 +360,7 @@ def expert_consult(
     )
 
     backend_factory = _make_backend_factory(
+        experts=experts,
         use_local=use_local,
         local_model=local_model,
         plan_backend=plan_backend,

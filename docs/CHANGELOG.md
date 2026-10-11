@@ -18,6 +18,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The model-call ceiling stays unchanged. AMD occupancy/VRAM and Intel device
   visibility no longer depend on NVIDIA tools; connected doctor can report
   Ollama GPU residency. Detached execution remains unavailable.
+- First-run configuration distinguishes requested/effective budgets and policy
+  reasons, workflow routes and compatibility defaults. Numeric budget changes
+  do not authorize providers. Help includes the attended OpenRouter exception
+  and preserves init example lines. Doctor separates required, advisory,
+  optional and unverified checks, using read-only stored/quarantined credential
+  presence and warning only for configured providers.
+- CLI, MCP and A2A local consults for one named expert honor its recorded local
+  model after explicit operation overrides, ahead of the global environment
+  default. Selection stays inside the transaction deadline, reports provenance,
+  and does not migrate profiles or substitute an unavailable pinned model.
+- Release installers preserve uv/pipx ownership across install, repair, upgrade
+  and uninstall, prefer managed CPython 3.13 for fresh uv installs, and explicitly
+  select a stable supported interpreter for pipx. They refuse conflicting or
+  unmanaged copies and do not bootstrap pip into a user/system environment.
+  Existing pipx environments are checked before package changes; unsupported
+  or unverifiable interpreters get explicit reinstall guidance instead of a
+  force update that leaves the interpreter unchanged. Supported environments
+  retain their own base interpreter through updates and repair.
+- Company scrape-only failures return nonzero with the existing JSON/stderr
+  operation result and need no provider construction. Auto-routing without keys
+  returns an actionable refusal, and batch previews render default human output
+  and valid JSON without dispatch.
 
 - Local expert formation checks owned Ollama capacity before source retention
   or discovery and reports persistent-cloud configuration refusals directly.

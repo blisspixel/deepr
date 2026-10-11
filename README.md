@@ -203,8 +203,13 @@ Linux and macOS:
 curl -fsSL https://raw.githubusercontent.com/blisspixel/deepr/main/scripts/install.sh | bash
 ```
 
-Installers use the latest verified GitHub Release wheel in an isolated pipx
-environment. PyPI publication is not enabled.
+Installers use the latest verified GitHub Release wheel and preserve an existing
+uv or pipx installation. Fresh installs prefer uv with managed CPython 3.13;
+pipx requires an explicitly selected stable CPython 3.12, 3.13 or 3.14. Install
+uv or pipx first using its official instructions. The scripts do not bootstrap
+pip into a user site or system Python, and refuse conflicting managed copies.
+Repair, `deepr upgrade`, and uninstall keep the same tool manager. PyPI
+publication is not enabled.
 
 ## Quick start
 
@@ -242,6 +247,19 @@ creates the current folder's `.env` and prints how to select it; ambient files
 are not discovered automatically. `config show` and offline doctor name the
 files read. Process variables win, and services need a restart after file edits.
 The selected absolute configuration paths stay fixed until that restart.
+
+`config show` separates the research workflow route from compatibility client
+defaults, and shows requested and effective budget limits with the policy reason.
+Init requests $1/job, $2/day and $5/month; paid limits can remain $0 until provider
+authority is verified. `budget set` changes a ceiling and does not authorize a
+provider. Offline doctor counts required, advisory, optional and unverified
+checks separately; skipped local proof is never readiness.
+
+A local consult with one explicitly named expert uses `--local-model` first,
+then that local profile's recorded model, then `DEEPR_LOCAL_MODEL` and installed
+inventory. CLI, MCP and A2A share this order without migrating the profile.
+Automatic or mixed councils keep the global model choice. Unavailable pinned
+models are refused until you install the model or explicitly choose another.
 
 Local creation now develops a research foundation: bounded free web search,
 retained sources, study of mechanisms and failures, a reasoned brief, an evidence

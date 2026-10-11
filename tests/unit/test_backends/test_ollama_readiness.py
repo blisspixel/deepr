@@ -183,11 +183,15 @@ async def test_offline_doctor_does_not_probe_and_summary_does_not_claim_ready(mo
     monkeypatch.setattr("deepr.backends.capacity.observe_local_ollama_generation", probe)
     checks = await doctor.check_local_ollama(skip_connectivity=True)
     assert checks[0].severity == "info"
+    assert checks[0].unverified is True
+    assert checks[0].passed is False
     assert "Unverified" in checks[0].message
     doctor.print_checks(checks)
-    rendered = capsys.readouterr().out
+    rendered = " ".join(capsys.readouterr().out.split())
     assert "All good" not in rendered
-    assert "local generation is unverified" in rendered
+    assert "0/0 required checks passed" in rendered
+    assert "1 unverified" in rendered
+    assert "skipped or blocked checks remain unverified" in rendered
     probe.assert_not_called()
 
 

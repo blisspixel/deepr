@@ -270,36 +270,48 @@ async def default_local_model_async(
     return None
 
 
+def _maintenance_model_preference(profile: object | None, explicit_model: str | None) -> str | None:
+    selected = (explicit_model or "").strip()
+    if selected:
+        return selected
+    provider = str(getattr(profile, "provider", "") or "").strip().lower()
+    recorded = str(getattr(profile, "model", "") or "").strip()
+    return recorded if provider == "local" and recorded and recorded.lower() != "ollama" else None
+
+
 def resolve_local_maintenance_model(
     profile: object | None,
     *,
     explicit_model: str | None = None,
     base_url: str | None = None,
 ) -> str | None:
-    """Resolve the Ollama model for one expert maintenance operation.
+    """Resolve operation model, then a local profile, then the global default.
 
-    An explicit command or admitted-capacity model remains authoritative. When
-    no operation-level model was selected, a local expert's recorded model is
-    the per-expert maintenance preference promised by ``expert make
-    --local --local-model``. Non-local profiles and placeholder local profiles
-    retain the existing process-wide default behavior.
+    Explicit and recorded models remain pinned. Non-local and placeholder
+    profiles retain the existing environment/inventory choice.
     """
     owned_base_url = _base_url(base_url)
-    selected = (explicit_model or "").strip()
+    selected = _maintenance_model_preference(profile, explicit_model)
     if selected:
         return selected
+    # Preserve the established no-argument discovery seam after validating URL.
+    return default_local_model() if base_url is None else default_local_model(owned_base_url)
 
-    provider = str(getattr(profile, "provider", "") or "").strip().lower()
-    recorded = str(getattr(profile, "model", "") or "").strip()
-    if provider == "local" and recorded and recorded.lower() != "ollama":
-        return recorded
-    # Preserve the long-standing no-argument probe seam used by callers and
-    # tests when no operation-specific URL was supplied. The endpoint was
-    # already validated above, and default_local_model() resolves the same
-    # environment/default URL again before probing it.
+
+async def resolve_local_maintenance_model_async(
+    profile: object | None,
+    *,
+    explicit_model: str | None = None,
+    base_url: str | None = None,
+) -> str | None:
+    """Apply the same maintenance precedence with cancellable inventory discovery."""
+    owned_base_url = _base_url(base_url)
+    selected = _maintenance_model_preference(profile, explicit_model)
+    if selected:
+        return selected
     if base_url is None:
-        return default_local_model()
-    return default_local_model(owned_base_url)
+        return await default_local_model_async()
+    return await default_local_model_async(owned_base_url)
 
 
 def _local_prompt(query: str, context: Any | None) -> tuple[str, dict[str, Any] | None]:

@@ -52,8 +52,12 @@ class TestSectionedHelp:
             assert result.exit_code == 0, f"hidden command '{name}' broke: {result.output}"
 
     def test_docstring_teaches_the_current_execution_boundary(self):
-        out = _help_output()
-        assert "Metered research is preview-only" in out
+        out = _normalized(_help_output())
+        assert "Preview metered research without dispatch" in out
+        assert "Metered research is preview-only" not in out
+        assert "Explicit attended OpenRouter can run one pinned completion after setup" in out
+        assert "deepr budget authorize openrouter" in out
+        assert "Stored keys, owner ceiling, wallet credits and per-run confirmation are required" in out
         assert 'deepr research "your question" --budget' not in out
         assert 'deepr expert consult "question" -e "Expert Name" --local' in out
 
