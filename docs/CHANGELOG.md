@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.25] - 2026-10-11
+
+Compatible setup, local recovery, execution-refusal and packaging repairs.
+Existing cost and dispatch boundaries remain unchanged; this release does not
+qualify general expert guidance or detached execution.
+
 ### Fixed
 
 - Local formation saves each successful study chunk before further inference,

@@ -97,7 +97,7 @@ established by these tests; durable detached execution remains deferred.
   saved operation now refreshes them, with fresh/reused-run regressions. This
   validates the bounded recovery path, not general model-answer accuracy.
 
-**Now (v2.50.24):** the local four-arm rehearsal harness with blinded review
+**Now (v2.50.25):** the local four-arm rehearsal harness with blinded review
 binding, verified resume and workbook assembly, and a study-prompt repair,
 on top of a local-only fleet-seat profile for external harnesses and
 host-side routers, bounded local expert formation, retained
@@ -630,9 +630,13 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.24)
+## Current Status (v2.50.25)
 
-**Next is v2.51, not more dispatch.** v2.50.24 hardens A2A, MCP, auth, and scraping security. v2.50.23 updates provider SDKs and
+**Next is v2.51, not more dispatch.** v2.50.25 repairs first-run configuration,
+local readiness and durable formation recovery, execution refusals, and release
+installer ownership. Recovery was validated against a synthetic local document;
+semantic guidance quality and detached execution remain unqualified.
+v2.50.24 hardens A2A, MCP, auth, and scraping security. v2.50.23 updates provider SDKs and
 reviewed pricing, repairs model identity and OpenRouter budget accounting,
 and strengthens the documented expertise acceptance gates. No new model is
 promoted to automatic routing. v2.50.22 ships the harness that runs,
@@ -3958,7 +3962,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.24. This roadmap keeps
+v2.50.25. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 
