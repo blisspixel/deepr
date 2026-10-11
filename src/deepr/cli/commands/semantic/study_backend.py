@@ -66,6 +66,7 @@ class StudyBackend:
     Recorded so an artifact can say which model read the corpus - the single
     largest determinant of what a study pass finds, and previously discarded."""
     preflight: Callable[[], Awaitable[None]] | None = None
+    model_contract: Callable[[], dict[str, Any]] | None = None
 
 
 def _completion_from_chat_client(client: Any, model: str, *, max_tokens: int) -> StudyCompletion:
@@ -259,6 +260,19 @@ def _build_local_backend(
     if not local_model:
         raise StudyBackendError("No local model available. Is Ollama running? Check: deepr capacity --probe")
     backend = NativeOllamaInvestigationBackend(model=local_model, keep_alive="10m")
+
+    async def preflight() -> None:
+        await backend.preflight()
+        backend.pinned_digest = backend.last_attested_digest
+
+    def model_contract() -> dict[str, Any]:
+        return {
+            "protocol": "ollama-native-study-v1",
+            "model": local_model,
+            "digest": backend.pinned_digest,
+            "options": {"num_ctx": context_tokens, "num_predict": max_tokens, "temperature": 0.2, "format": "json"},
+        }
+
     return StudyBackend(
         completion=_completion_from_native_ollama(
             backend,
@@ -268,7 +282,8 @@ def _build_local_backend(
         ),
         capacity_source=f"local:{local_model}",
         model=local_model,
-        preflight=backend.preflight,
+        preflight=preflight,
+        model_contract=model_contract,
         cost_note=f"$0 (local model {local_model} @ {context_tokens} ctx){fit_note}",
     )
 

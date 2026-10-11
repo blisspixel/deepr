@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Local formation saves each successful study chunk before further inference,
+  validates its effective source/prompt/model contract on retry, and reuses
+  matching inspectable acquisition. Explicit local time limits can reach six
+  hours, with a bounded corpus-size option and measured advisory progress/ETA.
+  The model-call ceiling stays unchanged. AMD occupancy/VRAM and Intel device
+  visibility no longer depend on NVIDIA tools; connected doctor can report
+  Ollama GPU residency. Detached execution remains unavailable.
+
 - Local expert formation checks owned Ollama capacity before source retention
   or discovery and reports persistent-cloud configuration refusals directly.
   Refused studies stop, retain completed lenses and chunks, and return nonzero.

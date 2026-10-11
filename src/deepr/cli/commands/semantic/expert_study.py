@@ -17,7 +17,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import sys
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -30,13 +32,36 @@ from deepr.cli.commands.semantic.experts import expert
 from deepr.cli.commands.semantic.study_backend import StudyBackendError, build_study_backend
 from deepr.experts.corpus_store import CorpusStore
 from deepr.experts.expert_layout import hold_current_path, hold_history_path, hold_rendered_path, noticed_path
+from deepr.experts.loop_lock import expert_verb_lock
 from deepr.experts.notebook import NOTEBOOK_MARKER, build_notebook
 from deepr.experts.paths import canonical_expert_dir
 from deepr.experts.study import run_study
+from deepr.experts.study_checkpoint import StudyCheckpoint, read_record
 from deepr.experts.study_lenses import DEFAULT_LENS_KEYS, LENSES, resolve_lenses
 from deepr.utils.atomic_io import atomic_write_json
 
 _MAX_SOURCE_CHARS = 400_000
+
+
+def _study_chunk_run(name: str, contract: dict[str, Any], rebuild: bool) -> tuple[StudyCheckpoint, Any]:
+    directory = canonical_expert_dir(name) / "noticed/runs"
+    current = directory / "current.json"
+    previous = None
+    if not rebuild:
+        try:
+            operation = read_record(current).get("operation_id")
+            if isinstance(operation, str) and re.fullmatch(r"[0-9a-f]{32}", operation):
+                previous = directory / operation / "study-chunks"
+        except (OSError, ValueError):
+            pass
+    operation = uuid.uuid4().hex
+    chunks = StudyCheckpoint(directory / operation / "study-chunks", previous=previous, model_contract=contract)
+
+    def progress(_progress: dict[str, Any]) -> None:
+        # Called only after prepare has durably copied every verified record.
+        atomic_write_json(current, {"operation_id": operation}, fsync=True, fsync_parent=True)
+
+    return chunks, progress
 
 
 def canonical_study_path(expert_name: str) -> Path:
@@ -465,36 +490,18 @@ def expert_study(
         if backend.capacity_source.startswith("local:"):
             _report_vram_headroom(quiet=as_json)
 
-    async def _run() -> Any:
-        local_model = (
-            backend.capacity_source.removeprefix("local:") if backend.capacity_source.startswith("local:") else ""
+    result = asyncio.run(
+        _run_study_with_capacity(
+            profile,
+            resolved,
+            store,
+            backend,
+            max_corpus_chars=max_corpus_chars,
+            as_json=as_json,
+            rebuild=rebuild,
+            keep_warm=keep_warm,
         )
-        try:
-            if local_model:
-                await _warn_if_cpu_bound(local_model, quiet=as_json)
-            return await run_study(
-                expert_name=profile.name,
-                corpus=store,
-                completion=backend.completion,
-                lens_keys=[lens.key for lens in resolved],
-                max_corpus_chars=max_corpus_chars,
-                chunk_chars=backend.chunk_chars,
-                capacity_source=backend.capacity_source,
-                model=backend.model,
-                on_progress=None if as_json else _echo_progress,
-                checkpoint=_checkpoint_study(profile.name),
-                resume_from=_resume_source(profile.name, rebuild=rebuild),
-            )
-        finally:
-            # Pin weights during the run, release at the end. Leaving a large
-            # model resident for the rest of the keep-alive window blocks every
-            # other GPU user on the machine for work that is already finished.
-            if local_model and not keep_warm:
-                from deepr.backends.local import release_local_model
-
-                await release_local_model(local_model)
-
-    result = asyncio.run(_run())
+    )
 
     payload = result.to_dict()
     serialized = json.dumps(payload, indent=2, sort_keys=True)
@@ -825,3 +832,60 @@ def expert_notebook(name: str, from_study: str | None, out: str | None) -> None:
     target = Path(out) if out else canonical_expert_dir(profile.name) / "notebook.md"
     target.write_text(text, encoding="utf-8")
     print_success(f"Notebook: {target}")
+
+
+async def _prepare_local_chunk_run(name: str, backend: Any, rebuild: bool, quiet: bool) -> tuple[Any, Any]:
+    if backend.preflight:
+        await backend.preflight()
+    await _warn_if_cpu_bound(backend.model, quiet=quiet)
+    return _study_chunk_run(name, backend.model_contract(), rebuild) if backend.model_contract else (None, None)
+
+
+async def _run_study_with_capacity(
+    profile: Any,
+    resolved: Any,
+    store: CorpusStore,
+    backend: Any,
+    *,
+    max_corpus_chars: int,
+    as_json: bool,
+    rebuild: bool,
+    keep_warm: bool,
+) -> Any:
+    local_model = backend.capacity_source.removeprefix("local:") if backend.capacity_source.startswith("local:") else ""
+    cleanup_eligible = False
+    try:
+        with expert_verb_lock(profile.name, "study") as acquired:
+            if not acquired:
+                raise StudyBackendError("A study operation is already running for this expert")
+            chunks = None
+            progress = None
+            if local_model:
+                chunks, progress = await _prepare_local_chunk_run(profile.name, backend, rebuild, as_json)
+                cleanup_eligible = True
+            result = await run_study(
+                expert_name=profile.name,
+                corpus=store,
+                completion=backend.completion,
+                lens_keys=[lens.key for lens in resolved],
+                max_corpus_chars=max_corpus_chars,
+                chunk_chars=backend.chunk_chars,
+                capacity_source=backend.capacity_source,
+                model=backend.model,
+                on_progress=None if as_json else _echo_progress,
+                checkpoint=_checkpoint_study(profile.name),
+                resume_from=None if chunks else _resume_source(profile.name, rebuild=rebuild),
+                chunk_checkpoint=chunks,
+                on_chunk_progress=progress,
+            )
+            if any(outcome.status == "capacity_refused" for outcome in result.outcomes):
+                cleanup_eligible = False
+            return result
+    finally:
+        # Pin weights during the run, release at the end. Leaving a large
+        # model resident for the rest of the keep-alive window blocks every
+        # other GPU user on the machine for work that is already finished.
+        if local_model and cleanup_eligible and not keep_warm:
+            from deepr.backends.local import release_local_model
+
+            await release_local_model(local_model)

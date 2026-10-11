@@ -7,19 +7,39 @@ import asyncio
 import click
 
 from deepr.cli.commands.semantic.experts import expert
+from deepr.cli.commands.semantic.local_expert import local_formation_options
 from deepr.cli.commands.semantic.study_backend import build_study_backend
-from deepr.experts.formation import FormationLimits, form_expert
+from deepr.experts.formation import FormationLimits, form_expert, read_formation_state
 from deepr.experts.profile import ExpertStore
 
 
 def build_local_expert(
-    profile, *, model: str | None = None, discover: bool = True, limits: FormationLimits | None = None
+    profile,
+    *,
+    model: str | None = None,
+    discover: bool = True,
+    limits: FormationLimits | None = None,
+    refresh_sources: bool = False,
+    fresh_default: bool = False,
 ):
-    backend = build_study_backend(profile=profile, local=True, model=model)
+    limits = limits or FormationLimits()
+    limits.validate()
+    previous = read_formation_state(profile.name) or {}
+    if previous.get("model") is not None and not isinstance(previous["model"], str):
+        raise ValueError("Previous formation model identity is malformed; inspect its retained operation record")
+    recorded = profile.model if profile.provider == "local" and not fresh_default else None
+    selected = model or previous.get("model") or recorded
+    selected = selected if selected and selected != "ollama" else None
+    backend = build_study_backend(profile=profile, local=True, model=selected)
     click.echo("Building research, perspective, and linked knowledge with owned local capacity ($0 API cost).")
     result = asyncio.run(
         form_expert(
-            profile, backend, limits=limits, discover=discover, on_progress=lambda note: click.echo(f"  {note}")
+            profile,
+            backend,
+            limits=limits,
+            discover=discover,
+            refresh_sources=refresh_sources,
+            on_progress=lambda note: click.echo(f"  {note}"),
         )
     )
     click.echo(f"Formation: {result['status']}")
@@ -34,7 +54,18 @@ def build_local_expert(
 @click.argument("name")
 @click.option("--local-model", default=None, help="Installed local model for research and study")
 @click.option("--no-discovery", is_flag=True, help="Study retained sources without new web acquisition")
-def expert_build(name: str, local_model: str | None, no_discovery: bool):
+@click.option(
+    "--refresh-sources", is_flag=True, help="Explicitly reacquire sources instead of reusing verified acquisition"
+)
+@local_formation_options
+def expert_build(
+    name: str,
+    local_model: str | None,
+    no_discovery: bool,
+    refresh_sources: bool,
+    max_minutes: int,
+    max_corpus_chars: int,
+):
     """Research and form an existing untrained local profile at $0 API cost.
 
     Uses bounded free search, local study, a reasoned brief, graph, and Markdown.
@@ -44,6 +75,11 @@ def expert_build(name: str, local_model: str | None, no_discovery: bool):
     if profile is None:
         raise click.ClickException(f"Expert not found: {name}")
     try:
-        build_local_expert(profile, model=local_model, discover=not no_discovery)
+        if refresh_sources and no_discovery:
+            raise ValueError("--refresh-sources and --no-discovery cannot be combined")
+        limits = FormationLimits(max_elapsed_seconds=max_minutes * 60, max_corpus_chars=max_corpus_chars)
+        build_local_expert(
+            profile, model=local_model, discover=not no_discovery, limits=limits, refresh_sources=refresh_sources
+        )
     except (OSError, ValueError) as exc:
         raise click.ClickException(str(exc)) from exc

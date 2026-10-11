@@ -46,6 +46,18 @@ async def check_local_ollama(*, skip_connectivity: bool) -> list[DiagnosticCheck
     check.passed = proof.status == "ready"
     check.message = f"{proof.status}: {proof.detail}"
     check.details.append(f"Cloud disabled: {proof.cloud_disabled}; source: {proof.cloud_source or 'unknown'}")
+    if proof.status == "ready":
+        from deepr.backends.drm import observe_ollama_residency
+
+        resident = await asyncio.to_thread(observe_ollama_residency)
+        for model in resident:
+            check.details.append(
+                f"{model['model']}: {model['gpu_residency_percent']:g}% GPU residency reported by Ollama /api/ps"
+            )
+        if not resident:
+            check.details.append(
+                "No measured running-model GPU residency is available; execution placement is unknown."
+            )
     if proof.reason == "unreachable" and not os.getenv("OLLAMA_HOST"):
         check.failure_severity = "info"
     return [check]
@@ -568,12 +580,21 @@ def _check_local_gpu_headroom() -> DiagnosticCheck:
     check = DiagnosticCheck("Local GPU headroom", "Native Instruments")
     check.failure_severity = "info"
     try:
+        from deepr.backends.local_capacity import probe_local_gpu_occupancy
         from deepr.backends.vram_report import collect_vram_report
 
         report = collect_vram_report()
+        occupancy = probe_local_gpu_occupancy()
+        check.details.append(occupancy.detail)
         if report.total_bytes <= 0:
-            check.message = "No NVIDIA GPU detected (optional)"
-            check.details.append("Local study and absorb still run on CPU, more slowly.")
+            check.message = (
+                f"{report.gpu_name}: memory unknown"
+                if report.gpu_name
+                else "GPU memory measurement unavailable (optional)"
+            )
+            check.details.append("Execution placement is unknown; absent NVIDIA support does not imply CPU execution.")
+            if report.detail:
+                check.details.append(report.detail)
             return check
 
         check.passed = True
@@ -586,7 +607,11 @@ def _check_local_gpu_headroom() -> DiagnosticCheck:
         candidates = report.reclaimable_candidates
         if candidates and report.used_bytes > 2_000_000_000:
             check.details.append("Closing these would return VRAM: " + ", ".join(candidates[:6]))
-        check.details.append("Free VRAM decides which local model runs fully on GPU rather than spilling to CPU.")
+        check.details.append(
+            "Dedicated VRAM and shared system memory are distinct; use measured Ollama residency for model placement."
+            if report.shared_memory
+            else "Free VRAM helps estimate model fit; running-model placement requires Ollama residency evidence."
+        )
         if report.detail:
             check.details.append(report.detail)
     except Exception as e:

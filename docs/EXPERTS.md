@@ -185,13 +185,37 @@ identity and seeds without inference. The local `--learn` flag is redundant;
 the metered curriculum options remain refused.
 
 `expert build NAME` retries an incomplete foundation with a new bounded record;
-completed lenses can be reused when their model and corpus match. Default limits
+completed chunks are reused only when their effective source slices, lens,
+prompt, chunk policy, native options and attested model digest match. A legacy
+lens-only record is reread once. Default limits
 are 12 queries, 12 URLs, 120,000 study characters, 40 model calls and 45 minutes.
+Use `--max-minutes 360` to explicitly allow up to six hours of owned-local work,
+or `--max-corpus-chars 60000` to explicitly study less retained material. These
+options apply to `expert build` and `expert make --local`; they do not raise the
+40-call ceiling. Matching retries reuse inspectable acquisition; use build's
+`--refresh-sources` to deliberately reacquire it. No model, lens or corpus
+reduction happens automatically. Failed chunks are retried, and a failed
+checkpoint write stops execution before the next call.
+
+`expert status NAME` shows the latest formation progress, completed/reused
+chunks and measured approximate ETA. ETA starts unknown and calibrates from
+actual completed work without a hidden inference probe. Predictions are
+advisory because hardware contention and synthesis times vary. Builds remain
+foreground processes; no durable detached CLI runner is shipped.
+
+Capacity and doctor can observe AMD utilization and dedicated VRAM through
+Linux DRM sysfs. Intel i915/xe devices are detected with unknown utilization
+where no supported unprivileged counter exists. Dedicated iGPU VRAM is not its
+complete shared-memory capacity. Connected doctor reports Ollama running-model
+GPU residency when available; offline doctor makes no provider HTTP request.
+Missing NVIDIA tools never establish CPU execution.
+
 `expert knowledge NAME` regenerates linked Markdown from actual study, brief,
 source and position-history records, with no model or network call. Inspect
 `formation/current.json` and `formation/runs/<operation>/review.md` for progress,
 failures and limitations. Research completion does not certify advice quality
 or question-specific currentness. See [the formation design](design/expert-formation.md).
+Checkpoint recovery is described in [the checkpoint design](design/formation-checkpoints.md).
 
 The current safety gate also blocks provider-backed `expert refresh` and
 `--synthesize`, API `fill-gaps` including consensus and deep modes, and API

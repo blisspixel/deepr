@@ -255,6 +255,13 @@ guidance. A successful build is not a qualification score.
 Use `--profile-only` for an empty profile or `--no-discovery` to study only
 retained UTF-8 sources. `expert build NAME` retries an incomplete foundation;
 `expert knowledge NAME` regenerates its linked notebook without model calls.
+Retries reuse verified completed chunks and source acquisition. `expert status
+NAME` shows formation progress and an approximate ETA after measured work is
+available; an unknown ETA does not start a timing probe. For a slow local run,
+explicitly use `expert build NAME --max-minutes 360`, or reduce the study budget
+with `--max-corpus-chars 60000`. Both options also work with `expert make --local`.
+The 40-call ceiling remains; completed chunks survive a bounded run that stops.
+CLI builds run in the foreground; durable detached execution is not available.
 
 Consultation selects bounded literal excerpts around the study's cited source
 anchors, including evidence later in a document. Excerpt selection preserves

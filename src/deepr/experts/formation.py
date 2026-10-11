@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import json
+import re
 import time
 import uuid
 from dataclasses import asdict, dataclass
@@ -31,7 +31,13 @@ from deepr.experts.position_ledger import load_ledger, record_brief
 from deepr.experts.query_proposal import propose_plan
 from deepr.experts.stage_contract import STAGE_BRIEF, STAGE_STUDY, get_stage
 from deepr.experts.study import run_study
-from deepr.experts.study_contracts import StudyResult
+from deepr.experts.study_checkpoint import (
+    StudyCheckpoint,
+    StudyExecutionStopped,
+    identity,
+    material_identity,
+    read_record,
+)
 from deepr.observability.cost_ledger import CostLedger
 from deepr.utils.atomic_io import atomic_write_json, atomic_write_text
 
@@ -45,7 +51,7 @@ class FormationLimits:
     max_elapsed_seconds: int = 2700
 
     def validate(self) -> None:
-        ceilings = FormationLimits()
+        ceilings = FormationLimits(max_elapsed_seconds=21_600)
         for key, value in asdict(self).items():
             if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= getattr(ceilings, key):
                 raise ValueError(f"{key} must be a positive integer no greater than {getattr(ceilings, key)}")
@@ -59,7 +65,7 @@ def read_formation_state(name: str) -> dict[str, Any] | None:
     path = canonical_expert_dir(name) / "formation/current.json"
     if not path.exists():
         return None
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload = read_record(path)
     if not isinstance(payload, dict) or payload.get("schema_version") != "deepr-formation-v1":
         raise ValueError("Unreadable formation record")
     if payload.get("status") == "running":
@@ -118,6 +124,10 @@ class FormationRun:
         }
         self.run_dir = self.directory / "formation/runs" / self.state["operation_id"]
         self.previous = read_formation_state(profile.name)
+        for kind in ("checkpoint", "acquisition"):
+            candidate = _previous_directory(self, kind=kind)
+            if candidate:
+                self.state[f"{kind}_operation_id"] = candidate.name
         for relative, digest in self.state["prior_artifacts"].items():
             if digest:
                 atomic_write_text(
@@ -126,8 +136,8 @@ class FormationRun:
 
     def save(self) -> None:
         self.state.update(updated_at=_now(), elapsed_seconds=round(time.monotonic() - self.started, 2))
-        atomic_write_json(self.run_dir / "run.json", self.state, fsync=True)
-        atomic_write_json(self.directory / "formation/current.json", self.state, fsync=True)
+        atomic_write_json(self.run_dir / "run.json", self.state, fsync=True, fsync_parent=True)
+        atomic_write_json(self.directory / "formation/current.json", self.state, fsync=True, fsync_parent=True)
 
     def progress(self, note: str) -> None:
         self.state["progress"] = note
@@ -146,10 +156,13 @@ class FormationRun:
         if callback is None:
             raise OwnedLocalCapacityRefused("Initial formation requires an owned local capacity preflight")
         await callback()
+        contract = getattr(self.backend, "model_contract", None)
+        self.state["model_contract"] = contract() if contract else {}
+        self.save()
 
     async def complete(self, prompt: str) -> str:
         if self.state["model_calls"] >= self.limits.max_model_calls:
-            raise RuntimeError("Formation model-call limit exhausted")
+            raise StudyExecutionStopped("Formation model-call limit exhausted; retry reuses verified completed chunks")
         self.state["model_calls"] += 1
         call = {
             "number": self.state["model_calls"],
@@ -158,6 +171,7 @@ class FormationRun:
             "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
         }
         self.state["calls"].append(call)
+        started = time.monotonic()
         self.save()
         request_id = f"{self.state['operation_id']}:{call['number']}"
         self.ledger.record_event(
@@ -183,10 +197,11 @@ class FormationRun:
             raise
         finally:
             call["finished_at"] = _now()
+            call["elapsed_seconds"] = round(time.monotonic() - started, 6)
             self.save()
 
     def artifact(self, name: str, payload: Any) -> None:
-        atomic_write_json(self.run_dir / name, payload, fsync=True)
+        atomic_write_json(self.run_dir / name, payload, fsync=True, fsync_parent=True)
 
 
 def _require_stage(name: str, payload: dict[str, Any]) -> None:
@@ -252,10 +267,121 @@ async def _acquire(run: FormationRun, corpus: CorpusStore) -> None:
     if not corpus.active_entries():
         raise ValueError("No source material retained; formation cannot proceed")
     run.state["retained_sources"] = len(corpus.active_entries())
+    run.artifact("acquisition-manifest.json", _acquisition_manifest(run, corpus, run.run_dir))
+    run.state["acquisition_operation_id"] = run.state["operation_id"]
+
+
+def _previous_directory(run: FormationRun, *, kind: str = "checkpoint") -> Path | None:
+    previous = run.previous or {}
+    operation = previous.get(f"{kind}_operation_id", previous.get("operation_id"))
+    if not isinstance(operation, str) or re.fullmatch(r"[0-9a-f]{32}", operation) is None:
+        return None
+    candidate = run.directory / "formation/runs" / operation
+    return None if candidate.is_symlink() else candidate
+
+
+def _acquisition_manifest(run: FormationRun, corpus: CorpusStore, directory: Path) -> dict[str, Any]:
+    return {
+        "schema_version": "deepr-formation-acquisition-v1",
+        "mission_sha256": identity(run.state["mission"]),
+        "max_queries": run.limits.max_queries,
+        "max_urls": run.limits.max_urls,
+        "sources": material_identity(corpus.load_study_material()),
+        "artifacts": {
+            name: identity(read_record(directory / name))
+            for name in ("search-plan.json", "search-result.json", "acquisition.json")
+        },
+    }
+
+
+def _reuse_acquisition(run: FormationRun, corpus: CorpusStore) -> bool:
+    previous = _previous_directory(run, kind="acquisition")
+    if previous is None or not (previous / "acquisition-manifest.json").exists():
+        return False
+    try:
+        _check_corpus(corpus)
+        manifest = read_record(previous / "acquisition-manifest.json")
+        if not corpus.active_entries() or identity(manifest) != identity(_acquisition_manifest(run, corpus, previous)):
+            raise ValueError("acquisition identity changed")
+        payloads = {
+            name: read_record(previous / name) for name in (*manifest["artifacts"], "acquisition-manifest.json")
+        }
+    except (OSError, ValueError, TypeError, KeyError):
+        run.state["limitations"].append("Earlier acquisition could not be verified; sources will be acquired again.")
+        return False
+    # A current persistence failure is not stale prior evidence. Stop without
+    # fresh research, retaining the earlier operation reference for retry.
+    for name, payload in payloads.items():
+        run.artifact(name, payload)
+    run.state.update(
+        acquisition_reused_from=previous.name,
+        acquisition_operation_id=run.state["operation_id"],
+        retained_sources=len(corpus.active_entries()),
+    )
+    run.progress("Reused verified source acquisition from " + previous.name)
+    return True
+
+
+async def _formation_corpus(run: FormationRun, *, discover: bool, refresh_sources: bool) -> CorpusStore:
+    corpus = CorpusStore(run.profile.name)
+    _retain_seeds(run, corpus)
+    if discover and (refresh_sources or not _reuse_acquisition(run, corpus)):
+        await _acquire(run, corpus)
+    elif not discover:
+        run.state["limitations"].append("Web discovery was explicitly disabled; only retained sources were studied.")
+    _check_corpus(corpus)
+    return corpus
+
+
+def _chunk_progress(run: FormationRun, progress: dict[str, Any]) -> None:
+    run.state["checkpoint_operation_id"] = run.state["operation_id"]
+    remaining_time = max(0.0, run.limits.max_elapsed_seconds - (time.monotonic() - run.started))
+    remaining_calls = run.limits.max_model_calls - run.state["model_calls"]
+    estimate = progress["estimated_study_seconds"]
+    samples = progress["timing_samples"]
+    # The brief is one additional actual call. Its timing remains an estimate
+    # from study, not a claim that a synthesis takes exactly the same time.
+    estimate_with_brief = None
+    if samples:
+        completed = progress["chunks_completed"]
+        checkpoint = run.chunk_checkpoint
+        mean = sum(record["elapsed_seconds"] for record in checkpoint.records.values()) / completed
+        estimate_with_brief = round(float(estimate) + mean, 1)
+    run.state["study_progress"] = {
+        **progress,
+        "brief_calls_remaining": 1,
+        "model_calls_available": remaining_calls,
+        "deadline_seconds_remaining": round(remaining_time, 1),
+        "estimated_remaining_seconds": estimate_with_brief,
+    }
+    eta = (
+        "unknown (no completed-chunk timing)"
+        if estimate_with_brief is None
+        else f"about {estimate_with_brief / 60:.1f} min ({samples} measured chunk sample(s))"
+    )
+    note = (
+        f"Study: {progress['chunks_completed']}/{progress['chunks_total']} chunks checkpointed "
+        f"({progress['chunks_reused']} reused); {progress['chunks_remaining']} study calls + 1 brief remain; ETA {eta}."
+    )
+    risk = (estimate_with_brief is not None and estimate_with_brief > remaining_time) or progress[
+        "chunks_remaining"
+    ] + 1 > remaining_calls
+    if risk:
+        note += (
+            f" Risk of reaching this run's limits. Explicitly raise --max-minutes (up to 360), "
+            f"or reduce --max-corpus-chars (currently {run.limits.max_corpus_chars}); retry retains matching chunks."
+        )
+    run.progress(note)
 
 
 async def _study_and_brief(run: FormationRun, corpus: CorpusStore) -> tuple[Any, Any]:
     run.stage("study")
+    previous = _previous_directory(run)
+    run.chunk_checkpoint = StudyCheckpoint(
+        run.run_dir / "study-chunks",
+        previous=previous / "study-chunks" if previous else None,
+        model_contract=run.state.get("model_contract"),
+    )
     study = await run_study(
         expert_name=run.profile.name,
         corpus=corpus,
@@ -267,7 +393,9 @@ async def _study_and_brief(run: FormationRun, corpus: CorpusStore) -> tuple[Any,
         model=run.backend.model,
         on_progress=run.progress,
         checkpoint=lambda result: run.artifact("study.json", result.to_dict()),
-        resume_from=_resume_outcomes(run),
+        resume_from=None,
+        chunk_checkpoint=run.chunk_checkpoint,
+        on_chunk_progress=lambda progress: _chunk_progress(run, progress),
     )
     run.artifact("study.json", study.to_dict())
     refused = next((outcome for outcome in study.outcomes if outcome.status == "capacity_refused"), None)
@@ -283,25 +411,9 @@ async def _study_and_brief(run: FormationRun, corpus: CorpusStore) -> tuple[Any,
     )
     run.artifact("brief.json", brief.to_dict())
     _require_stage(STAGE_BRIEF, brief.to_dict())
+    if "study_progress" in run.state:
+        run.state["study_progress"].update(brief_calls_remaining=0, estimated_remaining_seconds=0)
     return study, brief
-
-
-def _resume_outcomes(run: FormationRun) -> list[Any]:
-    previous = run.previous or {}
-    operation = previous.get("operation_id", "")
-    if (
-        previous.get("model") != run.backend.model
-        or len(operation) != 32
-        or any(c not in "0123456789abcdef" for c in operation)
-    ):
-        return []
-    path = run.directory / "formation/runs" / operation / "study.json"
-    if not path.is_file():
-        return []
-    result = StudyResult.from_dict(json.loads(path.read_text(encoding="utf-8")))
-    run.state["resume_candidate"] = operation
-    # run_study reuses only completed lenses whose current corpus fingerprint matches.
-    return result.outcomes
 
 
 def _publish_foundation(run: FormationRun, corpus: CorpusStore, study: Any, brief: Any) -> None:
@@ -374,7 +486,13 @@ def _write_review(run: FormationRun) -> None:
 
 
 async def form_expert(
-    profile: Any, backend: Any, *, limits: FormationLimits | None = None, on_progress: Any = None, discover: bool = True
+    profile: Any,
+    backend: Any,
+    *,
+    limits: FormationLimits | None = None,
+    on_progress: Any = None,
+    discover: bool = True,
+    refresh_sources: bool = False,
 ) -> dict[str, Any]:
     """Develop an unformed local profile through one attended bounded operation."""
     limits = limits or FormationLimits()
@@ -398,15 +516,7 @@ async def form_expert(
             async with asyncio.timeout(limits.max_elapsed_seconds):
                 await run.preflight()
                 cleanup_eligible = True
-                corpus = CorpusStore(profile.name)
-                _retain_seeds(run, corpus)
-                if discover:
-                    await _acquire(run, corpus)
-                else:
-                    run.state["limitations"].append(
-                        "Web discovery was explicitly disabled; only retained sources were studied."
-                    )
-                _check_corpus(corpus)
+                corpus = await _formation_corpus(run, discover=discover, refresh_sources=refresh_sources)
                 study, brief = await _study_and_brief(run, corpus)
                 _publish_foundation(run, corpus, study, brief)
                 run.state.update(

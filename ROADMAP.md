@@ -72,6 +72,13 @@ Roadmap items are not approach claims until they land in
 
 ## Active Release Plan
 
+**Local formation recovery (2026-10-11, issue 203):** completed-chunk checkpoints,
+strict source/prompt/model binding, inspectable acquisition reuse, explicit
+six-hour time and smaller-corpus controls, and measured advisory ETA are
+implemented with offline boundary regressions. AMD numeric observation and Intel
+device visibility are read-only. Hardware completion and advice quality are not
+established by these tests; durable detached execution remains deferred.
+
 **Now (v2.50.24):** the local four-arm rehearsal harness with blinded review
 binding, verified resume and workbook assembly, and a study-prompt repair,
 on top of a local-only fleet-seat profile for external harnesses and
