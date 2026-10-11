@@ -79,6 +79,13 @@ implemented with offline boundary regressions. AMD numeric observation and Intel
 device visibility are read-only. Hardware completion and advice quality are not
 established by these tests; durable detached execution remains deferred.
 
+- [x] **Laptop recovery validation (2026-10-11):** exact cached Gemma completed
+  a synthetic local document after a real CLI kill and private-daemon restart,
+  reused its durable chunk without repeating that prompt, and completed at `$0`.
+  Final brief completion exposed stale informational call/time counters; each
+  saved operation now refreshes them, with fresh/reused-run regressions. This
+  validates the bounded recovery path, not general model-answer accuracy.
+
 **Now (v2.50.24):** the local four-arm rehearsal harness with blinded review
 binding, verified resume and workbook assembly, and a study-prompt repair,
 on top of a local-only fleet-seat profile for external harnesses and

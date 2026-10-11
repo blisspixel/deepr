@@ -80,6 +80,70 @@ async def test_real_chunked_formation_resumes_at_next_chunk_and_publishes_only_c
     assert (directory / "hold/current.json").exists()
 
 
+@pytest.mark.parametrize("reuse", [False, True])
+@pytest.mark.parametrize("counter", ["model_calls_available", "deadline_seconds_remaining"])
+@pytest.mark.asyncio
+async def test_final_progress_budget_includes_brief_time_and_calls(environment, monkeypatch, reuse, counter):
+    directory, profile, backend = environment
+    text = "A compound operation needs coordination. " * 10
+    formation.CorpusStore(profile.name).add(text, origin_key="operator:fixture")
+    backend.model_contract = lambda: {"model": "fixture", "digest": "a" * 64, "options": {"num_ctx": 16384}}
+    clock = SimpleNamespace(now=1000.0)
+    monkeypatch.setattr(formation.time, "monotonic", lambda: clock.now)
+    prompts = []
+
+    async def complete(prompt):
+        prompts.append(prompt)
+        clock.now += 30 if prompt == "Write the brief" else 5
+        match = re.search(r'single top-level key "([^"]+)"', prompt)
+        if match:
+            return json.dumps({match.group(1): [{"name": "Coordination", "anchors": [text[:35]]}]})
+        return "{}"
+
+    async def brief(**kwargs):
+        await kwargs["completion"]("Write the brief")
+        return ExpertBrief(
+            expert_name=profile.name,
+            positions=[
+                Position(
+                    question="Can operations interleave?",
+                    stance="Yes",
+                    reasoning="Source describes coordination",
+                    would_change_my_mind="A transaction guarantee",
+                    supported_by=[kwargs["result"].findings[0].finding_id],
+                )
+            ],
+        )
+
+    backend.completion = complete
+    monkeypatch.setattr(formation, "run_study", run_study)
+    monkeypatch.setattr(formation, "build_brief", brief)
+    if reuse:
+        first = await formation.form_expert(
+            profile, backend, discover=False, limits=formation.FormationLimits(max_model_calls=1)
+        )
+        assert first["status"] == "incomplete"
+        assert first["study_progress"]["chunks_completed"] == 1
+        prompts.clear()
+    result = await formation.form_expert(
+        profile, backend, discover=False, limits=formation.FormationLimits(max_elapsed_seconds=120)
+    )
+    assert result["status"] == "research_complete", result
+    assert result["model_calls"] == len(prompts) == (3 if reuse else 4)
+    progress = result["study_progress"]
+    assert progress["chunks_completed"] == 3
+    assert progress["chunks_reused"] == int(reuse)
+    assert progress["brief_calls_remaining"] == 0
+    assert result["elapsed_seconds"] == (40 if reuse else 45)
+    remaining = {
+        "model_calls_available": 40 - result["model_calls"],
+        "deadline_seconds_remaining": 120 - result["elapsed_seconds"],
+    }
+    assert progress[counter] == remaining[counter]
+    assert json.loads((directory / "formation/current.json").read_text()) == result
+    assert json.loads((directory / "formation/runs" / result["operation_id"] / "run.json").read_text()) == result
+
+
 @pytest.mark.asyncio
 async def test_retry_reuses_inspectable_acquisition_without_research_call(environment):
     directory, profile, backend = environment

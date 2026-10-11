@@ -70,6 +70,13 @@ commands. Hard limits still stop execution and retain completed chunks.
 `expert status` adds the current formation operation, progress and estimate
 without starting a model or contacting a provider.
 
+The 2026-10-11 actual Gemma interruption/restart trial completed at `$0`, but
+found final remaining-call and deadline counters left at the last study chunk.
+`FormationRun.save` will refresh those informational counters from the current
+call count and the same monotonic elapsed snapshot used by the saved operation.
+This keeps brief completion and retry state consistent without changing hard
+limits, checkpoint identity, generation, or read-only status behavior.
+
 Detached CLI execution is deferred. There is no reusable durable process
 supervisor; the dashboard's server-owned daemon thread is not overnight CLI
 support. Foreground runs can be inspected from another terminal and explicitly

@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   validates its effective source/prompt/model contract on retry, and reuses
   matching inspectable acquisition. Explicit local time limits can reach six
   hours, with a bounded corpus-size option and measured advisory progress/ETA.
+  Remaining-call and deadline counters refresh with each saved operation,
+  including final brief completion and resumed builds.
   The model-call ceiling stays unchanged. AMD occupancy/VRAM and Intel device
   visibility no longer depend on NVIDIA tools; connected doctor can report
   Ollama GPU residency. Detached execution remains unavailable.

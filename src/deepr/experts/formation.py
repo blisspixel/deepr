@@ -135,7 +135,13 @@ class FormationRun:
                 )
 
     def save(self) -> None:
-        self.state.update(updated_at=_now(), elapsed_seconds=round(time.monotonic() - self.started, 2))
+        elapsed = time.monotonic() - self.started
+        self.state.update(updated_at=_now(), elapsed_seconds=round(elapsed, 2))
+        if "study_progress" in self.state:
+            self.state["study_progress"].update(
+                model_calls_available=self.limits.max_model_calls - self.state["model_calls"],
+                deadline_seconds_remaining=round(max(0.0, self.limits.max_elapsed_seconds - elapsed), 1),
+            )
         atomic_write_json(self.run_dir / "run.json", self.state, fsync=True, fsync_parent=True)
         atomic_write_json(self.directory / "formation/current.json", self.state, fsync=True, fsync_parent=True)
 
