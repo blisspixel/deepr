@@ -197,6 +197,9 @@ must not be described as usable capacity.
   pinned no-tool completion, cache off, no fallbacks, settlement from
   `usage.cost`. MCP, schedules, automatic routing, and automatic fallback
   stay blocked.
+  Execution requires an interactive terminal and confirmation on every invocation;
+  JSON, quiet, `-y`, and noninteractive execution are refused even with stored
+  authority. `--preview --json` stays keyless and never dispatches.
 - Budget ceilings, cost estimates, and the canonical append-only cost ledger.
   The metered transaction substrate uses cross-process maximum-cost
   reservations, conservative ambiguous-outcome settlement, terminal-state
@@ -264,6 +267,10 @@ must not be described as usable capacity.
 - CLI output modes: `--json`, `--quiet`, `--verbose`, and trace flags where
   documented. The shared `OperationResult` JSON envelope is versioned as
   `deepr-cli-operation-result-v1`.
+  Research validation, missing credentials, bounded admission, and unconfirmed
+  budgets exit nonzero. Human refusals use stderr and JSON refusals emit one
+  operation-result envelope without prompting. Ordinary research preserves its
+  resolved provider/model from preview through execution.
 - The published schema registry under `docs/schemas/`. Descriptive fields are
   additive inside v1 by default. Entries labeled as closed authority accept
   additions only under their ignored `extensions` object; changing tools,

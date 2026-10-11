@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   offline doctor explicitly leaves it unchecked. Setup guidance distinguishes
   the daemon user's home and service restart from interactive installations.
 
+- Research execution refusals now exit nonzero with actionable stderr or the
+  versioned JSON operation result, including missing credentials, invalid input,
+  and unconfirmed budgets. Preview and execution keep the same resolved route.
+  Keyless preview remains available; attended OpenRouter requires a terminal and
+  confirmation and refuses JSON, quiet, `-y`, and noninteractive execution.
 - Generic knowledge absorption accepts scalar response items instead of
   crashing. Skill names handle empty input and Windows device names, and
   conversation storage rejects invalid busy timeouts before opening a database.

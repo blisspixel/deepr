@@ -90,6 +90,27 @@ def create_provider_instance(provider: str, config: dict | None = None):
     return create_provider(provider, api_key=api_key)
 
 
+def credential_presence(provider: str) -> tuple[bool, str]:
+    """Inspect stored/quarantined credentials without releasing or constructing a client."""
+    from deepr.cli.commands.keys import PROVIDERS, _key_state, _read_env_file
+    from deepr.security.key_quarantine import QUARANTINE_PREFIX
+
+    provider = normalize_provider_name(provider)
+    if provider == "openrouter":
+        from deepr.providers.openrouter_account_controls import load_openrouter_api_key
+
+        return bool(load_openrouter_api_key()), "OPENROUTER_API_KEY"
+    if provider in PROVIDERS:
+        state = _key_state(provider)
+        return bool(state["present"]), str(state["env_var"])
+    # Azure credentials are not in the keys command's public provider inventory.
+    name = _ENV_KEY_MAP.get(provider)
+    if name is None:
+        return False, "the provider's API key variable"
+    value = os.getenv(name) or os.getenv(QUARANTINE_PREFIX + name) or _read_env_file().get(name)
+    return bool(value and value.strip()), name
+
+
 def get_tool_name(provider: str, tool_type: str) -> str:
     """Get provider-specific tool name.
 

@@ -43,6 +43,7 @@ def test_attended_preserves_actual_charge_and_freezes_overrun(monkeypatch, charg
 
     parent = SimpleNamespace(close=Mock())
     publish = Mock()
+    monkeypatch.setattr(attended.sys, "stdin", SimpleNamespace(isatty=lambda: True))
     monkeypatch.setattr(attended, "paid_api_provider_scope", lambda _: nullcontext())
     monkeypatch.setattr(attended, "bounded_research_cost_estimate", lambda **_: estimate)
     monkeypatch.setattr(attended, "_confirm_openrouter_spend", lambda **_: None)

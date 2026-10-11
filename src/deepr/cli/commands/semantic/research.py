@@ -12,7 +12,9 @@ from deepr.cli.commands.research_safety import (
     require_dispatchable_admission,
     require_metered_interface,
     require_parent_budget,
+    require_research_credential,
     require_storage,
+    research_failure_boundary,
 )
 from deepr.cli.commands.research_support import bounded_tool_disable_flags, resolve_research_route
 from deepr.cli.commands.run import TraceFlags, _run_campaign, _run_single, _run_team
@@ -123,6 +125,7 @@ def detect_research_mode(prompt: str) -> str:
 @click.option("--prefer-cost", is_flag=True, help="Optimize for lowest cost in auto mode")
 @click.option("--prefer-speed", is_flag=True, help="Optimize for fastest response in auto mode")
 @output_options
+@research_failure_boundary
 def research(
     query: str,
     company_name: str | None,
@@ -191,41 +194,25 @@ def research(
     user_specified_provider = provider is not None
     user_specified_model = model is not None
 
-    try:
-        query = validate_prompt(query, max_length=50000, field_name="query")
-    except click.UsageError as e:
-        click.echo(f"Error: {e}", err=True)
-        return
+    if not query.strip():
+        raise click.UsageError("query cannot be empty")
+    query = validate_prompt(query, max_length=50000, field_name="query")
 
     if upload:
-        try:
-            upload = tuple(str(f) for f in validate_upload_files(upload))
-        except click.UsageError as e:
-            click.echo(f"Error: {e}", err=True)
-            return
+        upload = tuple(str(f) for f in validate_upload_files(upload))
 
     if upload or scrape:
         require_storage()
 
     # Validate budget/limit if provided - warns for high amounts
     if limit is not None:
-        try:
-            limit = validate_budget(limit, min_budget=0.1)
-        except (click.UsageError, click.Abort) as e:
-            if isinstance(e, click.Abort):
-                click.echo("Cancelled")
-                return
-            click.echo(f"Error: {e}", err=True)
-            return
+        # Validate range silently; keep high-limit confirmation after credentials.
+        limit = validate_budget(limit, min_budget=0.1, warn_threshold=float("inf"), confirm_threshold=float("inf"))
 
     # Handle batch mode (requires --auto)
     if batch:
         if not auto_mode:
-            click.echo("Error: --batch requires --auto flag for smart routing", err=True)
-            click.echo("\nUsage:")
-            click.echo("  deepr research --auto --batch queries.txt")
-            click.echo("  deepr research --auto --batch queries.txt --preview")
-            return
+            raise click.UsageError("--batch requires --auto; use 'deepr research --auto --batch <file> --preview'")
 
         # Run batch processing
         _run_batch_research(
@@ -262,12 +249,10 @@ def research(
     # Check if this is company research mode
     if query.lower() == "company":
         if not company_name or not website:
-            click.echo("Error: Company research requires both company name and website")
-            click.echo("\nUsage:")
-            click.echo('  deepr research company "Company Name" "https://company.com"')
-            click.echo("\nExample:")
-            click.echo('  deepr research company "Driscoll Health System" "https://driscollchildrens.org/"')
-            return
+            raise click.UsageError(
+                "Company research requires both company name and website. "
+                'Usage: deepr research company "Company Name" "https://company.com"'
+            )
 
         if not scrape_only:
             require_storage()
@@ -335,6 +320,14 @@ def research(
         )
         return
 
+    require_research_credential(provider, output_context)
+    if limit is not None and limit > 2.0:
+        if output_context.mode in (OutputMode.JSON, OutputMode.QUIET):
+            if limit > 5.0:
+                raise click.UsageError("A limit above $5 needs interactive confirmation; lower --limit")
+        else:
+            limit = validate_budget(limit, min_budget=0.1)
+
     if provider == "openrouter":
         from deepr.services.openrouter_attended_research import run_attended_openrouter_research
 
@@ -347,6 +340,7 @@ def research(
             no_code=no_code,
             upload=upload,
             scrape=scrape,
+            output_context=output_context,
         )
         return
 
@@ -436,6 +430,7 @@ def research(
             no_fallback=no_fallback,
             user_specified_provider=user_specified_provider,
             user_specified_model=user_specified_model,
+            route_resolved=True,
         ),
         runner=asyncio.run,
     )
@@ -721,13 +716,11 @@ def _run_batch_research(
     # Parse and preview
     try:
         items, _defaults = parse_batch_file(batch_file)
-    except ValueError as e:
-        print_error(str(e))
-        return
+    except (OSError, ValueError) as exc:
+        raise click.UsageError(str(exc)) from exc
 
     if not items:
-        print_error("No queries found in batch file")
-        return
+        raise click.UsageError("No queries found in batch file")
 
     # Initialize router and get preview
     router = AutoModeRouter()
@@ -775,8 +768,7 @@ def _run_batch_research(
     # Confirm before executing
     if not yes:
         if not click.confirm(f"Proceed with {len(items)} queries (estimated ${routing.total_cost_estimate:.2f})?"):
-            click.echo("Cancelled.")
-            return
+            raise click.Abort()
 
     # Execute batch
     def progress_callback(msg: str) -> None:

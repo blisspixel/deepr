@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 import uuid
 from pathlib import Path
 
@@ -9,6 +10,7 @@ import click
 
 from deepr.cli.colors import console, print_header, print_key_value
 from deepr.cli.commands.budget import check_budget_approval
+from deepr.cli.output import OutputContext, OutputMode
 from deepr.core.cost_caps import paid_api_provider_scope, resolve_spend_caps
 from deepr.experts.parent_budget_transaction import open_parent_budget_transaction
 from deepr.experts.research_cost_gate import (
@@ -43,12 +45,24 @@ _SYSTEM = (
 
 
 def _confirm_openrouter_spend(*, max_cost: float, yes: bool) -> None:
-    if check_budget_approval(max_cost):
-        return
-    if yes:
+    budget_approved = check_budget_approval(max_cost)
+    if yes and not budget_approved:
         raise click.ClickException(f"Budget gate: estimated ${max_cost:.4f} needs confirmation and -y cannot consent")
-    if not click.confirm(f"Spend up to ${max_cost:.4f} on one OpenRouter completion?"):
+    gate = "" if budget_approved else "Budget confirmation required. "
+    if not click.confirm(f"{gate}Spend up to ${max_cost:.4f} on one OpenRouter completion?"):
         raise click.ClickException("Cancelled")
+
+
+def _require_attended_terminal(output_context: OutputContext | None, yes: bool) -> None:
+    from deepr.cli.commands.research_safety import ResearchCLIError
+
+    mode = output_context.mode if output_context is not None else OutputMode.MINIMAL
+    if yes or mode in (OutputMode.JSON, OutputMode.QUIET) or not sys.stdin.isatty():
+        raise ResearchCLIError(
+            "Attended OpenRouter research requires an interactive terminal and confirmation; "
+            "--json, --quiet, and -y cannot authorize execution. Use --preview to inspect the route.",
+            "ATTENDED_EXECUTION_REQUIRED",
+        )
 
 
 def _dispatch_openrouter_completion(
@@ -89,8 +103,12 @@ def run_attended_openrouter_research(
     no_code: bool,
     upload: tuple[str, ...],
     scrape: str | None,
+    output_context: OutputContext | None = None,
 ) -> None:
     """Run one pinned OpenRouter completion and print the settled memo."""
+    _require_attended_terminal(output_context, yes)
+    if not load_openrouter_api_key():
+        raise click.ClickException("OPENROUTER_API_KEY is not available; store a key or use --preview")
     if upload or scrape:
         raise click.ClickException("Attended OpenRouter research cannot take uploads or scrape targets")
     if not no_web or not no_code:

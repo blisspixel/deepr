@@ -523,42 +523,34 @@ class TestRunSingleAsync:
         upload.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_run_single_respects_yes_flag(self):
-        """Test that --yes flag skips budget confirmation."""
+    async def test_run_single_refuses_yes_when_budget_needs_confirmation(self):
+        """--yes cannot turn an unconfirmed budget into successful execution."""
         from deepr.cli.commands.run import _run_single
         from deepr.cli.output import OutputContext, OutputMode
 
         output_context = OutputContext(mode=OutputMode.QUIET)
 
         with patch("deepr.cli.commands.run.check_budget_approval") as mock_budget:
-            mock_budget.return_value = False  # Would normally block
-
-            with patch("deepr.providers.create_provider") as mock_create:
-                mock_provider = MagicMock()
-                mock_provider.submit_research = AsyncMock(return_value="job-123")
-                mock_create.return_value = mock_provider
-
-                with patch("deepr.config.load_config", return_value={"api_key": "test"}):
-                    with (
-                        patch("deepr.cli.commands.run.SQLiteQueue") as mock_queue_class,
-                        patch("deepr.cli.commands.run._enqueue_reserved_job", new_callable=AsyncMock),
-                    ):
-                        mock_queue_instance = MagicMock()
-                        mock_queue_instance.enqueue = AsyncMock(return_value="job-123")
-                        mock_queue_class.return_value = mock_queue_instance
-
-                        # With yes=True, should proceed even if budget check fails
-                        await _run_single(
-                            query="Test query",
-                            model="o4-mini-deep-research",
-                            provider="openai",
-                            no_web=False,
-                            no_code=False,
-                            upload=(),
-                            limit=None,
-                            yes=True,
-                            output_context=output_context,
-                        )
+            mock_budget.return_value = False
+            with (
+                patch("deepr.providers.create_provider") as create,
+                patch("deepr.cli.commands.run._reserve_job_submission") as reserve,
+                pytest.raises(SystemExit) as exc,
+            ):
+                await _run_single(
+                    query="Test query",
+                    model="o4-mini-deep-research",
+                    provider="openai",
+                    no_web=False,
+                    no_code=False,
+                    upload=(),
+                    limit=None,
+                    yes=True,
+                    output_context=output_context,
+                )
+            assert exc.value.code == 1
+            create.assert_not_called()
+            reserve.assert_not_called()
 
 
 class TestOutputModes:
