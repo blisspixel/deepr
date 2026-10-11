@@ -67,3 +67,46 @@ def test_link_filter_heuristic():
 
     for link in filtered:
         assert "relevance_score" in link
+
+
+def test_scrape_for_company_research_sanitizes_path(tmp_path, monkeypatch):
+    from deepr.utils.scrape.scraper import scrape_for_company_research
+
+    class _StubCrawler:
+        def __init__(self, **_kwargs):
+            pass
+
+        def crawl(self, **_kwargs):
+            return {
+                "https://example.com": {
+                    "title": "Example",
+                    "content": "Example content",
+                    "links": [],
+                }
+            }
+
+    monkeypatch.setattr("deepr.utils.scrape.scraper.SmartCrawler", _StubCrawler)
+    monkeypatch.setattr(
+        "deepr.utils.scrape.scraper.ContentSynthesizer.synthesize",
+        lambda *args, **kwargs: {"success": True, "insights": "dummy insights"},
+    )
+
+    result = scrape_for_company_research(
+        company_url="https://example.com",
+        company_name="../../evil_corp",
+        save_dir=str(tmp_path),
+    )
+    assert result["pages_scraped"] == 1
+    created_files = list(tmp_path.glob("*.json"))
+    assert len(created_files) == 1
+    assert ".." not in created_files[0].name
+    assert "evil_corp" in created_files[0].name
+
+
+def test_content_synthesizer_combines_with_boundary_markers():
+    from deepr.utils.scrape.synthesizer import ContentSynthesizer
+
+    synthesizer = ContentSynthesizer()
+    combined = synthesizer._combine_content({"https://example.com": "Some scraped text"})
+    assert "DEEPR_UNTRUSTED_CONTENT_BEGIN" in combined
+    assert "DEEPR_UNTRUSTED_CONTENT_END" in combined

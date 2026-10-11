@@ -44,10 +44,13 @@ class LinkExtractor:
 
             # Resolve relative URLs
             full_url = urljoin(self.base_url, href)
+            parsed_link = urlparse(full_url)
+            if parsed_link.scheme not in ("http", "https"):
+                continue
 
             # Filter internal/external
             if internal_only:
-                link_domain = urlparse(full_url).netloc
+                link_domain = parsed_link.netloc
                 if link_domain != self.base_domain:
                     continue
 

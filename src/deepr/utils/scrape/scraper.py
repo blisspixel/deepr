@@ -6,6 +6,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from deepr.utils.security import sanitize_name
+
 from .config import ScrapeConfig
 from .extractor import ContentExtractor, LinkExtractor, PageDeduplicator
 from .fetcher import ContentFetcher
@@ -186,7 +188,7 @@ def scrape_for_company_research(
 
     save_to = None
     if save_dir:
-        safe_name = company_name.replace(" ", "_").lower()
+        safe_name = sanitize_name(company_name).lower()
         timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         save_to = f"{save_dir}/{safe_name}_{timestamp}.json"
 
@@ -232,7 +234,7 @@ def scrape_for_documentation(
 
     save_to = None
     if save_dir:
-        safe_name = project_name.replace(" ", "_").lower()
+        safe_name = sanitize_name(project_name).lower()
         timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         save_to = f"{save_dir}/{safe_name}_docs_{timestamp}.json"
 

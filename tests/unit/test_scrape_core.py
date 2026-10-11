@@ -158,6 +158,24 @@ def test_link_extractor():
     print("[PASS] LinkExtractor\n")
 
 
+def test_link_extractor_rejects_non_http_schemes():
+    html = """
+    <html>
+    <body>
+        <a href="javascript:alert(1)">JS</a>
+        <a href="mailto:info@example.com">Email</a>
+        <a href="data:text/html,<b>hi</b>">Data</a>
+        <a href="file:///etc/passwd">File</a>
+        <a href="/safe-path">Safe</a>
+    </body>
+    </html>
+    """
+    extractor = LinkExtractor("https://example.com")
+    links = extractor.extract_links(html, internal_only=False)
+    urls = [link["url"] for link in links]
+    assert urls == ["https://example.com/safe-path"]
+
+
 def test_page_deduplicator():
     """Test page deduplication."""
     print("\n[TEST] PageDeduplicator...")

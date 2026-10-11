@@ -67,6 +67,26 @@ def test_store_uses_runtime_path_pragmas_and_releases_windows_handles(tmp_path: 
     assert moved.exists()
 
 
+def test_connect_database_validates_busy_timeout(tmp_path: Path) -> None:
+    from deepr.experts.conversation.database import connect_database
+
+    db_path = tmp_path / "test.db"
+    conn = connect_database(db_path, busy_timeout_ms=5000)
+    conn.close()
+
+    with pytest.raises(ConversationError, match="positive integer"):
+        connect_database(db_path, busy_timeout_ms=0)
+
+    with pytest.raises(ConversationError, match="positive integer"):
+        connect_database(db_path, busy_timeout_ms=-100)
+
+    with pytest.raises(ConversationError, match="positive integer"):
+        connect_database(db_path, busy_timeout_ms="5000")  # type: ignore[arg-type]
+
+    with pytest.raises(ConversationError, match="positive integer"):
+        connect_database(db_path, busy_timeout_ms=True)  # type: ignore[arg-type]
+
+
 def test_store_rejects_unknown_future_database_version(tmp_path: Path) -> None:
     path = tmp_path / "future.db"
     connection = sqlite3.connect(path)

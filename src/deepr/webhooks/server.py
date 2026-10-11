@@ -11,6 +11,8 @@ from typing import Any
 
 from flask import Flask, Response, jsonify, request
 
+from deepr.utils.security import is_loopback_bind_host
+
 logger = logging.getLogger(__name__)
 WebhookResponse = tuple[Response, int]
 CompletionCallback = Callable[[str | None, dict[str, Any]], object]
@@ -137,7 +139,7 @@ def create_webhook_server(
     # anonymous POST to /webhook when DEEPR_WEBHOOK_SECRET was unset, which
     # meant a misconfigured deploy could be triggered to invoke ``on_completion``
     # by any reachable peer.
-    if not webhook_secret and host not in ("127.0.0.1", "localhost", "::1"):
+    if not webhook_secret and not is_loopback_bind_host(host):
         raise RuntimeError(
             "DEEPR_WEBHOOK_SECRET must be set when binding the webhook server "
             f"to a non-loopback host ({host!r}). Set the env var or bind 127.0.0.1."

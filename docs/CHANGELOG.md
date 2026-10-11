@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Generic knowledge absorption accepts scalar response items instead of
+  crashing. Skill names handle empty input and Windows device names, and
+  conversation storage rejects invalid busy timeouts before opening a database.
+- Scraping confines company and project names to safe output filenames,
+  filters links to HTTP(S), and delimits scraped text through the existing
+  untrusted-content boundary. Prompt delimiters do not guarantee injection
+  resistance.
+- Webhook setup uses the shared loopback-address check; requests still require
+  a signing secret. Tunnel cleanup catches expected process errors. Lookup-ID
+  hashes explicitly declare nonsecurity use, and SQL values remain bound
+  parameters. The security-lint baseline decreases from 52 to 48 findings.
+
 ## [2.50.24] - 2026-10-09
 
 Security hardening across A2A, MCP scoped keys, transport concurrency, dashboard auth, and scraping logs.

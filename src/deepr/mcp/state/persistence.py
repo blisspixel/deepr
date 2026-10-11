@@ -242,7 +242,7 @@ class JobPersistence:
                         error = 'Server restarted while job was in progress',
                         updated_at = ?,
                         active_tasks_json = '[]'
-                    WHERE phase NOT IN ({terminal_markers})""",
+                    WHERE phase NOT IN ({terminal_markers})""",  # noqa: S608 - parameterized markers only
                 (now, *terminal),
             )
         return cursor.rowcount

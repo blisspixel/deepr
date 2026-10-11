@@ -55,6 +55,17 @@ class TestSlugify:
         result = _slugify("a" * 100)
         assert len(result) <= 50
 
+    def test_empty_or_punctuation_only(self):
+        assert _slugify("???") == "unnamed-skill"
+        assert _slugify("") == "unnamed-skill"
+        assert _slugify("   ") == "unnamed-skill"
+
+    def test_reserved_device_names(self):
+        assert _slugify("CON") == "con-skill"
+        assert _slugify("aux") == "aux-skill"
+        assert _slugify("prn") == "prn-skill"
+        assert _slugify("nul") == "nul-skill"
+
 
 class TestExtractKeywords:
     def test_finds_frequent_words(self):

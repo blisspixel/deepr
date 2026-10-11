@@ -14,6 +14,8 @@ from deepr.experts.conversation.schema import initialize_schema
 
 def connect_database(path: Path, *, busy_timeout_ms: int) -> sqlite3.Connection:
     """Open one configured short-lived connection."""
+    if isinstance(busy_timeout_ms, bool) or not isinstance(busy_timeout_ms, int) or busy_timeout_ms < 1:
+        raise ConversationError(ErrorCode.INVALID_REQUEST, "Storage busy timeout must be a positive integer.")
     connection = sqlite3.connect(
         path,
         timeout=busy_timeout_ms / 1000,

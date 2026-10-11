@@ -42,6 +42,17 @@ def test_non_loopback_bind_without_secret_raises():
             create_webhook_server(on_completion=AsyncMock(), host="0.0.0.0", port=5000)
 
 
+def test_loopback_variants_allowed_without_secret():
+    from deepr.webhooks.server import create_webhook_server
+
+    with patch("os.getenv", return_value=None):
+        app = create_webhook_server(on_completion=AsyncMock(), host="127.0.0.2", port=5000)
+        assert app is not None
+
+        with pytest.raises(RuntimeError, match="DEEPR_WEBHOOK_SECRET"):
+            create_webhook_server(on_completion=AsyncMock(), host="192.168.1.50", port=5000)
+
+
 def test_valid_signature_passes():
     from deepr.webhooks.server import create_webhook_server
 

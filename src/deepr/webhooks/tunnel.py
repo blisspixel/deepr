@@ -27,7 +27,7 @@ class NgrokTunnel:
         try:
             self.process.terminate()
             self.process.wait(timeout=5)
-        except Exception:
+        except (subprocess.TimeoutExpired, OSError):
             pass
         finally:
             self.process = None

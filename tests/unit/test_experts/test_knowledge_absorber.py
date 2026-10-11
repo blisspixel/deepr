@@ -213,3 +213,17 @@ class TestReconAbsorptionSmoke:
         assert absorber.categorize_recon_response({"result": ["x"]}) == []
         findings = absorber.categorize_recon_response({"services": [1, "okta"]})
         assert findings
+
+
+class TestGenericAbsorb:
+    def test_absorb_handles_scalar_and_dict_items(self) -> None:
+        absorber = KnowledgeAbsorber()
+        payload = {
+            "results": ["plain text insight", 42, {"text": "structured finding", "confidence": 0.9}],
+        }
+        findings = absorber.absorb(payload, source_type="scrape", source_tool="scraper/web")
+        assert len(findings) == 3
+        assert findings[0].text == "plain text insight"
+        assert findings[1].text == "42"
+        assert findings[2].text == "structured finding"
+        assert findings[2].confidence == 0.9

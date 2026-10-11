@@ -35,3 +35,29 @@ def test_ngrok_stop_terminates_only_owned_process() -> None:
     run.assert_not_called()
     assert tunnel.process is None
     assert tunnel.public_url is None
+
+
+def test_ngrok_stop_handles_timeout_and_oserror_gracefully() -> None:
+    import subprocess
+
+    tunnel = NgrokTunnel()
+    process = MagicMock()
+    process.wait.side_effect = subprocess.TimeoutExpired(cmd="ngrok", timeout=5)
+    tunnel.process = process
+    tunnel.public_url = "https://example.invalid"
+
+    tunnel.stop()
+
+    process.terminate.assert_called_once_with()
+    assert tunnel.process is None
+    assert tunnel.public_url is None
+
+    # Also test OSError on terminate
+    tunnel2 = NgrokTunnel()
+    process2 = MagicMock()
+    process2.terminate.side_effect = OSError("Process already dead")
+    tunnel2.process = process2
+
+    tunnel2.stop()
+
+    assert tunnel2.process is None
