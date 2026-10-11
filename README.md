@@ -212,6 +212,20 @@ v2.50.19 includes the formation and knowledge commands below. Install the
 latest release above or follow [Quick Start](docs/QUICK_START.md#installation-2-minutes)
 for a source installation.
 
+Before local generation, configure the **Ollama daemon user's**
+`.ollama/server.json`, preserving other settings:
+
+```json
+{"disable_ollama_cloud": true}
+```
+
+Restart Ollama. Interactive servers use your home; the standard Linux system
+service uses `/usr/share/ollama/.ollama/server.json` and
+`sudo systemctl restart ollama`. Desktop users quit and reopen Ollama.
+See [local Ollama setup](docs/QUICK_START.md#local-ollama-setup) for manual servers,
+custom service users, and owned remote hardware through an SSH local forward.
+`OLLAMA_NO_CLOUD` alone does not meet Deepr's persistent-proof requirement.
+
 ```bash
 deepr init
 deepr doctor --skip-connectivity
@@ -224,7 +238,10 @@ deepr expert consult "What should we decide next?" --expert "My Domain Expert" -
 Local creation now develops a research foundation: bounded free web search,
 retained sources, study of mechanisms and failures, a reasoned brief, an evidence
 graph, and linked Markdown. It needs an installed local model and makes no paid
-API call. Review the build record and practical answers before relying on its
+API call. Formation checks capacity before research; `deepr capacity` shows
+local generation proof separately from detected model presence.
+`doctor --skip-connectivity` leaves that proof explicitly unchecked.
+Review the build record and practical answers before relying on its
 guidance. A successful build is not a qualification score.
 
 Use `--profile-only` for an empty profile or `--no-discovery` to study only

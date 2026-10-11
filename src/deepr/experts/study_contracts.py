@@ -93,7 +93,7 @@ class LensOutcome:
     lens: str
     axis: str
     status: str
-    """ok | partial | parse_failed | model_error | skipped"""
+    """ok | partial | parse_failed | model_error | capacity_refused | skipped"""
     findings: list[StudyFinding] = field(default_factory=list)
     detail: str = ""
     elapsed_s: float = 0.0

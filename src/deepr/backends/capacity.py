@@ -36,6 +36,36 @@ class BackendKind(str, Enum):
     API_METERED = "api_metered"
 
 
+class OwnedLocalCapacityRefused(ValueError):
+    """Owned inference cannot be admitted under the current capacity proof."""
+
+    def __init__(self, message: str, *, reason: str = "local_capacity_refused") -> None:
+        super().__init__(message)
+        self.reason = reason
+
+
+@dataclass(frozen=True)
+class OllamaGenerationReadiness:
+    """Read-only preliminary evidence, never authority for a later dispatch."""
+
+    status: str
+    detail: str
+    reason: str = ""
+    cloud_disabled: bool | None = None
+    cloud_source: str | None = None
+    model: str | None = None
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "status": self.status,
+            "detail": self.detail,
+            "reason": self.reason,
+            "cloud_disabled": self.cloud_disabled,
+            "cloud_source": self.cloud_source,
+            "model": self.model,
+        }
+
+
 # Marginal-cost label per cost model (what one more job costs the user now).
 _MARGINAL = {
     CostModel.OWNED_HARDWARE: "$0 (local)",
@@ -56,13 +86,14 @@ class CapacitySource:
     available: bool
     detail: str = ""
     backend_id: str = ""
+    local_generation: OllamaGenerationReadiness | None = None
 
     @property
     def marginal_cost(self) -> str:
         return _MARGINAL[self.cost_model]
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        result: dict[str, object] = {
             "name": self.name,
             "kind": self.kind.value,
             "cost_model": self.cost_model.value,
@@ -71,6 +102,9 @@ class CapacitySource:
             "marginal_cost": self.marginal_cost,
             "detail": self.detail,
         }
+        if self.local_generation is not None:
+            result["local_generation"] = self.local_generation.to_dict()
+        return result
 
 
 # Provider env vars and their display names (metered API capacity).
@@ -125,6 +159,13 @@ _CLI_BACKENDS: list[tuple[str, str, CostModel, str]] = [
 
 _OLLAMA_DEFAULT_URL = "http://localhost:11434"
 _STABLE_OLLAMA_CLOUD_DISABLE_SOURCES = frozenset({"config", "both"})
+OLLAMA_CLOUD_SETUP_GUIDANCE = (
+    'Set "disable_ollama_cloud": true in the Ollama daemon user\'s ~/.ollama/server.json, '
+    "preserving existing settings. The standard Linux service uses /usr/share/ollama/.ollama/server.json; "
+    "custom services may use another home. Restart with `sudo systemctl restart ollama` (system service), "
+    "or stop and restart `ollama serve` (manual). For desktop installs, quit and reopen Ollama. "
+    "Recheck with `deepr capacity`. See docs/QUICK_START.md#local-ollama-setup."
+)
 
 
 def _parse_owned_local_http_url(value: str, label: str) -> SplitResult:
@@ -202,11 +243,73 @@ def validate_owned_local_ollama_cloud_status(payload: Mapping[str, Any]) -> None
     if (
         not isinstance(cloud, Mapping)
         or cloud.get("disabled") is not True
+        or not isinstance(cloud.get("source"), str)
         or cloud.get("source") not in _STABLE_OLLAMA_CLOUD_DISABLE_SOURCES
     ):
-        raise ValueError(
-            "Owned local Ollama requires cloud.disabled=true from persistent config; "
-            "set disable_ollama_cloud=true in server.json and restart Ollama"
+        raise OwnedLocalCapacityRefused(
+            "Owned local Ollama requires cloud.disabled=true from persistent config; " + OLLAMA_CLOUD_SETUP_GUIDANCE,
+            reason="cloud_enabled"
+            if isinstance(cloud, Mapping) and cloud.get("disabled") is False
+            else "persistent_cloud_proof_missing",
+        )
+
+
+def observe_local_ollama_generation(base_url: str | None = None, *, timeout: float = 2.0) -> OllamaGenerationReadiness:
+    """Read cloud and inventory evidence without inference or ambient credentials."""
+    cloud_disabled: bool | None = None
+    cloud_source: str | None = None
+    try:
+        endpoint = validate_owned_local_ollama_url(base_url or os.getenv("OLLAMA_HOST") or _OLLAMA_DEFAULT_URL)
+    except ValueError as error:
+        return OllamaGenerationReadiness("refused", str(error), "endpoint_not_owned")
+    try:
+        import httpx
+
+        with httpx.Client(timeout=timeout, trust_env=False, follow_redirects=False) as client:
+            response = client.get(f"{endpoint}/api/status")
+            if response.status_code != 200:
+                return OllamaGenerationReadiness(
+                    "unverified",
+                    f"Ollama cloud proof returned HTTP {response.status_code}; check the daemon version.",
+                    "status_unavailable",
+                )
+            status = response.json()
+            if not isinstance(status, dict):
+                return OllamaGenerationReadiness(
+                    "unverified", "Ollama cloud proof must be a JSON object.", "invalid_status"
+                )
+            cloud = status.get("cloud")
+            if isinstance(cloud, dict):
+                cloud_disabled = cloud.get("disabled") if type(cloud.get("disabled")) is bool else None
+                source = cloud.get("source")
+                cloud_source = (
+                    source if isinstance(source, str) and source in {"config", "both", "env", "none"} else None
+                )
+            validate_owned_local_ollama_cloud_status(status)
+            response = client.get(f"{endpoint}/api/tags")
+            response.raise_for_status()
+            inventory = response.json()
+            entries = inventory.get("models") if isinstance(inventory, dict) else None
+            if not isinstance(entries, list):
+                raise OwnedLocalCapacityRefused("Ollama model inventory is malformed.", reason="model_unavailable")
+            try:
+                selected = select_materialized_local_ollama_model(entries, requested=None)
+            except ValueError as error:
+                raise OwnedLocalCapacityRefused(str(error), reason="model_unavailable") from error
+        return OllamaGenerationReadiness(
+            "ready",
+            "Persistent cloud disablement and a materialized local model were observed; dispatch rechecks both.",
+            cloud_disabled=cloud_disabled,
+            cloud_source=cloud_source,
+            model=str(selected["name"]),
+        )
+    except OwnedLocalCapacityRefused as error:
+        return OllamaGenerationReadiness("refused", str(error), error.reason, cloud_disabled, cloud_source)
+    except ValueError:
+        return OllamaGenerationReadiness("unverified", "Ollama proof was not valid JSON.", "invalid_status")
+    except (httpx.HTTPError, OSError):
+        return OllamaGenerationReadiness(
+            "unverified", "Ollama proof is not reachable; check OLLAMA_HOST and the daemon.", "unreachable"
         )
 
 
@@ -299,8 +402,16 @@ def available_local_models(base_url: str | None = None, *, timeout: float = 2.0)
         return []
 
 
-def _detect_local(ollama_probe: Callable[..., tuple[bool, str]] = ollama_status) -> list[CapacitySource]:
+def _detect_local(
+    ollama_probe: Callable[..., tuple[bool, str]],
+    generation_probe: Callable[[], OllamaGenerationReadiness] | None,
+) -> list[CapacitySource]:
     running, detail = ollama_probe()
+    generation = (
+        generation_probe()
+        if generation_probe is not None
+        else OllamaGenerationReadiness("unverified", "Local generation proof was not checked.", "not_checked")
+    )
     return [
         CapacitySource(
             name="Ollama (local models)",
@@ -309,6 +420,7 @@ def _detect_local(ollama_probe: Callable[..., tuple[bool, str]] = ollama_status)
             available=running,
             detail=detail,
             backend_id="ollama",
+            local_generation=generation,
         )
     ]
 
@@ -352,7 +464,8 @@ def _detect_metered(env: Mapping[str, str] | None = None) -> list[CapacitySource
 
 def detect_capacity(
     *,
-    ollama_probe: Callable[..., tuple[bool, str]] = ollama_status,
+    ollama_probe: Callable[..., tuple[bool, str]] | None = None,
+    ollama_generation_probe: Callable[[], OllamaGenerationReadiness] | None = None,
     which: Callable[[str], str | None] = shutil.which,
     env: Mapping[str, str] | None = None,
 ) -> list[CapacitySource]:
@@ -362,4 +475,7 @@ def detect_capacity(
     on PATH, and reads provider env vars. Injectable probes keep it testable
     with no real I/O.
     """
-    return _detect_local(ollama_probe) + _detect_plan_quota(which) + _detect_metered(env)
+    if ollama_probe is None:
+        ollama_probe = ollama_status
+        ollama_generation_probe = ollama_generation_probe or observe_local_ollama_generation
+    return _detect_local(ollama_probe, ollama_generation_probe) + _detect_plan_quota(which) + _detect_metered(env)

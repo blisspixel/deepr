@@ -35,6 +35,7 @@ from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any
 
+from deepr.backends.capacity import OwnedLocalCapacityRefused
 from deepr.experts.corpus_independence import measure_independence
 from deepr.experts.corpus_store import CorpusEntry, CorpusStore
 from deepr.experts.record_identity import finding_thread_id
@@ -106,6 +107,8 @@ def _is_capacity_failure(exc: BaseException) -> bool:
     remaining call, and continuing only buys a thinner artifact that looks
     complete.
     """
+    if isinstance(exc, OwnedLocalCapacityRefused):
+        return True
     try:
         from deepr.backends.plan_quota.errors import PlanQuotaError
 
@@ -422,6 +425,32 @@ def build_findings(
     return findings
 
 
+def _record_lens_outcome(
+    result: StudyResult,
+    outcome: LensOutcome,
+    *,
+    fingerprint: str,
+    elapsed_s: float,
+    on_progress: ProgressCallback | None,
+    checkpoint: CheckpointCallback | None,
+) -> bool:
+    """Persist the complete lens outcome before deciding whether work can continue."""
+    outcome.elapsed_s = elapsed_s
+    outcome.corpus_fingerprint = fingerprint
+    result.outcomes.append(outcome)
+    refused = outcome.status == "capacity_refused"
+    if refused:
+        result.limitations.append("Local capacity was refused; remaining chunks and lenses were not attempted.")
+    if on_progress:
+        grounded = sum(1 for finding in outcome.findings if finding.is_grounded)
+        on_progress(
+            f"{outcome.status}: {len(outcome.findings)} finding(s), {grounded} anchored, {outcome.elapsed_s:.0f}s"
+        )
+    if checkpoint is not None:
+        checkpoint(result)
+    return refused
+
+
 async def _run_lenses(
     result: StudyResult,
     *,
@@ -478,19 +507,15 @@ async def _run_lenses(
                 raise
             _note_capacity_stop(result, exc, lens=lens, index=index, total=len(lenses), on_progress=on_progress)
             break
-        outcome.elapsed_s = time.monotonic() - started
-        outcome.corpus_fingerprint = fingerprint
-        result.outcomes.append(outcome)
-        if on_progress:
-            grounded = sum(1 for f in outcome.findings if f.is_grounded)
-            on_progress(
-                f"lens {index}/{len(lenses)} {lens.key}: {len(outcome.findings)} finding(s), "
-                f"{grounded} anchored, {outcome.elapsed_s:.0f}s"
-            )
-        if checkpoint is not None:
-            # Per lens rather than at the end, so an interruption costs one
-            # lens instead of the whole pass.
-            checkpoint(result)
+        if _record_lens_outcome(
+            result,
+            outcome,
+            fingerprint=fingerprint,
+            elapsed_s=time.monotonic() - started,
+            on_progress=_lens_progress(on_progress, lens.key, index, len(lenses)),
+            checkpoint=checkpoint,
+        ):
+            break
 
 
 async def run_study(
@@ -637,6 +662,16 @@ async def _run_lens_over_chunks(
         try:
             raw = await completion(prompt)
         except Exception as exc:
+            if isinstance(exc, OwnedLocalCapacityRefused):
+                return LensOutcome(
+                    lens=lens.key,
+                    axis=lens.axis,
+                    status="capacity_refused",
+                    findings=findings,
+                    detail=f"{str(exc)[:1000]} Refused chunk {index}/{len(chunks)}; later chunks were not attempted.",
+                    chunks_total=len(chunks),
+                    chunks_failed=len(failures) + 1,
+                )
             if _is_capacity_failure(exc):
                 # Stop the whole pass. Catching this as a per-chunk failure kept
                 # calling a dead backend for every remaining chunk and lens and

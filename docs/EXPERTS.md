@@ -66,10 +66,18 @@ find where the expert needs to update its understanding.
 ## Quick Start
 
 Before using any local generation command, set `disable_ollama_cloud` to `true`
-in `~/.ollama/server.json`, preserving other settings, and restart Ollama.
+in the Ollama daemon user's `~/.ollama/server.json`, preserving other settings,
+and restart that daemon. The standard Linux system service uses
+`/usr/share/ollama/.ollama/server.json`; interactive and custom service homes may
+differ. See [local Ollama setup](QUICK_START.md#local-ollama-setup).
 An environment variable alone is insufficient. Deepr checks native
 `/api/status` immediately before shared local requests and refuses unless it
 reports `cloud.disabled=true` with source `config` or `both`.
+Formation preflights before research. Capacity and connected doctor show the
+same preliminary cloud/model evidence; offline doctor leaves it unchecked.
+An observed ready state never replaces dispatch-time validation. A refusal
+during study stops further calls, retains earlier completed lenses and chunks,
+and records `capacity_refused` with a nonzero result instead of `parse_failed`.
 Local OpenAI-compatible requests use a fixed credential allowlist,
 ignore environment proxies, follow no redirects, and retry zero times. This
 prevents a signed-in Ollama cloud model or ambient provider credential from

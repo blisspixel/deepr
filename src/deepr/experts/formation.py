@@ -16,6 +16,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from deepr.backends.capacity import OwnedLocalCapacityRefused
 from deepr.experts.brief import build_brief, render_brief
 from deepr.experts.corpus_acquire import acquire_sources, default_fetch_page
 from deepr.experts.corpus_search import interleave_by_arm, run_search_plan
@@ -137,6 +138,14 @@ class FormationRun:
     def stage(self, name: str) -> None:
         self.state["stage"] = name
         self.progress(name)
+
+    async def preflight(self) -> None:
+        """Admit this operation before retaining sources or attempting generation."""
+        self.stage("capacity")
+        callback = getattr(self.backend, "preflight", None)
+        if callback is None:
+            raise OwnedLocalCapacityRefused("Initial formation requires an owned local capacity preflight")
+        await callback()
 
     async def complete(self, prompt: str) -> str:
         if self.state["model_calls"] >= self.limits.max_model_calls:
@@ -261,6 +270,9 @@ async def _study_and_brief(run: FormationRun, corpus: CorpusStore) -> tuple[Any,
         resume_from=_resume_outcomes(run),
     )
     run.artifact("study.json", study.to_dict())
+    refused = next((outcome for outcome in study.outcomes if outcome.status == "capacity_refused"), None)
+    if refused is not None:
+        raise OwnedLocalCapacityRefused(refused.detail)
     _require_stage(STAGE_STUDY, study.to_dict())
     if len(study.outcomes) != 3 or any(outcome.status != "ok" for outcome in study.outcomes):
         raise ValueError("Study is incomplete; candidate evidence was saved without replacing current knowledge")
@@ -381,8 +393,11 @@ async def form_expert(
             raise ValueError("This expert already has a brief; use explicit maintenance")
         run = FormationRun(profile, backend, limits, on_progress)
         run.save()
+        cleanup_eligible = False
         try:
             async with asyncio.timeout(limits.max_elapsed_seconds):
+                await run.preflight()
+                cleanup_eligible = True
                 corpus = CorpusStore(profile.name)
                 _retain_seeds(run, corpus)
                 if discover:
@@ -400,6 +415,15 @@ async def form_expert(
         except asyncio.CancelledError:
             run.state.update(status="interrupted", progress="Formation interrupted; completed evidence was retained")
             raise
+        except OwnedLocalCapacityRefused as error:
+            cleanup_eligible = False
+            run.state.update(
+                status="incomplete",
+                stage="capacity",
+                error_type=type(error).__name__,
+                error_code=error.reason,
+                progress=str(error)[:1200],
+            )
         except Exception as error:
             note = "Formation elapsed-time limit exhausted" if isinstance(error, TimeoutError) else str(error)
             run.state.update(status="incomplete", error_type=type(error).__name__, progress=note[:500])
@@ -408,5 +432,6 @@ async def form_expert(
             _write_review(run)
             from deepr.backends.local import release_local_model
 
-            await release_local_model(backend.model)
+            if cleanup_eligible and run.state["model_calls"]:
+                await release_local_model(backend.model)
         return run.state

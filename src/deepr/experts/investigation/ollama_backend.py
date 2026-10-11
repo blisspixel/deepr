@@ -8,8 +8,11 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from types import SimpleNamespace
 from typing import Any
 
+import httpx
+
 from deepr.backends.capacity import (
     _OLLAMA_DEFAULT_URL,
+    OwnedLocalCapacityRefused,
     select_materialized_local_ollama_model,
     validate_owned_local_ollama_cloud_status,
     validate_owned_local_ollama_url,
@@ -125,22 +128,33 @@ class NativeOllamaInvestigationBackend:
 
     async def _attest_model(self, model: str) -> None:
         preflight_timeout = min(self.timeout, 5.0)
-        status = await self._get_json(f"{self.base_url}/api/status", preflight_timeout)
         try:
+            status = await self._get_json(f"{self.base_url}/api/status", preflight_timeout)
             validate_owned_local_ollama_cloud_status(status)
-        except ValueError as exc:
-            raise ExpertChatUnsupportedFeature(str(exc)) from exc
-        inventory = await self._get_json(f"{self.base_url}/api/tags", preflight_timeout)
+            inventory = await self._get_json(f"{self.base_url}/api/tags", preflight_timeout)
+        except OwnedLocalCapacityRefused:
+            raise
+        except (ValueError, RuntimeError, OSError, httpx.HTTPError) as exc:
+            raise OwnedLocalCapacityRefused(
+                "Owned local Ollama cloud/model proof could not be read; check the daemon and `deepr capacity`.",
+                reason="proof_unavailable",
+            ) from exc
         entries = inventory.get("models")
         if not isinstance(entries, list):
-            raise ExpertChatUnsupportedFeature("Owned local Ollama model inventory is malformed")
+            raise OwnedLocalCapacityRefused(
+                "Owned local Ollama model inventory is malformed", reason="model_unavailable"
+            )
         try:
             selected = select_materialized_local_ollama_model(entries, requested=model)
         except ValueError as exc:
-            raise ExpertChatUnsupportedFeature(str(exc)) from exc
+            raise OwnedLocalCapacityRefused(str(exc), reason="model_unavailable") from exc
         if selected.get("name") != model:
-            raise ExpertChatUnsupportedFeature("Owned local Ollama model attestation did not bind the request")
+            raise OwnedLocalCapacityRefused("Owned local Ollama model attestation did not bind the request")
         self.last_attested_digest = str(selected.get("digest", "") or "")
+
+    async def preflight(self) -> None:
+        """Observe current capacity without caching authority for dispatch."""
+        await self._attest_model(self.model or "")
 
     async def complete(self, request: ExpertChatRequest) -> ExpertChatResult:
         if request.tools:

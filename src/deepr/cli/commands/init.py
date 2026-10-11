@@ -199,6 +199,9 @@ def _report_capacity(env_file: dict[str, str]) -> _CapacityPresence:
             console.print(f"  [green]+[/green] {label}: {evidence}")
         else:
             console.print(f"  [dim]- {label}: none detected[/dim]")
+        for source in (item for item in sources if item.kind == kind and item.local_generation is not None):
+            proof = source.local_generation
+            console.print(f"    Local generation: {proof.status}. {proof.detail}")
     console.print("  [dim]Detection does not bypass workflow-specific safety or spend gates.[/dim]")
     plan_sources = [source for source in available if source.kind == BackendKind.PLAN_QUOTA]
     return _CapacityPresence(

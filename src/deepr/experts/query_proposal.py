@@ -177,6 +177,10 @@ async def propose_plan(
     try:
         raw = await completion(build_proposal_prompt(clean_topic, known_terms))
     except Exception as exc:
+        from deepr.backends.capacity import OwnedLocalCapacityRefused
+
+        if isinstance(exc, OwnedLocalCapacityRefused):
+            raise
         return templated_fallback(clean_topic, f"the query proposal call failed ({type(exc).__name__})")
 
     parsed, error = extract_json_object(raw)
