@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.50.24-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.24)
+[![Version](https://img.shields.io/badge/version-2.50.25-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.25)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -299,6 +299,12 @@ eras and published Agent Plugins `1.0.0`. See the
 for tested behavior and the distinction from draft standards and host certification.
 
 ## Direction
+
+v2.50.25 repairs local setup, durable formation recovery, configuration and
+execution refusals, and installer ownership. Completed local study chunks survive
+interruption and are reused only when their source, prompt and model still match.
+These repairs preserve the existing cost and dispatch boundaries; practical
+guidance qualification remains open.
 
 v2.50.24 hardens A2A connection parsing, MCP scoped keys and subscriptions,
 transport concurrency, dashboard auth, and scraping logs.
