@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.50.25 current main, 2026-10-11. This document defines what users and host
+Status: v2.50.26 current main, 2026-10-11. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -8,6 +8,12 @@ path is structurally complete but remains execution-blocked without verified
 provider prepaid-no-overage or hard-stop evidence. Attended OpenRouter research
 is the exception: one pinned no-tool completion after wallet credits and
 `deepr budget authorize openrouter`.
+
+**v2.50.26 maintenance:** core installations use canonical PyYAML on ordinary
+Python 3.12, 3.13 and 3.14, matching the existing safe configuration and
+frontmatter imports. Core-install checks include offline MCP conformance and
+YAML loading without development or full extras. Free-threaded Python remains
+experimental; cost and dispatch authority remain unchanged.
 
 **v2.50.25 maintenance:** local readiness and persistent-cloud refusals are
 reported before formation starts. Durable matching study chunks survive retry;

@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.50.25-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.25)
+[![Version](https://img.shields.io/badge/version-2.50.26-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.26)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -299,6 +299,10 @@ eras and published Agent Plugins `1.0.0`. See the
 for tested behavior and the distinction from draft standards and host certification.
 
 ## Direction
+
+v2.50.26 repairs core-only installation on ordinary Python 3.13 with canonical
+PyYAML and checks the core CLI, MCP and YAML surfaces on Python 3.12, 3.13 and
+3.14. Published v2.50.25 assets remain unchanged.
 
 v2.50.25 repairs local setup, durable formation recovery, configuration and
 execution refusals, and installer ownership. Completed local study chunks survive

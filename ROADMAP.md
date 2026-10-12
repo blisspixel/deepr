@@ -31,6 +31,16 @@
 
 ## First-run consistency
 
+- [x] **Public core install repair (2026-10-11):** actual v2.50.25 installation
+  on managed Python 3.13 exposed a missing canonical YAML module that full
+  extras had masked. Canonical PyYAML restores the existing imports; fresh
+  unpinned core wheel installs pass doctor, MCP and safe YAML loading on
+  ordinary Python 3.12, 3.13 and 3.14. The expanded core CI matrix retains
+  these checks. The v2.50.25 public failure stays retained; v2.50.26 still
+  requires public installer acceptance after publication.
+  Preserve the published release and failed acceptance. See
+  [design](docs/design/core-yaml-runtime.md).
+
 - [x] **Implemented 2026-10-11, release pending (issue 204):** requested and
   effective budget explanation, canonical research-route help, honest doctor
   categories and read-only credential presence, single-profile consult model
@@ -97,7 +107,7 @@ established by these tests; durable detached execution remains deferred.
   saved operation now refreshes them, with fresh/reused-run regressions. This
   validates the bounded recovery path, not general model-answer accuracy.
 
-**Now (v2.50.25):** the local four-arm rehearsal harness with blinded review
+**Now (v2.50.26):** the local four-arm rehearsal harness with blinded review
 binding, verified resume and workbook assembly, and a study-prompt repair,
 on top of a local-only fleet-seat profile for external harnesses and
 host-side routers, bounded local expert formation, retained
@@ -630,9 +640,11 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.25)
+## Current Status (v2.50.26)
 
-**Next is v2.51, not more dispatch.** v2.50.25 repairs first-run configuration,
+**Next is v2.51, not more dispatch.** v2.50.26 repairs core-only installation on
+ordinary Python 3.13 and checks all supported stable Python minors.
+v2.50.25 repairs first-run configuration,
 local readiness and durable formation recovery, execution refusals, and release
 installer ownership. Recovery was validated against a synthetic local document;
 semantic guidance quality and detached execution remain unqualified.
@@ -3962,7 +3974,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.25. This roadmap keeps
+v2.50.26. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 
