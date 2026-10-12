@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.26] - 2026-10-11
+
+Compatible core-install dependency correction after actual public validation of
+v2.50.25 exposed a missing canonical YAML module on Python 3.13. Published
+v2.50.25 tag and asset bytes remain unchanged.
+
+### Fixed
+
+- Core installations on Python 3.13 declare canonical PyYAML, matching the
+  existing safe configuration and frontmatter imports. The core-install CI
+  check now covers all three supported stable Python minors and exercises
+  real MCP conformance and YAML loading without development or full extras.
+
 ## [2.50.25] - 2026-10-11
 
 Compatible setup, local recovery, execution-refusal and packaging repairs.

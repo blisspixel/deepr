@@ -129,6 +129,10 @@ jobs:
     # so that class fails here, not on a user's machine.
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -136,7 +140,7 @@ jobs:
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           activate-environment: true
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
           version: "0.11.32"
 
       - name: Install CORE only (no extras)
@@ -151,6 +155,25 @@ jobs:
           deepr expert build --help
           deepr expert knowledge --help
           python -c "from deepr.utils.scrape import ContentExtractor; assert 'Reference content' in ContentExtractor().extract_main_content('<html><body><main><p>Reference content</p></main></body></html>')"
+          deepr mcp conformance --json
+          python - <<'PY'
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+          from deepr.core.settings import Settings
+          from deepr.core.unified_config import UnifiedConfig
+          from deepr.experts.okf_contract import parse_markdown_frontmatter
+
+          parsed = parse_markdown_frontmatter("---\ntype: Reference\nprovenance:\n  reviewed: true\n---\nBody\n")
+          assert parsed.error is None and parsed.fields["provenance"] == {"reviewed": True}
+          unsafe = parse_markdown_frontmatter("---\ntype: !!python/object/apply:os.system ['exit 1']\n---\n")
+          assert unsafe.error is not None
+          with TemporaryDirectory(prefix="deepr-core-yaml-") as directory:
+              config = Path(directory) / "config.yaml"
+              config.write_text("default_provider: gemini\nresearch:\n  retry_attempts: 3\n", encoding="utf-8")
+              settings = Settings.load(config_path=config, reset_singleton=True)
+              assert settings.default_provider == "gemini" and settings.research.retry_attempts == 3
+              assert UnifiedConfig.load(config_path=config).default_provider == "gemini"
+          PY
 
   agent-plugin:
     runs-on: ubuntu-latest
