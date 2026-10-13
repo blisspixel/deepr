@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.50.26-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.26)
+[![Version](https://img.shields.io/badge/version-2.50.27-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.27)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -299,6 +299,11 @@ eras and published Agent Plugins `1.0.0`. See the
 for tested behavior and the distinction from draft standards and host certification.
 
 ## Direction
+
+v2.50.27 points deep-research defaults at the live OpenAI substitutes.
+Retired model ids still validate and keep their historical wire names. Built-in
+web search stays off when a context window is larger than the reserved 128k
+input ceiling.
 
 v2.50.26 repairs core-only installation on ordinary Python 3.13 with canonical
 PyYAML and checks the core CLI, MCP and YAML surfaces on Python 3.12, 3.13 and

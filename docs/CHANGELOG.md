@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.27] - 2026-10-13
+
+Compatible research-model migration. Cost gates, the reserved 128k built-in web-search ceiling, and metered dispatch limits stay unchanged.
+
+### Changed
+
+- The default deep-research model is gpt-5.6-sol. o3-deep-research and o4-mini-deep-research sunset on 2026-07-23 and name gpt-5.6-sol as the successor. o4-mini sunsets on 2026-10-23 and names gpt-5.6-terra as the successor.
+- An explicit retired model id still validates, warns, and keeps its historical wire id.
+- Built-in web search stays off for OpenAI and Azure when the model's context window is larger than the reserved 128k input ceiling. The in-memory web-search default is off.
+
 ## [2.50.26] - 2026-10-11
 
 Compatible core-install dependency correction after actual public validation of

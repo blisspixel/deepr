@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.50.26 current main, 2026-10-11. This document defines what users and host
+Status: v2.50.27 current main, 2026-10-13. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -8,6 +8,8 @@ path is structurally complete but remains execution-blocked without verified
 provider prepaid-no-overage or hard-stop evidence. Attended OpenRouter research
 is the exception: one pinned no-tool completion after wallet credits and
 `deepr budget authorize openrouter`.
+
+**v2.50.27 maintenance:** deep-research defaults follow the live OpenAI substitutes. Retired ids still validate and keep their historical wire names. Built-in web search stays off above the reserved 128k input ceiling. Cost gates and metered dispatch limits are unchanged.
 
 **v2.50.26 maintenance:** core installations use canonical PyYAML on ordinary
 Python 3.12, 3.13 and 3.14, matching the existing safe configuration and
