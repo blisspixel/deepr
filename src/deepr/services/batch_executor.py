@@ -227,7 +227,7 @@ class BatchExecutor:
                 prompt=full_prompt,
                 task_id=task_id,
                 campaign_id=campaign_id,
-                model=task.get("model", "o4-mini-deep-research"),
+                model=task.get("model", "gpt-5.6-sol"),
                 metadata={
                     "phase": phase_num,
                     "title": task["title"],
@@ -319,12 +319,13 @@ class BatchExecutor:
         task_id: int,
         campaign_id: str,
         metadata: dict[str, Any],
-        model: str = "o4-mini-deep-research",
+        model: str = "gpt-5.6-sol",
     ) -> str:
         """Submit a single task to the queue."""
 
         from deepr.experts.research_cost_gate import reserve_configured_research_cost
         from deepr.providers.base import ResearchRequest, ToolConfig
+        from deepr.services.research_bounds import admitted_builtin_web_search
         from deepr.services.research_cost_reconciliation import reconcile_research_cost_reservations
         from deepr.services.research_submission import dispatch_reserved_research
 
@@ -334,6 +335,7 @@ class BatchExecutor:
         provider_name = getattr(self.provider, "name", "openai")
         if not isinstance(provider_name, str) or not provider_name:
             provider_name = "openai"
+        use_web_search = admitted_builtin_web_search(provider_name, model, True)
         await reconcile_research_cost_reservations(
             self.queue,
             default_provider=provider_name,
@@ -343,7 +345,7 @@ class BatchExecutor:
             provider=provider_name,
             prompt=prompt,
             model=model,
-            enable_web_search=True,
+            enable_web_search=use_web_search,
         )
 
         # Create job in queue
@@ -352,7 +354,7 @@ class BatchExecutor:
             prompt=prompt,
             model=model,
             provider=provider_name,
-            enable_web_search=True,
+            enable_web_search=use_web_search,
             metadata={
                 **metadata,
                 "campaign_id": campaign_id,
@@ -366,7 +368,7 @@ class BatchExecutor:
             prompt=prompt,
             model=model,
             system_message="You are a research assistant conducting comprehensive research. Provide detailed, citation-backed analysis.",
-            tools=[ToolConfig(type="web_search_preview")],
+            tools=[ToolConfig(type="web_search_preview")] if use_web_search else [],
             background=True,
         )
 

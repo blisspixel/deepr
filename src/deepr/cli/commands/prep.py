@@ -38,9 +38,9 @@ def prep():
 @click.option(
     "--model",
     "-m",
-    default="o3-deep-research",
-    type=click.Choice(["o4-mini-deep-research", "o3-deep-research"]),
-    help="Deep research model (default: o3-deep-research for quality)",
+    default="gpt-5.6-sol",
+    type=click.Choice(["gpt-5.6-sol", "gpt-5.6-terra", "o4-mini-deep-research", "o3-deep-research"]),
+    help="Research model (default: gpt-5.6-sol)",
 )
 @click.option(
     "--check-docs",
@@ -1019,10 +1019,10 @@ def _execute_plan_sync(plan_data: dict, provider_name: str | None = None) -> dic
     config = load_config()
 
     # Determine provider based on model if not specified
-    model = plan_data.get("model", "o4-mini-deep-research")
+    model = plan_data.get("model", "gpt-5.6-sol")
     if provider_name is None:
-        # Use environment-based routing or model-based detection
-        is_deep_research = "deep-research" in model.lower()
+        # Substitutes do not contain "deep-research", so match them by id too.
+        is_deep_research = "deep-research" in model.lower() or model in {"gpt-5.6-sol", "gpt-5.6-terra"}
         if is_deep_research:
             provider_name = os.getenv("DEEPR_DEEP_RESEARCH_PROVIDER", "openai")
         else:

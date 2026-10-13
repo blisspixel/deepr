@@ -83,6 +83,8 @@ _MAX_PROMPT_LENGTH = 50_000  # characters
 _MAX_BATCH_SIZE = 50
 _MAX_QUERY_LIMIT = 1000
 _WEB_OPENAI_RESEARCH_MODELS = {
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
     "o3-deep-research",
     "o4-mini-deep-research",
     "gpt-5.2",
@@ -876,9 +878,11 @@ def submit_job():
         if not data:
             return jsonify({"error": "JSON body required"}), 400
         prompt = str(data.get("prompt", "")).strip()
-        model = str(data.get("model", "o4-mini-deep-research"))
+        model = str(data.get("model", "gpt-5.6-sol"))
         priority = max(1, min(10, _safe_int(data.get("priority", 3), 3)))
-        enable_web_search = data.get("enable_web_search", True)
+        from deepr.services.research_bounds import admitted_builtin_web_search
+
+        enable_web_search = admitted_builtin_web_search("openai", model, data.get("enable_web_search", True))
 
         input_denial = research_cost_api.validate_web_research_input(
             prompt=prompt,
@@ -1351,7 +1355,7 @@ def estimate_cost():
         if not data:
             return jsonify({"error": "JSON body required"}), 400
         prompt = data.get("prompt", "")
-        model = data.get("model", "o4-mini-deep-research")
+        model = data.get("model", "gpt-5.6-sol")
 
         if not prompt:
             return jsonify({"error": "Prompt required"}), 400
@@ -1673,9 +1677,9 @@ def search_results():
 # In-memory config (would normally be persisted)
 _config_lock = threading.Lock()
 _config = {
-    "default_model": "o4-mini-deep-research",
+    "default_model": "gpt-5.6-sol",
     "default_priority": 1,
-    "enable_web_search": True,
+    "enable_web_search": False,
     "provider": "openai",
     "storage": "local",
     "queue": "sqlite",

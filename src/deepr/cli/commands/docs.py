@@ -26,9 +26,9 @@ def docs():
 @click.option(
     "--model",
     "-m",
-    default="o4-mini-deep-research",
-    type=click.Choice(["o4-mini-deep-research", "o3-deep-research"]),
-    help="Deep research model for execution",
+    default="gpt-5.6-sol",
+    type=click.Choice(["gpt-5.6-sol", "gpt-5.6-terra", "o4-mini-deep-research", "o3-deep-research"]),
+    help="Research model for execution (default: gpt-5.6-sol)",
 )
 @click.option("--execute", "-e", is_flag=True, help="Automatically execute without review")
 def analyze(docs_path: str, scenario: str, topics: int, planner: str, model: str, execute: bool):
@@ -173,6 +173,7 @@ async def _analyze_and_queue(
         provider = None
 
         from deepr.experts.research_cost_gate import refund_research_cost, reserve_configured_research_cost
+        from deepr.services.research_bounds import admitted_builtin_web_search
         from deepr.services.research_cost_reconciliation import reconcile_research_cost_reservations
         from deepr.services.research_submission import dispatch_reserved_research
 
@@ -182,6 +183,7 @@ async def _analyze_and_queue(
             # Use task-specific model if specified, otherwise use default
             task_model = task.get("model", research_model)
             task_type = task.get("type", "analysis")
+            task_web_search = admitted_builtin_web_search("openai", task_model, True)
 
             # Create job
             job_id = str(uuid.uuid4())
@@ -191,7 +193,7 @@ async def _analyze_and_queue(
                 provider="openai",
                 prompt=task["prompt"],
                 model=task_model,
-                enable_web_search=True,
+                enable_web_search=task_web_search,
             )
             if provider is None:
                 try:
@@ -203,7 +205,7 @@ async def _analyze_and_queue(
                 id=job_id,
                 prompt=task["prompt"],
                 model=task_model,
-                enable_web_search=True,
+                enable_web_search=task_web_search,
                 status=JobStatus.QUEUED,
                 metadata={
                     "title": task["title"],
@@ -221,7 +223,7 @@ async def _analyze_and_queue(
                 prompt=task["prompt"],
                 model=task_model,
                 system_message="You are a technical documentation expert. Research and document best practices, implementation patterns, and practical guidance.",
-                tools=[ToolConfig(type="web_search_preview")],
+                tools=[ToolConfig(type="web_search_preview")] if task_web_search else [],
                 background=True,
             )
 

@@ -829,7 +829,7 @@ class DeeprMCPServer:
     async def deepr_research(
         self,
         prompt: str,
-        model: str = "o4-mini-deep-research",
+        model: str = "gpt-5.6-sol",
         provider: str = "openai",
         enable_web_search: bool = True,
         enable_code_interpreter: bool = False,
@@ -1035,7 +1035,7 @@ class DeeprMCPServer:
         budget: float = 5.0,
         sources: list[str] | None = None,
         files: list[str] | None = None,
-        model: str = "o4-mini-deep-research",
+        model: str = "gpt-5.6-sol",
         provider: str = "openai",
     ) -> dict[str, Any]:
         """Start an agentic research workflow."""

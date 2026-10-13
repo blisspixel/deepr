@@ -228,7 +228,7 @@ def show(unified: bool, legacy: bool):
             click.echo(f"   Per Month: ${config.get('max_monthly_cost', 5.0):.2f}")
 
             console.print("\nDefaults:")
-            console.print(f"   Model: {config.get('default_model', 'o4-mini-deep-research')}")
+            console.print(f"   Model: {config.get('default_model', 'gpt-5.6-sol')}")
             console.print(f"   Auto-refine: {os.getenv('DEEPR_AUTO_REFINE', 'false')}")
 
             console.print("\n[dim]Tip: Remove --legacy flag to see new config format[/dim]")

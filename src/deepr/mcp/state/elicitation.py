@@ -132,7 +132,7 @@ class ElicitationHandler:
         job_id: str,
         estimated_cost: float,
         budget_limit: float,
-        current_model: str = "o4-mini",
+        current_model: str = "gpt-5.6-terra",
         timeout_seconds: int = 300,
     ) -> ElicitationRequest:
         """

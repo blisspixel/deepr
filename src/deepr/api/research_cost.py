@@ -7,7 +7,13 @@ from deepr.core.costs import CostEstimate
 from deepr.experts.research_cost_gate import ResearchCostReservation, reserve_research_cost
 from deepr.experts.research_reservation_store import ResearchReservationStore
 from deepr.providers.base import ResearchRequest, ToolConfig
-from deepr.services.research_bounds import bounded_research_cost_estimate
+from deepr.services.research_bounds import admitted_builtin_web_search, bounded_research_cost_estimate
+
+
+def admitted_web_search(model: str, requested: object, provider: str | None) -> bool:
+    """Default web search only when the model context fits the reserved input ceiling."""
+    enabled = True if requested is None else bool(requested)
+    return admitted_builtin_web_search(provider or "openai", model, enabled)
 
 
 def reserve_api_research_cost(
@@ -73,4 +79,4 @@ def build_api_cost_summary(
     }
 
 
-__all__ = ["build_api_cost_summary", "reserve_api_research_cost"]
+__all__ = ["admitted_web_search", "build_api_cost_summary", "reserve_api_research_cost"]

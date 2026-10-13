@@ -150,7 +150,7 @@ class TestResearchWorkflowIntegration:
             call_args = mock_provider.submit_research.call_args
             request = call_args[0][0]
             # Cost sensitive should use lighter model
-            assert "o4-mini" in request.model or "o3" in request.model
+            assert request.model == "gpt-5.6-terra"
 
     @pytest.mark.asyncio
     @pytest.mark.integration

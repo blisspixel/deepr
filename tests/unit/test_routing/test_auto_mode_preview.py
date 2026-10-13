@@ -72,7 +72,8 @@ class TestDeprecationInRouting:
         assert check_deprecation("gpt-4.1") is None
         assert check_deprecation("grok-4.20-0309-reasoning") is None
         assert check_deprecation("gemini-3.1-pro-preview") is None
-        assert check_deprecation("o4-mini-deep-research") is None
+        assert check_deprecation("gpt-5.6-sol") is None
+        assert check_deprecation("o4-mini-deep-research") is not None
 
 
 class TestProvisionalQualityPrior:

@@ -46,7 +46,7 @@ def make():
     type=click.Choice(["openai", "azure", "gemini", "xai"]),
     help="AI provider (default: openai for deep research)",
 )
-@click.option("--model", "-m", default=None, help="Model to use (default: o4-mini-deep-research)")
+@click.option("--model", "-m", default=None, help="Model to use (default: gpt-5.6-sol)")
 @click.option("--output", "-o", type=click.Path(), default=None, help="Output file path (default: auto-generated)")
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
 def make_docs(
@@ -130,7 +130,7 @@ async def _generate_docs(
     if not provider:
         provider = os.getenv("DEEPR_DEEP_RESEARCH_PROVIDER", "openai")
     if not model:
-        model = os.getenv("DEEPR_DEEP_RESEARCH_MODEL", "o4-mini-deep-research")
+        model = os.getenv("DEEPR_DEEP_RESEARCH_MODEL", "gpt-5.6-sol")
 
     console.print(f"[dim]Using {provider}/{model}[/dim]")
 
@@ -362,7 +362,7 @@ Output format: Well-structured markdown with proper headings, lists, and code bl
     type=click.Choice(["openai", "azure", "gemini", "xai"]),
     help="AI provider (default: openai for deep research)",
 )
-@click.option("--model", "-m", default=None, help="Model to use (default: o4-mini-deep-research)")
+@click.option("--model", "-m", default=None, help="Model to use (default: gpt-5.6-sol)")
 @click.option("--output", "-o", type=click.Path(), default=None, help="Output file path (default: auto-generated)")
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
 def make_strategy(
@@ -430,7 +430,7 @@ async def _generate_strategy(
     if not provider:
         provider = os.getenv("DEEPR_DEEP_RESEARCH_PROVIDER", "openai")
     if not model:
-        model = os.getenv("DEEPR_DEEP_RESEARCH_MODEL", "o4-mini-deep-research")
+        model = os.getenv("DEEPR_DEEP_RESEARCH_MODEL", "gpt-5.6-sol")
 
     console.print(f"[dim]Using {provider}/{model}[/dim]")
 
@@ -599,7 +599,7 @@ def agentic():
     type=click.Choice(["openai", "azure", "gemini", "xai"]),
     help="AI provider (default: openai)",
 )
-@click.option("--model", "-m", default=None, help="Model to use (default: o4-mini-deep-research)")
+@click.option("--model", "-m", default=None, help="Model to use (default: gpt-5.6-sol)")
 @click.option(
     "--output", "-o", type=click.Path(), default=None, help="Output directory for results (default: auto-generated)"
 )
@@ -678,7 +678,7 @@ async def _run_agentic_research(
     if not provider:
         provider = os.getenv("DEEPR_DEEP_RESEARCH_PROVIDER", "openai")
     if not model:
-        model = os.getenv("DEEPR_DEEP_RESEARCH_MODEL", "o4-mini-deep-research")
+        model = os.getenv("DEEPR_DEEP_RESEARCH_MODEL", "gpt-5.6-sol")
 
     console.print(f"[dim]Using {provider}/{model}[/dim]")
 

@@ -11,8 +11,8 @@ if TYPE_CHECKING:
     from deepr.experts.research_cost_gate import ResearchCostReservation
 
 _PROVIDER_DEFAULT_MODELS = {
-    "openai": "o3-deep-research",
-    "azure": "o3-deep-research",
+    "openai": "gpt-5.6-sol",
+    "azure": "gpt-5.6-sol",
     "gemini": "gemini-3.6-flash",
     "xai": "grok-4.6",
     "grok": "grok-4.6",
@@ -120,15 +120,29 @@ def resolve_research_route(
     if model is None:
         model = env.get(
             "DEEPR_DEEP_RESEARCH_MODEL" if is_deep_research else "DEEPR_DEFAULT_MODEL",
-            "o3-deep-research" if is_deep_research else _PROVIDER_DEFAULT_MODELS.get(provider, "grok-4.3"),
+            "gpt-5.6-sol" if is_deep_research else _PROVIDER_DEFAULT_MODELS.get(provider, "grok-4.3"),
         )
     return provider, model
 
 
-def bounded_tool_disable_flags(provider: str, no_web: bool, no_code: bool) -> tuple[bool, bool]:
+def clamp_openai_web_search(provider: str, model: str, enabled: bool) -> bool:
+    """Drop built-in web search when this provider cannot reserve the model context."""
+    from deepr.services.research_bounds import admitted_builtin_web_search
+
+    return admitted_builtin_web_search(provider, model, enabled)
+
+
+def bounded_tool_disable_flags(
+    provider: str,
+    no_web: bool,
+    no_code: bool,
+    model: str | None = None,
+) -> tuple[bool, bool]:
     """Apply the currently admitted tool posture for a provider."""
     if provider.lower() not in _BOUNDED_TOOL_PROVIDERS:
         return True, True
+    if model is not None and not clamp_openai_web_search(provider, model, not no_web):
+        no_web = True
     # Code Interpreter is billed by a provider-selected memory tier over a
     # session window. Until callers can bind memory, session count, and
     # duration before dispatch, its maximum marginal cost is not provable.
@@ -179,6 +193,7 @@ def enforce_monthly_budget_gate(
 __all__ = [
     "bounded_tool_disable_flags",
     "build_research_prompt",
+    "clamp_openai_web_search",
     "enforce_monthly_budget_gate",
     "ensure_parent_dir",
     "provider_for_model",

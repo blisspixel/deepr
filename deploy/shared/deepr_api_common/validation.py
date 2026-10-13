@@ -8,6 +8,8 @@ from typing import Any
 MAX_PROMPT_LENGTH = 10000
 MAX_METADATA_SIZE = 4096
 VALID_MODELS = [
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
     "o4-mini-deep-research",
     "o3-deep-research",
     "gemini-2.0-flash-thinking-exp",
@@ -57,7 +59,7 @@ def validate_model(model: str | None) -> tuple[bool, str, str | None]:
         Tuple of (valid, model_or_default, error_message)
     """
     if model is None:
-        return True, "o4-mini-deep-research", None
+        return True, "gpt-5.6-sol", None
     if model not in VALID_MODELS:
         return False, "", f"Invalid model. Valid options: {', '.join(VALID_MODELS)}"
     return True, model, None

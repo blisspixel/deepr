@@ -296,7 +296,7 @@ def use(ctx, name: str, yes: bool, model: str):
         console.print(f"  {filled_prompt[:200]}{'...' if len(filled_prompt) > 200 else ''}")
 
         # Use template model if not overridden
-        use_model = model or template.get("model", "o4-mini-deep-research")
+        use_model = model or template.get("model", "gpt-5.6-sol")
 
         if not yes:
             if not click.confirm("\nSubmit research with this prompt?"):

@@ -58,6 +58,16 @@ class CostEstimator:
     # other model at o3-deep-research rates - e.g. a $10/$50 frontier model
     # would pass pre-flight at $2/$8.
     PRICING = {
+        # Live substitutes named on the OpenAI deprecations page (2026-10-12).
+        # Rates match the model registry, not the retired deep-research table.
+        "gpt-5.6-sol": {
+            "input": 4.00,
+            "output": 20.00,
+        },
+        "gpt-5.6-terra": {
+            "input": 2.00,
+            "output": 12.00,
+        },
         "o3-deep-research": {
             "input": 2.00,  # $2.00 per 1M input tokens
             "output": 8.00,  # $8.00 per 1M output tokens
@@ -107,7 +117,7 @@ class CostEstimator:
     def estimate_cost(
         cls,
         prompt: str,
-        model: str = "o3-deep-research",
+        model: str = "gpt-5.6-sol",
         documents: list[Any] | None = None,
         enable_web_search: bool = True,
     ) -> CostEstimate:

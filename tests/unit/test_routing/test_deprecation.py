@@ -11,7 +11,8 @@ class TestCheckDeprecation:
     def test_exact_match(self):
         entry = check_deprecation("o3-deep-research")
         assert entry is not None
-        assert entry.new_model == "o3-deep-research-2025-06-26"
+        assert entry.new_model == "gpt-5.6-sol"
+        assert entry.sunset_date == "2026-07-23"
 
     def test_grok3_deprecated(self):
         entry = check_deprecation("grok-3")
@@ -30,7 +31,8 @@ class TestCheckDeprecation:
 
     def test_current_model_not_deprecated(self):
         assert check_deprecation("gpt-5.4") is None
-        assert check_deprecation("o4-mini-deep-research") is None
+        assert check_deprecation("gpt-5.6-sol") is None
+        assert check_deprecation("gpt-5.6-terra") is None
         assert check_deprecation("grok-4.20-0309-reasoning") is None
         assert check_deprecation("gemini-3.1-pro-preview") is None
 
@@ -65,10 +67,10 @@ class TestCheckDeprecation:
 class TestMigrateModel:
     def test_deprecated_auto_migrates(self):
         model, confidence, warning = migrate_model("o3-deep-research")
-        assert model == "o3-deep-research-2025-06-26"
+        assert model == "gpt-5.6-sol"
         assert confidence == 1.0
         assert warning is not None
-        assert "removing" in warning.lower() or "alias" in warning.lower() or "legacy" in warning.lower()
+        assert "2026-07-23" in warning
 
     def test_grok3_auto_migrates(self):
         model, confidence, warning = migrate_model("grok-3")
@@ -110,3 +112,91 @@ class TestMigrateModel:
         assert model == "gemini-3.1-flash-lite"
         assert confidence == 1.0
         assert warning is not None
+
+
+class TestRetiredOpenAIDefaults:
+    """Issue 213: shut-down research ids warn, and defaults do not select them.
+
+    Shutdown dates are from the OpenAI deprecations page checked 2026-10-12:
+    o3-deep-research* and o4-mini-deep-research* on 2026-07-23 (gpt-5.6-sol),
+    o4-mini* on 2026-10-23 (gpt-5.6-terra).
+    """
+
+    DEEP_RESEARCH_IDS = (
+        "o3-deep-research",
+        "o3-deep-research-2025-06-26",
+        "o4-mini-deep-research",
+        "o4-mini-deep-research-2025-06-26",
+    )
+    O4_MINI_IDS = ("o4-mini", "o4-mini-2025-04-16")
+
+    def test_retired_deep_research_ids_carry_sunset_and_successor(self):
+        for model_id in self.DEEP_RESEARCH_IDS:
+            entry = check_deprecation(model_id)
+            assert entry is not None, model_id
+            assert entry.sunset_date == "2026-07-23", model_id
+            assert entry.new_model == "gpt-5.6-sol", model_id
+
+    def test_o4_mini_carries_sunset_and_successor(self):
+        for model_id in self.O4_MINI_IDS:
+            entry = check_deprecation(model_id)
+            assert entry is not None, model_id
+            assert entry.sunset_date == "2026-10-23", model_id
+            assert entry.new_model == "gpt-5.6-terra", model_id
+
+    def test_dated_deep_research_snapshot_does_not_match_o4_mini(self):
+        entry = check_deprecation("o4-mini-deep-research-2025-06-26")
+        assert entry is not None
+        assert entry.old_model == "o4-mini-deep-research"
+
+    def test_default_deep_research_model_is_not_retired(self, monkeypatch):
+        from deepr.cli.commands.research_support import resolve_research_route
+        from deepr.config import AppConfig, ProviderConfig
+        from deepr.core.costs import CostEstimator
+        from deepr.core.settings import TASK_MODEL_MAP, Settings
+
+        for name in (
+            "DEEPR_DEEP_RESEARCH_MODEL",
+            "DEEPR_DEEP_RESEARCH_PROVIDER",
+            "DEEPR_DEFAULT_MODEL",
+            "DEEPR_DEFAULT_PROVIDER",
+            "AZURE_DEPLOYMENT_O3",
+            "AZURE_DEPLOYMENT_O4_MINI",
+            "AZURE_DEPLOYMENT_GPT56_SOL",
+            "AZURE_DEPLOYMENT_GPT56_TERRA",
+        ):
+            monkeypatch.delenv(name, raising=False)
+        monkeypatch.setenv("DEEPR_USE_BENCHMARK_ROUTING", "false")
+
+        provider_config = ProviderConfig()
+        settings = Settings()
+        defaults = {
+            provider_config.deep_research_model,
+            provider_config.TASK_MODEL_MAP["deep_research"][1],
+            provider_config.azure_foundry_deep_research_deployment,
+            settings.deep_research_model,
+            TASK_MODEL_MAP["deep_research"][1],
+            resolve_research_route(None, None)[1],
+            CostEstimator.estimate_cost("Hi").model,
+        }
+        assert defaults == {"gpt-5.6-sol"}
+        for model_id in defaults:
+            entry = check_deprecation(model_id)
+            assert entry is None or entry.sunset_date == ""
+
+        app = AppConfig.from_env()
+        assert app.provider.deep_research_model == "gpt-5.6-sol"
+        assert app.provider.model_mappings["gpt-5.6-sol"] == "gpt-5.6-sol"
+        assert app.provider.model_mappings["gpt-5.6-terra"] == "gpt-5.6-terra"
+        assert app.provider.default_model == "gpt-5.6-sol"
+
+    def test_successor_web_search_stays_inside_the_reserved_input_ceiling(self):
+        from deepr.cli.commands.research_support import bounded_tool_disable_flags
+        from deepr.services.research_bounds import builtin_web_search_reservable
+
+        assert builtin_web_search_reservable("gpt-5.6-sol") is False
+        assert builtin_web_search_reservable("gpt-5.6-terra") is False
+        assert builtin_web_search_reservable("o3-deep-research") is True
+        assert builtin_web_search_reservable("o4-mini-deep-research") is True
+        assert bounded_tool_disable_flags("openai", False, False, "gpt-5.6-sol") == (True, True)
+        assert bounded_tool_disable_flags("openai", False, False, "o3-deep-research") == (False, True)

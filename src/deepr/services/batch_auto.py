@@ -18,7 +18,7 @@ Example .json:
       "queries": [
         {"query": "What is Python?", "priority": 5},
         {"query": "Analyze Tesla", "cost_limit": 1.0},
-        {"query": "Compare AWS vs Azure", "force_model": "o3-deep-research"}
+        {"query": "Compare AWS vs Azure", "force_model": "gpt-5.6-sol"}
       ],
       "defaults": {"prefer_cost": true}
     }
@@ -476,7 +476,7 @@ class AutoBatchExecutor:
 
         # Override routing if forced
         provider = item.force_provider or (decision.provider if decision else "openai")
-        model = item.force_model or (decision.model if decision else "o4-mini-deep-research")
+        model = item.force_model or (decision.model if decision else "gpt-5.6-sol")
 
         if progress_callback:
             progress_callback(f"Starting: {item.query[:40]}... -> {provider}/{model}")

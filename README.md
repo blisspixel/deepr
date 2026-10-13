@@ -164,7 +164,7 @@ budget, or approving a prompt cannot enable those other paths.
 
 ```bash
 deepr capacity
-deepr research "A bounded premium question" --provider openai --model o4-mini-deep-research --preview
+deepr research "A bounded premium question" --provider openai --model gpt-5.6-sol --preview
 deepr research "Compare model families" --provider openrouter --model qwen/qwen3.8-flash --preview
 deepr research "A bounded premium question" --provider openrouter --model qwen/qwen3.8-flash --limit 0.50
 deepr providers openrouter-check

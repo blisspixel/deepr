@@ -7,7 +7,7 @@ Examples:
     deepr capacity
     deepr expert next "Expert Name"
     deepr expert consult "What changed?" --expert "Expert Name" --local
-    deepr research "Your question" --provider openai --model o4-mini-deep-research --preview
+    deepr research "Your question" --provider openai --model gpt-5.6-sol --preview
     deepr costs show
 
 Interactive Mode:
@@ -336,7 +336,7 @@ def cli():
 
     \b
     Preview metered research without dispatch:
-      deepr research "your question" --provider openai --model o4-mini-deep-research --preview
+      deepr research "your question" --provider openai --model gpt-5.6-sol --preview
 
     \b
     Explicit attended OpenRouter can run one pinned completion after setup:

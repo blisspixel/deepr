@@ -402,7 +402,7 @@ confirmation, it exits before provider construction. Use the local command
 above. To inspect a provider request envelope without spending:
 
 ```powershell
-deepr research "Which cross-domain assumption should we test next?" --provider openai --model o4-mini-deep-research --budget 1 --preview
+deepr research "Which cross-domain assumption should we test next?" --provider openai --model gpt-5.6-sol --budget 1 --preview
 ```
 
 The preview is write-free. It creates no reservation and makes no provider

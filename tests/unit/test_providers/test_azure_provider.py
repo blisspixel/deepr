@@ -299,7 +299,7 @@ class TestGetStatus:
         with patch.object(provider.client.responses, "retrieve", new_callable=AsyncMock) as r:
             r.return_value = resp
             out = await provider.get_status("j2")
-            # Did not crash; UsageStats.cost is computed off the fallback "o4-mini-deep-research".
+            # Did not crash; UsageStats.cost is computed off the fallback "gpt-5.6-sol".
             assert out.usage is not None
             assert out.usage.input_tokens == 10
 

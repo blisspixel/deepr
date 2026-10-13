@@ -50,6 +50,8 @@ CORS_HEADERS = {
 MAX_PROMPT_LENGTH = 10000
 MAX_METADATA_SIZE = 4096
 VALID_MODELS = [
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
     "o4-mini-deep-research",
     "o3-deep-research",
     "gemini-2.0-flash-thinking-exp",
@@ -212,7 +214,7 @@ def submit_job(event: dict) -> dict:
     prompt = sanitize_string(prompt, MAX_PROMPT_LENGTH)
 
     # Validate model
-    model = body.get("model", "o4-mini-deep-research")
+    model = body.get("model", "gpt-5.6-sol")
     if model not in VALID_MODELS:
         return response(400, {"error": f"Invalid model. Valid options: {', '.join(VALID_MODELS)}"})
 

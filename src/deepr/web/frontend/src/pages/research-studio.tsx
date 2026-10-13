@@ -34,7 +34,7 @@ import {
 } from 'lucide-react'
 
 const RESEARCH_DRAFT_KEY = 'deepr.research-draft.v1'
-const DEFAULT_MODEL = 'o4-mini-deep-research'
+const DEFAULT_MODEL = 'gpt-5.6-sol'
 const draftStorage = () => window.sessionStorage
 const DRAFT_CONSTRAINTS: DraftConstraints = {
   modes: RESEARCH_MODES.map((mode) => mode.value),
@@ -60,7 +60,7 @@ export default function ResearchStudio() {
   const [mode, setMode] = useState<string>(initialDraft.draft?.mode || 'research')
   const [model, setModel] = useState(initialDraft.draft?.model || DEFAULT_MODEL)
   const [priority, setPriority] = useState(initialDraft.draft?.priority || 1)
-  const [enableWebSearch, setEnableWebSearch] = useState(initialDraft.draft?.enableWebSearch ?? true)
+  const [enableWebSearch, setEnableWebSearch] = useState(initialDraft.draft?.enableWebSearch ?? false)
   const [confirmMeteredCost, setConfirmMeteredCost] = useState(false)
   const [showConfig, setShowConfig] = useState(false)
   const [isDragging, setIsDragging] = useState(false)

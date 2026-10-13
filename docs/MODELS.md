@@ -215,8 +215,9 @@ Default posture:
 
 - Use GPT mainline models for synthesis, planning, and general research when
   OpenAI is the selected provider.
-- Use Deep Research models only for explicitly deep, async research workloads
-  with a budget ceiling.
+- OpenAI shut down `o3-deep-research` and `o4-mini-deep-research` on 2026-07-23.
+  Use `gpt-5.6-sol` for those workloads. `o4-mini` shuts down 2026-10-23;
+  its substitute is `gpt-5.6-terra`.
 - Use mini or nano variants for cheap classification, summaries, and routing
   only when quality risk is acceptable.
 - GPT-5.6 Sol is the OpenAI task default. Terra is the balanced tier and Luna
@@ -490,9 +491,9 @@ Default posture:
 - Azure model availability is deployment and region dependent. The registry
   names Deepr-tested deployment targets, not every model Microsoft may expose
   in a given subscription.
-- Azure AI Foundry deep research remains a registered deployment target but is
-  gated until the agent run exposes the complete output and tool ceiling needed
-  for paid dispatch.
+- The registered `azure-foundry/o3-deep-research` id is shut down. New Azure
+  deep-research deployments should target `gpt-5.6-sol`. Foundry dispatch stays
+  gated until the agent run exposes the complete output and tool ceiling.
 - Refresh Azure registry entries only after adapter behavior and deployment
   names are tested locally or in CI-like validation.
 

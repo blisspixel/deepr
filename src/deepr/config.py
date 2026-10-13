@@ -205,7 +205,7 @@ class ProviderConfig(BaseModel):
     # Azure AI Foundry Configuration
     azure_foundry_endpoint: str | None = Field(default=None, description="Azure AI Foundry project endpoint URL")
     azure_foundry_deep_research_deployment: str = Field(
-        default="o3-deep-research", description="Azure Foundry deep research model deployment"
+        default="gpt-5.6-sol", description="Azure Foundry deep research model deployment"
     )
     azure_foundry_gpt_deployment: str = Field(default="gpt-4o", description="Azure Foundry GPT model deployment")
     azure_foundry_bing_resource: str | None = Field(
@@ -221,14 +221,14 @@ class ProviderConfig(BaseModel):
     # Dual Provider Configuration
     default_provider: str = Field(default="xai", description="Default provider for general operations")
     deep_research_provider: str = Field(default="openai", description="Provider for deep research operations")
-    deep_research_model: str = Field(default="o3-deep-research", description="Model for deep research")
+    deep_research_model: str = Field(default="gpt-5.6-sol", description="Model for deep research")
 
     # Task-specific model mappings
     # Maps task types to (provider, model) tuples
     TASK_MODEL_MAP: dict[str, tuple] = {
         "quick_lookup": ("xai", "grok-4.3"),  # Fast, cheap fact checks
         "fact_check": ("xai", "grok-4.3"),  # Fact verification
-        "deep_research": ("openai", "o3-deep-research"),  # Deep research (BEST model)
+        "deep_research": ("openai", "gpt-5.6-sol"),  # OpenAI substitute for shut-down deep research models
         "synthesis": ("openai", "gpt-5.6-sol"),  # Knowledge synthesis
         "chat": ("openai", "gpt-5.6-sol"),  # Expert chat
         "planning": ("openai", "gpt-5.6-sol"),  # Research planning
@@ -338,11 +338,7 @@ class ProviderConfig(BaseModel):
     @classmethod
     def validate_deep_research_model(cls, v: Any) -> str:
         """Load deep research model from environment."""
-        return (
-            os.getenv("DEEPR_DEEP_RESEARCH_MODEL", v)
-            if v
-            else os.getenv("DEEPR_DEEP_RESEARCH_MODEL", "o3-deep-research")
-        )
+        return os.getenv("DEEPR_DEEP_RESEARCH_MODEL", v) if v else os.getenv("DEEPR_DEEP_RESEARCH_MODEL", "gpt-5.6-sol")
 
     @model_validator(mode="after")
     def validate_api_keys(self) -> "ProviderConfig":
@@ -553,8 +549,12 @@ class AppConfig(BaseModel):
             azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT") or None,
             azure_api_version=os.getenv("AZURE_API_VERSION", "2024-10-01-preview"),
             azure_use_managed_identity=os.getenv("AZURE_USE_MANAGED_IDENTITY", "false").lower() == "true",
-            default_model=os.getenv("DEEPR_DEFAULT_MODEL", "o3-deep-research"),
+            default_model=os.getenv("DEEPR_DEFAULT_MODEL", "gpt-5.6-sol"),
             model_mappings={
+                "gpt-5.6-sol": os.getenv("AZURE_DEPLOYMENT_GPT56_SOL", "gpt-5.6-sol"),
+                "gpt-5.6-terra": os.getenv("AZURE_DEPLOYMENT_GPT56_TERRA", "gpt-5.6-terra"),
+                # Explicit retired ids keep their deployment names so the
+                # outbound model still matches the reserved priced contract.
                 "o3-deep-research": os.getenv("AZURE_DEPLOYMENT_O3", "o3-deep-research"),
                 "o4-mini-deep-research": os.getenv("AZURE_DEPLOYMENT_O4_MINI", "o4-mini-deep-research"),
             },
@@ -642,6 +642,8 @@ class AppConfig(BaseModel):
                     f"AZURE_OPENAI_ENDPOINT={self.provider.azure_endpoint or 'https://your-resource.openai.azure.com/'}",
                     f"AZURE_API_VERSION={self.provider.azure_api_version}",
                     f"AZURE_USE_MANAGED_IDENTITY={str(self.provider.azure_use_managed_identity).lower()}",
+                    "AZURE_DEPLOYMENT_GPT56_SOL=your-gpt-5.6-sol-deployment",
+                    "AZURE_DEPLOYMENT_GPT56_TERRA=your-gpt-5.6-terra-deployment",
                     "AZURE_DEPLOYMENT_O3=your-o3-deployment",
                     "AZURE_DEPLOYMENT_O4_MINI=your-o4-mini-deployment",
                     "",

@@ -160,18 +160,18 @@ Return your response as a JSON array of objects with this structure:
 
 Example:
 [
-  {"title": "Latest EV sales data", "prompt": "Document latest EV sales numbers and projections for 2025", "type": "documentation", "model": "o4-mini-deep-research", "phase": 1, "depends_on": []},
-  {"title": "Key players market share", "prompt": "Document market share and financials for top EV manufacturers", "type": "documentation", "model": "o4-mini-deep-research", "phase": 1, "depends_on": []},
-  {"title": "Technology landscape", "prompt": "Research battery tech and charging infrastructure trends", "type": "analysis", "model": "o4-mini-deep-research", "phase": 1, "depends_on": []},
-  {"title": "Competitive dynamics", "prompt": "Using market data and player profiles, analyze competitive dynamics and strategic positioning", "type": "analysis", "model": "o3-deep-research", "phase": 2, "depends_on": [1,2]},
-  {"title": "Strategic synthesis", "prompt": "Synthesize all findings into strategic implications", "type": "analysis", "model": "o3-deep-research", "phase": 3, "depends_on": [1,2,3,4]}
+  {"title": "Latest EV sales data", "prompt": "Document latest EV sales numbers and projections for 2025", "type": "documentation", "model": "gpt-5.6-sol", "phase": 1, "depends_on": []},
+  {"title": "Key players market share", "prompt": "Document market share and financials for top EV manufacturers", "type": "documentation", "model": "gpt-5.6-sol", "phase": 1, "depends_on": []},
+  {"title": "Technology landscape", "prompt": "Research battery tech and charging infrastructure trends", "type": "analysis", "model": "gpt-5.6-sol", "phase": 1, "depends_on": []},
+  {"title": "Competitive dynamics", "prompt": "Using market data and player profiles, analyze competitive dynamics and strategic positioning", "type": "analysis", "model": "gpt-5.6-sol", "phase": 2, "depends_on": [1,2]},
+  {"title": "Strategic synthesis", "prompt": "Synthesize all findings into strategic implications", "type": "analysis", "model": "gpt-5.6-sol", "phase": 3, "depends_on": [1,2,3,4]}
 ]
 
 MODEL SELECTION RULES:
-- Documentation (facts): Use o4-mini-deep-research (fast, cheap, sufficient for factual gathering)
-- Simple analysis: Use o4-mini-deep-research (good for straightforward comparisons)
-- Deep analysis: Use o3-deep-research (thorough reasoning, complex trade-offs)
-- Synthesis: Use o3-deep-research (integrates multiple sources, strategic insights)
+- Documentation (facts): Use gpt-5.6-terra (balanced, sufficient for factual gathering)
+- Simple analysis: Use gpt-5.6-terra (good for straightforward comparisons)
+- Deep analysis: Use gpt-5.6-sol (thorough reasoning, complex trade-offs)
+- Synthesis: Use gpt-5.6-sol (integrates multiple sources, strategic insights)
 
 Be thorough but cost-conscious. Maximum value, zero waste."""
 

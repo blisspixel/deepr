@@ -254,7 +254,7 @@ overage is disabled.
 ### Preview One Bounded Job
 
 ```bash
-deepr research "What are the top 3 programming languages for web development in 2026 and why?" --provider openai --model o4-mini-deep-research --preview
+deepr research "What are the top 3 programming languages for web development in 2026 and why?" --provider openai --model gpt-5.6-sol --preview
 ```
 
 This will:
@@ -421,7 +421,7 @@ deepr expert brief "Python Async Expert" --local
 deepr expert consult "Which asyncio pitfalls matter most?" --expert "Python Async Expert" --local
 
 # 7. Optionally preview a bounded premium request without dispatch
-deepr research "Python async/await best practices" --provider openai --model o4-mini-deep-research --preview
+deepr research "Python async/await best practices" --provider openai --model gpt-5.6-sol --preview
 ```
 
 ---

@@ -25,18 +25,35 @@ class DeprecationEntry:
 
 # Canonical deprecation registry.
 # Add entries here when providers announce model removal.
+# Sunset dates below were checked against
+# https://developers.openai.com/api/docs/deprecations on 2026-10-12.
 DEPRECATION_REGISTRY: dict[str, DeprecationEntry] = {
-    # OpenAI legacy deep research aliases
+    # OpenAI shut these down on 2026-07-23. The deprecations page names
+    # gpt-5.6-sol as the substitute for both aliases and dated snapshots.
+    # Dated ids match by prefix (o3-deep-research-2025-06-26, and the
+    # o4-mini-deep-research snapshot, which is registered before o4-mini).
     "o3-deep-research": DeprecationEntry(
         old_model="o3-deep-research",
-        new_model="o3-deep-research-2025-06-26",
-        # The previously recorded sunset (2026-03-26) did not happen - the
-        # unversioned alias is still served by the live API (verified
-        # 2026-06-11). Informational entry only: with no sunset date, runs
-        # do not warn (a default model that triggered its own deprecation
-        # warning on every run was a live-reported confusion).
-        sunset_date="",
-        warning="The unversioned 'o3-deep-research' alias is still served (verified 2026-06-11). Pin 'o3-deep-research-2025-06-26' for reproducibility, or use 'o4-mini-deep-research' ($2/$8 per MTok) for cheaper runs.",
+        new_model="gpt-5.6-sol",
+        sunset_date="2026-07-23",
+        warning=("o3-deep-research and o3-deep-research-2025-06-26 shut down on 2026-07-23. Successor: gpt-5.6-sol."),
+    ),
+    "o4-mini-deep-research": DeprecationEntry(
+        old_model="o4-mini-deep-research",
+        new_model="gpt-5.6-sol",
+        sunset_date="2026-07-23",
+        warning=(
+            "o4-mini-deep-research and o4-mini-deep-research-2025-06-26 shut down on 2026-07-23. "
+            "Successor: gpt-5.6-sol."
+        ),
+    ),
+    # Still served until 2026-10-23. A sunset date is required or run.py
+    # will not warn. Substitute named on the deprecations page: gpt-5.6-terra.
+    "o4-mini": DeprecationEntry(
+        old_model="o4-mini",
+        new_model="gpt-5.6-terra",
+        sunset_date="2026-10-23",
+        warning="o4-mini and o4-mini-2025-04-16 shut down on 2026-10-23. Successor: gpt-5.6-terra.",
     ),
     # Grok retirement wave (May 15, 2026)
     "grok-4-1-fast-reasoning": DeprecationEntry(
