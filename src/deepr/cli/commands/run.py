@@ -478,11 +478,8 @@ async def _run_single(
     # ignore the warnings (and one stale date outlived the model's actual
     # retirement plan - live finding 2026-06-11).
     dep_entry = check_deprecation(model)
-    if (
-        dep_entry
-        and dep_entry.sunset_date
-        and output_context.mode not in (OutputMode.JSON, OutputMode.QUIET)
-    ):
+    machine_output = output_context.mode in (OutputMode.JSON, OutputMode.QUIET)
+    if dep_entry and dep_entry.sunset_date and not machine_output:
         msg = (
             f"WARNING: Model '{dep_entry.old_model}' is deprecated (retires {dep_entry.sunset_date}). "
             f"Recommended successor: {dep_entry.new_model}"
