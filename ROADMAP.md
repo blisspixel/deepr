@@ -107,7 +107,7 @@ established by these tests; durable detached execution remains deferred.
   saved operation now refreshes them, with fresh/reused-run regressions. This
   validates the bounded recovery path, not general model-answer accuracy.
 
-**Now (v2.50.26):** the local four-arm rehearsal harness with blinded review
+**Now (v2.50.27):** the local four-arm rehearsal harness with blinded review
 binding, verified resume and workbook assembly, and a study-prompt repair,
 on top of a local-only fleet-seat profile for external harnesses and
 host-side routers, bounded local expert formation, retained
@@ -640,9 +640,10 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.26)
+## Current Status (v2.50.27)
 
-**Next is v2.51, not more dispatch.** v2.50.26 repairs core-only installation on
+**Next is v2.51, not more dispatch.** v2.50.27 points deep-research defaults at the live OpenAI substitutes and keeps the 128k web-search ceiling.
+v2.50.26 repairs core-only installation on
 ordinary Python 3.13 and checks all supported stable Python minors.
 v2.50.25 repairs first-run configuration,
 local readiness and durable formation recovery, execution refusals, and release
@@ -3974,7 +3975,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.26. This roadmap keeps
+v2.50.27. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 
