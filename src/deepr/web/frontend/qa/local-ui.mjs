@@ -119,7 +119,7 @@ async function fixture(width, theme) {
         : []
       return json({ results: reports, total: reports.length })
     }
-    if (url.pathname === '/api/config') return json({ config: { has_api_key: state.funded, default_model: 'o4-mini-deep-research', monthly_limit: 5 } })
+    if (url.pathname === '/api/config') return json({ config: { has_api_key: state.funded, default_model: 'gpt-5.6-sol', monthly_limit: 5 } })
     if (url.pathname === '/api/health') return json({ healthy: true, version: 'synthetic-fixture' })
     errors.push(`Unexpected read: ${url.pathname}`)
     return json({ error: 'No fixture defined' }, 404)

@@ -33,9 +33,9 @@ def research():
 @click.option(
     "--model",
     "-m",
-    default="o4-mini-deep-research",
-    type=click.Choice(["o4-mini-deep-research", "o3-deep-research"]),
-    help="Deep research model (o4-mini faster/cheaper, o3 more comprehensive)",
+    default="gpt-5.6-sol",
+    type=click.Choice(["gpt-5.6-sol", "gpt-5.6-terra", "o4-mini-deep-research", "o3-deep-research"]),
+    help="Research model (default: gpt-5.6-sol; retired deep-research ids warn)",
 )
 @click.option("--priority", "-p", default=3, type=click.IntRange(1, 5), help="Priority (1=high, 5=low)")
 @click.option("--web-search/--no-web-search", default=True, help="Enable web search (default: enabled)")
@@ -80,7 +80,6 @@ def submit(
     """Submit a deep research job."""
     print_section_header("Submit Deep Research Job")
 
-    # Resolve provider from config if not specified
     from deepr.config import load_config
 
     config = load_config()
@@ -95,13 +94,14 @@ def submit(
             # Only use router selection if user didn't specify
             if provider is None:
                 provider = resolved_provider
-            if model == "o4-mini-deep-research":  # default value
-                model = resolved_model if resolved_model in ["o4-mini-deep-research", "o3-deep-research"] else model
+            if model == "gpt-5.6-sol":  # default value
+                model = resolved_model if resolved_model in ["gpt-5.6-sol", "gpt-5.6-terra"] else model
             console.print(f"[dim]Provider router selected: {resolved_provider}/{resolved_model}[/dim]")
         except Exception:
             pass  # Fall back to config (router optional)
 
     resolved_provider = provider or config.get("provider", "openai")
+    web_search = research_support.clamp_openai_web_search(resolved_provider, model, web_search)
 
     # Check for deprecated model and display warning
     from deepr.routing.deprecation import check_deprecation

@@ -187,10 +187,10 @@ async def execute_research(job: dict) -> tuple[str, float, int]:
     if job.get("auto_routed") and job.get("routing_decision"):
         routing = job["routing_decision"]
         provider_name = routing.get("provider", "openai")
-        model = routing.get("model", "o4-mini-deep-research")
+        model = routing.get("model", "gpt-5.6-sol")
         logger.info(f"Auto-routed job {job_id}: {provider_name}/{model} (complexity: {routing.get('complexity')})")
     else:
-        model = job.get("model", "o4-mini-deep-research")
+        model = job.get("model", "gpt-5.6-sol")
         provider_name = job.get("provider", "openai")
 
     logger.info(f"Executing research job {job_id} with {provider_name}/{model}")

@@ -113,7 +113,7 @@ def providers():
 
     table.add_row(
         "openai",
-        "gpt-5.6-sol, gpt-5.6-terra, gpt-5.6-luna, o4-mini-deep-research",
+        "gpt-5.6-sol, gpt-5.6-terra, gpt-5.6-luna",
         "Deep research, synthesis, complex reasoning",
     )
     table.add_row(
@@ -131,7 +131,7 @@ def providers():
     console.print()
 
     console.print("[bold]Default Routing:[/bold]")
-    console.print("  - Deep research: openai/o4-mini-deep-research")
+    console.print("  - Deep research: openai/gpt-5.6-sol")
     console.print("  - Quick operations: xai/grok-4.3")
     console.print()
     console.print("[dim]Override with --provider and --model flags[/dim]")

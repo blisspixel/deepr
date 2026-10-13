@@ -8,7 +8,7 @@ from dataclasses import asdict
 from typing import NoReturn
 
 from deepr.core.costs import CostEstimate
-from deepr.providers.base import ResearchRequest, UsageStats
+from deepr.providers.base import DEFAULT_RESEARCH_MAX_INPUT_TOKENS, ResearchRequest, UsageStats
 from deepr.providers.registry_pricing import get_resolved_model_capability, provider_matches_model_contract
 
 _MAX_INPUT_TOKENS = 1_050_000
@@ -93,6 +93,23 @@ def _provider_key(provider: str) -> str:
     if "grok" in normalized or "xai" in normalized:
         return "xai"
     return normalized
+
+
+def builtin_web_search_reservable(model: str) -> bool:
+    """Default input ceiling covers built-in tool results only through the context window."""
+    capability = get_resolved_model_capability(model)
+    if capability is None:
+        return False
+    return capability.context_window <= DEFAULT_RESEARCH_MAX_INPUT_TOKENS
+
+
+def admitted_builtin_web_search(provider: str, model: str, requested: bool) -> bool:
+    """Keep OpenAI-compatible web search off when the reserved input ceiling cannot cover it."""
+    if not requested:
+        return False
+    if _provider_key(provider) not in {"openai", "azure"}:
+        return True
+    return builtin_web_search_reservable(model)
 
 
 def _canonical_request_bytes(request: ResearchRequest) -> bytes:
@@ -390,7 +407,9 @@ def validate_persisted_request_bounds(job_metadata: object, request: ResearchReq
 
 __all__ = [
     "ResearchRequestBoundsError",
+    "admitted_builtin_web_search",
     "bounded_research_cost_estimate",
+    "builtin_web_search_reservable",
     "request_bound_metadata",
     "require_metered_interface_accounting",
     "require_research_parent_budget_accounting",

@@ -159,7 +159,7 @@ per client IP on top of authentication.
                     "description": "Research prompt/query",
                     "example": "What are the latest advances in quantum computing?",
                 },
-                "model": {"type": "string", "description": "LLM model to use", "example": "o4-mini-deep-research"},
+                "model": {"type": "string", "description": "LLM model to use", "example": "gpt-5.6-sol"},
                 "status": {
                     "type": "string",
                     "enum": ["queued", "processing", "completed", "failed", "cancelled"],
@@ -206,8 +206,8 @@ per client IP on top of authentication.
                 },
                 "model": {
                     "type": "string",
-                    "description": "LLM model to use (default: o4-mini-deep-research)",
-                    "example": "o4-mini-deep-research",
+                    "description": "LLM model to use (default: gpt-5.6-sol)",
+                    "example": "gpt-5.6-sol",
                 },
                 "priority": {"type": "integer", "description": "Job priority 1-5 (default: 3)", "example": 3},
                 "enable_web_search": {
@@ -308,7 +308,7 @@ register_error_handlers(app)
 import uuid
 
 from deepr.api.job_cancellation import cancellation_response
-from deepr.api.research_cost import build_api_cost_summary, reserve_api_research_cost
+from deepr.api.research_cost import admitted_web_search, build_api_cost_summary, reserve_api_research_cost
 from deepr.config import load_config
 from deepr.experts.research_cost_gate import (
     ResearchCostBlocked,
@@ -405,7 +405,7 @@ def list_jobs():
             jobs:
               - id: "550e8400-e29b-41d4-a716-446655440000"
                 prompt: "Research quantum computing"
-                model: "o4-mini-deep-research"
+                model: "gpt-5.6-sol"
                 status: "completed"
                 priority: 3
                 cost: 0.50
@@ -496,7 +496,7 @@ def get_job(job_id):
             job:
               id: "550e8400-e29b-41d4-a716-446655440000"
               prompt: "Research quantum computing"
-              model: "o4-mini-deep-research"
+              model: "gpt-5.6-sol"
               status: "completed"
               priority: 3
               cost: 0.50
@@ -594,7 +594,7 @@ def submit_job():
             job:
               id: "550e8400-e29b-41d4-a716-446655440000"
               prompt: "Research quantum computing"
-              model: "o4-mini-deep-research"
+              model: "gpt-5.6-sol"
               status: "processing"
               provider_job_id: "resp_abc123"
             estimated_cost:
@@ -627,10 +627,10 @@ def submit_job():
         return jsonify({"error": "Request body must be JSON"}), 400
 
     prompt = data.get("prompt")
-    model = data.get("model", "o4-mini-deep-research")
+    model = data.get("model", "gpt-5.6-sol")
     priority = data.get("priority", 5)
-    enable_web_search = data.get("enable_web_search", True)
     provider = data.get("provider")
+    enable_web_search = admitted_web_search(model, data.get("enable_web_search"), provider)
 
     if not prompt or not isinstance(prompt, str):
         return jsonify({"error": "Prompt required"}), 400

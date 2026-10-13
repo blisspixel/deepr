@@ -20,7 +20,7 @@ Region availability (Agent Service, Feb 2026):
 
 Environment variables:
     AZURE_PROJECT_ENDPOINT - Project endpoint URL
-    AZURE_DEEP_RESEARCH_DEPLOYMENT - Deep research model deployment (default: o3-deep-research)
+    AZURE_DEEP_RESEARCH_DEPLOYMENT - Deep research model deployment (default: gpt-5.6-sol)
     AZURE_GPT_DEPLOYMENT - Default GPT model for the agent (default: gpt-4.1)
     AZURE_BING_RESOURCE_NAME - Bing grounding connection name
 """
@@ -82,7 +82,7 @@ class AzureFoundryProvider(DeepResearchProvider):
             project_endpoint: Azure AI project endpoint URL
                 (defaults to AZURE_PROJECT_ENDPOINT env var)
             deep_research_deployment: Deep research model deployment name
-                (defaults to AZURE_DEEP_RESEARCH_DEPLOYMENT or "o3-deep-research")
+                (defaults to AZURE_DEEP_RESEARCH_DEPLOYMENT or "gpt-5.6-sol")
             gpt_deployment: GPT model deployment for the agent
                 (defaults to AZURE_GPT_DEPLOYMENT or "gpt-4o")
             bing_resource_name: Bing grounding connection name
@@ -102,12 +102,13 @@ class AzureFoundryProvider(DeepResearchProvider):
         self._paid_endpoint = self.project_endpoint
 
         self.deep_research_deployment = (
-            deep_research_deployment or os.getenv("AZURE_DEEP_RESEARCH_DEPLOYMENT") or "o3-deep-research"
+            deep_research_deployment or os.getenv("AZURE_DEEP_RESEARCH_DEPLOYMENT") or "gpt-5.6-sol"
         )
         self.gpt_deployment = gpt_deployment or os.getenv("AZURE_GPT_DEPLOYMENT") or "gpt-4.1"
         self.bing_resource_name = bing_resource_name or os.getenv("AZURE_BING_RESOURCE_NAME")
 
         self.model_mappings = model_mappings or {
+            "gpt-5.6-sol": self.deep_research_deployment,
             "o3-deep-research": self.deep_research_deployment,
             "gpt-5": "gpt-5",
             "gpt-5-mini": "gpt-5-mini",

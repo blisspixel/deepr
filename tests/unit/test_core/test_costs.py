@@ -165,8 +165,8 @@ class TestCostEstimator:
         assert 0.0 < estimate.expected_cost < estimate.max_cost
 
     def test_web_search_multiplier_increases_output(self):
-        no_search = CostEstimator.estimate_cost("Hi", enable_web_search=False)
-        with_search = CostEstimator.estimate_cost("Hi", enable_web_search=True)
+        no_search = CostEstimator.estimate_cost("Hi", model="o3-deep-research", enable_web_search=False)
+        with_search = CostEstimator.estimate_cost("Hi", model="o3-deep-research", enable_web_search=True)
         assert with_search.expected_cost > no_search.expected_cost
 
 

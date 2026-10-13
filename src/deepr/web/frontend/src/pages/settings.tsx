@@ -82,9 +82,9 @@ export default function Settings() {
 
   const [activeSection, setActiveSection] = useState('general')
   const [formData, setFormData] = useState({
-    default_model: 'o4-mini-deep-research',
+    default_model: 'gpt-5.6-sol',
     default_priority: '1',
-    enable_web_search: true,
+    enable_web_search: false,
     daily_limit: '0',
     monthly_limit: '0',
   })
@@ -210,8 +210,10 @@ export default function Settings() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="o4-mini-deep-research">o4-mini (Fast deep research)</SelectItem>
-                        <SelectItem value="o3-deep-research">o3 (Thorough deep research)</SelectItem>
+                        <SelectItem value="gpt-5.6-sol">GPT-5.6 Sol (current default)</SelectItem>
+                        <SelectItem value="gpt-5.6-terra">GPT-5.6 Terra</SelectItem>
+                        <SelectItem value="o4-mini-deep-research">o4-mini (shut down 2026-07-23)</SelectItem>
+                        <SelectItem value="o3-deep-research">o3 (shut down 2026-07-23)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

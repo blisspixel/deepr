@@ -176,7 +176,7 @@ def research(
     PREVIEW MODE (--preview):
         Show the model, provider, and maximum without dispatch. Works with or
         without --auto.
-        deepr research -m o3-deep-research --preview "Quantum computing trends"
+        deepr research -m gpt-5.6-sol --preview "Quantum computing trends"
 
     \b
     COMPANY RESEARCH MODE:
@@ -186,7 +186,7 @@ def research(
 
     \b
     BOUNDED PREVIEW EXAMPLES:
-        deepr research "Analyze AI code editor market" --provider openai --model o4-mini-deep-research --preview
+        deepr research "Analyze AI code editor market" --provider openai --model gpt-5.6-sol --preview
         deepr research "Compare routes" --auto --preview
     """
     from deepr.cli.validation import validate_budget, validate_prompt, validate_upload_files
@@ -308,7 +308,7 @@ def research(
             click.echo(f"[Using {model} model (default for {provider})]")
 
     requested_tool_flags = (no_web, no_code)
-    no_web, no_code = bounded_tool_disable_flags(provider, no_web, no_code)
+    no_web, no_code = bounded_tool_disable_flags(provider, no_web, no_code, model)
     if requested_tool_flags != (no_web, no_code) and output_context.mode == OutputMode.VERBOSE:
         click.echo(f"[Using the current bounded tool posture for {provider}]")
 
@@ -449,8 +449,8 @@ def research(
 @click.option(
     "--model",
     "-m",
-    default="o3-deep-research",
-    help="Research model (default: o3-deep-research for comprehensive results)",
+    default="gpt-5.6-sol",
+    help="Research model (default: gpt-5.6-sol)",
 )
 @click.option(
     "--provider", default="openai", type=click.Choice(["openai", "azure", "gemini", "xai"]), help="Research provider"
@@ -474,7 +474,7 @@ def learn(
     Examples:
         deepr learn "Ford EV strategy for 2026"
         deepr learn "Azure Landing Zones" --phases 4
-        deepr learn "Rust programming language" -m o3-deep-research
+        deepr learn "Rust programming language" -m gpt-5.6-sol
         deepr learn "Machine learning fundamentals"
     """
     click.echo(f"[Learning Mode: Multi-phase research with {phases} phases]")
@@ -486,8 +486,8 @@ def learn(
 @click.option(
     "--model",
     "-m",
-    default="o3-deep-research",
-    help="Research model (default: o3-deep-research for comprehensive results)",
+    default="gpt-5.6-sol",
+    help="Research model (default: gpt-5.6-sol)",
 )
 @click.option(
     "--provider", default="openai", type=click.Choice(["openai", "azure", "gemini", "xai"]), help="Research provider"
@@ -873,7 +873,7 @@ def _run_auto_research(
     )
 
     requested_tool_flags = (no_web, no_code)
-    no_web, no_code = bounded_tool_disable_flags(decision.provider, no_web, no_code)
+    no_web, no_code = bounded_tool_disable_flags(decision.provider, no_web, no_code, decision.model)
     if requested_tool_flags != (no_web, no_code) and output_context.mode == OutputMode.VERBOSE:
         click.echo(f"[Using the current bounded tool posture for {decision.provider}]")
 

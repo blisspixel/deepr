@@ -78,7 +78,7 @@ class CompanyResearchOrchestrator:
         Args:
             company_name: Official company name
             website: Company website URL
-            model: Research model (default: o4-mini-deep-research)
+            model: Research model (default: gpt-5.6-sol)
             provider: AI provider (default: openai)
             budget_limit: Cost limit in dollars
             skip_confirmation: Skip budget confirmation
@@ -143,7 +143,7 @@ class CompanyResearchOrchestrator:
         research_prompt = self._build_research_prompt(company_name, website)
 
         # Use defaults if not specified
-        model = model or os.getenv("DEEPR_DEEP_RESEARCH_MODEL") or "o4-mini-deep-research"
+        model = model or os.getenv("DEEPR_DEEP_RESEARCH_MODEL") or "gpt-5.6-sol"
         provider = provider or os.getenv("DEEPR_DEEP_RESEARCH_PROVIDER", "openai")
 
         logger.info("Model: %s", model)

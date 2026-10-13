@@ -1,6 +1,8 @@
 export const MODELS = [
-  { value: 'o4-mini-deep-research', label: 'o4-mini Deep Research', description: 'Faster deep research' },
-  { value: 'o3-deep-research', label: 'o3 Deep Research', description: 'More thorough deep research' },
+  { value: 'gpt-5.6-sol', label: 'GPT-5.6 Sol', description: 'Current deep research default' },
+  { value: 'gpt-5.6-terra', label: 'GPT-5.6 Terra', description: 'Balanced substitute' },
+  { value: 'o4-mini-deep-research', label: 'o4-mini Deep Research', description: 'Shut down 2026-07-23' },
+  { value: 'o3-deep-research', label: 'o3 Deep Research', description: 'Shut down 2026-07-23' },
 ] as const
 
 export const PRIORITIES = [

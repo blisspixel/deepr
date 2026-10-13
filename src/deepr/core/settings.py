@@ -357,7 +357,7 @@ class SecuritySettings:
 TASK_MODEL_MAP: dict[str, tuple[str, str]] = {
     "quick_lookup": ("xai", "grok-4.3"),
     "fact_check": ("xai", "grok-4.3"),
-    "deep_research": ("openai", "o3-deep-research"),
+    "deep_research": ("openai", "gpt-5.6-sol"),
     "synthesis": ("openai", "gpt-5.6-sol"),
     "chat": ("openai", "gpt-5.6-sol"),
     "planning": ("openai", "gpt-5.6-sol"),
@@ -409,7 +409,7 @@ class Settings:
     default_provider: str = "xai"
     default_model: str = "grok-4.3"
     deep_research_provider: str = "openai"
-    deep_research_model: str = "o3-deep-research"
+    deep_research_model: str = "gpt-5.6-sol"
 
     # Data directory
     data_dir: str = "data"

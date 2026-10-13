@@ -124,18 +124,17 @@ class TestUtf8Console:
 
 
 class TestDeprecationTruth:
-    def test_o3_deep_research_entry_is_informational_not_dated(self):
-        # The 2026-03-26 sunset did not happen (alias live-verified
-        # 2026-06-11). A dated entry on the default model warned on every
-        # run; the entry must stay informational until a real date exists.
+    def test_o3_deep_research_entry_has_shutdown_sunset(self):
+        # OpenAI shut the alias and dated snapshot down on 2026-07-23.
+        # An empty sunset skipped the run.py warning.
         entry = DEPRECATION_REGISTRY["o3-deep-research"]
-        assert entry.sunset_date == ""
-        assert "still served" in entry.warning
+        assert entry.sunset_date == "2026-07-23"
+        assert entry.new_model == "gpt-5.6-sol"
 
     def test_check_deprecation_still_resolves_the_entry(self):
         entry = check_deprecation("o3-deep-research")
         assert entry is not None
-        assert entry.new_model == "o3-deep-research-2025-06-26"
+        assert entry.new_model == "gpt-5.6-sol"
 
 
 class TestDeepResearchPricing:

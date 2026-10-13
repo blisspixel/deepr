@@ -34,7 +34,7 @@ PAID_RESEARCH_INPUT_SCHEMA: dict[str, Any] = {
         },
         "model": {
             "type": "string",
-            "default": "o4-mini-deep-research",
+            "default": "gpt-5.6-sol",
             "description": "Research model; pricing is provider- and model-specific.",
         },
         "provider": {

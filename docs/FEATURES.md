@@ -100,16 +100,16 @@ Deepr uses intent-based commands that express what you want to accomplish:
 
 ```bash
 # Preview one exact bounded request
-deepr research "Your research question" --provider openai --model o4-mini-deep-research --preview
+deepr research "Your research question" --provider openai --model gpt-5.6-sol --preview
 
 # Specify provider and model without dispatching
-deepr research "Question" --provider openai --model o3-deep-research --preview
+deepr research "Question" --provider openai --model gpt-5.6-sol --preview
 
 # Company site capture without provider handoff
 deepr research company "Company Name" "https://company.com" --scrape-only
 
 # Preview the exact maximum without spending
-deepr research "Question" --provider openai --model o4-mini-deep-research --preview
+deepr research "Question" --provider openai --model gpt-5.6-sol --preview
 ```
 
 Hosted file upload, scrape-to-provider handoff, file search, and vector-store
@@ -222,7 +222,7 @@ deepr run focus "Your research question" --yes
 deepr run docs "Document the authentication flow" --yes
 
 # Choose model
-deepr run focus "Question" --model o3-deep-research --yes
+deepr run focus "Question" --model gpt-5.6-sol --yes
 ```
 
 `--preview` on the primary `deepr research` command reports the same hard
@@ -230,8 +230,8 @@ request envelope used for admission. Automatic cross-provider metered fallback
 is disabled, so a failed attempt never silently spends through another provider.
 
 **Available models:**
-- `openai/o3-deep-research` (high-quality deep research)
-- `openai/o4-mini-deep-research` (alternative deep research profile)
+- `openai/gpt-5.6-sol` (substitute for shut-down deep research models)
+- `openai/gpt-5.6-terra` (substitute for o4-mini)
 
 ### Checking Results
 
@@ -1388,7 +1388,7 @@ See [design/research-cost-reservations.md](design/research-cost-reservations.md)
 ```bash
 # Estimate before submitting
 deepr costs estimate "Your prompt"
-deepr costs estimate "Prompt" --model o3-deep-research
+deepr costs estimate "Prompt" --model gpt-5.6-sol
 ```
 
 ### Cost Dashboard
@@ -1698,7 +1698,7 @@ deepr costs show
 
 ```bash
 # In CI, preview before any explicit bounded run
-deepr research "Release notes" --provider openai --model o4-mini-deep-research --preview
+deepr research "Release notes" --provider openai --model gpt-5.6-sol --preview
 # Check job status
 deepr jobs list --status completed
 ```
@@ -1708,7 +1708,7 @@ deepr jobs list --status completed
 ```bash
 # Preview multiple queries without reservations or provider requests
 for query in "query1" "query2" "query3"; do
-  deepr research "$query" --provider openai --model o4-mini-deep-research --budget 1 --preview
+  deepr research "$query" --provider openai --model gpt-5.6-sol --budget 1 --preview
 done
 
 # Check results

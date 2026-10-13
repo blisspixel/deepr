@@ -16,7 +16,7 @@ maximum.
 ## Investment Due Diligence
 
 ```bash
-deepr research "Commercial real estate market in Austin Texas: cap rates, vacancy trends, development pipeline, demographic shifts" --provider openai --model o4-mini-deep-research --budget 2 --preview
+deepr research "Commercial real estate market in Austin Texas: cap rates, vacancy trends, development pipeline, demographic shifts" --provider openai --model gpt-5.6-sol --budget 2 --preview
 ```
 
 ### Scenario
@@ -41,7 +41,7 @@ budget ceiling. Actual time and cost depend on the selected bounded route.
 ## Regulatory Compliance Research
 
 ```bash
-deepr research "GDPR and CCPA requirements for SaaS platforms handling EU and California customer data" --provider openai --model o4-mini-deep-research --budget 2 --preview
+deepr research "GDPR and CCPA requirements for SaaS platforms handling EU and California customer data" --provider openai --model gpt-5.6-sol --budget 2 --preview
 ```
 
 ### Scenario
@@ -66,7 +66,7 @@ advice, and provider completion time is not guaranteed.
 ## Strategic Business Decision
 
 ```bash
-deepr research "Should our manufacturing company invest in solar panels and battery storage for our facility? Compare financial, operational, and sustainability perspectives." --provider openai --model o4-mini-deep-research --budget 2 --preview
+deepr research "Should our manufacturing company invest in solar panels and battery storage for our facility? Compare financial, operational, and sustainability perspectives." --provider openai --model gpt-5.6-sol --budget 2 --preview
 ```
 
 ### Scenario
@@ -90,7 +90,7 @@ Weeks of cross-functional research compressed into one comprehensive report, rev
 ## Technical Implementation Research
 
 ```bash
-deepr research "PostgreSQL connection pooling and read replica strategies for high-traffic web applications" --provider openai --model o4-mini-deep-research --budget 2 --preview
+deepr research "PostgreSQL connection pooling and read replica strategies for high-traffic web applications" --provider openai --model gpt-5.6-sol --budget 2 --preview
 ```
 
 ### Scenario
@@ -115,7 +115,7 @@ fixed cost or duration claim.
 ## Competitive Intelligence
 
 ```bash
-deepr research "Current public sentiment on autonomous vehicle safety" --provider openai --model o4-mini-deep-research --budget 2 --preview
+deepr research "Current public sentiment on autonomous vehicle safety" --provider openai --model gpt-5.6-sol --budget 2 --preview
 ```
 
 ### Scenario
@@ -162,7 +162,7 @@ Local model provider cost is `$0`; local electricity is outside Deepr's ledger.
 ## Strategic Research Scenario
 
 ```bash
-deepr research "Evaluate an acquisition target across financial viability, market position, cultural fit, and integration risks" --provider openai --model o4-mini-deep-research --budget 2 --preview
+deepr research "Evaluate an acquisition target across financial viability, market position, cultural fit, and integration risks" --provider openai --model gpt-5.6-sol --budget 2 --preview
 ```
 
 ### What Happens
@@ -241,7 +241,7 @@ new beliefs.
 ### Vague Prompt (Poor)
 
 ```bash
-deepr research "healthcare regulations" --provider openai --model o4-mini-deep-research --preview
+deepr research "healthcare regulations" --provider openai --model gpt-5.6-sol --preview
 ```
 
 This will produce generic, unfocused results.
@@ -249,7 +249,7 @@ This will produce generic, unfocused results.
 ### Specific Prompt (Good)
 
 ```bash
-deepr research "Compare HIPAA, HITECH, and state privacy laws for telehealth services in California, Texas, and New York. Focus on consent requirements, data retention policies, breach notification timelines, and penalties. Include cross-state patient care implications. Provide compliance checklist for a telehealth platform serving all three states." --provider openai --model o4-mini-deep-research --preview
+deepr research "Compare HIPAA, HITECH, and state privacy laws for telehealth services in California, Texas, and New York. Focus on consent requirements, data retention policies, breach notification timelines, and penalties. Include cross-state patient care implications. Provide compliance checklist for a telehealth platform serving all three states." --provider openai --model gpt-5.6-sol --preview
 ```
 
 ### Best Practices
@@ -268,7 +268,7 @@ deepr research "[ACTION] [TOPIC] for [CONTEXT]. Focus on [ASPECTS]. Include [DEL
 
 Example:
 ```
-deepr research "Evaluate API gateway options (Kong, Tyk, AWS API Gateway) for fintech platform handling 100K requests/minute. Focus on latency, cost, compliance (PCI-DSS), and operational complexity. Include TCO comparison and implementation checklist." --provider openai --model o4-mini-deep-research --preview
+deepr research "Evaluate API gateway options (Kong, Tyk, AWS API Gateway) for fintech platform handling 100K requests/minute. Focus on latency, cost, compliance (PCI-DSS), and operational complexity. Include TCO comparison and implementation checklist." --provider openai --model gpt-5.6-sol --preview
 ```
 
 ---

@@ -75,6 +75,11 @@ class OpenAIProvider(DeepResearchProvider):
 
         # Default model mappings (can be overridden)
         self.model_mappings = model_mappings or {
+            # Live defaults. Retired ids keep their historical wire names so a
+            # reserved priced contract still matches the outbound model.
+            # Deprecation entries warn and migrate those ids before selection.
+            "gpt-5.6-sol": "gpt-5.6-sol",
+            "gpt-5.6-terra": "gpt-5.6-terra",
             "o3-deep-research": "o3-deep-research-2025-06-26",
             "o4-mini-deep-research": "o4-mini-deep-research",
             "o3": "o3-deep-research-2025-06-26",

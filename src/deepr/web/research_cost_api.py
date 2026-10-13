@@ -23,7 +23,11 @@ from deepr.providers.base import ResearchRequest, ToolConfig
 from deepr.queue.base import JobStatus, ResearchJob, client_job_metadata
 from deepr.security.metered_consent import metered_api_consent_error
 from deepr.services.provider_status import provider_exception_name
-from deepr.services.research_bounds import bounded_research_cost_estimate
+from deepr.services.research_bounds import (
+    admitted_builtin_web_search,
+    bounded_research_cost_estimate,
+    builtin_web_search_reservable,
+)
 from deepr.services.research_cancellation import cancel_reserved_research
 
 logger = logging.getLogger(__name__)
@@ -105,7 +109,7 @@ def prepare_web_batch_jobs(
     jobs: list[ResearchJob] = []
     for item, metadata in zip(items, metadata_items, strict=True):
         prompt = str(item.get("prompt", "")).strip()
-        model = str(item.get("model", "o4-mini-deep-research"))
+        model = str(item.get("model", "gpt-5.6-sol"))
         if model not in allowed_models:
             return None, ({"error": "Invalid model"}, 400)
         if not prompt or len(prompt) > max_prompt_length:
@@ -120,7 +124,9 @@ def prepare_web_batch_jobs(
                 model=model,
                 provider="openai",
                 priority=item.get("priority", 3),
-                enable_web_search=item.get("enable_web_search", True),
+                enable_web_search=admitted_builtin_web_search(
+                    "openai", model, bool(item.get("enable_web_search", True))
+                ),
                 status=JobStatus.QUEUED,
                 submitted_at=datetime.now(UTC),
                 metadata=metadata,
@@ -155,7 +161,7 @@ class WebResearchCostCoordinator:
                     prompt=prompt,
                     model=model,
                     system_message="You are a research assistant. Provide comprehensive, citation-backed analysis.",
-                    tools=[ToolConfig(type="web_search_preview")],
+                    tools=[ToolConfig(type="web_search_preview")] if builtin_web_search_reservable(model) else [],
                 ),
                 provider="openai",
             )

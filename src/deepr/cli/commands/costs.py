@@ -151,8 +151,8 @@ register_spend_disposition_commands(costs)
 @click.option(
     "--model",
     "-m",
-    default="o4-mini-deep-research",
-    type=click.Choice(["o4-mini-deep-research", "o3-deep-research"]),
+    default="gpt-5.6-sol",
+    type=click.Choice(["gpt-5.6-sol", "gpt-5.6-terra", "o4-mini-deep-research", "o3-deep-research"]),
     help="Research model",
 )
 @click.option("--web-search/--no-web-search", default=True, help="Enable web search")
@@ -161,7 +161,7 @@ def estimate(prompt: str, model: str, web_search: bool):
 
     Example:
         deepr costs estimate "What are AI trends?"
-        deepr costs estimate "Kubernetes guide" --model o3-deep-research
+        deepr costs estimate "Kubernetes guide" --model gpt-5.6-sol
     """
     from deepr.core.costs import CostEstimator
 

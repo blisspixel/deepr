@@ -33,9 +33,7 @@ async def _poll_team_job(provider: Any, provider_job_id: str) -> tuple[Any, bool
     return response, cancelled, None
 
 
-async def run_dream_team(
-    question: str, model: str = "o4-mini-deep-research", perspectives: int = 6, provider: str | None = None
-):
+async def run_dream_team(question: str, model: str = "gpt-5.6-sol", perspectives: int = 6, provider: str | None = None):
     """
     Execute dream team research (async wrapper for new CLI).
 
@@ -68,6 +66,7 @@ async def run_dream_team(
     from deepr.providers.base import ResearchRequest, ToolConfig
     from deepr.queue import create_queue
     from deepr.queue.base import JobStatus, ResearchJob
+    from deepr.services.research_bounds import admitted_builtin_web_search
     from deepr.services.research_cost_reconciliation import reconcile_research_cost_reservations
     from deepr.services.research_submission import (
         ResearchDispatchReservationError,
@@ -137,13 +136,14 @@ Rationale: {member["rationale"]}
 Provide your analysis from this perspective."""
 
         job_id = f"team-{uuid.uuid4().hex[:12]}"
+        use_web_search = admitted_builtin_web_search(provider, model, True)
         await reconcile_research_cost_reservations(queue, default_provider=provider)
         _, reservation = reserve_configured_research_cost(
             job_id=job_id,
             provider=provider,
             prompt=prompt,
             model=model,
-            enable_web_search=True,
+            enable_web_search=use_web_search,
         )
 
         if provider_instance is None:
@@ -161,7 +161,7 @@ Provide your analysis from this perspective."""
             provider=provider,
             status=JobStatus.QUEUED,
             submitted_at=datetime.now(UTC),
-            enable_web_search=True,
+            enable_web_search=use_web_search,
             metadata={
                 "team_role": member["role"],
                 "question": question,
@@ -184,7 +184,7 @@ Provide your analysis from this perspective."""
                 prompt=prompt,
                 model=model,
                 system_message=f"You are a research expert analyzing from the perspective of: {member['role']}. Focus on: {member['focus']}",
-                tools=[ToolConfig(type=tool_type)] if provider != "xai" else [],
+                tools=[ToolConfig(type=tool_type)] if use_web_search and provider != "xai" else [],
             )
 
             provider_job_id = await dispatch_reserved_research(
@@ -353,9 +353,9 @@ def team():
 @click.option(
     "--model",
     "-m",
-    default="o4-mini-deep-research",
-    type=click.Choice(["o4-mini-deep-research", "o3-deep-research"]),
-    help="Deep research model for execution",
+    default="gpt-5.6-sol",
+    type=click.Choice(["gpt-5.6-sol", "gpt-5.6-terra", "o4-mini-deep-research", "o3-deep-research"]),
+    help="Research model for execution (default: gpt-5.6-sol)",
 )
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation and execute immediately")
 def analyze(

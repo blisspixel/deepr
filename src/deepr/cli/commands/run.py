@@ -252,7 +252,7 @@ def run():
 
 @run.command()
 @click.argument("query")
-@click.option("--model", "-m", default="o3-deep-research", help="Research model to use")
+@click.option("--model", "-m", default="gpt-5.6-sol", help="Research model to use")
 @click.option(
     "--provider",
     "-p",
@@ -302,7 +302,7 @@ def focus(
 
     Examples:
         deepr run focus "Analyze AI code editor market 2025"
-        deepr run focus "Latest quantum computing trends" -m o3-deep-research
+        deepr run focus "Latest quantum computing trends" -m gpt-5.6-sol
         deepr run focus "Query" --provider gemini -m gemini-2.5-flash
         deepr run focus "Latest from xAI" --provider grok -m grok-4.3
         deepr run focus "AI trends" --explain --timeline
@@ -459,7 +459,7 @@ async def _run_single(
     from deepr.cli.commands.research_support import bounded_tool_disable_flags
 
     requested_tool_flags = (no_web, no_code)
-    no_web, no_code = bounded_tool_disable_flags(provider, no_web, no_code)
+    no_web, no_code = bounded_tool_disable_flags(provider, no_web, no_code, model)
     if requested_tool_flags != (no_web, no_code) and output_context.mode == OutputMode.VERBOSE:
         print_warning(f"Using the current bounded tool posture for {provider}")
 
@@ -478,7 +478,8 @@ async def _run_single(
     # ignore the warnings (and one stale date outlived the model's actual
     # retirement plan - live finding 2026-06-11).
     dep_entry = check_deprecation(model)
-    if dep_entry and dep_entry.sunset_date:
+    machine_output = output_context.mode in (OutputMode.JSON, OutputMode.QUIET)
+    if dep_entry and dep_entry.sunset_date and not machine_output:
         msg = (
             f"WARNING: Model '{dep_entry.old_model}' is deprecated (retires {dep_entry.sunset_date}). "
             f"Recommended successor: {dep_entry.new_model}"
@@ -1145,7 +1146,7 @@ async def _handle_background_job(
 
 @run.command()
 @click.argument("scenario")
-@click.option("--model", "-m", default="o3-deep-research", help="Research model")
+@click.option("--model", "-m", default="gpt-5.6-sol", help="Research model")
 @click.option("--lead", default="gpt-5", help="Lead planner model")
 @click.option("--phases", "-p", type=click.IntRange(1, 10), default=3, help="Number of phases (1-10)")
 @click.option("--yes", "-y", is_flag=True, help="Skip budget confirmation")
@@ -1164,7 +1165,7 @@ def project(
     Examples:
         deepr run project "Ford EV strategy for 2026"
         deepr run project "Market entry analysis" --phases 4
-        deepr run project "Competitive landscape" -m o3-deep-research
+        deepr run project "Competitive landscape" -m gpt-5.6-sol
     """
     run_async_command(_run_campaign(scenario, model, lead, phases, yes), runner=asyncio.run)
 
@@ -1184,7 +1185,7 @@ async def _run_campaign(
 
 @run.command()
 @click.argument("question")
-@click.option("--model", "-m", default="o3-deep-research", help="Research model")
+@click.option("--model", "-m", default="gpt-5.6-sol", help="Research model")
 @click.option("--perspectives", "-p", type=click.IntRange(1, 12), default=6, help="Number of perspectives (1-12)")
 @click.option("--yes", "-y", is_flag=True, help="Skip budget confirmation")
 def team(
@@ -1201,7 +1202,7 @@ def team(
     Examples:
         deepr run team "Should we pivot to enterprise?"
         deepr run team "Evaluate merger opportunity" --perspectives 8
-        deepr run team "Technology decision" -m o3-deep-research
+        deepr run team "Technology decision" -m gpt-5.6-sol
     """
     run_async_command(_run_team(question, model, perspectives, yes), runner=asyncio.run)
 
@@ -1220,7 +1221,7 @@ async def _run_team(
 
 @run.command()
 @click.argument("topic")
-@click.option("--model", "-m", default="o3-deep-research", help="Research model to use")
+@click.option("--model", "-m", default="gpt-5.6-sol", help="Research model to use")
 @click.option(
     "--provider",
     "-p",
@@ -1275,7 +1276,7 @@ def docs(
 # Aliases
 @click.command(name="r")
 @click.argument("query")
-@click.option("--model", "-m", default="o3-deep-research")
+@click.option("--model", "-m", default="gpt-5.6-sol")
 @click.option("--provider", "-p", default="openai", type=click.Choice(["openai", "azure", "gemini", "grok"]))
 @click.option("--no-web", is_flag=True)
 @click.option("--no-code/--code", default=True)

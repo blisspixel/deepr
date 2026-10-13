@@ -109,6 +109,10 @@ class AzureProvider(DeepResearchProvider):
 
         # Deployment name mappings (Azure uses deployment names instead of model names)
         self.deployment_mappings = deployment_mappings or {
+            "gpt-5.6-sol": os.getenv("AZURE_DEPLOYMENT_GPT56_SOL", "gpt-5.6-sol"),
+            "gpt-5.6-terra": os.getenv("AZURE_DEPLOYMENT_GPT56_TERRA", "gpt-5.6-terra"),
+            # Explicit retired ids stay on their own deployment names. Rewriting
+            # them onto gpt-5.6-sol would break the reserved priced contract.
             "o3-deep-research": os.getenv("AZURE_DEPLOYMENT_O3", "o3-deep-research"),
             "o4-mini-deep-research": os.getenv("AZURE_DEPLOYMENT_O4_MINI", "o4-mini-deep-research"),
             "o3": os.getenv("AZURE_DEPLOYMENT_O3", "o3-deep-research"),
@@ -246,7 +250,7 @@ class AzureProvider(DeepResearchProvider):
                 # raises ``TypeError: argument of type 'NoneType' is not
                 # iterable`` on None, crashing get_status. Default to a
                 # safe deployment-known fallback.
-                model = getattr(response, "model", None) or "o4-mini-deep-research"
+                model = getattr(response, "model", None) or "gpt-5.6-sol"
                 usage = UsageStats(
                     input_tokens=input_tokens,
                     output_tokens=output_tokens,

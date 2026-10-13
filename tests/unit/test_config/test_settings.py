@@ -133,7 +133,7 @@ class TestSettings:
         assert settings.default_provider == "xai"
         assert settings.default_model == "grok-4.3"
         assert settings.deep_research_provider == "openai"
-        assert settings.deep_research_model == "o3-deep-research"
+        assert settings.deep_research_model == "gpt-5.6-sol"
 
     def test_load_creates_singleton(self):
         """Test load() returns cached singleton."""
@@ -256,7 +256,7 @@ class TestSettings:
 
         provider, model = settings.get_model_for_task("deep_research")
         assert provider == "openai"
-        assert model == "o3-deep-research"
+        assert model == "gpt-5.6-sol"
 
         provider, model = settings.get_model_for_task("quick_lookup")
         assert provider == "xai"

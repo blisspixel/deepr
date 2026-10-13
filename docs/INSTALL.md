@@ -163,10 +163,10 @@ deepr budget set 5
 
 ```bash
 # Free preflight
-deepr research "What is 2+2?" --provider openai --model o4-mini-deep-research --preview
+deepr research "What is 2+2?" --provider openai --model gpt-5.6-sol --preview
 
 # A positive budget still produces no live request while metered dispatch is quarantined
-deepr research "What are the latest developments in quantum computing?" --provider openai --model o4-mini-deep-research --budget 1 --preview
+deepr research "What are the latest developments in quantum computing?" --provider openai --model gpt-5.6-sol --budget 1 --preview
 
 # Bounded xAI text without unpriced server-side tools
 deepr research "Explain transformer architecture" --provider xai -m grok-4.3 --no-web --no-code --preview
@@ -258,7 +258,7 @@ python -m pytest tests/unit/ --ignore=tests/data -q --timeout=120
 docker build -t deepr .
 
 # Run with environment variables
-docker run -e OPENAI_API_KEY=sk-... deepr research "Your query" --provider openai --model o4-mini-deep-research --preview
+docker run -e OPENAI_API_KEY=sk-... deepr research "Your query" --provider openai --model gpt-5.6-sol --preview
 ```
 
 ## Configuration Details
@@ -414,7 +414,7 @@ deepr --help
 deepr research --help
 
 # Test bounded planning without a provider call
-deepr research "What is 2+2?" --provider openai --model o4-mini-deep-research --preview
+deepr research "What is 2+2?" --provider openai --model gpt-5.6-sol --preview
 
 # Check budget status
 deepr budget status
