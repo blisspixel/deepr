@@ -303,7 +303,7 @@ def focus(
     Examples:
         deepr run focus "Analyze AI code editor market 2025"
         deepr run focus "Latest quantum computing trends" -m gpt-5.6-sol
-        deepr run focus "Query" --provider gemini -m gemini-2.5-flash
+        deepr run focus "Query" --provider gemini -m gemini-3.8-flash
         deepr run focus "Latest from xAI" --provider grok -m grok-4.3
         deepr run focus "AI trends" --explain --timeline
     """

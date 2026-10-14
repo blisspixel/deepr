@@ -20,7 +20,7 @@ async def test_gemini_provider_basic():
 
     request = ResearchRequest(
         prompt="What are the key features of Python 3.13 released in 2024?",
-        model="gemini-2.5-flash",
+        model="gemini-3.8-flash",
         system_message="You are a helpful research assistant. Provide concise, accurate information.",
         tools=[ToolConfig(type="web_search_preview")],
         background=False,
@@ -143,7 +143,7 @@ async def test_gemini_cost_tracking():
 
     request = ResearchRequest(
         prompt="What is 2+2?",  # Simple query for predictable cost
-        model="gemini-2.5-flash",
+        model="gemini-3.8-flash",
         system_message="You are a helpful assistant.",
         tools=[],
         background=False,

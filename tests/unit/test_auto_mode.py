@@ -17,12 +17,12 @@ _MOCK_RANKINGS = {
         ("openai", "gpt-4.1-nano", 1.0, 0.003),
         ("openai", "gpt-5.2", 1.0, 0.25),
         ("xai", "grok-4-1-fast-non-reasoning", 0.85, 0.01),
-        ("gemini", "gemini-2.5-flash", 0.80, 0.02),
+        ("gemini", "gemini-3.8-flash", 0.80, 0.02),
     ],
     "knowledge_base": [
         ("openai", "gpt-5.2", 0.90, 0.25),
         ("openai", "gpt-4.1-nano", 0.80, 0.003),
-        ("gemini", "gemini-2.5-pro", 0.75, 0.12),
+        ("gemini", "gemini-4-argon", 0.75, 0.12),
     ],
     "reasoning": [
         ("openai", "gpt-4.1-nano", 1.0, 0.003),
@@ -49,9 +49,9 @@ _MOCK_RANKINGS = {
         ("openai", "gpt-4.1-nano", 0.95, 0.003),
         ("openai", "gpt-5.2", 0.90, 0.25),
         ("xai", "grok-4-1-fast-reasoning", 0.88, 0.01),
-        ("gemini", "gemini-2.5-pro", 0.85, 0.12),
+        ("gemini", "gemini-4-argon", 0.85, 0.12),
         ("xai", "grok-4-1-fast-non-reasoning", 0.80, 0.01),
-        ("gemini", "gemini-2.5-flash", 0.75, 0.02),
+        ("gemini", "gemini-3.8-flash", 0.75, 0.02),
     ],
 }
 

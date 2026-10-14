@@ -119,28 +119,37 @@ DEPRECATION_REGISTRY: dict[str, DeprecationEntry] = {
         sunset_date="2026-05-15",
         warning="Grok 3 Mini retires May 15, 2026. Successor: Grok 4.3.",
     ),
-    # Legacy Gemini
+    # Legacy Gemini. Successors are the current lineup, not the previous preview.
+    # gemini-3.1-pro-preview is still served, so it is not a shutdown entry.
+    # Deepr simply does not select it. Dated shutdowns fail closed at dispatch.
     "gemini-3-pro": DeprecationEntry(
         old_model="gemini-3-pro",
-        new_model="gemini-3.1-pro-preview",
+        new_model="gemini-4-argon",
         sunset_date="",
-        warning="Gemini 3 Pro is superseded by Gemini 3.1 Pro Preview.",
+        warning="Gemini 3 Pro is superseded by Gemini 4 Argon.",
     ),
     "gemini-3-pro-preview": DeprecationEntry(
         old_model="gemini-3-pro-preview",
-        new_model="gemini-3.1-pro-preview",
-        sunset_date="",
-        warning="Gemini 3 Pro Preview is listed in Google's shut-down previous-model set. Use Gemini 3.1 Pro Preview.",
+        new_model="gemini-4-argon",
+        sunset_date="2026-03-09",
+        warning="gemini-3-pro-preview shut down on 2026-03-09. Use gemini-4-argon.",
         auto_migrate=True,
     ),
     "gemini-3.1-flash-lite-preview": DeprecationEntry(
         old_model="gemini-3.1-flash-lite-preview",
-        new_model="gemini-3.1-flash-lite",
+        new_model="gemini-3.5-flash-lite",
         sunset_date="",
         warning=(
             "Gemini 3.1 Flash-Lite Preview is listed in Google's shut-down previous-model set. "
-            "Use Gemini 3.1 Flash-Lite."
+            "Use gemini-3.5-flash-lite."
         ),
+        auto_migrate=True,
+    ),
+    "deep-research-pro-preview-12-2025": DeprecationEntry(
+        old_model="deep-research-pro-preview-12-2025",
+        new_model="deep-research-max-preview-04-2026",
+        sunset_date="2026-10-23",
+        warning=("deep-research-pro-preview-12-2025 shuts down on 2026-10-23. Use deep-research-max-preview-04-2026."),
         auto_migrate=True,
     ),
     # Legacy GPT-4o

@@ -418,7 +418,7 @@ async def test_gemini_focus_mode_capability_check():
 
     request = ResearchRequest(
         prompt="What are the key features of Google Gemini 2.5 models? Keep it brief (one page).",
-        model="gemini-2.5-flash",
+        model="gemini-3.8-flash",
         system_message="You are a helpful AI assistant. Provide concise, accurate information.",
         tools=[ToolConfig(type="google_search")],  # Gemini uses google_search not web_search
     )
@@ -466,7 +466,7 @@ async def test_gemini_docs_mode_api_documentation():
         - Pricing and context limits
 
         Include code examples.""",
-        model="gemini-2.5-flash",
+        model="gemini-3.8-flash",
         system_message="You are a technical documentation specialist. Provide current, accurate API details.",
         tools=[ToolConfig(type="google_search")],
     )
@@ -596,7 +596,7 @@ async def test_provider_comparison_same_query():
         provider = GeminiProvider()
         request = ResearchRequest(
             prompt=query,
-            model="gemini-2.5-flash",
+            model="gemini-3.8-flash",
             system_message="You are a Python testing expert.",
             tools=[ToolConfig(type="google_search")],
         )

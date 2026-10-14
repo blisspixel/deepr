@@ -49,7 +49,7 @@ def test_focus_command_complete_workflow_gemini():
             "--provider",
             "gemini",
             "-m",
-            "gemini-2.5-flash",
+            "gemini-3.8-flash",
             "--yes",
             "--no-web",
             "--no-code",
@@ -206,7 +206,7 @@ def test_focus_with_provider_parameter():
         pytest.skip("Gemini API key not set")
 
     result = subprocess.run(
-        ["deepr", "run", "focus", "Say hello in one word", "--provider", "gemini", "-m", "gemini-2.5-flash", "--yes"],
+        ["deepr", "run", "focus", "Say hello in one word", "--provider", "gemini", "-m", "gemini-3.8-flash", "--yes"],
         capture_output=True,
         text=True,
         timeout=120,

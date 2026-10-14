@@ -1,6 +1,6 @@
 # Model Selection Guide
 
-Status: Deepr v2.50.24 currency review. Last reviewed: 2026-10-06.
+Status: Deepr v2.50.27. Gemini lineup reviewed 2026-10-14. Broader currency review 2026-10-06.
 
 The source of truth for model IDs, pricing estimates, context windows, and
 routing metadata is [src/deepr/providers/registry.py](../src/deepr/providers/registry.py),
@@ -59,7 +59,7 @@ documentation; account access and Deepr compatibility still need proof.
 |----------|----------------------------------|------------------------------|
 | OpenAI | `gpt-6-astra`, `gpt-6.1-sol`, `gpt-6-luna` | Reasoning settings, Responses versus Chat tool constraints, 922K input limit, cache writes, and settlement. |
 | Anthropic | `claude-fable-5-1`, `claude-opus-5-5`, `claude-sonnet-5-5` | Adaptive thinking, refusal accounting, and cache duration prices. Haiku 4.5 remains current. Mythos 5.1 is limited-access and absent. |
-| Google | `gemini-3.8-flash` | Thinking-level request shape and separately billed search/cache storage. Registry estimates retain the higher January 2027 caps. |
+| Google | `gemini-3.8-flash` | On 2026-10-06 this was still a preview candidate. It is now the selectable Gemini default. |
 | xAI | `grok-4-7` | Encrypted reasoning and long-context accounting. Product-only Grok 4.7 Fast is absent. |
 | Azure | Deployment-specific inventory | Published GPT-6 entries do not create verified deployments or globally selectable routes. |
 | OpenRouter | Six of seven existing route proposals pass the no-key check | The pinned DeepSeek endpoint is absent; that proposal is refused. No replacement upstream or new dispatch authority is introduced. |
@@ -97,11 +97,12 @@ explicitly updated.
 - Anthropic lists Claude Mythos 5 and the Mythos preview as limited
   availability. Keep them out of Deepr's public registry and auto-routing until
   API access and pricing are normal enough to test and settle.
-- Gemini 3.6 Flash and Gemini 3.5 Flash-Lite are stable and registered. The
-  provider omits deprecated sampling parameters for both and uses
-  `thinking_level` instead of `thinking_budget`. A future migration from the
-  supported generateContent seam to the preferred Interactions API requires a
-  separate contract review for usage, tools, streaming, and settlement.
+- Selectable Gemini text models are `gemini-4-argon`, `gemini-3.8-flash`, and
+  `gemini-3.5-flash-lite`. The provider omits sampling parameters for these
+  models and sends `thinking_level`. Argon also rejects `thinking_budget`.
+  Regular generation stays on generateContent. Moving that path to the
+  Interactions API still needs a separate contract review for usage, tools,
+  streaming, and settlement. Gemini Deep Research is already on Interactions.
 - Gemini 3.5 Flash Cyber is limited-access CodeMender capacity, not a general
   Gemini API model. It remains outside the registry unless Google later
   publishes ordinary API access, pricing, identifiers, and terms that Deepr can
@@ -109,9 +110,9 @@ explicitly updated.
 - Gemini also lists media models. Deepr's registry covers text and research
   backends; media models must stay explicit and cost-gated before any image or
   video path uses them.
-- Google now lists `gemini-3-pro-preview` and
-  `gemini-3.1-flash-lite-preview` in the shut-down previous-model set. Deepr
-  keeps them only as deprecated migration entries for historical cost lookup.
+- Google shut down `gemini-3-pro-preview` on 2026-03-09. Deepr keeps that id,
+  `gemini-3.1-flash-lite-preview`, and other older Gemini ids only so historical
+  usage can still be priced. New research and provider submission refuse them.
 - xAI offers a 2x-priced fast Grok 4.6 variant and separately billed
   server-side tools. Deepr registers standard token pricing only and does not
   silently select fast service or provider tools.
@@ -136,10 +137,14 @@ Pricing notes:
 - Gemini free-tier and quota-inclusive entries are useful for setup guidance,
   but automatic routing still depends on the local Deepr capacity profile,
   provider keys, quota posture, and budget gates.
-- Gemini 3.6, 3.7, and 3.8 Flash standard text rates through 2026-12-31 are
+- Gemini 3.8 Flash standard text rates through 2026-12-31 are
   `$0.75/$0.075/$3.75` in input/cached-input/output order. Deepr retains
   `$1.50/$0.15/$7.50`, the published January 2027 rates, as conservative
   estimates. Cache storage and tool charges remain separate.
+- Gemini 4 Argon standard rates through 2026-11-30 are `$2/$0.10/$10` in the
+  same order. Deepr retains the December 1, 2026 caps, `$4/$0.20/$20`. Argon
+  is paid-only and rejects explicit context caches. It has no long-context
+  multiplier.
 
 ## Operating Rules
 
@@ -172,16 +177,16 @@ Pricing notes:
 
 ## Current Deepr Registry Snapshot
 
-The registry currently contains 80 models: 73 direct-provider entries across
+The registry currently contains 82 models: 75 direct-provider entries across
 OpenAI, Gemini, xAI, Anthropic, and Azure AI Foundry, plus seven OpenRouter
-routes that stay excluded from automatic routing. Eight direct-provider entries
-are the October reviewed candidates above, also excluded from automatic routing.
+routes that stay excluded from automatic routing. Seven direct-provider entries
+are the remaining October reviewed candidates, also excluded from automatic
+routing. `gemini-3.8-flash` left that candidate set and is now selectable.
 The lists below describe the established entries; run the
 offline command above for exact pricing and context values. The web
-Models page intentionally reports 47 active benchmarkable public text or
-research models because Azure AI Foundry entries are deployment targets, premium
-media entries are not chat capacity, and deprecated or preview-only entries are
-hidden from new benchmark target lists.
+Models page counts registry rows that are not deprecated, not Azure AI Foundry
+deployments, and not image-generation entries. That count is 55, and it still
+includes preview-only rows.
 
 ### OpenAI
 
@@ -237,39 +242,48 @@ Manual verification:
 
 Environment variable: `GEMINI_API_KEY`
 
-Registered IDs:
+Selectable IDs:
 
-- `gemini/gemini-3.6-flash`
+- `gemini/gemini-4-argon`
+- `gemini/gemini-3.8-flash`
 - `gemini/gemini-3.5-flash-lite`
-- `gemini/gemini-3.5-flash`
-- `gemini/gemini-3-flash-preview`
-- `gemini/gemini-3.1-flash-lite`
-- `gemini/gemini-3.1-flash-lite-preview` (deprecated)
-- `gemini/gemini-3.1-pro-preview`
-- `gemini/gemini-3-pro-preview` (deprecated)
-- `gemini/deep-research`
-- `gemini/gemini-2.5-pro`
-- `gemini/gemini-2.5-flash`
-- `gemini/gemini-2.5-flash-lite`
+- `gemini/deep-research` (`deep-research-max-preview-04-2026`)
+
+Older ids remain in the registry for historical settlement and are not selected:
+`gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3-flash-preview`,
+`gemini-3.1-flash-lite`, `gemini-3.1-flash-lite-preview`,
+`gemini-3.1-pro-preview`, `gemini-3-pro-preview`, `gemini-2.5-pro`,
+`gemini-2.5-flash`, `gemini-2.5-flash-lite`, and
+`deep-research-pro-preview-12-2025`.
 
 Default posture:
 
-- `gemini-flash` resolves to `gemini-3.6-flash`; `gemini-flash-lite`
-  resolves to `gemini-3.5-flash-lite`. These aliases select a model but do not
-  bypass explicit budget, tool, or provider gates. Alias resolution is shared
-  by adapter dispatch, canonical pricing, bounded preflight, and the REST API.
+- `gemini-pro` and `gemini-3.1-pro` resolve to `gemini-4-argon`.
+  `gemini-flash` resolves to `gemini-3.8-flash`. `gemini-flash-lite` resolves
+  to `gemini-3.5-flash-lite`. `deep-research` and `gemini-deep-research`
+  resolve to `deep-research-max-preview-04-2026`. These aliases select a model
+  but do not bypass explicit budget, tool, or provider gates. Alias resolution
+  is shared by adapter dispatch, canonical pricing, bounded preflight, and the
+  REST API.
+- Gemini 4 Argon is paid-only. Stored rates are the December 1, 2026 caps,
+  `$4` input, `$20` output, and `$0.20` cached input per million tokens.
+  Explicit context caches are rejected. Deepr omits `temperature`, `top_p`,
+  `top_k`, and `thinking_budget`, and sends `thinking_level`.
+- Gemini 3.8 Flash is the default. Stored rates are the January 1, 2027 caps,
+  `$1.50` / `$7.50` / `$0.15`. Input and output have a free tier. Gemini 3.5
+  Flash-Lite is the budget model at `$0.30` / `$2.50` / `$0.03`.
 - Provider-reported cached-content tokens settle at each model's documented
   cached-input rate; uncached prompt and billable output or thinking tokens use
   their standard rates.
-- Gemini 3.6 Flash and Gemini 3.5 Flash-Lite reject the old sampling-control
-  contract. Deepr omits `temperature`, `top_p`, and `top_k` for these models and
-  sends the documented `thinking_level` values.
+- Gemini Deep Research Max stays gated. The autonomous loop has no provider
+  spend ceiling. The planning reserve is `$5` per task. The previous agent,
+  `deep-research-pro-preview-12-2025`, shuts down on 2026-10-23.
 - Use Gemini for large-context document work and cost-sensitive multimodal or
   research workflows when the registry price and quality floor fit the task.
-- Treat preview IDs as volatile. Re-check official docs before making them a
-  default for durable workflows.
-- Do not use shut-down preview IDs for new runs. They stay in the registry only
-  so historical artifacts and cost records can still be interpreted.
+- Do not select an older Gemini id for a new run. Bounded research and provider
+  submission refuse it and name the successor. Historical rows can still be
+  priced. `gemini-3.1-pro-preview` is still served by Google; Deepr does not
+  select it, and no shutdown date is invented for it.
 - Keep Gemini image generation explicit. The registry's text/research support
   does not mean portraits or other image calls should run automatically.
 - Do not target Gemini 3.5 Flash Cyber. Its announced CodeMender pilot is not a

@@ -13,11 +13,11 @@ _MODEL_ALIASES: dict[str, str] = {
     "grok-code-fast": "grok-build-0.1",
     "grok-code-fast-1": "grok-build-0.1",
     "grok-code-fast-1-0825": "grok-build-0.1",
-    "gemini-deep-research": "deep-research-pro-preview-12-2025",
-    "deep-research": "deep-research-pro-preview-12-2025",
-    "gemini-pro": "gemini-3.1-pro-preview",
-    "gemini-3.1-pro": "gemini-3.1-pro-preview",
-    "gemini-flash": "gemini-3.6-flash",
+    "gemini-deep-research": "deep-research-max-preview-04-2026",
+    "deep-research": "deep-research-max-preview-04-2026",
+    "gemini-pro": "gemini-4-argon",
+    "gemini-3.1-pro": "gemini-4-argon",
+    "gemini-flash": "gemini-3.8-flash",
     "gemini-flash-lite": "gemini-3.5-flash-lite",
 }
 

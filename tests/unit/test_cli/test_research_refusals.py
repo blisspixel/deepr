@@ -211,7 +211,7 @@ def test_preview_and_execution_keep_the_same_environment_route(monkeypatch, prov
 
 def test_bounded_admission_failure_is_structured(monkeypatch):
     monkeypatch.setenv(QUARANTINE_PREFIX + "XAI_API_KEY", SECRET)
-    result = CliRunner().invoke(cli, ["research", QUERY, "--provider", "xai", "--model", "gemini-3.6-flash", "--json"])
+    result = CliRunner().invoke(cli, ["research", QUERY, "--provider", "xai", "--model", "gemini-3.8-flash", "--json"])
     assert_refusal(result, ["--json"], "research_provider_model_mismatch")
 
 

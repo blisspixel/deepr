@@ -60,7 +60,8 @@ class TestAliasResolution:
     @pytest.mark.parametrize(
         ("alias", "model", "input_rate", "output_rate", "cached_rate"),
         [
-            ("gemini-flash", "gemini-3.6-flash", 1.50, 7.50, 0.15),
+            ("gemini-flash", "gemini-3.8-flash", 1.50, 7.50, 0.15),
+            ("gemini-pro", "gemini-4-argon", 4.00, 20.00, 0.20),
             ("gemini-flash-lite", "gemini-3.5-flash-lite", 0.30, 2.50, 0.03),
         ],
     )
@@ -101,7 +102,11 @@ class TestAliasResolution:
         assert get_cached_input_pricing(alias) == pytest.approx(cached_rate)
 
     def test_contract_identity_resolves_chat_alias_to_registry_owner(self):
-        assert get_resolved_model_contract_identity("gemini-flash") == ("gemini", "gemini-3.6-flash")
+        assert get_resolved_model_contract_identity("gemini-flash") == ("gemini", "gemini-3.8-flash")
+        assert get_resolved_model_contract_identity("deep-research") == (
+            "gemini",
+            "deep-research-max-preview-04-2026",
+        )
 
     def test_contract_identity_includes_specialized_input_only_model(self):
         assert get_resolved_model_contract_identity("text-embedding-3-small") == (

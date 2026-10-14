@@ -25,7 +25,6 @@ from deepr.routing.auto_mode import _enrich_with_provisional
         ("claude-fable-5-1", 10.0, 0.25, 50.0),
         ("claude-opus-5-5", 4.0, 0.2, 20.0),
         ("claude-sonnet-5-5", 2.0, 0.2, 10.0),
-        ("gemini-3.8-flash", 1.5, 0.15, 7.5),
         ("grok-4.7", 2.0, 0.5, 6.0),
     ],
 )
@@ -71,7 +70,8 @@ def test_reviewed_releases_cannot_enter_automatic_rankings_or_selectors():
 
 def test_currency_review_preserves_workload_aliases():
     assert get_resolved_model_contract_identity("gpt-5.6") == ("openai", "gpt-5.6-sol")
-    assert get_resolved_model_contract_identity("gemini-flash") == ("gemini", "gemini-3.6-flash")
+    assert get_resolved_model_contract_identity("gemini-flash") == ("gemini", "gemini-3.8-flash")
+    assert get_resolved_model_contract_identity("gemini-pro") == ("gemini", "gemini-4-argon")
 
 
 def test_deprecated_sonnet_retains_historical_pricing_without_provisional_promotion():

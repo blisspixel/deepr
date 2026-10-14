@@ -82,10 +82,10 @@ def _get_available_models() -> list[dict[str, Any]]:
             "speed": "Faster than Sol",
         },
         {
-            "name": "deep-research-pro-preview-12-2025",
+            "name": "deep-research-max-preview-04-2026",
             "provider": "Gemini",
-            "description": "Google Deep Research Agent",
-            "cost": "$1-2",
+            "description": "Gemini Deep Research Max",
+            "cost": "$3-7",
             "speed": "Slow (5-20 min)",
         },
         {

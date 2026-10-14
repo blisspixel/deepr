@@ -122,9 +122,7 @@ def providers():
         "Quick lookups, freshness, multi-agent research",
     )
     table.add_row("anthropic", "claude-opus-5, claude-sonnet-5, claude-haiku-4-5", "Reasoning and synthesis")
-    table.add_row(
-        "gemini", "gemini-3.6-flash, gemini-3.5-flash-lite, gemini-3.1-pro-preview", "Multimodal tasks, long context"
-    )
+    table.add_row("gemini", "gemini-4-argon, gemini-3.8-flash, gemini-3.5-flash-lite", "Multimodal tasks, long context")
     table.add_row("azure", "(your deployments)", "Enterprise deployments with Azure OpenAI")
 
     console.print(table)

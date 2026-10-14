@@ -108,17 +108,6 @@ REVIEWED_CAPABILITIES: dict[str, ModelCapability] = {
         2.5,
         "Adaptive thinking; cache write is 5-minute price; 1-hour writes cost more",
     ),
-    "gemini/gemini-3.8-flash": _candidate(
-        "gemini",
-        "gemini-3.8-flash",
-        1_048_576,
-        65_536,
-        1.5,
-        0.15,
-        7.5,
-        None,
-        "January 2027 price caps; temporary discount through 2026-12-31; cache storage extra",
-    ),
     "xai/grok-4-7": _candidate(
         "xai",
         "grok-4-7",

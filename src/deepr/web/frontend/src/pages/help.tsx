@@ -47,8 +47,8 @@ const API_KEYS: ProviderKey[] = [
     provider: 'Google Gemini',
     envVar: 'GEMINI_API_KEY',
     url: 'https://aistudio.google.com/apikey',
-    description: 'Gemini text and multimodal models; managed Deep Research remains gated',
-    models: ['gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-3.1-pro-preview', 'gemini-2.5-pro'],
+    description: 'Gemini 4 Argon is paid-only. Gemini 3.8 Flash and 3.5 Flash-Lite have a free tier. Deep Research Max stays gated',
+    models: ['gemini-4-argon', 'gemini-3.8-flash', 'gemini-3.5-flash-lite', 'deep-research-max-preview-04-2026'],
     free: true,
   },
   {

@@ -261,7 +261,7 @@ class TestModelSelection:
         config = router.select_model("Analyze this document", context_size=150_000)
         # Should use Gemini for large context
         assert config.provider == "gemini"
-        assert config.model == "gemini-3.1-pro-preview"
+        assert config.model == "gemini-4-argon"
 
     def test_research_with_no_budget_and_research_disallowed_avoids_deep_research(self, router):
         """Regression: a non-agentic chat turn (no explicit budget) must not be

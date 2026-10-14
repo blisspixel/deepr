@@ -643,8 +643,8 @@ DEFAULT_MODELS = [
     "openai/gpt-5.6-luna",  # Cost-sensitive GPT-5.6 tier
     "openai/gpt-5.4",  # Previous OpenAI frontier (1M+ context)
     "anthropic/claude-opus-5",  # Current Opus-tier Claude research model ($0.85/query)
-    "gemini/gemini-3.1-pro-preview",  # Latest gen, best quality ($0.20/query)
-    "gemini/gemini-2.5-pro",  # Thinking model, can't disable thinking ($0.15/query)
+    "gemini/gemini-4-argon",  # Current Gemini flagship ($0.12/query planning estimate)
+    "gemini/gemini-3.8-flash",  # Current Gemini default
     # Mid-tier
     "anthropic/claude-sonnet-5",  # Current balanced Anthropic default ($0.32/query)
     "openai/gpt-4.1",  # 1M context ($0.04/query)
@@ -663,9 +663,7 @@ DEFAULT_MODELS = [
     "openai/gpt-5.4-nano",  # Cheapest GPT-5.4 ($0.01/query)
     "openai/gpt-5-nano",  # Cheapest GPT-5 ($0.005/query)
     "openai/gpt-4.1-nano",  # Cheapest 1M context ($0.003/query)
-    "gemini/gemini-3.5-flash",  # Newest Flash gen - beats 3.1 Pro on coding/agentic ($0.03/query)
-    "gemini/gemini-3-flash-preview",  # Prior gen, fast ($0.01/query)
-    "gemini/gemini-3.1-flash-lite",  # Most cost-effective Gemini, GA ($0.007/query)
+    "gemini/gemini-3.5-flash-lite",  # Current budget Gemini ($0.008/query)
     "anthropic/claude-haiku-4-5",  # Budget Anthropic ($0.05/query)
 ]
 
@@ -680,9 +678,8 @@ NEWS_MODELS = [
     "openai/gpt-5.6-sol",
     "openai/gpt-5.4",
     "openai/gpt-5-mini",
-    # Gemini (Google grounding)
-    "gemini/gemini-2.5-flash",
-    "gemini/gemini-2.5-pro",
+    # Gemini web tiers stay off this list. Gemini 3 and 4 search has no flat
+    # grounded-prompt ceiling in this script, and the 2.5 ids are not selected.
 ]
 
 _UNBOUNDED_NATIVE_RESEARCH_MODELS = [
@@ -701,8 +698,6 @@ ORCHESTRATED_RESEARCH_MODELS = [
     "openai/gpt-5.4",
     "openai/o3",
     "openai/gpt-5-mini",
-    # Gemini (google_search grounding)
-    "gemini/gemini-2.5-pro",
 ]
 
 # Documentation tier models: web-search-capable models that can fetch + document APIs.
@@ -710,7 +705,6 @@ DOCS_MODELS = [
     "openai/gpt-5.4",
     "openai/gpt-5-mini",
     "openai/o3",
-    "gemini/gemini-2.5-pro",
 ]
 
 # Provider -> (env var, API base URL)
@@ -843,6 +837,7 @@ def _is_thinking_model(model_key: str) -> bool:
         or model.startswith("o4")
         or model.startswith("gemini-2.5")
         or model.startswith("gemini-3")
+        or model.startswith("gemini-4")
         or ("4-20" in model and "reasoning" in model)
     )
 
@@ -856,7 +851,9 @@ _GEMINI_25_GROUNDED_PROMPT_COST = 0.035
 def _has_unbounded_search_billing(model_key: str) -> bool:
     """Return whether one search request can create unbounded tool charges."""
     provider, _, model = model_key.partition("/")
-    return provider == "xai" or (provider == "gemini" and model.startswith("gemini-3"))
+    return provider == "xai" or (
+        provider == "gemini" and (model.startswith("gemini-3") or model.startswith("gemini-4"))
+    )
 
 
 def _tool_call_limit(tier: str) -> int:
@@ -873,7 +870,7 @@ def _authorized_output_tokens(model_key: str, prompt: EvalPrompt) -> int:
     """Mirror the maximum output-token value sent by the selected adapter."""
     provider, _, model = model_key.partition("/")
     if provider == "gemini":
-        thinking_headroom = 3072 if "pro" in model else 2048
+        thinking_headroom = 3072 if "pro" in model or model.startswith("gemini-4") else 2048
         return max(prompt.max_tokens + thinking_headroom, 4096)
     if provider == "openai" and _is_thinking_model(model_key):
         minimum = 4096 if prompt.tier in _WEB_TIERS else 2048
@@ -1817,7 +1814,7 @@ DOCS_JUDGE_WEIGHTS = {
 def pick_judge_model(models_being_tested: list[str], forced_judge: str | None) -> str | None:
     """Pick a judge model that isn't being tested.
 
-    Preference: gpt-4.1-mini > claude-haiku-4-5 > grok-4.3 > gemini-2.5-flash
+    Preference: gpt-4.1-mini > claude-haiku-4-5 > grok-4.3 > gemini-3.5-flash-lite
     """
     if forced_judge:
         return forced_judge
@@ -1827,7 +1824,7 @@ def pick_judge_model(models_being_tested: list[str], forced_judge: str | None) -
         ("openai", "gpt-4.1-mini", "OPENAI_API_KEY"),
         ("anthropic", "claude-haiku-4-5", "ANTHROPIC_API_KEY"),
         ("xai", "grok-4.3", "XAI_API_KEY"),
-        ("gemini", "gemini-2.5-flash", "GEMINI_API_KEY"),
+        ("gemini", "gemini-3.5-flash-lite", "GEMINI_API_KEY"),
     ]
 
     for provider, model, env_var in candidates:
@@ -2531,10 +2528,9 @@ def run_validation(registry: dict, spend_guard: BenchmarkSpendGuard, tier: str =
             ("openai", "openai/gpt-5-mini"),
             ("xai", "xai/grok-4-20-non-reasoning"),
             ("xai", "xai/grok-4-3"),
-            ("gemini", "gemini/gemini-2.5-flash"),
-            ("gemini", "gemini/gemini-2.5-pro"),
-            ("gemini", "gemini/gemini-3-flash-preview"),
-            ("gemini", "gemini/gemini-3.1-pro-preview"),
+            ("gemini", "gemini/gemini-3.5-flash-lite"),
+            ("gemini", "gemini/gemini-3.8-flash"),
+            ("gemini", "gemini/gemini-4-argon"),
             ("anthropic", "anthropic/claude-haiku-4-5"),
             ("azure-foundry", "azure-foundry/gpt-4.1"),
         ]
@@ -2580,10 +2576,7 @@ def run_validation(registry: dict, spend_guard: BenchmarkSpendGuard, tier: str =
     # News tier validation
     if tier in ("news", "all"):
         news_prompt = "What day is it today? Include the date."
-        news_tests = [
-            ("gemini", "gemini/gemini-2.5-flash"),
-            ("gemini", "gemini/gemini-2.5-pro"),
-        ]
+        news_tests: list[tuple[str, str]] = []
 
         print()
         print("  News Tier Validation (web search)")
@@ -2628,7 +2621,6 @@ def run_validation(registry: dict, spend_guard: BenchmarkSpendGuard, tier: str =
         research_prompt = "Briefly summarize the current state of AI safety research in 2-3 sentences."
         research_tests = [
             ("openai", "openai/gpt-5-mini"),
-            ("gemini", "gemini/gemini-2.5-pro"),
         ]
 
         passed = failed = skipped = 0
@@ -2666,7 +2658,6 @@ def run_validation(registry: dict, spend_guard: BenchmarkSpendGuard, tier: str =
         docs_prompt = "What are the main endpoints of the Stripe API? List 3."
         docs_tests = [
             ("openai", "openai/gpt-5-mini"),
-            ("gemini", "gemini/gemini-2.5-pro"),
         ]
 
         print()

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Selectable Gemini models are gemini-4-argon, gemini-3.8-flash, and gemini-3.5-flash-lite. The aliases gemini-pro, gemini-flash, and gemini-flash-lite follow that lineup.
+- Gemini Deep Research uses deep-research-max-preview-04-2026. deep-research-pro-preview-12-2025 shuts down on 2026-10-23. Managed Deep Research stays gated.
+- Registry estimates use Gemini 4 Argon's December 1, 2026 caps ($4/$20 per million tokens, cached input $0.20) and Gemini 3.8 Flash's January 1, 2027 caps ($1.50/$7.50, cached input $0.15). The Deep Research planning reserve is $5.
+- Older Gemini ids still price historical usage. New research and provider submission refuse them and name the successor. Explicit retired OpenAI ids still validate.
+
 ## [2.50.27] - 2026-10-13
 
 Compatible research-model migration. Cost gates, the reserved 128k built-in web-search ceiling, and metered dispatch limits stay unchanged.

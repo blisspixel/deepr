@@ -121,7 +121,7 @@ def test_file_search_fails_before_spend_until_storage_is_bounded() -> None:
 def test_gemini_deep_research_explains_missing_provider_budget_control() -> None:
     request = ResearchRequest(
         prompt="Research",
-        model="deep-research-pro-preview-12-2025",
+        model="deep-research-max-preview-04-2026",
         system_message="Test",
     )
     with pytest.raises(ResearchRequestBoundsError) as raised:
@@ -173,10 +173,8 @@ def test_current_gemini_aliases_enforce_provider_output_limit(model: str) -> Non
 @pytest.mark.parametrize(
     ("model", "provider", "max_input_tokens", "expected_maximum"),
     [
-        ("gemini-2.5-pro", "gemini", 200_000, 0.7),
-        ("gemini-2.5-pro", "gemini", 200_001, 1.300005),
-        ("gemini-3.1-pro-preview", "gemini", 200_000, 1.04),
-        ("gemini-3.1-pro-preview", "gemini", 200_001, 1.960008),
+        ("gemini-4-argon", "gemini", 200_000, 2.0),
+        ("gemini-4-argon", "gemini", 200_001, 2.000008),
         # Reviewed $4/$20 per MTok; above 272K, input is 2x and output 1.5x.
         ("gpt-5.6", "openai", 272_000, 2.576),
         ("gpt-5.6", "openai", 272_001, 4.952016),
@@ -251,7 +249,7 @@ def test_grok_multi_agent_boundary_remains_blocked_without_parent_reservation() 
 def test_provider_model_mismatch_fails_before_cost_admission() -> None:
     request = ResearchRequest(
         prompt="Research",
-        model="gemini-3.6-flash",
+        model="gemini-3.8-flash",
         system_message="Test",
         max_input_tokens=8_192,
         max_output_tokens=1_000,
