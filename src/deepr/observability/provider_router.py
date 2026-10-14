@@ -394,7 +394,7 @@ class AutonomousProviderRouter:
         ("openai", "o3-deep-research"),
         ("openai", "o4-mini-deep-research"),
         ("xai", "grok-4.3"),
-        ("gemini", "gemini-2.5-flash"),
+        ("gemini", "gemini-3.5-flash-lite"),
     ]
 
     # Task-specific preferences (only supported providers)

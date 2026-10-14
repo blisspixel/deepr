@@ -112,7 +112,7 @@ async def test_gemini_provider_basic():
 
     request = ResearchRequest(
         prompt="What is the capital of France? Provide a one-sentence answer.",
-        model="gemini-2.5-flash",
+        model="gemini-3.8-flash",
         system_message="You are a helpful assistant.",
         tools=[],
         background=False,
@@ -222,7 +222,7 @@ async def test_all_providers_cost_tracking():
     if os.getenv("OPENAI_API_KEY"):
         providers_to_test.append(("OpenAI", OpenAIProvider(), "o4-mini-deep-research", 180))
     if os.getenv("GEMINI_API_KEY"):
-        providers_to_test.append(("Gemini", GeminiProvider(), "gemini-2.5-flash", 60))
+        providers_to_test.append(("Gemini", GeminiProvider(), "gemini-3.8-flash", 60))
     if os.getenv("XAI_API_KEY"):
         providers_to_test.append(("Grok", GrokProvider(), "grok-4-1-fast-non-reasoning", 60))
 
@@ -272,7 +272,7 @@ async def test_provider_response_format_consistency():
     providers_to_test = []
 
     if os.getenv("GEMINI_API_KEY"):
-        providers_to_test.append(("Gemini", GeminiProvider(), "gemini-2.5-flash"))
+        providers_to_test.append(("Gemini", GeminiProvider(), "gemini-3.8-flash"))
     if os.getenv("XAI_API_KEY"):
         providers_to_test.append(("Grok", GrokProvider(), "grok-4-1-fast-non-reasoning"))
 

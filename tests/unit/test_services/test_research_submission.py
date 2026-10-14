@@ -599,7 +599,7 @@ async def test_dispatch_refuses_reservation_smaller_than_full_envelope() -> None
 
 @pytest.mark.asyncio
 async def test_gemini_deep_research_fails_closed_before_dispatch() -> None:
-    model = "deep-research-pro-preview-12-2025"
+    model = "deep-research-max-preview-04-2026"
     reservation = ResearchCostReservation(
         job_id="job-1",
         provider="gemini",

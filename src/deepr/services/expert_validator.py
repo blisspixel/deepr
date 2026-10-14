@@ -58,8 +58,7 @@ ALLOWED_VALIDATION_MODELS: frozenset[str] = frozenset(
         "gpt-5-nano",
         "gpt-4.1-mini",
         "gpt-4o-mini",
-        "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
+        "gemini-3.5-flash-lite",
     }
 )
 

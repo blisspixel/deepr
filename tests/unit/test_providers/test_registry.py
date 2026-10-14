@@ -167,13 +167,21 @@ class TestModelCapabilities:
 
     def test_gemini_models(self):
         """Test Gemini model capabilities."""
-        gemini_36_flash = get_model_capability("gemini", "gemini-3.6-flash")
-        assert gemini_36_flash is not None
-        assert gemini_36_flash.context_window == 1_048_576
-        assert gemini_36_flash.input_cost_per_1m == pytest.approx(1.50)
-        assert gemini_36_flash.output_cost_per_1m == pytest.approx(7.50)
-        assert gemini_36_flash.cached_input_cost_per_1m == pytest.approx(0.15)
-        assert gemini_36_flash.max_output_tokens == 65_536
+        gemini_flash = get_model_capability("gemini", "gemini-3.8-flash")
+        assert gemini_flash is not None
+        assert gemini_flash.deprecated is False
+        assert gemini_flash.context_window == 1_048_576
+        assert gemini_flash.input_cost_per_1m == pytest.approx(1.50)
+        assert gemini_flash.output_cost_per_1m == pytest.approx(7.50)
+        assert gemini_flash.cached_input_cost_per_1m == pytest.approx(0.15)
+        assert gemini_flash.max_output_tokens == 65_536
+
+        argon = get_model_capability("gemini", "gemini-4-argon")
+        assert argon is not None
+        assert argon.deprecated is False
+        assert argon.input_cost_per_1m == pytest.approx(4.00)
+        assert argon.output_cost_per_1m == pytest.approx(20.00)
+        assert argon.cached_input_cost_per_1m == pytest.approx(0.20)
 
         gemini_35_flash_lite = get_model_capability("gemini", "gemini-3.5-flash-lite")
         assert gemini_35_flash_lite is not None
@@ -185,13 +193,15 @@ class TestModelCapabilities:
 
         gemini_pro = get_model_capability("gemini", "gemini-3.1-pro-preview")
         assert gemini_pro is not None
+        assert gemini_pro.deprecated is True
         assert "large_context" in gemini_pro.specializations
         assert gemini_pro.context_window >= 1_000_000
 
-        gemini_flash = get_model_capability("gemini", "gemini-2.5-flash")
-        assert gemini_flash is not None
-        assert "speed" in gemini_flash.specializations
-        assert gemini_flash.cost_per_query < 0.01  # Very cheap
+        older_flash = get_model_capability("gemini", "gemini-2.5-flash")
+        assert older_flash is not None
+        assert older_flash.deprecated is True
+        assert "speed" in older_flash.specializations
+        assert older_flash.cost_per_query < 0.01  # Historical estimate stays cheap
 
     def test_limited_access_flash_cyber_is_not_public_capacity(self):
         """CodeMender-only Flash Cyber must not appear as a Gemini API model."""
@@ -215,12 +225,12 @@ class TestModelCapabilities:
         flash_lite_preview = get_model_capability("gemini", "gemini-3.1-flash-lite-preview")
         assert flash_lite_preview is not None
         assert flash_lite_preview.deprecated is True
-        assert flash_lite_preview.successor == "gemini/gemini-3.1-flash-lite"
+        assert flash_lite_preview.successor == "gemini/gemini-3.5-flash-lite"
 
         pro_preview = get_model_capability("gemini", "gemini-3-pro-preview")
         assert pro_preview is not None
         assert pro_preview.deprecated is True
-        assert pro_preview.successor == "gemini/gemini-3.1-pro-preview"
+        assert pro_preview.successor == "gemini/gemini-4-argon"
 
     def test_cost_ordering(self):
         """Test that model costs make sense relative to capabilities."""

@@ -36,17 +36,16 @@ _PROVIDER_KEY_ENV = {
 _PROVIDER_MODELS = {
     "xai": "grok-4.3",
     "openai": "gpt-5.2",
-    "gemini": "gemini-3.1-pro-preview",
+    "gemini": "gemini-3.8-flash",
     "anthropic": "claude-sonnet-5",
 }
 
-# Rough cost per query by provider (used for budget planning). Gemini bumped
-# to 0.20 to reflect Gemini 3.1 Pro Preview's base rate (cost_per_query in
-# the registry) rather than the stale Gemini 2.x Flash $0.08 estimate.
+# Rough cost per query by provider (used for budget planning). Gemini uses the
+# current default, gemini-3.8-flash, at its registry planning estimate.
 _ESTIMATED_COST = {
     "xai": 0.15,
     "openai": 0.10,
-    "gemini": 0.20,
+    "gemini": 0.025,
     "anthropic": 0.12,
 }
 

@@ -156,7 +156,7 @@ class TestPreviewExplicitModel:
         assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
         assert payload["provider"] == "gemini"
-        assert payload["model"] == "gemini-3.6-flash"
+        assert payload["model"] == "gemini-3.8-flash"
         assert payload["tools"] == {"web_search": False, "code_interpreter": False}
 
     def test_openrouter_preview_uses_exact_slug_and_disables_tools(self, runner: CliRunner) -> None:
@@ -240,7 +240,7 @@ class TestPreviewExplicitModel:
                 "--provider",
                 "xai",
                 "--model",
-                "gemini-3.6-flash",
+                "gemini-3.8-flash",
                 "Mismatched route",
             ],
         )

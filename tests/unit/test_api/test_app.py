@@ -298,7 +298,7 @@ class TestJobSubmission:
 
     @pytest.mark.parametrize(
         "model",
-        ["gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-flash", "gemini-flash-lite"],
+        ["gemini-4-argon", "gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-flash", "gemini-flash-lite"],
     )
     def test_submit_job_accepts_current_gemini_models_and_aliases(self, client, model):
         response = client.post(

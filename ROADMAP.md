@@ -2413,6 +2413,11 @@ Goal: continuously validate routing quality/cost claims with measurable feedback
     cached-content usage settles at the discounted rate. Gemini 3.5 Flash Cyber remains unregistered
     because Google limits it to a CodeMender pilot for governments and trusted
     partners rather than general Gemini API access.
+  - [x] Gemini October 2026 lineup (2026-10-14): selectable models are
+    `gemini-4-argon`, `gemini-3.8-flash`, and `gemini-3.5-flash-lite`. Deep
+    Research uses `deep-research-max-preview-04-2026` on the Interactions API
+    and remains gated. Older Gemini ids stay in the registry for historical
+    settlement and are not routed.
   - [x] First-party tool-surface drift check (`scripts/validate_integrations.py`, 2026-06-11): live `tools/list` handshake against installed recon/distillr/primr through Deepr's own MCP client, diffed against the profile approval lists. Built after all three integrations were found silently drifted (primr removed `batch_analyze`/`quick_lookup`; distillr renamed its entire verb surface; recon added five tools). $0; run after upgrading any sibling tool. The live check immediately corrected two errors in the static fix itself - this class of break is only catchable live.
 - [x] Routing preview: `deepr research --preview` shows model choice, estimated cost band, and (in `--auto` mode) routing confidence and reasoning before executing. Works for both explicit `--model/--provider` runs and `--auto` mode. JSON output (`--json`) emits a structured `{preview, executed, provider, model, cost_estimate}` payload for machine consumers. Back-compat: `--dry-run` is preserved as an alias.
 - [~] Eval methodology v2 (design: [docs/design/calibration-and-trust.md](docs/design/calibration-and-trust.md)):

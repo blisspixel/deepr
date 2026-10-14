@@ -692,8 +692,8 @@ class TestGeminiProvider:
     @pytest.mark.requires_api
     async def test_gemini_flash_basic_research(self, storage, test_results_dir):
         """
-        Test: Gemini 2.5 Flash with thinking and Google Search
-        Expected cost: ~$0.02
+        Test: Gemini 3.8 Flash with thinking and Google Search
+        Expected cost: ~$0.03
         Purpose: Validate Gemini thinking, search grounding, and agentic capabilities
         """
         api_key = os.getenv("GEMINI_API_KEY")
@@ -715,7 +715,7 @@ What new capabilities should we integrate? Keep under 500 words with current pri
 
         request = ResearchRequest(
             prompt=prompt,
-            model="gemini-2.5-flash",
+            model="gemini-3.8-flash",
             system_message="You are an AI research analyst. Provide well-cited insights.",
             tools=[ToolConfig(type="web_search_preview")],
             metadata={"test": "gemini_flash_agentic"},
@@ -766,7 +766,7 @@ What new capabilities should we integrate? Keep under 500 words with current pri
         result_data = {
             "test": "gemini_flash_agentic",
             "provider": "gemini",
-            "model": "gemini-2.5-flash",
+            "model": "gemini-3.8-flash",
             "prompt_length": len(prompt),
             "response_length": len(content),
             "thinking_length": len(thoughts) if thoughts else 0,
@@ -800,9 +800,9 @@ What new capabilities should we integrate? Keep under 500 words with current pri
     @pytest.mark.requires_api
     async def test_gemini_pro_reasoning(self, storage, test_results_dir):
         """
-        Test: Gemini 2.5 Pro with maximum reasoning
-        Expected cost: ~$0.15
-        Purpose: Validate Pro's always-on thinking for complex analysis
+        Test: Gemini 4 Argon with high thinking
+        Expected cost: up to about $2
+        Purpose: Validate Argon thinking for complex analysis
         """
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
@@ -823,7 +823,7 @@ Provide specific recommendations with examples. Be thorough and analytical."""
 
         request = ResearchRequest(
             prompt=prompt,
-            model="gemini-2.5-pro",
+            model="gemini-4-argon",
             system_message="You are a strategic technology analyst.",
             tools=[ToolConfig(type="web_search_preview")],
             metadata={"test": "gemini_pro_reasoning"},
@@ -867,7 +867,7 @@ Provide specific recommendations with examples. Be thorough and analytical."""
         result_data = {
             "test": "gemini_pro_reasoning",
             "provider": "gemini",
-            "model": "gemini-2.5-pro",
+            "model": "gemini-4-argon",
             "cost": actual_cost,
             "time_seconds": actual_time,
             "response_length": len(content),
@@ -879,7 +879,7 @@ Provide specific recommendations with examples. Be thorough and analytical."""
         save_test_result(test_results_dir, "gemini_pro", result_data)
 
         assert is_thorough, "Pro should produce thorough analysis"
-        assert actual_cost < 0.50, f"Cost should be reasonable: ${actual_cost}"
+        assert actual_cost < 2.00, f"Cost should be reasonable: ${actual_cost}"
 
         print("\n\nGemini Pro Test Results:")
         print(f"  Cost: ${actual_cost:.4f}")
@@ -1128,7 +1128,7 @@ Keep under 800 words."""
 
         request = ResearchRequest(
             prompt=prompt,
-            model="gemini-2.5-flash",
+            model="gemini-3.8-flash",
             system_message="You are a senior software engineer and product strategist.",
             tools=[ToolConfig(type="web_search_preview")],
             document_ids=[readme_id, roadmap_id],
@@ -1171,7 +1171,7 @@ Keep under 800 words."""
         with open(recommendations_file, "w", encoding="utf-8") as f:
             f.write("# Deepr Improvement Recommendations\n\n")
             f.write(f"Generated: {datetime.now().isoformat()}\n")
-            f.write("Model: gemini-2.5-flash\n")
+            f.write("Model: gemini-3.8-flash\n")
             f.write(f"Cost: ${actual_cost:.4f}\n")
             f.write(f"Time: {actual_time:.1f}s\n\n")
             f.write("---\n\n")
@@ -1185,7 +1185,7 @@ Keep under 800 words."""
         result_data = {
             "test": "deepr_docs_analysis",
             "provider": "gemini",
-            "model": "gemini-2.5-flash",
+            "model": "gemini-3.8-flash",
             "cost": actual_cost,
             "time_seconds": actual_time,
             "response_length": len(content),

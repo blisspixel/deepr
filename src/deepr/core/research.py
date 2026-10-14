@@ -45,7 +45,7 @@ MODEL_COST_ESTIMATES = {cap.model: cap.cost_per_query for cap in MODEL_CAPABILIT
 # orchestrator and MCP fall back to DEFAULT_COST_ESTIMATE ($0.20) before
 # enforcing per-job/global budgets, even though the underlying provider
 # call costs ~$1-$2.50.
-_DEEP_RESEARCH_AGENT_MODEL = "deep-research-pro-preview-12-2025"
+_DEEP_RESEARCH_AGENT_MODEL = "deep-research-max-preview-04-2026"
 _DEEP_RESEARCH_AGENT_COST = MODEL_COST_ESTIMATES.get(_DEEP_RESEARCH_AGENT_MODEL, 2.50)
 MODEL_COST_ESTIMATES.setdefault("gemini-deep-research", _DEEP_RESEARCH_AGENT_COST)
 MODEL_COST_ESTIMATES.setdefault("deep-research", _DEEP_RESEARCH_AGENT_COST)

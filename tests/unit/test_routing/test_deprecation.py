@@ -35,15 +35,22 @@ class TestCheckDeprecation:
         assert check_deprecation("gpt-5.6-terra") is None
         assert check_deprecation("grok-4.20-0309-reasoning") is None
         assert check_deprecation("gemini-3.1-pro-preview") is None
+        assert check_deprecation("gemini-4-argon") is None
+        assert check_deprecation("gemini-3.8-flash") is None
 
     def test_shutdown_gemini_previews_are_deprecated(self):
         pro = check_deprecation("gemini-3-pro-preview")
         flash_lite = check_deprecation("gemini-3.1-flash-lite-preview")
+        research = check_deprecation("deep-research-pro-preview-12-2025")
 
         assert pro is not None
-        assert pro.new_model == "gemini-3.1-pro-preview"
+        assert pro.new_model == "gemini-4-argon"
+        assert pro.sunset_date == "2026-03-09"
         assert flash_lite is not None
-        assert flash_lite.new_model == "gemini-3.1-flash-lite"
+        assert flash_lite.new_model == "gemini-3.5-flash-lite"
+        assert research is not None
+        assert research.new_model == "deep-research-max-preview-04-2026"
+        assert research.sunset_date == "2026-10-23"
 
     def test_versioned_gpt4o_mini_matches_correctly(self):
         """gpt-4o-mini-2024-08-06 should match gpt-4o-mini, NOT gpt-4o."""
@@ -109,7 +116,7 @@ class TestMigrateModel:
     def test_shutdown_gemini_preview_migrates(self):
         model, confidence, warning = migrate_model("gemini-3.1-flash-lite-preview")
 
-        assert model == "gemini-3.1-flash-lite"
+        assert model == "gemini-3.5-flash-lite"
         assert confidence == 1.0
         assert warning is not None
 

@@ -303,7 +303,11 @@ for tested behavior and the distinction from draft standards and host certificat
 v2.50.27 points deep-research defaults at the live OpenAI substitutes.
 Retired model ids still validate and keep their historical wire names. Built-in
 web search stays off when a context window is larger than the reserved 128k
-input ceiling.
+input ceiling. Selectable Gemini models are `gemini-4-argon`,
+`gemini-3.8-flash`, and `gemini-3.5-flash-lite`. Gemini Deep Research uses
+`deep-research-max-preview-04-2026` and stays gated because that agent has no
+provider spend ceiling. Older Gemini ids remain priced for historical
+settlement and are not selected.
 
 v2.50.26 repairs core-only installation on ordinary Python 3.13 with canonical
 PyYAML and checks the core CLI, MCP and YAML surfaces on Python 3.12, 3.13 and

@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 _PROVIDER_DEFAULT_MODELS = {
     "openai": "gpt-5.6-sol",
     "azure": "gpt-5.6-sol",
-    "gemini": "gemini-3.6-flash",
+    "gemini": "gemini-3.8-flash",
     "xai": "grok-4.6",
     "grok": "grok-4.6",
     # Cheap attended OpenRouter slug. Frontier OpenRouter slugs stay explicit.

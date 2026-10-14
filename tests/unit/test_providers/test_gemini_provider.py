@@ -32,10 +32,11 @@ class TestGeminiProvider:
         """Test provider initializes correctly."""
         assert provider.api_key == "test-gemini-key"
         assert provider.client is not None
-        assert "gemini-3.6-flash" in provider.model_mappings
+        assert "gemini-4-argon" in provider.model_mappings
+        assert "gemini-3.8-flash" in provider.model_mappings
         assert "gemini-3.5-flash-lite" in provider.model_mappings
-        assert "gemini-2.5-pro" in provider.model_mappings
-        assert "gemini-2.5-flash" in provider.model_mappings
+        assert "gemini-2.5-pro" not in provider.model_mappings
+        assert "gemini-2.5-flash" not in provider.model_mappings
 
     def test_provider_disables_sdk_automatic_retries(self, provider):
         """One reservation authorizes one direct Gemini HTTP attempt."""
@@ -60,26 +61,23 @@ class TestGeminiProvider:
 
     def test_model_name_mapping(self, provider):
         """Test model name mapping."""
-        assert provider.get_model_name("gemini-3.6-flash") == "gemini-3.6-flash"
+        assert provider.get_model_name("gemini-4-argon") == "gemini-4-argon"
+        assert provider.get_model_name("gemini-3.8-flash") == "gemini-3.8-flash"
         assert provider.get_model_name("gemini-3.5-flash-lite") == "gemini-3.5-flash-lite"
-        assert provider.get_model_name("gemini-3.1-pro-preview") == "gemini-3.1-pro-preview"
-        assert provider.get_model_name("gemini-3.1-pro") == "gemini-3.1-pro-preview"  # Alias
-        assert provider.get_model_name("gemini-2.5-pro") == "gemini-2.5-pro"
-        assert provider.get_model_name("gemini-2.5-flash") == "gemini-2.5-flash"
-        assert provider.get_model_name("gemini-pro") == "gemini-3.1-pro-preview"  # Default pro alias
-        assert provider.get_model_name("gemini-flash") == "gemini-3.6-flash"
+        assert provider.get_model_name("gemini-3.1-pro") == "gemini-4-argon"
+        assert provider.get_model_name("gemini-pro") == "gemini-4-argon"
+        assert provider.get_model_name("gemini-flash") == "gemini-3.8-flash"
         assert provider.get_model_name("gemini-flash-lite") == "gemini-3.5-flash-lite"
         assert provider.get_model_name("unknown-model") == "unknown-model"
 
     def test_pricing_configuration(self, provider):
         """Test pricing is configured correctly."""
-        assert provider.pricing["gemini-3.6-flash"] == {"input": 1.50, "output": 7.50}
+        assert provider.pricing["gemini-4-argon"] == {"input": 4.00, "output": 20.00}
+        assert provider.pricing["gemini-3.8-flash"] == {"input": 1.50, "output": 7.50}
         assert provider.pricing["gemini-3.5-flash-lite"] == {"input": 0.30, "output": 2.50}
         assert "gemini-3.1-pro-preview" in provider.pricing
-        assert "gemini-3.1-flash-lite-preview" in provider.pricing
         assert "gemini-2.5-pro" in provider.pricing
         assert "gemini-2.5-flash" in provider.pricing
-        assert "gemini-2.5-flash-lite" in provider.pricing
 
         # Verify pricing structure
         pro_pricing = provider.pricing["gemini-2.5-pro"]
@@ -110,19 +108,18 @@ class TestGeminiProvider:
     def test_calculate_cost(self, provider):
         """Test cost calculation for Gemini models."""
         # Test with Pro model (highest cost)
-        cost_pro = provider._calculate_cost(input_tokens=1000, output_tokens=1000, model="gemini-2.5-pro")
+        cost_pro = provider._calculate_cost(input_tokens=1000, output_tokens=1000, model="gemini-4-argon")
         assert cost_pro > 0
-        # Pro: $1.25/M input + $10.00/M output (includes thinking tokens)
-        # 1000 tokens = 0.001M tokens = $0.01125
-        assert abs(cost_pro - 0.01125) < 0.0001
+        # Argon registry caps: $4/M input + $20/M output. 1000 tokens = $0.024
+        assert abs(cost_pro - 0.024) < 0.0001
 
         # Test with Flash model (balanced cost)
-        cost_flash = provider._calculate_cost(input_tokens=1000, output_tokens=1000, model="gemini-2.5-flash")
+        cost_flash = provider._calculate_cost(input_tokens=1000, output_tokens=1000, model="gemini-3.8-flash")
         assert cost_flash > 0
         assert cost_flash < cost_pro  # Flash should be cheaper than Pro
 
         # Test with Flash-Lite model (lowest cost)
-        cost_lite = provider._calculate_cost(input_tokens=1000, output_tokens=1000, model="gemini-2.5-flash-lite")
+        cost_lite = provider._calculate_cost(input_tokens=1000, output_tokens=1000, model="gemini-3.5-flash-lite")
         assert cost_lite > 0
         assert cost_lite <= cost_flash  # Flash-Lite should be cheapest or equal
 
@@ -146,9 +143,12 @@ class TestGeminiProvider:
     @pytest.mark.parametrize(
         ("model", "complexity", "expected_level"),
         [
-            ("gemini-3.6-flash", "easy", types.ThinkingLevel.MEDIUM),
-            ("gemini-3.6-flash", "hard", types.ThinkingLevel.HIGH),
-            ("gemini-3.5-flash-lite", "easy", types.ThinkingLevel.MINIMAL),
+            ("gemini-4-argon", "easy", types.ThinkingLevel.LOW),
+            ("gemini-4-argon", "medium", types.ThinkingLevel.MEDIUM),
+            ("gemini-4-argon", "hard", types.ThinkingLevel.HIGH),
+            ("gemini-3.8-flash", "easy", types.ThinkingLevel.MEDIUM),
+            ("gemini-3.8-flash", "hard", types.ThinkingLevel.HIGH),
+            ("gemini-3.5-flash-lite", "easy", types.ThinkingLevel.LOW),
             ("gemini-3.5-flash-lite", "medium", types.ThinkingLevel.MEDIUM),
             ("gemini-3.5-flash-lite", "hard", types.ThinkingLevel.HIGH),
         ],
@@ -161,7 +161,7 @@ class TestGeminiProvider:
         assert config.thinking_budget is None
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("model", ["gemini-3.6-flash", "gemini-3.5-flash-lite"])
+    @pytest.mark.parametrize("model", ["gemini-4-argon", "gemini-3.8-flash", "gemini-3.5-flash-lite"])
     async def test_new_models_omit_deprecated_sampling_parameters(self, provider, model):
         """The new model family must not receive temperature, top_p, or top_k."""
         request = ResearchRequest(
@@ -222,7 +222,7 @@ class TestGeminiProvider:
 
             request = ResearchRequest(
                 prompt="Test prompt",
-                model="gemini-3.6-flash",
+                model="gemini-3.8-flash",
                 system_message="Test system message",
                 tools=[],
             )
@@ -248,7 +248,7 @@ class TestGeminiProvider:
         # This tests the configuration, actual API call would be in integration tests
         request = ResearchRequest(
             prompt="Test prompt",
-            model="gemini-2.5-flash",
+            model="gemini-3.8-flash",
             system_message="Test system message",
             tools=[ToolConfig(type="google_search")],  # Gemini uses google_search
         )
@@ -309,7 +309,7 @@ class TestGeminiVsOpenAIDifferences:
 
         Key difference from previous versions:
         - Deep research: submit_research() with deep-research model uses Interactions API (async background)
-        - Regular models: submit_research() with gemini-2.5-* uses generate_content (synchronous)
+        - Regular models: submit_research() with gemini-3.8-flash uses generate_content (synchronous)
         """
         assert hasattr(provider, "jobs")  # Regular job tracking
         assert hasattr(provider, "_deep_research_jobs")  # Deep research tracking
@@ -453,7 +453,7 @@ class TestDeepResearchSubmission:
 
         request = ResearchRequest(
             prompt="Research quantum computing applications",
-            model="deep-research-pro-preview-12-2025",
+            model="deep-research-max-preview-04-2026",
             system_message="You are a research assistant",
             tools=[],
         )
@@ -476,7 +476,7 @@ class TestDeepResearchSubmission:
 
         request = ResearchRequest(
             prompt="Test",
-            model="deep-research-pro-preview-12-2025",
+            model="deep-research-max-preview-04-2026",
             system_message="",
             tools=[],
         )
@@ -498,7 +498,7 @@ class TestDeepResearchSubmission:
 
         request = ResearchRequest(
             prompt="Simple question",
-            model="gemini-2.5-flash",
+            model="gemini-3.8-flash",
             system_message="",
             tools=[],
         )
@@ -515,7 +515,7 @@ class TestDeepResearchSubmission:
         )
         request = ResearchRequest(
             prompt="Simple question",
-            model="gemini-2.5-flash",
+            model="gemini-3.8-flash",
             system_message="",
             tools=[],
         )
@@ -539,7 +539,7 @@ class TestDeepResearchSubmission:
         provider.client.models.generate_content_stream.side_effect = blocking_stream
         request = ResearchRequest(
             prompt="Simple question",
-            model="gemini-2.5-flash",
+            model="gemini-3.8-flash",
             system_message="",
             tools=[],
         )
@@ -758,7 +758,7 @@ class TestDeepResearchWithFileStore:
 
         request = ResearchRequest(
             prompt="Research with context",
-            model="deep-research-pro-preview-12-2025",
+            model="deep-research-max-preview-04-2026",
             system_message="",
             tools=[],
             document_ids=["file-1", "file-2"],

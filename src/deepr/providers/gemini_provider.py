@@ -54,8 +54,12 @@ if genai is not None:
 
 logger = logging.getLogger(__name__)
 
-# Gemini Deep Research Agent identifier
-DEEP_RESEARCH_AGENT = "deep-research-pro-preview-12-2025"
+# Current Interactions agents and text models. Older ids stay in the registry
+# for settlement and are rejected before a provider call.
+DEEP_RESEARCH_AGENT = "deep-research-max-preview-04-2026"
+GEMINI_FLAGSHIP = "gemini-4-argon"
+GEMINI_DEFAULT = "gemini-3.8-flash"
+GEMINI_BUDGET = "gemini-3.5-flash-lite"
 
 
 class _FallbackThinkingConfig:
@@ -70,6 +74,7 @@ class _FallbackThinkingLevel(str, Enum):
     """Thinking-level values used only when the optional SDK is unavailable."""
 
     MINIMAL = "MINIMAL"
+    LOW = "LOW"
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
 
@@ -137,7 +142,9 @@ class GeminiProvider(DeepResearchProvider):
     """
 
     provider_key = "gemini"
-    _THINKING_LEVEL_MODELS = frozenset({"gemini-3.6-flash", "gemini-3.5-flash-lite"})
+    _THINKING_LEVEL_MODELS = frozenset(
+        {"gemini-4-argon", "gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite"}
+    )
 
     def __init__(
         self,
@@ -191,10 +198,10 @@ class GeminiProvider(DeepResearchProvider):
         }
         default_model_mappings.update(
             {
-                "gemini-3.1-pro": "gemini-3.1-pro-preview",
-                "gemini-pro": "gemini-3.1-pro-preview",
-                "gemini-flash": "gemini-3.6-flash",
-                "gemini-flash-lite": "gemini-3.5-flash-lite",
+                "gemini-3.1-pro": GEMINI_FLAGSHIP,
+                "gemini-pro": GEMINI_FLAGSHIP,
+                "gemini-flash": GEMINI_DEFAULT,
+                "gemini-flash-lite": GEMINI_BUDGET,
                 # Deep Research Agent
                 "gemini-deep-research": DEEP_RESEARCH_AGENT,
                 "deep-research": DEEP_RESEARCH_AGENT,
@@ -211,8 +218,8 @@ class GeminiProvider(DeepResearchProvider):
         }
 
         # Estimated cost per deep research job (varies by search query count)
-        # Powered by Gemini 3.1 Pro ($2/$12 per 1M tokens) + Google Search grounding
-        self.deep_research_cost_estimate = 2.50
+        # Deep Research Max is about $3-7 per task. Reserve the middle of that range.
+        self.deep_research_cost_estimate = 5.00
 
         # Job tracking for regular (synchronous) research
         self.jobs: dict[str, dict[str, Any]] = {}
@@ -252,10 +259,23 @@ class GeminiProvider(DeepResearchProvider):
         *,
         cached_input_tokens: int = 0,
     ) -> float:
-        """Calculate token cost using canonical registry rates and tiers."""
+        """Calculate token cost using canonical registry rates and tiers.
+
+        Retired contracts still settle. Unknown ids fail closed. New work is
+        refused earlier by ``_require_model_contract``.
+        """
         resolved_model = self.get_model_name(model)
-        capability = self._require_model_contract(resolved_model)
+        capability = self._model_contracts.get(resolved_model)
+        if capability is None:
+            raise ProviderError(
+                message=f"Gemini model contract is unavailable for {resolved_model!r}",
+                provider="gemini",
+                category="configuration",
+                retryable=False,
+            )
         if _is_deep_research_model(capability.model):
+            if capability.deprecated:
+                return capability.cost_per_query
             return self.deep_research_cost_estimate
 
         return UsageStats.calculate_cost_with_cached_input(
@@ -267,14 +287,23 @@ class GeminiProvider(DeepResearchProvider):
 
     def _get_thinking_config(self, model: str, complexity: str = "medium") -> types.ThinkingConfig | None:
         """Get thinking configuration based on model and task complexity."""
-        if model == "gemini-3.6-flash":
+        if model == "gemini-4-argon":
+            # Argon rejects minimal. Easy work uses low.
+            return types.ThinkingConfig(
+                thinking_level={"easy": types.ThinkingLevel.LOW, "hard": types.ThinkingLevel.HIGH}.get(
+                    complexity, types.ThinkingLevel.MEDIUM
+                )
+            )
+
+        if model in {"gemini-3.8-flash", "gemini-3.6-flash"}:
             return types.ThinkingConfig(
                 thinking_level=types.ThinkingLevel.HIGH if complexity == "hard" else types.ThinkingLevel.MEDIUM
             )
 
         if model == "gemini-3.5-flash-lite":
+            # Flash-Lite has no minimal level.
             return types.ThinkingConfig(
-                thinking_level={"easy": types.ThinkingLevel.MINIMAL, "hard": types.ThinkingLevel.HIGH}.get(
+                thinking_level={"easy": types.ThinkingLevel.LOW, "hard": types.ThinkingLevel.HIGH}.get(
                     complexity, types.ThinkingLevel.MEDIUM
                 )
             )

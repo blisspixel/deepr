@@ -276,7 +276,8 @@ def test_research_selection_uses_only_bounded_orchestration(benchmark_module, ca
     assert selected == benchmark_module.ORCHESTRATED_RESEARCH_MODELS
     assert all("deep-research" not in model for model in selected)
     assert all(not model.startswith("xai/") for model in selected)
-    assert benchmark_module._selected_provider_count(selected) == 2
+    # Gemini 3 and 4 search has no flat per-request ceiling in this script.
+    assert benchmark_module._selected_provider_count(selected) == 1
 
     args.model = "gemini/deep-research"
     assert benchmark_module.select_models(args, {}, key_status, tier="research") == []
