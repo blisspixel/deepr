@@ -1,6 +1,9 @@
 # Delivery plan: current, cumulative expertise
 
-Status: planned, 2026-09-20. The [active roadmap](../../ROADMAP.md#active-release-plan)
+Status: in progress, 2026-10-17. Step 1 of the
+[currency order](../design/expert-currency-order.md) is a read-only inspection
+and an explicit world-time admission. S0 through S4 remain open. The
+[active roadmap](../../ROADMAP.md#order-of-operations)
 owns priorities and release targets. This document defines dependencies,
 contracts, and acceptance evidence for that sequence. The
 [September research assessment](../design/living-expertise-research-2026-09.md)

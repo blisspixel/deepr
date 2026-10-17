@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.28] - 2026-10-17
+
+Compatible currency inspection and Gemini lineup correction. The new writes are operator CLI admissions with `--yes`. MCP, schedules, and consult do not gain them. Consult stays stored-only. Cost gates, metered dispatch limits, and automatic learning stay unchanged. This release does not claim that a maintained expert judges better than a fresh read.
+
+### Added
+
+- `deepr expert currency` reports world-time status from the live belief store and the event log without writing or calling a model. A missing end is unknown. Decay is reported as a rank.
+- `deepr expert close-claim --yes` records an observed or source-resolved end and keeps the previous claim in the archival snapshot.
+- `deepr expert affirm-claim --yes` marks one live claim in force without moving confidence or the decay clock.
+
 ### Changed
 
 - Selectable Gemini models are gemini-4-argon, gemini-3.8-flash, and gemini-3.5-flash-lite. The aliases gemini-pro, gemini-flash, and gemini-flash-lite follow that lineup.

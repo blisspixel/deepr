@@ -5,7 +5,7 @@ Keep package import lightweight by lazily importing heavy modules.
 
 from typing import TYPE_CHECKING, Any
 
-__version__ = "2.50.27"
+__version__ = "2.50.28"
 __author__ = "Nick Seal"
 
 if TYPE_CHECKING:

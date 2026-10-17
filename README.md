@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.50.27-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.27)
+[![Version](https://img.shields.io/badge/version-2.50.28-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.28)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -300,14 +300,21 @@ for tested behavior and the distinction from draft standards and host certificat
 
 ## Direction
 
-v2.50.27 points deep-research defaults at the live OpenAI substitutes.
-Retired model ids still validate and keep their historical wire names. Built-in
-web search stays off when a context window is larger than the reserved 128k
-input ceiling. Selectable Gemini models are `gemini-4-argon`,
-`gemini-3.8-flash`, and `gemini-3.5-flash-lite`. Gemini Deep Research uses
+v2.50.28 adds a read-only currency inspection and two explicit world-time
+writes. `deepr expert currency` reports which live beliefs have an unknown
+end, which were affirmed in force, and which have a recorded end. Decay stays
+a rank. `close-claim` and `affirm-claim` require `--yes` and a retained
+reason. Consult still uses stored state and does not certify currentness.
+The same patch selects `gemini-4-argon`, `gemini-3.8-flash`, and
+`gemini-3.5-flash-lite`. Gemini Deep Research uses
 `deep-research-max-preview-04-2026` and stays gated because that agent has no
 provider spend ceiling. Older Gemini ids remain priced for historical
 settlement and are not selected.
+
+v2.50.27 points deep-research defaults at the live OpenAI substitutes.
+Retired model ids still validate and keep their historical wire names. Built-in
+web search stays off when a context window is larger than the reserved 128k
+input ceiling.
 
 v2.50.26 repairs core-only installation on ordinary Python 3.13 with canonical
 PyYAML and checks the core CLI, MCP and YAML surfaces on Python 3.12, 3.13 and
