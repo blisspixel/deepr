@@ -93,6 +93,69 @@ Roadmap items are not approach claims until they land in
 
 ## Active Release Plan
 
+Expert memory follows the order below. v2.51 stays the evidence gate. A
+later step does not start by writing a model proposal into beliefs.
+
+## Order of operations
+
+The working sequence for expert memory is
+[expert currency](docs/design/expert-currency-order.md). Do the steps in
+this order. A later step that writes before the earlier step exists repeats
+the failure mode where a store overwrites a fact it later needs, or answers
+from a decayed rank as if the rank were a date.
+
+An expert is the corpus, the study, the positions, the dissent, and the
+admitted history. `beliefs/beliefs.json` is the claim store, not the expert.
+Displayed confidence decays from `updated_at` and is capped by source trust.
+That rank is not the time a claim stopped being true. A missing
+`invalidated_at` means the world end is unknown.
+
+- [x] **1. Inspection and explicit world time (2026-10-17).** `deepr expert
+  currency` reads the live store, the event log, corpus fetch times, and the
+  position ledger. It writes nothing and does not certify currentness.
+  `deepr expert close-claim --yes` records an observed or source-resolved
+  end and keeps the previous claim in the archival snapshot.
+  `deepr expert affirm-claim --yes` marks a claim in force without moving
+  confidence or the decay clock. `archive_stale` still does not set
+  `invalidated_at`. Contradictions stay unresolved. No model call and no
+  spend. This does not attach preparation to consult, and it does not show
+  that a maintained expert judges better than a fresh read. Local check on
+  2026-10-17, temporary expert only: `currency` and `close-claim --yes` ran
+  at `$0`. A following `expert consult --local` on `qwen3.8:27b` cost `$0`,
+  wrote no beliefs, delivered the closed claim as invalidated history, and
+  answered from the one live belief. CPU inference was about 2.4 tokens per
+  second. That check does not run S0.
+- [ ] **2. S0 baseline.** Run the frozen 48-cell local rehearsal on the
+  existing harness. Publish the dated record, including failures. Human
+  review is recorded before the arm key is revealed. A negative result
+  finishes the measurement. It does not open autonomy, metered refresh, or
+  automatic belief updates.
+- [ ] **3. S1 prepared consultation.** One shared CLI and MCP packet before
+  the answer: question, stakes, retained dates, open contradictions, checks
+  that were not done, and premises the question assumed. Canonical beliefs,
+  positions, study, and the wiki do not change because a question arrived.
+  `sync --local --fresh-context` stays a separate operator write.
+- [ ] **4. S2 durable ends on the answer path.** A revision keeps the
+  predecessor addressable. A point-in-time read uses closed, explicitly in
+  force, or unknown. Position `superseded_at` stays record time. Do not
+  copy it into `invalidated_at`. `resolve-conflicts` stays blocked until a
+  close has a retained reason and a canonical write, which close-claim now
+  is for a single operator admission.
+- [ ] **5. S3 keep hypotheses and dissent off observations.** Sources stay
+  immutable. A hypothesis, a procedure, or a recommendation changes only
+  after reviewed admission. Retrieval must not present them as observations.
+- [ ] **6. S4 held-out decisions.** Compare a fresh read of the same corpus,
+  frozen notes, the maintained expert, and the expert with the hypothesis
+  layer withheld. Score a misleading premise and a later contrary source
+  separately from ordinary questions. Only this step can support "the
+  expert got better."
+
+**Not in this sequence:** unattended or MCP OpenRouter, sleep-time overwrite
+of stored claims, automatic contradiction resolution, SearXNG catch-up, a
+news watch that writes beliefs by itself, and treating a recall benchmark
+as expertise. A local `$0` consult may propose what to study next. The
+proposal is not an admission.
+
 **Local formation recovery (2026-10-11, issue 203):** completed-chunk checkpoints,
 strict source/prompt/model binding, inspectable acquisition reuse, explicit
 six-hour time and smaller-corpus controls, and measured advisory ETA are
@@ -640,9 +703,9 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.27)
+## Current Status (v2.50.28)
 
-**Next is v2.51, not more dispatch.** v2.50.27 points deep-research defaults at the live OpenAI substitutes and keeps the 128k web-search ceiling.
+**Next is v2.51, not more dispatch.** v2.50.28 ships the currency inspection and explicit world-time admission. It does not run the S0 rehearsal or claim that maintained memory beats a fresh read. v2.50.27 points deep-research defaults at the live OpenAI substitutes and keeps the 128k web-search ceiling.
 v2.50.26 repairs core-only installation on
 ordinary Python 3.13 and checks all supported stable Python minors.
 v2.50.25 repairs first-run configuration,
@@ -2437,7 +2500,7 @@ Goal: make experts genuinely agentic - self-correcting, strategically autonomous
 absorb, sync, reflection, graph-commit apply, temporal perspective reads,
 per-expert SKILL.md export, durable loop state, and bounded one-shot councils.
 The active quality and verification work is sequenced in
-[Next Order Of Operations](#next-order-of-operations). Dynamic gap-to-tool
+[Order of operations](#order-of-operations). Dynamic gap-to-tool
 selection remains advisory where its current lexical router has not been
 confirmed by model judgment.
 
@@ -3980,7 +4043,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.27. This roadmap keeps
+v2.50.28. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 

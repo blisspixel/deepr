@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.50.27 current main, 2026-10-13. This document defines what users and host
+Status: v2.50.28 current main, 2026-10-17. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -8,6 +8,8 @@ path is structurally complete but remains execution-blocked without verified
 provider prepaid-no-overage or hard-stop evidence. Attended OpenRouter research
 is the exception: one pinned no-tool completion after wallet credits and
 `deepr budget authorize openrouter`.
+
+**v2.50.28 maintenance:** `deepr expert currency` is a read-only report of unknown, explicitly in-force, and closed belief ends, plus corpus fetch times and the position ledger's record clock. It does not certify currentness. `close-claim` and `affirm-claim` are explicit operator CLI writes and require `--yes`. MCP, schedules, and consult cannot close or affirm a claim. `archive-stale` still does not invent a world end. Consult remains stored-only. Selectable Gemini models are gemini-4-argon, gemini-3.8-flash, and gemini-3.5-flash-lite. Deep Research Max stays gated. No spend authority changes.
 
 **v2.50.27 maintenance:** deep-research defaults follow the live OpenAI substitutes. Retired ids still validate and keep their historical wire names. Built-in web search stays off above the reserved 128k input ceiling. Cost gates and metered dispatch limits are unchanged.
 

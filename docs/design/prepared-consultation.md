@@ -1,6 +1,8 @@
 # Prepared consultation (S1) contract
 
-Status: proposed design, 2026-09-24. Nothing here is implemented. It defines
+Status: proposed design, 2026-09-24. The packet below is not implemented.
+`deepr expert currency` is the earlier read-only inspection. It does not
+fetch, judge, or replace stored-only consult. This note defines
 the additive contract the [delivery plan](../plans/living-expertise.md#s1-prepare-before-consultation-with-bounded-temporary-evidence)
 requires before S1 code. Prototypes wait for the frozen S0 protocol; the
 default-on switch waits for S1's own exit evidence.
