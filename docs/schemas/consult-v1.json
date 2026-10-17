@@ -185,7 +185,11 @@
           "properties": {
             "agreements_field": {"const": "agreements"},
             "disagreements_field": {"const": "disagreements"},
-            "dissent_preserved": {"const": true},
+            "dissent_preserved": {"type": "boolean"},
+            "reviewed_preservation": {"const": "unassessed"},
+            "empty_disagreements_are_not_consensus": {"const": true},
+            "input_dissent": {"type": "object"},
+            "delivered_dissent": {"type": "object"},
             "synthesis_is_not_truth_adjudication": {"const": true}
           }
         },

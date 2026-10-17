@@ -363,14 +363,21 @@ def test_explicit_experts_and_budget_passed_through(monkeypatch):
 
 
 def test_consult_local_synthesis_passes_client_and_disables_live_fallback(monkeypatch):
-    sentinel_client = object()
+    from deepr.experts.investigation.ollama_backend import NativeOllamaInvestigationBackend
+
     captured = {}
+    openai_shape_calls = 0
 
     async def resolve_local_model():
         return "qwen-local"
 
+    def refuse_openai_shape():
+        nonlocal openai_shape_calls
+        openai_shape_calls += 1
+        raise AssertionError("local consult must use the native Ollama runtime")
+
     monkeypatch.setattr("deepr.backends.local.default_local_model_async", resolve_local_model)
-    monkeypatch.setattr("deepr.backends.local.ollama_chat_client", lambda: sentinel_client)
+    monkeypatch.setattr("deepr.backends.local.ollama_chat_client", refuse_openai_shape)
 
     async def fake(question, experts, max_experts, budget, **kwargs):
         captured["budget"] = budget
@@ -383,10 +390,13 @@ def test_consult_local_synthesis_passes_client_and_disables_live_fallback(monkey
 
     assert result.exit_code == 0
     assert captured["budget"] == 0.0
-    assert captured["synthesis_client"] is sentinel_client
+    client = captured["synthesis_client"]
+    assert isinstance(client, NativeOllamaInvestigationBackend)
+    assert client.model == "qwen-local"
     assert captured["synthesis_model"] == "qwen-local"
     assert captured["synthesis_provider"] == "local"
     assert captured["allow_live_fallback"] is False
+    assert openai_shape_calls == 0
 
 
 def test_consult_plan_synthesis_vets_backend_and_disables_live_fallback(monkeypatch):

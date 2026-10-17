@@ -43,6 +43,7 @@ from deepr.experts.brief_contracts import (
     SettledState,
     SourceCredibility,
 )
+from deepr.experts.consult_support import study_fingerprint
 from deepr.experts.corpus_store import CorpusStore
 from deepr.experts.study_contracts import StudyFinding, StudyResult
 
@@ -399,6 +400,7 @@ def assemble_brief(
         credibility=build_credibility(corpus),
         finding_titles={f.finding_id: f.title for f in result.findings if f.finding_id},
         generated_from_findings=len(result.findings),
+        study_fingerprint=study_fingerprint(result),
     )
 
     ungrounded = [f for f in result.findings if not f.is_grounded]

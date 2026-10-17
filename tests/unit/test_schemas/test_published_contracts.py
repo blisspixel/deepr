@@ -857,7 +857,14 @@ def test_consult_schema_validates_runtime_payload():
     _validate(schema, payload)
     assert payload["schema_version"] == "deepr-consult-v1"
     assert payload["kind"] == "deepr.expert.consult"
-    assert payload["collaboration"]["dissent_handling"]["dissent_preserved"] is True
+    dissent = payload["collaboration"]["dissent_handling"]
+    assert dissent["dissent_preserved"] is True
+    assert dissent["reviewed_preservation"] == "unassessed"
+    assert dissent["empty_disagreements_are_not_consensus"] is True
+    honest = json.loads(json.dumps(payload))
+    honest["collaboration"]["dissent_handling"]["dissent_preserved"] = False
+    honest["collaboration"]["dissent_handling"]["delivered_dissent"] = {"status": "omitted", "omitted": ["a caveat"]}
+    _validate(schema, honest)
 
 
 def test_mcp_consult_validation_schema_validates_runtime_payload():

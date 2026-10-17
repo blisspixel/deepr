@@ -135,14 +135,18 @@ async def test_consult_mcp_writes_trace(server, monkeypatch, consult_trace_path)
 
 @pytest.mark.asyncio
 async def test_consult_local_backend_disables_metered_fallback(server, monkeypatch):
-    sentinel_client = object()
+    from deepr.experts.investigation.ollama_backend import NativeOllamaInvestigationBackend
+
     captured: dict[str, object] = {}
 
     async def resolve_local_model():
         return "qwen-local"
 
+    def refuse_openai_shape():
+        raise AssertionError("local consult must use the native Ollama runtime")
+
     monkeypatch.setattr("deepr.backends.local.default_local_model_async", resolve_local_model)
-    monkeypatch.setattr("deepr.backends.local.ollama_chat_client", lambda: sentinel_client)
+    monkeypatch.setattr("deepr.backends.local.ollama_chat_client", refuse_openai_shape)
 
     async def fake(question, experts, max_experts, budget, **kwargs):
         captured.update(kwargs)
@@ -152,7 +156,9 @@ async def test_consult_local_backend_disables_metered_fallback(server, monkeypat
 
     out = await server.consult_experts(question="q", synthesis_backend="local", budget=0.0)
 
-    assert captured["synthesis_client"] is sentinel_client
+    client = captured["synthesis_client"]
+    assert isinstance(client, NativeOllamaInvestigationBackend)
+    assert client.model == "qwen-local"
     assert captured["synthesis_model"] == "qwen-local"
     assert captured["synthesis_provider"] == "local"
     assert captured["allow_live_fallback"] is False

@@ -72,6 +72,7 @@ def build_briefed_perspective(query: str, name: str, domain: str, perspective_cl
 
     from deepr.experts.consult_context import render_consult_packet
     from deepr.experts.consult_prompt import brief_synthesis_blocks
+    from deepr.experts.consult_support import recorded_statement
 
     return perspective_cls(
         expert_name=name,
@@ -86,6 +87,14 @@ def build_briefed_perspective(query: str, name: str, domain: str, perspective_cl
             "findings_included": len(context.findings),
             "source_passages": len(context.sources),
             "evidence_chars": context.evidence_chars(),
+            "support": list(context.support),
+            "live": list(context.live),
+            "unknown": list(context.unknown),
+            "recorded_dissent": [
+                text
+                for text in (recorded_statement(position.unresolved_dissent) for position in context.positions)
+                if text
+            ],
         },
     )
 

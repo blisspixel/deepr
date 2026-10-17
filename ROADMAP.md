@@ -125,6 +125,14 @@ That rank is not the time a claim stopped being true. A missing
   wrote no beliefs, delivered the closed claim as invalidated history, and
   answered from the one live belief. CPU inference was about 2.4 tokens per
   second. That check does not run S0.
+- [x] **Consult states what it read (2026-10-17, v2.50.29).** A position is
+  grounded only when its citations match the loaded study and each cited
+  finding has an anchored retained passage. Local synthesis sends that prompt
+  through the native Ollama runtime at `num_ctx` 16384 with `think: false`.
+  Recorded live items, unknowns, and dissent are in the prompt or named when
+  the limit omits them. Placeholder form values are not recorded dissent.
+  `dissent_preserved` reports that delivery and does not judge the answer.
+  S0 remains open. No spend authority changes.
 - [ ] **2. S0 baseline.** Run the frozen 48-cell local rehearsal on the
   existing harness. Publish the dated record, including failures. Human
   review is recorded before the arm key is revealed. A negative result
@@ -703,9 +711,9 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.28)
+## Current Status (v2.50.29)
 
-**Next is v2.51, not more dispatch.** v2.50.28 ships the currency inspection and explicit world-time admission. It does not run the S0 rehearsal or claim that maintained memory beats a fresh read. v2.50.27 points deep-research defaults at the live OpenAI substitutes and keeps the 128k web-search ceiling.
+**Next is v2.51, not more dispatch.** v2.50.29 makes consult report whether citations reach the loaded study and a retained passage, and it sends local synthesis through the native 16384-token window study already uses. It does not run S0 or claim the expert got better. v2.50.28 ships the currency inspection and explicit world-time admission. v2.50.27 points deep-research defaults at the live OpenAI substitutes and keeps the 128k web-search ceiling.
 v2.50.26 repairs core-only installation on
 ordinary Python 3.13 and checks all supported stable Python minors.
 v2.50.25 repairs first-run configuration,
@@ -4043,7 +4051,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.28. This roadmap keeps
+v2.50.29. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 

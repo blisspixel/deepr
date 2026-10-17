@@ -19,6 +19,11 @@ class MeteredCouncilSynthesisDisabledError(RuntimeError):
     provider_work_dispatched = False
 
 
+# Study's local backend uses this window. The OpenAI-compatible route cannot
+# carry it, and Ollama then keeps a 4096-token context on CPU and iGPU hosts.
+LOCAL_SYNTHESIS_CONTEXT_TOKENS = 16384
+
+
 @dataclass(frozen=True)
 class SynthesisProviderResponse:
     text: str
@@ -110,6 +115,56 @@ async def _openai_shape_synthesis(
     )
 
 
+async def _local_native_synthesis(
+    complete: Any,
+    *,
+    model: str,
+    system_prompt: str,
+    user_prompt: str,
+    output_tokens: int,
+    context_tokens: int,
+) -> SynthesisProviderResponse:
+    """Send the full prompt through Ollama's native chat API at the study window.
+
+    The selected model is the model on the request. This does not pick a
+    smaller model and does not drop evidence to fit the 4096-token default.
+    """
+    from deepr.experts.chat_backends import ExpertChatRequest
+
+    result = await complete(
+        ExpertChatRequest(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            extra={
+                "max_tokens": output_tokens,
+                "num_ctx": context_tokens,
+                "temperature": 0.3,
+                "think": False,
+            },
+        )
+    )
+    usage = getattr(result, "usage", None)
+    text = getattr(result, "text", None)
+    if text is None:
+        text = str(getattr(getattr(result, "message", None), "content", "") or "")
+    return SynthesisProviderResponse(
+        text=str(text or ""),
+        usage={
+            "cost": 0.0,
+            "tokens_input": max(0, int(getattr(usage, "prompt_tokens", 0) or 0)),
+            "tokens_output": max(0, int(getattr(usage, "completion_tokens", 0) or 0)),
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "cost_estimated": False,
+        },
+        provider_request_id=str(getattr(result, "provider_request_id", "") or ""),
+        stop_reason=str(getattr(result, "stop_reason", "") or ""),
+    )
+
+
 async def dispatch_synthesis(
     *,
     provider: str,
@@ -121,6 +176,7 @@ async def dispatch_synthesis(
     output_tokens: int,
     cost_bound: SynthesisCostBound | None,
     pre_dispatch_callback: Any,
+    context_tokens: int = LOCAL_SYNTHESIS_CONTEXT_TOKENS,
 ) -> SynthesisProviderResponse:
     """Resolve the provider shape, mark dispatch, and perform one call."""
     owned = provider == "local" or provider.startswith("plan_quota:")
@@ -131,6 +187,23 @@ async def dispatch_synthesis(
         )
     require_zero_dollar_client(client, capacity_source=provider)
     del openai_client_factory
+    if provider == "local":
+        complete = getattr(client, "complete", None)
+        if not callable(complete):
+            raise RuntimeError(
+                "Local consult synthesis requires the native Ollama runtime. "
+                "The OpenAI-compatible endpoint cannot carry num_ctx."
+            )
+        if pre_dispatch_callback is not None:
+            await pre_dispatch_callback()
+        return await _local_native_synthesis(
+            complete,
+            model=model,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            output_tokens=output_tokens,
+            context_tokens=context_tokens,
+        )
     completions_api = client.chat.completions
     if pre_dispatch_callback is not None:
         await pre_dispatch_callback()
@@ -145,4 +218,9 @@ async def dispatch_synthesis(
     )
 
 
-__all__ = ["MeteredCouncilSynthesisDisabledError", "SynthesisProviderResponse", "dispatch_synthesis"]
+__all__ = [
+    "LOCAL_SYNTHESIS_CONTEXT_TOKENS",
+    "MeteredCouncilSynthesisDisabledError",
+    "SynthesisProviderResponse",
+    "dispatch_synthesis",
+]

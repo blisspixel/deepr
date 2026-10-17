@@ -20,6 +20,7 @@ from deepr.experts.consult_context import (
     render_consult_packet,
     render_standing_header,
 )
+from deepr.experts.consult_support import study_fingerprint
 from deepr.experts.corpus_store import CorpusStore
 from deepr.experts.study_contracts import LensOutcome, StudyFinding, StudyResult
 
@@ -79,8 +80,12 @@ def study(corpus):
 
 
 @pytest.fixture
-def brief():
-    b = ExpertBrief(expert_name="E", orientation="The field in sixty seconds.")
+def brief(study):
+    b = ExpertBrief(
+        expert_name="E",
+        orientation="The field in sixty seconds.",
+        study_fingerprint=study_fingerprint(study),
+    )
     b.state = SettledState(
         settled=["Clusters do reconcile eventually"],
         live=["Where the latency threshold sits"],
@@ -322,6 +327,86 @@ class TestCoverage:
             corpus=corpus,
         )
         assert context.coverage == "grounded"
+        assert context.support[0]["study_binding"] == "matched"
+        assert context.support[0]["resolved_finding_ids"] == ["failure-1"]
+
+    def test_a_brief_without_a_study_fingerprint_is_not_grounded(self, brief, study, corpus):
+        brief.study_fingerprint = ""
+        context = build_consult_context(
+            expert_name="E",
+            question="does latency degrade as clusters grow?",
+            brief=brief,
+            result=study,
+            corpus=corpus,
+        )
+        assert context.coverage == "partial"
+        assert context.support[0]["study_binding"] == "unbound"
+        assert context.support[0]["resolved"] is False
+
+    def test_reused_finding_ids_from_another_study_are_not_grounded(self, brief, study, corpus):
+        brief.study_fingerprint = "0" * 64
+        context = build_consult_context(
+            expert_name="E",
+            question="does latency degrade as clusters grow?",
+            brief=brief,
+            result=study,
+            corpus=corpus,
+        )
+        assert context.coverage == "partial"
+        assert context.support[0]["study_binding"] == "mismatch"
+        assert context.support[0]["resolved_finding_ids"] == []
+
+    def test_an_unanchored_finding_is_not_a_delivered_passage(self, brief, study, corpus):
+        study.outcomes[0].findings[0].grounded_anchor_count = 0
+        brief.study_fingerprint = study_fingerprint(study)
+        context = build_consult_context(
+            expert_name="E",
+            question="does latency degrade as clusters grow?",
+            brief=brief,
+            result=study,
+            corpus=corpus,
+        )
+        assert context.coverage == "partial"
+        assert context.support[0]["unanchored_finding_ids"] == ["failure-1"]
+
+    def test_a_missing_passage_is_not_resolved(self, brief, study, corpus):
+        study.outcomes[0].findings[0].corpus_shas = ["0" * 64]
+        brief.study_fingerprint = study_fingerprint(study)
+        context = build_consult_context(
+            expert_name="E",
+            question="does latency degrade as clusters grow?",
+            brief=brief,
+            result=study,
+            corpus=corpus,
+        )
+        assert context.coverage == "partial"
+        assert context.support[0]["missing_passage_ids"] == ["failure-1"]
+
+    def test_a_missing_finding_id_is_not_resolved(self, brief, study, corpus):
+        brief.positions[0].supported_by = ["failure-missing"]
+        context = build_consult_context(
+            expert_name="E",
+            question="does latency degrade as clusters grow?",
+            brief=brief,
+            result=study,
+            corpus=corpus,
+        )
+        assert context.coverage == "partial"
+        assert context.support[0]["missing_finding_ids"] == ["failure-missing"]
+
+    def test_placeholder_dissent_is_not_rendered_as_recorded(self, brief, study, corpus):
+        brief.positions[0].unresolved_dissent = "false"
+        brief.positions[0].would_change_my_mind = "A deployment above fifty clusters showing flat latency."
+        context = build_consult_context(
+            expert_name="E",
+            question="does latency degrade as clusters grow?",
+            brief=brief,
+            result=study,
+            corpus=corpus,
+        )
+        packet = render_consult_packet(context)
+        assert "Does not resolve" not in packet
+        assert "flat latency" in packet
 
     def test_findings_without_a_position_are_partial_not_covered(self, study, corpus):
         """No position formed, but material that bears on it. Say exactly that."""

@@ -11,6 +11,7 @@ from click.testing import CliRunner
 from deepr.cli.main import cli
 from deepr.experts.brief_contracts import ExpertBrief, Position, SettledState
 from deepr.experts.consult_context import build_consult_context, load_brief, load_study, render_consult_packet
+from deepr.experts.consult_support import study_fingerprint
 from deepr.experts.corpus_store import CorpusStore, content_hash
 from deepr.experts.study_contracts import LensOutcome, StudyFinding, StudyResult
 
@@ -116,6 +117,7 @@ def test_documented_local_onboarding_builds_cited_consult_context(tmp_path, monk
             ),
             finding_titles={"failure-1": "Retries can duplicate writes without idempotency keys"},
             generated_from_findings=1,
+            study_fingerprint=study_fingerprint(study),
         )
 
         async def fake_build_brief(**_kwargs):

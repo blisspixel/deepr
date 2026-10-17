@@ -360,13 +360,14 @@ fixed before an adversarial follow-up.
 The follow-up then exposed a distinct local reasoning-model failure. Ollama
 enables thinking by default for supported models, so the model used the entire
 1,200-token bound for a separate reasoning field and emitted no visible answer.
-Local council synthesis now sends the OpenAI-compatible
-`reasoning_effort: none` control documented by
-[Ollama's compatibility contract](https://docs.ollama.com/api/openai-compatibility).
-The control is local-only and never changes plan-quota or metered requests. If a
-backend still returns reasoning without visible content, Deepr does not promote
-the reasoning trace or retry through another backend. It returns a visible
-diagnostic with the original typed `truncated` or `failed` status.
+Local council synthesis sends the prompt through Ollama's native chat API
+with `num_ctx` 16384 and `think: false`. The OpenAI-compatible route cannot
+carry that window, so it is not the local consult path. Plan-quota synthesis
+stays on the OpenAI-compatible shape and does not receive the local `think`
+control. If a backend still returns reasoning without visible content, Deepr
+does not promote the reasoning trace or retry through another backend. It
+returns a visible diagnostic with the original typed `truncated` or `failed`
+status.
 
 The remaining baseline weakness is not only latency. A post-fix one-expert
 qwen3.6 probe exceeded a five-minute host guard. The host timeout left the

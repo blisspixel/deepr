@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.29] - 2026-10-17
+
+Compatible consult delivery correction. Coverage no longer treats a citation id as a retained passage. Local synthesis uses the native Ollama context window. Dissent delivery is structural. Cost gates, metered dispatch limits, and automatic learning stay unchanged. This release does not run S0 and does not claim that a maintained expert judges better than a fresh read.
+
+### Changed
+
+- A position is grounded only when the brief's study fingerprint matches the loaded study, every cited finding exists and has a grounded anchor, and a retained passage was read for each citation. A missing fingerprint, a reused id, a missing finding, an unanchored finding, or an unread passage stays partial.
+- New briefs store that fingerprint. Older briefs stay unbound until they are rebuilt.
+- Local consult synthesis calls the native Ollama chat API with the selected model, `num_ctx` 16384, `think: false`, and the existing output cap. It does not switch models or drop evidence to fit the 4096-token default. Plan-quota synthesis stays on the OpenAI-compatible shape. Metered synthesis still fails before dispatch.
+- Blocks that do not fit the synthesis prompt are named in the omission line, including a block skipped ahead of a later block that does fit.
+- Live items, unknowns, and recorded dissent reach the synthesis prompt or are named when omitted. Exact placeholder tokens (`false`, `no`, `none`, `n/a`, `na`, `null`, `nil`) are empty form values.
+- `dissent_preserved` is true only when every recorded caveat is in the delivered prompt, or when none was recorded and synthesis completed, truncated, or was skipped. It is false when synthesis did not deliver the prompt or a caveat was omitted. `reviewed_preservation` stays `unassessed`.
+
 ## [2.50.28] - 2026-10-17
 
 Compatible currency inspection and Gemini lineup correction. The new writes are operator CLI admissions with `--yes`. MCP, schedules, and consult do not gain them. Consult stays stored-only. Cost gates, metered dispatch limits, and automatic learning stay unchanged. This release does not claim that a maintained expert judges better than a fresh read.

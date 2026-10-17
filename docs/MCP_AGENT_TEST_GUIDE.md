@@ -566,7 +566,10 @@ Expected completed task:
 - `result.artifact_id` points to the attached task artifact.
 - `artifacts[0].content.schema_version` is `deepr-consult-v1`.
 - `artifacts[0].content.collaboration.dissent_handling.dissent_preserved` is
-  `true`.
+  `true` when this completed task recorded no caveat, or when every recorded
+  caveat is in the delivered prompt. It is `false` when synthesis did not
+  deliver the prompt or a recorded caveat was omitted. `reviewed_preservation`
+  stays `unassessed`. Empty disagreements are not consensus.
 - `cost` stays `0` for local or explicit plan synthesis.
 
 API synthesis over A2A returns `METERED_API_DISABLED` before consult work.

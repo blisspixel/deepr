@@ -1002,18 +1002,28 @@ src/deepr/experts/
     └── executor.py    # Python + MCP tool execution
 ```
 
-### Knowledge Storage
+### Knowledge storage
+
+An expert is the directory. `beliefs/beliefs.json` is the claim ledger beside
+that directory's study and current view. Consult reads `hold/current` and
+`noticed`, and it reports whether those citations reach a retained passage.
 
 ```
-data/experts/<name>/
-├── profile.json        # Expert metadata
-├── documents/          # Source documents
-├── knowledge/
-│   ├── worldview.json  # Synthesized beliefs
-│   ├── gaps.json       # Known knowledge gaps
-│   └── learning_progress.json
-└── conversations/      # Chat history
+<experts-root>/<name>/
+├── self.json           # who the expert is
+├── corpus/             # retained sources
+├── noticed/            # what the study found
+├── hold/
+│   ├── current.json    # the view a consult reads
+│   └── history.jsonl
+├── became/
+├── attend/
+├── met/
+└── beliefs/            # claim ledger
 ```
+
+Reads still accept the older `study.json` and `brief.json` paths. Writes use
+the paths above. See [expert layout](design/expert-layout.md).
 
 ## Beginner's Mind Philosophy
 

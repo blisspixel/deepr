@@ -168,13 +168,16 @@ def build_synthesis_backend(
         raise ConsultBackendError("API provider/model overrides are only valid for synthesis_backend='api'.")
 
     if use_local:
-        from deepr.backends.local import default_local_model, ollama_chat_client
+        from deepr.backends.local import default_local_model
+        from deepr.experts.investigation.ollama_backend import NativeOllamaInvestigationBackend
+        from deepr.experts.semantic_model_gate import _mark_zero_dollar_client
 
         model = local_model or default_local_model()
         if not model:
             raise ConsultBackendError("No local model available. Is Ollama running? Check: deepr capacity --probe")
+        native = NativeOllamaInvestigationBackend(model=model, keep_alive="10m")
         return ConsultSynthesisBackend(
-            client=ollama_chat_client(),
+            client=_mark_zero_dollar_client(native, capacity_source="local"),
             model=model,
             provider="local",
             allow_live_fallback=False,
@@ -263,6 +266,82 @@ def build_consult_payload(question: str, result: dict[str, Any]) -> dict[str, An
         "disagreements": list(result.get("disagreements", []) or []),
         "cost_usd": cost,
         "collaboration": build_collaboration_contract(question, result),
+    }
+
+
+def _recorded_dissent_items(result: dict[str, Any]) -> list[str]:
+    """Exact caveat strings the consult artifact says were on the packet."""
+    items: list[str] = []
+    for perspective in result.get("perspectives", []) or []:
+        if not isinstance(perspective, dict):
+            continue
+        context = perspective.get("context")
+        if not isinstance(context, dict):
+            continue
+        for key in ("recorded_dissent", "live", "unknown"):
+            values = context.get(key) or []
+            if not isinstance(values, list):
+                continue
+            items.extend(str(value).strip() for value in values if str(value or "").strip())
+    return items
+
+
+def _dissent_handling(result: dict[str, Any]) -> dict[str, Any]:
+    """Separate recorded dissent, what the prompt received, and reviewed preservation.
+
+    ``dissent_preserved`` is structural. It is true when every recorded caveat
+    is in the delivered prompt, or when none was recorded and synthesis
+    completed. It is false when synthesis did not deliver the prompt or a
+    recorded caveat was omitted. Semantic preservation stays unassessed.
+    Empty disagreements are not consensus.
+    """
+    items = _recorded_dissent_items(result)
+    status = str(result.get("synthesis_status") or "")
+    delivery = result.get("context_delivery")
+    prompt = str(delivery.get("user_prompt") or "") if isinstance(delivery, dict) else ""
+    completed = status in {"", "completed", "truncated", "skipped_no_valid_perspectives"}
+    omitted: list[str] = []
+    if not items:
+        input_status = "none_recorded"
+        if completed:
+            delivered_status = "not_applicable"
+            preserved = True
+        else:
+            delivered_status = "not_delivered"
+            preserved = False
+    elif status not in {"completed", "truncated"} or not prompt:
+        input_status = "recorded"
+        delivered_status = "not_delivered"
+        omitted = list(items)
+        preserved = False
+    else:
+        input_status = "recorded"
+        marker = "omitted by the prompt limit:"
+        omission_zone = prompt[prompt.index(marker) :] if marker in prompt else ""
+        for text in items:
+            in_prompt = text in prompt
+            omission_count = omission_zone.count(text) if omission_zone else 0
+            only_in_omission = bool(omission_zone) and omission_count > 0 and prompt.count(text) == omission_count
+            if not in_prompt or only_in_omission:
+                omitted.append(text)
+        if omitted:
+            delivered_status = "omitted"
+            preserved = False
+        else:
+            delivered_status = "included"
+            preserved = True
+    if status and status not in {"completed", "truncated", "skipped_no_valid_perspectives"}:
+        delivered_status = "not_delivered"
+        preserved = False
+    return {
+        "agreements_field": "agreements",
+        "disagreements_field": "disagreements",
+        "input_dissent": {"status": input_status, "recorded_count": len(items)},
+        "delivered_dissent": {"status": delivered_status, "omitted": omitted},
+        "reviewed_preservation": "unassessed",
+        "empty_disagreements_are_not_consensus": True,
+        "dissent_preserved": preserved,
+        "synthesis_is_not_truth_adjudication": True,
     }
 
 
@@ -357,12 +436,7 @@ def build_collaboration_contract(
             "agreement_count": len(agreements),
             "disagreement_count": len(disagreements),
         },
-        "dissent_handling": {
-            "agreements_field": "agreements",
-            "disagreements_field": "disagreements",
-            "dissent_preserved": True,
-            "synthesis_is_not_truth_adjudication": True,
-        },
+        "dissent_handling": _dissent_handling(result),
         "learning_boundary": {
             "proposal_only": True,
             "discussion_is_evidence": False,

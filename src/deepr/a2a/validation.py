@@ -18,7 +18,7 @@ from deepr.a2a.constants import (
 from deepr.a2a.consult_tasks import build_consult_artifact, build_consult_result
 from deepr.a2a.models import A2A_TASK_KIND, A2A_TASK_SCHEMA_VERSION, Task, TaskState
 from deepr.experts import consult as consult_core
-from deepr.mcp.consult_validation import ValidationBackend, build_offline_consult_fixture
+from deepr.mcp.consult_validation import ValidationBackend, _dissent_contract_holds, build_offline_consult_fixture
 
 A2A_HOST_VALIDATION_SCHEMA_VERSION = "deepr-a2a-host-validation-v1"
 A2A_HOST_VALIDATION_KIND = "deepr.a2a.host_validation"
@@ -344,9 +344,8 @@ def validate_a2a_host_payload(
             "dissent_contract",
             isinstance(result.get("agreements"), list)
             and isinstance(result.get("disagreements"), list)
-            and dissent.get("dissent_preserved") is True
-            and dissent.get("synthesis_is_not_truth_adjudication") is True,
-            "agreement and disagreement fields are explicit and dissent is preserved",
+            and _dissent_contract_holds(dissent),
+            "agreement and disagreement fields are explicit and dissent delivery is structural",
             "dissent handling metadata is missing or unsafe",
         )
     )
