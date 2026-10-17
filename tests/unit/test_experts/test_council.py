@@ -16,8 +16,10 @@ import pytest
 
 from deepr.core.contracts import ExpertOriginalIdea
 from deepr.experts.beliefs import Belief, BeliefStore
+from deepr.experts.chat_backends import ExpertChatResult
 from deepr.experts.consult_lifecycle import ConsultLifecycleLockTimeoutError
 from deepr.experts.council import ExpertCouncil, ExpertPerspective
+from deepr.experts.council_synthesis_runtime import LOCAL_SYNTHESIS_CONTEXT_TOKENS
 from deepr.experts.maker_checker import VERIFIED_ASSURANCES, assurance_short_label
 from deepr.experts.metacognition import MetaCognitionTracker
 from deepr.experts.profile import ExpertProfile, ExpertStore
@@ -690,23 +692,19 @@ Local answer.
 - Local agreement
 """
 
-    class FakeCompletions:
-        async def create(self, **kwargs):
-            assert kwargs["model"] == "qwen-local"
-            assert kwargs["max_tokens"] == 8000
-            assert "reasoning_effort" not in kwargs.get("extra_body", {})
-            prompt = kwargs["messages"][1]["content"]
+    class Native:
+        async def complete(self, request):
+            assert request.model == "qwen-local"
+            assert request.extra["num_ctx"] == LOCAL_SYNTHESIS_CONTEXT_TOKENS
+            assert request.extra["max_tokens"] == 8000
+            assert request.extra["think"] is False
+            prompt = request.messages[1]["content"]
+            assert prompt == request.messages[1]["content"]
             assert prompt.index("AGREEMENTS") < prompt.index("SYNTHESIS")
             assert "only when the supplied evidence supports it" in prompt
-            return SimpleNamespace(
-                choices=[SimpleNamespace(message=SimpleNamespace(content=text), finish_reason="stop")],
-                usage=None,
-            )
+            return ExpertChatResult(message=SimpleNamespace(content=text), stop_reason="stop")
 
-    fake_client = _mark_zero_dollar_client(
-        SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions())),
-        capacity_source="local",
-    )
+    fake_client = _mark_zero_dollar_client(Native(), capacity_source="local")
 
     result = await ExpertCouncil(
         synthesis_client=fake_client,
@@ -819,17 +817,12 @@ async def test_openai_shape_output_limit_is_reported_as_truncated():
 Partial answer
 """
 
-    class FakeCompletions:
-        async def create(self, **_kwargs):
-            return SimpleNamespace(
-                choices=[SimpleNamespace(message=SimpleNamespace(content=text), finish_reason="length")],
-                usage=None,
-            )
+    class Native:
+        async def complete(self, request):
+            assert request.extra["num_ctx"] == LOCAL_SYNTHESIS_CONTEXT_TOKENS
+            return ExpertChatResult(message=SimpleNamespace(content=text), stop_reason="length")
 
-    fake_client = _mark_zero_dollar_client(
-        SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions())),
-        capacity_source="local",
-    )
+    fake_client = _mark_zero_dollar_client(Native(), capacity_source="local")
     result = await ExpertCouncil(
         synthesis_client=fake_client,
         synthesis_model="qwen-local",
@@ -851,25 +844,15 @@ Partial answer
 async def test_local_reasoning_only_output_stays_typed_and_never_becomes_answer():
     calls = 0
 
-    class FakeCompletions:
-        async def create(self, **kwargs):
+    class Native:
+        async def complete(self, request):
             nonlocal calls
             calls += 1
-            assert "reasoning_effort" not in kwargs.get("extra_body", {})
-            return SimpleNamespace(
-                choices=[
-                    SimpleNamespace(
-                        message=SimpleNamespace(content=None, reasoning_content="private chain of thought"),
-                        finish_reason="length",
-                    )
-                ],
-                usage=None,
-            )
+            assert request.model == "qwen-thinking-local"
+            assert request.extra["num_ctx"] == LOCAL_SYNTHESIS_CONTEXT_TOKENS
+            return ExpertChatResult(message=SimpleNamespace(content=None), stop_reason="length")
 
-    fake_client = _mark_zero_dollar_client(
-        SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions())),
-        capacity_source="local",
-    )
+    fake_client = _mark_zero_dollar_client(Native(), capacity_source="local")
     result = await ExpertCouncil(
         synthesis_client=fake_client,
         synthesis_model="qwen-thinking-local",

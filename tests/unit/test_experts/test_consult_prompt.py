@@ -5,16 +5,41 @@ from types import SimpleNamespace
 
 import pytest
 
-from deepr.experts.brief_contracts import Position
+from deepr.experts.brief_contracts import ExpertBrief, Position
+from deepr.experts.chat_backends import ExpertChatResult
 from deepr.experts.consult import build_consult_payload
 from deepr.experts.consult_context import ConsultContext, render_consult_packet
 from deepr.experts.consult_prompt import MAX_SYNTHESIS_PROMPT_CHARS, brief_synthesis_blocks, build_synthesis_prompt
+from deepr.experts.consult_support import study_fingerprint, support_for_positions
 from deepr.experts.council import ExpertCouncil, ExpertPerspective
+from deepr.experts.council_synthesis_runtime import LOCAL_SYNTHESIS_CONTEXT_TOKENS
 from deepr.experts.semantic_model_gate import _mark_zero_dollar_client
-from deepr.experts.study_contracts import StudyFinding
+from deepr.experts.study_contracts import LensOutcome, StudyFinding, StudyResult
+
+
+def _native_local(handler):
+    class Backend:
+        async def complete(self, request):
+            return await handler(request)
+
+    return _mark_zero_dollar_client(Backend(), capacity_source="local")
 
 
 def _perspective():
+    finding = StudyFinding(
+        lens="mechanism",
+        axis="interrogation",
+        kind="concepts",
+        title="Coordination",
+        finding_id="f1",
+        grounded_anchor_count=1,
+        corpus_shas=["source-sha"],
+        anchors=["RETAINED_EVIDENCE: separate operations require coordination."],
+    )
+    study = StudyResult(
+        expert_name="Runtime",
+        outcomes=[LensOutcome(lens="mechanism", axis="interrogation", status="ok", findings=[finding])],
+    )
     context = ConsultContext(
         expert_name="Runtime",
         orientation="General orientation. " * 100,
@@ -28,19 +53,17 @@ def _perspective():
                 supported_by=["f1"],
             )
         ],
-        findings=[
-            StudyFinding(
-                lens="mechanism",
-                axis="interrogation",
-                kind="concepts",
-                title="Coordination",
-                finding_id="f1",
-                grounded_anchor_count=1,
-                corpus_shas=["source-sha"],
-                anchors=["RETAINED_EVIDENCE: separate operations require coordination."],
-            )
-        ],
+        findings=[finding],
         sources=[("source-sha", "reference.example", "RETAINED_EVIDENCE: separate operations require coordination.")],
+        finding_sources={
+            "f1": ("source-sha", "reference.example", "RETAINED_EVIDENCE: separate operations require coordination.")
+        },
+    )
+    context.support = support_for_positions(
+        context.positions,
+        brief=ExpertBrief(expert_name="Runtime", study_fingerprint=study_fingerprint(study)),
+        result=study,
+        passages=context.finding_sources,
     )
     return ExpertPerspective(
         expert_name="Runtime",
@@ -57,9 +80,13 @@ async def test_actual_synthesis_dispatch_receives_reasoning_and_source_beyond_ol
 
     delivered = {}
 
-    async def create(**kwargs):
-        delivered.update(system_prompt=kwargs["messages"][0]["content"], user_prompt=kwargs["messages"][1]["content"])
-        prompt = kwargs["messages"][1]["content"]
+    async def complete(request):
+        assert request.model == "profile:32b"
+        assert request.extra["num_ctx"] == LOCAL_SYNTHESIS_CONTEXT_TOKENS
+        assert request.extra["max_tokens"] == 8000
+        assert request.extra["think"] is False
+        delivered.update(system_prompt=request.messages[0]["content"], user_prompt=request.messages[1]["content"])
+        prompt = request.messages[1]["content"]
         assert "RETAINED_EVIDENCE" in prompt
         assert "source-sha" in prompt
         assert "compound operation is not one atomic operation" in prompt
@@ -67,15 +94,12 @@ async def test_actual_synthesis_dispatch_receives_reasoning_and_source_beyond_ol
         assert "documented transaction guarantee" in prompt
         assert "Contributors: 1" in prompt
         assert len(prompt) <= MAX_SYNTHESIS_PROMPT_CHARS
-        return SimpleNamespace(
-            choices=[SimpleNamespace(message=SimpleNamespace(content="Answer."), finish_reason="stop")]
-        )
+        return ExpertChatResult(message=SimpleNamespace(content="Answer."), stop_reason="stop")
 
-    client = _mark_zero_dollar_client(
-        SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create))), capacity_source="local"
-    )
     result = await ExpertCouncil(
-        synthesis_client=client, synthesis_model="fixture", synthesis_provider="local"
+        synthesis_client=_native_local(complete),
+        synthesis_model="profile:32b",
+        synthesis_provider="local",
     )._synthesise(
         "What should we do?",
         [perspective],
@@ -108,7 +132,11 @@ def test_bounded_allocation_keeps_each_contributor_and_reports_omissions():
         assert f"Expert: Expert {i}\n" in prompt
         assert f"Evidence {i}." in prompt
     assert prompt.count("context block(s) omitted") == 10
-    assert "Long complete judgment." not in prompt
+    for chunk in prompt.split("Expert: ")[1:]:
+        body, marker, notice = chunk.partition("omitted by the prompt limit")
+        assert marker
+        assert "Long complete judgment." not in body
+        assert "Long complete judgment." in notice
 
 
 def test_legacy_packet_keeps_later_complete_evidence_when_earlier_block_does_not_fit():
@@ -116,21 +144,22 @@ def test_legacy_packet_keeps_later_complete_evidence_when_earlier_block_does_not
         expert_name="Legacy", domain="d", response="Long introduction. " * 1000 + "\n\nSOURCE: retained evidence."
     )
     prompt = build_synthesis_prompt("Question", [perspective])
-    assert "SOURCE: retained evidence." in prompt
-    assert "context block(s) omitted" in prompt
-    assert "Long introduction." not in prompt
+    body, marker, notice = prompt.partition("omitted by the prompt limit")
+    assert "SOURCE: retained evidence." in body
+    assert marker
+    assert "Long introduction." not in body
+    assert "Long introduction." in notice
 
 
 @pytest.mark.asyncio
 async def test_oversized_question_fails_before_dispatch_without_silent_shortening():
-    async def create(**kwargs):
+    async def complete(_request):
         pytest.fail("oversized request dispatched")
 
-    client = _mark_zero_dollar_client(
-        SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create))), capacity_source="local"
-    )
     result = await ExpertCouncil(
-        synthesis_client=client, synthesis_model="fixture", synthesis_provider="local"
+        synthesis_client=_native_local(complete),
+        synthesis_model="explicit:70b",
+        synthesis_provider="local",
     )._synthesise(
         "q" * MAX_SYNTHESIS_PROMPT_CHARS,
         [_perspective()],

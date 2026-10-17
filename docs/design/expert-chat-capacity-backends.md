@@ -44,8 +44,9 @@ contracts below remain design targets, not shipped metered capacity.
 - `PlanQuotaChatClient` and `ollama_chat_client` already satisfy the narrow
   `client.chat.completions.create(...)` seam used by council synthesis.
 - API-backed council synthesis retains compatibility request and accounting
-  code, but both OpenAI and Anthropic dispatch are hard-blocked. Local and
-  proven plan-quota synthesis use the OpenAI-compatible owned-capacity seam.
+  code, but both OpenAI and Anthropic dispatch are hard-blocked. Local consult
+  synthesis uses the native Ollama runtime at the study context window.
+  Proven plan-quota synthesis uses the OpenAI-compatible owned-capacity seam.
 - `ExpertChatSession` is more coupled than consult. Its constructor requires
   `OPENAI_API_KEY`, stores an `AsyncOpenAI` client, uses the Responses API path
   for retrieval, and routes under an OpenAI provider constraint for vector-store

@@ -143,6 +143,28 @@ class PlanConsultFleetTarget:
         }
 
 
+def _dissent_contract_holds(dissent: object) -> bool:
+    """Structural dissent metadata. Semantic preservation stays unassessed."""
+    if not isinstance(dissent, dict):
+        return False
+    delivered = dissent.get("delivered_dissent")
+    recorded = dissent.get("input_dissent")
+    if not isinstance(delivered, dict) or not isinstance(recorded, dict):
+        return False
+    status = str(delivered.get("status") or "")
+    preserved = dissent.get("dissent_preserved")
+    return bool(
+        dissent.get("reviewed_preservation") == "unassessed"
+        and dissent.get("empty_disagreements_are_not_consensus") is True
+        and dissent.get("synthesis_is_not_truth_adjudication") is True
+        and recorded.get("status") in {"none_recorded", "recorded", "not_supplied"}
+        and (
+            (preserved is True and status in {"included", "not_applicable"})
+            or (preserved is False and status in {"omitted", "not_delivered"})
+        )
+    )
+
+
 def _check(name: str, condition: bool, passed: str, failed: str) -> MCPConsultValidationCheck:
     return MCPConsultValidationCheck(name, "passed" if condition else "failed", passed if condition else failed)
 
@@ -325,9 +347,8 @@ def validate_consult_payload(
             "dissent_contract",
             isinstance(payload.get("agreements"), list)
             and isinstance(payload.get("disagreements"), list)
-            and dissent.get("dissent_preserved") is True
-            and dissent.get("synthesis_is_not_truth_adjudication") is True,
-            "agreement and disagreement fields are explicit and dissent is preserved",
+            and _dissent_contract_holds(dissent),
+            "agreement and disagreement fields are explicit and dissent delivery is structural",
             "dissent handling metadata is missing or unsafe",
         )
     )

@@ -8,6 +8,7 @@ from itertools import zip_longest
 from typing import TYPE_CHECKING
 
 from deepr.experts.consult_context import ConsultContext, _source_passage
+from deepr.experts.consult_support import recorded_statement
 
 if TYPE_CHECKING:
     from deepr.experts.council import ExpertPerspective
@@ -31,16 +32,56 @@ _INSTRUCTIONS = (
 )
 
 
+def _support_line(context: ConsultContext, question: str) -> str | None:
+    for item in context.support:
+        if item.get("question") != question or item.get("resolved"):
+            continue
+        binding = str(item.get("study_binding") or "unbound")
+        missing = list(item.get("missing_finding_ids") or [])
+        unanchored = list(item.get("unanchored_finding_ids") or [])
+        unread = list(item.get("missing_passage_ids") or [])
+        detail = ", ".join(
+            part
+            for part in (
+                f"missing {', '.join(str(fid) for fid in missing)}" if missing else "",
+                f"unanchored {', '.join(str(fid) for fid in unanchored)}" if unanchored else "",
+                f"passage unread {', '.join(str(fid) for fid in unread)}" if unread else "",
+            )
+            if part
+        )
+        suffix = f"; {detail}" if detail else ""
+        return f"Support unresolved ({binding}{suffix}). A cited id is not a delivered passage."
+    return None
+
+
 def _position_blocks(context: ConsultContext) -> list[str]:
     blocks = []
     for position in context.positions:
         lines = [f"Position: {position.question}", f"Stance: {position.stance}", f"Reason: {position.reasoning}"]
-        if position.unresolved_dissent:
-            lines.append(f"Unresolved dissent: {position.unresolved_dissent}")
-        if position.would_change_my_mind:
-            lines.append(f"Revision condition: {position.would_change_my_mind}")
+        dissent = recorded_statement(position.unresolved_dissent)
+        revision = recorded_statement(position.would_change_my_mind)
+        if dissent:
+            lines.append(f"Unresolved dissent: {dissent}")
+        if revision:
+            lines.append(f"Revision condition: {revision}")
+        if position.resolution:
+            lines.append(f"Resolution: {position.resolution}")
+        if position.confidence:
+            lines.append(f"Recorded support label: {position.confidence}")
         lines.append(f"Supporting findings: {', '.join(position.supported_by)}")
+        unresolved = _support_line(context, position.question)
+        if unresolved:
+            lines.append(unresolved)
         blocks.append("\n".join(lines))
+    return blocks
+
+
+def _caveat_blocks(context: ConsultContext) -> list[str]:
+    blocks = []
+    if context.live:
+        blocks.append("Live:\n" + "\n".join(f"- {item}" for item in context.live))
+    if context.unknown:
+        blocks.append("Unknown:\n" + "\n".join(f"- {item}" for item in context.unknown))
     return blocks
 
 
@@ -76,6 +117,7 @@ def brief_synthesis_blocks(context: ConsultContext) -> list[str]:
         for finding in context.findings
     ]
     blocks = ["Stored research only; no live check was performed for this answer."]
+    blocks.extend(_caveat_blocks(context))
     blocks.extend(
         f"Reference library passage (bounded excerpt) [{sha}] ({origin}):\n{passage}"
         for sha, origin, passage in context.reference_passages
@@ -91,16 +133,20 @@ def brief_synthesis_blocks(context: ConsultContext) -> list[str]:
 
 def _fit_blocks(blocks: list[str], budget: int) -> str:
     selected: list[str] = []
+    omitted_blocks: list[str] = []
     remaining = budget - _OMISSION_RESERVE
     for block in blocks:
         required = len(block) + (2 if selected else 0)
         if required <= remaining:
             selected.append(block)
             remaining -= required
-    omitted = len(blocks) - len(selected)
-    if omitted:
+        else:
+            omitted_blocks.append(block)
+    if omitted_blocks:
+        names = "; ".join(block.split("\n", 1)[0][:160] for block in omitted_blocks)
         selected.append(
-            f"[{omitted} context block(s) omitted by the prompt limit. Coverage is incomplete; consult the full artifact.]"
+            f"[{len(omitted_blocks)} context block(s) omitted by the prompt limit: {names}. "
+            "Coverage is incomplete; consult the full artifact.]"
         )
     return "\n\n".join(selected)
 

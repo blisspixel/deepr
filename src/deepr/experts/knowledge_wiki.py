@@ -10,6 +10,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from deepr.experts.brief_contracts import ExpertBrief
+from deepr.experts.consult_support import recorded_statement
 from deepr.experts.corpus_store import CorpusEntry
 from deepr.experts.evidence_graph import build_graph
 from deepr.experts.record_identity import position_thread_id
@@ -79,11 +80,11 @@ def _position_page(position: Any, findings: dict[str, Any]) -> str:
         "",
         "## Conditions for revision",
         "",
-        _text(position.would_change_my_mind or "Not recorded."),
+        _text(recorded_statement(position.would_change_my_mind) or "Not recorded."),
         "",
         "## Unresolved dissent",
         "",
-        _text(position.unresolved_dissent or "None recorded; this is not proof of consensus."),
+        _text(recorded_statement(position.unresolved_dissent) or "None recorded; this is not proof of consensus."),
         "",
         "## Supporting research",
         "",

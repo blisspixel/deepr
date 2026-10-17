@@ -282,6 +282,13 @@ class ExpertBrief:
     limitations: list[str] = field(default_factory=list)
     generated_from_findings: int = 0
     cost_usd: float = 0.0
+    study_fingerprint: str = ""
+    """Fingerprint of the study whose finding ids this brief cites.
+
+    Empty means the brief was not bound to a study. Consult treats those
+    citations as unverified, because a later study can reuse the same
+    positional id for different content.
+    """
 
     @property
     def unfalsifiable_positions(self) -> list[Position]:
@@ -366,6 +373,7 @@ class ExpertBrief:
             finding_titles=dict(data.get("finding_titles") or {}),
             limitations=list(data.get("limitations") or []),
             generated_from_findings=int(data.get("generated_from_findings", 0) or 0),
+            study_fingerprint=str(data.get("study_fingerprint") or ""),
         )
         brief.positions = [_position_from(p) for p in (data.get("positions") or []) if isinstance(p, dict)]
         brief.anticipated_questions = [
@@ -406,6 +414,7 @@ class ExpertBrief:
             "credibility": [c.to_dict() for c in self.credibility],
             "generated_from_findings": self.generated_from_findings,
             "cost_usd": self.cost_usd,
+            "study_fingerprint": self.study_fingerprint,
             "integrity_warnings": self.integrity_warnings(),
             "limitations": self.limitations,
         }

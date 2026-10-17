@@ -41,6 +41,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from deepr.experts.brief_contracts import ExpertBrief, Position
+from deepr.experts.consult_support import recorded_statement, support_for_positions
 from deepr.experts.corpus_store import CorpusStore
 from deepr.experts.study_contracts import StudyFinding, StudyResult
 
@@ -85,18 +86,22 @@ class ConsultContext:
     """Question-routed original passages, including details absent from study notes."""
     integrity_warnings: list[str] = field(default_factory=list)
     limitations: list[str] = field(default_factory=list)
+    support: list[dict[str, object]] = field(default_factory=list)
+    """Per-position citation resolution. Empty until build_consult_context runs."""
 
     @property
     def coverage(self) -> str:
         """grounded, partial, or uncovered.
 
-        A three-way answer rather than a yes/no, because "I have no position
-        but here is what bears on it" is the useful thing an expert says when
-        it cannot answer, and a binary gate cannot express it.
+        Grounded means every selected position's cited findings belong to
+        this study and a retained passage for each of them was read. A
+        citation id alone is not that. One unresolved citation keeps the
+        packet partial. Partial also covers a finding or passage with no
+        resolved position.
         """
-        if any(p.is_grounded for p in self.positions):
+        if self.support and all(item.get("resolved") for item in self.support):
             return "grounded"
-        if self.findings or self.sources or self.reference_passages:
+        if self.positions or self.findings or self.sources or self.reference_passages:
             return "partial"
         return "uncovered"
 
@@ -295,6 +300,12 @@ def build_consult_context(
         context.limitations.append(
             "Local reference lookup searched at most 240,000 retained characters and selected at most four passages by text overlap; this is not a relevance or currentness verdict."
         )
+    context.support = support_for_positions(
+        context.positions,
+        brief=brief,
+        result=result,
+        passages=context.finding_sources,
+    )
     return context
 
 
@@ -308,10 +319,12 @@ def _render_position_block(index: int, position: Position) -> list[str]:
         lines.append(f"   Likelihood it holds: {position.likelihood} ({band[0]}-{band[1]}%)")
     if position.confidence:
         lines.append(f"   Confidence in that basis: {position.confidence}")
-    if position.unresolved_dissent:
-        lines.append(f"   Does not resolve: {position.unresolved_dissent}")
-    if position.would_change_my_mind:
-        lines.append(f"   Would change my mind: {position.would_change_my_mind}")
+    dissent = recorded_statement(position.unresolved_dissent)
+    if dissent:
+        lines.append(f"   Does not resolve: {dissent}")
+    revision = recorded_statement(position.would_change_my_mind)
+    if revision:
+        lines.append(f"   Would change my mind: {revision}")
         if position.is_registered_prediction:
             lines.append(
                 f"   Scheduled check {position.falsifier_resolution_date}: {position.falsifier_resolution_criterion}"
