@@ -93,6 +93,7 @@ function inferTier(reg: RegistryModel): string {
 function isBenchmarkableRegistryModel(reg: RegistryModel): boolean {
   return (
     !reg.deprecated &&
+    !reg.selection_blocked &&
     !reg.model_key.startsWith('azure-foundry/') &&
     !reg.specializations.includes('image_generation')
   )

@@ -21,6 +21,7 @@ class DeprecationEntry:
     sunset_date: str = ""  # ISO date string, e.g. "2026-03-26"
     warning: str = ""
     auto_migrate: bool = True
+    match_prefix: bool = True
 
 
 # Canonical deprecation registry.
@@ -28,6 +29,39 @@ class DeprecationEntry:
 # Sunset dates below were checked against
 # https://developers.openai.com/api/docs/deprecations on 2026-10-12.
 DEPRECATION_REGISTRY: dict[str, DeprecationEntry] = {
+    "gpt-5": DeprecationEntry(
+        old_model="gpt-5",
+        new_model="gpt-5.6-sol",
+        sunset_date="2026-12-11",
+        warning=(
+            "gpt-5 uses snapshot gpt-5-2025-08-07, which shuts down on 2026-12-11. "
+            "Recommended successor: gpt-5.6-sol. Explicit selection is unchanged."
+        ),
+        auto_migrate=False,
+        match_prefix=False,
+    ),
+    "gpt-5-mini": DeprecationEntry(
+        old_model="gpt-5-mini",
+        new_model="gpt-5.6-terra",
+        sunset_date="2026-12-11",
+        warning=(
+            "gpt-5-mini uses snapshot gpt-5-mini-2025-08-07, which shuts down on 2026-12-11. "
+            "Recommended successor: gpt-5.6-terra. Explicit selection is unchanged."
+        ),
+        auto_migrate=False,
+        match_prefix=False,
+    ),
+    "gpt-5-nano": DeprecationEntry(
+        old_model="gpt-5-nano",
+        new_model="gpt-5.6-luna",
+        sunset_date="2026-12-11",
+        warning=(
+            "gpt-5-nano uses snapshot gpt-5-nano-2025-08-07, which shuts down on 2026-12-11. "
+            "Recommended successor: gpt-5.6-luna. Explicit selection is unchanged."
+        ),
+        auto_migrate=False,
+        match_prefix=False,
+    ),
     # OpenAI shut these down on 2026-07-23. The deprecations page names
     # gpt-5.6-sol as the substitute for both aliases and dated snapshots.
     # Dated ids match by prefix (o3-deep-research-2025-06-26, and the
@@ -170,6 +204,11 @@ DEPRECATION_REGISTRY: dict[str, DeprecationEntry] = {
 }
 
 
+DEPRECATION_REGISTRY.update(
+    {f"{model}-2025-08-07": DEPRECATION_REGISTRY[model] for model in ("gpt-5", "gpt-5-mini", "gpt-5-nano")}
+)
+
+
 def check_deprecation(model: str) -> DeprecationEntry | None:
     """Check if a model is deprecated.
 
@@ -183,6 +222,8 @@ def check_deprecation(model: str) -> DeprecationEntry | None:
     # Prefix match for versioned variants (e.g. "gpt-4o-2024-08-06")
     # Sort by key length descending so "gpt-4o-mini" matches before "gpt-4o"
     for key in sorted(DEPRECATION_REGISTRY, key=len, reverse=True):
+        if not DEPRECATION_REGISTRY[key].match_prefix:
+            continue
         if model.startswith(key + "-") or model.startswith(key + "/"):
             return DEPRECATION_REGISTRY[key]
 

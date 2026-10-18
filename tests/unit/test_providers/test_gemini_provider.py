@@ -93,7 +93,7 @@ class TestGeminiProvider:
         active_models = {
             capability.model
             for capability in MODEL_CAPABILITIES.values()
-            if capability.provider == "gemini" and not capability.deprecated
+            if capability.provider == "gemini" and not capability.selection_blocked
         }
 
         assert active_models <= set(provider.model_mappings.values())

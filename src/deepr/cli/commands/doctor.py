@@ -278,6 +278,17 @@ async def check_deprecated_models(config) -> list[DiagnosticCheck]:
         for label, (provider, model) in models_to_check.items():
             if not model or not credential_presence(provider)[0]:
                 continue
+            from deepr.providers.registry_pricing import get_resolved_model_capability
+
+            capability = get_resolved_model_capability(model)
+            if capability and capability.access_note:
+                check = DiagnosticCheck(f"{label}: {model}", "Model Access")
+                check.passed = False
+                check.failure_severity = "warning"
+                check.message = "Prior-user access only; account eligibility unverified"
+                check.details.append(capability.access_note)
+                checks.append(check)
+                continue
             dep_entry = check_deprecation(model)
             if dep_entry:
                 check = DiagnosticCheck(f"{label}: {model}", "Deprecated Models")

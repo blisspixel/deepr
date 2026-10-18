@@ -25,6 +25,7 @@ from deepr.cli.commands.run_submission import recover_provider_tracking_failure 
 from deepr.cli.commands.run_submission import reserve_job_submission as _reserve_job_submission
 from deepr.cli.commands.run_submission import rollback_prepared_submission as _rollback_prepared_submission
 from deepr.cli.live_status import shimmer_status
+from deepr.cli.model_choices import model_help
 from deepr.cli.output import (
     OperationResult,
     OutputContext,
@@ -470,21 +471,10 @@ async def _run_single(
         if output_context.mode == OutputMode.VERBOSE:
             print_warning(f"{model} does not support the web-search tool; running without web search")
 
-    # Check for deprecated model and display warning
-    from deepr.routing.deprecation import check_deprecation
+    from deepr.cli.model_choices import model_note
 
-    # Only warn for entries with a real sunset date. Date-less entries are
-    # informational mappings; warning on every default run trained users to
-    # ignore the warnings (and one stale date outlived the model's actual
-    # retirement plan - live finding 2026-06-11).
-    dep_entry = check_deprecation(model)
-    machine_output = output_context.mode in (OutputMode.JSON, OutputMode.QUIET)
-    if dep_entry and dep_entry.sunset_date and not machine_output:
-        msg = (
-            f"WARNING: Model '{dep_entry.old_model}' is deprecated (retires {dep_entry.sunset_date}). "
-            f"Recommended successor: {dep_entry.new_model}"
-        )
-        click.echo(msg, err=True)
+    if output_context.mode not in (OutputMode.JSON, OutputMode.QUIET) and (note := model_note(model)):
+        click.echo(note, err=True)
 
     # Initialize trace emitter
     emitter = MetadataEmitter()
@@ -1147,7 +1137,7 @@ async def _handle_background_job(
 @run.command()
 @click.argument("scenario")
 @click.option("--model", "-m", default="gpt-5.6-sol", help="Research model")
-@click.option("--lead", default="gpt-5", help="Lead planner model")
+@click.option("--lead", default="gpt-5", help=model_help("Lead planner model", "gpt-5"))
 @click.option("--phases", "-p", type=click.IntRange(1, 10), default=3, help="Number of phases (1-10)")
 @click.option("--yes", "-y", is_flag=True, help="Skip budget confirmation")
 def project(

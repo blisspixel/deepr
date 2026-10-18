@@ -485,6 +485,9 @@ export interface RegistryModel {
   strengths: string[]
   weaknesses: string[]
   deprecated: boolean
+  selection_blocked?: boolean
+  access_state?: 'unrestricted' | 'legacy_access_only'
+  access_note?: string
   successor?: string | null
 }
 

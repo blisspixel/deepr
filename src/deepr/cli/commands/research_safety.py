@@ -188,6 +188,7 @@ def print_explicit_research_preview(
     del upload
     from deepr.cli.colors import console
     from deepr.cli.output import OutputMode
+    from deepr.providers.registry_pricing import get_resolved_model_capability
 
     estimate = bounded_admission_estimate(
         query=query,
@@ -200,6 +201,7 @@ def print_explicit_research_preview(
     from deepr.cli.commands.research_support import research_tool_posture
 
     tools = research_tool_posture(provider, model, no_web=no_web, no_code=no_code, requested_no_web=requested_no_web)
+    capability = get_resolved_model_capability(model)
     mode = getattr(output_context, "mode", None)
     if mode == OutputMode.JSON:
         import json
@@ -216,6 +218,11 @@ def print_explicit_research_preview(
             },
             "reasoning": estimate.reasoning,
             "tools": tools,
+            "model_access": {
+                "state": capability.access_state if capability else "unknown",
+                "note": capability.access_note if capability else "",
+                "account_verified": False,
+            },
         }
         click.echo(json.dumps(payload, indent=2))
         return

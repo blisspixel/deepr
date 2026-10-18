@@ -17,6 +17,7 @@ from deepr.cli.colors import (
     print_warning,
 )
 from deepr.cli.commands.semantic.local_expert import local_creation_options, make_local_expert_profile
+from deepr.cli.model_choices import model_help
 from deepr.experts.claim_inventory import read_claim_inventory
 from deepr.experts.metered_mutation_gate import (
     MeteredExpertMutationDisabledError,
@@ -659,7 +660,7 @@ def expert_info(name: str):
 @click.option(
     "--model",
     default=None,
-    help="Override the validation model (default: gpt-5-mini, cheap+fast)",
+    help=model_help("Override the validation model (default: gpt-5-mini, cheap+fast)", "gpt-5-mini"),
 )
 @click.option(
     "--json",

@@ -120,6 +120,18 @@ async function fixture(width, theme) {
       return json({ results: reports, total: reports.length })
     }
     if (url.pathname === '/api/config') return json({ config: { has_api_key: state.funded, default_model: 'gpt-5.6-sol', monthly_limit: 5 } })
+    if (url.pathname === '/api/benchmarks') return json({ benchmarks: [] })
+    if (url.pathname === '/api/benchmarks/latest') return json({ result: null })
+    if (url.pathname === '/api/benchmarks/status') return json({ status: 'idle' })
+    if (url.pathname === '/api/benchmarks/routing-preferences') return json({ preferences: null })
+    if (url.pathname === '/api/models/registry') return json({ models: [false, true].map((restricted) => ({
+      model_key: `gemini/${restricted ? 'prior-user-fixture' : 'available-fixture'}`,
+      provider: 'gemini', model: restricted ? 'prior-user-fixture' : 'available-fixture',
+      cost_per_query: 0.01, input_cost_per_1m: 1, output_cost_per_1m: 2,
+      latency_ms: 1000, context_window: 32000, specializations: ['research'],
+      strengths: [], weaknesses: [], deprecated: false,
+      selection_blocked: restricted, access_state: restricted ? 'legacy_access_only' : 'unrestricted',
+    })) })
     if (url.pathname === '/api/health') return json({ healthy: true, version: 'synthetic-fixture' })
     errors.push(`Unexpected read: ${url.pathname}`)
     return json({ error: 'No fixture defined' }, 404)
@@ -140,6 +152,12 @@ async function fixture(width, theme) {
     assert.ok(await page.getByRole('link', { name: /^Open cost accounting/ }).isVisible())
     results.push({ label, width, theme, metrics })
   }
+  await page.goto(`${base}/models`)
+  await page.getByRole('button', { name: 'Available', exact: true }).click()
+  await page.getByText('available-fixture', { exact: true }).waitFor()
+  assert.equal(await page.getByText('prior-user-fixture', { exact: true }).count(), 0)
+  results.push({ label: 'prior-user-model-excluded', width, theme })
+  await page.screenshot({ path: resolve(output, `synthetic-model-access-${theme}-${width}.png`), animations: 'disabled' })
   await page.goto(`${base}/experts`)
   const card = page.getByRole('link', { name: new RegExp(expertName) })
   await card.waitFor()

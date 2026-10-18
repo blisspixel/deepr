@@ -24,6 +24,7 @@ from deepr.cli.commands.costs_spend_dispositions import (
     register_spend_disposition_commands,
 )
 from deepr.cli.commands.provider_billing import reconcile_billing_command
+from deepr.cli.model_choices import research_model_choice
 from deepr.observability.cost_ledger import CostLedger
 from deepr.observability.costs import CostDashboard
 
@@ -152,7 +153,7 @@ register_spend_disposition_commands(costs)
     "--model",
     "-m",
     default="gpt-5.6-sol",
-    type=click.Choice(["gpt-5.6-sol", "gpt-5.6-terra", "o4-mini-deep-research", "o3-deep-research"]),
+    type=research_model_choice(),
     help="Research model",
 )
 @click.option("--web-search/--no-web-search", default=True, help="Enable web search")

@@ -195,9 +195,7 @@ def _print_summary(env_file: dict[str, str], presence: _CapacityPresence) -> Non
     console.print("")
     if not any(presence):
         console.print("[yellow]No capacity detected yet.[/yellow] Deepr needs ONE of these (cheapest first):")
-        console.print(
-            "  - Local model: install Ollama (https://ollama.com), then `ollama pull qwen2.5-coder:32b`  ($0)"
-        )
+        _print_local_setup()
         console.print("  - Plan-style CLI on PATH: cost and adapter posture vary; inspect before use")
         console.print("  - Cloud API key in .env: OPENAI_API_KEY / ANTHROPIC_API_KEY / GEMINI_API_KEY  (metered)")
         console.print("Then: deepr doctor --skip-connectivity")
@@ -220,6 +218,30 @@ def _print_summary(env_file: dict[str, str], presence: _CapacityPresence) -> Non
         console.print("  Installed plan-style CLIs without a registered adapter remain inventory-only.")
     if presence.api:
         console.print('  deepr research "Your question here" --auto --preview  # no-spend API preview')
+
+
+def _print_local_setup() -> None:
+    """Show documented weight size and an estimate, never assume hardware fit."""
+    from deepr.backends.local_fit import detect_vram_bytes, estimate_fit
+
+    vram = detect_vram_bytes()
+    console.print("  - Local model: install Ollama (https://ollama.com), with cloud disabled persistently.")
+    console.print("    Library example: qwen3.8:27b, about 18 GB download (checked 2026-10-18).")
+    if vram > 0:
+        fit = estimate_fit(
+            name="qwen3.8:27b", weight_bytes=18_000_000_000, param_b=27, context_tokens=8192, vram_bytes=vram
+        )
+        console.print(f"    Estimated fit at 8K context: {fit.explain()}")
+        if fit.fits:
+            console.print("    Optional download: ollama pull qwen3.8:27b; larger contexts need more memory.")
+        else:
+            console.print("    Choose a smaller model for this hardware; CPU offload may be slow.")
+    else:
+        console.print(
+            "    GPU capacity unknown. Check memory before downloading; 18 GB is not the runtime requirement."
+        )
+    console.print("    Then inspect deepr capacity and deepr capacity next --task-class sync ($0).")
+    console.print("    Model size and fit do not establish answer quality. See https://ollama.com/library/qwen3.8.")
 
 
 @click.command(name="init")

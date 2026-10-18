@@ -194,7 +194,7 @@ class GeminiProvider(DeepResearchProvider):
         default_model_mappings = {
             capability.model: capability.model
             for capability in self._model_contracts.values()
-            if not capability.deprecated
+            if not capability.selection_blocked
         }
         default_model_mappings.update(
             {
@@ -241,14 +241,14 @@ class GeminiProvider(DeepResearchProvider):
                 category="configuration",
                 retryable=False,
             )
-        if capability.deprecated:
+        if capability.selection_blocked:
             successor = f"; use {capability.successor.split('/', 1)[-1]!r}" if capability.successor else ""
-            raise ProviderError(
-                message=f"Gemini model {model!r} is deprecated{successor}",
-                provider="gemini",
-                category="configuration",
-                retryable=False,
+            message = (
+                f"{capability.access_note} Dispatch blocked until account eligibility is proven."
+                if capability.access_note
+                else f"Gemini model {model!r} is deprecated{successor}"
             )
+            raise ProviderError(message=message, provider="gemini", category="configuration", retryable=False)
         return capability
 
     def _calculate_cost(
@@ -274,7 +274,7 @@ class GeminiProvider(DeepResearchProvider):
                 retryable=False,
             )
         if _is_deep_research_model(capability.model):
-            if capability.deprecated:
+            if capability.selection_blocked:
                 return capability.cost_per_query
             return self.deep_research_cost_estimate
 

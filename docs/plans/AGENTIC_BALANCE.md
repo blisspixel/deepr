@@ -16,6 +16,12 @@ brittle rule - it encodes a boundary that no longer matches the code.
 
 ## The axis
 
+Model lifecycle projection is deterministic: recorded dates filter advertised
+choices, exact IDs preserve historical pricing, and provider access notices
+remain distinct from verified account eligibility. Neither currency metadata
+nor an estimated local memory fit is a model-quality judgment or spend grant.
+See [lifecycle presentation](../design/model-lifecycle-presentation.md).
+
 CLI inspection is a deterministic read boundary: the same collected diagnostics
 and stored inventory drive human and JSON views. Quota snapshots create no
 files and refuse incomplete final records; writers retain serialization and

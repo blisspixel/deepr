@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.50.32 current main, 2026-10-17. This document defines what users and host
+Status: v2.50.33 current main, 2026-10-18. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -8,6 +8,12 @@ path is structurally complete but remains execution-blocked without verified
 provider prepaid-no-overage or hard-stop evidence. Attended OpenRouter research
 is the exception: one pinned no-tool completion after wallet credits and
 `deepr budget authorize openrouter`.
+
+**v2.50.33 maintenance:** Advertised model choices exclude recorded shutdowns;
+explicit historical IDs keep lifecycle notices and wire identity. Gemini 2.5
+prior-user access is separate from deprecation and still cannot dispatch
+without account verification. Model help uses retained defaults and reviewed
+candidates. Local setup checks estimated fit; it does not download a model.
 
 **v2.50.32 maintenance:** Research previews explain why web search is disabled. Capacity quota inspection creates no files; partial final records refuse inspection. Doctor and expert list expose JSON, and doctor separates capacity proof from generation. Consultation pre-result refusals expose structured errors. These repairs add no execution or learning authority.
 

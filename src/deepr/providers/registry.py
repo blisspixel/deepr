@@ -16,6 +16,7 @@ def _legacy_gemini(
     output_cost: float,
     cost: float,
     *,
+    prior_users_only: bool = False,
     cached: float | None = None,
     latency: int = 1500,
     context: int = 1_000_000,
@@ -36,8 +37,11 @@ def _legacy_gemini(
         output_cost_per_1m=output_cost,
         cached_input_cost_per_1m=cached,
         max_output_tokens=output_limit,
-        deprecated=True,
+        deprecated=not prior_users_only,
         successor=successor,
+        access_state="legacy_access_only" if prior_users_only else "unrestricted",
+        access_source="https://ai.google.dev/gemini-api/docs/deprecations" if prior_users_only else "",
+        access_checked="2026-10-18" if prior_users_only else "",
     )
 
 
@@ -776,6 +780,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         2.50,
         0.005,
         specializations=["speed", "cost", "thinking"],
+        prior_users_only=True,
     ),
     "gemini/gemini-2.5-flash-lite": _legacy_gemini(
         "gemini-2.5-flash-lite",
@@ -785,6 +790,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         0.003,
         latency=1100,
         specializations=["speed", "cost"],
+        prior_users_only=True,
     ),
     "gemini/gemini-2.5-pro": _legacy_gemini(
         "gemini-2.5-pro",
@@ -795,6 +801,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         cached=0.125,
         latency=4000,
         specializations=["reasoning", "large_context", "thinking"],
+        prior_users_only=True,
     ),
     # Anthropic Models
     # Note: Anthropic does NOT have a turnkey deep research API like OpenAI/Gemini.
@@ -1215,7 +1222,7 @@ def get_models_by_specialization(specialization: str) -> list[ModelCapability]:
     matching = [
         cap
         for cap in MODEL_CAPABILITIES.values()
-        if not cap.preview_only and not cap.deprecated and specialization in cap.specializations
+        if not cap.preview_only and not cap.selection_blocked and specialization in cap.specializations
     ]
     return sorted(matching, key=lambda x: x.cost_per_query)
 
@@ -1223,7 +1230,7 @@ def get_models_by_specialization(specialization: str) -> list[ModelCapability]:
 def get_cheapest_model() -> ModelCapability:
     """Select the cheapest non-preview, non-deprecated model."""
     return min(
-        (cap for cap in MODEL_CAPABILITIES.values() if not cap.preview_only and not cap.deprecated),
+        (cap for cap in MODEL_CAPABILITIES.values() if not cap.preview_only and not cap.selection_blocked),
         key=lambda x: x.cost_per_query,
     )
 
@@ -1231,7 +1238,7 @@ def get_cheapest_model() -> ModelCapability:
 def get_fastest_model() -> ModelCapability:
     """Select the fastest non-preview, non-deprecated model."""
     return min(
-        (cap for cap in MODEL_CAPABILITIES.values() if not cap.preview_only and not cap.deprecated),
+        (cap for cap in MODEL_CAPABILITIES.values() if not cap.preview_only and not cap.selection_blocked),
         key=lambda x: x.latency_ms,
     )
 
@@ -1239,6 +1246,6 @@ def get_fastest_model() -> ModelCapability:
 def get_largest_context_model() -> ModelCapability:
     """Select the largest context among non-preview, non-deprecated models."""
     return max(
-        (cap for cap in MODEL_CAPABILITIES.values() if not cap.preview_only and not cap.deprecated),
+        (cap for cap in MODEL_CAPABILITIES.values() if not cap.preview_only and not cap.selection_blocked),
         key=lambda x: x.context_window,
     )

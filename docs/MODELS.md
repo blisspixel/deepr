@@ -1,6 +1,6 @@
 # Model Selection Guide
 
-Status: Deepr v2.50.32. Gemini lineup reviewed 2026-10-14. Broader currency review 2026-10-06.
+Status: Deepr v2.50.33. Lifecycle notices reviewed 2026-10-18. Gemini lineup reviewed 2026-10-14. Broader currency review 2026-10-06.
 
 The source of truth for model IDs, pricing estimates, context windows, and
 routing metadata is [src/deepr/providers/registry.py](../src/deepr/providers/registry.py),
@@ -11,6 +11,20 @@ New public releases awaiting adapter validation live in
 This guide explains how to use that registry safely. Provider docs and prices
 change faster than prose, so treat this document as an operating guide, not a
 billing authority.
+
+`deepr help providers` projects retained task/provider defaults and reviewed
+preview-only candidates. `deepr providers list` retains the wider historical
+inventory. A registered contract does not establish provider currency, account
+access, dispatch eligibility or tested answer quality.
+
+The [lifecycle correction](design/model-lifecycle-presentation.md) records the
+2026-10-18 primary-source check. Shut-down IDs disappear from advertised CLI
+choices; typing a known historical ID retains its notice and identity. Original
+GPT-5 snapshots have a 2026-12-11 deadline; the notice does not migrate them.
+Stable Gemini 2.5 models are `legacy_access_only`, not provider-deprecated.
+Their exact IDs and historical prices remain inspectable, but Deepr still
+refuses dispatch without account eligibility proof. New-project guidance names
+Gemini 3.5 Flash-Lite or 3.8 Flash. No new-project credential was exercised.
 
 Latest public text-model listings and relevant prices were reviewed on
 2026-10-06. This does not establish every historical model's currency. The
