@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.31] - 2026-10-17
+
+Compatible expert evidence and first-build corrections. S0 remains open;
+spend authority, automatic learning and metered dispatch remain unchanged.
+
+### Fixed
+
+- New brief statements record whether they draw on studied findings, broader
+  knowledge or reasoning. Legacy prose stays explicitly unattributed. Reading
+  and synthesis preserve these labels, and stale study identities cannot link
+  positional finding ids into another study (#221).
+- Knowledge pages and notebooks show recorded excerpts. Linked pages distinguish
+  literal matches, unmatched text and unavailable source bytes; position pages
+  expose recorded support labels and counts without implying calibrated truth.
+  Renderer versions participate in immutable view identity (#220).
+- Terminal consult preserves the complete answer and always exposes Grounds,
+  Support, Currency and Pushback, with absent data, prompt omissions and model
+  truncation disclosed. Piped Markdown renders without formatting markers, and
+  the view uses the saved payload without changing it (#229).
+- Failed first-build studies report their actual model and anchored finding
+  counts in status and health. Next and retain prioritize rebuilding an unformed
+  local expert. Successful formation model selection reaches CLI, MCP and A2A
+  while the published artifacts still match, below an explicit override.
+  A consult with no usable perspective returns nonzero (#223).
+
+
 ## [2.50.30] - 2026-10-17
 
 Documentation. The roadmap names the next round at the top. Runtime behavior, cost gates, metered dispatch limits, and automatic learning stay unchanged. S0 through S4 stay open. This release does not claim that a maintained expert judges better than a fresh read.

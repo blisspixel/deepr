@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.50.30-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.30)
+[![Version](https://img.shields.io/badge/version-2.50.31-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.31)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -300,9 +300,13 @@ for tested behavior and the distinction from draft standards and host certificat
 
 ## Direction
 
-v2.50.30 names the next round in the roadmap: the remaining reader-facing
-expert (#221, #220, #229, #223), then the S0 baseline as v2.51. This release
-does not change runtime behavior.
+v2.50.31 makes the expert's evidence readable: linked finding pages quote the
+retained excerpts, positions show their recorded support labels, and new brief
+statements distinguish studied sources, broader knowledge and reasoning. Older
+perspectives remain explicitly unattributed. Consult shows the complete answer,
+grounds, support, currency and pushback. Failed first builds report their actual
+study and one consistent retry step; consult selects the completed build's
+model. These repairs do not establish advice quality. S0 remains the next gate.
 
 v2.50.29 makes a consult report whether its citations reach the loaded study
 and a retained passage. Local synthesis uses Ollama's native chat API at the

@@ -121,6 +121,20 @@ mode does not confine managed-policy hooks. `deepr capacity` lists each
 adapter's refusal; a zero-dollar budget does not override it. Use `--local`
 for the supported expert workflow after owned-local capacity checks pass.
 
+Knowledge pages show the quoted excerpts behind findings and each position's
+recorded support label. New perspective statements distinguish studied sources,
+broader knowledge and reasoning; older paragraphs say their origin was not
+recorded. These labels and literal matches are inspectable signals, not a
+qualification of the expert's advice. `expert knowledge` regenerates these
+views without rewriting earlier immutable versions.
+
+Consult prints the complete answer, Grounds, Support, Currency and Pushback.
+It discloses missing data and model truncation. For one local expert, an explicit
+model override wins, then the completed formation model while its published
+artifacts match, then the original local profile and environment/inventory.
+A failed first build remains visible in `status` and `health`; `next` prioritizes
+formation over maintenance while a new local expert lacks its foundation.
+
 ## What Should This Expert Do Next?
 
 ```bash
