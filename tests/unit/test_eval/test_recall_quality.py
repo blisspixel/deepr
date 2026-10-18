@@ -221,6 +221,8 @@ class TestRunEval:
             "case_count": 1,
             **expected,
             "embedding_model": "",
+            "embedding_profile": "none",
+            "embedding_dimensions": None,
         }
         assert report["scheduler_preference"]["retrieval_contract"] == expected
         assert report["routes"]["lexical_router"]["hit_at_k"] == 1.0
@@ -917,3 +919,84 @@ class TestEvalRecallCommand:
 
         assert result.exit_code != 0
         assert "--embedding-model is required" in result.output
+
+
+@pytest.mark.parametrize("change", [{"embedding_profile": "nomic-v1"}, {"embedding_dimensions": 256}])
+async def test_preference_evidence_cannot_relabel_its_embedding_contract(change):
+    from deepr.evals.recall_quality import validate_recall_preference_evidence
+
+    class Store:
+        def recall_belief_candidates(self, query, *, query_embedding=None, **kwargs):
+            return [SimpleNamespace(item_id=query)] if query_embedding else []
+
+        def belief_embedding_stats(self, *, embedding_model):
+            return {
+                "belief_count": 30,
+                "current_vector_count": 30,
+                "missing_or_stale_count": 0,
+                "record_count": 30,
+                "state_digest": "a" * 64,
+            }
+
+    cases = [RecallEvalCase(str(i), f"b{i}", (f"b{i}",)) for i in range(30)]
+
+    async def embed(queries):
+        return [(1.0,) for _ in queries]
+
+    report = await run_recall_quality_eval(Store(), cases, embedding_model="nomic-embed-text", embed_queries=embed)
+    assert report["scheduler_preference"]["eligible"] is True
+    report["request"].update(change)
+    with pytest.raises(ValueError, match="embedding contract"):
+        validate_recall_preference_evidence(report)
+
+
+def test_cli_eval_binds_local_query_profile_and_dimensions(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    import jsonschema
+
+    from deepr.cli.main import cli
+
+    store, power, _ = _seeded_store(tmp_path)
+    store.upsert_belief_embedding(power.id, [1.0, 0.0], model="nomic-embed-text", profile="nomic-v1")
+    path = tmp_path / "cases.json"
+    path.write_text(json.dumps([{"case_id": "one", "query": "power", "relevant_belief_ids": [power.id]}]))
+    calls = []
+
+    def factory(model, **kwargs):
+        calls.append((model, kwargs))
+
+        async def embed(texts):
+            return [(1.0, 0.0) for _ in texts]
+
+        return embed
+
+    monkeypatch.setattr("deepr.backends.local.make_local_embedder", factory)
+    monkeypatch.setattr(
+        "deepr.experts.profile.ExpertStore",
+        lambda: SimpleNamespace(load=lambda name: SimpleNamespace(domain="ai-infra")),
+    )
+    monkeypatch.setattr("deepr.experts.beliefs.BeliefStore", lambda name: store)
+    result = CliRunner().invoke(
+        cli,
+        [
+            "eval",
+            "recall",
+            "Fixture",
+            "--cases",
+            str(path),
+            "--local-embedding-model",
+            "nomic-embed-text",
+            "--embedding-profile",
+            "auto",
+            "--embedding-dimensions",
+            "2",
+            "--json",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    report = json.loads(result.output)
+    assert calls == [("nomic-embed-text", {"profile": "nomic-v1", "role": "query", "dimensions": 2})]
+    assert report["index"]["embedding_profile"] == "nomic-v1" and report["index"]["embedding_dimensions"] == 2
+    assert report["comparison"]["vector_route_evaluated"] is True
+    jsonschema.validate(report, json.loads(Path("docs/schemas/recall-eval-report-v2.json").read_text()))

@@ -57,6 +57,8 @@ async def refresh_missing_belief_embeddings(
     embed_claims: EmbeddingBatcher,
     *,
     model: str,
+    profile: str = "none",
+    dimensions: int | None = None,
     budget_usd: float = 0.0,
     estimated_cost_per_belief: float = 0.0,
     max_beliefs: int | None = None,
@@ -71,12 +73,18 @@ async def refresh_missing_belief_embeddings(
     budget = _nonnegative(budget_usd, name="budget_usd")
     cost_per_belief = _nonnegative(estimated_cost_per_belief, name="estimated_cost_per_belief")
     limit = None if max_beliefs is None else max(0, int(max_beliefs))
-    missing_ids = list(belief_store.missing_belief_embedding_ids(embedding_model=model))
+    missing_ids = list(
+        belief_store.missing_belief_embedding_ids(
+            embedding_model=model, embedding_profile=profile, dimensions=dimensions
+        )
+    )
     target_ids = missing_ids if limit is None else missing_ids[:limit]
     requested_count = len(target_ids)
     estimated_cost = round(cost_per_belief * requested_count, 6)
     result_metadata = dict(metadata or {})
     result_metadata["model"] = model
+    result_metadata["embedding_profile"] = profile
+    result_metadata["dimensions"] = dimensions
 
     if requested_count == 0:
         return BeliefEmbeddingRefreshResult(
@@ -112,16 +120,36 @@ async def refresh_missing_belief_embeddings(
             metadata=result_metadata,
         )
 
+    vector_dimensions = {
+        len(vector)
+        for vector in embeddings
+        if isinstance(vector, Sequence) and not isinstance(vector, (str, bytes)) and len(vector) > 0
+    }
+    if len(vector_dimensions) > 1 or (
+        dimensions is not None and vector_dimensions and vector_dimensions != {dimensions}
+    ):
+        return BeliefEmbeddingRefreshResult(
+            status="blocked",
+            requested_count=requested_count,
+            blocked_reason="embedding batch dimensions do not match one coherent refresh contract",
+            skipped_count=requested_count,
+            skipped_belief_ids=tuple(target_ids),
+            metadata=result_metadata,
+        )
+
     indexed: list[str] = []
     skipped: list[str] = []
     errors: list[str] = []
     for belief, embedding in zip(beliefs, embeddings, strict=True):
         belief_id = str(getattr(belief, "id", "") or "")
         try:
+            if dimensions is not None and len(embedding) != dimensions:
+                raise ValueError("embedding dimensions do not match the refresh contract")
             belief_store.upsert_belief_embedding(
                 belief_id,
                 embedding,
                 model=model,
+                profile=profile,
                 metadata=result_metadata,
             )
         except (TypeError, ValueError) as exc:

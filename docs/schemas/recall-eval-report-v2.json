@@ -35,7 +35,9 @@
         "top_k": {"type": "integer", "minimum": 1},
         "domain": {"type": "string"},
         "min_score": {"type": "number", "minimum": 0.0, "maximum": 1.0},
-        "embedding_model": {"type": "string"}
+        "embedding_model": {"type": "string"},
+        "embedding_profile": {"enum": ["none", "nomic-v1", "embeddinggemma-fact-checking-v1"]},
+        "embedding_dimensions": {"type": ["integer", "null"], "minimum": 1, "maximum": 8192}
       }
     },
     "contract": {
@@ -65,6 +67,8 @@
       "additionalProperties": false,
       "properties": {
         "embedding_model": {"type": "string"},
+        "embedding_profile": {"enum": ["none", "nomic-v1", "embeddinggemma-fact-checking-v1"]},
+        "embedding_dimensions": {"type": ["integer", "null"], "minimum": 1, "maximum": 8192},
         "belief_count": {"type": "integer", "minimum": 0},
         "current_vector_count": {"type": "integer", "minimum": 0},
         "missing_or_stale_count": {"type": "integer", "minimum": 0},
@@ -269,6 +273,8 @@
           "items": {"type": "string"}
         },
         "embedding_model": {"type": "string"},
+        "embedding_profile": {"enum": ["none", "nomic-v1", "embeddinggemma-fact-checking-v1"]},
+        "embedding_dimensions": {"type": ["integer", "null"], "minimum": 1, "maximum": 8192},
         "index_state_digest": {"type": "string", "pattern": "^(|[0-9a-f]{64})$"},
         "retrieval_contract": {"$ref": "#/$defs/retrieval_contract"},
         "reasons": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},

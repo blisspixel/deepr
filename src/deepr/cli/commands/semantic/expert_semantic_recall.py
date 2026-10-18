@@ -10,6 +10,7 @@ from typing import Any
 
 import click
 
+from deepr.backends.embedding_profiles import PROFILE_CHOICES, resolve_embedding_profile
 from deepr.backends.local import make_local_embedder
 from deepr.cli.colors import console, print_error, print_header, print_key_value, print_section_header
 from deepr.cli.commands.semantic.experts import expert
@@ -28,13 +29,17 @@ from deepr.experts.profile import ExpertStore
 _LOCAL_QUERY_GENERATION = "local_ollama_query"
 
 
-def _embed_query_locally(local_embedding_model: str, query: str) -> tuple[float, ...]:
+def _embed_query_locally(
+    local_embedding_model: str, query: str, *, embedding_profile: str = "none", dimensions: int | None = None
+) -> tuple[float, ...]:
     """Compute one query embedding through the local $0 Ollama endpoint.
 
     Raises ``ValueError`` with an operator-facing message on any failure;
     there is no metered fallback on this path.
     """
-    embedder = make_local_embedder(local_embedding_model)
+    embedder = make_local_embedder(
+        local_embedding_model, profile=embedding_profile, role="query", dimensions=dimensions
+    )
     try:
         vectors = asyncio.run(embedder([query]))
     except Exception as exc:
@@ -66,9 +71,13 @@ async def _refresh_semantic_recall_locally(
     local_embedding_model: str,
     *,
     max_beliefs: int | None,
+    embedding_profile: str = "none",
+    dimensions: int | None = None,
 ) -> dict[str, Any]:
     """Refresh the belief-vector index through the local $0 embedder."""
-    embedder = make_local_embedder(local_embedding_model)
+    embedder = make_local_embedder(
+        local_embedding_model, profile=embedding_profile, role="document", dimensions=dimensions
+    )
 
     async def embed_claims(claims: list[str]) -> list[tuple[float, ...]]:
         try:
@@ -81,6 +90,8 @@ async def _refresh_semantic_recall_locally(
         BeliefStore(profile.name),
         embed_claims,
         embedding_model=local_embedding_model,
+        embedding_profile=embedding_profile,
+        embedding_dimensions=dimensions,
         max_beliefs=max_beliefs,
     )
 
@@ -165,6 +176,19 @@ def _render_refresh_summary(payload: dict[str, Any]) -> None:
     help="Compute the query embedding through a local Ollama model at $0; no metered fallback.",
 )
 @click.option("--no-lexical-fallback", is_flag=True, help="Only return vector hits when using a query embedding.")
+@click.option(
+    "--embedding-profile",
+    type=click.Choice(PROFILE_CHOICES),
+    default="none",
+    show_default=True,
+    help="Input prefix contract; profile changes require an index refresh.",
+)
+@click.option(
+    "--embedding-dimensions",
+    type=click.IntRange(min=1, max=8192),
+    default=None,
+    help="Matching query/document size; Gemma profiles truncate and normalize.",
+)
 @click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
 def expert_semantic_recall(
     name: str,
@@ -176,6 +200,8 @@ def expert_semantic_recall(
     embedding_model: str | None,
     local_embedding_model: str | None,
     no_lexical_fallback: bool,
+    embedding_profile: str,
+    embedding_dimensions: int | None,
     json_output: bool,
 ) -> None:
     """Recall candidate beliefs for verifier routing.
@@ -201,10 +227,19 @@ def expert_semantic_recall(
     embedding_generation = "not_performed"
     parsed_embedding = None
     try:
+        if (embedding_profile != "none" or embedding_dimensions is not None) and not (
+            local_embedding_model or embedding_model
+        ):
+            raise ValueError("embedding profile/dimensions require an embedding model")
+        spec = resolve_embedding_profile(
+            local_embedding_model or embedding_model or "", embedding_profile, embedding_dimensions
+        )
         if query_embedding:
             parsed_embedding = parse_query_embedding_json(query_embedding)
         elif local_embedding_model:
-            parsed_embedding = _embed_query_locally(local_embedding_model, query)
+            parsed_embedding = _embed_query_locally(
+                local_embedding_model, query, embedding_profile=spec.name, dimensions=spec.dimensions
+            )
             embedding_model = local_embedding_model
             embedding_generation = _LOCAL_QUERY_GENERATION
     except ValueError as exc:
@@ -221,6 +256,8 @@ def expert_semantic_recall(
             domain=domain,
             query_embedding=parsed_embedding,
             embedding_model=embedding_model,
+            embedding_profile=spec.name,
+            embedding_dimensions=spec.dimensions,
             include_lexical_fallback=not no_lexical_fallback,
             embedding_generation=embedding_generation,
         )
@@ -263,6 +300,19 @@ def expert_semantic_recall(
     show_default=True,
     help="Declared upstream estimate per vector; Deepr does not call a metered embedding provider.",
 )
+@click.option(
+    "--embedding-profile",
+    type=click.Choice(PROFILE_CHOICES),
+    default="none",
+    show_default=True,
+    help="Input prefix contract; profile changes require an index refresh.",
+)
+@click.option(
+    "--embedding-dimensions",
+    type=click.IntRange(min=1, max=8192),
+    default=None,
+    help="Matching query/document size; Gemma profiles truncate and normalize.",
+)
 @click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
 def expert_refresh_semantic_recall(
     name: str,
@@ -272,6 +322,8 @@ def expert_refresh_semantic_recall(
     max_beliefs: int | None,
     budget: float,
     estimated_cost_per_belief: float,
+    embedding_profile: str,
+    embedding_dimensions: int | None,
     json_output: bool,
 ) -> None:
     """Refresh semantic recall from precomputed belief vectors or a local model.
@@ -304,6 +356,9 @@ def expert_refresh_semantic_recall(
         sys.exit(2)
 
     try:
+        spec = resolve_embedding_profile(
+            local_embedding_model or embedding_model or "", embedding_profile, embedding_dimensions
+        )
         if embeddings_json is not None:
             embedding_payload = _load_json_file(embeddings_json)
             payload = asyncio.run(
@@ -312,6 +367,8 @@ def expert_refresh_semantic_recall(
                     BeliefStore(profile.name),
                     embedding_payload,
                     embedding_model=embedding_model or "",
+                    embedding_profile=spec.name,
+                    embedding_dimensions=spec.dimensions,
                     budget_usd=budget,
                     estimated_cost_per_belief=estimated_cost_per_belief,
                     max_beliefs=max_beliefs,
@@ -322,6 +379,8 @@ def expert_refresh_semantic_recall(
                 _refresh_semantic_recall_locally(
                     profile,
                     local_embedding_model or "",
+                    embedding_profile=spec.name,
+                    dimensions=spec.dimensions,
                     max_beliefs=max_beliefs,
                 )
             )

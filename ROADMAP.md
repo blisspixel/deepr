@@ -4,12 +4,12 @@
 
 ## Next round
 
-Completed reader, recovery, inspection, lifecycle, first-run and decision-review
-repairs are in [the changelog](docs/CHANGELOG.md). v2.50.36 repairs missing native
-local attempt accounting at the shared transport boundary. Refused, failed and
-cancelled completions remain recorded at `$0`; rehearsal preserves one attempt
-identity across its lifecycle events. Validation and publication remain separate
-from semantic review or the S0 evidence gate.
+Completed reader, recovery, inspection, lifecycle, first-run, decision-review
+and local accounting repairs are in [the changelog](docs/CHANGELOG.md).
+v2.50.37 repairs explicit embedding roles, index profile/dimension compatibility
+and embedding attempt records. The published-label subset comparison leaves
+defaults unchanged. Validation and publication remain separate from S0 and
+semantic review.
 
 - [ ] **v2.51 is S0.** Locate the frozen source worlds, policy and case inventory,
   then run the 48-cell local rehearsal. The archived policy used qwen3.6:27b;
@@ -20,10 +20,10 @@ from semantic review or the S0 evidence gate.
 
 Validation and practical limits: [reader evidence repairs](docs/validation/expert-evidence-reading-2026-10-17.md),
 [first-run record clarity](docs/validation/first-run-record-clarity-2026-10-18.md),
-[native local accounting](docs/validation/native-local-accounting-2026-10-18.md).
+[native local accounting](docs/validation/native-local-accounting-2026-10-18.md),
+[local embedding profiles](docs/validation/local-embedding-profiles-2026-10-18.md).
 
-Next after decision review: #216 (embedder prefixes),
-and #225 (Python and Node platform). Polish #230, #234, #235, and #236 waits.
+Next: #225 (Python and Node platform). Polish #230, #234, #235, and #236 waits.
 SearXNG, unattended and MCP OpenRouter, and sleep-time overwrite of claims
 stay blocked.
 
@@ -756,7 +756,7 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.36)
+## Current Status (v2.50.37)
 
 **Next is v2.51, not more dispatch.** v2.50.32 clarifies bounded tool posture, read-only inspection and CLI JSON parity. v2.50.31 repairs perspective attribution, readable evidence, consult output, and failed-build reporting. S0 remains unrun. v2.50.29 makes consult report whether citations reach the loaded study and a retained passage, and it sends local synthesis through the native 16384-token window study already uses. It does not run S0 or claim the expert got better. v2.50.28 ships the currency inspection and explicit world-time admission. v2.50.27 points deep-research defaults at the live OpenAI substitutes and keeps the 128k web-search ceiling.
 v2.50.26 repairs core-only installation on
@@ -4096,7 +4096,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.36. This roadmap keeps
+v2.50.37. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 

@@ -151,7 +151,8 @@ def test_local_compile_claims_wires_local_recall_embedder(patch_engine, monkeypa
     client, embedder = object(), object()
     captured = {}
 
-    def fake_make_local_embedder(model, *, base_url=None, client=None):
+    def fake_make_local_embedder(model, *, base_url=None, client=None, role="document"):
+        assert role == "query"
         captured.update(model=model, client=client)
         return embedder
 
@@ -198,7 +199,8 @@ def test_metered_compile_claims_can_use_local_recall_embedder(patch_engine, monk
     embedder = object()
     captured = {}
 
-    def fake_make_local_embedder(model, *, base_url=None, client=None):
+    def fake_make_local_embedder(model, *, base_url=None, client=None, role="document"):
+        assert role == "query"
         captured.update(model=model, client=client)
         return embedder
 

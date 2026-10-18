@@ -695,6 +695,11 @@ def validate_recall_preference_evidence(report: Mapping[str, Any]) -> dict[str, 
         "paired_bootstrap": _paired_bootstrap_comparison(lexical_cases, vector_cases),
     }
     index = _validated_index_coverage(report.get("index"), embedding_model=embedding_model)
+    request = report["request"]
+    if request.get("embedding_profile", "none") != index.get("embedding_profile", "none") or request.get(
+        "embedding_dimensions"
+    ) != index.get("embedding_dimensions"):
+        raise ValueError("recall eval report embedding contract does not match its index")
     expected_preference = _scheduler_preference(
         expected_routes,
         expected_comparison,
@@ -754,6 +759,8 @@ async def run_recall_quality_eval(
     domain: str | None = None,
     min_score: float = 0.0,
     embedding_model: str | None = None,
+    embedding_profile: str = "none",
+    embedding_dimensions: int | None = None,
     query_embeddings_by_case_id: Mapping[str, Sequence[float]] | None = None,
     embed_queries: QueryEmbedder | None = None,
 ) -> dict[str, Any]:
@@ -774,7 +781,18 @@ async def run_recall_quality_eval(
         query_embeddings_by_case_id=query_embeddings_by_case_id,
         embed_queries=embed_queries,
     )
-    index_coverage = recall_index_coverage(belief_store, embedding_model if resolved_embeddings else None)
+    if len({len(vector) for vector in resolved_embeddings.values()}) > 1:
+        raise ValueError("recall query embeddings must share one dimension")
+    if embedding_dimensions is not None and any(
+        len(vector) != embedding_dimensions for vector in resolved_embeddings.values()
+    ):
+        raise ValueError("recall query dimensions do not match the embedding contract")
+    index_coverage = recall_index_coverage(
+        belief_store,
+        embedding_model if resolved_embeddings else None,
+        embedding_profile=embedding_profile,
+        dimensions=embedding_dimensions,
+    )
     if resolved_embeddings and index_coverage and index_coverage["current_vector_count"] == 0:
         # Without usable belief vectors under this model label, every vector
         # query would return nothing and the comparison would read as a
@@ -815,6 +833,7 @@ async def run_recall_quality_eval(
                 domain=retrieval_domain,
                 query_embedding=resolved_embeddings[case.case_id],
                 embedding_model=embedding_model,
+                **({"embedding_profile": embedding_profile} if embedding_profile != "none" else {}),
                 include_lexical_fallback=False,
             )
             vector_result = _case_metrics(
@@ -848,6 +867,8 @@ async def run_recall_quality_eval(
             "domain": retrieval_contract["domain"],
             "min_score": retrieval_contract["min_score"],
             "embedding_model": embedding_model or "",
+            "embedding_profile": embedding_profile,
+            "embedding_dimensions": embedding_dimensions,
         },
         "contract": {
             "cost_usd": 0.0,

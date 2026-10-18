@@ -339,37 +339,70 @@ def make_local_embedder(
     *,
     base_url: str | None = None,
     client: Any | None = None,
+    profile: str = "none",
+    role: str = "document",
+    dimensions: int | None = None,
+    get_json: Callable[[str, float], Awaitable[dict[str, Any]]] | None = None,
 ) -> EmbedClaimsFn:
-    """Build an ``embed_claims`` batcher backed by a local Ollama model at $0.
+    """Build a role-aware, durably recorded local $0 embedding batcher.
 
-    Ollama serves the OpenAI-compatible ``/v1/embeddings`` endpoint, so the
-    same client shape as the chat seams works for embeddings. Vectors are
-    reordered by response index because the endpoint does not guarantee input
-    order. The batcher raises on transport or shape failures instead of
-    degrading silently; callers own the no-fallback policy and user-facing
-    error reporting.
+    Raw input remains the default. Profile and dimension changes require an
+    explicit index refresh; there is no metered fallback or automatic pull.
     """
+    import asyncio
+
+    from deepr.backends.embedding_profiles import resolve_embedding_profile
+    from deepr.experts.investigation.ollama_backend import NativeOllamaInvestigationBackend
+    from deepr.observability.local_attempts import LocalGenerationAttempt
+
     chosen = model.strip()
     if not chosen:
         raise ValueError("embedding model is required")
+    spec = resolve_embedding_profile(chosen, profile, dimensions)
+    spec.prepare("", role)
     owned_base_url = _base_url(base_url)
     embeddings_client = client if client is not None else ollama_chat_client(owned_base_url)
     require_zero_dollar_client(embeddings_client, capacity_source="local")
+    proof = NativeOllamaInvestigationBackend(model=chosen, base_url=owned_base_url, get_json=get_json)
 
     async def embed_claims(claims: list[str]) -> list[tuple[float, ...]]:
         if not claims:
             return []
-        response = await embeddings_client.embeddings.create(
-            model=chosen,
-            input=list(claims),
-            extra_body={"keep_alive": _KEEP_ALIVE},
-        )
-        rows = sorted(response.data, key=lambda row: row.index)
-        vectors = [tuple(float(value) for value in row.embedding) for row in rows]
-        if len(vectors) != len(claims):
-            raise RuntimeError(
-                f"local embedding model {chosen} returned {len(vectors)} vector(s) for {len(claims)} claim(s)"
+        attempt = LocalGenerationAttempt(chosen, kind="embedding")
+        try:
+            inputs = [spec.prepare(text, role) for text in claims]
+            digest = await proof.attest_model(chosen)
+            attempt.dispatch(digest)
+            response = await embeddings_client.embeddings.create(
+                model=chosen,
+                input=inputs,
+                extra_body={"keep_alive": _KEEP_ALIVE},
             )
+            rows = sorted(response.data, key=lambda row: row.index)
+            if len(rows) != len(claims):
+                raise RuntimeError(
+                    f"local embedding model {chosen} returned {len(rows)} vector(s) for {len(claims)} claim(s)"
+                )
+            if any(type(row.index) is not int for row in rows) or [row.index for row in rows] != list(
+                range(len(claims))
+            ):
+                raise ValueError("embedding response indices must be a unique complete input permutation")
+            vectors = [spec.vector(row.embedding) for row in rows]
+            if len({len(vector) for vector in vectors}) != 1:
+                raise ValueError("embedding response mixed vector dimensions")
+            usage = getattr(response, "usage", None)
+            tokens_input = max(0, int(getattr(usage, "prompt_tokens", 0) or 0))
+        except BaseException as error:
+            status = (
+                "cancelled"
+                if isinstance(error, asyncio.CancelledError)
+                else "failed"
+                if attempt.dispatched
+                else "refused"
+            )
+            attempt.finish(status, error_type=type(error).__name__)
+            raise
+        attempt.finish("returned", tokens_input=tokens_input)
         return vectors
 
     return embed_claims

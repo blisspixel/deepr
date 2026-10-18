@@ -395,6 +395,7 @@ def _store_recall_belief_candidates(
     query_embedding: Sequence[float] | None = None,
     belief_embeddings: Mapping[str, Sequence[float]] | None = None,
     embedding_model: str | None = None,
+    embedding_profile: str = "none",
     include_lexical_fallback: bool = True,
 ) -> list[RecallCandidate]:
     """BeliefStore-compatible wrapper for local recall routing."""
@@ -403,6 +404,8 @@ def _store_recall_belief_candidates(
         resolved_embeddings = _store_belief_vector_index(self).vectors_for(
             self.beliefs.values(),
             model=embedding_model,
+            profile=embedding_profile,
+            dimensions=len(query_embedding),
         )
     return recall_belief_candidates(
         query,
@@ -425,6 +428,7 @@ def _store_recall_contradiction_candidates(
     query_embedding: Sequence[float] | None = None,
     belief_embeddings: Mapping[str, Sequence[float]] | None = None,
     embedding_model: str | None = None,
+    embedding_profile: str = "none",
     include_lexical_fallback: bool = True,
 ) -> list[RecallCandidate]:
     """Return same-domain candidates; a verifier still decides contradiction."""
@@ -437,6 +441,7 @@ def _store_recall_contradiction_candidates(
         query_embedding=query_embedding,
         belief_embeddings=belief_embeddings,
         embedding_model=embedding_model,
+        embedding_profile=embedding_profile,
         include_lexical_fallback=include_lexical_fallback,
     )
     belief_id = str(getattr(belief, "id", ""))
@@ -457,6 +462,7 @@ def _store_upsert_belief_embedding(
     embedding: Sequence[float],
     *,
     model: str = "",
+    profile: str = "none",
     embedded_at: str | None = None,
     metadata: Mapping[str, Any] | None = None,
 ) -> bool:
@@ -468,16 +474,21 @@ def _store_upsert_belief_embedding(
         belief,
         embedding,
         model=model,
+        profile=profile,
         embedded_at=embedded_at,
         metadata=metadata,
     )
 
 
-def _store_missing_belief_embedding_ids(self: Any, *, embedding_model: str | None = None) -> list[str]:
+def _store_missing_belief_embedding_ids(
+    self: Any, *, embedding_model: str | None = None, embedding_profile: str = "none", dimensions: int | None = None
+) -> list[str]:
     """Return current belief ids missing a non-stale indexed vector."""
     return _store_belief_vector_index(self).missing_or_stale_ids(
         self.beliefs.values(),
         model=embedding_model,
+        profile=embedding_profile,
+        dimensions=dimensions,
     )
 
 
@@ -486,11 +497,15 @@ def _store_prune_belief_embeddings(self: Any) -> int:
     return _store_belief_vector_index(self).prune(self.beliefs.keys())
 
 
-def _store_belief_embedding_stats(self: Any, *, embedding_model: str | None = None) -> dict[str, Any]:
+def _store_belief_embedding_stats(
+    self: Any, *, embedding_model: str | None = None, embedding_profile: str = "none", dimensions: int | None = None
+) -> dict[str, Any]:
     """Return local belief-vector index statistics."""
     return _store_belief_vector_index(self).stats(
         self.beliefs.values(),
         model=embedding_model,
+        profile=embedding_profile,
+        dimensions=dimensions,
     )
 
 

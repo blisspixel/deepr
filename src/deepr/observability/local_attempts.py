@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 from deepr.observability.cost_ledger import CostLedger
@@ -19,7 +19,8 @@ class LocalAttemptAccountingError(RuntimeError):
 class LocalGenerationAttempt:
     """One invocation, including refusal before transport and uncertain interruption."""
 
-    def __init__(self, model: str, *, correlation_id: str = "") -> None:
+    def __init__(self, model: str, *, correlation_id: str = "", kind: Literal["chat", "embedding"] = "chat") -> None:
+        self.kind = kind
         self.attempt_id = uuid4().hex
         self.request_id = correlation_id or self.attempt_id
         self.model = model
@@ -45,6 +46,7 @@ class LocalGenerationAttempt:
         phase = status if status in {"requested", "dispatching"} else "terminal"
         metadata: dict[str, Any] = {
             "schema": SCHEMA,
+            "kind": self.kind,
             "observed_at": datetime.now(UTC).isoformat(),
             "attempt_id": self.attempt_id,
             "status": status,
@@ -55,7 +57,7 @@ class LocalGenerationAttempt:
             metadata["error_type"] = error_type
         try:
             self.ledger.record_event(
-                operation=f"native_local_{phase}",
+                operation=f"native_local_{'embedding_' if self.kind == 'embedding' else ''}{phase}",
                 provider="local",
                 model=self.model,
                 cost_usd=0.0,

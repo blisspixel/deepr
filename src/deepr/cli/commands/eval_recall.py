@@ -13,6 +13,7 @@ from typing import Any
 
 import click
 
+from deepr.backends.embedding_profiles import PROFILE_CHOICES, resolve_embedding_profile
 from deepr.cli.commands.eval import evaluate
 from deepr.evals.recall_quality import (
     RECALL_EVAL_CASE_LIBRARY_SCHEMA_VERSION,
@@ -212,6 +213,8 @@ def _resolve_query_embedding_inputs(
     local_embedding_model: str | None,
     query_embeddings_json: Path | None,
     embedding_model: str | None,
+    embedding_profile: str = "none",
+    embedding_dimensions: int | None = None,
 ) -> tuple[dict[str, tuple[float, ...]] | None, Any, str | None]:
     if query_embeddings_json is not None:
         from deepr.experts.expert_semantic_recall import coerce_belief_embedding_map
@@ -224,7 +227,13 @@ def _resolve_query_embedding_inputs(
     if local_embedding_model:
         from deepr.backends.local import make_local_embedder
 
-        return None, make_local_embedder(local_embedding_model), local_embedding_model
+        return (
+            None,
+            make_local_embedder(
+                local_embedding_model, profile=embedding_profile, role="query", dimensions=embedding_dimensions
+            ),
+            local_embedding_model,
+        )
     return None, None, embedding_model
 
 
@@ -250,6 +259,8 @@ def _resolve_query_embedding_inputs(
     help="JSON object mapping case_id to a precomputed query vector.",
 )
 @click.option("--embedding-model", default=None, help="Model label for precomputed query vectors.")
+@click.option("--embedding-profile", type=click.Choice(PROFILE_CHOICES), default="none", show_default=True)
+@click.option("--embedding-dimensions", type=click.IntRange(min=1, max=8192), default=None)
 @click.option("--case-id", default=None, help="Case id for a single operator-labeled --query input.")
 @click.option("--query", "case_query", default=None, help="Single operator-labeled recall query to evaluate or record.")
 @click.option(
@@ -272,6 +283,8 @@ def eval_recall(
     local_embedding_model: str | None,
     query_embeddings_json: Path | None,
     embedding_model: str | None,
+    embedding_profile: str,
+    embedding_dimensions: int | None,
     case_id: str | None,
     case_query: str | None,
     relevant_belief_ids: tuple[str, ...],
@@ -306,6 +319,13 @@ def eval_recall(
     domain = str(getattr(expert, "domain", "") or "")
 
     try:
+        if (embedding_profile != "none" or embedding_dimensions is not None) and not (
+            local_embedding_model or embedding_model
+        ):
+            raise ValueError("embedding profile/dimensions require an embedding model")
+        spec = resolve_embedding_profile(
+            local_embedding_model or embedding_model or "", embedding_profile, embedding_dimensions
+        )
         cases, case_library = _load_cases_for_eval(
             name,
             cases_path,
@@ -317,6 +337,8 @@ def eval_recall(
             local_embedding_model=local_embedding_model,
             query_embeddings_json=query_embeddings_json,
             embedding_model=embedding_model,
+            embedding_profile=spec.name,
+            embedding_dimensions=spec.dimensions,
         )
         report = asyncio.run(
             run_recall_quality_eval(
@@ -326,6 +348,8 @@ def eval_recall(
                 top_k=top_k,
                 domain=domain,
                 embedding_model=resolved_model,
+                embedding_profile=spec.name,
+                embedding_dimensions=spec.dimensions,
                 query_embeddings_by_case_id=embeddings_by_case,
                 embed_queries=embed_queries,
             )

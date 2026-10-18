@@ -16,6 +16,13 @@ brittle rule - it encodes a boundary that no longer matches the code.
 
 ## The axis
 
+Embedding roles and profiles are input-format contracts chosen explicitly or by
+recognized model identity. They do not classify text meaning. Vector dimensions,
+profile staleness, current owned-local proof and durable attempt receipts guard
+form and side effects. Published relevance labels drive retrieval metrics;
+neither those metrics nor a green suite qualifies advice or promotes a default.
+See [local embedding profiles](../design/local-embedding-profiles.md).
+
 Native local generation accounting guards side effects: each completion writes
 content-free intent, dispatch and terminal events at the shared transport seam.
 Unavailable durable accounting blocks dispatch or surfaces an unsettled result;
