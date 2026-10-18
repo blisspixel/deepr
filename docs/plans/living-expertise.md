@@ -4,7 +4,8 @@ Status: in progress, 2026-10-17. Step 1 of the
 [currency order](../design/expert-currency-order.md) is a read-only inspection
 and an explicit world-time admission. v2.50.29 makes consult say whether a
 citation reaches the loaded study and a retained passage, and it sends local
-synthesis through the native context window study already uses. S0 through S4
+synthesis through the native context window study already uses. v2.50.30
+records the next-round pickup on the roadmap and does not run S0. S0 through S4
 remain open. The
 [active roadmap](../../ROADMAP.md#order-of-operations)
 owns priorities and release targets. This document defines dependencies,

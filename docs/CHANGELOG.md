@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.30] - 2026-10-17
+
+Documentation. The roadmap names the next round at the top. Runtime behavior, cost gates, metered dispatch limits, and automatic learning stay unchanged. S0 through S4 stay open. This release does not claim that a maintained expert judges better than a fresh read.
+
+### Changed
+
+- The pickup order is the remaining half of #221, then #220 on the same pages, #229 in the terminal answer, #223 before any baseline, and v2.51 as the S0 evidence gate.
+- Later issues and the polish cluster stay listed there so the next session can leave them.
+
 ## [2.50.29] - 2026-10-17
 
 Compatible consult delivery correction. Coverage no longer treats a citation id as a retained passage. Local synthesis uses the native Ollama context window. Dissent delivery is structural. Cost gates, metered dispatch limits, and automatic learning stay unchanged. This release does not run S0 and does not claim that a maintained expert judges better than a fresh read.

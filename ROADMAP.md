@@ -2,6 +2,44 @@
 
 > Development priorities and planned features. Model and pricing facts come from the registry (`src/deepr/providers/registry.py`); see [docs/MODELS.md](docs/MODELS.md).
 
+## Next round
+
+Pickup after v2.50.30. Finish the reader-facing expert, then run S0. These
+steps do not write a model proposal into beliefs, do not open spend, and do
+not support a claim that the expert got better. The STOP rules below still
+apply: model judgment owns meaning, and a lexical check may route without
+becoming the verdict.
+
+1. **#221, the remaining half.** v2.50.29 already drops placeholder dissent
+   and reports whether a citation reaches a retained passage. The perspective
+   and the knowledge page still need to say, for each statement a person
+   reads, whether it rests on a studied finding, is the expert's broader
+   view, or is reasoning. Point at the finding and the retained passage the
+   study already stored.
+2. **#220 on those same pages.** Show the excerpt each finding rests on, and
+   the stored support label for each position. Do this in the same pass when
+   the pages are already open. If the pass grows, ship #221 first and do
+   #220 next.
+3. **#229 once those labels exist.** The terminal consult answer shows
+   grounds, support, currency, and pushback, the same distinction the packet
+   stores.
+4. **#223 before the baseline.** A failed first build must report the model
+   that actually ran, whether study ran, and one next step that matches that
+   state. A cut answer stays visible as cut.
+5. **v2.51 is S0.** Run the frozen 48-cell local rehearsal on the existing
+   harness. Publish the dated record, including failures. Record human review
+   before the arm key is revealed. A negative result finishes the measurement
+   and leaves autonomy, metered refresh, and automatic belief updates closed.
+   Only S4 can support a claim that the expert got better.
+
+Later, after that round is on main: #237 (help and preview say web search is
+off, and why), #232 and #233 (read-only commands stay read-only, and JSON
+matches the text), #231 and #217 (help and choices drop shut-down model ids),
+#224 (first-run leftovers), #228 (decision review), #216 (embedder prefixes),
+and #225 (Python and Node platform). Polish #230, #234, #235, and #236 waits.
+SearXNG, unattended and MCP OpenRouter, and sleep-time overwrite of claims
+stay blocked.
+
 > ## STOP - no brittle junk
 >
 > Before adding anything here, read [docs/plans/AGENTIC_BALANCE.md](docs/plans/AGENTIC_BALANCE.md)
@@ -711,9 +749,9 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.29)
+## Current Status (v2.50.30)
 
-**Next is v2.51, not more dispatch.** v2.50.29 makes consult report whether citations reach the loaded study and a retained passage, and it sends local synthesis through the native 16384-token window study already uses. It does not run S0 or claim the expert got better. v2.50.28 ships the currency inspection and explicit world-time admission. v2.50.27 points deep-research defaults at the live OpenAI substitutes and keeps the 128k web-search ceiling.
+**Next is v2.51, not more dispatch.** v2.50.30 records the next round at the top of this roadmap and does not change runtime behavior. v2.50.29 makes consult report whether citations reach the loaded study and a retained passage, and it sends local synthesis through the native 16384-token window study already uses. It does not run S0 or claim the expert got better. v2.50.28 ships the currency inspection and explicit world-time admission. v2.50.27 points deep-research defaults at the live OpenAI substitutes and keeps the 128k web-search ceiling.
 v2.50.26 repairs core-only installation on
 ordinary Python 3.13 and checks all supported stable Python minors.
 v2.50.25 repairs first-run configuration,
@@ -4051,7 +4089,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.29. This roadmap keeps
+v2.50.30. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 
