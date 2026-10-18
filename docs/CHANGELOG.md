@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.39] - 2026-10-18
+
+Complete interface repairs (#230, #234, #235 and #236), retaining the existing
+execution, spend and knowledge-write boundaries. Validation records distinguish
+local verification, exact CI and public installer acceptance from S0 and
+expert-quality review.
+
 ### Fixed
 
 - Optional Brim workflow poses make active study/build/consult progress visible
@@ -21,6 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   palette, with one bounded synchronized reveal and accessible static fallbacks.
   Root help, capacity and offline doctor fit 60/100 columns; complete next
   commands stay intact and consult examples retain separate lines.
+- Repair production dashboard theme initialization and self-hosted fonts under
+  the unchanged CSP. Capture all 12 routes in light/dark against an isolated
+  zero-cost backend in CI, retaining browser failures and screenshots. See
+  [validation](validation/dashboard-themes-2026-10-18.md). The 2026-10-18 isolation review
+  also repairs inherited proxy routing in parent health reads; the failing
+  synthetic-proxy trial and direct-loopback regression are retained.
 
 - Command rendering uses one semantic palette map with default-foreground
   body/provenance, palette-based effects, explicit status words, neutral passing

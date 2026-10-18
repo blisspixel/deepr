@@ -1,0 +1,318 @@
+{
+  "synthetic_demo": true,
+  "seed_variant": "Zero-cost jobs before canonical seeding",
+  "base": "http://127.0.0.1:52013",
+  "monthly_ceiling": 0,
+  "themes": [
+    "light",
+    "dark"
+  ],
+  "accepted": true,
+  "ledger_events": 0,
+  "outgoing_connection_attempts": 0,
+  "screenshots": {
+    "captures/dark/01-overview.png": "3b4cf1708687bb773b6a5f57d98b54e051e0c3513c3b0febc203078b5f0c2138",
+    "captures/dark/02-research-studio.png": "10668a70d1d54281af791a67a75764ab1fa8204e013444f4720d09ba8eb7ddd3",
+    "captures/dark/03-research-live.png": "34ab3e71bf0fe7cd34c88206713d2151a61568662a6445045e07f74721dec6ae",
+    "captures/dark/04-results-library.png": "7c5458d67c670ebe9444a3c2b3a4440cfe166b810c9edcb98f7dd452bb0a4d85",
+    "captures/dark/05-result-detail.png": "da45bb2539688a3f2b504d2b7dfb5cbb38e38e58feb2763f64e163679f2cde86",
+    "captures/dark/06-expert-hub.png": "32143731946e56dd0c401af68b89dae6a1acf923e13a43304aafa61867238e84",
+    "captures/dark/07-expert-profile.png": "e4ae3ac370e409cbf61a5df642eea71b800cf2d8c0e62e5b5d2e03a086582b33",
+    "captures/dark/08-cost-intelligence.png": "31296cc8203266e351df3457ee3293dfcbd84139344c98ad0f57fe7496b656d8",
+    "captures/dark/09-trace-explorer.png": "5bb2b1cbc664bd07eb382060cb38ec98a9808fc245967911d066d99d72cfdc03",
+    "captures/dark/10-benchmarks.png": "f2a2697161542dfb8ee901dac905df481386d37de73ef141c245fefc932be401",
+    "captures/dark/11-settings.png": "47f752070935a05cdcb1af9d8cb1348136c9987bccd15a39c926e56361e0f7ee",
+    "captures/dark/12-help.png": "070c99c185e4e1c240bd7fa0b08c77d364ef91c3f1733399e2531178bd932d8d",
+    "captures/light/01-overview.png": "eb509b6eb38dd7a9243af0e914e8ba5e156b93e5e0f7f0dc71642c79b4dfe209",
+    "captures/light/02-research-studio.png": "8b5b966f9addaa806576e8822ca16d1f51b017464f8964f29b6761f20c962ed7",
+    "captures/light/03-research-live.png": "e3fcff87618d6c0235c5aa927bfe264c235493a807c4493025890462e8cf5de1",
+    "captures/light/04-results-library.png": "230e14955d1ccf2e786529555a793efbe783798bbc523bc0874ad287f733614c",
+    "captures/light/05-result-detail.png": "aeed9abb3d9ecdd0ba17cccd5ea53377d811ad9a0f1a6d57d7d0172b5d038f43",
+    "captures/light/06-expert-hub.png": "194f40802cc5a75eac13737df7b747222b67dfec7fa059be654c6f323937168a",
+    "captures/light/07-expert-profile.png": "32976253f1d573bf10aebb3e01774a545d9565a9ed8c8786032095aa3100feb9",
+    "captures/light/08-cost-intelligence.png": "4aa567af9678d98aa89f36700f3a66f98605560fd67c9da4e4d160204661fbeb",
+    "captures/light/09-trace-explorer.png": "6276613db959117c91ec3a7e18e3a4ed62ef03ef4a14f4b4e4c97a8dd48dade5",
+    "captures/light/10-benchmarks.png": "64a5a964b53bff856f0a51d3b06a650426b3725f73c5f53c73f12f61b6bc4a43",
+    "captures/light/11-settings.png": "3c8abbf4a9f3141cc48121b28cd5b3a0d3100466f905b0b5769678d4eb067204",
+    "captures/light/12-help.png": "cef9b1c93f6d305af30b64551c69ab81d7259331090deaaff2d16eea18c5f6e5"
+  },
+  "backend_stopped": true,
+  "kind": "Actual production-built dashboard, isolated canonical synthetic demo records. No expert-quality or currentness validation.",
+  "version": "2.50.39",
+  "theme_observations": {
+    "light": {
+      "theme": "light",
+      "captures": [
+        {
+          "name": "01-overview",
+          "path": "/",
+          "firstPaint": {
+            "classes": "light",
+            "primary": "172 65% 27%",
+            "applicationMounted": false
+          },
+          "theme": "light"
+        },
+        {
+          "name": "02-research-studio",
+          "path": "/research",
+          "firstPaint": {
+            "classes": "light",
+            "primary": "172 65% 27%",
+            "applicationMounted": false
+          },
+          "theme": "light"
+        },
+        {
+          "name": "03-research-live",
+          "path": "/research/demo-0525d178-92ae-4f4f-919a-4c42d38de703",
+          "firstPaint": {
+            "classes": "light",
+            "primary": "172 65% 27%",
+            "applicationMounted": false
+          },
+          "theme": "light"
+        },
+        {
+          "name": "04-results-library",
+          "path": "/results",
+          "firstPaint": {
+            "classes": "light",
+            "primary": "172 65% 27%",
+            "applicationMounted": false
+          },
+          "theme": "light"
+        },
+        {
+          "name": "05-result-detail",
+          "path": "/results/demo-0525d178-92ae-4f4f-919a-4c42d38de703",
+          "firstPaint": {
+            "classes": "light",
+            "primary": "172 65% 27%",
+            "applicationMounted": false
+          },
+          "theme": "light"
+        },
+        {
+          "name": "06-expert-hub",
+          "path": "/experts",
+          "firstPaint": {
+            "classes": "light",
+            "primary": "172 65% 27%",
+            "applicationMounted": false
+          },
+          "theme": "light"
+        },
+        {
+          "name": "07-expert-profile",
+          "path": "/experts/Behavioral%20Economics?tab=claims",
+          "firstPaint": {
+            "classes": "light",
+            "primary": "172 65% 27%",
+            "applicationMounted": false
+          },
+          "theme": "light"
+        },
+        {
+          "name": "08-cost-intelligence",
+          "path": "/costs",
+          "firstPaint": {
+            "classes": "light",
+            "primary": "172 65% 27%",
+            "applicationMounted": false
+          },
+          "theme": "light"
+        },
+        {
+          "name": "09-trace-explorer",
+          "path": "/traces/demo-0525d178-92ae-4f4f-919a-4c42d38de703",
+          "firstPaint": {
+            "classes": "light",
+            "primary": "172 65% 27%",
+            "applicationMounted": false
+          },
+          "theme": "light"
+        },
+        {
+          "name": "10-benchmarks",
+          "path": "/models",
+          "firstPaint": {
+            "classes": "light",
+            "primary": "172 65% 27%",
+            "applicationMounted": false
+          },
+          "theme": "light"
+        },
+        {
+          "name": "11-settings",
+          "path": "/settings",
+          "firstPaint": {
+            "classes": "light",
+            "primary": "172 65% 27%",
+            "applicationMounted": false
+          },
+          "theme": "light"
+        },
+        {
+          "name": "12-help",
+          "path": "/help",
+          "firstPaint": {
+            "classes": "light",
+            "primary": "172 65% 27%",
+            "applicationMounted": false
+          },
+          "theme": "light"
+        }
+      ],
+      "observations": {
+        "consoleErrors": [],
+        "pageErrors": [],
+        "failedResponses": [],
+        "externalRequests": []
+      }
+    },
+    "dark": {
+      "theme": "dark",
+      "captures": [
+        {
+          "name": "01-overview",
+          "path": "/",
+          "firstPaint": {
+            "classes": "dark",
+            "primary": "172 50% 48%",
+            "applicationMounted": false
+          },
+          "theme": "dark"
+        },
+        {
+          "name": "02-research-studio",
+          "path": "/research",
+          "firstPaint": {
+            "classes": "dark",
+            "primary": "172 50% 48%",
+            "applicationMounted": false
+          },
+          "theme": "dark"
+        },
+        {
+          "name": "03-research-live",
+          "path": "/research/demo-0525d178-92ae-4f4f-919a-4c42d38de703",
+          "firstPaint": {
+            "classes": "dark",
+            "primary": "172 50% 48%",
+            "applicationMounted": false
+          },
+          "theme": "dark"
+        },
+        {
+          "name": "04-results-library",
+          "path": "/results",
+          "firstPaint": {
+            "classes": "dark",
+            "primary": "172 50% 48%",
+            "applicationMounted": false
+          },
+          "theme": "dark"
+        },
+        {
+          "name": "05-result-detail",
+          "path": "/results/demo-0525d178-92ae-4f4f-919a-4c42d38de703",
+          "firstPaint": {
+            "classes": "dark",
+            "primary": "172 50% 48%",
+            "applicationMounted": false
+          },
+          "theme": "dark"
+        },
+        {
+          "name": "06-expert-hub",
+          "path": "/experts",
+          "firstPaint": {
+            "classes": "dark",
+            "primary": "172 50% 48%",
+            "applicationMounted": false
+          },
+          "theme": "dark"
+        },
+        {
+          "name": "07-expert-profile",
+          "path": "/experts/Behavioral%20Economics?tab=claims",
+          "firstPaint": {
+            "classes": "dark",
+            "primary": "172 50% 48%",
+            "applicationMounted": false
+          },
+          "theme": "dark"
+        },
+        {
+          "name": "08-cost-intelligence",
+          "path": "/costs",
+          "firstPaint": {
+            "classes": "dark",
+            "primary": "172 50% 48%",
+            "applicationMounted": false
+          },
+          "theme": "dark"
+        },
+        {
+          "name": "09-trace-explorer",
+          "path": "/traces/demo-0525d178-92ae-4f4f-919a-4c42d38de703",
+          "firstPaint": {
+            "classes": "dark",
+            "primary": "172 50% 48%",
+            "applicationMounted": false
+          },
+          "theme": "dark"
+        },
+        {
+          "name": "10-benchmarks",
+          "path": "/models",
+          "firstPaint": {
+            "classes": "dark",
+            "primary": "172 50% 48%",
+            "applicationMounted": false
+          },
+          "theme": "dark"
+        },
+        {
+          "name": "11-settings",
+          "path": "/settings",
+          "firstPaint": {
+            "classes": "dark",
+            "primary": "172 50% 48%",
+            "applicationMounted": false
+          },
+          "theme": "dark"
+        },
+        {
+          "name": "12-help",
+          "path": "/help",
+          "firstPaint": {
+            "classes": "dark",
+            "primary": "172 50% 48%",
+            "applicationMounted": false
+          },
+          "theme": "dark"
+        }
+      ],
+      "observations": {
+        "consoleErrors": [],
+        "pageErrors": [],
+        "failedResponses": [],
+        "externalRequests": []
+      }
+    }
+  },
+  "artifacts": {
+    "dark-01-overview.png": "3b4cf1708687bb773b6a5f57d98b54e051e0c3513c3b0febc203078b5f0c2138",
+    "dark-07-expert-profile.png": "e4ae3ac370e409cbf61a5df642eea71b800cf2d8c0e62e5b5d2e03a086582b33",
+    "light-01-overview.png": "eb509b6eb38dd7a9243af0e914e8ba5e156b93e5e0f7f0dc71642c79b4dfe209",
+    "light-07-expert-profile.png": "32976253f1d573bf10aebb3e01774a545d9565a9ed8c8786032095aa3100feb9"
+  },
+  "source_sha256": {
+    "src/deepr/web/frontend/frontend-dist.zip": "e8f032bb981d4da4817eae56ca38cdbb5fbb142bd9f9a4818c7a389afff1497f",
+    "src/deepr/web/frontend/public/theme-init.js": "40cbae2c8125ef2e3a4ea75a6ff2cf849309c6ae0d4a09d39c26fa18ecd5fe6d",
+    "src/deepr/web/frontend/screenshot-qa.mjs": "489ceefe004960697484acd3ab5f0afb5e12338fb038a2941e5fad607db1f7be",
+    "scripts/check_dashboard_themes.py": "cc12df17dde5f36d0d545e1e6344f7ac9eadb4a03f27c22b07ba77f0bf3c99f9"
+  }
+}

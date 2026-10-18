@@ -5,6 +5,10 @@ import path from 'path'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  build: {
+    // Production CSP permits self-hosted fonts, not embedded data URLs.
+    assetsInlineLimit: (filePath) => /\.(?:woff2?|ttf|otf)$/i.test(filePath) ? false : undefined,
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

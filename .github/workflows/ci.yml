@@ -300,6 +300,21 @@ jobs:
           python scripts/build_frontend_archive.py
           git diff --exit-code -- src/deepr/web/frontend/frontend-dist.zip
 
+      - name: Capture actual production dashboard themes ($0)
+        working-directory: ${{ github.workspace }}
+        run: |
+          uv sync --frozen --extra dev --extra full
+          python scripts/check_dashboard_themes.py
+
+      - name: Retain isolated dashboard captures and failure evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dashboard-theme-qa
+          path: .agent/dashboard-theme-qa/
+          retention-days: 3
+          if-no-files-found: warn
+
       - name: Build Python distributions with packaged frontend
         working-directory: ${{ github.workspace }}
         run: |
