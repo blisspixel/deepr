@@ -9,15 +9,17 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
+from deepr.experts.brief_attribution import ORIGIN_LABELS, orientation_statements
 from deepr.experts.brief_contracts import ExpertBrief
-from deepr.experts.consult_support import recorded_statement
-from deepr.experts.corpus_store import CorpusEntry
+from deepr.experts.consult_support import bind_study, recorded_statement
+from deepr.experts.corpus_store import CorpusEntry, content_hash
 from deepr.experts.evidence_graph import build_graph
 from deepr.experts.record_identity import position_thread_id
 from deepr.experts.study_contracts import StudyResult
 from deepr.utils.atomic_io import atomic_write_text
 
 MARKER = "<!-- deepr:knowledge-view-v1 -->"
+RENDERER_VERSION = "deepr-knowledge-reader-v2"
 
 
 def _json(value: Any) -> str:
@@ -65,14 +67,22 @@ def _finding_details(payload: dict[str, Any]) -> list[str]:
     return lines
 
 
-def _position_page(position: Any, findings: dict[str, Any]) -> str:
+def _position_page(position: Any, findings: dict[str, Any], binding: str = "unbound") -> str:
     pid = position_thread_id(position.question)
+    cited = [findings[fid] for fid in dict.fromkeys(position.supported_by) if fid in findings]
     lines = [
         "[Knowledge index](../index.md)",
         "",
         f"Position identity: `{pid}`",
         "",
         _text(position.stance),
+        "",
+        f"Recorded support label: {_text(position.confidence or 'none recorded')} (uncalibrated, not a probability).",
+        f"Basis: {_text(position.confidence_basis or 'none recorded')}.",
+        f"Study binding: {binding}.",
+        f"Cites {len(set(position.supported_by))} findings; {len(cited)} present in this study, "
+        f"with {sum(f.grounded_anchor_count for f in cited)} recorded matched excerpts.",
+        "Counts describe the loaded study; they support this position's links only when the study binding matches.",
         "",
         "## Reasoning",
         "",
@@ -92,13 +102,35 @@ def _position_page(position: Any, findings: dict[str, Any]) -> str:
     for fid in position.supported_by:
         lines.append(
             f"- [{_text(findings[fid].title)}](../{_page('findings', fid)})"
-            if fid in findings
-            else f"- Missing finding: `{_text(fid)}`"
+            if fid in findings and binding == "matched"
+            else f"- Unresolved finding citation: `{_text(fid)}` (study binding: {binding})"
         )
     return _document(position.question, lines)
 
 
-def _finding_page(finding: Any, brief: ExpertBrief, sources: dict[str, CorpusEntry]) -> str:
+def _anchor_lines(finding: Any, source_texts: dict[str, str]) -> list[str]:
+    lines = ["## Recorded excerpts", "", "Literal matches locate text; they do not verify the interpretation.", ""]
+    if not finding.anchors:
+        return [*lines, "No excerpt text recorded.", ""]
+    available = {sha: source_texts[sha] for sha in finding.corpus_shas if sha in source_texts}
+    for anchor in finding.anchors:
+        probe = " ".join(anchor.split()).lower()
+        matches = [sha for sha, body in available.items() if probe and probe in " ".join(body.split()).lower()]
+        if matches:
+            label = "Matched in retained text: " + ", ".join(
+                f"[source {sha[:12]}](../{_page('sources', sha)})" for sha in matches
+            )
+        elif available and len(available) == len(finding.corpus_shas):
+            label = "Unmatched in the linked retained text."
+        else:
+            label = "Match unverified: linked retained text unavailable."
+        lines += [label, "", *[f"> {_text(line)}" for line in anchor.splitlines()], ""]
+    return lines
+
+
+def _finding_page(
+    finding: Any, brief: ExpertBrief, sources: dict[str, CorpusEntry], source_texts: dict[str, str], binding: str
+) -> str:
     fid = finding.finding_id
     lines = [
         "[Knowledge index](../index.md)",
@@ -110,6 +142,7 @@ def _finding_page(finding: Any, brief: ExpertBrief, sources: dict[str, CorpusEnt
         *_finding_details(finding.payload),
         f"Matched excerpts: {finding.grounded_anchor_count}; unmatched excerpts: {finding.ungrounded_anchor_count}.",
         "",
+        *_anchor_lines(finding, source_texts),
         "## Sources",
         "",
     ]
@@ -120,6 +153,9 @@ def _finding_page(finding: Any, brief: ExpertBrief, sources: dict[str, CorpusEnt
             else f"- Missing retained source: `{_text(sha)}`"
         )
     lines += ["", "## Used in guidance", ""]
+    if binding != "matched":
+        lines.append(f"Guidance links unresolved: brief study binding is {binding}.")
+        return _document(finding.title, lines)
     lines += [
         f"- [{_text(p.question)}](../{_page('positions', position_thread_id(p.question))})"
         for p in brief.positions
@@ -157,13 +193,24 @@ def _source_page(entry: CorpusEntry, findings: dict[str, Any]) -> str:
 
 
 def build_knowledge_view(
-    *, study: StudyResult, brief: ExpertBrief, entries: list[CorpusEntry], history: dict[str, Any] | None = None
+    *,
+    study: StudyResult,
+    brief: ExpertBrief,
+    entries: list[CorpusEntry],
+    history: dict[str, Any] | None = None,
+    source_texts: dict[str, str] | None = None,
 ) -> tuple[str, dict[str, str]]:
     """Project recorded links and content; infer no new relationships or verdicts."""
     entries = sorted(entries, key=lambda entry: entry.sha256)
     if any(len(entry.sha256) != 64 or any(c not in "0123456789abcdef" for c in entry.sha256) for entry in entries):
         raise ValueError("Knowledge source identity must be a lowercase SHA256")
+    known_sources = {entry.sha256 for entry in entries}
+    source_texts = {
+        sha: body for sha, body in (source_texts or {}).items() if sha in known_sources and content_hash(body) == sha
+    }
     inputs = {
+        "renderer": RENDERER_VERSION,
+        "available_source_hashes": sorted(source_texts),
         "study": study.to_dict(),
         "brief": brief.to_dict(),
         "corpus": [e.to_dict() for e in entries],
@@ -177,6 +224,7 @@ def build_knowledge_view(
     pages: dict[str, str] = {"evidence.json": _json(graph.to_dict())}
     findings = {finding.finding_id: finding for finding in study.findings if finding.finding_id}
     sources = {entry.sha256: entry for entry in entries}
+    binding = bind_study(brief, study)
     index = [
         "Derived from retained research. Source links are inspectable; interpretations and advice require review.",
         "",
@@ -186,21 +234,32 @@ def build_knowledge_view(
         "",
         "## Perspective",
         "",
-        _text(brief.orientation),
-        "",
-        "## Guidance and reasoning",
+        f"Findings anchored {len(study.grounded_findings)} of {len(study.findings)} (recorded literal-match signal).",
+        f"Brief study binding: {binding}. Attribution labels are recorded model judgments, not verified truth.",
         "",
     ]
+    for statement in orientation_statements(brief.orientation, brief.orientation_statements):
+        index += [f"**{ORIGIN_LABELS.get(statement.origin, 'Origin not recorded')}:** {_text(statement.text)}", ""]
+        for fid in statement.supported_by:
+            index.append(
+                f"- [{_text(findings[fid].title)}]({_page('findings', fid)})"
+                if binding == "matched" and fid in findings
+                else f"- Unresolved finding citation: `{_text(fid)}` (study binding: {binding})"
+            )
+        if statement.origin == "studied" and not statement.supported_by:
+            index.append("No supporting finding recorded; attribution is unresolved.")
+        index.append("")
+    index += ["## Guidance and reasoning", ""]
     for position in brief.positions:
         pid = position_thread_id(position.question)
         target = _page("positions", pid)
         index.append(f"- [{_text(position.question)}]({target})")
-        pages[target] = _position_page(position, findings)
+        pages[target] = _position_page(position, findings, binding)
     index += ["", "## Concepts, mechanisms, and research notes", ""]
     for fid, finding in findings.items():
         target = _page("findings", fid)
         index.append(f"- {_text(finding.lens)}: [{_text(finding.title)}]({target})")
-        pages[target] = _finding_page(finding, brief, sources)
+        pages[target] = _finding_page(finding, brief, sources, source_texts, binding)
     index += ["", "## Source library", ""]
     for sha, entry in sources.items():
         target = _page("sources", sha)
@@ -245,6 +304,19 @@ def build_knowledge_view(
     return identity, pages
 
 
+def _retained_source_texts(directory: Path, entries: list[CorpusEntry]) -> dict[str, str]:
+    """Read available local bytes without following an escaping source link."""
+    source_texts = {}
+    for entry in entries:
+        path = directory / "corpus" / "sources" / entry.sha256[:2] / f"{entry.sha256}.md"
+        if path.resolve().is_relative_to(directory.resolve()) and path.is_file():
+            try:
+                source_texts[entry.sha256] = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeError):
+                continue
+    return source_texts
+
+
 def write_knowledge_view(
     directory: Path,
     *,
@@ -254,7 +326,10 @@ def write_knowledge_view(
     history: dict[str, Any] | None = None,
 ) -> Path:
     """Keep immutable views and an index pointer, preserving authored content."""
-    identity, pages = build_knowledge_view(study=study, brief=brief, entries=entries, history=history)
+    source_texts = _retained_source_texts(directory, entries)
+    identity, pages = build_knowledge_view(
+        study=study, brief=brief, entries=entries, history=history, source_texts=source_texts
+    )
     root = directory / "knowledge"
     pointer = root / "INDEX.md"
     if not pointer.resolve().is_relative_to(directory.resolve()):

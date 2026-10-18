@@ -33,6 +33,7 @@ from collections.abc import Awaitable, Callable
 from datetime import UTC, date, datetime
 from typing import Any
 
+from deepr.experts.brief_attribution import read_orientation_statements, render_orientation
 from deepr.experts.brief_contracts import (
     CONFIDENCE_LEVELS,
     LIKELIHOOD_BANDS,
@@ -175,7 +176,12 @@ Rules that make this honest rather than confident-sounding:
   reader's time on resolved questions is most of the value here.
 - At least one anticipated question must attack this brief rather than support it: the strongest
   case that you are wrong, or what you did not look at. Mark it "weakens_thesis": true.
-- Do not introduce claims that are not supported by the findings below.
+- Split the orientation into individual statements in orientation_statements. Label each origin
+  as studied (cite the finding ids), broader_knowledge (outside this study), or reasoning (your
+  interpretation). Preserve source qualifications. Do not present broader knowledge or reasoning
+  as a studied observation. Keep the orientation paragraph identical to those statements joined
+  with spaces. A label records your attribution; it is not verification of the claim.
+- Positions must stay supported by the findings below. Broader orientation is explicitly labelled.
 
 House style, which applies to every field you return: write plain ASCII punctuation. Use a
 regular hyphen, never an en dash or em dash. Use straight quotes, never curly ones. No emoji.
@@ -192,6 +198,9 @@ Return JSON only, no prose outside it, with this shape:
 
 {{
   "orientation": "the sixty-second version a newcomer needs before asking anything",
+  "orientation_statements": [
+    {{"text": "one statement", "origin": "studied", "supported_by": ["finding id"]}}
+  ],
   "positions": [
     {{"question": "", "stance": "", "reasoning": "",
       "likelihood": "", "confidence": "", "resolution": "single",
@@ -389,9 +398,13 @@ def assemble_brief(
         unknown=_as_list(raw_state.get("unknown")) if isinstance(raw_state, dict) else [],
     )
 
+    statements = read_orientation_statements(parsed.get("orientation_statements"))
+    for statement in statements:
+        statement.text = _text(statement.text)
     brief = ExpertBrief(
         expert_name=expert_name,
-        orientation=_text(parsed.get("orientation")),
+        orientation=" ".join(item.text for item in statements) if statements else _text(parsed.get("orientation")),
+        orientation_statements=statements,
         positions=[p for p in positions if p.stance],
         state=state,
         key_quantities=_as_list(parsed.get("key_quantities")),
@@ -607,7 +620,14 @@ def render_brief(brief: ExpertBrief) -> str:
     """Render the brief for reading. Bottom line first."""
     lines = [f"# {brief.expert_name}: brief", ""]
     if brief.orientation:
-        lines.extend(["## In sixty seconds", "", brief.orientation, ""])
+        lines.extend(
+            [
+                "## In sixty seconds",
+                "",
+                render_orientation(brief.orientation, brief.orientation_statements, binding="not checked in this view"),
+                "",
+            ]
+        )
 
     lines.extend(_render_positions(brief))
 

@@ -480,3 +480,21 @@ def test_consult_api_provider_rejected_for_owned_capacity():
     result = CliRunner().invoke(expert_consult, ["q", "--local", "--provider", "anthropic", "--budget", "0", "--json"])
     assert result.exit_code == 2
     assert "Metered API synthesis is disabled" in result.output
+
+
+@pytest.mark.parametrize("json_output", [False, True])
+def test_unformed_perspective_is_not_a_success(monkeypatch, json_output):
+    _patch(
+        monkeypatch,
+        _result(
+            total_cost=0.0,
+            synthesis="No valid perspectives to synthesise.",
+            synthesis_status="skipped_no_valid_perspectives",
+        ),
+    )
+    result = CliRunner().invoke(expert_consult, ["q", *(["--json"] if json_output else [])])
+    assert result.exit_code == 2
+    if json_output:
+        assert json.loads(result.output)["synthesis_status"] == "skipped_no_valid_perspectives"
+    else:
+        assert "expert build" in result.output

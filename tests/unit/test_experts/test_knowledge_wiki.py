@@ -114,3 +114,70 @@ def test_unsafe_source_urls_are_not_rendered_as_links(knowledge, url):
     knowledge["entries"][0].url = url
     _, pages = build_knowledge_view(**knowledge)
     assert "[Original source]" not in "\n".join(pages.values())
+
+
+def test_findings_show_actual_excerpts_and_recorded_support(tmp_path, knowledge):
+    from deepr.experts.consult_support import study_fingerprint
+
+    finding = knowledge["study"].findings[0]
+    finding.anchors = ["A compound operation needs coordination.", "A fabricated unsupported excerpt."]
+    position = knowledge["brief"].positions[0]
+    position.confidence = "moderate"
+    position.confidence_basis = "one retained note"
+    knowledge["brief"].study_fingerprint = study_fingerprint(knowledge["study"])
+    index = write_knowledge_view(tmp_path, **knowledge)
+    finding_page = next((index.parent / "findings").glob("*.md")).read_text()
+    assert "> A compound operation needs coordination." in finding_page
+    assert "> A fabricated unsupported excerpt." in finding_page
+    assert "Matched in retained text:" in finding_page
+    assert "Unmatched in the linked retained text." in finding_page
+    page = next((index.parent / "positions").glob("*.md")).read_text()
+    assert "Recorded support label: moderate" in page
+    assert "Basis: one retained note" in page
+    assert "1 findings; 1 present" in page
+    assert "Findings anchored 1 of 1" in index.read_text()
+
+
+def test_missing_or_tampered_source_bytes_never_assign_individual_match_status(knowledge):
+    finding = knowledge["study"].findings[0]
+    finding.anchors = ["A compound operation needs coordination."]
+    sha = knowledge["entries"][0].sha256
+    for bodies in ({}, {sha: "Tampered retained text"}):
+        _, pages = build_knowledge_view(**knowledge, source_texts=bodies)
+        page = next(value for key, value in pages.items() if key.startswith("findings/"))
+        assert "Match unverified: linked retained text unavailable." in page
+        assert "Matched in retained text:" not in page
+
+
+def test_attribution_links_only_the_bound_study(knowledge):
+    from deepr.experts.brief_attribution import OrientationStatement
+    from deepr.experts.consult_support import study_fingerprint
+
+    brief = knowledge["brief"]
+    fid = knowledge["study"].findings[0].finding_id
+    brief.orientation_statements = [OrientationStatement(brief.orientation, "studied", [fid, "missing-id"])]
+    brief.study_fingerprint = study_fingerprint(knowledge["study"])
+    _, pages = build_knowledge_view(**knowledge)
+    perspective = pages["index.md"].split("## Guidance and reasoning")[0]
+    assert "Studied sources (recorded attribution)" in perspective
+    assert "[Compound operations](findings/" in perspective
+    assert "Unresolved finding citation: `missing-id`" in perspective
+    brief.study_fingerprint = "old-study"
+    _, pages = build_knowledge_view(**knowledge)
+    perspective = pages["index.md"].split("## Guidance and reasoning")[0]
+    assert "[Compound operations](findings/" not in perspective
+    assert "study binding: mismatch" in perspective
+    finding_page = next(value for key, value in pages.items() if key.startswith("findings/"))
+    assert "Guidance links unresolved" in finding_page
+    assert "](../positions/" not in finding_page
+
+
+def test_renderer_revision_creates_new_view_without_rewriting_prior(tmp_path, knowledge, monkeypatch):
+    import deepr.experts.knowledge_wiki as wiki
+
+    old = write_knowledge_view(tmp_path, **knowledge)
+    old_bytes = old.read_bytes()
+    monkeypatch.setattr(wiki, "RENDERER_VERSION", "future-renderer")
+    new = write_knowledge_view(tmp_path, **knowledge)
+    assert old != new
+    assert old.read_bytes() == old_bytes

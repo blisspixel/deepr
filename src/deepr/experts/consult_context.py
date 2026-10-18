@@ -40,8 +40,9 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from deepr.experts.brief_attribution import orientation_statements, render_orientation
 from deepr.experts.brief_contracts import ExpertBrief, Position
-from deepr.experts.consult_support import recorded_statement, support_for_positions
+from deepr.experts.consult_support import bind_study, recorded_statement, support_for_positions
 from deepr.experts.corpus_store import CorpusStore
 from deepr.experts.study_contracts import StudyFinding, StudyResult
 
@@ -88,6 +89,8 @@ class ConsultContext:
     limitations: list[str] = field(default_factory=list)
     support: list[dict[str, object]] = field(default_factory=list)
     """Per-position citation resolution. Empty until build_consult_context runs."""
+
+    studied_at: str = ""
 
     @property
     def coverage(self) -> str:
@@ -168,13 +171,16 @@ def _finding_text(finding: StudyFinding) -> str:
     return f"{finding.title} {payload}"
 
 
-def gather_findings(question: str, result: StudyResult, positions: list[Position]) -> list[StudyFinding]:
+def gather_findings(
+    question: str, result: StudyResult, positions: list[Position], *, additional_citations: list[str] | None = None
+) -> list[StudyFinding]:
     """Findings the question matches, plus every finding the positions rest on.
 
     The second half is the point: support arrives with the position it
     supports, so the expert can show its work in the same breath.
     """
     cited = {fid for p in positions for fid in p.supported_by}
+    cited.update(additional_citations or [])
     by_id = {f.finding_id: f for f in result.findings if f.finding_id}
     query = _tokens(question)
     carried = [by_id[fid] for fid in sorted(cited) if fid in by_id]
@@ -282,7 +288,12 @@ def build_consult_context(
     """Assemble one turn's evidence. $0, deterministic, no model call."""
     context = ConsultContext(expert_name=expert_name)
     if brief is not None:
-        context.orientation = brief.orientation
+        context.orientation = render_orientation(
+            brief.orientation,
+            brief.orientation_statements,
+            binding=bind_study(brief, result),
+            findings={f.finding_id: f.is_grounded for f in result.findings} if result else {},
+        )
         context.settled = list(brief.state.settled)
         context.live = list(brief.state.live)
         context.unknown = list(brief.state.unknown)
@@ -291,7 +302,17 @@ def build_consult_context(
         context.positions = rank_positions(question, brief)
 
     if result is not None:
-        context.findings = gather_findings(question, result, context.positions)
+        context.studied_at = result.started_at
+        orientation_ids = (
+            [
+                fid
+                for statement in orientation_statements(brief.orientation, brief.orientation_statements)
+                for fid in statement.supported_by
+            ]
+            if brief and bind_study(brief, result) == "matched"
+            else []
+        )
+        context.findings = gather_findings(question, result, context.positions, additional_citations=orientation_ids)
         if corpus is not None:
             context.sources = gather_sources(context.findings, corpus)
             context.finding_sources = gather_finding_sources(context, corpus)

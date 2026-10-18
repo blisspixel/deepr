@@ -72,25 +72,9 @@ def _build_cli_synthesis_backend(
 
 
 def _render(payload: dict[str, Any]) -> None:
-    names = payload["experts_consulted"]
-    console.print("[bold]Mode:[/bold] one-shot stored-context council; experts do not exchange turns")
-    console.print(f"[bold]Consulted {len(names)} expert(s):[/bold] {', '.join(names) or '(none)'}")
-    for p in payload["perspectives"]:
-        # Packet coverage or an average claim estimate is not expert accuracy.
-        console.print(f"\n[bold]{p['expert']}[/bold]")
-        console.print(f"  {p['response'][:600]}")
-    console.print("\n[bold]Synthesis[/bold]")
-    console.print(payload["answer"][:1400] or "  [dim](no synthesis)[/dim]")
-    if payload["synthesis_status"] not in {"completed", "skipped_no_valid_perspectives"}:
-        reason = payload.get("synthesis_stop_reason") or payload.get("synthesis_error_type") or "unknown"
-        print_warning(f"Synthesis is incomplete: {payload['synthesis_status']} ({reason}).")
-    for label, key in (("Agreements", "agreements"), ("Disagreements", "disagreements")):
-        if payload[key]:
-            console.print(f"\n[bold]{label}[/bold]")
-            for item in payload[key][:6]:
-                console.print(f"  - {item}")
-    console.print(f"\n[dim]Cost: ${payload['cost_usd']:.4f}[/dim]")
-    console.print("[dim]Knowledge writes: none; discussion output is a review-only proposal.[/dim]")
+    from deepr.cli.consult_render import render_consult
+
+    render_consult(payload, console)
 
 
 def _validate_consult_limits(
@@ -243,6 +227,10 @@ def _emit_consult_result(
     if not payload["experts_consulted"]:
         if not json_output:
             print_warning("No experts were consulted - create experts first or name them with -e.")
+        sys.exit(2)
+    if payload["synthesis_status"] == "skipped_no_valid_perspectives":
+        if not json_output:
+            print_warning('No usable perspective; the expert may be unformed. Run deepr expert build "NAME".')
         sys.exit(2)
     if payload["synthesis_status"] not in {"completed", "skipped_no_valid_perspectives"}:
         sys.exit(1)
