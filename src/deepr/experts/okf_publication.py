@@ -24,13 +24,12 @@ from filelock import Timeout as FileLockTimeout
 
 from deepr.experts.okf_contract import portable_relative_path_failure
 from deepr.utils.atomic_io import atomic_write_text
+from deepr.utils.paths import is_junction
 
 OKF_PUBLICATION_SCHEMA_VERSION = "deepr-okf-publication-v1"
 OKF_PUBLICATION_MANIFEST = ".deepr-okf-manifest.json"
 _RECOVERY_SCHEMA_VERSION = "deepr-okf-recovery-v1"
 _MAX_MANIFEST_BYTES = 1024 * 1024
-# stat exposes this Windows tag only on Windows; lstat supplies it there.
-_WINDOWS_MOUNT_POINT_TAG = 0xA0000003
 _WINDOWS_DEVICE_NAMES = frozenset(
     {"CON", "PRN", "AUX", "NUL"}
     | {f"COM{number}" for number in range(1, 10)}
@@ -70,7 +69,7 @@ def _lexists(path: Path) -> bool:
 def _is_junction(path: Path) -> bool:
     """Detect Windows mount-point links without following their target."""
     try:
-        return getattr(path.lstat(), "st_reparse_tag", 0) == _WINDOWS_MOUNT_POINT_TAG
+        return is_junction(path)
     except (OSError, ValueError):
         return False
 

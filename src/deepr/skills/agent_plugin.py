@@ -17,6 +17,7 @@ from typing import Any
 from deepr import __version__ as DEEPR_VERSION
 from deepr.mcp.contained_env import build_contained_read_only_env
 from deepr.skills.contract import validate_agent_skill
+from deepr.utils.paths import is_junction
 
 AGENT_PLUGINS_VERSION = "1.0.0"
 AGENT_PLUGINS_REVISION = "ff8ab5e392cc87bd88d87c060815a87490e51003"
@@ -68,8 +69,7 @@ def _violation(code: str, detail: str) -> PluginViolation:
 
 def _is_link(path: Path) -> bool:
     try:
-        is_junction = getattr(path, "is_junction", None)
-        return path.is_symlink() or bool(is_junction and is_junction())
+        return path.is_symlink() or is_junction(path)
     except OSError:
         return True
 

@@ -108,3 +108,14 @@ to installation, preserving explicit values and caller/runtime environments.
 All 328 focused installer, upgrade, release, container and plugin checks pass.
 Final exact-head native acceptance must include the same production build
 setting and a private cold cache; prior Windows success is not substituted.
+
+Final source inspection found the Agent Plugin validator's optional newer Path
+API silently skipping junction checks on 3.11. The previous exact-head CI was
+green but did not exercise this boundary; its merge driver was stopped before
+merge. Two new synthetic regressions failed before repair, including an
+unreadable lstat. Plugin validation and OKF now share the documented lstat/tag
+probe in utils.paths, retaining each caller's existing error policy. Native
+Windows tests remove the newer Path API and reject both a root junction and a
+nested skills junction whose target otherwise matches the package manifest.
+Archive output is absent and external bytes remain unchanged. Plugin package
+tests join the existing Windows/macOS boundary acceptance commands.

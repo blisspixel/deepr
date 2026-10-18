@@ -20,7 +20,9 @@ See [design](design/maintained-runtime-support.md) and
   its owner and supported base interpreter, refusing retired or prerelease
   runtimes before mutation. The deployment helper package agrees with the floor.
 - Equivalent type aliases and one shared Windows mount-point tag check preserve
-  OKF no-follow publication, inventory and cleanup on Python 3.11.
+  OKF no-follow publication, inventory and cleanup on Python 3.11. Plugin
+  validation shares the same tag probe and still refuses root/nested junctions
+  when the newer Path API is absent; probe errors remain fail-closed.
 - All five Python minors have blocking core/full-suite checks. Windows and macOS
   check native entry points and isolated core wheels at the floor and default;
   all three digest-pinned 3.15-slim containers build and run offline smoke checks.

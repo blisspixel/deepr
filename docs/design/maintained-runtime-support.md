@@ -122,3 +122,12 @@ source-build setting. Primary setup source and uv configuration were inspected:
 
 - https://github.com/yaml/pyyaml/blob/6.0.3/setup.py
 - https://docs.astral.sh/uv/reference/settings/#extra-build-variables
+
+Final compatibility inspection found another floor-sensitive no-follow boundary:
+Agent Plugin validation treated an absent `Path.is_junction` as no junction.
+Reproduce root/nested package junction acceptance without that 3.12 API. Move
+the existing lstat/tag identity into utils.paths as a shared compatibility seam;
+OKF keeps its prior false-on-probe-error wrapper, while package validation keeps
+its fail-closed error policy. Native Windows package tests join both platform
+jobs. A package whose files otherwise match the immutable manifest must still
+refuse junctions before archive creation. Preserve external target bytes.

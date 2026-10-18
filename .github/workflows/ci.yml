@@ -331,7 +331,7 @@ jobs:
       - name: Install the frozen full test environment
         run: uv sync --frozen --extra dev --extra full
       - name: Exercise export boundaries and installer ownership
-        run: python -m pytest -q tests/unit/test_experts/test_okf_publication.py tests/unit/test_installer_ownership.py tests/unit/test_release_installers.py tests/unit/test_cli/test_upgrade.py
+        run: python -m pytest -q tests/unit/test_experts/test_okf_publication.py tests/unit/test_installer_ownership.py tests/unit/test_release_installers.py tests/unit/test_cli/test_upgrade.py tests/unit/test_skill/test_agent_plugin_package.py
       - name: Audit the platform dependency branch
         run: pip-audit --skip-editable
       - name: Build the wheel

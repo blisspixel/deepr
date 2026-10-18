@@ -18,6 +18,14 @@ import platform
 from enum import Enum
 from pathlib import Path
 
+# Windows mount-point reparse tag, also usable when stat lacks Windows constants.
+_WINDOWS_MOUNT_POINT_TAG = 0xA0000003
+
+
+def is_junction(path: Path) -> bool:
+    """Inspect a Windows mount-point tag without following links; propagate IO errors."""
+    return getattr(path.lstat(), "st_reparse_tag", 0) == _WINDOWS_MOUNT_POINT_TAG
+
 
 class ShellType(Enum):
     """Supported shell types for quoting."""
