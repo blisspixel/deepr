@@ -191,8 +191,14 @@ Write-Step "Resolved $releaseTag from GitHub Releases."
 function Invoke-ManagedInstall([switch]$Force) {
     $forceArgs = @()
     if ($Force) { $forceArgs = @("--force") }
-    if ($manager -eq "uv") { & uv tool install --python 3.15.0 --managed-python @forceArgs $wheelUrl }
-    else { Invoke-Pipx install --python $pipxPython @forceArgs $wheelUrl }
+    $hadLibyamlSetting = Test-Path Env:PYYAML_FORCE_LIBYAML
+    try {
+        if (-not $hadLibyamlSetting) { $env:PYYAML_FORCE_LIBYAML = "0" }
+        if ($manager -eq "uv") { & uv tool install --python 3.15.0 --managed-python @forceArgs $wheelUrl }
+        else { Invoke-Pipx install --python $pipxPython @forceArgs $wheelUrl }
+    } finally {
+        if (-not $hadLibyamlSetting) { Remove-Item Env:PYYAML_FORCE_LIBYAML -ErrorAction SilentlyContinue }
+    }
 }
 function Remove-ManagedInstall {
     if ($manager -eq "uv") { & uv tool uninstall $Package }

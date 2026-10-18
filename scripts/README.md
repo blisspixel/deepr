@@ -21,6 +21,12 @@ cleanup. A network failure or release without a wheel stops before the existing
 Deepr installation is changed. Uninstall uses that same owner and preserves
 reports, experts and configuration.
 
+Installation and repair default `PYYAML_FORCE_LIBYAML=0` only for the manager
+process. This builds canonical PyYAML without its optional C accelerator when
+a new interpreter has no wheel, including Windows 3.15 without a compiler.
+An explicit operator value is preserved; the default does not leak into runtime
+checks or the calling shell. `deepr upgrade` uses the same scoped default.
+
 ### Windows Installation
 
 ```batch

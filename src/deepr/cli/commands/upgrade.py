@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import sysconfig
@@ -217,7 +218,9 @@ def upgrade(ctx: click.Context, check: bool) -> None:
 
     click.echo(f"==> Upgrading via: {' '.join(cmd)}")
     try:
-        result = subprocess.run(cmd, check=False)  # noqa: S603 - argv built from fixed parts
+        install_env = os.environ.copy()
+        install_env.setdefault("PYYAML_FORCE_LIBYAML", "0")
+        result = subprocess.run(cmd, check=False, env=install_env)  # noqa: S603 - argv built from fixed parts
     except FileNotFoundError:
         print_error(f"Upgrade tool not found: {cmd[0]}. Install it or upgrade manually.")
         ctx.exit(1)

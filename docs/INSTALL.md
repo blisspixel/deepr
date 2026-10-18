@@ -37,7 +37,14 @@ Managed installation requests final CPython 3.15.0 exactly. CI uses uv 0.13.0;
 if an older manager cannot find that release, update uv through its owning
 installation method. A beta is not a supported substitute. Optional full/search
 dependencies still include source-only Brotli at 3.15 and need a C toolchain;
-the core runtime has current native wheels apart from optional PyYAML builds.
+the core runtime has current native wheels apart from PyYAML. Installers and
+`deepr upgrade` default source builds to `PYYAML_FORCE_LIBYAML=0`, disabling
+its optional accelerator without changing canonical `safe_load`. An explicit
+operator setting is preserved and the default is scoped to installation.
+For a manual pip/pipx install on an interpreter without a PyYAML wheel, set
+`PYYAML_FORCE_LIBYAML=0` in that command's environment (PowerShell:
+`$env:PYYAML_FORCE_LIBYAML = "0"`). Frozen uv source installs carry the same
+package-specific build setting.
 
 Install, repair, `deepr upgrade`, and uninstall preserve the selected manager.
 Conflicting uv/pipx installations or an unmanaged CLI require explicit cleanup

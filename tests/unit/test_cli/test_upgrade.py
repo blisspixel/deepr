@@ -152,7 +152,7 @@ class TestUpgradeRun:
         monkeypatch.setattr(upgrade_mod, "_detect_origin", lambda: "pipx")
         calls: list[list[str]] = []
 
-        def _fake_run(cmd, check=False):
+        def _fake_run(cmd, check=False, **_kwargs):
             calls.append(cmd)
             return subprocess.CompletedProcess(cmd, 0)
 
@@ -176,7 +176,7 @@ class TestUpgradeRun:
         monkeypatch.setattr(upgrade_mod, "_fetch_latest_release", lambda: _release())
         monkeypatch.setattr(upgrade_mod, "_detect_origin", lambda: "pip")
 
-        def _fake_run(cmd, check=False):
+        def _fake_run(cmd, check=False, **_kwargs):
             return subprocess.CompletedProcess(cmd, 1)
 
         monkeypatch.setattr(subprocess, "run", _fake_run)
@@ -241,3 +241,26 @@ def test_externally_managed_pip_upgrade_refuses_without_subprocess(monkeypatch, 
     result = CliRunner().invoke(upgrade, [])
     assert result.exit_code != 0
     assert "supported isolated tool environment" in " ".join(result.output.split())
+
+
+@pytest.mark.parametrize("explicit", [None, "0", "1"])
+def test_upgrade_defaults_optional_yaml_build_without_changing_caller_environment(monkeypatch, explicit):
+    import os
+
+    if explicit is None:
+        monkeypatch.delenv("PYYAML_FORCE_LIBYAML", raising=False)
+    else:
+        monkeypatch.setenv("PYYAML_FORCE_LIBYAML", explicit)
+    monkeypatch.setattr(upgrade_mod, "_fetch_latest_release", lambda: _release())
+    monkeypatch.setattr(upgrade_mod, "_detect_origin", lambda: "uv")
+    observed = []
+
+    def run(cmd, **kwargs):
+        observed.append(dict(kwargs.get("env", os.environ)))
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(subprocess, "run", run)
+    result = CliRunner().invoke(upgrade, [])
+    assert result.exit_code == 0, result.output
+    assert observed[0]["PYYAML_FORCE_LIBYAML"] == ("0" if explicit is None else explicit)
+    assert os.environ.get("PYYAML_FORCE_LIBYAML") == explicit

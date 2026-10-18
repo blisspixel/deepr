@@ -61,7 +61,7 @@ uv() {
     if [ "$1 $2" = 'tool dir' ]; then printf '%s\n' "$DEEPR_SHIM_BIN"; return; fi
     printf 'uv %s\n' "$*" >> "$DEEPR_SHIM_LOG"
     if [ "$1 $2" = 'python find' ]; then printf 'python3\n'; fi
-    if [ "$1 $2" = 'tool install' ]; then install_count=$((install_count+1)); fi
+    if [ "$1 $2" = 'tool install' ]; then printf '%s\n' "${PYYAML_FORCE_LIBYAML-unset}" >> "$DEEPR_SHIM_BUILD_LOG"; install_count=$((install_count+1)); fi
 }
 pipx() {
     if [ "$1" = --version ]; then printf '1.17.2\n'; return 0; fi
@@ -77,7 +77,7 @@ pipx() {
         return
     fi
     printf 'pipx %s\n' "$*" >> "$DEEPR_SHIM_LOG"
-    if [ "$1" = install ]; then install_count=$((install_count+1)); fi
+    if [ "$1" = install ]; then printf '%s\n' "${PYYAML_FORCE_LIBYAML-unset}" >> "$DEEPR_SHIM_BUILD_LOG"; install_count=$((install_count+1)); fi
 }
 /owned/deepr-research/bin/python() {
     [ "$DEEPR_SHIM_OWNED_PYTHON" != missing ] || return 127
@@ -94,6 +94,7 @@ exec(sys.argv[1].replace("import sys;", "", 1).replace("import sys", "", 1).stri
 }
 curl() { printf 'release\n' >> "$DEEPR_SHIM_REQUEST_LOG"; printf '%s' "$DEEPR_SHIM_RELEASE"; }
 deepr() {
+    printf '%s\n' "${PYYAML_FORCE_LIBYAML-unset}" >> "$DEEPR_SHIM_RUNTIME_LOG"
     if [ "$DEEPR_SHIM_REPAIR" = true ] && [ "$install_count" -lt 2 ]; then return 7; fi
     printf 'deepr, version 9.9.9\n'
 }
@@ -153,7 +154,7 @@ function uv {
     }
     if ($args[0] -eq 'tool' -and $args[1] -eq 'dir') { $env:DEEPR_SHIM_BIN; return }
     Add-Content -LiteralPath $env:DEEPR_SHIM_LOG -Value ('uv ' + ($args -join ' '))
-    if ($args[0] -eq 'tool' -and $args[1] -eq 'install') { $global:installCount += 1 }
+    if ($args[0] -eq 'tool' -and $args[1] -eq 'install') { Add-Content -LiteralPath $env:DEEPR_SHIM_BUILD_LOG -Value $(if (Test-Path Env:PYYAML_FORCE_LIBYAML) { $env:PYYAML_FORCE_LIBYAML } else { 'unset' }); $global:installCount += 1 }
 }
 function pipx {
     $global:LASTEXITCODE = 0
@@ -170,7 +171,7 @@ function pipx {
         return
     }
     Add-Content -LiteralPath $env:DEEPR_SHIM_LOG -Value ('pipx ' + ($args -join ' '))
-    if ($args[0] -eq 'install') { $global:installCount += 1 }
+    if ($args[0] -eq 'install') { Add-Content -LiteralPath $env:DEEPR_SHIM_BUILD_LOG -Value $(if (Test-Path Env:PYYAML_FORCE_LIBYAML) { $env:PYYAML_FORCE_LIBYAML } else { 'unset' }); $global:installCount += 1 }
 }
 function OwnedPython {
     if ($env:DEEPR_SHIM_OWNED_PYTHON -eq 'missing') { $global:LASTEXITCODE = 127; return }
@@ -187,6 +188,7 @@ exec(sys.argv[1].replace('import sys;', '', 1).replace('import sys', '', 1).stri
 }
 Set-Alias -Name (Join-Path '/owned' 'deepr-research/Scripts/python.exe') -Value OwnedPython
 function deepr {
+    Add-Content -LiteralPath $env:DEEPR_SHIM_RUNTIME_LOG -Value $(if (Test-Path Env:PYYAML_FORCE_LIBYAML) { $env:PYYAML_FORCE_LIBYAML } else { 'unset' })
     $global:LASTEXITCODE = 0
     if ($env:DEEPR_SHIM_REPAIR -eq 'true' -and $global:installCount -lt 2) { $global:LASTEXITCODE = 7; return }
     'deepr, version 9.9.9'
@@ -209,6 +211,7 @@ def run_installer(
     script_root=ROOT,
     owned_python="13",
     host_python="13",
+    libyaml=None,
 ):
     suffix = "ps1" if family == "powershell" else "sh"
     wrapper = tmp_path / f"run.{suffix}"
@@ -226,8 +229,14 @@ def run_installer(
         "DEEPR_SHIM_SCRIPT": str(script_root / "scripts" / f"install.{suffix}"),
         "DEEPR_SHIM_LOG": str(log),
         "DEEPR_SHIM_REQUEST_LOG": str(tmp_path / "release-requests.txt"),
+        "DEEPR_SHIM_BUILD_LOG": str(tmp_path / "build-settings.txt"),
+        "DEEPR_SHIM_RUNTIME_LOG": str(tmp_path / "runtime-settings.txt"),
         "DEEPR_SHIM_PYTHON": sys.executable,
     }
+    if libyaml is None:
+        env.pop("PYYAML_FORCE_LIBYAML", None)
+    else:
+        env["PYYAML_FORCE_LIBYAML"] = libyaml
     shell = _installer_shell(family)
     args = (
         [shell, "-NoProfile", "-NonInteractive", "-File", str(wrapper)]
@@ -390,3 +399,17 @@ def test_fresh_pipx_requires_a_supported_path_python(tmp_path, family, host_pyth
     assert result.returncode != 0, result.stdout + result.stderr
     assert operations == []
     assert not (tmp_path / "release-requests.txt").exists()
+
+
+@pytest.mark.parametrize("family", ["bash", "powershell"])
+@pytest.mark.parametrize("owner", ["uv", "pipx", "pipx-module"])
+@pytest.mark.parametrize("libyaml", [None, "0", "1"])
+def test_optional_yaml_build_setting_is_scoped_and_preserves_operator_choice(tmp_path, family, owner, libyaml):
+    result, operations = run_installer(tmp_path, family, owner, libyaml=libyaml, repair=True)
+    assert result.returncode == 0, result.stdout + result.stderr
+    builds = (tmp_path / "build-settings.txt").read_text(encoding="utf-8-sig").splitlines()
+    runtime = (tmp_path / "runtime-settings.txt").read_text(encoding="utf-8-sig").splitlines()
+    assert len(builds) == 2
+    assert set(builds) == {"0" if libyaml is None else libyaml}
+    assert runtime and set(runtime) == {"unset" if libyaml is None else libyaml}
+    assert all(not operation.startswith("pip ") for operation in operations)

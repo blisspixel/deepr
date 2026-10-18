@@ -199,17 +199,17 @@ else
     REMOVE=("${PIPX[@]}" uninstall)
 fi
 step "Installing or updating $PACKAGE via $MANAGER from $RELEASE_TAG ..."
-if ! "${INSTALL[@]}" --force "$WHEEL_URL"; then
+if ! PYYAML_FORCE_LIBYAML="${PYYAML_FORCE_LIBYAML-0}" "${INSTALL[@]}" --force "$WHEEL_URL"; then
     step "Install failed; repairing with the same manager and interpreter ..."
     "${REMOVE[@]}" "$PACKAGE" || true
-    "${INSTALL[@]}" "$WHEEL_URL"
+    PYYAML_FORCE_LIBYAML="${PYYAML_FORCE_LIBYAML-0}" "${INSTALL[@]}" "$WHEEL_URL"
 fi
 
 deepr_works() { command -v "$CLI" >/dev/null 2>&1 && "$CLI" --version >/dev/null 2>&1; }
 if ! deepr_works; then
     step "$CLI did not run cleanly; attempting one clean reinstall via $MANAGER ..."
     "${REMOVE[@]}" "$PACKAGE" || true
-    "${INSTALL[@]}" "$WHEEL_URL"
+    PYYAML_FORCE_LIBYAML="${PYYAML_FORCE_LIBYAML-0}" "${INSTALL[@]}" "$WHEEL_URL"
 fi
 if ! deepr_works; then
     echo "Install completed but '$CLI' still does not run. Check PATH or rerun this installer to repair via $MANAGER." >&2

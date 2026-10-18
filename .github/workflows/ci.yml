@@ -215,7 +215,7 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/deepr-wheelhouse"
           uv export --frozen --no-emit-project --no-dev --format requirements-txt \
             -o "${RUNNER_TEMP}/deepr-core-requirements.txt"
-          .venv/bin/python -m pip wheel --require-hashes \
+          PYYAML_FORCE_LIBYAML=0 .venv/bin/python -m pip wheel --require-hashes \
             --wheel-dir "${RUNNER_TEMP}/deepr-wheelhouse" \
             -r "${RUNNER_TEMP}/deepr-core-requirements.txt"
           cp "$(find dist -maxdepth 1 -name '*.whl' -print -quit)" "${RUNNER_TEMP}/deepr-wheelhouse/"

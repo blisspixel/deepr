@@ -108,3 +108,17 @@ offline wheelhouse, which cannot build PyYAML without build dependencies.
 Export the frozen core requirements with hashes, build their wheels before
 the offline phase, then install only those wheels without network. This keeps
 the containment proof and the lock authority instead of bypassing isolation.
+
+A subsequent clean Windows 3.15 wheel install exposed PyYAML 6.0.3 attempting
+its optional C accelerator without MSVC. Its upstream setup contract supports
+`PYYAML_FORCE_LIBYAML=0`. Default that setting only in managed installation and
+upgrade subprocesses, preserve explicit operator values, and restore the
+PowerShell caller environment. Frozen uv source builds carry the same
+package-specific setting. Prebuilt wheels are unchanged. Deepr uses canonical
+`safe_load`, never a C-specific loader; do not replace YAML or weaken unsafe-tag
+refusal. Clean-wheel acceptance uses a private cold uv cache so the full-test
+environment cannot mask dependency compilation. Manual installers document the
+source-build setting. Primary setup source and uv configuration were inspected:
+
+- https://github.com/yaml/pyyaml/blob/6.0.3/setup.py
+- https://docs.astral.sh/uv/reference/settings/#extra-build-variables

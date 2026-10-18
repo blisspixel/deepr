@@ -29,6 +29,10 @@ See [design](design/maintained-runtime-support.md) and
   wheels; the full HTTP image compiles source-only extras in a separate stage.
   The plugin builds a frozen, hashed wheelhouse before offline checks. Pip-api 0.0.35
   repairs the audit tool's removed-standard-library import on Python 3.15.
+- Core installation and repair on Windows 3.15 no longer require a compiler
+  for PyYAML's optional accelerator. Managed setup, upgrade and frozen uv builds
+  select its supported pure-Python source build; explicit operator choices and
+  canonical safe parsing remain intact. Clean-wheel checks use a fresh cache.
 - Strict typing checks both the real frozen 3.11 dependency branch and the
   promoted runtime, retaining imported dependency types and existing strictness.
 

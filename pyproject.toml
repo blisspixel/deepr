@@ -471,3 +471,8 @@ exclude = [
     "deepr.web.frontend.node_modules*",
     "deepr.web.frontend.screenshots*",
 ]
+
+# Canonical SafeLoader is pure Python. Avoid an unnecessary compiler when a
+# source-only PyYAML release has no wheel for a new supported interpreter.
+[tool.uv.extra-build-variables]
+pyyaml = { PYYAML_FORCE_LIBYAML = "0" }

@@ -92,3 +92,19 @@ interrupted. The task's completed and interrupted temporary roots were archived
 with verified tar integrity and SHA256 receipts before releasing their inodes.
 Subsequent local full suites run serially with explicit free-byte and free-inode
 admission, preserving coverage and the socket guard. No source gate was lowered.
+
+The serial full local suites at commit `3c9f9b09` each passed 13,328 tests with
+21 skips, with independently enforced coverage of 85.46% on 3.15 and 85.53%
+on 3.11. These precede the final installer build-setting correction. Their
+temporary roots were archived with integrity and hash receipts.
+
+Hosted Windows 3.15 then passed the installer tests on final 3.15.0 but failed
+a clean core wheel install: PyYAML tried its optional C accelerator without
+MSVC. A cold-cache source build with upstream `PYYAML_FORCE_LIBYAML=0` passed
+on final 3.15 with no accelerator, nested/alias parsing and unsafe-tag refusal.
+Seven default-setting regressions failed before the fix; explicit operator
+choices already passed. Managed installers and upgrade now scope that default
+to installation, preserving explicit values and caller/runtime environments.
+All 328 focused installer, upgrade, release, container and plugin checks pass.
+Final exact-head native acceptance must include the same production build
+setting and a private cold cache; prior Windows success is not substituted.

@@ -47,6 +47,8 @@ def main() -> None:
     env.update(
         PYTHON_DOTENV_DISABLED="1",
         CI="1",
+        PYYAML_FORCE_LIBYAML="0",
+        UV_CACHE_DIR=str(runtime / "uv cache"),
         DEEPR_DATA_DIR=str(runtime / "data"),
         DEEPR_EXPERTS_PATH=str(runtime / "experts"),
         DEEPR_REPORTS_PATH=str(runtime / "reports"),
