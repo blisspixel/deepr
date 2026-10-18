@@ -7,10 +7,11 @@ from typing import Any
 from rich.console import Console
 
 from deepr.experts.claim_inventory import format_knowledge_status, read_claim_inventory
-from deepr.experts.profile import ExpertStore
 
 
 def expert_inventory() -> dict[str, Any]:
+    from deepr.experts.profile import ExpertStore
+
     rows = []
     for expert in ExpertStore().list_all():
         inventory = read_claim_inventory(expert)
