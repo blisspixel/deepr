@@ -16,7 +16,7 @@ import sys
 from dataclasses import replace
 from math import isfinite
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
 import click
 
@@ -43,6 +43,26 @@ from deepr.experts.consult_transaction import (
 from deepr.utils.atomic_io import atomic_write_json
 
 __all__ = ["build_consult_payload", "expert_consult", "run_consult"]
+
+
+def _refuse(
+    message: str,
+    *,
+    json_output: bool,
+    code: str,
+    category: str,
+    hint: str,
+    exit_code: int = 2,
+    retryable: bool = False,
+) -> NoReturn:
+    from deepr.cli.output import OperationResult
+
+    if json_output:
+        result = OperationResult(False, 0, 0, error=message, error_code=code, category=category, retryable=retryable)
+        click.echo(_json.dumps(result.error_payload(hint=hint)))
+    else:
+        print_error(message)
+    sys.exit(exit_code)
 
 
 def _build_cli_synthesis_backend(
@@ -81,17 +101,28 @@ def _validate_consult_limits(
     *,
     budget: float,
     max_elapsed_seconds: float,
+    json_output: bool = False,
 ) -> None:
     if not isfinite(budget) or budget < 0:
-        print_error("--budget must be finite and non-negative.")
-        sys.exit(2)
+        _refuse(
+            "--budget must be finite and non-negative.",
+            json_output=json_output,
+            code="CONSULT_INVALID_BUDGET",
+            category="validation",
+            hint="deepr expert consult --help",
+        )
     if (
         not isfinite(max_elapsed_seconds)
         or max_elapsed_seconds <= 0
         or max_elapsed_seconds > MAX_CONSULT_MAX_ELAPSED_SECONDS
     ):
-        print_error("--max-elapsed-seconds must be finite, greater than zero, and no more than 21600.")
-        sys.exit(2)
+        _refuse(
+            "--max-elapsed-seconds must be finite, greater than zero, and no more than 21600.",
+            json_output=json_output,
+            code="CONSULT_INVALID_DEADLINE",
+            category="validation",
+            hint="deepr expert consult --help",
+        )
 
 
 def _requested_capacity(
@@ -173,6 +204,7 @@ def _execute_cli_consult(
     max_elapsed_seconds: float,
     report_started: Any,
     report_backend: Any,
+    json_output: bool = False,
 ) -> dict[str, Any]:
     try:
         return asyncio.run(
@@ -190,20 +222,46 @@ def _execute_cli_consult(
                 on_backend_ready=report_backend,
             )
         )
-    except click.UsageError as exc:
-        print_error(str(exc))
-        sys.exit(2)
+    except (click.UsageError, ConsultBackendError) as exc:
+        _refuse(
+            str(exc),
+            json_output=json_output,
+            code="CONSULT_CAPACITY_UNAVAILABLE",
+            category="config",
+            hint="deepr capacity --probe" if backend_mode == "local" else "deepr capacity",
+        )
     except ConsultElapsedLimitError as exc:
         guidance = "retry safely" if exc.retryable else "do not retry the full consultation"
-        print_error(f"{exc} {guidance}.")
-        sys.exit(1)
+        _refuse(
+            f"{exc} {guidance}.",
+            json_output=json_output,
+            code="CONSULT_DEADLINE_EXCEEDED",
+            category="timeout",
+            hint=guidance,
+            exit_code=1,
+            retryable=exc.retryable,
+        )
     except ConsultStorageError as exc:
         guidance = "retry safely" if exc.retryable else "do not retry the full consultation"
-        print_error(f"Consultation storage failed; {guidance}: {exc}")
-        sys.exit(1)
-    except Exception as exc:  # surface the failure honestly; never a silent empty result
-        print_error(f"Consultation failed: {exc}")
-        sys.exit(1)
+        _refuse(
+            f"Consultation storage failed; {guidance}: {exc}",
+            json_output=json_output,
+            code="CONSULT_STORAGE_FAILED",
+            category="storage",
+            hint=guidance,
+            exit_code=1,
+            retryable=exc.retryable,
+        )
+    except Exception as exc:
+        _refuse(
+            f"Consultation failed: {exc}",
+            json_output=json_output,
+            code=getattr(exc, "error_code", "CONSULT_FAILED"),
+            category=getattr(exc, "category", "internal"),
+            hint="Inspect the retained consultation trace before retrying.",
+            exit_code=1,
+            retryable=bool(getattr(exc, "retryable", False)),
+        )
 
 
 def _emit_consult_result(
@@ -216,7 +274,14 @@ def _emit_consult_result(
         try:
             atomic_write_json(output, payload, indent=2, fsync=True)
         except OSError as exc:
-            raise click.ClickException(f"Could not write consult artifact: {exc}") from exc
+            _refuse(
+                f"Could not write consult artifact: {exc}",
+                json_output=json_output,
+                code="CONSULT_OUTPUT_FAILED",
+                category="storage",
+                exit_code=1,
+                hint="Inspect the retained consultation trace; retry saving rather than consulting.",
+            )
     if json_output:
         click.echo(_json.dumps(payload, indent=2))
     else:
@@ -328,9 +393,13 @@ def expert_consult(
       deepr expert consult "What should change next?" --plan claude --json
     """
     if api_provider or api_model or confirm_metered_cost:
-        raise click.UsageError(
+        _refuse(
             "Metered API synthesis is disabled for expert consults. Use the default local Ollama backend "
-            "or select an explicit safety-eligible plan with --plan."
+            "or select an explicit safety-eligible plan with --plan.",
+            json_output=json_output,
+            code="CONSULT_METERED_DISABLED",
+            category="config",
+            hint="deepr capacity",
         )
     if not plan_backend:
         use_local = True
@@ -338,6 +407,7 @@ def expert_consult(
     _validate_consult_limits(
         budget=budget,
         max_elapsed_seconds=max_elapsed_seconds,
+        json_output=json_output,
     )
     backend_mode, capacity_request = _requested_capacity(
         use_local=use_local,
@@ -370,5 +440,6 @@ def expert_consult(
         max_elapsed_seconds=max_elapsed_seconds,
         report_started=report_started,
         report_backend=report_backend,
+        json_output=json_output,
     )
     _emit_consult_result(payload, json_output=json_output, output=output)

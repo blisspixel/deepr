@@ -124,8 +124,11 @@ def _banner_end_hold_seconds() -> float:
     return max(0.0, min(2.0, value))
 
 
-def resolve_banner_plan(console: Console, override: str | None = None, state_dir: Path = Path(".deepr")) -> BannerPlan:
+def resolve_banner_plan(console: Console, override: str | None = None, state_dir: Path | None = None) -> BannerPlan:
     """Resolve whether to show startup banner and which mode to use."""
+    from deepr.config import default_data_dir
+
+    state_dir = state_dir if state_dir is not None else default_data_dir()
     override_normalized = (override or "").strip().lower() or None
     if override_normalized not in {None, "on", "off"}:
         override_normalized = None
@@ -282,9 +285,12 @@ def show_startup_banner(
     *,
     version: str,
     override: str | None = None,
-    state_dir: Path = Path(".deepr"),
+    state_dir: Path | None = None,
 ) -> None:
     """Render startup banner if allowed by runtime and policy."""
+    from deepr.config import default_data_dir
+
+    state_dir = state_dir if state_dir is not None else default_data_dir()
     plan = resolve_banner_plan(console, override=override, state_dir=state_dir)
     if not plan.show:
         return

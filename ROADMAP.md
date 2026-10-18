@@ -4,23 +4,13 @@
 
 ## Next round
 
-Reader-facing repairs implemented for v2.50.31 (2026-10-17). Next is S0.
-These changes do not admit model proposals into beliefs or open spend, and do
-not establish that the expert got better.
+The v2.50.31 reader and failed-build repairs are on main; completed details
+are in [the changelog](docs/CHANGELOG.md#25031---2026-10-17). Inspection repairs
+for #237, #232 and #233 are implemented for v2.50.32: web-search
+reasons, write-free quota inspection, per-user banner state, and shared human/JSON
+setup views. Verification and publication remain separate gates. These changes
+do not open spend, admit learning or establish that an expert got better.
 
-- [x] **#221:** New brief statements record studied-source, broader-knowledge
-  or reasoning origins. Legacy paragraphs disclose missing attribution. Links
-  require the brief's study fingerprint; stale citations stay unresolved.
-- [x] **#220:** Finding pages quote recorded excerpts with literal match status
-  against available hash-verified retained text. Position pages show recorded
-  support labels and counts. Renderer revisions preserve older immutable views.
-- [x] **#229:** Terminal consultation shows the complete answer first, then
-  grounds, support, currency and pushback, including missing data and prompt
-  omissions. It preserves the machine-readable artifact.
-- [x] **#223:** Candidate study failures remain visible in status and health;
-  formation takes priority in retry guidance. Consult prefers the completed
-  local build's model while its artifacts match, honors explicit overrides,
-  and exits nonzero for unusable perspectives. Cut model output stays labelled.
 - [ ] **v2.51 is S0.** Locate the frozen source worlds, policy and case inventory,
   then run the 48-cell local rehearsal. The archived policy used qwen3.6:27b;
   that model is absent on this workstation. Preserve the earlier failed runs
@@ -30,9 +20,7 @@ not establish that the expert got better.
 
 Validation and practical limits: [reader evidence repairs](docs/validation/expert-evidence-reading-2026-10-17.md).
 
-Later, after that round is on main: #237 (help and preview say web search is
-off, and why), #232 and #233 (read-only commands stay read-only, and JSON
-matches the text), #231 and #217 (help and choices drop shut-down model ids),
+Next after inspection repairs: #231 and #217 (help and choices drop shut-down model ids),
 #224 (first-run leftovers), #228 (decision review), #216 (embedder prefixes),
 and #225 (Python and Node platform). Polish #230, #234, #235, and #236 waits.
 SearXNG, unattended and MCP OpenRouter, and sleep-time overwrite of claims
@@ -66,6 +54,15 @@ stay blocked.
 > those *and* a user does not feel it - **cut it.**
 
 ## First-run consistency
+
+- [ ] **Separate local rehearsal findings (2026-10-17):** a newly frozen
+  two-world, eight-cell diagnostic reached all terminal outcomes at `$0`, with
+  three answers and five blocked by construction failures. Two briefs hit its
+  2,048-token output ceiling. A separate 4,096-token construction trial completed;
+  its 2,028-token brief also shows fixed seeds are not byte identity. Preserve
+  both trials and freeze adequate per-phase output limits before a new full
+  rehearsal. The original 48-cell S0 inputs were not recovered, and no semantic
+  review or value claim follows from these diagnostic runs.
 
 - [ ] **Local consult live findings (2026-10-17):** the installed v2.50.31
   candidate delivered the synthetic checkpoint answer and its retained evidence
@@ -755,9 +752,9 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.31)
+## Current Status (v2.50.32)
 
-**Next is v2.51, not more dispatch.** v2.50.31 repairs perspective attribution, readable evidence, consult output, and failed-build reporting. S0 remains unrun. v2.50.29 makes consult report whether citations reach the loaded study and a retained passage, and it sends local synthesis through the native 16384-token window study already uses. It does not run S0 or claim the expert got better. v2.50.28 ships the currency inspection and explicit world-time admission. v2.50.27 points deep-research defaults at the live OpenAI substitutes and keeps the 128k web-search ceiling.
+**Next is v2.51, not more dispatch.** v2.50.32 clarifies bounded tool posture, read-only inspection and CLI JSON parity. v2.50.31 repairs perspective attribution, readable evidence, consult output, and failed-build reporting. S0 remains unrun. v2.50.29 makes consult report whether citations reach the loaded study and a retained passage, and it sends local synthesis through the native 16384-token window study already uses. It does not run S0 or claim the expert got better. v2.50.28 ships the currency inspection and explicit world-time admission. v2.50.27 points deep-research defaults at the live OpenAI substitutes and keeps the 128k web-search ceiling.
 v2.50.26 repairs core-only installation on
 ordinary Python 3.13 and checks all supported stable Python minors.
 v2.50.25 repairs first-run configuration,
@@ -4095,7 +4092,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.31. This roadmap keeps
+v2.50.32. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 

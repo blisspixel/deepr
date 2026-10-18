@@ -16,6 +16,14 @@ brittle rule - it encodes a boundary that no longer matches the code.
 
 ## The axis
 
+CLI inspection is a deterministic read boundary: the same collected diagnostics
+and stored inventory drive human and JSON views. Quota snapshots create no
+files and refuse incomplete final records; writers retain serialization and
+durability. Capacity proof, successful diagnostic collection and tested model
+generation remain separate facts. Tool-posture explanations describe existing
+admission rules rather than inferring a question's currentness or enabling tools.
+See [first-run output parity](../design/first-run-output-parity.md).
+
 Brief statement origins are recorded model judgments: studied sources, broader
 knowledge, or reasoning. Code checks their shape, finding identity and study
 binding; it does not classify legacy text or judge entailment. Knowledge views

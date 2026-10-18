@@ -163,6 +163,19 @@ class OperationResult:
             retry_after=retry_after,
         )
 
+    def error_payload(self, *, hint: str = "") -> dict[str, Any]:
+        """Nested refusal envelope for command-specific JSON inspection views."""
+        error: dict[str, Any] = {
+            "code": self.error_code or "UNKNOWN",
+            "message": self.error or "Unknown error",
+            "category": self.category,
+            "retryable": self.retryable,
+            "hint": hint,
+        }
+        if self.retry_after is not None:
+            error["retry_after"] = self.retry_after
+        return {"status": "error", "error": error}
+
     def to_json(self) -> str:
         """Serialize result to JSON string.
 

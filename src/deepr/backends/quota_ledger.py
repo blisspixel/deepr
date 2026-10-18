@@ -317,10 +317,6 @@ class QuotaLedger:
         lock_timeout_seconds: float | None = None,
     ):
         self.ledger_path = quota_ledger_path(ledger_path)
-        try:
-            self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
-        except OSError as error:
-            raise QuotaLedgerWriteError("quota ledger parent directory could not be created") from error
         self._lock = _shared_path_lock(self.ledger_path)
         resolved_path = self.ledger_path.resolve()
         self._file_lock = FileLock(str(resolved_path.with_name(f"{resolved_path.name}.lock")))
@@ -328,6 +324,10 @@ class QuotaLedger:
 
     @contextmanager
     def _locked(self) -> Iterator[None]:
+        try:
+            self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as error:
+            raise QuotaLedgerWriteError("quota ledger parent directory could not be created") from error
         timeout = self._lock_timeout_seconds
         if timeout is None:
             with self._lock:
@@ -456,6 +456,27 @@ class QuotaLedger:
         except OSError as error:
             raise QuotaLedgerDurabilityError("quota ledger durability barrier failed") from error
 
+    def _snapshot_lines(self) -> list[str]:
+        """Inspect one complete byte snapshot without creating a directory or lock."""
+        try:
+            snapshot = self.ledger_path.read_bytes()
+        except FileNotFoundError:
+            return []
+        except OSError as error:
+            raise QuotaLedgerReadError("quota ledger snapshot could not be read") from error
+        try:
+            lines = snapshot.decode("utf-8").splitlines()
+        except UnicodeError as error:
+            raise QuotaLedgerReadError("quota ledger snapshot is not UTF-8") from error
+        if snapshot and not snapshot.endswith(b"\n") and lines[-1].strip():
+            try:
+                QuotaLedgerEvent.from_dict(json.loads(lines[-1]))
+            except (json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
+                raise QuotaLedgerReadError(
+                    "quota ledger has an unfinished record; retry inspection after the writer finishes"
+                ) from error
+        return lines
+
     def get_events(
         self,
         *,
@@ -465,29 +486,24 @@ class QuotaLedger:
         end_date: datetime | None = None,
     ) -> list[QuotaLedgerEvent]:
         events: list[QuotaLedgerEvent] = []
-        with self._locked():
-            if not self.ledger_path.exists():
-                return events
-            with self.ledger_path.open(encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        event = QuotaLedgerEvent.from_dict(json.loads(line))
-                    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
-                        continue
+        for line in self._snapshot_lines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                event = QuotaLedgerEvent.from_dict(json.loads(line))
+            except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+                continue
 
-                    if backend_id and event.backend_id != backend_id:
-                        continue
-                    if account_id is not None and event.account_id != account_id:
-                        continue
-                    if start_date and event.timestamp < start_date:
-                        continue
-                    if end_date and event.timestamp > end_date:
-                        continue
-                    events.append(event)
-
+            if backend_id and event.backend_id != backend_id:
+                continue
+            if account_id is not None and event.account_id != account_id:
+                continue
+            if start_date and event.timestamp < start_date:
+                continue
+            if end_date and event.timestamp > end_date:
+                continue
+            events.append(event)
         return events
 
     def latest_by_backend(self) -> dict[tuple[str, str], QuotaLedgerEvent]:

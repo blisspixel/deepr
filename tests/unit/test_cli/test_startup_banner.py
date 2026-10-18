@@ -207,3 +207,16 @@ def test_show_full_banner_with_sleep_patched(tmp_path: Path, monkeypatch):
     assert "2.50" in output
     assert "█" in _BANNER_ART
     assert (tmp_path / "banner_seen_v1").is_file()
+
+
+def test_default_banner_marker_is_per_user_and_cwd_is_untouched(tmp_path, monkeypatch):
+    home = tmp_path / "user"
+    cwd = tmp_path / "working"
+    cwd.mkdir()
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+    monkeypatch.chdir(cwd)
+    monkeypatch.setenv("DEEPR_ANIMATIONS", "off")
+    console = Console(file=StringIO(), force_terminal=True, force_interactive=True, width=60)
+    show_startup_banner(console, version="test")
+    assert (home / ".deepr" / "banner_seen_v1").read_text() == "seen\n"
+    assert list(cwd.iterdir()) == []

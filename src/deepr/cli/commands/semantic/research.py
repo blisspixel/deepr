@@ -18,7 +18,11 @@ from deepr.cli.commands.research_safety import (
     require_storage,
     research_failure_boundary,
 )
-from deepr.cli.commands.research_support import bounded_tool_disable_flags, resolve_research_route
+from deepr.cli.commands.research_support import (
+    bounded_tool_disable_flags,
+    research_tool_posture,
+    resolve_research_route,
+)
 from deepr.cli.commands.run import TraceFlags, _run_campaign, _run_single, _run_team
 from deepr.cli.output import OperationResult, OutputContext, OutputFormatter, OutputMode, output_options
 
@@ -68,7 +72,11 @@ def detect_research_mode(prompt: str) -> str:
     type=click.Choice(["openai", "azure", "gemini", "xai", "openrouter"]),
     help="Research provider (defaults: deep-research=openai, general=xai)",
 )
-@click.option("--no-web", is_flag=True, help="Disable web search")
+@click.option(
+    "--no-web",
+    is_flag=True,
+    help="Request no web search. Current defaults keep it off for bounded-cost safety; --preview explains why.",
+)
 @click.option(
     "--no-code/--code",
     default=True,
@@ -325,6 +333,7 @@ def research(
             no_web=no_web,
             no_code=no_code,
             output_context=output_context,
+            requested_no_web=requested_tool_flags[0],
         )
         return
 
@@ -873,7 +882,11 @@ def _run_auto_research(
     )
 
     requested_tool_flags = (no_web, no_code)
+    requested_no_web = no_web
     no_web, no_code = bounded_tool_disable_flags(decision.provider, no_web, no_code, decision.model)
+    tools = research_tool_posture(
+        decision.provider, decision.model, no_web=no_web, no_code=no_code, requested_no_web=requested_no_web
+    )
     if requested_tool_flags != (no_web, no_code) and output_context.mode == OutputMode.VERBOSE:
         click.echo(f"[Using the current bounded tool posture for {decision.provider}]")
 
@@ -898,6 +911,9 @@ def _run_auto_research(
         console.print(f"  Task Type:  {decision.task_type}")
         console.print(f"  Provider:   {decision.provider}")
         console.print(f"  Model:      {decision.model}")
+        console.print(f"  Web search: {'disabled' if no_web else 'enabled'} ({tools['web_search_reason']})")
+        if no_web:
+            console.print("  No live web sources will be checked; answers use model knowledge and supplied context.")
         console.print(f"  Routing estimate: ${decision.cost_estimate:.4f}")
         console.print(f"  Admission maximum: ${admission.max_cost:.4f}")
         console.print(f"  Confidence: {decision.confidence:.0%}")
@@ -918,10 +934,7 @@ def _run_auto_research(
                 "routing_cost_estimate": decision.cost_estimate,
                 "admission_max_cost": admission.max_cost,
                 "admission_reasoning": admission.reasoning,
-                "tools": {
-                    "web_search": not no_web,
-                    "code_interpreter": not no_code,
-                },
+                "tools": tools,
             }
             # click.echo (not Rich console) so JSON is unescaped + free of
             # ANSI control codes for downstream machine consumers.

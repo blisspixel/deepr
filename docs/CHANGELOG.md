@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.32] - 2026-10-17
+
+Compatible CLI inspection repairs. No spend, tool or learning authority changes.
+
+### Fixed
+
+- Research previews explain disabled web search consistently in human and JSON
+  output, and help describes the default posture. Existing execution and spend
+  gates are unchanged (#237).
+- Capacity reads create no directories or quota locks. Partial final records
+  refuse inspection; complete legacy records remain readable. Writers retain
+  locked durable appends. The startup marker uses per-user state (#232).
+- Doctor and expert inventory expose JSON from the same stored inspection data
+  as their human views. Doctor separates capacity proof from generation, moves
+  progress to stderr and offers optional details with `--all`. Consultation
+  pre-result refusals retain exit codes with machine-readable error codes,
+  categories, retryability and hints (#233).
+
 ## [2.50.31] - 2026-10-17
 
 Compatible expert evidence and first-build corrections. S0 remains open;

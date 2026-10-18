@@ -3,7 +3,7 @@
 Set up local capacity, build one consultable expert from a source you trust,
 and optionally preview a bounded provider request without dispatch.
 
-This guide follows v2.50.31. Release installers include default research
+This guide follows v2.50.32. Release installers include default research
 formation, `expert build`, and `expert knowledge`. Research completion does
 not certify practical guidance; review retained evidence and answers.
 
@@ -120,6 +120,19 @@ ANTHROPIC_API_KEY=...       # Anthropic configuration - https://console.anthropi
 deepr doctor --skip-connectivity
 deepr capacity
 ```
+
+For automation, use `deepr doctor --skip-connectivity --json` and
+`deepr expert list --json`. Doctor reports the same checks and counts as the
+human view, with progress on stderr. `--all` includes optional integration
+details. A successful diagnostic command is not proof of executable capacity;
+`capacity.local_capacity_proof` records the observation and
+`capacity.generation_tested` remains false. See the
+[doctor schema](schemas/doctor-v1.json) and
+[expert inventory schema](schemas/expert-inventory-v1.json).
+
+Capacity inspection creates no directories or quota lock files. The banner's
+seen marker belongs to the per-user state directory. Explicit writes retain
+the configured runtime root and existing locking and durability requirements.
 
 The offline doctor command makes no provider call. Run plain `deepr doctor`
 only when you intentionally want supported live checks for configured OpenAI,

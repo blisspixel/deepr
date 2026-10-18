@@ -167,7 +167,7 @@ class TestQuotaLedger:
         with pytest.raises(QuotaLedgerIdempotencyConflict, match="conflicts"):
             ledger.record_event(first)
 
-    def test_append_fails_closed_on_torn_json_but_read_only_view_remains_tolerant(self, tmp_path):
+    def test_append_and_snapshot_refuse_torn_final_record(self, tmp_path):
         path = tmp_path / "quota.jsonl"
         first = replace(_event(), idempotency_key="plan-attempt-1")
         ledger = QuotaLedger(path)
@@ -175,7 +175,8 @@ class TestQuotaLedger:
         with path.open("a", encoding="utf-8") as handle:
             handle.write('{"backend_id": "codex"')
 
-        assert ledger.get_events() == [first]
+        with pytest.raises(QuotaLedgerReadError, match="unfinished record"):
+            ledger.get_events()
         with pytest.raises(QuotaLedgerReadError, match="invalid record at line 2"):
             ledger.record_event(replace(_event(), idempotency_key="plan-attempt-2"))
 
@@ -384,3 +385,38 @@ class TestEventShape:
         ledger = QuotaLedger(p)
         event = ledger.record_event(_event())
         assert ledger.get_events() == [event]
+
+
+def test_read_only_snapshot_does_not_create_parent_or_lock(tmp_path):
+    path = tmp_path / "absent" / "quota.jsonl"
+    ledger = QuotaLedger(path)
+    assert ledger.get_events() == []
+    assert list(tmp_path.iterdir()) == []
+    ledger.record_event(_event())
+    lock = path.with_suffix(".jsonl.lock")
+    lock.unlink()
+    assert ledger.get_events() == [_event()]
+    assert not lock.exists()
+
+
+def test_snapshot_refuses_partial_append_without_reusing_earlier_quota(tmp_path):
+    path = tmp_path / "quota.jsonl"
+    ledger = QuotaLedger(path)
+    ledger.record_event(_event())
+    exhausted = _event(event_type=QuotaEventType.EXHAUSTED, remaining=0)
+    raw = json.dumps(exhausted.to_dict())
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(raw[:-10])
+        handle.flush()
+        with pytest.raises(QuotaLedgerReadError, match="unfinished record"):
+            ledger.get_events()
+        handle.write(raw[-10:] + "\n")
+        handle.flush()
+    assert ledger.get_events()[-1] == exhausted
+
+
+def test_complete_legacy_final_record_without_newline_remains_readable(tmp_path):
+    path = tmp_path / "quota.jsonl"
+    path.write_text(json.dumps(_event().to_dict()), encoding="utf-8")
+    assert QuotaLedger(path).get_events() == [_event()]
+    assert not path.with_suffix(".jsonl.lock").exists()

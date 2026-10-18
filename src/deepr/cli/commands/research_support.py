@@ -149,6 +149,30 @@ def bounded_tool_disable_flags(
     return no_web, True
 
 
+def research_tool_posture(
+    provider: str, model: str, *, no_web: bool, no_code: bool, requested_no_web: bool = False
+) -> dict[str, bool | str]:
+    """Describe the effective request; this grants no dispatch authority."""
+    from deepr.providers.registry_pricing import get_resolved_model_capability
+    from deepr.services.research_bounds import DEFAULT_RESEARCH_MAX_INPUT_TOKENS
+
+    if requested_no_web:
+        reason = "Disabled by --no-web."
+    elif not no_web:
+        reason = "Within the reserved input ceiling; provider execution remains separately gated."
+    elif provider.lower() not in _BOUNDED_TOOL_PROVIDERS:
+        reason = f"Not admitted for {provider}: provider tool spend cannot be bounded before dispatch."
+    else:
+        capability = get_resolved_model_capability(model)
+        reason = (
+            f"{model} context ({capability.context_window:,} tokens) exceeds the reserved "
+            f"{DEFAULT_RESEARCH_MAX_INPUT_TOKENS:,}-token input ceiling."
+            if capability is not None
+            else f"The context window for {model} is unknown, so web-search input cannot be reserved."
+        )
+    return {"web_search": not no_web, "code_interpreter": not no_code, "web_search_reason": reason}
+
+
 def enforce_monthly_budget_gate(
     estimate: CostEstimate,
     reservation: ResearchCostReservation,

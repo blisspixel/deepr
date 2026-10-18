@@ -57,7 +57,8 @@ def test_all_sections_full_answer_narrow_width_and_no_payload_mutation(terminal)
     payload = packet()
     original = deepcopy(payload)
     output = StringIO()
-    console = Console(file=output, width=60, force_terminal=terminal, color_system=None)
+    # Supply both dimensions: Rich's TERM=dumb fallback otherwise ignores width.
+    console = Console(file=output, width=60, height=25, force_terminal=terminal, color_system=None)
     render_consult(payload, console)
     text = output.getvalue()
     assert payload == original

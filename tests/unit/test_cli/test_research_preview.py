@@ -142,7 +142,7 @@ class TestPreviewExplicitModel:
         assert payload["executed"] is False
         assert payload["provider"] == "openai"
         assert payload["model"] == "o4-mini-deep-research"
-        assert payload["tools"] == {"web_search": True, "code_interpreter": False}
+        assert {key: payload["tools"][key] for key in ("web_search", "code_interpreter")} == {"web_search": True, "code_interpreter": False}
         ce = payload["cost_estimate"]
         assert {"min", "expected", "max"} <= set(ce.keys())
         assert 0.0 <= ce["min"] <= ce["expected"] <= ce["max"]
@@ -157,7 +157,7 @@ class TestPreviewExplicitModel:
         payload = json.loads(result.output)
         assert payload["provider"] == "gemini"
         assert payload["model"] == "gemini-3.8-flash"
-        assert payload["tools"] == {"web_search": False, "code_interpreter": False}
+        assert {key: payload["tools"][key] for key in ("web_search", "code_interpreter")} == {"web_search": False, "code_interpreter": False}
 
     def test_openrouter_preview_uses_exact_slug_and_disables_tools(self, runner: CliRunner) -> None:
         result = runner.invoke(
@@ -178,7 +178,7 @@ class TestPreviewExplicitModel:
         payload = json.loads(result.output)
         assert payload["provider"] == "openrouter"
         assert payload["model"] == "qwen/qwen3.8-flash"
-        assert payload["tools"] == {"web_search": False, "code_interpreter": False}
+        assert {key: payload["tools"][key] for key in ("web_search", "code_interpreter")} == {"web_search": False, "code_interpreter": False}
         assert payload["executed"] is False
 
     def test_provider_only_openrouter_preview_uses_bounded_default(self, runner: CliRunner) -> None:
@@ -340,7 +340,7 @@ class TestPreviewAutoMode:
         assert payload["executed"] is False
         assert payload["model"] == "o3-deep-research"
         assert payload["provider"] == "openai"
-        assert payload["tools"] == {"web_search": True, "code_interpreter": False}
+        assert {key: payload["tools"][key] for key in ("web_search", "code_interpreter")} == {"web_search": True, "code_interpreter": False}
         assert payload["admission_max_cost"] >= payload["routing_cost_estimate"]
 
     def test_auto_preview_disables_unpriced_xai_tools(self, runner: CliRunner) -> None:
@@ -362,4 +362,4 @@ class TestPreviewAutoMode:
 
         assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
-        assert payload["tools"] == {"web_search": False, "code_interpreter": False}
+        assert {key: payload["tools"][key] for key in ("web_search", "code_interpreter")} == {"web_search": False, "code_interpreter": False}

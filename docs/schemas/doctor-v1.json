@@ -1,0 +1,198 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Deepr doctor result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "counts",
+    "capacity",
+    "checks"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "deepr-doctor-v1"
+    },
+    "status": {
+      "enum": [
+        "success",
+        "error"
+      ],
+      "description": "Completion of diagnostic collection, not execution eligibility."
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total",
+        "passed",
+        "errors",
+        "warnings",
+        "info",
+        "required",
+        "required_passed",
+        "advisory",
+        "optional",
+        "unverified"
+      ],
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "passed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "errors": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "warnings": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "info": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "required": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "required_passed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "advisory": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "optional": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unverified": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "capacity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "local_capacity_proof",
+        "generation_tested",
+        "headline"
+      ],
+      "properties": {
+        "local_capacity_proof": {
+          "enum": [
+            "ready",
+            "unverified",
+            "unavailable"
+          ]
+        },
+        "generation_tested": {
+          "const": false
+        },
+        "headline": {
+          "type": "string"
+        }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "category",
+          "passed",
+          "severity",
+          "failure_severity",
+          "unverified",
+          "message",
+          "details",
+          "visible"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "passed": {
+            "type": "boolean"
+          },
+          "severity": {
+            "enum": [
+              "ok",
+              "error",
+              "warning",
+              "info"
+            ]
+          },
+          "failure_severity": {
+            "enum": [
+              "error",
+              "warning",
+              "info"
+            ]
+          },
+          "unverified": {
+            "type": "boolean"
+          },
+          "details": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "visible": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "error": {
+      "type": "object",
+      "required": [
+        "code",
+        "message",
+        "category",
+        "retryable",
+        "hint"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
+        "retryable": {
+          "type": "boolean"
+        },
+        "hint": {
+          "type": "string"
+        },
+        "retry_after": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

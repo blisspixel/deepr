@@ -16,7 +16,7 @@ import click
 from deepr.backends.capacity import BackendKind, detect_capacity
 from deepr.backends.local_capacity import LocalCapacityObservation, probe_local_gpu_occupancy
 from deepr.backends.plan_quota.adapters import get_adapter_by_executable
-from deepr.backends.quota_ledger import QuotaState, summarize_quota_state
+from deepr.backends.quota_ledger import QuotaLedgerReadError, QuotaState, summarize_quota_state
 from deepr.cli.commands.capacity_inventory import print_sources as _print_sources
 from deepr.cli.commands.capacity_validation import (
     FLEET_VALIDATION_DEFAULT_TIMEOUT_S,
@@ -46,7 +46,24 @@ def capacity(ctx: click.Context, json_output: bool, probe: bool):
         return
 
     sources = detect_capacity()
-    quota_states = summarize_quota_state()
+    try:
+        quota_states = summarize_quota_state()
+    except QuotaLedgerReadError as exc:
+        if json_output:
+            from deepr.cli.output import OperationResult
+
+            failure = OperationResult(
+                False, 0, 0, error=str(exc), error_code="QUOTA_SNAPSHOT_UNAVAILABLE", category="storage"
+            )
+            click.echo(
+                _json.dumps(
+                    failure.error_payload(
+                        hint="Retry deepr capacity after the writer finishes; inspect the quota ledger if this persists."
+                    )
+                )
+            )
+            ctx.exit(1)
+        raise click.ClickException(str(exc)) from exc
     local_capacity = probe_local_gpu_occupancy()
 
     local_probe = _run_local_probe() if probe else None
