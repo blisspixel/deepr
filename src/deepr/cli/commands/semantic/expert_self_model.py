@@ -71,8 +71,8 @@ def _render_next_actions(payload: dict[str, Any]) -> None:
         console.print(f"     {action['reason']}")
         for command_argv in action["command_argv"]:
             rendered_argv = json.dumps(command_argv, ensure_ascii=False)
-            console.print(f"     argv: {rendered_argv}", style="dim", markup=False)
-    console.print("\n[dim]Structural guidance only; semantic quality still requires measured review.[/dim]")
+            console.print(f"     argv: {rendered_argv}", style="muted", markup=False)
+    console.print("\n[muted]Structural guidance only; semantic quality still requires measured review.[/muted]")
 
 
 @expert.command(name="next")
@@ -141,13 +141,13 @@ def _render_monitor(payload: dict[str, Any]) -> None:
     print_key_value("Consult candidates", str(signals["consult_trace_candidate_count"]))
     proposals = list(payload.get("proposals", []) or [])
     if not proposals:
-        console.print("[dim]No monitor proposals found.[/dim]")
+        console.print("[muted]No monitor proposals found.[/muted]")
         return
     for proposal in proposals[:10]:
         console.print(f"\n[bold]{proposal['title']}[/bold]")
         console.print(f"  {proposal['proposal_type']} -> {proposal['target']}")
         console.print(f"  {proposal['rationale']}")
-        console.print(f"  [dim]{proposal['recommended_command']}[/dim]")
+        console.print(f"  [muted]{proposal['recommended_command']}[/muted]")
 
 
 def _render_promotion(payload: dict[str, Any]) -> None:
@@ -157,13 +157,13 @@ def _render_promotion(payload: dict[str, Any]) -> None:
     print_key_value("Target", payload["target"])
     print_key_value("Status", payload["status"])
     for action in payload.get("actions", []) or []:
-        console.print(f"\n[bold]{action['action']}[/bold]  [dim]{action['status']}[/dim]")
+        console.print(f"\n[bold]{action['action']}[/bold]  [muted]{action['status']}[/muted]")
         if action.get("path"):
             console.print(f"  {action['path']}")
         elif action.get("would_write"):
             console.print(f"  would write: {action['would_write']}")
     if not payload["applied"]:
-        console.print("\n[dim]Preview only. Re-run with --apply after review to write changes.[/dim]")
+        console.print("\n[muted]Preview only. Re-run with --apply after review to write changes.[/muted]")
 
 
 def _render_self_model_update(payload: dict[str, Any]) -> None:
@@ -179,11 +179,11 @@ def _render_self_model_update(payload: dict[str, Any]) -> None:
     console.print(f"  expected effect: {update['expected_effect']}")
     for action in payload.get("actions", []) or []:
         if action.get("path"):
-            console.print(f"\n[dim]{action['path']}[/dim]")
+            console.print(f"\n[muted]{action['path']}[/muted]")
         elif action.get("would_write"):
-            console.print(f"\n[dim]would write: {action['would_write']}[/dim]")
+            console.print(f"\n[muted]would write: {action['would_write']}[/muted]")
     if not payload["applied"]:
-        console.print("\n[dim]Preview only. Re-run with --apply after review to write the record.[/dim]")
+        console.print("\n[muted]Preview only. Re-run with --apply after review to write the record.[/muted]")
 
 
 def _render_self_model_acceptance(payload: dict[str, Any]) -> None:
@@ -198,11 +198,11 @@ def _render_self_model_acceptance(payload: dict[str, Any]) -> None:
     console.print(f"  expected effect: {accepted['expected_effect']}")
     for action in payload.get("actions", []) or []:
         if action.get("path"):
-            console.print(f"\n[dim]{action['path']}[/dim]")
+            console.print(f"\n[muted]{action['path']}[/muted]")
         elif action.get("would_write"):
-            console.print(f"\n[dim]would write: {action['would_write']}[/dim]")
+            console.print(f"\n[muted]would write: {action['would_write']}[/muted]")
     if not payload["applied"]:
-        console.print("\n[dim]Preview only. Re-run with --apply after review to write the acceptance.[/dim]")
+        console.print("\n[muted]Preview only. Re-run with --apply after review to write the acceptance.[/muted]")
 
 
 @expert.command(name="monitor")

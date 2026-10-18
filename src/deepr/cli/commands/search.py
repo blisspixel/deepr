@@ -188,7 +188,7 @@ async def _search_query(
 
     # Perform search
     if not json_output:
-        console.print(f"[dim]Searching {stats['indexed_reports']} reports...[/dim]")
+        console.print(f"[muted]Searching {stats['indexed_reports']} reports...[/muted]")
 
     try:
         results = await index.search(
@@ -214,23 +214,23 @@ async def _search_query(
 
     if not results:
         print_info("No matching reports found.")
-        console.print("[dim]Try lowering the threshold with --threshold 0.5[/dim]")
+        console.print("[muted]Try lowering the threshold with --threshold 0.5[/muted]")
         return
 
     print_header(f"Found {len(results)} Related Reports")
 
     for i, result in enumerate(results, 1):
-        score_color = "green" if result.similarity >= 0.8 else "yellow" if result.similarity >= 0.7 else "dim"
+        score_color = "success" if result.similarity >= 0.8 else "warning" if result.similarity >= 0.7 else "muted"
 
         console.print(f"[bold]{i}.[/bold] [{score_color}]{result.similarity:.0%} match[/{score_color}]")
-        console.print(f"   [cyan]{truncate_text(result.prompt, 70)}[/cyan]")
+        console.print(f"   [accent]{truncate_text(result.prompt, 70)}[/accent]")
         if result.model:
-            console.print(f"   [dim]Model: {result.model} | {result.created_at.strftime('%Y-%m-%d')}[/dim]")
-        console.print(f"   [dim]Path: {result.report_path}[/dim]")
+            console.print(f"   [muted]Model: {result.model} | {result.created_at.strftime('%Y-%m-%d')}[/muted]")
+        console.print(f"   [muted]Path: {result.report_path}[/muted]")
         console.print()
 
-    console.print("[dim]View a report: cat <path>/report.md[/dim]")
-    console.print('[dim]Use context: deepr research "query" --context <job-id>[/dim]')
+    console.print("[muted]View a report: cat <path>/report.md[/muted]")
+    console.print('[muted]Use context: deepr research "query" --context <job-id>[/muted]')
 
 
 @search.command("index")
@@ -297,9 +297,9 @@ async def _index_reports(
     index = ContextIndex()
 
     if force:
-        console.print("[dim]Force re-indexing all reports...[/dim]")
+        console.print("[muted]Force re-indexing all reports...[/muted]")
     else:
-        console.print("[dim]Indexing new reports...[/dim]")
+        console.print("[muted]Indexing new reports...[/muted]")
 
     try:
         count = await index.index_reports(

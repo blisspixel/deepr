@@ -553,7 +553,7 @@ def format_batch_preview(routing: BatchRoutingResult) -> str:
             models = stats.get("models", {})
             primary_model = max(models.items(), key=lambda x: x[1])[0] if models else "unknown"
 
-            lines.append(f"  • {complexity.capitalize()} ({primary_model}): {count} queries, ~${cost:.2f}")
+            lines.append(f"  - {complexity.capitalize()} ({primary_model}): {count} queries, ~${cost:.2f}")
 
     lines.extend(
         [

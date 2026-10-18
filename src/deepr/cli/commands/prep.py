@@ -175,11 +175,11 @@ def plan(
             console.print(f"[bold]Phase {phase_num}:[/bold]")
 
             if phase_num == 1:
-                console.print("  [dim](Foundation research - can run in parallel)[/dim]")
+                console.print("  [muted](Foundation research - can run in parallel)[/muted]")
             elif phase_num == len(phases):
-                console.print("  [dim](Synthesis - depends on all previous research)[/dim]")
+                console.print("  [muted](Synthesis - depends on all previous research)[/muted]")
             else:
-                console.print("  [dim](Analysis - uses previous phase results as context)[/dim]")
+                console.print("  [muted](Analysis - uses previous phase results as context)[/muted]")
 
             click.echo()
 
@@ -295,7 +295,7 @@ def review():
             print_key_value("Phase", str(phase))
             if deps:
                 print_key_value("Depends on", ", ".join(map(str, deps)))
-            console.print(f"\n[dim]Prompt:[/dim] {task['prompt']}")
+            console.print(f"\n[muted]Prompt:[/muted] {task['prompt']}")
             console.print()
 
             # Get user decision

@@ -47,7 +47,7 @@ def _report(result: ExpertMigration) -> None:
     for old, new in result.moved:
         console.print(f"  {old} -> {new}")
     for dead in result.removed_dead_dirs:
-        console.print(f"  [dim]removed empty {dead}/[/dim]")
+        console.print(f"  [muted]removed empty {dead}/[/muted]")
     for old, new in result.conflicts:
         print_warning(f"  {old} and {new} both exist; left alone, needs a human")
     for dead in result.kept_nonempty_dead_dirs:
@@ -97,5 +97,5 @@ def expert_migrate(apply_changes: bool, as_json: bool) -> None:
     if attention:
         print_warning(f"{len(attention)} need a human; nothing was changed for those.")
     if not apply_changes:
-        console.print("[dim]Re-run with --apply to make these changes.[/dim]")
+        console.print("[muted]Re-run with --apply to make these changes.[/muted]")
     sys.exit(1 if attention else 0)

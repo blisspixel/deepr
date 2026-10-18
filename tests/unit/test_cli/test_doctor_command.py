@@ -249,7 +249,7 @@ class TestDoctorNextStep:
         print_next_step([configured, broken])
 
         output = capsys.readouterr().out
-        assert "Resolve the ERROR" in output
+        assert "Resolve the failed" in output
         assert "Setup looks good" not in output
         assert "research" not in output
 

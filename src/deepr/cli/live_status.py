@@ -31,7 +31,7 @@ class LiveShimmerStatus:
         with self._lock:
             current = self.message
         if not self._enabled:
-            return Text(current, style="dim")
+            return Text(current, style="muted")
         return shimmer_text(
             current,
             phase=self._phase,

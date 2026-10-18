@@ -59,7 +59,7 @@ def test_config_set_rejects_invalid_cli_animations_value():
 
         assert result.exit_code != 0
         assert "Invalid value 'fast'" in result.output
-        assert "Allowed values: full, light, off" in result.output
+        assert "Allowed values: full, light, off" in " ".join(result.output.split())
 
 
 def test_config_set_updates_existing_key_without_duplicate():

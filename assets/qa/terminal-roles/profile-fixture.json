@@ -1,0 +1,32 @@
+{
+  "expert_name": "Synthetic profile layout fixture",
+  "schema_version": "deepr-expert-profile-v1",
+  "chosen_name": "Layout fixture",
+  "standpoint": "Synthetic example: retain observations and explain the limits before making a recommendation.",
+  "what_the_subject_is_about": "",
+  "preferred_lens": "Evidence and revision, shown only to exercise terminal layout.",
+  "open_questions": [
+    "What new evidence would change this example?"
+  ],
+  "where_it_is_weak": [
+    "This fixture establishes no subject expertise."
+  ],
+  "appearance": "",
+  "voice": "",
+  "glad_to_be_asked_about": [
+    "How a recorded position differs from a current fact"
+  ],
+  "shifts": [
+    {
+      "at": "2026-10-18T00:00:00Z",
+      "was": "An earlier synthetic position.",
+      "now": "A revised synthetic position.",
+      "because": "A synthetic contrary observation; no research was run.",
+      "corpus_fingerprint": ""
+    }
+  ],
+  "corpus_fingerprint": "",
+  "sources_read": 0,
+  "has_standpoint": true,
+  "has_changed_its_mind": true
+}

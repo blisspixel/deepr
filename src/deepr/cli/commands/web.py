@@ -41,9 +41,7 @@ def web(host: str, port: int, debug: bool, allow_unauthenticated_loopback: bool)
     try:
         from deepr.web import app as web_app
     except ImportError as exc:
-        raise click.ClickException(
-            f"Web dependencies not installed: {exc}\nInstall with: pip install -e '.[web]'"
-        ) from exc
+        raise click.ClickException(f"Web dependencies not installed: {exc}\nNext: pip install -e '.[web]'") from exc
 
     from deepr.security.key_quarantine import quarantine_metered_keys
 

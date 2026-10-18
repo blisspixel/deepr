@@ -224,24 +224,24 @@ def _render_quality_scorecard(card: Any) -> None:
     print_key_value("Verified learning loops", str(card.verified_learning_loops))
 
     if card.blockers:
-        console.print("\n[bold red]Blockers[/bold red]")
+        console.print("\n[error]Blockers[/error]")
         for b in card.blockers:
             console.print(f"  - {b}")
     if card.strengths:
-        console.print("\n[bold green]Strengths[/bold green]")
+        console.print("\n[success]Strengths[/success]")
         for s in card.strengths:
             console.print(f"  - {s}")
     if card.next_actions:
-        console.print("\n[bold cyan]Next improve actions[/bold cyan]")
+        console.print("\n[accent]Next improve actions[/accent]")
         for action in card.next_actions:
             console.print(f"  - {action['title']}: {action['reason']}")
             for argv in action.get("command_argv") or []:
-                console.print(f"      [dim]{' '.join(argv)}[/dim]")
+                console.print(f"      [muted]{' '.join(argv)}[/muted]")
 
     console.print(
-        "\n[dim]Structural only. Exceptional meaning requires primary multi-source "
+        "\n[muted]Structural only. Exceptional meaning requires primary multi-source "
         "corpus + challenge consults + measured learning loops. See "
-        "docs/design/exceptional-expert-quality.md[/dim]"
+        "docs/design/exceptional-expert-quality.md[/muted]"
     )
 
 
@@ -396,11 +396,11 @@ def _render_improve_plan(plan: dict[str, Any]) -> None:
     console.print("\n[bold]Operator-required (not auto-run)[/bold]")
     for step in plan["operator_required"]:
         console.print(f"  - {step['step']}: {step['why']}")
-        console.print(f"      [dim]{step['example']}[/dim]")
+        console.print(f"      [muted]{step['example']}[/muted]")
     console.print(
-        '\n[dim]Deepen corpus: deepr expert deepen-plan "'
+        '\n[muted]Deepen corpus: deepr expert deepen-plan "'
         f'{plan["expert"]}"  |  designs: docs/design/living-expert-research-stack.md, '
-        "docs/plans/living-expert-research-stack.md[/dim]"
+        "docs/plans/living-expert-research-stack.md[/muted]"
     )
 
 

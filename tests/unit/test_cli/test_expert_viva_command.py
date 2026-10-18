@@ -123,7 +123,7 @@ class TestRefusalsBeforeSpending:
         r = CliRunner().invoke(expert, ["viva", "Candidate", "--examiner", "Examiner One"])
 
         assert r.exit_code == 2
-        assert "holds no orientation of its own" in r.output
+        assert "holds no orientation of its own" in " ".join(r.output.split())
         assert "no usable examiners" in r.output
 
 

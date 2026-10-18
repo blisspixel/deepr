@@ -34,7 +34,7 @@ def _render_summary(payload: dict[str, Any]) -> None:
         for goal in payload["current_goals"]:
             console.print(f"  - {goal}")
 
-    console.print("\n[dim]Preview only. Re-run with --write to regenerate EXPERT.md.[/dim]")
+    console.print("\n[muted]Preview only. Re-run with --write to regenerate EXPERT.md.[/muted]")
 
 
 @expert.command(name="memory-card")

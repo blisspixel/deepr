@@ -665,7 +665,7 @@ class TestBackendFlagGuard:
         )
 
         assert r.exit_code == 2
-        assert "report is stale for the current" in r.output
+        assert "report is stale for the current" in " ".join(r.output.split())
         assert "belief-vector index" in r.output
 
     def test_sync_rejects_recall_preference_report_with_too_few_cases_before_store_work(self, monkeypatch, tmp_path):
@@ -1351,7 +1351,7 @@ class TestBackendFlagGuard:
 
         assert r.exit_code == 2
         assert "--scheduled cannot use --api" in r.output
-        assert "only for attended work" in r.output
+        assert "only for attended work" in " ".join(r.output.split())
         assert captured == {}
 
     def test_sync_deep_context_rejects_api(self):

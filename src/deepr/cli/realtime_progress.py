@@ -30,6 +30,7 @@ from rich.progress import BarColumn, Progress, TaskProgressColumn
 from rich.table import Table
 from rich.text import Text
 
+from deepr.cli.colors import make_console
 from deepr.providers.base import DeepResearchProvider, ResearchResponse
 
 
@@ -141,7 +142,7 @@ class ResearchProgressTracker:
             console: Optional Rich console
         """
         self.provider = provider
-        self.console = console or Console()
+        self.console = console or make_console()
         self._callbacks: list[Callable[[ProgressState], None]] = []
 
     def add_callback(self, callback: Callable[[ProgressState], None]):
@@ -410,18 +411,18 @@ class ResearchProgressTracker:
         """
         # Build progress content
         content = Table.grid(padding=(0, 2))
-        content.add_column(style="bold cyan", justify="right")
+        content.add_column(style="accent", justify="right")
         content.add_column()
 
         # Phase indicator
         phase_text = Text()
         for _i, phase in enumerate(PHASE_ORDER[:-1]):  # Exclude COMPLETED
             if phase == state.current_phase:
-                phase_text.append(f"> {phase.value} ", style="bold green")
+                phase_text.append(f"> {phase.value} ", style="live")
             elif PHASE_ORDER.index(phase) < PHASE_ORDER.index(state.current_phase):
-                phase_text.append(f"OK {phase.value} ", style="dim green")
+                phase_text.append(f"OK {phase.value} ", style="success")
             else:
-                phase_text.append(f". {phase.value} ", style="dim")
+                phase_text.append(f". {phase.value} ", style="muted")
 
         content.add_row("Phase:", phase_text)
 
@@ -430,6 +431,7 @@ class ResearchProgressTracker:
             BarColumn(bar_width=40),
             TaskProgressColumn(),
             transient=True,
+            console=self.console,
         )
         progress_bar.add_task("", total=100, completed=state.estimated_completion_pct)
 
@@ -449,12 +451,12 @@ class ResearchProgressTracker:
 
         # Error if any
         if state.error:
-            content.add_row("Error:", Text(state.error, style="bold red"))
+            content.add_row("Error:", Text(state.error, style="error"))
 
         return Panel(
             content,
             title=f"[bold]Research Progress[/bold] ({state.job_id[:8]}...)",
-            border_style="cyan",
+            border_style="accent",
         )
 
 

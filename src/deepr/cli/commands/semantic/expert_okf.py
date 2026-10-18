@@ -57,7 +57,7 @@ def _make_absorber_or_exit(profile, *, use_local: bool, model: str | None):
 
     local_model = resolve_local_maintenance_model(profile, explicit_model=model)
     if not local_model:
-        print_error("No local model available. Is Ollama running? Check: deepr capacity --probe")
+        print_error("No local model available. Is Ollama running? Next: deepr capacity --probe")
         sys.exit(2)
     absorber = ReportAbsorber(profile, model=local_model, client=ollama_chat_client(), estimated_cost=0.0)
     return absorber, f"$0 (local model {local_model})"
@@ -116,7 +116,7 @@ def _settle_okf_absorption(store, profile, result) -> None:
 def _emit_okf_absorption(profile, corpus, result) -> None:
     print_header(f"Absorb OKF into {profile.name}")
     if result.dry_run:
-        console.print("[yellow]DRY RUN[/yellow] - nothing written")
+        console.print("[warning]DRY RUN[/warning] - nothing written")
     print_key_value("OKF concepts", str(corpus.concept_count))
     print_key_value("Candidates", str(result.total_candidates))
     print_key_value("Absorbed", str(len(result.absorbed)))
@@ -186,7 +186,7 @@ def export_okf(name: str, output: str, force: bool, include_llms: bool, json_out
     print_key_value("Open contested claims", str(result.contested_count))
     print_key_value("Files", str(len(result.files)))
     print_success("OKF bundle written.")
-    console.print("[dim]Derived view. Regenerate any time; the belief store stays canonical.[/dim]")
+    console.print("[muted]Derived view. Regenerate any time; the belief store stays canonical.[/muted]")
 
 
 @expert.command(name="absorb-okf")
@@ -253,7 +253,7 @@ def absorb_okf(
     if absorber_estimated_cost(absorber) > 0:
         cost_note = f"{cost_note}; hard run ceiling ${budget:.2f}"
     if selection_note and not json_output:
-        console.print(f"[dim]{selection_note}[/dim]")
+        console.print(f"[muted]{selection_note}[/muted]")
 
     if not yes:
         intent = "preview (writes nothing)" if dry_run else f"absorb OKF into '{name}'"

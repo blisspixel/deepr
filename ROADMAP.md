@@ -23,8 +23,9 @@ Validation and practical limits: [reader evidence repairs](docs/validation/exper
 [local embedding profiles](docs/validation/local-embedding-profiles-2026-10-18.md),
 [maintained runtimes](docs/validation/maintained-runtimes-2026-10-18.md).
 
-Next: terminal theme and status words (#230), startup/width (#234), then the
-optional companion (#235) and interface tracker (#236).
+Terminal roles and status words (#230) pass local verification and await
+exact-head CI. Next: startup/width (#234), the optional companion (#235) and
+interface tracker (#236).
 SearXNG, unattended and MCP OpenRouter, and sleep-time overwrite of claims
 stay blocked.
 
@@ -56,6 +57,13 @@ stay blocked.
 > those *and* a user does not feel it - **cut it.**
 
 ## First-run consistency
+
+- [ ] **Built-dashboard baseline finding (2026-10-18, #236):** actual
+  isolated light/dark browser runs exposed a CSP-blocked inline theme initializer
+  and embedded fonts. The old screenshot QA also reports storage errors on opaque
+  initial pages. Preserve both failed baselines. Add strict built-dashboard theme
+  checks with canonical zero-cost synthetic seeds and unchanged spending/CSP
+  guards; successful mocked-route checks do not establish this acceptance.
 
 - [ ] **Separate local rehearsal findings (2026-10-17):** a newly frozen
   two-world, eight-cell diagnostic reached all terminal outcomes at `$0`, with
@@ -2205,15 +2213,17 @@ The gate targets below are firm commitments, not a soft "raise it when convenien
 
 - [x] Raise Python floor to 3.12 (dropped 3.9/3.10/3.11); classifiers + ruff `target-version` (`py312`) + CI matrix updated; `uv.lock` regenerated
 - [x] Python 3.14 promoted to a **blocking** CI matrix entry (2026-06-11): the full `[dev,full]` extras install and the entire suite pass on 3.14, so the wheel-availability caveat that kept it non-blocking no longer applies. Full supported window: 3.12 / 3.13 / 3.14, all blocking.
-- [ ] Promote Python 3.15 only after its final release and the complete
-  `[dev,full]` dependency set installs on every supported OS. A 2026-09-01
+- [x] **Promoted 2026-10-18 in v2.50.38 (#225):** ordinary CPython 3.11
+  through 3.15, final 3.15.0 as the managed/development default, all-five-minor
+  unit/coverage CI, native Windows/macOS endpoint installs and three offline
+  container smokes passed. Public installer acceptance passed on exact green
+  main `7b204881`. Preserve the earlier prerelease finding below. A 2026-09-01
   Windows probe against 3.15.0rc1 stopped before Deepr tests because `lxml
   6.1.1` had no CPython 3.15 wheel and its source build required external
-  `libxml2` headers. Re-run the full matrix when upstream wheels land; do not
-  describe the prerelease interpreter as supported meanwhile. The v2.50.38
-  candidate adds final 3.15.0, compatible native wheels, compiler-free core YAML
-  installation and expanded native CI; promotion remains contingent on its
-  exact-head acceptance and public installer checks.
+  `libxml2` headers. That prerelease was not promoted. Final 3.15.0 now passes
+  the full matrix with compatible native wheels, compiler-free core YAML
+  installation and shared no-follow plugin/OKF junction checks. See
+  [the validation record](docs/validation/maintained-runtimes-2026-10-18.md).
 - [x] Modernize syntax to the 3.12 baseline via Ruff autofix (PEP 604 `X | None`, `datetime.UTC`, exception/import aliases)
 - [x] Adopt `uv` in CI; commit `uv.lock` + `.python-version`
 - [x] Dependency update automation (pip + github-actions + npm, weekly)

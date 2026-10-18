@@ -44,8 +44,8 @@ def archive_stale_beliefs(name: str, *, yes: bool, json_output: bool, scheduled:
         print_header(f"Archive candidates: {name}")
         for belief in candidates:
             console.print(
-                f"  - {belief.claim[:100]} [dim](confidence {belief.get_current_confidence():.2f}, "
-                f"updated {belief.updated_at.date().isoformat()}, retrievals {belief.retrieval_count})[/dim]"
+                f"  - {belief.claim[:100]} [muted](confidence {belief.get_current_confidence():.2f}, "
+                f"updated {belief.updated_at.date().isoformat()}, retrievals {belief.retrieval_count})[/muted]"
             )
         console.print()
 

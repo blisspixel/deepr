@@ -4,11 +4,12 @@ Provides intent-based command guides and documentation.
 """
 
 import click
-from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-console = Console()
+from deepr.cli.colors import make_console
+
+console = make_console()
 
 
 @click.group()
@@ -27,15 +28,15 @@ def verbs():
     console.print(
         Panel.fit(
             "[bold]Deepr Semantic Commands[/bold]\n\nCommands are organized by intent - what you want to accomplish.",
-            border_style="cyan",
+            border_style="accent",
         )
     )
     console.print()
 
     # RESEARCH section
-    console.print("[bold cyan]RESEARCH[/bold cyan] - Find information")
+    console.print("[accent]RESEARCH[/accent] - Find information")
     table = Table(show_header=False, box=None, padding=(0, 2))
-    table.add_column("Command", style="green")
+    table.add_column("Command", style="success")
     table.add_column("Description")
     table.add_row('deepr research "topic"', "Auto-detect research mode")
     table.add_row('deepr check "claim"', "Verify a fact quickly")
@@ -44,9 +45,9 @@ def verbs():
     console.print()
 
     # LEARN section
-    console.print("[bold cyan]LEARN[/bold cyan] - Build understanding")
+    console.print("[accent]LEARN[/accent] - Build understanding")
     table = Table(show_header=False, box=None, padding=(0, 2))
-    table.add_column("Command", style="green")
+    table.add_column("Command", style="success")
     table.add_column("Description")
     table.add_row('deepr learn "topic"', "Multi-phase structured learning")
     table.add_row('deepr learn "topic" --phases 4', "Specify number of learning phases")
@@ -54,9 +55,9 @@ def verbs():
     console.print()
 
     # MAKE section
-    console.print("[bold cyan]MAKE[/bold cyan] - Create artifacts")
+    console.print("[accent]MAKE[/accent] - Create artifacts")
     table = Table(show_header=False, box=None, padding=(0, 2))
-    table.add_column("Command", style="green")
+    table.add_column("Command", style="success")
     table.add_column("Description")
     table.add_row('deepr make docs "topic"', "Generate documentation")
     table.add_row('deepr make strategy "topic"', "Strategic analysis")
@@ -64,9 +65,9 @@ def verbs():
     console.print()
 
     # EXPERT section
-    console.print("[bold cyan]EXPERT[/bold cyan] - Domain expertise")
+    console.print("[accent]EXPERT[/accent] - Domain expertise")
     table = Table(show_header=False, box=None, padding=(0, 2))
-    table.add_column("Command", style="green")
+    table.add_column("Command", style="success")
     table.add_column("Description")
     table.add_row('deepr expert make "name"', "Create domain expert")
     table.add_row('deepr expert consult "question" -e "name" --local', "Consult stored expert state at $0")
@@ -78,9 +79,9 @@ def verbs():
     console.print()
 
     # TEAM section
-    console.print("[bold cyan]TEAM[/bold cyan] - Multiple perspectives")
+    console.print("[accent]TEAM[/accent] - Multiple perspectives")
     table = Table(show_header=False, box=None, padding=(0, 2))
-    table.add_column("Command", style="green")
+    table.add_column("Command", style="success")
     table.add_column("Description")
     table.add_row('deepr team "question"', "Multi-perspective analysis")
     table.add_row('deepr team "question" --perspectives 8', "Specify number of perspectives")
@@ -88,8 +89,8 @@ def verbs():
     console.print()
 
     # Footer
-    console.print("[dim]Use --help on any command for details[/dim]")
-    console.print("[dim]Example: deepr research --help[/dim]")
+    console.print("[muted]Use --help on any command for details[/muted]")
+    console.print("[muted]Example: deepr research --help[/muted]")
     console.print()
 
 
@@ -100,7 +101,7 @@ def providers():
     console.print(
         Panel.fit(
             "[bold]AI Providers[/bold]\n\nDeepr supports multiple AI providers for different tasks.",
-            border_style="cyan",
+            border_style="accent",
         )
     )
     console.print()
@@ -111,7 +112,7 @@ def providers():
     from deepr.providers.reviewed_catalog import REVIEWED_CAPABILITIES
 
     table = Table(title="Retained defaults and reviewed candidates")
-    table.add_column("Use", style="cyan")
+    table.add_column("Use", style="accent")
     table.add_column("Model")
     table.add_column("Status")
     for task, (provider, model) in retained_task_models().items():
@@ -141,13 +142,13 @@ def costs():
     console.print()
     console.print(
         Panel.fit(
-            "[bold]Cost Guidance[/bold]\n\nEstimated costs for different research operations.", border_style="cyan"
+            "[bold]Cost Guidance[/bold]\n\nEstimated costs for different research operations.", border_style="accent"
         )
     )
     console.print()
 
     table = Table(title="Estimated Costs")
-    table.add_column("Operation", style="cyan")
+    table.add_column("Operation", style="accent")
     table.add_column("Cost Range")
     table.add_column("Time")
 
@@ -166,5 +167,5 @@ def costs():
     console.print("  - Check status: deepr budget status")
     console.print("  - Per-operation: --budget flag")
     console.print()
-    console.print("[dim]Actual costs vary by provider, model, and query complexity[/dim]")
+    console.print("[muted]Actual costs vary by provider, model, and query complexity[/muted]")
     console.print()

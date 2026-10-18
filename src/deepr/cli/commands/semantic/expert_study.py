@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 import click
 
-from deepr.cli.colors import console, print_header, print_key_value, print_success, print_warning
+from deepr.cli.colors import console, print_header, print_key_value, print_next, print_success, print_warning
 from deepr.cli.commands.semantic.experts import expert
 from deepr.cli.commands.semantic.study_backend import StudyBackendError, build_study_backend
 from deepr.experts.corpus_store import CorpusStore
@@ -289,10 +289,10 @@ def expert_retain(
     if was_new:
         print_success(f"Retained {entry.sha256[:12]} ({entry.byte_len} bytes) as {entry.trust_class}")
     else:
-        console.print(f"[dim]Already retained ({entry.sha256[:12]}); nothing written.[/dim]")
+        console.print(f"[muted]Already retained ({entry.sha256[:12]}); nothing written.[/muted]")
     print_key_value("Origin", entry.origin_key)
     if hold_current_path(profile.name).exists():
-        console.print(f'[dim]Next: deepr expert study "{profile.name}" --local[/dim]')
+        print_next(f'deepr expert study "{profile.name}" --local')
     else:
         from subprocess import list2cmdline
 
@@ -349,7 +349,7 @@ def expert_acquire(name: str, urls: tuple[str, ...], from_file: str | None, trus
     store = CorpusStore(profile.name)
     if not as_json:
         print_header(f"Acquire: {profile.name}")
-        console.print(f"[dim]{len(target_urls)} URL(s), network only, $0[/dim]\n")
+        console.print(f"[muted]{len(target_urls)} URL(s), network only, $0[/muted]\n")
 
     result = asyncio.run(
         acquire_sources(
@@ -372,18 +372,18 @@ def expert_acquire(name: str, urls: tuple[str, ...], from_file: str | None, trus
 def _render_acquire_result(result: Any, store: CorpusStore, expert_name: str) -> None:
     for source in result.sources:
         if source.status == "retained":
-            console.print(f"  [green]retained[/green]  {source.byte_len:>7,}b  {source.url}")
+            console.print(f"  [success]retained[/success]  {source.byte_len:>7,}b  {source.url}")
         elif source.status == "unchanged":
-            console.print(f"  [dim]unchanged[/dim]           {source.url}")
+            console.print(f"  [muted]unchanged[/muted]           {source.url}")
         else:
-            console.print(f"  [red]{source.status}[/red]  {source.url}  [dim]{source.detail}[/dim]")
+            console.print(f"  [error]{source.status}[/error]  {source.url}  [muted]{source.detail}[/muted]")
 
     console.print("")
     print_key_value("Retained", str(len(result.retained)))
     print_key_value("Distinct origins", str(store.stats().distinct_origins))
     for item in result.limitations:
         print_warning(item)
-    console.print(f'[dim]Next: deepr expert study "{expert_name}" --local[/dim]')
+    print_next(f'deepr expert study "{expert_name}" --local')
 
 
 @expert.command(name="corpus")
@@ -408,8 +408,8 @@ def expert_corpus(name: str, as_json: bool) -> None:
     print_key_value("Total bytes", f"{stats.total_bytes:,}")
     print_key_value("Trust mix", str(stats.trust_mix) if stats.trust_mix else "-")
     if not stats.active_count:
-        console.print("\n[yellow]Nothing retained yet.[/yellow] A study pass over an empty corpus finds nothing.")
-        console.print(f'[dim]Retain a source: deepr expert retain "{profile.name}" ./doc.md[/dim]')
+        console.print("\n[warning]Nothing retained yet.[/warning] A study pass over an empty corpus finds nothing.")
+        console.print(f'[muted]Retain a source: deepr expert retain "{profile.name}" ./doc.md[/muted]')
         return
 
     from deepr.experts.corpus_independence import measure_independence
@@ -494,7 +494,7 @@ def expert_study(
         print_header(f"Study: {profile.name}")
         print_key_value("Capacity", backend.cost_note)
         print_key_value("Lenses", ", ".join(lens.key for lens in resolved))
-        console.print("[dim]Independent passes; lenses are not asked to agree.[/dim]\n")
+        console.print("[muted]Independent passes; lenses are not asked to agree.[/muted]\n")
         if backend.capacity_source.startswith("local:"):
             _report_vram_headroom(quiet=as_json)
 
@@ -579,7 +579,7 @@ def _report_vram_headroom(*, quiet: bool) -> None:
     # Roughly what a capable 24B model needs at 32K context.
     lines = describe_headroom(report, needed_bytes=21_500_000_000)
     for line in lines:
-        console.print(f"[dim]{line}[/dim]")
+        console.print(f"[muted]{line}[/muted]")
     if lines:
         console.print("")
 
@@ -600,7 +600,7 @@ async def _warn_if_cpu_bound(model: str, *, quiet: bool) -> None:
 
 def _render_study_summary(result: Any) -> None:
     for outcome in result.outcomes:
-        marker = "[green]ok[/green]" if outcome.status == "ok" else f"[red]{outcome.status}[/red]"
+        marker = "[success]ok[/success]" if outcome.status == "ok" else f"[error]{outcome.status}[/error]"
         detail = f" - {outcome.detail}" if outcome.detail else ""
         console.print(
             f"  {outcome.lens:16s} {outcome.elapsed_s:7.1f}s  {marker}  {len(outcome.findings)} finding(s){detail}"
@@ -619,12 +619,12 @@ def _render_study_summary(result: Any) -> None:
         print_key_value("Independent origins", f"{effective:.1f} effective, from {nominal} source(s)")
     print_key_value("Cost", f"${result.cost_usd:.2f}")
     if result.limitations:
-        console.print("\n[bold yellow]Limitations[/bold yellow]")
+        console.print("\n[warning]Limitations[/warning]")
         for item in result.limitations:
             console.print(f"  - {item}")
     console.print(
-        "\n[dim]Findings are proposed from sources, not verified conclusions. "
-        "Nothing was written to the belief store.[/dim]"
+        "\n[muted]Findings are proposed from sources, not verified conclusions. "
+        "Nothing was written to the belief store.[/muted]"
     )
 
 
@@ -778,8 +778,8 @@ def expert_brief(
         # previously invisible: the file was overwritten and nothing said
         # whether the expert had changed its mind or merely restated itself.
         console.print(
-            f"\n[dim]Positions: {changed.get('new', 0)} new, {changed.get('revised', 0)} revised, "
-            f"{changed.get('unchanged', 0)} unchanged, {changed.get('not_restated', 0)} not restated.[/dim]"
+            f"\n[muted]Positions: {changed.get('new', 0)} new, {changed.get('revised', 0)} revised, "
+            f"{changed.get('unchanged', 0)} unchanged, {changed.get('not_restated', 0)} not restated.[/muted]"
         )
         if changed.get("not_restated"):
             print_warning(
@@ -800,7 +800,7 @@ def _load_study_result(profile: Any, from_study: str | None) -> Any:
     path = Path(from_study) if from_study else canonical_study_path(profile.name)
     if not path.exists():
         click.echo(
-            f'Error: no study at {path}. Run: deepr expert study "{profile.name}"',
+            f'Error: no study at {path}. Next: deepr expert study "{profile.name}"',
             err=True,
         )
         sys.exit(2)

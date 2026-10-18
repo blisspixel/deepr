@@ -97,7 +97,7 @@ def submit(
                 provider = resolved_provider
             if model == "gpt-5.6-sol":  # default value
                 model = resolved_model if resolved_model in ["gpt-5.6-sol", "gpt-5.6-terra"] else model
-            console.print(f"[dim]Provider router selected: {resolved_provider}/{resolved_model}[/dim]")
+            console.print(f"[muted]Provider router selected: {resolved_provider}/{resolved_model}[/muted]")
         except Exception:
             pass  # Fall back to config (router optional)
 
@@ -129,7 +129,7 @@ def submit(
 
         if not context_result:
             print_error(f"Context not found: {context_job_id}")
-            console.print("[dim]Run 'deepr search index' to index reports first[/dim]")
+            console.print("[muted]Run 'deepr search index' to index reports first[/muted]")
             raise click.Abort()
 
         # Check for stale context
@@ -141,15 +141,17 @@ def submit(
 
         context_content = index.get_report_content(context_job_id)
         if context_content:
-            console.print("\n[cyan]Using context from prior research:[/cyan]")
+            console.print("\n[accent]Using context from prior research:[/accent]")
             console.print(f"   {context_result.prompt[:60]}{'...' if len(context_result.prompt) > 60 else ''}")
-            console.print(f"   [dim]{context_result.created_at.strftime('%Y-%m-%d')} | {context_result.model}[/dim]")
+            console.print(
+                f"   [muted]{context_result.created_at.strftime('%Y-%m-%d')} | {context_result.model}[/muted]"
+            )
 
             # Show cost savings estimate
             from deepr.providers.registry import get_cost_estimate
 
             prior_cost = get_cost_estimate(context_result.model or model)
-            console.print(f"   [green]Estimated savings: ${prior_cost:.2f} by reusing prior research[/green]")
+            console.print(f"   [success]Estimated savings: ${prior_cost:.2f} by reusing prior research[/success]")
 
     # Automatic context discovery (6.1, 6.2)
     elif not no_context_discovery:
@@ -165,21 +167,21 @@ def submit(
                 related_found = asyncio.run(index.find_related(prompt, top_k=3, threshold=0.75))
 
                 if related_found:
-                    console.print(f"\n[cyan]Related prior research found ({len(related_found)}):[/cyan]")
+                    console.print(f"\n[accent]Related prior research found ({len(related_found)}):[/accent]")
                     for i, result in enumerate(related_found, 1):
-                        score_color = "green" if result.similarity >= 0.85 else "yellow"
+                        score_color = "success" if result.similarity >= 0.85 else "warning"
                         console.print(
                             f"   {i}. [{score_color}]{result.similarity:.0%}[/{score_color}] {result.prompt[:50]}..."
                         )
                         console.print(
-                            f"      [dim]{result.job_id[:8]} | {result.created_at.strftime('%Y-%m-%d')}[/dim]"
+                            f"      [muted]{result.job_id[:8]} | {result.created_at.strftime('%Y-%m-%d')}[/muted]"
                         )
 
-                    console.print(f"\n[dim]Use --context {related_found[0].job_id[:8]} to include as context[/dim]")
+                    console.print(f"\n[muted]Use --context {related_found[0].job_id[:8]} to include as context[/muted]")
 
         except Exception as e:
             # Don't fail on context discovery errors
-            console.print(f"[dim]Context discovery skipped: {e}[/dim]")
+            console.print(f"[muted]Context discovery skipped: {e}[/muted]")
 
     if not yes and not click.confirm("\nSubmit deep research job?"):
         print_warning("Cancelled")
@@ -710,7 +712,7 @@ def trace(
 
     if not trace_files:
         print_error(f"No trace found for job {job_id}")
-        console.print(f"\n[dim]Traces are saved in {trace_dir}[/dim]")
+        console.print(f"\n[muted]Traces are saved in {trace_dir}[/muted]")
         return
 
     trace_path = trace_files[0]
@@ -738,7 +740,7 @@ def trace(
                 indent = "  " if task.parent_task_id else ""
                 status_icon = "OK" if task.status == "completed" else "ERROR" if task.status == "failed" else "."
                 console.print(
-                    f"{indent}[{'green' if task.status == 'completed' else 'red'}]{status_icon}[/] {task.task_type}"
+                    f"{indent}[{'success' if task.status == 'completed' else 'error'}]{status_icon}[/] {task.task_type}"
                 )
                 if task.model:
                     console.print(f"{indent}   Model: {task.model}")
@@ -752,15 +754,15 @@ def trace(
             timeline_data = emitter.get_timeline()
 
             table = Table(title="Reasoning Timeline")
-            table.add_column("Time", style="dim")
-            table.add_column("Task", style="cyan")
+            table.add_column("Time", style="muted")
+            table.add_column("Task", style="accent")
             table.add_column("Status")
             table.add_column("Duration", justify="right")
             table.add_column("Cost", justify="right")
 
             for entry in timeline_data:
                 start = entry["start_time"][:19].replace("T", " ")
-                status_color = "green" if entry["status"] == "completed" else "red"
+                status_color = "success" if entry["status"] == "completed" else "error"
                 duration = f"{entry['duration_ms']:.0f}ms" if entry.get("duration_ms") else "-"
                 cost = f"${entry['cost']:.4f}" if entry.get("cost", 0) > 0 else "-"
 
@@ -795,7 +797,7 @@ def trace(
             emitter.save_trace(output_path)
             print_success(f"Full trace exported to {output_path}")
             console.print(
-                f"\n[dim]Contains {len(emitter.tasks)} tasks and {len(emitter.trace_context.spans)} spans[/dim]"
+                f"\n[muted]Contains {len(emitter.tasks)} tasks and {len(emitter.trace_context.spans)} spans[/muted]"
             )
 
         if not (explain or timeline or temporal or lineage or full_trace or show_budget):
@@ -838,16 +840,16 @@ def _render_temporal_timeline(job_id: str, trace_path):
         hypotheses = temporal_data.get("hypotheses", {})
 
         if not findings and not hypotheses:
-            console.print("[dim]No temporal knowledge data found in trace.[/dim]")
-            console.print("[dim]Temporal tracking requires the TemporalKnowledgeTracker to be enabled.[/dim]")
+            console.print("[muted]No temporal knowledge data found in trace.[/muted]")
+            console.print("[muted]Temporal tracking requires the TemporalKnowledgeTracker to be enabled.[/muted]")
             return
 
         # Render findings timeline
         if findings:
             table = Table(title="Temporal Findings Timeline")
-            table.add_column("Time", style="dim", width=10)
+            table.add_column("Time", style="muted", width=10)
             table.add_column("Phase", justify="center", width=6)
-            table.add_column("Type", style="cyan", width=12)
+            table.add_column("Type", style="accent", width=12)
             table.add_column("Finding", width=50)
             table.add_column("Conf", justify="right", width=6)
 
@@ -862,14 +864,14 @@ def _render_temporal_timeline(job_id: str, trace_path):
 
                 # Color code by type
                 type_colors = {
-                    "fact": "blue",
-                    "observation": "cyan",
-                    "inference": "yellow",
-                    "hypothesis": "magenta",
-                    "contradiction": "red",
-                    "confirmation": "green",
+                    "fact": "info",
+                    "observation": "accent",
+                    "inference": "warning",
+                    "hypothesis": "accent",
+                    "contradiction": "error",
+                    "confirmation": "success",
                 }
-                color = type_colors.get(ftype, "white")
+                color = type_colors.get(ftype, "text")
 
                 table.add_row(time_str, phase, f"[{color}]{ftype}[/{color}]", text, conf)
 
@@ -881,7 +883,7 @@ def _render_temporal_timeline(job_id: str, trace_path):
 
             for h_id, h_data in hypotheses.items():
                 status = h_data.get("current_state", {}).get("confidence", 0)
-                status_color = "green" if status > 0.5 else "yellow" if status > 0 else "red"
+                status_color = "success" if status > 0.5 else "warning" if status > 0 else "error"
                 status_text = "ACTIVE" if status > 0 else "INVALIDATED"
 
                 console.print(f"\n[bold]{h_id}[/bold] [{status_color}]{status_text}[/{status_color}]")
@@ -890,9 +892,9 @@ def _render_temporal_timeline(job_id: str, trace_path):
                 console.print(f"  Evolutions: {len(h_data.get('evolution_history', []))}")
 
     except json.JSONDecodeError:
-        console.print("[red]Error: Could not parse trace file.[/red]")
+        console.print("[error]Error: Could not parse trace file.[/error]")
     except Exception as e:
-        console.print(f"[red]Error rendering temporal timeline: {e}[/red]")
+        console.print(f"[error]Error rendering temporal timeline: {e}[/error]")
 
 
 def _render_budget_utilization(emitter):
@@ -926,7 +928,7 @@ def _render_budget_utilization(emitter):
     bar_width = 40
     filled = int(used_pct / 100 * bar_width)
 
-    color = "green" if used_pct < 70 else "yellow" if used_pct < 90 else "red"
+    color = "success" if used_pct < 70 else "warning" if used_pct < 90 else "error"
     bar = f"[{color}]{'█' * filled}[/{color}]{'░' * (bar_width - filled)}"
 
     console.print(f"Total Budget: {bar} {total_tokens:,} / {budget:,} ({used_pct:.1f}%)")
@@ -953,15 +955,15 @@ def _render_context_lineage(emitter):
     lineage = emitter.get_context_lineage()
 
     if not lineage:
-        console.print("[dim]No context lineage data found.[/dim]")
-        console.print("[dim]Context sources are recorded when research uses prior findings or documents.[/dim]")
+        console.print("[muted]No context lineage data found.[/muted]")
+        console.print("[muted]Context sources are recorded when research uses prior findings or documents.[/muted]")
         return
 
     console.print("\n[bold]Context Lineage:[/bold]")
-    console.print("[dim]Shows which sources informed each task[/dim]\n")
+    console.print("[muted]Shows which sources informed each task[/muted]\n")
 
     # Build a tree visualization
-    tree = Tree("[bold cyan]Research Flow[/bold cyan]")
+    tree = Tree("[accent]Research Flow[/accent]")
 
     # Group tasks by their relationship
     task_map = {task.task_id: task for task in emitter.tasks}
@@ -971,9 +973,9 @@ def _render_context_lineage(emitter):
         if not task:
             continue
 
-        task_label = f"[cyan]{task.task_type}[/cyan]"
+        task_label = f"[accent]{task.task_type}[/accent]"
         if task.model:
-            task_label += f" [dim]({task.model})[/dim]"
+            task_label += f" [muted]({task.model})[/muted]"
 
         task_branch = tree.add(task_label)
 
@@ -984,13 +986,13 @@ def _render_context_lineage(emitter):
 
             # Color code by source type
             if source.startswith("http"):
-                source_style = "blue"
+                source_style = "info"
             elif source.endswith((".pdf", ".doc", ".docx", ".txt")):
-                source_style = "green"
+                source_style = "success"
             elif source.startswith("report:") or source.startswith("finding:"):
-                source_style = "yellow"
+                source_style = "warning"
             else:
-                source_style = "white"
+                source_style = "text"
 
             task_branch.add(f"[{source_style}]← {display_source}[/{source_style}]")
 
@@ -1001,5 +1003,5 @@ def _render_context_lineage(emitter):
     unique_sources = len(set(s for sources in lineage.values() for s in sources))
 
     console.print(
-        f"\n[dim]Tasks with context: {len(lineage)} | Total references: {total_sources} | Unique sources: {unique_sources}[/dim]"
+        f"\n[muted]Tasks with context: {len(lineage)} | Total references: {total_sources} | Unique sources: {unique_sources}[/muted]"
     )

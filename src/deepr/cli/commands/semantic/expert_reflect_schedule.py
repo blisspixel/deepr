@@ -392,7 +392,7 @@ def _emit_scheduled_reflection_run(
     if json_output:
         click.echo(_json.dumps(payload, indent=2))
         return
-    console.print(f"[dim]Scheduled reflection ran on {capacity.capacity_source}: {capacity.note}[/dim]")
+    console.print(f"[muted]Scheduled reflection ran on {capacity.capacity_source}: {capacity.note}[/muted]")
     console.print(f"Verdict: {report.verdict} (overall {report.overall_score:.0%}, model {report.model})")
     if followups_section.get("status") == "executed":
         console.print(f"Follow-ups executed on {followups_section['capacity_source']}.")
@@ -425,10 +425,10 @@ def emit_scheduled_reflection_wait(
         return
 
     print_warning("Scheduled reflection is waiting for cheap evaluator capacity.")
-    console.print(f"[dim]{payload['detail']}.[/dim]")
+    console.print(f"[muted]{payload['detail']}.[/muted]")
     for action in payload["next_actions"]:
         console.print(f"  {action['status']}: {action['title']}")
         if action.get("detail"):
-            console.print(f"      [dim]{action['detail']}[/dim]")
+            console.print(f"      [muted]{action['detail']}[/muted]")
         if action.get("command"):
-            console.print(f"      [dim]{action['command']}[/dim]")
+            console.print(f"      [muted]{action['command']}[/muted]")

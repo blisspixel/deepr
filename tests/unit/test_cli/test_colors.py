@@ -10,6 +10,7 @@ from hypothesis import strategies as st
 
 from deepr.cli.colors import (
     ASCII_SYMBOLS,
+    STATUS_WIDTH,
     UNICODE_SYMBOLS,
     _format_duration,
     get_symbol,
@@ -64,7 +65,7 @@ class TestSymbolMapping:
         """Symbols should be clean text labels."""
         for name, symbol in UNICODE_SYMBOLS.items():
             # Modern CLI uses text labels, not bracketed legacy markers.
-            assert len(symbol) <= 5, f"{name} symbol '{symbol}' is too long"
+            assert len(symbol) <= STATUS_WIDTH, f"{name} symbol '{symbol}' is too long"
             assert not symbol.startswith("["), f"{name} symbol '{symbol}' looks like legacy ASCII"
             # Should be alphanumeric or punctuation.
             assert all(c.isalnum() or c in ".-" for c in symbol), (

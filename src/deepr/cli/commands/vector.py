@@ -3,7 +3,7 @@
 import click
 
 from deepr.cli.async_runner import run_async_command
-from deepr.cli.colors import console, print_error, print_section_header, print_success, print_warning
+from deepr.cli.colors import console, print_error, print_next, print_section_header, print_success, print_warning
 
 
 @click.group()
@@ -124,7 +124,7 @@ def list(limit: int):
 
         if not stores:
             click.echo("\nNo vector stores found.")
-            click.echo("\nCreate one with: deepr vector create --name <name> --files <files>")
+            print_next("deepr vector create --name <name> --files <files>")
             return
 
         click.echo(f"\nFound {len(stores)} vector store(s):\n")

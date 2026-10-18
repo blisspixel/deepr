@@ -39,7 +39,7 @@ from deepr.experts.next_actions import formation_next_action
 from deepr.experts.paths import canonical_expert_dir
 from deepr.experts.stage_contract import STAGES, StageState, evaluate_all, next_stage
 
-_STATUS_COLOR = {"done": "green", "ready": "cyan", "failed": "red", "blocked": "yellow"}
+_STATUS_COLOR = {"done": "success", "ready": "accent", "failed": "error", "blocked": "warning"}
 
 _STATUS_MEANING = {
     "done": "produced what it promised",
@@ -160,11 +160,11 @@ def expert_status(name: str, as_json: bool) -> None:
         print_key_value("Formation", f"{formation.get('status', 'unknown')}: {formation.get('progress', '')}")
         print_key_value("Formation observed", formation.get("updated_at", "unknown"))
     for state in states:
-        colour = _STATUS_COLOR.get(state.status, "white")
-        console.print(f"  [{colour}]{state.status:8s}[/{colour}] {state.name:10s} [dim]{state.success_means}[/dim]")
+        colour = _STATUS_COLOR.get(state.status, "text")
+        console.print(f"  [{colour}]{state.status:8s}[/{colour}] {state.name:10s} [muted]{state.success_means}[/muted]")
         for blocker in state.blockers:
-            console.print(f"             [dim]blocked: {blocker.reason}[/dim]")
-            console.print(f"             [dim]         fix with `deepr {blocker.fix}`[/dim]")
+            console.print(f"             [muted]blocked: {blocker.reason}[/muted]")
+            console.print(f"             [muted]         fix with `deepr {blocker.fix}`[/muted]")
 
     console.print()
     if failed := [s for s in states if s.status == "failed"]:

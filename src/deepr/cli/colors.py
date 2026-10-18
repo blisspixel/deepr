@@ -6,6 +6,7 @@ colorama import.
 
 import os
 import sys
+from typing import Any
 
 import click
 from rich.box import ASCII
@@ -14,7 +15,9 @@ from rich.markdown import Markdown
 from rich.markup import escape as _escape
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.style import Style
 from rich.table import Table
+from rich.text import Text
 from rich.theme import Theme
 
 from deepr.cli.effects import branding_enabled, gradient_text, resolve_animation_policy
@@ -40,69 +43,100 @@ def _detect_unicode_support() -> bool:
     return encoding.lower() in ("utf-8", "utf8", "")
 
 
-# Primary status labels for modern CLI output.
-UNICODE_SYMBOLS = {
-    "success": "OK",
-    "error": "ERROR",
-    "warning": "WARN",
-    "info": "INFO",
-    "progress": "...",
+# One palette owner; commands select meanings instead of terminal colors.
+ROLE_STYLES = {
+    "text": "default",
+    "accent": "cyan",
+    "success": "green",
+    "live": "green",
+    "warning": "yellow",
+    "destructive": "bold yellow",
+    "error": "red",
+    "info": "blue",
+    "muted": "dim default",
+    "money": "bold default",
+    "quote": "italic dim default",
+}
+_COMPATIBILITY_ROLES = {
+    "dim": "muted",
+    "highlight": "accent",
+    "command": "accent",
+    "provider": "info",
+    "cost": "money",
+    "status_queued": "muted",
+    "status_processing": "live",
+    "status_completed": "success",
+    "status_failed": "error",
+    "bar.back": "muted",
+    "bar.complete": "live",
+    "bar.finished": "success",
+    "bar.pulse": "live",
+    "progress.description": "text",
+    "progress.elapsed": "muted",
+    "progress.remaining": "muted",
+    "progress.percentage": "info",
+    "status.spinner": "live",
+    "markdown.h1": "accent",
+    "markdown.h2": "accent",
+    "markdown.h3": "accent",
+    "markdown.link": "accent",
+    "markdown.link_url": "muted",
+    "markdown.block_quote": "quote",
+}
+custom_theme = Theme({**ROLE_STYLES, **{name: ROLE_STYLES[role] for name, role in _COMPATIBILITY_ROLES.items()}})
+_STATUS_ROLES = {"ok": "success", "warning": "warning", "failed": "error", "skipped": "muted", "unverified": "warning"}
+STATUS_WIDTH = max(map(len, _STATUS_ROLES))
+_SYMBOLS = {
+    "success": "ok",
+    "error": "failed",
+    "warning": "warning",
+    "info": "info",
+    "progress": "working",
     "bullet": "-",
     "sub_bullet": "-",
     "ellipsis": "...",
-    "skip": "SKIP",
+    "skip": "skipped",
 }
-
-# ASCII fallback for legacy terminals.
-ASCII_SYMBOLS = {
-    "success": "OK",
-    "error": "ERROR",
-    "warning": "WARN",
-    "info": "INFO",
-    "progress": "...",
-    "bullet": "-",
-    "sub_bullet": "-",
-    "ellipsis": "...",
-    "skip": "SKIP",
-}
-
-# Detect once at module load
+# Preserve existing imports without maintaining two diverging label tables.
+UNICODE_SYMBOLS = ASCII_SYMBOLS = _SYMBOLS
 _UNICODE_SUPPORTED = _detect_unicode_support()
 
 
 def get_symbol(name: str) -> str:
-    """Get the appropriate symbol for the current terminal.
-
-    Args:
-        name: Symbol name (success, error, warning, info, progress, bullet, etc.)
-
-    Returns:
-        Unicode symbol or ASCII fallback based on terminal support.
-    """
-    symbols = UNICODE_SYMBOLS if _UNICODE_SUPPORTED else ASCII_SYMBOLS
-    return symbols.get(name, name)
+    """Return a readable state word or functional punctuation."""
+    return _SYMBOLS.get(name, name)
 
 
-# Initialize rich console with custom theme
-custom_theme = Theme(
-    {
-        "info": "cyan",
-        "success": "bold green",
-        "warning": "bold yellow",
-        "error": "bold red",
-        "dim": "dim white",
-        "highlight": "bold cyan",
-        "command": "bold magenta",
-        "provider": "bold blue",
-        "cost": "yellow",
-        "status_queued": "dim white",
-        "status_processing": "bold cyan",
-        "status_completed": "bold green",
-        "status_failed": "bold red",
-    }
-)
+def make_console(**options: Any) -> Console:
+    """Use terminal palette colors and explicit highlighting on every CLI surface."""
+    options.update(theme=custom_theme, color_system="auto", highlight=False)
+    detected = Console(**options)
+    if detected.color_system is None:
+        return detected
+    options["color_system"] = "standard"
+    return Console(**options)
 
-console = Console(theme=custom_theme)
+
+def status_text(status: str) -> Text:
+    """One aligned diagnostic state, including when a caller supplies a plain console."""
+    return Text(status.ljust(STATUS_WIDTH), style=ROLE_STYLES[_STATUS_ROLES[status]])
+
+
+def style_role(text: str, role: str = "text") -> str:
+    """Apply the same role through Click, honoring the process color opt-out."""
+    if "NO_COLOR" in os.environ:
+        return text
+    style = Style.parse(ROLE_STYLES[role])
+    color = style.color.name if style.color is not None and style.color.name != "default" else None
+    return click.style(text, fg=color, bold=bool(style.bold), dim=bool(style.dim), italic=bool(style.italic))
+
+
+def status_word(status: str) -> str:
+    """The aligned diagnostic label for Click output, sharing the same role map."""
+    return style_role(status.ljust(STATUS_WIDTH), _STATUS_ROLES[status])
+
+
+console = make_console()
 _ANIMATION_POLICY = resolve_animation_policy(console)
 
 
@@ -113,7 +147,7 @@ def print_header(text: str):
         hue_shift = (os.times().elapsed % 12) / 12
         console.print(gradient_text(text, hue_offset=hue_shift))
     else:
-        console.print(f"[bold cyan]{text}[/bold cyan]")
+        console.print(f"[accent]{text}[/accent]")
     console.print()
 
 
@@ -124,33 +158,61 @@ def print_brand_header(text: str):
         hue_shift = (os.times().elapsed % 12) / 12
         console.print(gradient_text(text, hue_offset=hue_shift))
     else:
-        console.print(f"[bold cyan]{text}[/bold cyan]")
+        console.print(f"[accent]{text}[/accent]")
     console.print()
 
 
+def _print_notice(text: str, role: str, label: str) -> None:
+    """Keep explicitly labelled command guidance separate from notice styling."""
+    before, separator, command = text.partition("Next: ")
+    if separator:
+        if before.strip():
+            console.print(f"[{role}]{label}: {before.rstrip()}[/{role}]")
+        print_next(command)
+    else:
+        console.print(f"[{role}]{label}: {text}[/{role}]")
+
+
 def print_success(text: str):
-    """Print success message."""
-    console.print(f"[success]{text}[/success]")
+    """Print a successful operation with a readable state word."""
+    _print_notice(text, "success", "ok")
 
 
 def print_error(text: str):
-    """Print error message."""
-    console.print(f"[error]{text}[/error]")
+    """Print an error without inferring its exit classification."""
+    _print_notice(text, "error", "error")
 
 
 def print_warning(text: str):
-    """Print warning message."""
-    console.print(f"[warning]{text}[/warning]")
+    """Print an advisory warning with a readable state word."""
+    _print_notice(text, "warning", "warning")
 
 
 def print_info(text: str):
-    """Print info message."""
-    console.print(f"[info]{text}[/info]")
+    """Print informational context with a readable label."""
+    _print_notice(text, "info", "info")
 
 
 def print_command(text: str):
     """Print command example."""
-    console.print(f"[command]$[/command] [dim]{text}[/dim]")
+    console.print(f"[accent]$ {text}[/accent]")
+
+
+def print_next(command: str, *, also: bool = False, indent: int = 0, target: Console | None = None) -> None:
+    """Keep the complete next command in one explicit, palette-aware hint."""
+    prefix = "Also" if also else "Next"
+    output = target if target is not None else console
+    output.print(Text(" " * indent + f"{prefix}: {command}", style=ROLE_STYLES["accent"]), soft_wrap=True)
+
+
+def print_detail(detail: str, *, indent: int = 0, target: Console | None = None) -> None:
+    """Render literal provenance or an explicitly prefixed next command."""
+    prefix, separator, command = detail.partition(": ")
+    if separator and prefix in {"Next", "Also"}:
+        print_next(command, also=prefix == "Also", indent=indent, target=target)
+    else:
+        output = target if target is not None else console
+        output.print(" " * indent + detail, style=ROLE_STYLES["muted"], markup=False)
 
 
 def print_cost(amount: float):
@@ -162,13 +224,13 @@ def print_status(status: str, message: str):
     """Print job status with color."""
     status_lower = status.lower()
     if status_lower == "completed":
-        console.print(f"[status_completed]{message}[/status_completed]")
+        console.print(f"[status_completed]completed: {message}[/status_completed]")
     elif status_lower == "processing":
-        console.print(f"[status_processing]{message}[/status_processing]")
+        console.print(f"[status_processing]running: {message}[/status_processing]")
     elif status_lower == "failed":
-        console.print(f"[status_failed]{message}[/status_failed]")
+        console.print(f"[status_failed]failed: {message}[/status_failed]")
     else:
-        console.print(f"[status_queued]{message}[/status_queued]")
+        console.print(f"[status_queued]queued: {message}[/status_queued]")
 
 
 def print_result(
@@ -186,7 +248,8 @@ def print_result(
     """
     color = "success" if success else "error"
 
-    parts = [f"[{color}]{message}[/{color}]"]
+    label = "ok" if success else "failed"
+    parts = [f"[{color}]{label}: {message}[/{color}]"]
 
     meta_parts = []
     if duration_seconds is not None:
@@ -195,7 +258,7 @@ def print_result(
         meta_parts.append(f"${cost_usd:.4f}")
 
     if meta_parts:
-        parts.append(f"[dim]({', '.join(meta_parts)})[/dim]")
+        parts.append(f"[muted]({', '.join(meta_parts)})[/muted]")
 
     console.print(" ".join(parts))
 
@@ -226,7 +289,7 @@ def print_step(current: int, total: int, message: str):
 
     Example output: Step 1/5 Generating curriculum
     """
-    console.print(f"[dim]Step {current}/{total}[/dim] {message}")
+    console.print(f"[muted]Step {current}/{total}[/muted] {message}")
 
 
 def print_deprecation(old_cmd: str, new_cmd: str):
@@ -236,8 +299,8 @@ def print_deprecation(old_cmd: str, new_cmd: str):
         Panel(
             f"[warning]Command '[command]{old_cmd}[/command]' is deprecated.[/warning]\n"
             f"[info]Use '[command]{new_cmd}[/command]' instead.[/info]",
-            title="[yellow]Deprecation Warning[/yellow]",
-            border_style="yellow",
+            title="[warning]Deprecation Warning[/warning]",
+            border_style="warning",
         )
     )
     console.print()
@@ -304,12 +367,12 @@ def truncate_path(path: str, max_width: int = 60) -> str:
 
 def print_job_table(jobs: list):
     """Print jobs in a formatted table."""
-    table = Table(show_header=True, header_style="bold cyan", box=ASCII)
-    table.add_column("Status", style="dim", width=12)
-    table.add_column("Job ID", style="cyan", width=14)
-    table.add_column("Model", style="blue", width=20)
-    table.add_column("Prompt", style="white", width=50)
-    table.add_column("Cost", style="yellow", width=10)
+    table = Table(show_header=True, header_style="accent", box=ASCII)
+    table.add_column("Status", style="muted", width=12)
+    table.add_column("Job ID", style="accent", width=14)
+    table.add_column("Model", style="info", width=20)
+    table.add_column("Prompt", style="text", width=50)
+    table.add_column("Cost", style="money", width=10)
 
     for job in jobs:
         # Status indicator
@@ -342,7 +405,7 @@ def print_markdown(text: str):
     console.print(md)
 
 
-def print_panel(text: str, title: str | None = None, style: str = "cyan"):
+def print_panel(text: str, title: str | None = None, style: str = "accent"):
     """Print text in a panel."""
     console.print(Panel(text, title=title, border_style=style))
 
@@ -353,6 +416,7 @@ def create_spinner(text: str):
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
         transient=True,
+        console=console,
     )
 
 
@@ -362,10 +426,10 @@ def print_provider_info(provider: str, model: str, estimated_cost: float):
     console.print(
         Panel(
             f"[provider]Provider:[/provider] {provider}\n"
-            f"[dim]Model:[/dim] {model}\n"
+            f"[muted]Model:[/muted] {model}\n"
             f"[cost]Estimated cost:[/cost] ${estimated_cost:.2f}",
             title="[bold]Research Configuration[/bold]",
-            border_style="blue",
+            border_style="info",
         )
     )
     console.print()
@@ -374,32 +438,32 @@ def print_provider_info(provider: str, model: str, estimated_cost: float):
 # Click style helpers (for compatibility with existing click.echo calls)
 def style_success(text: str) -> str:
     """Style text as success (for click.echo)."""
-    return click.style(text, fg="green", bold=True)
+    return style_role(text, "success")
 
 
 def style_error(text: str) -> str:
     """Style text as error (for click.echo)."""
-    return click.style(text, fg="red", bold=True)
+    return style_role(text, "error")
 
 
 def style_warning(text: str) -> str:
     """Style text as warning (for click.echo)."""
-    return click.style(text, fg="yellow", bold=True)
+    return style_role(text, "warning")
 
 
 def style_info(text: str) -> str:
     """Style text as info (for click.echo)."""
-    return click.style(text, fg="cyan")
+    return style_role(text, "info")
 
 
 def style_dim(text: str) -> str:
     """Style text as dim (for click.echo)."""
-    return click.style(text, fg="white", dim=True)
+    return style_role(text, "muted")
 
 
 def style_command(text: str) -> str:
     """Style text as command (for click.echo)."""
-    return click.style(text, fg="magenta", bold=True)
+    return style_role(text, "accent")
 
 
 # Modern section header (replaces === separators)
@@ -417,9 +481,9 @@ def print_section_header(title: str, subtitle: str | None = None):
 
     """
     console.print()
-    console.print(f"[bold cyan]{title}[/bold cyan]")
+    console.print(f"[accent]{title}[/accent]")
     if subtitle:
-        console.print(f"[dim]{subtitle}[/dim]")
+        console.print(f"[muted]{subtitle}[/muted]")
     console.print()
 
 
@@ -432,7 +496,7 @@ def print_key_value(key: str, value: str, indent: int = 0):
         indent: Number of spaces to indent (default 0)
     """
     prefix = "  " * indent
-    console.print(f"{prefix}[dim]{key}:[/dim] {value}")
+    console.print(f"{prefix}[muted]{key}:[/muted] {value}")
 
 
 def print_list_item(text: str, indent: int = 0):
@@ -444,7 +508,7 @@ def print_list_item(text: str, indent: int = 0):
     """
     prefix = "  " * indent
     bullet = get_symbol("bullet") if indent == 0 else get_symbol("sub_bullet")
-    console.print(f"{prefix}[dim]{bullet}[/dim] {text}")
+    console.print(f"{prefix}[muted]{bullet}[/muted] {text}")
 
 
 def print_capacity_outlook(outlook: dict):
@@ -459,7 +523,7 @@ def print_capacity_outlook(outlook: dict):
     task_classes = outlook.get("task_classes") or {}
     if not task_classes:
         return
-    console.print("[dim]Next-run capacity (admitted, not a live probe):[/dim]")
+    console.print("[muted]Next-run capacity (admitted, not a live probe):[/muted]")
     for task_class, entry in task_classes.items():
         rungs = []
         if entry.get("local_capacity_admitted"):
@@ -476,21 +540,21 @@ def print_error_with_suggestion(summary: str, details: str | None = None, sugges
     Args:
         summary: Error summary (one line)
         details: Optional detailed error message
-        suggestion: Optional "Try:" suggestion
+        suggestion: Optional next command
 
     Example output:
         Error: Expert not found: Python Expert
           No expert with that name exists
-          Try: deepr expert list
+          Next: deepr expert list
     """
     console.print(f"[error]Error: {summary}[/error]")
 
     if details:
         for line in details.split("\n"):
-            console.print(f"  [dim]{line}[/dim]")
+            console.print(f"  [muted]{line}[/muted]")
 
     if suggestion:
-        console.print(f"  [cyan]Try:[/cyan] {suggestion}")
+        print_next(suggestion, indent=2)
 
 
 def _supports_hyperlinks() -> bool:
@@ -560,9 +624,9 @@ def print_report_link(report_path: str, label: str | None = None):
     try:
         file_url = path.resolve().as_uri()
         link = make_hyperlink(file_url, display)
-        console.print(f"[dim]Report:[/dim] {link}")
+        console.print(f"[muted]Report:[/muted] {link}")
     except Exception:
-        console.print(f"[dim]Report:[/dim] {display}")
+        console.print(f"[muted]Report:[/muted] {display}")
 
 
 def print_truncated(lines: list, max_lines: int = 10, flag_name: str = "--full", show_count: bool = True):
@@ -578,7 +642,7 @@ def print_truncated(lines: list, max_lines: int = 10, flag_name: str = "--full",
         line 1
         line 2
         ...
-        [dim](+15 more, use --full to see all)[/dim]
+        [muted](+15 more, use --full to see all)[/muted]
     """
     if len(lines) <= max_lines:
         for line in lines:
@@ -592,6 +656,6 @@ def print_truncated(lines: list, max_lines: int = 10, flag_name: str = "--full",
     # Print truncation hint
     hidden = len(lines) - max_lines
     if show_count:
-        console.print(f"[dim](+{hidden} more, use {flag_name} to see all)[/dim]")
+        console.print(f"[muted](+{hidden} more, use {flag_name} to see all)[/muted]")
     else:
-        console.print(f"[dim](use {flag_name} to see all)[/dim]")
+        console.print(f"[muted](use {flag_name} to see all)[/muted]")

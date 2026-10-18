@@ -22,8 +22,10 @@ from deepr.cli.colors import (
     print_error,
     print_header,
     print_key_value,
+    print_next,
     print_success,
     print_warning,
+    style_role,
     truncate_text,
 )
 from deepr.cli.startup_banner import show_startup_banner
@@ -187,12 +189,12 @@ def _print_main_menu() -> str:
     ]
 
     provider_label, budget_label, queue_label = _get_home_status()
-    status = Text("Status: ", style="dim")
-    status.append(provider_label, style="cyan")
-    status.append("  ·  ", style="dim")
-    status.append(budget_label, style="yellow")
-    status.append("  ·  ", style="dim")
-    status.append(queue_label, style="magenta")
+    status = Text("Status: ", style="muted")
+    status.append(provider_label, style="info")
+    status.append("  ·  ", style="muted")
+    status.append(budget_label, style="money")
+    status.append("  ·  ", style="muted")
+    status.append(queue_label, style="info")
     console.print(status)
     console.print()
 
@@ -202,40 +204,40 @@ def _print_main_menu() -> str:
         padding=(0, 2),
         collapse_padding=True,
     )
-    table.add_column("Key", style="bold cyan", width=3)
+    table.add_column("Key", style="accent", width=3)
     table.add_column("Action", style="bold", width=12)
-    table.add_column("Description", style="dim")
+    table.add_column("Description", style="muted")
 
-    table.add_row("", "[dim]Primary[/dim]", "")
+    table.add_row("", "[muted]Primary[/muted]", "")
     for key, action, desc in primary_items:
         table.add_row(f"[{key}]", action, desc)
-    table.add_row("", "[dim]Utility[/dim]", "")
+    table.add_row("", "[muted]Utility[/muted]", "")
     for key, action, desc in secondary_items:
         table.add_row(f"[{key}]", action, desc)
 
-    quick = Text("Type ", style="dim")
-    quick.append("[r]", style="bold cyan")
-    quick.append("esearch ", style="dim")
-    quick.append("[e]", style="bold cyan")
-    quick.append("xperts ", style="dim")
-    quick.append("[j]", style="bold cyan")
-    quick.append("obs ", style="dim")
-    quick.append("[c]", style="bold cyan")
-    quick.append("osts ", style="dim")
-    quick.append("[g]", style="bold cyan")
-    quick.append("config ", style="dim")
-    quick.append("[?]", style="bold cyan")
-    quick.append("help ", style="dim")
-    quick.append("or ", style="dim")
-    quick.append("[q]", style="bold cyan")
-    quick.append("uit", style="dim")
+    quick = Text("Type ", style="muted")
+    quick.append("[r]", style="accent")
+    quick.append("esearch ", style="muted")
+    quick.append("[e]", style="accent")
+    quick.append("xperts ", style="muted")
+    quick.append("[j]", style="accent")
+    quick.append("obs ", style="muted")
+    quick.append("[c]", style="accent")
+    quick.append("osts ", style="muted")
+    quick.append("[g]", style="accent")
+    quick.append("config ", style="muted")
+    quick.append("[?]", style="accent")
+    quick.append("help ", style="muted")
+    quick.append("or ", style="muted")
+    quick.append("[q]", style="accent")
+    quick.append("uit", style="muted")
     console.print(quick)
-    console.print("[dim]Pro mode:[/dim] type a command directly (example: jobs list, costs show)")
+    console.print("[muted]Pro mode:[/muted] type a command directly (example: jobs list, costs show)")
     console.print(table)
     console.print()
 
     choice = click.prompt(
-        click.style("Action", fg="cyan"),
+        style_role("Action", "accent"),
         type=str,
         default="",
         show_default=False,
@@ -296,14 +298,14 @@ def _research_menu():
     # Show recent queries for quick selection
     recent = _get_recent_prompts(5)
     if recent:
-        console.print("[dim]Recent queries:[/dim]")
+        console.print("[muted]Recent queries:[/muted]")
         for i, prompt in enumerate(recent, 1):
             console.print(f"  [{i}] {truncate_text(prompt, 70)}")
         console.print("  [n] New query")
         console.print()
 
         choice = click.prompt(
-            click.style("Select or enter new query", fg="cyan"),
+            style_role("Select or enter new query", "accent"),
             type=str,
             default="n",
         )
@@ -315,9 +317,9 @@ def _research_menu():
             else:
                 prompt = choice  # Treat as new query
         else:
-            prompt = click.prompt(click.style("Query", fg="cyan"))
+            prompt = click.prompt(style_role("Query", "accent"))
     else:
-        prompt = click.prompt(click.style("Query", fg="cyan"))
+        prompt = click.prompt(style_role("Query", "accent"))
 
     if not prompt or len(prompt) < 10:
         print_error("Query too short (min 10 characters)")
@@ -325,15 +327,15 @@ def _research_menu():
 
     # Model selection with costs
     console.print()
-    console.print("[dim]Select model:[/dim]")
+    console.print("[muted]Select model:[/muted]")
 
     models = _get_available_models()
     table = Table(show_header=True, box=box.SIMPLE, header_style="bold")
     table.add_column("#", width=3)
-    table.add_column("Model", style="cyan")
+    table.add_column("Model", style="accent")
     table.add_column("Provider")
-    table.add_column("Cost", style="yellow")
-    table.add_column("Speed", style="dim")
+    table.add_column("Cost", style="money")
+    table.add_column("Speed", style="muted")
 
     for i, m in enumerate(models, 1):
         table.add_row(str(i), m["name"], m["provider"], m["cost"], m["speed"])
@@ -341,18 +343,18 @@ def _research_menu():
     console.print(table)
     console.print()
 
-    model_choice = click.prompt(click.style("Model", fg="cyan"), type=int, default=1)
+    model_choice = click.prompt(style_role("Model", "accent"), type=int, default=1)
     if 1 <= model_choice <= len(models):
         model = models[model_choice - 1]["name"]
     else:
         model = "gpt-5.6-sol"
 
     # Web search option
-    web_search = click.confirm(click.style("Enable web search?", fg="cyan"), default=True)
+    web_search = click.confirm(style_role("Enable web search?", "accent"), default=True)
 
     # Cost estimate
     console.print()
-    console.print("[dim]Estimating cost...[/dim]")
+    console.print("[muted]Estimating cost...[/muted]")
 
     from deepr.core.costs import CostEstimator
 
@@ -361,16 +363,16 @@ def _research_menu():
     console.print()
     console.print(
         Panel(
-            f"[bold]Estimated Cost:[/bold] [yellow]${estimate.expected_cost:.2f}[/yellow]\n"
-            f"[dim]Range: ${estimate.min_cost:.2f} - ${estimate.max_cost:.2f}[/dim]",
+            f"[bold]Estimated Cost:[/bold] [money]${estimate.expected_cost:.2f}[/money]\n"
+            f"[muted]Range: ${estimate.min_cost:.2f} - ${estimate.max_cost:.2f}[/muted]",
             title="Cost Estimate",
-            border_style="yellow",
+            border_style="warning",
         )
     )
     console.print()
 
     if not click.confirm(
-        click.style(f"Submit job for ~${estimate.expected_cost:.2f}?", fg="cyan"),
+        style_role(f"Submit job for ~${estimate.expected_cost:.2f}?", "accent"),
         default=True,
     ):
         print_warning("Cancelled")
@@ -424,23 +426,23 @@ def _submit_research_job(prompt: str, model: str, web_search: bool, estimated_co
     print_key_value("Model", model)
     print_key_value("Est. Cost", f"${estimated_cost:.2f}")
     console.print()
-    console.print(f"[dim]Track status:[/dim] deepr jobs status {job.id[:8]}")
+    console.print(f"[muted]Track status:[/muted] deepr jobs status {job.id[:8]}")
 
 
 def _experts_menu():
     """Expert management menu."""
     print_header("Domain Experts")
-    console.print("[dim]Experts are optional. Use Research for one-off queries.[/dim]")
+    console.print("[muted]Experts are optional. Use Research for one-off queries.[/muted]")
     console.print()
 
-    console.print("[dim]Options:[/dim]")
+    console.print("[muted]Options:[/muted]")
     console.print("  [1] List experts")
     console.print("  [2] Chat with expert")
     console.print("  [3] Create new expert")
     console.print("  [4] Back")
     console.print()
 
-    choice = click.prompt(click.style("Select", fg="cyan"), type=int, default=1)
+    choice = click.prompt(style_role("Select", "accent"), type=int, default=1)
 
     if choice == 1:
         _list_experts()
@@ -463,18 +465,18 @@ def _list_experts():
 
         experts_dir = Path("experts")
         if not experts_dir.exists():
-            console.print("[dim]No experts yet.[/dim]")
-            console.print('[dim]Next: deepr expert make "My Expert" --files docs/*.md[/dim]')
+            console.print("[muted]No experts yet.[/muted]")
+            print_next('deepr expert make "My Expert" --files docs/*.md')
             return
 
         profiles = list(experts_dir.glob("*/profile.json"))
         if not profiles:
-            console.print("[dim]No experts yet.[/dim]")
-            console.print('[dim]Next: deepr expert make "My Expert" --files docs/*.md[/dim]')
+            console.print("[muted]No experts yet.[/muted]")
+            print_next('deepr expert make "My Expert" --files docs/*.md')
             return
 
         table = Table(show_header=True, box=box.SIMPLE, header_style="bold")
-        table.add_column("Expert", style="cyan")
+        table.add_column("Expert", style="accent")
         table.add_column("Domain")
         table.add_column("Documents", justify="right")
 
@@ -491,21 +493,21 @@ def _list_experts():
 
         console.print(table)
     except ImportError:
-        print_warning("Expert system not available. Install with: pip install -e '.[docs]'")
+        print_warning("Expert system not available. Next: pip install -e '.[docs]'")
 
 
 def _chat_with_expert():
     """Start chat with an expert."""
-    expert_name = click.prompt(click.style("Expert name", fg="cyan"))
+    expert_name = click.prompt(style_role("Expert name", "accent"))
     console.print()
-    console.print(f"[dim]Starting chat with '{expert_name}'...[/dim]")
-    console.print(f'[dim]Run: deepr expert consult "your question" -e "{expert_name}" --local[/dim]')
+    console.print(f"[muted]Starting chat with '{expert_name}'...[/muted]")
+    print_next(f'deepr expert consult "your question" -e "{expert_name}" --local')
 
 
 def _create_expert():
     """Create a new expert."""
     console.print()
-    console.print("[dim]To create an expert, run:[/dim]")
+    console.print("[muted]To create an expert, run:[/muted]")
     console.print('  deepr expert make "Expert Name" --files docs/*.md')
 
 
@@ -520,7 +522,7 @@ def _jobs_menu():
         jobs = _resolve_maybe_awaitable(queue.list_jobs(limit=20))
 
         if not jobs:
-            console.print("[dim]No jobs in queue[/dim]")
+            console.print("[muted]No jobs in queue[/muted]")
             return
 
         # Stats
@@ -530,10 +532,10 @@ def _jobs_menu():
         failed = sum(1 for j in jobs if j.status == JobStatus.FAILED)
 
         console.print(
-            f"[dim]Pending:[/dim] {pending}  "
-            f"[dim]Running:[/dim] {running}  "
-            f"[green]Completed:[/green] {completed}  "
-            f"[red]Failed:[/red] {failed}"
+            f"[muted]Pending:[/muted] {pending}  "
+            f"[muted]Running:[/muted] {running}  "
+            f"[success]Completed:[/success] {completed}  "
+            f"[error]Failed:[/error] {failed}"
         )
         console.print()
 
@@ -545,15 +547,15 @@ def _jobs_menu():
         table.add_column("Cost", width=8, justify="right")
 
         status_styles = {
-            JobStatus.QUEUED: "dim",
-            JobStatus.PROCESSING: "cyan",
-            JobStatus.COMPLETED: "green",
-            JobStatus.FAILED: "red",
-            JobStatus.CANCELLED: "yellow",
+            JobStatus.QUEUED: "muted",
+            JobStatus.PROCESSING: "accent",
+            JobStatus.COMPLETED: "success",
+            JobStatus.FAILED: "error",
+            JobStatus.CANCELLED: "warning",
         }
 
         for job in jobs[:10]:
-            style = status_styles.get(job.status, "dim")
+            style = status_styles.get(job.status, "muted")
             cost = f"${job.cost:.2f}" if job.cost else "-"
             table.add_row(
                 f"[{style}]{job.status.value.upper()}[/{style}]",
@@ -564,7 +566,7 @@ def _jobs_menu():
 
         console.print(table)
         console.print()
-        console.print("[dim]View details: deepr jobs status <job-id>[/dim]")
+        console.print("[muted]View details: deepr jobs status <job-id>[/muted]")
     except Exception as e:
         print_error(f"Failed to load jobs: {e}")
 
@@ -573,7 +575,7 @@ def _costs_menu():
     """Cost tracking menu."""
     print_header("Costs")
 
-    console.print("[dim]Cost Commands:[/dim]")
+    console.print("[muted]Cost Commands:[/muted]")
     console.print("  deepr costs show        - Current spending summary")
     console.print("  deepr costs timeline    - Spending over time")
     console.print("  deepr costs breakdown   - By model/provider")
@@ -589,7 +591,7 @@ def _costs_menu():
         total_cost = sum(j.cost or 0 for j in jobs)
 
         if total_cost > 0:
-            console.print(f"[dim]Total spent (recent):[/dim] [yellow]${total_cost:.2f}[/yellow]")
+            console.print(f"[muted]Total spent (recent):[/muted] [money]${total_cost:.2f}[/money]")
     except Exception:
         pass  # best-effort cost summary for help text; non-fatal if queue unavailable
 
@@ -598,7 +600,7 @@ def _config_menu():
     """Configuration menu."""
     print_header("Configuration")
 
-    console.print("[dim]Config Commands:[/dim]")
+    console.print("[muted]Config Commands:[/muted]")
     console.print("  deepr config show       - View current settings")
     console.print("  deepr config set        - Update settings")
     console.print("  deepr doctor            - Verify setup")
@@ -606,10 +608,10 @@ def _config_menu():
     console.print()
 
     # Quick doctor check
-    if click.confirm(click.style("Run quick health check?", fg="cyan"), default=False):
+    if click.confirm(style_role("Run quick health check?", "accent"), default=False):
         console.print()
-        console.print("[dim]Running deepr doctor...[/dim]")
-        console.print("[dim]Run 'deepr doctor' for full diagnostics[/dim]")
+        console.print("[muted]Running deepr doctor...[/muted]")
+        console.print("[muted]Run 'deepr doctor' for full diagnostics[/muted]")
 
 
 def _help_menu(ctx: click.Context | None = None):
@@ -630,12 +632,12 @@ def _help_menu(ctx: click.Context | None = None):
     ]
 
     for cmd, desc in commands:
-        console.print(f"  [cyan]{cmd:<30}[/cyan] {desc}")
+        console.print(f"  [accent]{cmd:<30}[/accent] {desc}")
 
     console.print()
-    console.print("[dim]Full docs: https://github.com/blisspixel/deepr[/dim]")
+    console.print("[muted]Full docs: https://github.com/blisspixel/deepr[/muted]")
     if ctx is not None and ctx.parent is not None:
-        if click.confirm(click.style("Show full command index?", fg="cyan"), default=False):
+        if click.confirm(style_role("Show full command index?", "accent"), default=False):
             console.print()
             console.print("[bold]Full Command Index[/bold]")
             console.print(ctx.parent.get_help())

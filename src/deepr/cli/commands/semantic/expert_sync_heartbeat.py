@@ -87,14 +87,14 @@ def render_heartbeat_evidence(heartbeat: dict[str, Any], *, json_output: bool) -
         return
     disposition = heartbeat["disposition"]
     if disposition == "not_configured" and heartbeat["scheduled"]:
-        console.print("[dim]Off-box heartbeat is not configured (optional: DEEPR_HEARTBEAT_URL).[/dim]")
+        console.print("[muted]Off-box heartbeat is not configured (optional: DEEPR_HEARTBEAT_URL).[/muted]")
     elif disposition == "invalid_configuration":
         print_warning(
             "Configured heartbeat URL is invalid; use a public HTTPS URL without credentials or fragments. "
             "No request was sent."
         )
     elif disposition == "validated_not_sent":
-        console.print("[dim]Off-box heartbeat configuration is valid; dry-run did not contact it.[/dim]")
+        console.print("[muted]Off-box heartbeat configuration is valid; dry-run did not contact it.[/muted]")
     elif disposition == "blocked_unsafe_target":
         print_warning("Configured heartbeat target is not a public address; no request was sent.")
     elif disposition == "blocked_unmetered_external_service":
@@ -103,7 +103,7 @@ def render_heartbeat_evidence(heartbeat: dict[str, Any], *, json_output: bool) -
             "No request was sent."
         )
     elif disposition == "delivered":
-        console.print(f"[dim]Off-box heartbeat delivered as {heartbeat['reported_status']}.[/dim]")
+        console.print(f"[muted]Off-box heartbeat delivered as {heartbeat['reported_status']}.[/muted]")
     elif disposition == "delivery_failed" and heartbeat["http_status"] is not None:
         print_warning(
             f"Configured heartbeat delivery failed with HTTP {heartbeat['http_status']}; "

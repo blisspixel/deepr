@@ -184,7 +184,7 @@ def _grounding_pair(grounding: GroundingFlags, *, maker_vendor: str, **defaults:
 
 def _emit_selection_note(selection_note: str, json_output: bool) -> None:
     if selection_note and not json_output:
-        console.print(f"[dim]{selection_note}[/dim]")
+        console.print(f"[muted]{selection_note}[/muted]")
 
 
 def _build_local_absorber(
@@ -195,7 +195,7 @@ def _build_local_absorber(
 
     local_model = resolve_local_maintenance_model(profile, explicit_model=model)
     if not local_model:
-        raise AbsorbBackendError("No local model available. Is Ollama running? Check: deepr capacity --probe")
+        raise AbsorbBackendError("No local model available. Is Ollama running? Next: deepr capacity --probe")
     local_client = ollama_chat_client()
     checker, escalator = _grounding_pair(
         grounding,

@@ -11,12 +11,12 @@ import time
 from collections.abc import Generator
 from contextlib import contextmanager
 
-from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
+from deepr.cli.colors import make_console
 from deepr.cli.effects import resolve_animation_policy
 
-console = Console()
+console = make_console()
 
 
 class ProgressFeedback:
@@ -80,7 +80,7 @@ class ProgressFeedback:
         elapsed = time.time() - self.start_time if self.start_time else 0
 
         cost_str = f", ${cost:.2f}" if cost else ""
-        console.print(f"[green]OK[/green] {message} ({elapsed:.1f}s{cost_str})")
+        console.print(f"[success]ok[/success] {message} ({elapsed:.1f}s{cost_str})")
 
     def phase_error(self, message: str) -> None:
         """Mark phase as failed.
@@ -88,7 +88,7 @@ class ProgressFeedback:
         Args:
             message: Error message
         """
-        console.print(f"[red]ERROR[/red] {message}")
+        console.print(f"[error]failed[/error] {message}")
 
     def long_operation_warning(self) -> None:
         """Show warning for long operations.
@@ -96,7 +96,7 @@ class ProgressFeedback:
         Only shows once per operation to avoid spam.
         """
         if not self._warned_long_operation:
-            console.print("[dim]Still working... Ctrl+C to cancel (uploads are safe)[/dim]")
+            console.print("[muted]Still working... Ctrl+C to cancel (uploads are safe)[/muted]")
             self._warned_long_operation = True
 
     def check_long_operation(self) -> None:
@@ -112,7 +112,7 @@ class ProgressFeedback:
         Args:
             message: Status message
         """
-        console.print(f"[dim]{message}[/dim]")
+        console.print(f"[muted]{message}[/muted]")
 
     def info(self, message: str) -> None:
         """Show info message.
@@ -120,7 +120,7 @@ class ProgressFeedback:
         Args:
             message: Info message
         """
-        console.print(f"[cyan]ℹ[/cyan] {message}")
+        console.print(f"[info]info:[/info] {message}")
 
 
 # Convenience functions for simple usage

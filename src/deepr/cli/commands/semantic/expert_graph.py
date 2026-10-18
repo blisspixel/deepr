@@ -124,17 +124,19 @@ def _render_human(graph: Any, *, path: Path) -> None:
         )
 
     if graph.unsupported_positions:
-        console.print("\n[red]Positions that reach no source[/red]")
+        console.print("\n[error]Positions that reach no source[/error]")
         for node in graph.unsupported_positions:
             console.print(f"  - {node.label}")
-        console.print("[dim]A claim whose bibliography cites empty pages. Re-brief or re-study.[/dim]")
+        console.print("[muted]A claim whose bibliography cites empty pages. Re-brief or re-study.[/muted]")
 
     if graph.unused_findings:
-        console.print(f"\n[yellow]{len(graph.unused_findings)} grounded finding(s) support no position[/yellow]")
-        console.print("[dim]Either the brief missed something or this part of the corpus was read for nothing.[/dim]")
+        console.print(f"\n[warning]{len(graph.unused_findings)} grounded finding(s) support no position[/warning]")
+        console.print(
+            "[muted]Either the brief missed something or this part of the corpus was read for nothing.[/muted]"
+        )
 
     if load_bearing := graph.load_bearing_sources():
-        console.print("\n[cyan]What the claims actually rest on[/cyan]")
+        console.print("\n[accent]What the claims actually rest on[/accent]")
         for label, count in load_bearing:
             console.print(f"  {count:>3} position(s)  {label}")
 
@@ -161,7 +163,7 @@ def _render_perspective_summary(perspective: Any, *, path: Path) -> None:
             "has moved it, which is the state a new expert is already in."
         )
     else:
-        console.print("\n[bright_yellow]What moved it[/bright_yellow]")
+        console.print("\n[live]What moved it[/live]")
         for shift in perspective.shifts[:5]:
             console.print(f"  - {shift.text}")
 
@@ -208,7 +210,7 @@ def expert_graph(name: str, out: str | None, write_markdown: bool, as_json: bool
             reason = state.blockers[0].reason
             fix = state.blockers[0].fix
             click.echo(
-                f'Error: {profile.name} cannot form an evidence graph: {reason}. Run: deepr {fix} "{profile.name}"',
+                f'Error: {profile.name} cannot form an evidence graph: {reason}. Next: deepr {fix} "{profile.name}"',
                 err=True,
             )
             sys.exit(2)
@@ -226,7 +228,7 @@ def expert_graph(name: str, out: str | None, write_markdown: bool, as_json: bool
     if not formed:
         click.echo(
             f"Error: no position reaches a source through a finding, so nothing was written. "
-            f'Run: deepr expert study "{profile.name}" and deepr expert brief "{profile.name}"',
+            f'Next: deepr expert study "{profile.name}" and deepr expert brief "{profile.name}"',
             err=True,
         )
         sys.exit(2)

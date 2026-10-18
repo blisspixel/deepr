@@ -24,7 +24,7 @@ from deepr.experts.expert_health import (
 )
 from deepr.experts.paths import canonical_expert_dir
 
-_GRADE_COLOR = {"S": "bright_green", "A": "green", "B": "cyan", "C": "yellow", "D": "yellow", "F": "red"}
+_GRADE_COLOR = {"F": "error"}
 _GRADE_ORDER = {"F": 0, "D": 1, "C": 2, "B": 3, "A": 4, "S": 5}
 
 
@@ -57,7 +57,7 @@ def collect_fleet(names: list[str]) -> list[ExpertHealth]:
 
 
 def _render_row(health: ExpertHealth) -> None:
-    color = _GRADE_COLOR.get(health.grade, "white")
+    color = _GRADE_COLOR.get(health.grade, "text")
     depth = f"{health.effective_origins:.1f}" if health.sources else "-"
     console.print(
         f"  [{color}]{health.grade}[/{color}]  {health.name[:38]:38s} "
@@ -109,17 +109,17 @@ def expert_health_cmd(show_all: bool, as_json: bool) -> None:
     needs_work = [h for h in fleet if not h.is_consultable]
     shown = fleet if show_all else needs_work
     if not shown:
-        console.print("\n[green]Every expert is consultable.[/green]")
+        console.print("\n[success]Every expert is consultable.[/success]")
         return
 
     heading = "Every expert" if show_all else "Needs work"
     console.print(f"\n[bold]{heading}[/bold]  (grade, then thinnest first)\n")
     for health in shown:
         _render_row(health)
-        console.print(f"      [dim]{health.next_action}[/dim]")
+        console.print(f"      [muted]{health.next_action}[/muted]")
 
     if not show_all and len(needs_work) < len(fleet):
         console.print(
-            f"\n[dim]{len(fleet) - len(needs_work)} consultable expert(s) hidden. Use --all to see them.[/dim]"
+            f"\n[muted]{len(fleet) - len(needs_work)} consultable expert(s) hidden. Use --all to see them.[/muted]"
         )
-    console.print("\n[dim]A grade is triage, not a verdict. Depth is independent origins, not documents.[/dim]")
+    console.print("\n[muted]A grade is triage, not a verdict. Depth is independent origins, not documents.[/muted]")

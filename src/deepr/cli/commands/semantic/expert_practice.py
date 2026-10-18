@@ -161,7 +161,7 @@ def _render(practice: ResearchPractice, changed: dict[str, int], *, path: Path, 
         )
 
     if reading := practice.next_reading():
-        console.print("\n[cyan]What it would read next[/cyan]")
+        console.print("\n[accent]What it would read next[/accent]")
         for item in reading:
             console.print(f"  - {item}")
 
@@ -206,7 +206,7 @@ def _refuse_if_practice_blocked(expert_name: str) -> None:
     reason = state.blockers[0].reason
     fix = state.blockers[0].fix
     click.echo(
-        f'Error: {expert_name} cannot keep a practice: {reason}. Run: deepr {fix} "{expert_name}"',
+        f'Error: {expert_name} cannot keep a practice: {reason}. Next: deepr {fix} "{expert_name}"',
         err=True,
     )
     sys.exit(2)

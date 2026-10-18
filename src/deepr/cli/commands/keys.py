@@ -23,7 +23,7 @@ from pathlib import Path
 
 import click
 
-from deepr.cli.colors import console, print_header
+from deepr.cli.colors import console, print_header, print_next
 from deepr.experts.maximum_charge_contract import absolute_deepr_ceiling_usd
 from deepr.security.key_quarantine import QUARANTINE_PREFIX
 
@@ -276,12 +276,11 @@ def _print_check_follow_up(result: dict[str, object], *, ceiling: float) -> None
         )
     if result.get("status") == "valid" and result.get("provider") == "openrouter":
         console.print(
-            f"        Deepr ceiling in force: ${ceiling:.2f}. "
-            "A stored key is not spend authority. Next: "
-            f"`deepr budget credits add --amount {min(ceiling, 5.0):.2f}` then "
-            "`deepr budget authorize openrouter`.",
+            f"        Deepr ceiling in force: ${ceiling:.2f}. A stored key is not spend authority.",
             markup=False,
         )
+        print_next(f"deepr budget credits add --amount {min(ceiling, 5.0):.2f}")
+        print_next("deepr budget authorize openrouter", also=True)
 
 
 @keys.command("set")
@@ -311,4 +310,4 @@ def set_key(provider: str) -> None:
     console.print("  Restart the shell command so the next `deepr` process reloads it.")
     console.print("  A stored key is optional paid capacity, not a blank cheque.")
     if provider == "openrouter":
-        console.print("  Next: `deepr keys check --provider openrouter`.")
+        print_next("deepr keys check --provider openrouter")

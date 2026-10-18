@@ -76,7 +76,7 @@ def validate():
         warnings = []
 
         console.print("\nChecking configuration...\n")
-        console.print(f"[dim]Config source: {settings._source}[/dim]\n")
+        console.print(f"[muted]Config source: {settings._source}[/muted]\n")
 
         # Validate using Settings
         validation_errors = settings.validate()
@@ -233,7 +233,7 @@ def show(unified: bool, legacy: bool):
             console.print(f"   Model: {config.get('default_model', 'gpt-5.6-sol')}")
             console.print(f"   Auto-refine: {os.getenv('DEEPR_AUTO_REFINE', 'false')}")
 
-            console.print("\n[dim]Tip: Remove --legacy flag to see new config format[/dim]")
+            console.print("\n[muted]Tip: Remove --legacy flag to see new config format[/muted]")
         else:
             # New consolidated Settings format (default)
             settings = _get_settings()

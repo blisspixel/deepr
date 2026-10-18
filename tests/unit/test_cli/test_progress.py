@@ -83,7 +83,7 @@ class TestProgressFeedback:
         mock_console.print.assert_called_once()
         call_args = mock_console.print.call_args[0][0]
         assert "Something failed" in call_args
-        assert "red" in call_args
+        assert "[error]failed[/error]" in call_args
 
     @patch("deepr.cli.progress.console")
     def test_long_operation_warning(self, mock_console):
@@ -148,7 +148,7 @@ class TestProgressFeedback:
         mock_console.print.assert_called_once()
         call_args = mock_console.print.call_args[0][0]
         assert "Processing item 1" in call_args
-        assert "dim" in call_args
+        assert "[muted]" in call_args
 
     @patch("deepr.cli.progress.console")
     def test_info_message(self, mock_console):
@@ -160,7 +160,7 @@ class TestProgressFeedback:
         mock_console.print.assert_called_once()
         call_args = mock_console.print.call_args[0][0]
         assert "Important information" in call_args
-        assert "cyan" in call_args
+        assert "[info]info:[/info]" in call_args
 
 
 class TestConvenienceFunctions:

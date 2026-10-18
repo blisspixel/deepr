@@ -69,7 +69,7 @@ def _build_context(expert_name: str, question: str) -> Any:
     brief = load_brief(part_in(directory, "hold_current"))
     if brief is None:
         click.echo(
-            f'Error: {expert_name} has no brief, so it holds no frame to lend. Run: deepr expert brief "{expert_name}"',
+            f'Error: {expert_name} has no brief, so it holds no frame to lend. Next: deepr expert brief "{expert_name}"',
             err=True,
         )
         sys.exit(2)
@@ -157,7 +157,7 @@ def expert_perspective(
     if not as_json:
         print_header(f"{profile.name}, on: {question}")
         print_key_value("Capacity", backend.cost_note)
-        console.print("[dim]Analogy, not evidence. Check the mapping before relying on any of it.[/dim]")
+        console.print("[muted]Analogy, not evidence. Check the mapping before relying on any of it.[/muted]")
 
     prompt = build_cross_domain_prompt(
         expert_name=profile.name,

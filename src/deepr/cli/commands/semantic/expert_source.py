@@ -37,7 +37,7 @@ from typing import Any
 
 import click
 
-from deepr.cli.colors import console, print_header, print_key_value, print_success, print_warning
+from deepr.cli.colors import console, print_header, print_key_value, print_next, print_warning
 from deepr.cli.commands.semantic.experts import expert
 from deepr.cli.commands.semantic.study_backend import StudyBackendError, build_study_backend
 from deepr.experts.expert_layout import attend_path
@@ -97,7 +97,7 @@ def _resolve_queries(expert_name: str, topic: str, *, from_practice: bool, limit
     if pursuits := _pursuit_queries(expert_name, limit):
         return pursuits
     click.echo(
-        f'Error: {expert_name} has no live pursuits to search. Run: deepr expert practice "{expert_name}"',
+        f'Error: {expert_name} has no live pursuits to search. Next: deepr expert practice "{expert_name}"',
         err=True,
     )
     sys.exit(2)
@@ -177,14 +177,14 @@ def expert_source(
         plan, how = await _build_plan(topic or profile.name, backend=backend, from_practice=pursuits)
         print_key_value("Searching", f"{len(plan.queries)} query(ies) from {how}")
         for query in plan.queries[:6]:
-            console.print(f"  [dim]{query.arm}: {query.text}[/dim]")
+            console.print(f"  [muted]{query.arm}: {query.text}[/muted]")
 
         found = await run_search_plan(
             plan,
             per_query=per_query,
             max_urls=max_urls,
             target_hosts=target_hosts,
-            on_progress=lambda note: console.print(f"  [dim]{note}[/dim]"),
+            on_progress=lambda note: console.print(f"  [muted]{note}[/muted]"),
         )
         return plan, found
 
@@ -197,7 +197,7 @@ def expert_source(
     urls = [hit.url for hit in found.hits]
     print_key_value("Found", f"{len(urls)} URL(s) across {len(found.distinct_hosts)} publisher(s)")
     if found.stopped_early:
-        console.print(f"[dim]Stopped early: {found.stopped_early}[/dim]")
+        console.print(f"[muted]Stopped early: {found.stopped_early}[/muted]")
 
     if not urls:
         print_warning("Nothing found. The endpoint may be throttling; try again later rather than harder.")
@@ -232,5 +232,5 @@ def _emit_source_acquire(expert_name: str, report: Any, *, before: int, after: i
     if report.exit_code == 1:
         print_warning("Partial acquire: some URLs were not retained.")
     else:
-        print_success(f'Next: deepr expert study "{expert_name}" --plan {plan_backend or "grok"}')
+        print_next(f'deepr expert study "{expert_name}" --plan {plan_backend or "grok"}')
     sys.exit(report.exit_code)

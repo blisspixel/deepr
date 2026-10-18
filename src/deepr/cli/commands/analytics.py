@@ -104,16 +104,16 @@ def report(period: str):
 
         # Display report
         console.print()
-        console.print("[bold cyan]Usage Overview[/bold cyan]")
+        console.print("[accent]Usage Overview[/accent]")
         console.print()
 
         console.print(f"[bold]Total Jobs:[/bold] {total_jobs}")
         console.print(f"   [success]Completed:[/success] {completed} ({success_rate:.1f}%)")
         console.print(f"   [error]Failed:[/error] {failed} ({failure_rate:.1f}%)")
-        console.print(f"   [dim]In Progress:[/dim] {processing}")
+        console.print(f"   [muted]In Progress:[/muted] {processing}")
 
         console.print()
-        console.print("[bold cyan]Cost Analysis[/bold cyan]")
+        console.print("[accent]Cost Analysis[/accent]")
         console.print()
 
         console.print(f"[bold]Total Spending:[/bold] ${total_cost:.2f}")
@@ -122,7 +122,7 @@ def report(period: str):
             console.print(f"   Average per Job: ${completed_cost / completed:.2f}")
 
         console.print()
-        console.print("[bold cyan]Model Performance[/bold cyan]")
+        console.print("[accent]Model Performance[/accent]")
         console.print()
 
         for model, stats in sorted(by_model.items(), key=lambda x: x[1]["count"], reverse=True):
@@ -133,7 +133,7 @@ def report(period: str):
             console.print()
 
         if completion_times:
-            console.print("[bold cyan]Timing Metrics[/bold cyan]")
+            console.print("[accent]Timing Metrics[/accent]")
             console.print()
 
             console.print(f"Average Completion Time: {avg_completion_time:.1f} minutes")
@@ -142,12 +142,12 @@ def report(period: str):
 
         # Recommendations
         console.print()
-        console.print("[bold cyan]Insights[/bold cyan]")
+        console.print("[accent]Insights[/accent]")
         console.print()
 
         if failure_rate > 20:
             console.print(f"[warning]High failure rate detected ({failure_rate:.1f}%)[/warning]")
-            console.print("   [dim]Consider reviewing failed jobs for patterns[/dim]")
+            console.print("   [muted]Consider reviewing failed jobs for patterns[/muted]")
 
         monthly_budget = float(cfg.get("max_monthly_cost", 5.0))
         if total_cost > monthly_budget * 0.8:

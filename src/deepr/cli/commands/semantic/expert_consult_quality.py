@@ -54,7 +54,7 @@ def _render(payload: dict[str, Any]) -> None:
     print_key_value("Eligible", "yes" if payload["eligible_for_promotion"] else "no")
 
     for action in payload.get("actions", []) or []:
-        console.print(f"\n[bold]{action['action']}[/bold]  [dim]{action['status']}[/dim]")
+        console.print(f"\n[bold]{action['action']}[/bold]  [muted]{action['status']}[/muted]")
         if action.get("path"):
             console.print(f"  {action['path']}")
         elif action.get("would_write"):
@@ -62,7 +62,7 @@ def _render(payload: dict[str, Any]) -> None:
         elif action.get("reason"):
             console.print(f"  {action['reason']}")
     if not payload["applied"]:
-        console.print("\n[dim]Preview only. Re-run with --apply after review to write artifacts.[/dim]")
+        console.print("\n[muted]Preview only. Re-run with --apply after review to write artifacts.[/muted]")
 
 
 def _validate_judge_backend_choice(

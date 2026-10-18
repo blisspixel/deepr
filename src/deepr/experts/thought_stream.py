@@ -33,9 +33,10 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
+
+from deepr.cli.colors import make_console
 
 
 class ThoughtType(Enum):
@@ -206,14 +207,14 @@ class ThoughtStream:
 
     # Color scheme for thought types
     COLORS = {
-        ThoughtType.PLAN_STEP: "cyan",
-        ThoughtType.TOOL_CALL: "yellow",
-        ThoughtType.EVIDENCE_FOUND: "green",
-        ThoughtType.CONFIDENCE: "blue",
-        ThoughtType.DECISION: "magenta",
-        ThoughtType.SEARCH: "yellow",
-        ThoughtType.SYNTHESIS: "cyan",
-        ThoughtType.ERROR: "red",
+        ThoughtType.PLAN_STEP: "accent",
+        ThoughtType.TOOL_CALL: "warning",
+        ThoughtType.EVIDENCE_FOUND: "info",
+        ThoughtType.CONFIDENCE: "info",
+        ThoughtType.DECISION: "accent",
+        ThoughtType.SEARCH: "warning",
+        ThoughtType.SYNTHESIS: "accent",
+        ThoughtType.ERROR: "error",
     }
 
     # Icons for thought types
@@ -222,7 +223,7 @@ class ThoughtStream:
         ThoughtType.TOOL_CALL: "TOOL",
         ThoughtType.EVIDENCE_FOUND: "EVIDENCE",
         ThoughtType.CONFIDENCE: "CONFIDENCE",
-        ThoughtType.DECISION: "OK:",
+        ThoughtType.DECISION: "DECISION",
         ThoughtType.SEARCH: "SEARCH",
         ThoughtType.SYNTHESIS: "SYNTHESIS",
         ThoughtType.ERROR: "ERROR:",
@@ -242,7 +243,7 @@ class ThoughtStream:
         self.expert_name = expert_name
         self.verbose = verbose
         self.quiet = quiet
-        self.console = Console()
+        self.console = make_console()
 
         # Set up log directory
         if log_dir is None:
@@ -363,8 +364,8 @@ class ThoughtStream:
         if not self.verbose and thought.thought_type not in [ThoughtType.DECISION, ThoughtType.ERROR]:
             return
 
-        color = self.COLORS.get(thought.thought_type, "white")
-        icon = self.ICONS.get(thought.thought_type, "•")
+        color = self.COLORS.get(thought.thought_type, "text")
+        icon = self.ICONS.get(thought.thought_type, "-")
 
         # Build display text
         text = Text()
@@ -373,12 +374,12 @@ class ThoughtStream:
 
         # Add confidence if present
         if thought.confidence is not None:
-            conf_color = "green" if thought.confidence > 0.8 else "yellow" if thought.confidence > 0.5 else "red"
-            text.append(f" ({thought.confidence:.0%})", style=conf_color)
+            conf_color = "info"
+            text.append(f" (recorded confidence {thought.confidence:.0%})", style=conf_color)
 
         # Add evidence count if present
         if thought.evidence_refs:
-            text.append(f" [{len(thought.evidence_refs)} sources]", style="dim")
+            text.append(f" [{len(thought.evidence_refs)} sources]", style="muted")
 
         # Display based on type
         if thought.thought_type == ThoughtType.DECISION:
@@ -386,7 +387,7 @@ class ThoughtStream:
             self.console.print(Panel(text, title="Decision", border_style=color))
         elif thought.thought_type == ThoughtType.ERROR:
             # Errors get a panel
-            self.console.print(Panel(text, title="Error", border_style="red"))
+            self.console.print(Panel(text, title="Error", border_style="error"))
         else:
             # Other thoughts are inline
             self.console.print(text)
@@ -626,7 +627,7 @@ class ThoughtStream:
             elif thought.thought_type == ThoughtType.EVIDENCE_FOUND:
                 if thought.evidence_refs:
                     evidence_used.extend(thought.evidence_refs)
-                conf_str = f" ({thought.confidence:.0%})" if thought.confidence else ""
+                conf_str = f" (recorded confidence {thought.confidence:.0%})" if thought.confidence else ""
                 lines.append(f"- EVIDENCE {thought.public_text}{conf_str}")
 
             elif thought.thought_type == ThoughtType.DECISION:

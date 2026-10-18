@@ -25,8 +25,9 @@ from functools import wraps
 from typing import Any, TypeVar
 
 import click
-from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
+
+from deepr.cli.colors import make_console
 
 CLI_OPERATION_RESULT_KIND = "deepr.cli.operation_result"
 CLI_OPERATION_RESULT_SCHEMA_VERSION = "deepr-cli-operation-result-v1"
@@ -339,7 +340,7 @@ def truncate_with_hint(
     Examples:
         >>> text, truncated = truncate_with_hint(long_text, max_lines=5)
         >>> if truncated:
-        ...     print(f"\\n[dim]Output truncated. Use {hint_flag} to see all.[/dim]")
+        ...     print(f"\\n[muted]Output truncated. Use {hint_flag} to see all.[/muted]")
     """
     lines = text.split("\n")
     was_truncated = False
@@ -361,7 +362,7 @@ def truncate_with_hint(
         was_truncated = True
 
     if was_truncated:
-        result = result.rstrip() + f"\n...\n[dim]Output truncated. Use {hint_flag} to see full output.[/dim]"
+        result = result.rstrip() + f"\n...\n[muted]Output truncated. Use {hint_flag} to see full output.[/muted]"
 
     return result, was_truncated
 
@@ -392,8 +393,8 @@ class OutputFormatter:
             context: OutputContext specifying the output mode
         """
         self.context = context
-        self._console = Console()
-        self._stderr_console = Console(stderr=True)
+        self._console = make_console()
+        self._stderr_console = make_console(stderr=True)
         self._progress: Progress | None = None
         self._progress_task = None
 
@@ -437,7 +438,7 @@ class OutputFormatter:
         if self.context.mode == OutputMode.VERBOSE:
             # Progress messages are out-of-band info -> stderr (clig.dev), so
             # they never mingle with primary output on stdout.
-            self._stderr_console.print(f"[dim]{message}[/dim]")
+            self._stderr_console.print(f"[muted]{message}[/muted]")
 
     def complete(self, result: OperationResult, *, error_to_stderr: bool = False) -> None:
         """Show completion with result.
@@ -471,9 +472,9 @@ class OutputFormatter:
             # Ensure path ends with / for directories
             if path and not path.endswith("/"):
                 path = path + "/"
-            self._console.print(f"[green]OK[/green] Research complete ({duration}, {cost}) -> {path}")
+            self._console.print(f"[success]OK[/success] Research complete ({duration}, {cost}) -> {path}")
         else:
-            self._console.print(f"[red]ERROR[/red] Research failed: {result.error or 'Unknown error'}")
+            self._console.print(f"[error]ERROR[/error] Research failed: {result.error or 'Unknown error'}")
 
     def _complete_verbose(self, result: OperationResult) -> None:
         """Output verbose format result."""
@@ -481,7 +482,7 @@ class OutputFormatter:
             duration = format_duration(result.duration_seconds)
             cost = format_cost(result.cost_usd)
             self._console.print()
-            self._console.print("[bold green]Research Complete[/bold green]")
+            self._console.print("[success]Research Complete[/success]")
             self._console.print(f"  Duration: {duration}")
             self._console.print(f"  Cost: {cost}")
             if result.report_path:
@@ -491,7 +492,7 @@ class OutputFormatter:
             self._console.print()
         else:
             self._console.print()
-            self._console.print("[bold red]Research Failed[/bold red]")
+            self._console.print("[error]Research Failed[/error]")
             self._console.print(f"  Error: {result.error or 'Unknown error'}")
             if result.error_code:
                 self._console.print(f"  Code: {result.error_code}")
@@ -531,7 +532,7 @@ class OutputFormatter:
         elif self.context.mode == OutputMode.QUIET:
             self._stderr_console.print(message)
         else:
-            self._console.print(f"[red]ERROR[/red] {message}")
+            self._console.print(f"[error]ERROR[/error] {message}")
 
 
 # Type variable for decorator

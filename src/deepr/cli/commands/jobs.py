@@ -10,6 +10,7 @@ import click
 from deepr.cli.async_runner import run_async_command
 from deepr.cli.colors import (
     console,
+    style_role,
 )
 from deepr.queue.base import JobStatus
 from deepr.queue.local_queue import SQLiteQueue
@@ -94,13 +95,13 @@ async def _show_status(job_id: str):
                             job = updated
                         if job.status == JobStatus.COMPLETED:
                             console.print(
-                                "[success]Provider reports: COMPLETED[/success] [dim](local DB was stale)[/dim]"
+                                "[success]Provider reports: COMPLETED[/success] [muted](local DB was stale)[/muted]"
                             )
                             click.echo("Use 'deepr jobs get " + job_id + "' to retrieve results\n")
                         else:
                             console.print(
                                 f"[error]{job.last_error or terminal_provider_error(provider_status)}[/error] "
-                                "[dim](local lifecycle closed)[/dim]\n"
+                                "[muted](local lifecycle closed)[/muted]\n"
                             )
                     elif provider_status == "unsupported":
                         click.echo("Warning: Provider returned an unsupported status; the job remains active.\n")
@@ -144,7 +145,7 @@ async def _show_status(job_id: str):
 
     if job.report_paths:
         console.print()
-        console.print("[dim]Reports:[/dim]")
+        console.print("[muted]Reports:[/muted]")
         for format_type, path in job.report_paths.items():
             console.print(f"  {format_type}: {path}")
 
@@ -342,9 +343,9 @@ async def _list_jobs(status_filter: str, limit: int):
     ]
 
     if stale_jobs:
-        click.echo(click.style(f"\nRefreshing status for {len(stale_jobs)} stale job(s)...", fg="yellow"), nl=False)
+        click.echo(style_role(f"\nRefreshing status for {len(stale_jobs)} stale job(s)...", "warning"), nl=False)
         await _refresh_job_statuses(queue, stale_jobs)
-        click.echo(click.style(" done", fg="green"))
+        click.echo(style_role(" done", "success"))
         # Re-fetch jobs after refresh
         jobs = await queue.list_jobs(limit=limit)
         if status_filter:
@@ -352,7 +353,7 @@ async def _list_jobs(status_filter: str, limit: int):
             jobs = [j for j in jobs if j.status == target_status]
 
     if not jobs:
-        click.echo(click.style("\nNo jobs found\n", fg="yellow"))
+        click.echo(style_role("\nNo jobs found\n", "warning"))
         return
 
     # Group jobs by campaign/prefix
@@ -380,8 +381,8 @@ async def _list_jobs(status_filter: str, limit: int):
 
     # Print header with color
     click.echo()
-    click.echo(click.style("Research Jobs", fg="cyan", bold=True))
-    click.echo(click.style("-" * 13, dim=True))
+    click.echo(style_role("Research Jobs", "accent"))
+    click.echo(style_role("-" * 13, "muted"))
     click.echo()
 
     # Print campaigns first (grouped)
@@ -396,18 +397,16 @@ async def _list_jobs(status_filter: str, limit: int):
         any_processing = any(j.status == JobStatus.PROCESSING for j in campaign_jobs)
 
         if all_completed:
-            campaign_status = click.style("COMPLETED", fg="green", bold=True)
+            campaign_status = style_role("COMPLETED", "success")
         elif any_failed:
-            campaign_status = click.style("FAILED", fg="red", bold=True)
+            campaign_status = style_role("FAILED", "error")
         elif any_processing:
-            campaign_status = click.style("PROCESSING", fg="cyan", bold=True)
+            campaign_status = style_role("PROCESSING", "live")
         else:
-            campaign_status = click.style("QUEUED", dim=True)
+            campaign_status = style_role("QUEUED", "muted")
 
         total_cost = sum(j.cost for j in campaign_jobs if j.cost)
-        click.echo(
-            click.style(f"{campaign_type.upper()} Campaign", fg="yellow", bold=True) + f" ({len(campaign_jobs)} jobs)"
-        )
+        click.echo(style_role(f"{campaign_type.upper()} Campaign", "warning") + f" ({len(campaign_jobs)} jobs)")
 
         # Show first job's details as campaign representative
         first_job = campaign_jobs[0]
@@ -416,26 +415,26 @@ async def _list_jobs(status_filter: str, limit: int):
         click.echo(f"  {prompt}")
 
         if first_job.submitted_at:
-            time_display = click.style(first_job.submitted_at.strftime("%Y-%m-%d %H:%M:%S"), dim=True)
+            time_display = style_role(first_job.submitted_at.strftime("%Y-%m-%d %H:%M:%S"), "muted")
             click.echo(f"  Submitted: {time_display}")
 
         if total_cost > 0:
-            cost_display = click.style(f"${total_cost:.4f}", fg="yellow")
+            cost_display = style_role(f"${total_cost:.4f}", "money")
             click.echo(f"  Total Cost: {cost_display}")
 
         # Show individual jobs in campaign (indented)
-        click.echo(click.style("  Jobs:", dim=True))
+        click.echo(style_role("  Jobs:", "muted"))
         for job in campaign_jobs:
             if job.status == JobStatus.COMPLETED:
-                status_text = click.style("completed", fg="green")
+                status_text = style_role("completed", "success")
             elif job.status == JobStatus.PROCESSING:
-                status_text = click.style("processing", fg="cyan")
+                status_text = style_role("processing", "live")
             elif job.status == JobStatus.FAILED:
-                status_text = click.style("failed", fg="red")
+                status_text = style_role("failed", "error")
             else:
-                status_text = click.style("queued", dim=True)
+                status_text = style_role("queued", "muted")
 
-            job_id = click.style(job.id[:15], fg="cyan")
+            job_id = style_role(job.id[:15], "accent")
             cost_str = f" (${job.cost:.4f})" if job.cost else ""
             click.echo(f"    {job_id} {status_text}{cost_str}")
 
@@ -445,28 +444,28 @@ async def _list_jobs(status_filter: str, limit: int):
     for job in sorted(standalone_jobs, key=lambda x: x.submitted_at, reverse=True):
         # Status with color
         if job.status == JobStatus.COMPLETED:
-            status_display = click.style("COMPLETED", fg="green", bold=True)
+            status_display = style_role("COMPLETED", "success")
         elif job.status == JobStatus.PROCESSING:
-            status_display = click.style("PROCESSING", fg="cyan", bold=True)
+            status_display = style_role("PROCESSING", "live")
         elif job.status == JobStatus.FAILED:
-            status_display = click.style("FAILED", fg="red", bold=True)
+            status_display = style_role("FAILED", "error")
         else:
-            status_display = click.style("QUEUED", dim=True)
+            status_display = style_role("QUEUED", "muted")
 
         # Format job info
-        job_id = click.style(job.id[:12], fg="cyan")
-        model = click.style(job.model, fg="blue")
+        job_id = style_role(job.id[:12], "accent")
+        model = style_role(job.model, "info")
         prompt = job.prompt[:50] + "..." if len(job.prompt) > 50 else job.prompt
 
         click.echo(f"{status_display} {job_id} | {model}")
         click.echo(f"  {prompt}")
 
         if job.cost:
-            cost_display = click.style(f"${job.cost:.4f}", fg="yellow")
+            cost_display = style_role(f"${job.cost:.4f}", "money")
             click.echo(f"  Cost: {cost_display}")
 
         if job.submitted_at:
-            time_display = click.style(job.submitted_at.strftime("%Y-%m-%d %H:%M:%S"), dim=True)
+            time_display = style_role(job.submitted_at.strftime("%Y-%m-%d %H:%M:%S"), "muted")
             click.echo(f"  Submitted: {time_display}")
 
         click.echo()

@@ -1,0 +1,26 @@
+
+[36mSynthetic profile - presentation check only[0m
+
+[2;39mCalls itself:[0m Layout fixture
+
+[39mSynthetic example: retain observations and explain the limits before making a recommendation.[0m
+
+[2;39mReads it best through: Evidence and revision, shown only to exercise terminal layout.[0m
+
+[36mWould be glad to be asked about[0m
+  - How a recorded position differs from a current fact
+
+[33mStill working on[0m
+  - What new evidence would change this example?
+
+[2;39mKnows it is weak on[0m
+  [2;39m- This fixture establishes no subject expertise.[0m
+
+[32mHas changed its mind 1 time(s)[0m
+  - was: An earlier synthetic position.
+    now: A revised synthetic position.
+    [2;39mbecause: A synthetic contrary observation; no research was run.[0m
+
+[32mok: Written to [0m
+[32m/home/pueo/Work/deepr/.agent/reader-evidence/terminal-profile-theme230-final/experts/synthetic_profi[0m
+[32mle_layout_fixture/self.json[0m

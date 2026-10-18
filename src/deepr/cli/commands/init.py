@@ -17,7 +17,7 @@ from typing import NamedTuple
 
 import click
 
-from deepr.cli.colors import console, print_section_header, print_success
+from deepr.cli.colors import console, print_next, print_section_header, print_success
 from deepr.config import (
     configuration_env_path,
     ensure_configuration_env_file,
@@ -110,12 +110,12 @@ def _collect_provider_keys(env_file: dict[str, str], *, yes: bool) -> dict[str, 
     console.print("\nCloud API keys (optional - metered; skip if you'll use local or subscription capacity):")
     for label, var, url in _PROVIDERS:
         if _key_is_set(_resolved(env_file, var)):
-            console.print(f"  [green]+[/green] {label}: detected")
+            console.print(f"  [success]+[/success] {label}: detected")
             continue
         if yes:
-            console.print(f"  [dim]-[/dim] {label}: not set  ({var}, get one at {url})")
+            console.print(f"  [muted]-[/muted] {label}: not set  ({var}, get one at {url})")
             continue
-        console.print(f"  [yellow]-[/yellow] {label}: not set  (get one at {url})")
+        console.print(f"  [warning]-[/warning] {label}: not set  (get one at {url})")
         if not click.confirm(f"    Add a key for {label} now?", default=False):
             continue
         key = click.prompt(f"    {var}", hide_input=True, default="", show_default=False).strip()
@@ -174,13 +174,13 @@ def _report_capacity(env_file: dict[str, str]) -> _CapacityPresence:
         detected = [source for source in available if source.kind == kind]
         if detected:
             evidence = "; ".join(f"{source.name} ({source.marginal_cost}; {source.detail})" for source in detected)
-            console.print(f"  [green]+[/green] {label}: {evidence}")
+            console.print(f"  [success]+[/success] {label}: {evidence}")
         else:
-            console.print(f"  [dim]- {label}: none detected[/dim]")
+            console.print(f"  [muted]- {label}: none detected[/muted]")
         for source in (item for item in sources if item.kind == kind and item.local_generation is not None):
             proof = source.local_generation
             console.print(f"    Local generation: {proof.status}. {proof.detail}")
-    console.print("  [dim]Detection does not bypass workflow-specific safety or spend gates.[/dim]")
+    console.print("  [muted]Detection does not bypass workflow-specific safety or spend gates.[/muted]")
     plan_sources = [source for source in available if source.kind == BackendKind.PLAN_QUOTA]
     return _CapacityPresence(
         local=any(source.kind == BackendKind.LOCAL for source in available),
@@ -194,11 +194,11 @@ def _print_summary(env_file: dict[str, str], presence: _CapacityPresence) -> Non
     """Print evidence-matched readiness and no-spend next actions."""
     console.print("")
     if not any(presence):
-        console.print("[yellow]No capacity detected yet.[/yellow] Deepr needs ONE of these (cheapest first):")
+        console.print("[warning]No capacity detected yet.[/warning] Deepr needs ONE of these (cheapest first):")
         _print_local_setup()
         console.print("  - Plan-style CLI on PATH: cost and adapter posture vary; inspect before use")
         console.print("  - Cloud API key in .env: OPENAI_API_KEY / ANTHROPIC_API_KEY / GEMINI_API_KEY  (metered)")
-        console.print("Then: deepr doctor --skip-connectivity")
+        print_next("deepr doctor --skip-connectivity", also=True)
         return
     print_success("Capacity sources detected. Workflow-specific gates still decide execution.")
     console.print(f"Requested per-job budget ceiling: ${float(env_file.get(_BUDGET_JOB, _DEFAULT_JOB_BUDGET)):.2f}")
@@ -240,7 +240,8 @@ def _print_local_setup() -> None:
         console.print(
             "    GPU capacity unknown. Check memory before downloading; 18 GB is not the runtime requirement."
         )
-    console.print("    Then inspect deepr capacity and deepr capacity next --task-class sync ($0).")
+    print_next("deepr capacity")
+    print_next("deepr capacity next --task-class sync", also=True)
     console.print("    Model size and fit do not establish answer quality. See https://ollama.com/library/qwen3.8.")
 
 

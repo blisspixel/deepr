@@ -40,9 +40,9 @@ def expert_validate_export(path: Path, json_output: bool) -> None:
         print_key_value("Status", report["status"])
         print_key_value("Checks", f"{report['check_count'] - report['failed_count']}/{report['check_count']} passed")
         for check in report["checks"]:
-            marker = "[green]pass[/green]" if check["status"] == "pass" else "[red]fail[/red]"
-            console.print(f"  {marker}  {check['check']}  [dim]{check['detail']}[/dim]")
-        console.print("[dim]Form-only validation; content truth stays with calibrated review paths.[/dim]")
+            marker = "[success]pass[/success]" if check["status"] == "pass" else "[error]fail[/error]"
+            console.print(f"  {marker}  {check['check']}  [muted]{check['detail']}[/muted]")
+        console.print("[muted]Form-only validation; content truth stays with calibrated review paths.[/muted]")
 
     if report["status"] != "valid":
         if not json_output:

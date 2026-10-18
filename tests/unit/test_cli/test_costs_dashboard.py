@@ -651,7 +651,7 @@ class TestCostsDoctor:
         assert result.exit_code == 0
         ledger_class.assert_called_once_with()
         assert "Cost Tracking Doctor" in result.output
-        assert "PASS" in result.output
+        assert "ok" in result.output.split()
 
     def test_costs_doctor_detects_drift(self, runner):
         mock_dash = MagicMock(spec=CostDashboard)
@@ -680,7 +680,7 @@ class TestCostsDoctor:
             result = runner.invoke(cli, ["costs", "doctor", "--drift-threshold", "0.1"])
 
         assert result.exit_code == 1
-        assert "FAIL" in result.output
+        assert "failed" in result.output.split()
         assert "drift=$" in result.output
 
     def test_costs_doctor_detects_ledger_that_is_not_accounting_ready(self, runner):
@@ -705,7 +705,7 @@ class TestCostsDoctor:
         assert result.exit_code == 1
         assert "Ledger accounting ready" in result.output
         assert "malformed event" in result.output
-        assert "FAIL" in result.output
+        assert "failed" in result.output.split()
 
     def test_costs_doctor_reports_unknown_drift_when_ledger_is_unreadable(self, runner):
         mock_dash = MagicMock(spec=CostDashboard)

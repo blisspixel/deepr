@@ -258,7 +258,7 @@ def _build_local_backend(
         if fitted:
             local_model = fitted
     if not local_model:
-        raise StudyBackendError("No local model available. Is Ollama running? Check: deepr capacity --probe")
+        raise StudyBackendError("No local model available. Is Ollama running? Next: deepr capacity --probe")
     backend = NativeOllamaInvestigationBackend(model=local_model, keep_alive="10m")
 
     async def preflight() -> None:

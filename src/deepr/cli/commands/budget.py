@@ -10,7 +10,7 @@ from typing import Any
 
 import click
 
-from deepr.cli.colors import print_header, print_success
+from deepr.cli.colors import print_header, print_next, print_success
 from deepr.core.cost_caps import (
     OperatorBudget,
     _with_spend_wallet,
@@ -316,9 +316,8 @@ def set(amount: float):
         reason = str(config.get("freeze_reason") or "paid API account controls are not configured")
         click.echo(f"Paid API remains frozen: {reason}")
         click.echo("A configured amount is not spend authority.")
-        click.echo("Next: `deepr keys check --provider openrouter`")
-        click.echo("      `deepr budget credits add --amount 20`")
-        click.echo("      `deepr budget authorize openrouter`")
+        print_next("deepr keys check --provider openrouter")
+        print_next("deepr budget authorize openrouter", also=True)
 
 
 def _render_wallet_status(
@@ -740,28 +739,30 @@ def safety():
     # Daily spending
     console.print("[bold]Daily Spending[/bold]")
     daily = summary["daily"]
-    percent_color = "green" if daily["percent_used"] < 50 else "yellow" if daily["percent_used"] < 80 else "red"
+    percent_color = "success" if daily["percent_used"] < 50 else "warning" if daily["percent_used"] < 80 else "error"
     print_key_value("Settled", f"${daily['spent']:.2f} / ${daily['limit']:.2f}")
     print_key_value("Window Remaining", f"${daily['remaining']:.2f}")
-    console.print(f"  [dim]Usage:[/dim] [{percent_color}]{daily['percent_used']:.0f}%[/{percent_color}]")
+    console.print(f"  [muted]Usage:[/muted] [{percent_color}]{daily['percent_used']:.0f}%[/{percent_color}]")
     console.print()
 
     # Weekly spending
     console.print("[bold]Weekly Spending[/bold]")
     weekly = summary["weekly"]
-    percent_color = "green" if weekly["percent_used"] < 50 else "yellow" if weekly["percent_used"] < 80 else "red"
+    percent_color = "success" if weekly["percent_used"] < 50 else "warning" if weekly["percent_used"] < 80 else "error"
     print_key_value("Settled", f"${weekly['spent']:.2f} / ${weekly['limit']:.2f}")
     print_key_value("Window Remaining", f"${weekly['remaining']:.2f}")
-    console.print(f"  [dim]Usage:[/dim] [{percent_color}]{weekly['percent_used']:.0f}%[/{percent_color}]")
+    console.print(f"  [muted]Usage:[/muted] [{percent_color}]{weekly['percent_used']:.0f}%[/{percent_color}]")
     console.print()
 
     # Monthly spending
     console.print("[bold]Monthly Spending[/bold]")
     monthly = summary["monthly"]
-    percent_color = "green" if monthly["percent_used"] < 50 else "yellow" if monthly["percent_used"] < 80 else "red"
+    percent_color = (
+        "success" if monthly["percent_used"] < 50 else "warning" if monthly["percent_used"] < 80 else "error"
+    )
     print_key_value("Settled", f"${monthly['spent']:.2f} / ${monthly['limit']:.2f}")
     print_key_value("Window Remaining", f"${monthly['remaining']:.2f}")
-    console.print(f"  [dim]Usage:[/dim] [{percent_color}]{monthly['percent_used']:.0f}%[/{percent_color}]")
+    console.print(f"  [muted]Usage:[/muted] [{percent_color}]{monthly['percent_used']:.0f}%[/{percent_color}]")
     console.print()
 
     console.print("[bold]Durable Reservation Exposure[/bold]")
@@ -803,7 +804,7 @@ def safety():
     if summary["active_sessions"] > 0:
         console.print(f"[bold]Active Sessions:[/bold] {summary['active_sessions']}")
 
-    console.print("[dim]These limits protect against runaway costs from autonomous agents.[/dim]")
+    console.print("[muted]These limits protect against runaway costs from autonomous agents.[/muted]")
 
 
 def _add_wallet_credits(*, amount: float, reason: str) -> None:

@@ -7,6 +7,7 @@ from pathlib import Path
 
 import click
 
+from deepr.cli.colors import print_next
 from deepr.cli.model_choices import model_help
 from deepr.config import runtime_data_path
 
@@ -871,10 +872,10 @@ def eval_status():
             click.echo("\nRegistry hash: up to date")
         else:
             click.echo("\nRegistry hash: STALE (new models added since last eval)")
-            click.echo("  Run: deepr eval new --dry-run")
+            print_next("deepr eval new --dry-run")
     else:
         click.echo("\nRegistry hash: not found (no auto-eval has run yet)")
-        click.echo("  Run: deepr eval new --dry-run")
+        print_next("deepr eval new --dry-run")
 
 
 @evaluate.command("all")

@@ -67,25 +67,25 @@ def explain(query: str, max_experts: int, top_n: int, json_output: bool) -> None
     print_header(f"Route explanation: {escape(query)}")
     routing = payload["expert_routing"]
     console.print(
-        f"[dim]{routing['expert_count']} expert(s) registered; keyword-overlap selection router "
-        f"(a routing signal, not a quality or authority verdict).[/dim]"
+        f"[muted]{routing['expert_count']} expert(s) registered; keyword-overlap selection router "
+        f"(a routing signal, not a quality or authority verdict).[/muted]"
     )
     would = routing["would_consult"]
     if would:
         console.print(f"Would consult (max {routing['max_experts']}): [bold]{escape(', '.join(would))}[/bold]")
     else:
-        console.print("Would consult: [dim]none (no experts registered)[/dim]")
+        console.print("Would consult: [muted]none (no experts registered)[/muted]")
     for cand in routing["candidates"]:
         mark = "*" if cand["would_consult"] else " "
         terms = escape(", ".join(cand["matched_terms"])) if cand["matched_terms"] else "no overlap"
         console.print(
-            f"  [{mark}] [bold]{escape(cand['name'])}[/bold] [dim](overlap {cand['overlap_score']}: {terms})[/dim]"
+            f"  [{mark}] [bold]{escape(cand['name'])}[/bold] [muted](overlap {cand['overlap_score']}: {terms})[/muted]"
         )
 
     console.print()
     print_capacity_outlook(payload.get("capacity_outlook") or {})
-    console.print(f"[dim]Automatic cheap-capacity order: {' -> '.join(payload['backend_fallback_order'])}[/dim]")
-    console.print("[dim]Metered API: preview only; never an automatic fallback[/dim]")
+    console.print(f"[muted]Automatic cheap-capacity order: {' -> '.join(payload['backend_fallback_order'])}[/muted]")
+    console.print("[muted]Metered API: preview only; never an automatic fallback[/muted]")
 
 
 @route.command(name="collapse")
@@ -124,7 +124,7 @@ def collapse(limit: int, json_output: bool, no_replay: bool) -> None:
         return
 
     print_header("Automatic consult collapse")
-    console.print(f"[dim]{escape(payload['note'])}[/dim]")
+    console.print(f"[muted]{escape(payload['note'])}[/muted]")
     automatic = int(payload["automatic_consults"])
     if automatic == 0:
         console.print("No automatic consult traces in the local window.")
@@ -143,7 +143,7 @@ def collapse(limit: int, json_output: bool, no_replay: bool) -> None:
         )
     if payload["replayed"]:
         console.print(f"current-router replay disagreements: {payload['replay_disagreements']}/{payload['replayed']}")
-    console.print("[dim]Flagship is a presentation label, not a routing prior.[/dim]")
+    console.print("[muted]Flagship is a presentation label, not a routing prior.[/muted]")
     for row in payload["frequencies"][:10]:
-        tier = f" [dim]({escape(row['roster_tier'])})[/dim]" if row["roster_tier"] == "flagship" else ""
+        tier = f" [muted]({escape(row['roster_tier'])})[/muted]" if row["roster_tier"] == "flagship" else ""
         console.print(f"  {row['count']:4d}  [bold]{escape(row['name'])}[/bold]{tier}  {row['share']:.0%}")
