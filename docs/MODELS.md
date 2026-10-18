@@ -1,6 +1,6 @@
 # Model Selection Guide
 
-Status: Deepr v2.50.34. Lifecycle notices reviewed 2026-10-18. Gemini lineup reviewed 2026-10-14. Broader currency review 2026-10-06.
+Status: Deepr v2.50.35. Lifecycle notices reviewed 2026-10-18. Gemini lineup reviewed 2026-10-14. Broader currency review 2026-10-06.
 
 The source of truth for model IDs, pricing estimates, context windows, and
 routing metadata is [src/deepr/providers/registry.py](../src/deepr/providers/registry.py),

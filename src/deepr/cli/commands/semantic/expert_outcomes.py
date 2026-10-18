@@ -30,7 +30,7 @@ def _json_dump(payload: object) -> str:
 
 
 def _require_expert(name: str) -> str:
-    profile = ExpertStore().load(name)
+    profile = ExpertStore(create=False).load(name, persist_migration=False)
     if profile is None:
         raise click.ClickException(f"Expert '{name}' not found")
     return profile.name
@@ -195,6 +195,52 @@ def show_experience(name: str, limit: int, json_output: bool) -> None:
         for prediction in payload["predictions"]:
             click.echo(f"  {prediction['resolution_date']} [{prediction['due_status']}] {prediction['question']}")
     click.echo("This derived view makes no quality verdict and applies no learning change.")
+    if payload["cases"]:
+        click.echo("Next: deepr expert review-decision NAME --outcome-id ID")
 
 
-__all__ = ["list_outcomes", "record_outcome", "show_experience"]
+@expert.command(name="review-decision")
+@click.argument("name")
+@click.option("--outcome-id", help="Select an observation and retain its complete decision history.")
+@click.option("--decision-id", help="Select all observations with this exact decision identity.")
+@click.option("--compare-trace", "compare_trace_id", help="Explicit second consultation; no equivalence is inferred.")
+@click.option("--json", "json_output", is_flag=True, help="Emit the frozen packet as JSON instead of Markdown.")
+def review_decision(
+    name: str,
+    outcome_id: str | None,
+    decision_id: str | None,
+    compare_trace_id: str | None,
+    json_output: bool,
+) -> None:
+    """Review original advice, supplied evidence and later observations at $0.
+
+    Select exactly one outcome or decision ID from `expert experience` or
+    `expert outcomes`. Prints dated Markdown to stdout; redirect it to save a
+    derived review. Reads recorded context only and changes no expert state.
+    """
+    from deepr.experts.decision_review import (
+        build_decision_review,
+        render_decision_review,
+        review_trace_ids,
+        select_decision_outcomes,
+    )
+
+    expert_name = _require_expert(name)
+    try:
+        outcomes = ExpertOutcomeStore().load_all(expert_name)
+        selected = select_decision_outcomes(expert_name, outcomes, outcome_id=outcome_id, decision_id=decision_id)
+        traces = load_consult_traces_by_id(review_trace_ids(selected, compare_trace_id))
+        packet = build_decision_review(
+            expert_name,
+            outcomes=outcomes,
+            traces=traces,
+            outcome_id=outcome_id,
+            decision_id=decision_id,
+            compare_trace_id=compare_trace_id,
+        )
+    except (OutcomeStorageError, OSError, ValueError) as exc:
+        raise click.ClickException(f"Could not build decision review: {exc}") from exc
+    click.echo(_json_dump(packet) if json_output else render_decision_review(packet))
+
+
+__all__ = ["list_outcomes", "record_outcome", "review_decision", "show_experience"]

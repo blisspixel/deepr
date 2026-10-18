@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.50.34 current main, 2026-10-18. This document defines what users and host
+Status: v2.50.35 current main, 2026-10-18. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -273,6 +273,12 @@ must not be described as usable capacity.
   content unless the stored expert roster matches. It does not decide whether
   a prediction fired, infer whether advice was good, link an outcome to a
   prediction by meaning, or apply a learning change.
+- `deepr expert review-decision NAME` drills into an explicit outcome or
+  decision ID as dated Markdown or JSON. It retains original answers, context,
+  prompt receipts and superseded outcome observations, with missing or ambiguous
+  links explicit. An optional second trace compares recorded inputs only.
+  Inspection creates no files, migrates no profiles, calls no model and makes
+  no semantic verdict. See the [decision review design](design/decision-review.md).
 - `deepr eval expert-value` template generation and review aggregation. The
   evaluator binds a complete four-arm matrix to the exact operator-attested
   blueprint and frozen source-world hashes, reports separate quality, risk,

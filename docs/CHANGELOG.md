@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.35] - 2026-10-18
+
+Compatible completion of read-only experience inspection (#228).
+See [design](design/decision-review.md) and
+[validation](validation/decision-review-2026-10-18.md).
+
+### Fixed
+
+- Experience offers a decision-review drill-down selected by an exact outcome
+  or decision ID. Dated Markdown and JSON preserve original answers, delivered
+  prompt receipts, recorded source context and later operator observations.
+- Superseded observations and their original trace links remain visible.
+  Missing, duplicate, wrong-expert and unknown-roster traces never yield a
+  guessed answer. Legacy evidence stays unavailable.
+- Explicit comparison retains both questions and environments and shows only
+  mechanical input changes. No advice supersession, applicability, improvement
+  or semantic quality is inferred; review prompts remain unreviewed.
+- Outcome-command profile inspection no longer creates expert directories or
+  persists legacy migrations. Review uses existing stores and writes no files.
+
 ## [2.50.34] - 2026-10-18
 
 Compatible first-run and derived-record corrections (#224).

@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/decision-review-v1.json",
+  "title": "Deepr read-only decision review v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "kind", "generated_at", "expert_name", "decision_id", "selected_outcome_id", "contract", "snapshot_sha256", "cases", "comparison", "input_changes", "review"],
+  "properties": {
+    "schema_version": {"const": "deepr-decision-review-v1"},
+    "kind": {"const": "deepr.expert.decision_review"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "expert_name": {"type": "string", "minLength": 1},
+    "decision_id": {"type": "string", "minLength": 1},
+    "selected_outcome_id": {"type": ["string", "null"]},
+    "snapshot_sha256": {"$ref": "#/$defs/hash"},
+    "contract": {
+      "type": "object", "additionalProperties": false,
+      "required": ["read_only", "derived_view", "writes_state", "cost_usd", "model_calls", "semantic_quality_verdict", "operator_identity_independently_verified"],
+      "properties": {
+        "read_only": {"const": true}, "derived_view": {"const": true},
+        "writes_state": {"const": false}, "cost_usd": {"const": 0}, "model_calls": {"const": 0},
+        "semantic_quality_verdict": {"const": false}, "operator_identity_independently_verified": {"const": false}
+      }
+    },
+    "cases": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["outcome", "superseded_by", "consultation"],
+        "properties": {
+          "outcome": {"$ref": "expert-outcome-v1.json"},
+          "superseded_by": {"type": "array", "items": {"type": "string"}},
+          "consultation": {"$ref": "#/$defs/snapshot"}
+        }
+      }
+    },
+    "comparison": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/snapshot"}]},
+    "input_changes": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["outcome_id", "status"],
+        "properties": {
+          "outcome_id": {"type": "string"},
+          "status": {"enum": ["unavailable", "recorded_input_comparison"]},
+          "reason": {"type": "string"},
+          "left_trace_id": {"type": "string"}, "right_trace_id": {"type": "string"},
+          "recorded_source_identities": {
+            "type": "object", "additionalProperties": false, "required": ["status"],
+            "properties": {
+              "status": {"enum": ["unavailable", "recorded"]},
+              "added": {"type": "array", "items": {"$ref": "#/$defs/source"}},
+              "removed": {"type": "array", "items": {"$ref": "#/$defs/source"}},
+              "unchanged_count": {"type": "integer", "minimum": 0}
+            }
+          },
+          "context_packet_changed": {"type": ["boolean", "null"]},
+          "delivery_receipt_changed": {"type": ["boolean", "null"]},
+          "same_decision_inferred": {"const": false}, "advice_supersession_inferred": {"const": false},
+          "interpretation": {"type": "string"}
+        }
+      }
+    },
+    "review": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "still_valid", "reconsider", "unresolved"],
+      "properties": {
+        "status": {"const": "unreviewed"}, "still_valid": {"type": "null"},
+        "reconsider": {"type": "null"}, "unresolved": {"type": "null"}
+      }
+    }
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "source": {
+      "type": "object", "additionalProperties": false, "required": ["sha256", "origin"],
+      "properties": {"sha256": {"type": "string"}, "origin": {"type": "string"}}
+    },
+    "snapshot": {
+      "type": "object", "additionalProperties": false,
+      "required": ["link", "record", "record_sha256", "unavailable"],
+      "properties": {
+        "link": {
+          "type": "object", "additionalProperties": false, "required": ["status", "trace_id"],
+          "properties": {
+            "status": {"enum": ["matched", "not_linked", "missing", "ambiguous_duplicate", "roster_unknown", "expert_mismatch"]},
+            "trace_id": {"type": ["string", "null"]}, "trace_status": {"type": "string"},
+            "recorded_at": {"type": "string"}, "question": {"type": "string"}, "question_hash": {"type": "string"},
+            "experts_consulted": {"type": "array", "items": {"type": "string"}}
+          }
+        },
+        "record": {"type": ["object", "null"], "description": "Unmodified matched trace snapshot, including legacy fields. Null when identity or roster could not be joined."},
+        "record_sha256": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/hash"}]},
+        "unavailable": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}

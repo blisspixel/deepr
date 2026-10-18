@@ -19,7 +19,7 @@ def _patch_stores(monkeypatch, tmp_path) -> ExpertOutcomeStore:
     outcome_store = ExpertOutcomeStore(tmp_path / "experts")
     monkeypatch.setattr(
         "deepr.cli.commands.semantic.expert_outcomes.ExpertStore",
-        lambda: profile_store,
+        lambda **kwargs: profile_store,
     )
     monkeypatch.setattr(
         "deepr.cli.commands.semantic.expert_outcomes.ExpertOutcomeStore",
@@ -89,7 +89,7 @@ def test_record_outcome_requires_an_existing_expert(monkeypatch) -> None:
     profile_store.load.return_value = None
     monkeypatch.setattr(
         "deepr.cli.commands.semantic.expert_outcomes.ExpertStore",
-        lambda: profile_store,
+        lambda **kwargs: profile_store,
     )
 
     result = CliRunner().invoke(

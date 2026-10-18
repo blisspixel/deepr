@@ -43,7 +43,7 @@ def trace_ids_for_experience(outcomes: list[ExpertOutcome], *, limit: int = 20) 
     }
 
 
-def _trace_index(traces: list[dict[str, Any]]) -> tuple[dict[str, dict[str, Any]], set[str]]:
+def index_consult_traces(traces: list[dict[str, Any]]) -> tuple[dict[str, dict[str, Any]], set[str]]:
     indexed: dict[str, dict[str, Any]] = {}
     duplicates: set[str] = set()
     for trace in traces:
@@ -76,14 +76,13 @@ def _trace_roster(trace: dict[str, Any]) -> list[str]:
     return [str(item) for item in roster if str(item).strip()]
 
 
-def _consult_link(
-    outcome: ExpertOutcome,
+def consult_trace_link(
+    trace_id: str | None,
     *,
     expert_name: str,
     traces_by_id: dict[str, dict[str, Any]],
     duplicate_trace_ids: set[str],
 ) -> dict[str, Any]:
-    trace_id = outcome.consult_trace_id
     if trace_id is None:
         return {"status": "not_linked", "trace_id": None}
     if trace_id in duplicate_trace_ids:
@@ -132,8 +131,8 @@ def _outcome_case(
         "belief_ids": list(outcome.belief_ids),
         "source_refs": list(outcome.source_refs),
         "evidence_refs": list(outcome.evidence_refs),
-        "consult": _consult_link(
-            outcome,
+        "consult": consult_trace_link(
+            outcome.consult_trace_id,
             expert_name=expert_name,
             traces_by_id=traces_by_id,
             duplicate_trace_ids=duplicate_trace_ids,
@@ -187,7 +186,7 @@ def build_experience_view(
     today = as_of_date or _utc_today()
     bounded_limit = max(1, min(int(limit), 100))
     active = _active_outcomes(outcomes)
-    traces_by_id, duplicate_trace_ids = _trace_index(traces)
+    traces_by_id, duplicate_trace_ids = index_consult_traces(traces)
     cases = [
         _outcome_case(
             item,
