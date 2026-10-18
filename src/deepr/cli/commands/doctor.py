@@ -751,14 +751,14 @@ def check_storage_locations() -> list[DiagnosticCheck]:
 
     experts = DiagnosticCheck("Experts", "Storage")
     experts.passed = True
-    experts.message = str(experts_root())
+    experts.message = str(experts_root().expanduser().resolve())
     experts.details.append("Set DEEPR_DATA_DIR (or DEEPR_EXPERTS_PATH) to move portable state across machines")
     experts.details.append("A synced DEEPR_DATA_DIR includes runtime state; stop Deepr services before switching")
     experts.details.append("Use one writer at a time and wait for sync to finish before switching devices")
 
     reports = DiagnosticCheck("Research reports", "Storage")
     reports.passed = True
-    reports.message = str(load_config()["results_dir"])
+    reports.message = str(Path(load_config()["results_dir"]).expanduser().resolve())
 
     return [experts, reports]
 

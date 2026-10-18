@@ -116,7 +116,7 @@ def _collect_provider_keys(env_file: dict[str, str], *, yes: bool) -> dict[str, 
             console.print(f"  [dim]-[/dim] {label}: not set  ({var}, get one at {url})")
             continue
         console.print(f"  [yellow]-[/yellow] {label}: not set  (get one at {url})")
-        if not click.confirm(f"    Add a {label} key now?", default=False):
+        if not click.confirm(f"    Add a key for {label} now?", default=False):
             continue
         key = click.prompt(f"    {var}", hide_input=True, default="", show_default=False).strip()
         if key:
@@ -270,6 +270,8 @@ def init(yes: bool, budget: float | None, data_dir: str | None, local_env: bool)
         deepr init --budget 3            # set the per-job ceiling
         deepr init --data-dir ~/OneDrive/deepr   # portable experts + research
     """
+    if not yes and not click.get_text_stream("stdin").isatty():
+        raise click.UsageError("Interactive setup requires a terminal. Use deepr init --yes for noninteractive setup.")
     print_section_header("Deepr setup")
 
     env_path = configuration_env_path(local=local_env)

@@ -19,7 +19,7 @@ from deepr.experts.study_contracts import StudyResult
 from deepr.utils.atomic_io import atomic_write_text
 
 MARKER = "<!-- deepr:knowledge-view-v1 -->"
-RENDERER_VERSION = "deepr-knowledge-reader-v2"
+RENDERER_VERSION = "deepr-knowledge-reader-v3"
 
 
 def _json(value: Any) -> str:
@@ -40,6 +40,33 @@ def _page(kind: str, identity: str) -> str:
 
 def _document(title: str, lines: list[str]) -> str:
     return "\n".join([MARKER, f"# {_text(title)}", "", *lines, ""])
+
+
+def _recorded_limits(study: StudyResult, brief: ExpertBrief, binding: str) -> list[str]:
+    """Keep run provenance and remove exact duplicates, without judging resolution."""
+    notes = list(dict.fromkeys(study.limitations))
+    brief_notes = list(dict.fromkeys(brief.limitations + brief.integrity_warnings()))
+    lines = [
+        "## Recorded limitations and run history",
+        "",
+        "These notes describe the recorded runs, not a new check of current failures. "
+        "Checkpoint and retry notes record what happened during that run.",
+        "",
+        f"Brief study binding: {binding}.",
+        "",
+    ]
+    if binding == "matched":
+        lines += [f"- {_text(note)}" for note in dict.fromkeys(notes + brief_notes)]
+    else:
+        lines += ["### Loaded study", "", *[f"- {_text(note)}" for note in notes], ""]
+        lines += [
+            "### Brief from a different or unverified study",
+            "",
+            "These brief notes are not attributed to the loaded study. Retained history is preserved.",
+            "",
+            *[f"- {_text(note)}" for note in brief_notes],
+        ]
+    return lines
 
 
 def _source_url(url: str) -> str:
@@ -288,9 +315,7 @@ def build_knowledge_view(
             "",
             "No live preparation or qualification is implied. Position dates not recorded in the evidence graph remain unknown.",
             "",
-            "## Recorded limitations",
-            "",
-            *[f"- {_text(note)}" for note in study.limitations + brief.limitations + brief.integrity_warnings()],
+            *_recorded_limits(study, brief, binding),
         ],
     )
     pages["manifest.json"] = _json(

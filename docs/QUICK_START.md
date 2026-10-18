@@ -3,7 +3,7 @@
 Set up local capacity, build one consultable expert from a source you trust,
 and optionally preview a bounded provider request without dispatch.
 
-This guide follows v2.50.33. Release installers include default research
+This guide follows v2.50.34. Release installers include default research
 formation, `expert build`, and `expert knowledge`. Research completion does
 not certify practical guidance; review retained evidence and answers.
 
@@ -70,22 +70,26 @@ and [Linux service setup](https://docs.ollama.com/linux#adding-ollama-as-a-start
 
 ## Installation (2 minutes)
 
-### 1. Clone and Install
+### 1. Install the release
+
+Linux and macOS:
 
 ```bash
-git clone https://github.com/blisspixel/deepr.git
-cd deepr
-pip install -e .                        # Core CLI (minimal dependencies)
+curl -fsSL https://raw.githubusercontent.com/blisspixel/deepr/main/scripts/install.sh | bash
 ```
 
-Optional extras for additional features:
+Windows PowerShell:
 
-```bash
-pip install -e ".[web]"                 # Web UI and MCP server
-pip install -e ".[azure]"               # Azure cloud deployment
-pip install -e ".[docs]"                # Document processing for experts
-pip install -e ".[full]"                # All features
+```powershell
+irm https://raw.githubusercontent.com/blisspixel/deepr/main/scripts/install.ps1 | iex
 ```
+
+The installer uses uv or pipx to keep Deepr in its own managed environment.
+See [Installation](INSTALL.md) for exact versions, repair and removal.
+
+For source development, use the locked virtual-environment workflow in
+[CONTRIBUTING](../CONTRIBUTING.md#setup). Editable installs belong inside that
+environment.
 
 ### 2. Optionally Configure API Credentials
 
@@ -204,8 +208,8 @@ deepr expert build "Web Dev Expert"
 ```
 
 Each retry has a new operation record and limits. It retains earlier attempts
-and offers completed study lenses for reuse only when model and corpus
-fingerprint match. Existing formed experts require explicit maintenance.
+and offers completed study chunks for reuse only when the pinned model, corpus,
+chunk boundaries and prompts match. Existing formed experts require explicit maintenance.
 
 ### 3. Consult The Expert
 

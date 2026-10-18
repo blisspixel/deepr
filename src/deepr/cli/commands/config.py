@@ -1,5 +1,7 @@
 """Config commands - validate and manage configuration."""
 
+from pathlib import Path
+
 import click
 
 from deepr.cli.async_runner import run_async_command
@@ -96,7 +98,7 @@ def validate():
             console.print(f"[success]API key found for {settings.default_provider}[/success]")
 
         # Check directories
-        data_dir = Path(settings.data_dir)
+        data_dir = Path(settings.data_dir).expanduser().resolve()
         if not data_dir.exists():
             warnings.append(f"Data directory does not exist: {data_dir}")
             console.print(f"   Warning: Data directory will be created: {data_dir}")
@@ -113,7 +115,7 @@ def validate():
         else:
             console.print(f"[success]Queue directory exists: {queue_dir}[/success]")
 
-        results_dir = settings.storage.local_path
+        results_dir = Path(settings.storage.local_path).expanduser().resolve()
         if not Path(results_dir).exists():
             warnings.append(f"Results directory does not exist: {results_dir}")
             console.print(f"   Warning: Results directory will be created: {results_dir}")
@@ -219,8 +221,8 @@ def show(unified: bool, legacy: bool):
                 click.echo(f"   API Key: {masked}")
 
             click.echo("\nStorage:")
-            click.echo(f"   Queue DB: {config.get('queue_db_path', 'queue/research_queue.db')}")
-            click.echo(f"   Results: {config.get('results_dir', 'data/reports')}")
+            click.echo(f"   Queue DB: {Path(config['queue_db_path']).expanduser().resolve()}")
+            click.echo(f"   Results: {Path(config['results_dir']).expanduser().resolve()}")
 
             click.echo("\nBudget Limits:")
             click.echo(f"   Per Job: ${config.get('max_cost_per_job', 5.0):.2f}")

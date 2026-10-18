@@ -126,10 +126,10 @@ checks and write-free previews. They do not enable production metered dispatch:
 # workflows. Additional keys enable explicit bounded provider choices;
 # automatic cross-provider metered fallback remains gated.
 
-OPENAI_API_KEY=sk-...       # GPT-5.5/5.4 families + o3/o4-mini deep research
+OPENAI_API_KEY=sk-...       # OpenAI contracts; inspect deepr help providers
 GEMINI_API_KEY=...          # Gemini text/multimodal; managed Deep Research is gated
-XAI_API_KEY=xai-...         # Grok 4.3, Grok 4.20, explicit premium image calls
-ANTHROPIC_API_KEY=...       # Claude Sonnet 5, Opus 4.8, Fable 5, Haiku 4.5
+XAI_API_KEY=xai-...         # xAI contracts; registration does not authorize dispatch
+ANTHROPIC_API_KEY=...       # Anthropic contracts; inspect lifecycle notes before selecting
 
 # Enterprise options (optional):
 # AZURE_OPENAI_KEY=...
@@ -190,11 +190,11 @@ for component support, then follow that host's instructions.
    visible on the host process's executable search path. Verify with
    `Get-Command deepr-mcp` in PowerShell or `command -v deepr-mcp` on macOS or
    Linux. A desktop host may need restarting after PATH changes.
-2. Download `deepr-agent-plugin-2.50.33.tar.gz` from the
-   [matching release](https://github.com/blisspixel/deepr/releases/tag/v2.50.33).
+2. Download `deepr-agent-plugin-2.50.34.tar.gz` from the
+   [matching release](https://github.com/blisspixel/deepr/releases/tag/v2.50.34).
    Match the plugin version to the installed Deepr version and verify the
    asset checksum shown by GitHub. Extract it with
-   `tar -xzf deepr-agent-plugin-2.50.33.tar.gz` or your archive utility.
+   `tar -xzf deepr-agent-plugin-2.50.34.tar.gz` or your archive utility.
 3. In the host's local plugin flow, select the extracted `deepr-research`
    directory containing `plugin.json`, `mcp.json`, `LICENSE`, `SHA256SUMS`,
    and `skills/`. When using a source checkout, the plugin root is
@@ -227,7 +227,7 @@ explicitly versioned reference; see [Supported Surface](SUPPORTED_SURFACE.md).
 
 ```bash
 # Download the wheel for the selected release, then install it locally.
-python -m pip install ./deepr_research-2.50.33-py3-none-any.whl
+python -m pip install ./deepr_research-2.50.34-py3-none-any.whl
 deepr --version
 ```
 
