@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.33] - 2026-10-18
+
+Compatible model lifecycle and setup corrections. No model promotion or new
+spend authority. See [design](design/model-lifecycle-presentation.md).
+
+### Fixed
+
+- CLI choices and the web allowlist omit shut-down deep-research models.
+  Explicit historical CLI IDs still receive the provider notice. GPT-5 alias
+  and snapshot deadlines are visible without implicit migration (#231).
+- Provider help and the root preview example derive from retained defaults
+  and the reviewed candidate registry. Candidate models stay preview-only.
+- Stable Gemini 2.5 contracts carry dated prior-user access metadata separately
+  from deprecation. Doctor, provider inventory and explicit selection explain
+  the restriction. Automatic selection and dispatch still exclude unverified
+  access; exact identities, explicit write-free price previews and historical
+  settlement are retained (#217).
+- Local setup names Qwen3.8 27B and its 18 GB download, checks the existing
+  context-memory estimator, and declines to suggest a download when fit is
+  unknown or insufficient. No generation or download occurs during setup.
+
 ## [2.50.32] - 2026-10-17
 
 Compatible CLI inspection repairs. No spend, tool or learning authority changes.

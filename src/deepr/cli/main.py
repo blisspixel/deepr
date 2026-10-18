@@ -283,6 +283,13 @@ class SectionedGroup(click.Group):
         self.commands[cmd_name] = command
         return command
 
+    def format_help_text(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
+        from deepr.cli.model_choices import research_preview_example
+
+        # Render a temporary command to keep the stored help template immutable.
+        rendered = (self.help or "").replace("{research_preview}", research_preview_example())
+        click.Command(self.name, help=rendered).format_help_text(ctx, formatter)
+
     def format_commands(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
         visible: list[tuple[str, str]] = []
         for name in self.list_commands(ctx):
@@ -336,7 +343,7 @@ def cli():
 
     \b
     Preview metered research without dispatch:
-      deepr research "your question" --provider openai --model gpt-5.6-sol --preview
+      {research_preview}
 
     \b
     Explicit attended OpenRouter can run one pinned completion after setup:

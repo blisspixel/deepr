@@ -199,7 +199,9 @@ class TestModelCapabilities:
 
         older_flash = get_model_capability("gemini", "gemini-2.5-flash")
         assert older_flash is not None
-        assert older_flash.deprecated is True
+        assert older_flash.deprecated is False
+        assert older_flash.access_state == "legacy_access_only"
+        assert older_flash.selection_blocked is True
         assert "speed" in older_flash.specializations
         assert older_flash.cost_per_query < 0.01  # Historical estimate stays cheap
 

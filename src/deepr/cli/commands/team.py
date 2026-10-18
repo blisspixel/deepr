@@ -7,6 +7,7 @@ import click
 
 from deepr.cli.async_runner import run_async_command
 from deepr.cli.colors import console, print_section_header, print_success
+from deepr.cli.model_choices import research_model_choice
 
 TEAM_POLL_INTERVAL_SECONDS = 5
 TEAM_POLL_TIMEOUT_SECONDS = 600
@@ -354,7 +355,7 @@ def team():
     "--model",
     "-m",
     default="gpt-5.6-sol",
-    type=click.Choice(["gpt-5.6-sol", "gpt-5.6-terra", "o4-mini-deep-research", "o3-deep-research"]),
+    type=research_model_choice(),
     help="Research model for execution (default: gpt-5.6-sol)",
 )
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation and execute immediately")

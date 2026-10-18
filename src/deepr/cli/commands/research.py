@@ -9,6 +9,7 @@ import click
 
 from deepr.cli.colors import console, print_error, print_section_header, print_success, print_warning
 from deepr.cli.commands import research_support
+from deepr.cli.model_choices import research_model_choice
 
 _build_research_prompt = research_support.build_research_prompt
 _ensure_parent_dir = research_support.ensure_parent_dir
@@ -34,7 +35,7 @@ def research():
     "--model",
     "-m",
     default="gpt-5.6-sol",
-    type=click.Choice(["gpt-5.6-sol", "gpt-5.6-terra", "o4-mini-deep-research", "o3-deep-research"]),
+    type=research_model_choice(),
     help="Research model (default: gpt-5.6-sol; retired deep-research ids warn)",
 )
 @click.option("--priority", "-p", default=3, type=click.IntRange(1, 5), help="Priority (1=high, 5=low)")
@@ -102,18 +103,6 @@ def submit(
 
     resolved_provider = provider or config.get("provider", "openai")
     web_search = research_support.clamp_openai_web_search(resolved_provider, model, web_search)
-
-    # Check for deprecated model and display warning
-    from deepr.routing.deprecation import check_deprecation
-
-    dep_entry = check_deprecation(model)
-    if dep_entry:
-        retirement_info = f" (retires {dep_entry.sunset_date})" if dep_entry.sunset_date else ""
-        msg = (
-            f"WARNING: Model '{dep_entry.old_model}' is deprecated{retirement_info}. "
-            f"Recommended successor: {dep_entry.new_model}"
-        )
-        click.echo(msg, err=True)
 
     click.echo("\nConfiguration:")
     click.echo(f"   Provider: {resolved_provider}")

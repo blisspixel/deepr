@@ -48,6 +48,7 @@ from deepr.cli.commands.semantic.grounding_support import (
     build_grounding_pair,
     validate_grounding_flags,
 )
+from deepr.cli.model_choices import model_help
 from deepr.cli.validation import confirm_interactively
 from deepr.experts.metered_mutation_gate import (
     MeteredExpertMutationDisabledError,
@@ -124,7 +125,9 @@ def _with_absorb_overlap_guard(command):
         "Default: secondary for --file, tertiary for research report ids."
     ),
 )
-@click.option("--model", default=None, help="Override the extraction model (default: gpt-5-mini)")
+@click.option(
+    "--model", default=None, help=model_help("Override the extraction model (default: gpt-5-mini)", "gpt-5-mini")
+)
 @click.option(
     "--budget",
     type=click.FloatRange(min=0.0, min_open=True),

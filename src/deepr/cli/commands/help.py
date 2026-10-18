@@ -105,35 +105,34 @@ def providers():
     )
     console.print()
 
-    # Provider table
-    table = Table(title="Available Providers")
-    table.add_column("Provider", style="cyan")
-    table.add_column("Models")
-    table.add_column("Best For")
+    from deepr.cli.commands.research_support import _PROVIDER_DEFAULT_MODELS
+    from deepr.cli.model_choices import is_shutdown, model_note, retained_task_models
+    from deepr.providers.registry import MODEL_CAPABILITIES
+    from deepr.providers.reviewed_catalog import REVIEWED_CAPABILITIES
 
-    table.add_row(
-        "openai",
-        "gpt-5.6-sol, gpt-5.6-terra, gpt-5.6-luna",
-        "Deep research, synthesis, complex reasoning",
-    )
-    table.add_row(
-        "xai",
-        "grok-4.6, grok-4.3, grok-build-0.1, grok-4.20-multi-agent",
-        "Quick lookups, freshness, multi-agent research",
-    )
-    table.add_row("anthropic", "claude-opus-5, claude-sonnet-5, claude-haiku-4-5", "Reasoning and synthesis")
-    table.add_row("gemini", "gemini-4-argon, gemini-3.8-flash, gemini-3.5-flash-lite", "Multimodal tasks, long context")
-    table.add_row("azure", "(your deployments)", "Enterprise deployments with Azure OpenAI")
-
+    table = Table(title="Retained defaults and reviewed candidates")
+    table.add_column("Use", style="cyan")
+    table.add_column("Model")
+    table.add_column("Status")
+    for task, (provider, model) in retained_task_models().items():
+        if is_shutdown(model):
+            continue
+        table.add_row(task.replace("_", " "), f"{provider}/{model}", model_note(model) or "Retained task default")
+    for provider, model in _PROVIDER_DEFAULT_MODELS.items():
+        if provider == "grok" or is_shutdown(model):
+            continue
+        table.add_row(f"{provider} research", model, model_note(model) or "Retained provider default")
+    for key in REVIEWED_CAPABILITIES:
+        cap = MODEL_CAPABILITIES.get(key)
+        if cap is None or cap.selection_blocked or is_shutdown(cap.model):
+            continue
+        table.add_row(
+            cap.provider, cap.model, "Preview only; adapter validation pending" if cap.preview_only else "Registered"
+        )
     console.print(table)
-    console.print()
-
-    console.print("[bold]Default Routing:[/bold]")
-    console.print("  - Deep research: openai/gpt-5.6-sol")
-    console.print("  - Quick operations: xai/grok-4.3")
-    console.print()
-    console.print("[dim]Override with --provider and --model flags[/dim]")
-    console.print()
+    console.print("\nRetained defaults are not a claim of provider currency or tested answer quality.")
+    console.print("Use deepr providers list for all contracts and lifecycle notes.")
+    console.print("Use deepr capacity for execution eligibility; provider registration grants no spend authority.")
 
 
 @help.command(name="costs")

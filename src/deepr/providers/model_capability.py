@@ -1,6 +1,7 @@
 """Shared model capability contract for provider registries."""
 
 from dataclasses import dataclass
+from typing import Literal
 
 
 @dataclass
@@ -23,3 +24,22 @@ class ModelCapability:
     deprecated: bool = False
     successor: str | None = None
     preview_only: bool = False
+    access_state: Literal["unrestricted", "legacy_access_only"] = "unrestricted"
+    access_source: str = ""
+    access_checked: str = ""
+
+    @property
+    def selection_blocked(self) -> bool:
+        """Exclude unavailable contracts without inventing provider deprecation."""
+        return self.deprecated or self.access_state == "legacy_access_only"
+
+    @property
+    def access_note(self) -> str:
+        """Provider policy is evidence about access, not account verification."""
+        if self.access_state != "legacy_access_only":
+            return ""
+        return (
+            f"{self.model}: prior users only; no announced shutdown. "
+            "New projects: gemini-3.5-flash-lite or gemini-3.8-flash. "
+            f"Account access unverified. Source: {self.access_source} (checked {self.access_checked})."
+        )

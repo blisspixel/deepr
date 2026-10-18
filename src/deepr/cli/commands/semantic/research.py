@@ -24,6 +24,7 @@ from deepr.cli.commands.research_support import (
     resolve_research_route,
 )
 from deepr.cli.commands.run import TraceFlags, _run_campaign, _run_single, _run_team
+from deepr.cli.model_choices import model_help
 from deepr.cli.output import OperationResult, OutputContext, OutputFormatter, OutputMode, output_options
 
 
@@ -235,6 +236,12 @@ def research(
             output_context=output_context,
         )
         return
+
+    if preview and model and not auto_mode:
+        from deepr.cli.model_choices import model_note
+
+        if note := model_note(model):
+            click.echo(note, err=True)
 
     # Handle auto mode for single query
     if auto_mode:
@@ -464,7 +471,7 @@ def research(
 @click.option(
     "--provider", default="openai", type=click.Choice(["openai", "azure", "gemini", "xai"]), help="Research provider"
 )
-@click.option("--lead", default="gpt-5", help="Lead planner model")
+@click.option("--lead", default="gpt-5", help=model_help("Lead planner model", "gpt-5"))
 @click.option("--phases", "-p", type=int, default=3, help="Number of learning phases")
 @click.option("--yes", "-y", is_flag=True, help="Run noninteractively; never bypasses a budget gate")
 def learn(

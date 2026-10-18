@@ -85,8 +85,6 @@ _MAX_QUERY_LIMIT = 1000
 _WEB_OPENAI_RESEARCH_MODELS = {
     "gpt-5.6-sol",
     "gpt-5.6-terra",
-    "o3-deep-research",
-    "o4-mini-deep-research",
     "gpt-5.2",
 }
 
@@ -3189,6 +3187,9 @@ def get_model_registry():
                     "deprecated": cap.deprecated,
                     "successor": cap.successor,
                     "preview_only": cap.preview_only,
+                    "selection_blocked": cap.selection_blocked,
+                    "access_state": cap.access_state,
+                    "access_note": cap.access_note,
                 }
             )
         return jsonify({"models": models})

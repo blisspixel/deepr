@@ -6,6 +6,7 @@ import click
 
 from deepr.cli.async_runner import run_async_command
 from deepr.cli.colors import console, print_error, print_section_header, print_warning
+from deepr.cli.model_choices import research_model_choice
 
 
 @click.group()
@@ -32,7 +33,7 @@ def cost(ctx: click.Context):
     "--model",
     "-m",
     default="gpt-5.6-sol",
-    type=click.Choice(["gpt-5.6-sol", "gpt-5.6-terra", "o4-mini-deep-research", "o3-deep-research"]),
+    type=research_model_choice(),
     help="Research model",
 )
 @click.option("--web-search/--no-web-search", default=True, help="Enable web search")

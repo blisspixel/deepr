@@ -14,12 +14,12 @@ from deepr.cli.colors import (
     print_warning,
 )
 from deepr.cli.commands.research_safety import require_parent_budget
+from deepr.cli.model_choices import ModelChoice, model_help, research_model_choice
 
 
 @click.group()
 def prep():
     """Plan multi-angle research; metered multi-call execution is gated."""
-    pass
 
 
 @prep.command()
@@ -32,14 +32,14 @@ def prep():
     "--planner",
     "-p",
     default="gpt-5",
-    type=click.Choice(["gpt-5", "gpt-5-mini", "gpt-5-nano"]),
-    help="Reasoning model for planning (default: gpt-5)",
+    type=ModelChoice(["gpt-5", "gpt-5-mini", "gpt-5-nano"]),
+    help=model_help("Reasoning model for planning (default: gpt-5)", "gpt-5"),
 )
 @click.option(
     "--model",
     "-m",
     default="gpt-5.6-sol",
-    type=click.Choice(["gpt-5.6-sol", "gpt-5.6-terra", "o4-mini-deep-research", "o3-deep-research"]),
+    type=research_model_choice(),
     help="Research model (default: gpt-5.6-sol)",
 )
 @click.option(

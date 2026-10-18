@@ -531,7 +531,10 @@ def list():
     for _key, cap in sorted(MODEL_CAPABILITIES.items()):
         specializations = ", ".join(cap.specializations[:2]) if cap.specializations else "-"
 
-        if cap.deprecated:
+        if cap.access_note:
+            model_display = cap.model
+            status = cap.access_note
+        elif cap.deprecated:
             model_display = f"[dim strikethrough]{cap.model}[/dim strikethrough] [red]\\[DEPRECATED][/red]"
             successor_info = f"-> {cap.successor}" if cap.successor else "No successor"
             status = f"[red]{successor_info}[/red]"
@@ -539,8 +542,10 @@ def list():
             model_display = cap.model
             status = "[yellow]Preview only[/yellow]"
         else:
+            from deepr.cli.model_choices import model_note
+
             model_display = cap.model
-            status = "[green]Active[/green]"
+            status = model_note(cap.model) or "Registered; execution gates apply"
 
         table.add_row(
             cap.provider,

@@ -319,6 +319,11 @@ def bounded_research_cost_estimate(
             "Attended OpenRouter research cannot include tools, retries, or extra provider requests",
             code="openrouter_attended_tools_forbidden",
         )
+    if capability.access_state == "legacy_access_only" and not allow_preview_only:
+        raise ResearchRequestBoundsError(
+            f"{capability.access_note} Dispatch blocked until account eligibility is proven.",
+            code="research_model_access_unverified",
+        )
     if capability.deprecated:
         successor = f"; use successor {capability.successor!r}" if capability.successor else ""
         raise ResearchRequestBoundsError(

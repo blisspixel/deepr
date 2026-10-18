@@ -7,6 +7,7 @@ from pathlib import Path
 
 import click
 
+from deepr.cli.model_choices import model_help
 from deepr.config import runtime_data_path
 
 # Repo root is parents[4] of src/deepr/cli/commands/eval.py; benchmark_models.py
@@ -706,7 +707,12 @@ def _calibration_grade_fn(grader_model: str):
     type=click.Path(exists=True, file_okay=False),
     help="Directory of report .md/.txt files to extract + pre-grade (PAID).",
 )
-@click.option("--grader-model", default="gpt-5", show_default=True, help="Strong model used to pre-grade grounding.")
+@click.option(
+    "--grader-model",
+    default="gpt-5",
+    show_default=True,
+    help=model_help("Strong model used to pre-grade grounding.", "gpt-5"),
+)
 @click.option("--sample", type=int, default=0, help="Cap the number of corpus reports (0 = all).")
 @click.option(
     "--max-cost", type=float, default=3.0, show_default=True, help="Abort if the estimate exceeds this (USD)."
