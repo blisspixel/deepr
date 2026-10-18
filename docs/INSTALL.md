@@ -25,13 +25,19 @@ curl -fsSL https://raw.githubusercontent.com/blisspixel/deepr/main/scripts/insta
 
 The installers resolve the latest supported wheel from GitHub Releases and
 preserve an existing uv or pipx owner. A fresh install prefers uv and explicitly
-requires managed stable CPython 3.15. A Python version request alone does not
+requires managed stable CPython 3.15.0. A Python version request alone does not
 require a managed interpreter. If uv is unavailable, an existing pipx uses an
 explicit stable CPython 3.11, 3.12, 3.13, 3.14 or 3.15 interpreter.
 Install a manager first:
 [uv installation](https://docs.astral.sh/uv/getting-started/installation/) or
 [pipx installation](https://pipx.pypa.io/stable/installation/). The scripts never
 bootstrap pipx with `pip --user` into a venv or externally managed interpreter.
+
+Managed installation requests final CPython 3.15.0 exactly. CI uses uv 0.13.0;
+if an older manager cannot find that release, update uv through its owning
+installation method. A beta is not a supported substitute. Optional full/search
+dependencies still include source-only Brotli at 3.15 and need a C toolchain;
+the core runtime has current native wheels apart from optional PyYAML builds.
 
 Install, repair, `deepr upgrade`, and uninstall preserve the selected manager.
 Conflicting uv/pipx installations or an unmanaged CLI require explicit cleanup

@@ -143,9 +143,9 @@ if ! RELEASE_JSON=$(curl -fsSL --connect-timeout 10 --max-time 30 \
 fi
 
 if [ -z "$PYTHON" ]; then
-    uv python install 3.15
+    uv python install 3.15.0
     UV_PYTHON_READY=true
-    PYTHON=$(uv python find --managed-python 3.15)
+    PYTHON=$(uv python find --managed-python 3.15.0)
 fi
 
 if ! RELEASE_INFO=$(printf '%s' "$RELEASE_JSON" | "$PYTHON" -c '
@@ -191,8 +191,8 @@ step "Resolved $RELEASE_TAG from GitHub Releases."
 
 # Keep manager and interpreter choice identical through install and repair.
 if [ "$MANAGER" = uv ]; then
-    if [ "$UV_PYTHON_READY" = false ]; then uv python install 3.15; fi
-    INSTALL=(uv tool install --python 3.15 --managed-python)
+    if [ "$UV_PYTHON_READY" = false ]; then uv python install 3.15.0; fi
+    INSTALL=(uv tool install --python 3.15.0 --managed-python)
     REMOVE=(uv tool uninstall)
 else
     INSTALL=("${PIPX[@]}" install --python "$PIPX_PYTHON")
@@ -235,5 +235,5 @@ echo "Update later:  re-run this one-liner, or '$CLI upgrade'"
 echo "Uninstall:     re-run this one-liner with -- --uninstall"
 echo ""
 echo "Dev / editable from source:"
-echo "  git clone https://github.com/blisspixel/deepr.git && cd deepr && uv tool install --python 3.15 --managed-python -e ."
+echo "  git clone https://github.com/blisspixel/deepr.git && cd deepr && uv tool install --python 3.15.0 --managed-python -e ."
 echo ""

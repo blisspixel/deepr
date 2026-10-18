@@ -133,7 +133,7 @@ def _fetch_latest_release() -> ReleaseInfo | None:
 def _upgrade_command(origin: str, wheel_url: str) -> list[str] | None:
     """The argv to upgrade for a given install origin (None = manual steps)."""
     if origin == "uv":
-        return ["uv", "tool", "install", "--force", "--python", "3.15", "--managed-python", wheel_url]
+        return ["uv", "tool", "install", "--force", "--python", "3.15.0", "--managed-python", wheel_url]
     if origin == "pipx":
         if (
             sys.implementation.name != "cpython"

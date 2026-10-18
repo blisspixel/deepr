@@ -264,7 +264,7 @@ def test_installer_preserves_owner_and_pins_interpreter(tmp_path, family, owner,
         assert "--force" not in installs[1].split(), installs
     assert all(op.startswith(expected) and "--python " in op for op in installs)
     if expected == "uv":
-        assert all("--python 3.15 --managed-python" in op for op in installs)
+        assert all("--python 3.15.0 --managed-python" in op for op in installs)
     assert all(not op.startswith("pip ") for op in operations)
     assert all(op.startswith(expected) for op in operations)
 

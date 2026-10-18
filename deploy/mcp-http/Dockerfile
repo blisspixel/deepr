@@ -1,3 +1,16 @@
+FROM python:3.15-slim@sha256:2da676046630d7bf14c6764ae1143dc7fa0377a53f94bf5a642f0b214aca5bce AS build
+
+# Compile source-only full-extra dependencies without shipping build tools.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+RUN pip install --no-cache-dir uv==0.13.0
+COPY pyproject.toml uv.lock setup.py README.md LICENSE MANIFEST.in ./
+COPY src/ src/
+COPY skills/ skills/
+RUN uv sync --frozen --no-dev --no-editable --extra full
+
 FROM python:3.15-slim@sha256:2da676046630d7bf14c6764ae1143dc7fa0377a53f94bf5a642f0b214aca5bce
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -10,13 +23,7 @@ RUN groupadd -r deepr && useradd -r -g deepr -u 1000 deepr
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir uv==0.11.32
-
-COPY pyproject.toml uv.lock setup.py README.md LICENSE MANIFEST.in ./
-COPY src/ src/
-COPY skills/ skills/
-
-RUN uv sync --frozen --no-dev --no-editable --extra full
+COPY --from=build /app /app
 
 ENV PATH="/app/.venv/bin:$PATH"
 

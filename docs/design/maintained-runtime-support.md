@@ -54,6 +54,10 @@ Primary sources checked 2026-10-18:
 - https://raw.githubusercontent.com/python/cpython/v3.12.0/Lib/ntpath.py
 - https://nodejs.org/dist/index.json
 - https://github.com/astral-sh/setup-uv/releases/tag/v10.3.0
+- https://github.com/astral-sh/uv/releases/tag/0.13.0
+- https://github.com/pydantic/pydantic/releases/tag/v2.14.1
+- https://pypi.org/project/aiohttp/3.14.5/
+- https://pypi.org/project/jiter/0.17.0/
 - https://pypi.org/project/numpy/2.5.4/
 - https://pypi.org/project/lxml/6.1.3/
 - https://pyyaml.org/wiki/PyYAMLDocumentation
@@ -82,3 +86,25 @@ The audit command also reproduced pip-api 0.0.34 importing the removed
 release removes that vendored parser path. Upgrade that existing transitive
 tool dependency in the lock; do not add a standard-library shim or disable
 the audit. The original failure log and inspected wheel hash are retained.
+
+Hosted acceptance revealed two additional platform boundaries. uv 0.11.32's
+managed-download manifest selected CPython 3.15.0b4, and the stable-only
+installer correctly refused it. Pin uv 0.13.0 and request managed 3.15.0 exactly
+in setup, self-upgrade and the development pin. A missing final download must
+fail before replacing a managed installation; a beta is not a substitute.
+
+Update the existing native dependencies to their verified current compatible
+releases with cp315 wheels: aiohttp, jiter, librt, MarkupSafe, msgpack, Pydantic
+and its core, and setproctitle, with resolver-required yarl and typing-inspection.
+Their declared licenses remain Apache/MIT/BSD compatible. Source-only Brotli
+remains in the full/search extras and requires a C toolchain. The HTTP image
+compiles its frozen environment in a build stage, then copies the application
+into the same pinned slim runtime without compilers. Core and worker images
+retain the direct frozen install. Docker smoke checks run without network and
+assert the final images have no gcc.
+
+The contained-plugin job previously downloaded source distributions into its
+offline wheelhouse, which cannot build PyYAML without build dependencies.
+Export the frozen core requirements with hashes, build their wheels before
+the offline phase, then install only those wheels without network. This keeps
+the containment proof and the lock authority instead of bypassing isolation.

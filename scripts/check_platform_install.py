@@ -87,10 +87,12 @@ with TemporaryDirectory(dir=Path.cwd()) as directory:
     output = Path(directory) / 'export'
     publish_okf_directory({'index.md': 'fixture\n'}, output, force=False, okf_version='0.2')
     assert (output / 'index.md').read_text() == 'fixture\n'
-print(json.dumps({'version': importlib.metadata.version('deepr-research'), 'python': list(sys.version_info[:2]), 'numpy': numpy.__version__, 'yaml': yaml.__version__, 'yaml_c_extension': yaml.__with_libyaml__}))
+print(json.dumps({'version': importlib.metadata.version('deepr-research'), 'python': list(sys.version_info[:2]), 'releaselevel': sys.version_info.releaselevel, 'implementation': sys.implementation.name, 'numpy': numpy.__version__, 'yaml': yaml.__version__, 'yaml_c_extension': yaml.__with_libyaml__}))
 """
     receipt = json.loads(run("runtime-boundaries", [str(python), "-c", probe]))
     assert receipt["python"] == list(sys.version_info[:2])
+    assert receipt["implementation"] == "cpython"
+    assert receipt["releaselevel"] == "final", "Platform acceptance requires a final CPython release"
     assert wheels[0].name == f"deepr_research-{receipt['version']}-py3-none-any.whl"
     assert receipt["version"] in run("version", [str(cli), "--version"])
     run("help", [str(cli), "--help"])

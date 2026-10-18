@@ -24,8 +24,10 @@ See [design](design/maintained-runtime-support.md) and
 - All five Python minors have blocking core/full-suite checks. Windows and macOS
   check native entry points and isolated core wheels at the floor and default;
   all three digest-pinned 3.15-slim containers build and run offline smoke checks.
-- Node uses 24.22.0 LTS, engines require 24+, and setup-uv uses pinned v10.3.0.
-  Targeted NumPy/lxml lock updates supply native 3.15 wheels. Pip-api 0.0.35
+- Node uses 24.22.0 LTS, engines require 24+, and setup-uv uses pinned v10.3.0
+  with uv 0.13.0 and final 3.15.0. Compatible native lock updates supply 3.15
+  wheels; the full HTTP image compiles source-only extras in a separate stage.
+  The plugin builds a frozen, hashed wheelhouse before offline checks. Pip-api 0.0.35
   repairs the audit tool's removed-standard-library import on Python 3.15.
 - Strict typing checks both the real frozen 3.11 dependency branch and the
   promoted runtime, retaining imported dependency types and existing strictness.

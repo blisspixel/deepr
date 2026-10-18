@@ -191,7 +191,7 @@ Write-Step "Resolved $releaseTag from GitHub Releases."
 function Invoke-ManagedInstall([switch]$Force) {
     $forceArgs = @()
     if ($Force) { $forceArgs = @("--force") }
-    if ($manager -eq "uv") { & uv tool install --python 3.15 --managed-python @forceArgs $wheelUrl }
+    if ($manager -eq "uv") { & uv tool install --python 3.15.0 --managed-python @forceArgs $wheelUrl }
     else { Invoke-Pipx install --python $pipxPython @forceArgs $wheelUrl }
 }
 function Remove-ManagedInstall {
@@ -199,7 +199,7 @@ function Remove-ManagedInstall {
     else { Invoke-Pipx uninstall $Package }
 }
 if ($manager -eq "uv") {
-    & uv python install 3.15
+    & uv python install 3.15.0
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 function Test-DeeprWorks {
@@ -244,5 +244,5 @@ Write-Host "Update later:  re-run this one-liner, or '$Cli upgrade'"
 Write-Host "Uninstall:     re-run this one-liner with -Uninstall"
 Write-Host ""
 Write-Host "Dev / editable from source:"
-Write-Host "  git clone https://github.com/blisspixel/deepr.git; cd deepr; uv tool install --python 3.15 --managed-python -e ."
+Write-Host "  git clone https://github.com/blisspixel/deepr.git; cd deepr; uv tool install --python 3.15.0 --managed-python -e ."
 Write-Host ""

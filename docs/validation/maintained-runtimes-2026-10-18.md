@@ -31,7 +31,7 @@ entry points passed version/help, offline doctor, empty expert inventory and
 write-free research preview. Existing clean-wheel stdio checks passed both MCP
 protocol eras and host-profile integration. These were offline checks at `$0`.
 
-The widened lock changes only the necessary NumPy branches, lxml 6.1.3,
+The first widened lock changed the necessary NumPy branches, lxml 6.1.3,
 pip-api 0.0.35 and three resolver-required backports for Python 3.11. The
 new NumPy/lxml releases provide cp315 wheels on the observed ordinary Linux,
 Windows and macOS platforms. PyYAML remains a source install at 3.15; a locally
@@ -67,3 +67,28 @@ public-installer acceptance accompany the matching PR and release.
 
 No current codegraph was available; source callers and tests were traced.
 Runtime compatibility does not qualify expert advice or advance S0.
+
+The first full local suites each recorded 13,324 passes, 21 skips and three
+failures: the existing container contract still expected the old 3.12 image.
+Its expected immutable image and uv pins are updated, with an added guard for
+the compiler-free HTTP runtime stage. No test of frozen dependency authority
+was removed. These runs do not establish acceptance of the later native lock.
+
+Initial hosted container builds failed compiling aiohttp without gcc. The
+Windows full environment built, but its seven installer/upgrade failures
+exposed that uv 0.11.32 had selected managed Python 3.15.0b4. The plugin job
+also exposed source distributions in an offline wheelhouse without their
+build dependencies. All three failures and native wheel inventories remain
+retained. uv now uses 0.13.0; managed setup/upgrade request final 3.15.0 exactly;
+the platform receipt refuses a prerelease. The HTTP compiler stays in a build
+stage, and the plugin's frozen, hash-checked core wheelhouse is built before
+offline installation. Compatible native-package lock updates supply the other
+missing cp315 wheels. Brotli remains source-only in full/search extras.
+
+Two later concurrent unit reruns exhausted the workstation's tmpfs inode
+capacity. Their setup errors include durable-write quota failures; these are
+retained as environment failures rather than assertion acceptance. Both were
+interrupted. The task's completed and interrupted temporary roots were archived
+with verified tar integrity and SHA256 receipts before releasing their inodes.
+Subsequent local full suites run serially with explicit free-byte and free-inode
+admission, preserving coverage and the socket guard. No source gate was lowered.

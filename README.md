@@ -210,7 +210,7 @@ curl -fsSL https://raw.githubusercontent.com/blisspixel/deepr/main/scripts/insta
 ```
 
 Installers use the latest verified GitHub Release wheel and preserve an existing
-uv or pipx installation. Fresh installs prefer uv with managed CPython 3.15;
+uv or pipx installation. Fresh installs prefer uv with managed CPython 3.15.0;
 pipx requires an explicitly selected stable CPython 3.11, 3.12, 3.13, 3.14 or 3.15.
 Install uv or pipx first using its official instructions. The scripts do not bootstrap
 pip into a user site or system Python, and refuse conflicting managed copies.
