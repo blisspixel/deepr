@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from deepr.config import configuration_source_summary
@@ -22,7 +23,7 @@ def format_settings(settings: Settings, *, mask_keys: bool = True) -> str:
         f"  Environment: {settings.environment}",
         f"  Debug: {settings.debug}",
         f"  Log Level: {settings.log_level}",
-        f"  Data Dir: {settings.data_dir}",
+        f"  Data Dir: {Path(settings.data_dir).expanduser().resolve()}",
         "",
         "Compatibility Provider Settings (not execution authority):",
         f"  Default Provider: {settings.default_provider}",
@@ -46,7 +47,7 @@ def format_settings(settings: Settings, *, mask_keys: bool = True) -> str:
             "",
             "Storage:",
             f"  Type: {settings.storage.type.value}",
-            f"  Path: {settings.storage.local_path}",
+            f"  Path: {Path(settings.storage.local_path).expanduser().resolve()}",
             "",
             "Budget Limits:",
             *[

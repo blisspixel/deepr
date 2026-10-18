@@ -496,6 +496,11 @@ def _publish_foundation(run: FormationRun, corpus: CorpusStore, study: Any, brie
 
 
 def _write_review(run: FormationRun) -> None:
+    records = {"Operation record": "run.json", "Search plan": "search-plan.json", "Acquisition": "acquisition.json"}
+    links = [
+        f"[{label}]({filename})" if (run.run_dir / filename).is_file() else f"{label}: not produced for this operation"
+        for label, filename in records.items()
+    ]
     lines = [
         "# Expert formation review",
         "",
@@ -511,7 +516,7 @@ def _write_review(run: FormationRun) -> None:
         "",
         "Research completion does not certify interpretation, currentness for a question, or guidance quality.",
         "",
-        "[Operation record](run.json) | [Search plan](search-plan.json) | [Acquisition](acquisition.json)",
+        " | ".join(links),
         "",
         "## Required advice review",
         "",

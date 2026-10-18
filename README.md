@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.50.33-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.33)
+[![Version](https://img.shields.io/badge/version-2.50.34-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.34)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -305,6 +305,12 @@ eras and published Agent Plugins `1.0.0`. See the
 for tested behavior and the distinction from draft standards and host certification.
 
 ## Direction
+
+v2.50.34 aligns first-run guidance and generated records: release installation
+comes first, noninteractive setup explains `--yes` before writing config, and
+storage inspection shows absolute paths. Formation reviews link only produced
+records. Currentness pages deduplicate identical notes for a matched study and
+keep older brief history visibly separate. Canonical history is preserved.
 
 v2.50.33 removes shut-down models from advertised choices while preserving
 explicit historical IDs and lifecycle notices. Help derives retained defaults

@@ -122,6 +122,27 @@ async def test_formation_connects_acquisition_understanding_graph_and_markdown(e
 
 
 @pytest.mark.asyncio
+async def test_no_discovery_review_links_only_produced_records(environment):
+    import re
+
+    from deepr.experts.corpus_store import CorpusStore
+
+    directory, profile, backend = environment
+    corpus = CorpusStore(profile.name)
+    corpus.add("A compound operation needs coordination. " * 10, origin_key="chosen", title="Chosen source")
+    result = await formation.form_expert(profile, backend, discover=False)
+    assert result["status"] == "research_complete", result
+    run_dir = directory / "formation/runs" / result["operation_id"]
+    review = (run_dir / "review.md").read_text()
+    assert not (run_dir / "search-plan.json").exists()
+    assert not (run_dir / "acquisition.json").exists()
+    assert "Search plan: not produced for this operation" in review
+    assert "Acquisition: not produced for this operation" in review
+    for link in re.findall(r"\]\(([^)]+)\)", review):
+        assert (run_dir / link).is_file()
+
+
+@pytest.mark.asyncio
 async def test_empty_search_does_not_create_fake_understanding(environment, monkeypatch):
     directory, profile, backend = environment
     monkeypatch.setattr(formation, "run_search_plan", AsyncMock(return_value=SearchResult()))

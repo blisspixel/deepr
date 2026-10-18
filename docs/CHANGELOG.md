@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.34] - 2026-10-18
+
+Compatible first-run and derived-record corrections (#224).
+See [design](design/first-run-record-clarity.md) and
+[validation](validation/first-run-record-clarity-2026-10-18.md).
+
+### Fixed
+
+- Quick Start leads with managed release installation and describes verified
+  chunk reuse. Source development points to the locked environment procedure.
+- Noninteractive `init` explains `--yes` before creating config. Key prompts
+  use consistent grammar; interactive key handling and budget controls remain.
+- Doctor and configuration views display resolved absolute storage paths
+  without changing configured roots or creating directories.
+- Formation review links include only files produced by that operation.
+  No-discovery and interrupted runs explicitly mark absent records.
+- Currentness notes preserve recorded run history. Matched study/brief notes
+  are deduplicated by exact text; older or unbound brief notes remain in a
+  separate section. A new renderer version preserves previously generated
+  views. No note is interpreted as resolved, and canonical history is unchanged.
+
 ## [2.50.33] - 2026-10-18
 
 Compatible model lifecycle and setup corrections. No model promotion or new

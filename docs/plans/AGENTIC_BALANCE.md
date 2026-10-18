@@ -16,6 +16,11 @@ brittle rule - it encodes a boundary that no longer matches the code.
 
 ## The axis
 
+Generated review and currentness pages project file existence and canonical
+study/brief bindings. Exact note deduplication removes repeated bytes without
+interpreting whether a failure is resolved; old or unbound brief history stays
+separate. See [first-run record clarity](../design/first-run-record-clarity.md).
+
 Model lifecycle projection is deterministic: recorded dates filter advertised
 choices, exact IDs preserve historical pricing, and provider access notices
 remain distinct from verified account eligibility. Neither currency metadata

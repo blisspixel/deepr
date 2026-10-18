@@ -7,6 +7,9 @@ write inside a temp dir, so no real .env is touched.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
+import click
 import pytest
 from click.testing import CliRunner
 
@@ -241,7 +244,8 @@ class TestInitYes:
 
 
 class TestInitInteractive:
-    def test_adds_one_key_and_sets_budget(self):
+    def test_adds_one_key_and_sets_budget(self, monkeypatch):
+        monkeypatch.setattr(click, "get_text_stream", lambda _: SimpleNamespace(isatty=lambda: True))
         runner = CliRunner()
         with runner.isolated_filesystem():
             from pathlib import Path
@@ -253,7 +257,8 @@ class TestInitInteractive:
             assert env["GEMINI_API_KEY"] == "real-gemini-xyz"
             assert env["DEEPR_MAX_COST_PER_JOB"] == "4.0"
 
-    def test_decline_all_keys_still_writes_budget(self):
+    def test_decline_all_keys_still_writes_budget(self, monkeypatch):
+        monkeypatch.setattr(click, "get_text_stream", lambda _: SimpleNamespace(isatty=lambda: True))
         runner = CliRunner()
         with runner.isolated_filesystem():
             from pathlib import Path
@@ -263,3 +268,12 @@ class TestInitInteractive:
             env = _read_env_file(Path(".env"))
             assert "GEMINI_API_KEY" not in env
             assert env["DEEPR_MAX_COST_PER_JOB"] == "5.0"
+
+
+def test_noninteractive_init_explains_yes_before_any_write(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(init, ["--local-env"])
+    assert result.exit_code == 2
+    assert "deepr init --yes" in result.output
+    assert not (tmp_path / ".env").exists()
+    assert "Aborted!" not in result.output

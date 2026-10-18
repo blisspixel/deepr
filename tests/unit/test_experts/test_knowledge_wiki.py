@@ -82,6 +82,34 @@ def test_source_paths_reject_non_content_identities_before_writing(tmp_path, kno
     assert not (tmp_path / "knowledge").exists()
 
 
+def test_bound_currentness_notes_are_unique_and_keep_run_history(knowledge):
+    from deepr.experts.consult_support import study_fingerprint
+
+    note = "Earlier chunk checkpoints were unavailable or stale; their study contract could not be verified."
+    knowledge["study"].limitations = [note, note]
+    knowledge["brief"].limitations = [note, "A brief-specific limitation."]
+    knowledge["brief"].study_fingerprint = study_fingerprint(knowledge["study"])
+    _, pages = build_knowledge_view(**knowledge)
+    assert pages["currentness.md"].count(note) == 1
+    assert "Checkpoint and retry notes record what happened during that run" in pages["currentness.md"]
+    assert "A brief-specific limitation." in pages["currentness.md"]
+    assert knowledge["study"].limitations == [note, note]
+    assert knowledge["brief"].limitations == [note, "A brief-specific limitation."]
+
+
+@pytest.mark.parametrize("fingerprint", ["", "older-study"])
+def test_old_brief_limitations_are_not_presented_as_current_study_failures(knowledge, fingerprint):
+    knowledge["study"].limitations = ["Current recorded limitation."]
+    knowledge["brief"].limitations = ["Earlier failure retained for review."]
+    knowledge["brief"].study_fingerprint = fingerprint
+    _, pages = build_knowledge_view(**knowledge)
+    current, earlier = pages["currentness.md"].split("### Brief from a different or unverified study")
+    assert "Current recorded limitation." in current
+    assert "Earlier failure retained for review." not in current
+    assert "Earlier failure retained for review." in earlier
+    assert "not attributed to the loaded study" in earlier
+
+
 def test_changed_understanding_creates_new_view_preserving_old_bytes(tmp_path, knowledge):
     old_index = write_knowledge_view(tmp_path, **knowledge)
     original = {p: p.read_bytes() for p in old_index.parent.rglob("*") if p.is_file()}
