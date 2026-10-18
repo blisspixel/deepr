@@ -88,7 +88,7 @@ def _verifier_recall_kwargs(recall_embedding_model: str | None, *, client: Any |
     from deepr.backends.local import make_local_embedder
 
     return {
-        "recall_query_embedder": make_local_embedder(recall_embedding_model, client=client),
+        "recall_query_embedder": make_local_embedder(recall_embedding_model, client=client, role="query"),
         "recall_embedding_model": recall_embedding_model,
     }
 

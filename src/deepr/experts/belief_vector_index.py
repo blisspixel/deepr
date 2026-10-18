@@ -48,7 +48,10 @@ def _record_embedding(record: Mapping[str, Any]) -> tuple[float, ...] | None:
     if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)):
         return None
     try:
-        return _coerce_embedding(raw)
+        vector = _coerce_embedding(raw)
+        if "dimensions" in record and (type(record["dimensions"]) is not int or record["dimensions"] != len(vector)):
+            return None
+        return vector
     except (TypeError, ValueError):
         return None
 
@@ -113,6 +116,7 @@ class BeliefVectorIndex:
         embedding: Sequence[float],
         *,
         model: str = "",
+        profile: str = "none",
         embedded_at: str | None = None,
         metadata: Mapping[str, Any] | None = None,
     ) -> bool:
@@ -126,11 +130,14 @@ class BeliefVectorIndex:
             raise ValueError("belief id is required")
         if not claim:
             raise ValueError("belief claim is required")
+        if not isinstance(profile, str) or not profile.strip():
+            raise ValueError("embedding profile is required")
         vector = _coerce_embedding(embedding)
         record = {
             "belief_id": belief_id,
             "claim_hash": belief_claim_hash(claim),
             "model": str(model or ""),
+            "profile": profile,
             "dimensions": len(vector),
             "embedding": list(vector),
             "embedded_at": embedded_at or datetime.now(UTC).isoformat(),
@@ -167,6 +174,8 @@ class BeliefVectorIndex:
         beliefs: Iterable[Any],
         *,
         model: str | None = None,
+        profile: str = "none",
+        dimensions: int | None = None,
     ) -> dict[str, tuple[float, ...]]:
         """Return non-stale vectors for current belief claims."""
         vectors: dict[str, tuple[float, ...]] = {}
@@ -177,6 +186,10 @@ class BeliefVectorIndex:
             if not belief_id or not claim or not record:
                 continue
             if model is not None and str(record.get("model", "")) != model:
+                continue
+            if record.get("profile", "none") != profile:
+                continue
+            if dimensions is not None and record.get("dimensions") != dimensions:
                 continue
             if str(record.get("claim_hash", "")) != belief_claim_hash(claim):
                 continue
@@ -190,23 +203,38 @@ class BeliefVectorIndex:
         beliefs: Iterable[Any],
         *,
         model: str | None = None,
+        profile: str = "none",
+        dimensions: int | None = None,
     ) -> list[str]:
         """Return current belief ids whose vectors are absent or stale."""
         belief_list = list(beliefs)
-        available = self.vectors_for(belief_list, model=model)
+        available = self.vectors_for(belief_list, model=model, profile=profile, dimensions=dimensions)
+        if dimensions is None and len({len(vector) for vector in available.values()}) > 1:
+            available = {}
         return [
             belief_id
             for belief in belief_list
             if (belief_id := str(getattr(belief, "id", "") or "")) and belief_id not in available
         ]
 
-    def stats(self, beliefs: Iterable[Any] = (), *, model: str | None = None) -> dict[str, Any]:
+    def stats(
+        self,
+        beliefs: Iterable[Any] = (),
+        *,
+        model: str | None = None,
+        profile: str = "none",
+        dimensions: int | None = None,
+    ) -> dict[str, Any]:
         """Return local index statistics and a digest without exposing vectors."""
         belief_list = list(beliefs)
-        current_vectors = self.vectors_for(belief_list, model=model) if belief_list else {}
-        dimensions = sorted({len(vector) for vector in current_vectors.values()})
+        current_vectors = (
+            self.vectors_for(belief_list, model=model, profile=profile, dimensions=dimensions) if belief_list else {}
+        )
+        current_dimensions = sorted({len(vector) for vector in current_vectors.values()})
         state_payload = {
             "model": str(model or ""),
+            "profile": profile,
+            "requested_dimensions": dimensions,
             "beliefs": [
                 {
                     "belief_id": str(getattr(belief, "id", "") or ""),
@@ -225,9 +253,15 @@ class BeliefVectorIndex:
             "schema_version": BELIEF_VECTOR_INDEX_SCHEMA_VERSION,
             "record_count": len(self.records),
             "belief_count": len(belief_list),
-            "current_vector_count": len(current_vectors),
-            "missing_or_stale_count": (len(self.missing_or_stale_ids(belief_list, model=model)) if belief_list else 0),
-            "dimensions": dimensions,
+            "current_vector_count": 0 if len(current_dimensions) > 1 else len(current_vectors),
+            "missing_or_stale_count": (
+                len(self.missing_or_stale_ids(belief_list, model=model, profile=profile, dimensions=dimensions))
+                if belief_list
+                else 0
+            ),
+            "profile": profile,
+            "requested_dimensions": dimensions,
+            "dimensions": current_dimensions,
             "state_digest": state_digest,
             "path": str(self.path),
         }

@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.37] - 2026-10-18
+
+Repair explicit local embedding input contracts (#216).
+See [design](design/local-embedding-profiles.md) and
+[comparison](validation/local-embedding-profiles-2026-10-18.md).
+
+### Fixed
+
+- Local embeddings accept explicit query/document profiles for Nomic and
+  EmbeddingGemma 2. Gemma supports matching truncated/normalized dimensions.
+  Unknown models and existing defaults keep raw input.
+- Vector records bind a versioned profile. Profile/dimension changes require
+  refresh, mixed dimensions cannot qualify an index, and routing evidence
+  cannot relabel its embedding contract. Canonical beliefs remain unchanged.
+- Refresh, recall and recall evaluation expose matching options. Native local
+  embedding calls require current cloud/model proof and durable `$0` intent,
+  dispatch and terminal events, with no metered fallback or automatic download.
+- A frozen published-label subset comparison retains sources, models, inputs,
+  vectors and 108 accounted attempts. Nomic prefixes did not improve the tested
+  subset, so defaults stay unchanged. No expertise or S0 claim is promoted.
+
 ## [2.50.36] - 2026-10-18
 
 Repair the retained native local consult ledger finding.

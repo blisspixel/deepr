@@ -83,11 +83,18 @@ def _candidate_payload(candidate: RecallCandidate) -> dict[str, Any]:
     return payload
 
 
-def _embedding_stats(belief_store: Any, embedding_model: str | None) -> dict[str, Any]:
+def _embedding_stats(
+    belief_store: Any, embedding_model: str | None, embedding_profile: str = "none", dimensions: int | None = None
+) -> dict[str, Any]:
     stats = getattr(belief_store, "belief_embedding_stats", None)
     if not callable(stats):
         return {}
-    return dict(stats(embedding_model=embedding_model))
+    filters = (
+        {"embedding_profile": embedding_profile, "dimensions": dimensions}
+        if embedding_profile != "none" or dimensions is not None
+        else {}
+    )
+    return dict(stats(embedding_model=embedding_model, **filters))
 
 
 def _profile_payload(profile: Any, belief_store: Any) -> dict[str, str]:
@@ -145,7 +152,12 @@ def _refresh_payload(
         },
         "refresh": result.to_dict(),
         "index": {
-            "stats": _embedding_stats(belief_store, embedding_model),
+            "stats": _embedding_stats(
+                belief_store,
+                embedding_model,
+                result.metadata.get("embedding_profile", "none"),
+                result.metadata.get("dimensions"),
+            ),
         },
     }
 
@@ -156,6 +168,8 @@ async def build_expert_semantic_recall_refresh(
     embedding_vectors: Mapping[str, Sequence[Any]],
     *,
     embedding_model: str,
+    embedding_profile: str = "none",
+    embedding_dimensions: int | None = None,
     budget_usd: float = 0.0,
     estimated_cost_per_belief: float = 0.0,
     max_beliefs: int | None = None,
@@ -172,7 +186,11 @@ async def build_expert_semantic_recall_refresh(
 
     vectors = coerce_belief_embedding_map(embedding_vectors)
     limit = None if max_beliefs is None else max(0, int(max_beliefs))
-    target_ids = list(belief_store.missing_belief_embedding_ids(embedding_model=model))
+    target_ids = list(
+        belief_store.missing_belief_embedding_ids(
+            embedding_model=model, embedding_profile=embedding_profile, dimensions=embedding_dimensions
+        )
+    )
     if limit is not None:
         target_ids = target_ids[:limit]
     missing_vector_ids = [belief_id for belief_id in target_ids if belief_id not in vectors]
@@ -188,6 +206,8 @@ async def build_expert_semantic_recall_refresh(
         belief_store,
         embed_claims,
         model=model,
+        profile=embedding_profile,
+        dimensions=embedding_dimensions,
         budget_usd=budget_usd,
         estimated_cost_per_belief=estimated_cost_per_belief,
         max_beliefs=max_beliefs,
@@ -208,6 +228,8 @@ async def build_expert_semantic_recall_refresh(
         embedding_model=model,
         request={
             "embedding_model": model,
+            "embedding_profile": embedding_profile,
+            "embedding_dimensions": embedding_dimensions,
             "budget_usd": float(budget_usd),
             "estimated_cost_per_belief": float(estimated_cost_per_belief),
             "max_beliefs": max_beliefs,
@@ -226,6 +248,8 @@ async def build_expert_semantic_recall_refresh_local(
     embed_claims: EmbeddingBatcher,
     *,
     embedding_model: str,
+    embedding_profile: str = "none",
+    embedding_dimensions: int | None = None,
     max_beliefs: int | None = None,
 ) -> dict[str, Any]:
     """Refresh the local belief-vector index through a local $0 embedder.
@@ -244,6 +268,8 @@ async def build_expert_semantic_recall_refresh_local(
         belief_store,
         embed_claims,
         model=model,
+        profile=embedding_profile,
+        dimensions=embedding_dimensions,
         budget_usd=0.0,
         estimated_cost_per_belief=0.0,
         max_beliefs=max_beliefs,
@@ -261,6 +287,8 @@ async def build_expert_semantic_recall_refresh_local(
         embedding_model=model,
         request={
             "embedding_model": model,
+            "embedding_profile": embedding_profile,
+            "embedding_dimensions": embedding_dimensions,
             "budget_usd": 0.0,
             "estimated_cost_per_belief": 0.0,
             "max_beliefs": max_beliefs,
@@ -281,6 +309,8 @@ def build_expert_semantic_recall(
     domain: str | None = None,
     query_embedding: Sequence[float] | None = None,
     embedding_model: str | None = None,
+    embedding_profile: str = "none",
+    embedding_dimensions: int | None = None,
     include_lexical_fallback: bool = True,
     embedding_generation: str = "not_performed",
 ) -> dict[str, Any]:
@@ -300,6 +330,8 @@ def build_expert_semantic_recall(
     query_vector = tuple(query_embedding) if query_embedding is not None else None
     if query_vector is not None:
         query_vector = coerce_query_embedding(query_vector)
+        if embedding_dimensions is not None and len(query_vector) != embedding_dimensions:
+            raise ValueError("query dimensions do not match the embedding contract")
         if not embedding_model:
             raise ValueError("embedding_model is required when query_embedding is supplied")
     elif embedding_model:
@@ -314,6 +346,7 @@ def build_expert_semantic_recall(
             domain=domain,
             query_embedding=query_vector,
             embedding_model=embedding_model,
+            **({"embedding_profile": embedding_profile} if embedding_profile != "none" else {}),
             include_lexical_fallback=include_lexical_fallback,
         )
         if callable(recall)
@@ -322,7 +355,7 @@ def build_expert_semantic_recall(
     candidate_payloads = [_candidate_payload(candidate) for candidate in candidates]
     vector_count = sum(1 for candidate in candidates if candidate.method == VECTOR_METHOD)
     lexical_count = sum(1 for candidate in candidates if candidate.method == LEXICAL_METHOD)
-    stats = _embedding_stats(belief_store, embedding_model)
+    stats = _embedding_stats(belief_store, embedding_model, embedding_profile, embedding_dimensions)
 
     return {
         "schema_version": EXPERT_SEMANTIC_RECALL_SCHEMA_VERSION,
@@ -334,6 +367,7 @@ def build_expert_semantic_recall(
             "top_k": bounded_top_k,
             "min_score": float(min_score),
             "embedding_model": embedding_model or "",
+            "embedding_profile": embedding_profile,
             "query_embedding_dimensions": len(query_vector or ()),
             "include_lexical_fallback": include_lexical_fallback,
         },

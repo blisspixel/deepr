@@ -129,7 +129,7 @@ class NativeOllamaInvestigationBackend:
         self.last_attested_digest = ""
         self.pinned_digest = ""
 
-    async def _attest_model(self, model: str) -> str:
+    async def attest_model(self, model: str) -> str:
         self.last_attested_digest = ""
         preflight_timeout = min(self.timeout, 5.0)
         try:
@@ -165,7 +165,7 @@ class NativeOllamaInvestigationBackend:
 
     async def preflight(self) -> None:
         """Observe current capacity without caching authority for dispatch."""
-        await self._attest_model(self.model or "")
+        await self.attest_model(self.model or "")
 
     async def complete(self, request: ExpertChatRequest, *, correlation_id: str = "") -> ExpertChatResult:
         model = (request.model or self.model or "").strip()
@@ -190,7 +190,7 @@ class NativeOllamaInvestigationBackend:
                 "keep_alive": self.keep_alive,
                 **generation,
             }
-            digest = await self._attest_model(model)
+            digest = await self.attest_model(model)
             attempt.dispatch(digest)
             data = await self._post_json(f"{self.base_url}/api/chat", payload, self.timeout)
             if data.get("error"):

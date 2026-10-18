@@ -465,3 +465,44 @@ def test_semantic_recall_rejects_invalid_query_embedding(tmp_path):
 
     assert result.exit_code == 2
     assert "must be JSON" in result.output or "must be finite" in result.output
+
+
+def test_refresh_and_query_share_an_explicit_profile(tmp_path):
+    store = _store(tmp_path)
+    belief, _ = store.add_belief(Belief(claim="Power delivery is constrained.", confidence=0.8))
+    mock_profile, mock_store = _patch_dependencies(_profile(), store)
+    with mock_profile, mock_store, _patch_local_embedder([[1.0, 0.0]]) as factory:
+        refreshed = CliRunner().invoke(
+            expert_refresh_semantic_recall,
+            [
+                "Recall CLI Expert",
+                "--local-embedding-model",
+                "nomic-embed-text",
+                "--embedding-profile",
+                "auto",
+                "--embedding-dimensions",
+                "2",
+                "--json",
+            ],
+        )
+        assert refreshed.exit_code == 0, refreshed.output
+        query = CliRunner().invoke(
+            expert_semantic_recall,
+            [
+                "Recall CLI Expert",
+                "Power",
+                "--local-embedding-model",
+                "nomic-embed-text",
+                "--embedding-profile",
+                "auto",
+                "--embedding-dimensions",
+                "2",
+                "--no-lexical-fallback",
+                "--json",
+            ],
+        )
+        assert query.exit_code == 0, query.output
+    assert [call.kwargs["role"] for call in factory.call_args_list] == ["document", "query"]
+    assert all(call.kwargs["profile"] == "nomic-v1" for call in factory.call_args_list)
+    assert json.loads(query.output)["candidates"][0]["item_id"] == belief.id
+    assert json.loads(refreshed.output)["request"]["embedding_profile"] == "nomic-v1"

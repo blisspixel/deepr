@@ -23,14 +23,20 @@ def recall_retrieval_contract(*, top_k: int, domain: str | None, min_score: floa
     }
 
 
-def belief_index_coverage(belief_store: Any, embedding_model: str | None) -> dict[str, Any]:
+def belief_index_coverage(
+    belief_store: Any, embedding_model: str | None, *, embedding_profile: str = "none", dimensions: int | None = None
+) -> dict[str, Any]:
     """Return sanitized coverage and state identity for one model label."""
     stats_fn = getattr(belief_store, "belief_embedding_stats", None)
     if not callable(stats_fn) or not embedding_model:
         return {}
-    stats = dict(stats_fn(embedding_model=embedding_model))
+    filters: dict[str, Any] = {}
+    if embedding_profile != "none" or dimensions is not None:
+        filters = {"embedding_profile": embedding_profile, "dimensions": dimensions}
+    stats = dict(stats_fn(embedding_model=embedding_model, **filters))
     return {
         "embedding_model": embedding_model,
+        **({"embedding_profile": embedding_profile, "embedding_dimensions": dimensions} if filters else {}),
         "belief_count": int(stats.get("belief_count", 0) or 0),
         "current_vector_count": int(stats.get("current_vector_count", 0) or 0),
         "missing_or_stale_count": int(stats.get("missing_or_stale_count", 0) or 0),

@@ -84,6 +84,8 @@ def test_belief_vector_index_persists_and_filters_stale_claims(tmp_path):
         "belief_count": 1,
         "current_vector_count": 1,
         "missing_or_stale_count": 0,
+        "profile": "none",
+        "requested_dimensions": None,
         "dimensions": [2],
         "path": str(store.storage_dir / "belief_vectors.json"),
     }

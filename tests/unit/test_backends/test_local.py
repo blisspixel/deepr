@@ -295,12 +295,28 @@ class _FakeEmbeddingClient:
             _mark_zero_dollar_client(self, capacity_source="local")
 
 
+async def _embedding_model_proof(url, timeout):
+    if url.endswith("/api/status"):
+        return {"cloud": {"disabled": True, "source": "config"}}
+    return {
+        "models": [
+            {
+                "name": "nomic-embed-text",
+                "model": "nomic-embed-text",
+                "size": 1000000,
+                "digest": "a" * 64,
+                "details": {"format": "gguf"},
+            }
+        ]
+    }
+
+
 class TestLocalEmbedder:
     def test_unsealed_client_is_rejected_before_dispatch(self):
         client = _FakeEmbeddingClient(zero_dollar_proof=False)
 
         with pytest.raises(ValueError, match="zero-dollar capacity proof"):
-            local.make_local_embedder("nomic-embed-text", client=client)
+            local.make_local_embedder("nomic-embed-text", client=client, get_json=_embedding_model_proof)
 
         assert client.embeddings.calls == []
 
@@ -310,7 +326,7 @@ class TestLocalEmbedder:
             _FakeEmbeddingRow(0, [1.0, 0.0]),
         ]
         client = _FakeEmbeddingClient(rows=rows)
-        embed = local.make_local_embedder("nomic-embed-text", client=client)
+        embed = local.make_local_embedder("nomic-embed-text", client=client, get_json=_embedding_model_proof)
 
         vectors = await embed(["first claim", "second claim"])
 
@@ -322,21 +338,21 @@ class TestLocalEmbedder:
 
     async def test_empty_input_short_circuits_without_a_call(self):
         client = _FakeEmbeddingClient(rows=[])
-        embed = local.make_local_embedder("nomic-embed-text", client=client)
+        embed = local.make_local_embedder("nomic-embed-text", client=client, get_json=_embedding_model_proof)
 
         assert await embed([]) == []
         assert client.embeddings.calls == []
 
     async def test_vector_count_mismatch_raises(self):
         client = _FakeEmbeddingClient(rows=[_FakeEmbeddingRow(0, [1.0])])
-        embed = local.make_local_embedder("nomic-embed-text", client=client)
+        embed = local.make_local_embedder("nomic-embed-text", client=client, get_json=_embedding_model_proof)
 
         with pytest.raises(RuntimeError, match="returned 1 vector"):
             await embed(["one", "two"])
 
     async def test_transport_errors_propagate(self):
         client = _FakeEmbeddingClient(error=ConnectionError("refused"))
-        embed = local.make_local_embedder("nomic-embed-text", client=client)
+        embed = local.make_local_embedder("nomic-embed-text", client=client, get_json=_embedding_model_proof)
 
         with pytest.raises(ConnectionError, match="refused"):
             await embed(["claim"])
@@ -508,9 +524,8 @@ class TestOllamaChatClientTimeout:
             def __init__(self, **kwargs):
                 captured.update(kwargs)
 
-        import openai
-
         import httpx2
+        import openai
 
         monkeypatch.setattr(httpx2, "AsyncClient", FakeHttpClient)
         monkeypatch.setattr(openai, "AsyncOpenAI", FakeAsyncOpenAI)

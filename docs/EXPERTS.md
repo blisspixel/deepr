@@ -1457,3 +1457,28 @@ refusals include `status: error` and an `error` object with `code`, `message`,
 and points to `deepr capacity --probe`. Completed or incomplete consultation
 artifacts retain their existing `deepr-consult-v1` contract and exit codes.
 No inspection command grants research, spend or learning authority.
+
+
+### Explicit local embedding profiles
+
+Raw embedding inputs remain the default. To use model-specific query/document
+prefixes, refresh and query with the same profile and dimensions:
+
+```bash
+deepr expert refresh-semantic-recall "Expert Name" --local-embedding-model nomic-embed-text:v1.5 --embedding-profile auto --json
+deepr expert semantic-recall "Expert Name" "Question" --local-embedding-model nomic-embed-text:v1.5 --embedding-profile auto --json
+deepr eval recall "Expert Name" --cases cases.json --local-embedding-model nomic-embed-text:v1.5 --embedding-profile auto --json --save
+```
+
+`auto` selects `nomic-v1` for Nomic and `embeddinggemma-fact-checking-v1` for
+EmbeddingGemma 2; unknown models stay raw. Gemma supports an explicit
+`--embedding-dimensions 256` (also 128, 512 and native 768). Truncated Gemma
+vectors are normalized. Indexing and queries must use the same model, profile
+and dimension contract. A change makes old vectors stale and requires explicit
+refresh; canonical beliefs stay unchanged. Earlier records without a profile
+mean `none`. Existing route-preference reports must be reevaluated after index
+identity changes. Raw maintenance/MCP readers cannot reuse a profiled index.
+
+Calls remain owned-local, cloud-disabled and recorded at `$0`, including failures.
+No model is pulled automatically. See the [measured subset comparison](validation/local-embedding-profiles-2026-10-18.md)
+for actual results and limits; profile support does not establish expert quality.
