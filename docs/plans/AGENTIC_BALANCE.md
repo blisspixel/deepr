@@ -16,6 +16,12 @@ brittle rule - it encodes a boundary that no longer matches the code.
 
 ## The axis
 
+Decision review projects exact outcome/trace identities and recorded input
+differences. It preserves answers, receipts and operator observations without
+inferring decision equivalence, superseding advice or better judgment. Review
+prompts remain unreviewed; there is no model dispatch or canonical write. See
+[decision review](../design/decision-review.md).
+
 Generated review and currentness pages project file existence and canonical
 study/brief bindings. Exact note deduplication removes repeated bytes without
 interpreting whether a failure is resolved; old or unbound brief history stays

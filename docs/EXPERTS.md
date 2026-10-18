@@ -109,12 +109,24 @@ deepr expert outcomes "Azure Architect"
 # Join registered predictions, consult metadata, and current outcome observations in a read-only view.
 deepr expert experience "Azure Architect"
 
+# Inspect the original answer, delivered evidence and later observations.
+# Select an outcome ID from the overview, or use an exact decision ID.
+deepr expert review-decision "Azure Architect" --decision-id migration-2026
+deepr expert review-decision "Azure Architect" --outcome-id OUTCOME_ID --compare-trace TRACE_ID --json
+
 # Regenerate the expert's derived memory card for humans and host agents
 deepr expert memory-card "Azure Architect" --write
 
 # Ask Deepr for the highest-value next actions from current structural evidence
 deepr expert next "Azure Architect"
 ```
+
+Decision reviews print dated Markdown or the equivalent JSON packet without
+writing expert state. Redirect stdout to save a derived review. Original answers,
+context and all observations for the selected decision remain visible, including
+superseded outcomes. Missing legacy evidence stays unavailable. An explicit
+comparison reports recorded input changes; it never infers that advice changed,
+improved or applies to the same environment. The review prompts remain unreviewed.
 
 All production plan adapters are currently execution-blocked. Claude safe
 mode does not confine managed-policy hooks. `deepr capacity` lists each
