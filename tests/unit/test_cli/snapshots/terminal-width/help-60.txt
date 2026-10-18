@@ -32,9 +32,11 @@ Usage: deepr [OPTIONS] COMMAND [ARGS]...
   it on day one.
 
 Options:
-  --no-color  Disable ANSI color output.
-  --version   Show the version and exit.
-  -h, --help  Show this message and exit.
+  --no-companion  Hide the optional Brim companion for this
+                  command.
+  --no-color      Disable ANSI color output.
+  --version       Show the version and exit.
+  -h, --help      Show this message and exit.
 
 Core commands:
   expert    Create and maintain domain experts (beliefs,

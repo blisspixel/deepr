@@ -10,11 +10,13 @@ from deepr.cli.colors import console, print_error, print_section_header, print_s
 _CLI_ENV_KEY_ALIASES = {
     "cli.branding": "DEEPR_BRANDING",
     "cli.animations": "DEEPR_ANIMATIONS",
+    "cli.companion": "DEEPR_COMPANION",
 }
 
 _ALLOWED_CONFIG_VALUES = {
     "DEEPR_BRANDING": {"off", "on", "auto"},
     "DEEPR_ANIMATIONS": {"off", "light", "full"},
+    "DEEPR_COMPANION": {"off", "on"},
 }
 
 

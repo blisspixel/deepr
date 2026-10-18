@@ -118,7 +118,6 @@ def test_complete_next_command_is_the_documented_width_exception():
 @pytest.mark.parametrize("indent", [4, 8])
 def test_root_help_normalizes_template_before_inserting_preview(monkeypatch, width, indent):
     import inspect
-
     original = inspect.cleandoc(cli.help)
     template = "\n".join(" " * indent + line if line else "" for line in original.splitlines())
     monkeypatch.setattr(cli, "help", template)

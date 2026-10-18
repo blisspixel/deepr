@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Optional Brim workflow poses make active study/build/consult progress visible
+  without changing execution or evidence. One palette renderer supplies block
+  and ASCII forms, explicit state words and opt-outs. Idle starts no timer;
+  active motion stops with work and stays at most four frames per second.
+  Shared effects now honor screen-reader settings. Literal, padding-aware menu
+  keys remain readable at 60/80/100 columns. See [design](design/optional-companion.md)
+  and [validation](validation/optional-companion-2026-10-18.md).
+
 - **Startup and narrow terminals** use the owning dashboard mark and terminal
   palette, with one bounded synchronized reveal and accessible static fallbacks.
   Root help, capacity and offline doctor fit 60/100 columns; complete next

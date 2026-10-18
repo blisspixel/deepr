@@ -397,3 +397,9 @@ accessibility, bounded sleeps and synchronized frames. The seen marker controls
 an optional reveal, not execution eligibility. Inventory renders the same
 collected source, quota and admission fields at either width; a fitted table is
 not a new capacity proof. See [terminal banner and width](../design/terminal-banner-width.md).
+
+The optional companion projects recorded workflow state and the same Pushback
+rows already displayed. It never classifies the question or grades advice.
+Terminal capability, scoped opt-outs and bounded active-work refresh guard
+presentation form only; routing, budgets, canonical writes and machine payloads
+keep their owning seams. See [the companion decision](../design/optional-companion.md).

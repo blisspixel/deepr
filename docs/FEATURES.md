@@ -1530,15 +1530,18 @@ deepr config set DEEPR_MAX_COST_PER_JOB 5.0
 # CLI UX settings (preferred aliases)
 deepr config set cli.animations light
 deepr config set cli.branding auto
+deepr config set cli.companion off
 ```
 
 Supported CLI UX values:
 - `cli.animations`: `off`, `light`, `full`
 - `cli.branding`: `off`, `on`, `auto`
+- `cli.companion`: `off`, `on`
 
 Notes:
 - `cli.animations` maps to `DEEPR_ANIMATIONS`
 - `cli.branding` maps to `DEEPR_BRANDING`
+- `cli.companion` maps to `DEEPR_COMPANION`; persisted changes apply on restart
 - Legacy direct env keys still work (for example `DEEPR_ANIMATIONS=light`)
 - Startup banner controls:
 - `DEEPR_BANNER_MODE=off|static|light|full`
@@ -1550,6 +1553,16 @@ startup or setup, then stay static. Reduced motion, `NO_COLOR`, CI and dumb
 terminals stay static; screen readers, legacy encodings and narrow windows
 get a compact signature. Help and redirected output never show it. An explicit
 banner or branding opt-out wins over a force-show request.
+
+Brim is an optional four-row terminal companion beside the interactive prompt,
+active study/build progress and the consult footer. It appears only on a TTY
+at least 80 columns wide, and hides in CI, dumb terminals, screen readers and
+JSON output. `DEEPR_COMPANION=off` or root `--no-companion` hides it immediately;
+`deepr config set cli.companion off` persists the opt-out for later processes.
+NO_COLOR and reduced motion keep poses static. Only active work refreshes, at
+most four times per second. Consult skepticism projects the displayed Pushback
+rows; success projects recorded completion or fully anchored study counts.
+Answers, budgets, evidence and knowledge writes keep their existing behavior.
 
 ## Analytics
 

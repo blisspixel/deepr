@@ -339,6 +339,12 @@ must not be described as usable capacity.
   budgets exit nonzero. Human refusals use stderr and JSON refusals emit one
   operation-result envelope without prompting. Ordinary research preserves its
   resolved provider/model from preview through execution.
+  An optional Brim companion shows recorded workflow states on TTYs of at least
+  80 columns. Root `--no-companion`, `DEEPR_COMPANION=off` and
+  `config set cli.companion off` provide opt-outs. JSON, CI, dumb terminals and
+  screen readers hide it. Idle has no refresh timer; active motion is bounded
+  and respects reduced motion. Consult Pushback and completion retain their
+  existing meanings and authority.
 - The published schema registry under `docs/schemas/`. Descriptive fields are
   additive inside v1 by default. Entries labeled as closed authority accept
   additions only under their ignored `extensions` object; changing tools,

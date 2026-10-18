@@ -189,7 +189,8 @@ def _print_main_menu() -> str:
     ]
 
     provider_label, budget_label, queue_label = _get_home_status()
-    status = Text("Status: ", style="muted")
+    status = Text()
+    status.append("Status: ", style="muted")
     status.append(provider_label, style="info")
     status.append("  ·  ", style="muted")
     status.append(budget_label, style="money")
@@ -204,18 +205,19 @@ def _print_main_menu() -> str:
         padding=(0, 2),
         collapse_padding=True,
     )
-    table.add_column("Key", style="accent", width=3)
+    table.add_column("Key", style="accent", width=5, no_wrap=True)
     table.add_column("Action", style="bold", width=12)
     table.add_column("Description", style="muted")
 
     table.add_row("", "[muted]Primary[/muted]", "")
     for key, action, desc in primary_items:
-        table.add_row(f"[{key}]", action, desc)
+        table.add_row(Text(f"[{key}]"), action, desc)
     table.add_row("", "[muted]Utility[/muted]", "")
     for key, action, desc in secondary_items:
-        table.add_row(f"[{key}]", action, desc)
+        table.add_row(Text(f"[{key}]"), action, desc)
 
-    quick = Text("Type ", style="muted")
+    quick = Text()
+    quick.append("Type ", style="muted")
     quick.append("[r]", style="accent")
     quick.append("esearch ", style="muted")
     quick.append("[e]", style="accent")
@@ -236,6 +238,9 @@ def _print_main_menu() -> str:
     console.print(table)
     console.print()
 
+    from deepr.cli.companion import print_companion
+
+    print_companion("idle", console=console)
     choice = click.prompt(
         style_role("Action", "accent"),
         type=str,

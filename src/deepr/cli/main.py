@@ -258,6 +258,14 @@ def _apply_no_color_option(_ctx: click.Context, _param: click.Option, value: boo
     return value
 
 
+def _apply_companion_option(ctx: click.Context, param: click.Option, value: bool) -> bool:
+    if value:
+        from deepr.cli.companion import disable_companion_option
+
+        return disable_companion_option(ctx, param, value)
+    return value
+
+
 class SectionedGroup(click.Group):
     """Click group with static root help and lazy top-level command imports."""
 
@@ -336,6 +344,14 @@ class SectionedGroup(click.Group):
 
 
 @click.group(cls=SectionedGroup, context_settings={"help_option_names": ["-h", "--help"]})
+@click.option(
+    "--no-companion",
+    is_flag=True,
+    is_eager=True,
+    expose_value=False,
+    callback=_apply_companion_option,
+    help="Hide the optional Brim companion for this command.",
+)
 @click.option(
     "--no-color",
     is_flag=True,

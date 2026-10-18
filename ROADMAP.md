@@ -26,8 +26,9 @@ Validation and practical limits: [reader evidence repairs](docs/validation/exper
 Terminal roles and status words (#230) merged through PR #248 after all
 exact-head checks passed; they remain under Unreleased. Startup/width (#234)
 passes local unit/coverage and width verification and awaits exact-head CI.
-Next: the optional companion (#235) and actual built-dashboard
-light/dark acceptance (#236).
+The optional companion (#235) passes local unit/coverage, pose/lifecycle and
+TTY validation. Actual built-dashboard light/dark acceptance (#236) remains
+the last interface gate before release.
 SearXNG, unattended and MCP OpenRouter, and sleep-time overwrite of claims
 stay blocked.
 
@@ -59,6 +60,11 @@ stay blocked.
 > those *and* a user does not feel it - **cut it.**
 
 ## First-run consistency
+
+- [x] **Interactive action keys (2026-10-18, #235):** real PTY inspection found
+  padding cropped numeric keys and Rich parsed `[q]` as markup. Literal Text and
+  a padding-aware column fix the prompt at 60/80/100 columns. Regression cases
+  and updated actual PTY captures pass; publication remains an independent gate.
 
 - [ ] **Built-dashboard baseline finding (2026-10-18, #236):** actual
   isolated light/dark browser runs exposed a CSP-blocked inline theme initializer

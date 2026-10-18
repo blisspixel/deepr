@@ -70,6 +70,14 @@ def get_animation_mode() -> str:
     return "light"
 
 
+def screen_reader_enabled() -> bool:
+    """Honor the existing explicit accessibility settings across CLI effects."""
+    return any(
+        os.getenv(key, "").strip().lower() in {"1", "true", "yes", "on"}
+        for key in ("DEEPR_SCREEN_READER", "SCREENREADER", "TERM_SCREEN_READER")
+    )
+
+
 def resolve_animation_policy(console: Console) -> AnimationPolicy:
     """Resolve a cross-platform animation policy for the given console."""
     requested = get_animation_mode()
@@ -79,7 +87,7 @@ def resolve_animation_policy(console: Console) -> AnimationPolicy:
     dumb = bool(getattr(console, "is_dumb_terminal", False))
     interactive = bool(getattr(console, "is_terminal", False))
 
-    if requested == "off" or in_ci or no_color or dumb or not interactive:
+    if requested == "off" or in_ci or no_color or dumb or not interactive or screen_reader_enabled():
         return AnimationPolicy(
             mode="off",
             enabled=False,
