@@ -23,6 +23,7 @@ from deepr.cli.colors import (
     print_error,
     print_header,
     print_list_item,
+    print_next,
     print_section_header,
     print_success,
     print_warning,
@@ -364,7 +365,7 @@ def absorb_report(
 
     print_header(f"Absorb report into {result.expert_name}")
     if result.dry_run:
-        console.print("[yellow]DRY RUN[/yellow] - nothing written")
+        console.print("[warning]DRY RUN[/warning] - nothing written")
     console.print(
         f"Candidates: {result.total_candidates}  "
         f"Absorbed: {len(result.absorbed)} (added {result.added_count}, merged {result.merged_count})  "
@@ -373,50 +374,52 @@ def absorb_report(
     )
     if result.contradictions_refuted or result.merges_blocked:
         console.print(
-            f"[dim]Model verdicts caught {result.contradictions_refuted} false contradiction(s) "
-            f"and {result.merges_blocked} false merge(s) the word-overlap heuristic flagged.[/dim]"
+            f"[muted]Model verdicts caught {result.contradictions_refuted} false contradiction(s) "
+            f"and {result.merges_blocked} false merge(s) the word-overlap heuristic flagged.[/muted]"
         )
 
     if result.absorbed:
         console.print()
         print_section_header("Would absorb" if result.dry_run else "Absorbed")
         for a in result.absorbed:
-            print_list_item(f"{a.statement}  [dim](conf {a.confidence:.2f}, {a.outcome})[/dim]")
+            print_list_item(f"{a.statement}  [muted](conf {a.confidence:.2f}, {a.outcome})[/muted]")
 
     if result.flagged:
         console.print()
         print_section_header("Flagged contradictions (recorded as contested, existing beliefs untouched)")
         for f in result.flagged:
             tag = " unverified" if f.verification == "lexical_unverified" and not f.resolution else ""
-            console.print(f"  [yellow]![/yellow] {f.statement}  [dim](conf {f.confidence:.2f}, {f.outcome}{tag})[/dim]")
             console.print(
-                f"    [dim]contradicts {f.conflicts_with_id}: {f.conflicts_with_claim} "
-                f"(conf {f.conflicts_with_confidence:.2f}; better sourced: {f.better_sourced})[/dim]"
+                f"  [warning]![/warning] {f.statement}  [muted](conf {f.confidence:.2f}, {f.outcome}{tag})[/muted]"
+            )
+            console.print(
+                f"    [muted]contradicts {f.conflicts_with_id}: {f.conflicts_with_claim} "
+                f"(conf {f.conflicts_with_confidence:.2f}; better sourced: {f.better_sourced})[/muted]"
             )
             if f.resolution:
-                console.print(f"    [dim]adjudication: {f.resolution} - {f.resolution_explanation}[/dim]")
+                console.print(f"    [muted]adjudication: {f.resolution} - {f.resolution_explanation}[/muted]")
         if any(f.verification == "lexical_unverified" and not f.resolution for f in result.flagged):
             console.print(
-                "  [dim]'unverified' = flagged by the free lexical heuristic (high-recall router), "
-                "not a confirmed semantic contradiction. Adjudicate to get a model verdict.[/dim]"
+                "  [muted]'unverified' = flagged by the free lexical heuristic (high-recall router), "
+                "not a confirmed semantic contradiction. Adjudicate to get a model verdict.[/muted]"
             )
 
     if result.insufficient:
         console.print()
         print_section_header("Insufficient grounding (abstained - not refuted)")
         console.print(
-            "  [dim]This report does not support these strongly enough to absorb; "
-            "they may still be true. Natural re-research targets.[/dim]"
+            "  [muted]This report does not support these strongly enough to absorb; "
+            "they may still be true. Natural re-research targets.[/muted]"
         )
         for i in result.insufficient:
-            console.print(f"  [dim]?[/dim] {i.statement}  [dim](report support {i.confidence:.2f})[/dim]")
+            console.print(f"  [muted]?[/muted] {i.statement}  [muted](report support {i.confidence:.2f})[/muted]")
 
     if result.rejected:
         console.print()
         print_section_header("Rejected")
         for r in result.rejected:
-            console.print(f"  [dim]-[/dim] {r.statement}")
-            console.print(f"    [dim]{r.reason}: {r.detail}[/dim]")
+            console.print(f"  [muted]-[/muted] {r.statement}")
+            console.print(f"    [muted]{r.reason}: {r.detail}[/muted]")
 
     if not result.absorbed and not result.rejected and not result.flagged and not result.insufficient:
         print_warning("No claims extracted from the report.")
@@ -742,7 +745,7 @@ def sync_cmd(
                     capacity_source="local",
                 )
                 return
-            print_error("No local model available. Is Ollama running? Check: deepr capacity --probe")
+            print_error("No local model available. Is Ollama running? Next: deepr capacity --probe")
             sys.exit(2)
 
         if scheduled and not dry_run:
@@ -873,7 +876,7 @@ def sync_cmd(
             return
 
     if (use_local or use_plan) and selection_note and not json_output:
-        console.print(f"[dim]{selection_note}[/dim]")
+        console.print(f"[muted]{selection_note}[/muted]")
     if use_plan and plan_adapter is not None and plan_adapter.tos_note and not json_output:
         print_warning(plan_adapter.tos_note)
     context_builder = (
@@ -920,26 +923,28 @@ def sync_cmd(
     print_header(f"Sync: {name}")
     for o in result.outcomes:
         marker = {
-            "synced": "[green]synced[/green]",
-            "no_changes": "[dim]no changes[/dim]",
-            "would_sync": "[yellow]would sync[/yellow]",
-            "skipped": "[yellow]skipped[/yellow]",
-            "failed": "[red]failed[/red]",
+            "synced": "[success]synced[/success]",
+            "no_changes": "[muted]no changes[/muted]",
+            "would_sync": "[warning]would sync[/warning]",
+            "skipped": "[warning]skipped[/warning]",
+            "failed": "[error]failed[/error]",
         }.get(o.status, o.status)
         line = f"  {marker}  {o.topic}"
         if o.status == "synced":
             if o.graph_commit_apply_status:
-                line += f"  [dim](graph apply {o.graph_commit_apply_status}, {o.absorbed} writes, ${o.cost:.3f})[/dim]"
+                line += (
+                    f"  [muted](graph apply {o.graph_commit_apply_status}, {o.absorbed} writes, ${o.cost:.3f})[/muted]"
+                )
                 if o.blocked:
-                    line += f"  [dim]({o.blocked} verifier-blocked)[/dim]"
+                    line += f"  [muted]({o.blocked} verifier-blocked)[/muted]"
             else:
-                line += f"  [dim](+{o.absorbed} beliefs, {o.flagged} contested, ${o.cost:.3f})[/dim]"
+                line += f"  [muted](+{o.absorbed} beliefs, {o.flagged} contested, ${o.cost:.3f})[/muted]"
         elif o.detail:
-            line += f"  [dim]{o.detail[:90]}[/dim]"
+            line += f"  [muted]{o.detail[:90]}[/muted]"
         if o.source_pack_artifact:
-            line += f"  [dim](sources {o.source_count}; {o.source_pack_artifact})[/dim]"
+            line += f"  [muted](sources {o.source_count}; {o.source_pack_artifact})[/muted]"
         if o.claim_extraction_artifact:
-            line += f"  [dim](claims {o.claim_extraction_artifact})[/dim]"
+            line += f"  [muted](claims {o.claim_extraction_artifact})[/muted]"
         console.print(line)
 
     if not dry_run:
@@ -950,7 +955,7 @@ def sync_cmd(
                 f"Perspective delta: {len(delta.get('added', []))} added, "
                 f"{len(delta.get('contested', []))} contested, {len(delta.get('revised', []))} revised"
             )
-            console.print(f"Inspect: deepr expert what-changed '{name}' --since 1h")
+            print_next(f"deepr expert what-changed '{name}' --since 1h")
         if any(o.flagged for o in result.outcomes):
             print_warning(f"Contested beliefs recorded. Review: deepr expert contested '{name}'")
 

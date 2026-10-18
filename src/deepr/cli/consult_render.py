@@ -8,6 +8,7 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.text import Text
 
+from deepr.cli.colors import ROLE_STYLES
 from deepr.experts.consult_support import recorded_statement
 
 
@@ -17,7 +18,7 @@ def _text(console: Console, value: object) -> None:
 
 def _section(console: Console, title: str) -> None:
     console.print()
-    console.print(Text(title, style="bold"))
+    console.print(Text(title, style=ROLE_STYLES["accent"]))
 
 
 def _grounds(console: Console, perspectives: list[dict[str, Any]]) -> None:
@@ -31,7 +32,9 @@ def _grounds(console: Console, perspectives: list[dict[str, Any]]) -> None:
         if passages:
             _text(console, f"{len(passages)} retained passages from {len({p['sha256'] for p in passages})} sources.")
             for passage in passages:
-                _text(console, passage["text"])
+                console.print(
+                    Text("\n".join("│ " + line for line in passage["text"].splitlines()), style=ROLE_STYLES["quote"])
+                )
                 _text(console, f"Source: {passage['origin']} ({passage['sha256']})")
         if context.get("orientation"):
             _text(console, context["orientation"])
@@ -127,5 +130,5 @@ def render_consult(payload: dict[str, Any], console: Console) -> None:
     capacity = payload.get("capacity") or {}
     route = " ".join(str(capacity[key]) for key in ("synthesis_backend", "model") if capacity.get(key))
     console.print(
-        Text(f"${payload.get('cost_usd', 0):.4f} {route} | Knowledge writes: none; review-only output.", style="dim")
+        Text(f"${payload.get('cost_usd', 0):.4f} {route} | Knowledge writes: none; review-only output.", style="muted")
     )

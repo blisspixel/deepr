@@ -171,7 +171,7 @@ def install_host(
         click.echo(f"  Wrote:       {result.get('mcp_json_path')}")
         _echo_claude_register(result.get("claude_register") or {})
     click.echo("")
-    click.echo("Next:")
+    click.echo("Host setup:")
     click.echo("  1. Restart the host session (Claude Code / Desktop / Cursor).")
     click.echo("  2. Confirm deepr tools (deepr_list_experts) appear.")
     click.echo("  3. If missing, run: claude mcp list   (expect deepr Connected)")

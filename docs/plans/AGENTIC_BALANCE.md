@@ -16,6 +16,11 @@ brittle rule - it encodes a boundary that no longer matches the code.
 
 ## The axis
 
+Terminal roles, diagnostic status words and command-hint prefixes guard
+presentation form. They project recorded result states without changing
+eligibility, spend authority, evidence or judgments. Source style guards do not
+classify prose or answer quality. See [terminal roles](../design/terminal-roles.md).
+
 Embedding roles and profiles are input-format contracts chosen explicitly or by
 recognized model identity. They do not classify text meaning. Vector dimensions,
 profile staleness, current owned-local proof and durable attempt receipts guard

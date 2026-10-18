@@ -52,13 +52,13 @@ def _emit_absorb_result(
         click.echo(json.dumps(payload, indent=2))
         return
     if result.dry_run:
-        console.print("[yellow]DRY RUN[/yellow] - nothing written")
+        console.print("[warning]DRY RUN[/warning] - nothing written")
     console.print(
         f"Candidates: {result.total_candidates}  Absorbed: {len(result.absorbed)} "
         f"(added {result.added_count}, merged {result.merged_count})  Rejected: {len(result.rejected)}"
     )
     for absorbed in result.absorbed:
-        print_list_item(f"{absorbed.statement}  [dim](conf {absorbed.confidence:.2f}, {absorbed.outcome})[/dim]")
+        print_list_item(f"{absorbed.statement}  [muted](conf {absorbed.confidence:.2f}, {absorbed.outcome})[/muted]")
     rejection_counts = Counter(str(getattr(rejected, "reason", "unknown") or "unknown") for rejected in result.rejected)
     if rejection_counts:
         grouped = ", ".join(f"{reason}: {count}" for reason, count in sorted(rejection_counts.items()))
@@ -94,7 +94,7 @@ def _local_backend(model: str | None, profile: Any) -> tuple[str, Any, str]:
 
     selected_model = resolve_local_maintenance_model(profile, explicit_model=model)
     if not selected_model:
-        print_error("No local model available. Is Ollama running? Check: deepr capacity --probe")
+        print_error("No local model available. Is Ollama running? Next: deepr capacity --probe")
         raise click.exceptions.Exit(2)
     return selected_model, ollama_chat_client(), f"Local model: {selected_model}  ($0, owned hardware)"
 
@@ -165,7 +165,7 @@ def run_learn_web_pipeline(
         print_warning("Cancelled.")
         sys.exit(0)
 
-    console.print("[dim]Searching the web, fetching pages, and synthesizing without metered spend...[/dim]")
+    console.print("[muted]Searching the web, fetching pages, and synthesizing without metered spend...[/muted]")
     started_at = datetime.now(UTC)
     research = asyncio.run(
         research_web_local(topic, model=model, client=client, num_results=num_results, max_pages=max_pages)
@@ -187,17 +187,17 @@ def run_learn_web_pipeline(
     report = research.get("answer") or ""
     if not report:
         print_error(f"Web research produced no report: {research.get('error', 'empty')}")
-        console.print(f"[dim]Attempt source pack: {artifacts.source_pack}[/dim]")
+        console.print(f"[muted]Attempt source pack: {artifacts.source_pack}[/muted]")
         sys.exit(1)
     if not artifacts.source_ref_catalog:
         print_error("Web research report has no replayable source-note provenance; beliefs were not changed.")
         sys.exit(1)
     console.print(
-        f"[dim]Synthesized a report from {len(research.get('sources', []))} content-addressed live source(s).[/dim]"
+        f"[muted]Synthesized a report from {len(research.get('sources', []))} content-addressed live source(s).[/muted]"
     )
     if save_path:
         Path(save_path).write_text(report, encoding="utf-8")
-        console.print(f"[dim]Report saved: {save_path}[/dim]")
+        console.print(f"[muted]Report saved: {save_path}[/muted]")
 
     absorber = ReportAbsorber(profile, model=model, client=client, estimated_cost=0.0)
     try:

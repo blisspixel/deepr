@@ -380,7 +380,7 @@ class TestExpertListCommand:
 
             # Should show message about no experts
             assert "no experts" in result.output.lower()
-            assert "create" in result.output.lower()  # Should suggest creating one
+            assert 'Next: deepr expert make "Expert Name" --local' in result.output
 
     def test_expert_list_displays_experts(self, runner):
         """Test that 'expert list' displays expert information."""
@@ -1646,7 +1646,7 @@ class TestExpertRouteGapsCommand:
 
         assert result.exit_code == 2
         assert "--scheduled cannot use --api" in result.output
-        assert "only for attended work" in result.output
+        assert "only for attended work" in " ".join(result.output.split())
         mock_store_class.assert_not_called()
 
     def test_json_output(self, runner):

@@ -150,7 +150,7 @@ def _apply_cleanup(root: Path, plan: CleanupPlan, yes: bool) -> None:
         return
 
     backup = _backup(root)
-    console.print(f"[dim]Backed up experts root to {backup}[/dim]")
+    console.print(f"[muted]Backed up experts root to {backup}[/muted]")
 
     merged = 0
     for legacy, canonical in plan.merges:
@@ -185,11 +185,11 @@ def _render_plan(plan: CleanupPlan) -> None:
             console.print(f"  {legacy.name}  ->  {canonical.name}/")
     if plan.deletions:
         console.print(
-            f"\n[bold]Delete {len(plan.deletions)} empty expert(s)[/bold] "
+            f"\n[destructive]Delete {len(plan.deletions)} empty expert(s)[/destructive] "
             "(no beliefs, corpus, brief, or other durable artifacts):"
         )
         for d in plan.deletions:
-            console.print(f"  [red]{d.name}[/red]")
+            console.print(f"  [destructive]{d.name}[/destructive]")
     if not plan.merges and not plan.deletions:
         print_success("Nothing to clean - every expert is already a single, populated directory.")
 
@@ -221,7 +221,7 @@ def expert_cleanup(do_apply: bool, yes: bool):
         return
 
     if not do_apply:
-        console.print("\n[dim]Dry-run. Re-run with --apply to back up and perform these changes.[/dim]")
+        console.print("\n[muted]Dry-run. Re-run with --apply to back up and perform these changes.[/muted]")
         return
 
     _apply_cleanup(root, plan, yes)
@@ -256,7 +256,7 @@ def _run_legacy_state_migration(name: str, do_apply: bool, yes: bool) -> None:
         raise click.ClickException("Resolve the listed conflicts before applying; no state was moved.")
 
     if not do_apply:
-        console.print("Dry-run. Re-run with --apply to move only this known legacy state.", style="dim")
+        console.print("Dry-run. Re-run with --apply to move only this known legacy state.", style="muted")
         return
     if not yes and not click.confirm("Apply this targeted legacy-state migration?", default=False):
         print_warning("Cancelled.")

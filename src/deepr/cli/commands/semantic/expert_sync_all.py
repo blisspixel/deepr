@@ -35,14 +35,14 @@ from deepr.experts.metered_mutation_gate import (
 from deepr.experts.sync_all import ExpertSyncSummary, LibrarySyncResult, run_library_sync
 
 _STATUS_MARKERS = {
-    "synced": "[green]synced[/green]",
-    "partial_failure": "[red]partial failure[/red]",
-    "would_sync": "[cyan]would sync[/cyan]",
-    "no_changes": "[dim]no changes[/dim]",
-    "not_due": "[dim]not due[/dim]",
-    "skipped": "[yellow]skipped[/yellow]",
-    "locked": "[yellow]locked[/yellow]",
-    "failed": "[red]failed[/red]",
+    "synced": "[success]synced[/success]",
+    "partial_failure": "[error]partial failure[/error]",
+    "would_sync": "[accent]would sync[/accent]",
+    "no_changes": "[muted]no changes[/muted]",
+    "not_due": "[muted]not due[/muted]",
+    "skipped": "[warning]skipped[/warning]",
+    "locked": "[warning]locked[/warning]",
+    "failed": "[error]failed[/error]",
 }
 
 
@@ -380,7 +380,7 @@ def _emit_roster_wait(
     print_header("Library sync preview" if dry_run else "Library sync")
     print_warning("Scheduled sync-all is waiting for owned/prepaid capacity (no metered spend).")
     preview_note = " Preview only: no research, spend, or expert files changed." if dry_run else ""
-    console.print(f"[dim]{detail}. Inspect current options with: deepr capacity next.{preview_note}[/dim]")
+    console.print(f"[muted]{detail}. Inspect current options with: deepr capacity next.{preview_note}[/muted]")
     _render_heartbeat_evidence(heartbeat, json_output=json_output)
 
 
@@ -456,8 +456,8 @@ def _emit_roster_local_busy_wait(
         click.echo(_json.dumps(payload, indent=2))
         return
     print_warning("Scheduled sync-all is waiting because local GPU capacity is busy.")
-    console.print(f"[dim]{observation.detail}.[/dim]")
-    console.print(f"[dim]Try again at or after {earliest.retry_at.isoformat()}; no fallback was dispatched.[/dim]")
+    console.print(f"[muted]{observation.detail}.[/muted]")
+    console.print(f"[muted]Try again at or after {earliest.retry_at.isoformat()}; no fallback was dispatched.[/muted]")
     _render_heartbeat_evidence(heartbeat, json_output=json_output)
 
 
@@ -504,7 +504,7 @@ def _metered_tier_defers(
         f"Budget tier {snapshot['tier']} ({snapshot['drain_percent']}% of the monthly pool used): "
         "metered roster sync is off."
     )
-    console.print("[dim]Use --local, inspect deepr capacity next, or wait for the monthly reset.[/dim]")
+    console.print("[muted]Use --local, inspect deepr capacity next, or wait for the monthly reset.[/muted]")
     _render_heartbeat_evidence(heartbeat, json_output=json_output)
     return True
 
@@ -549,7 +549,7 @@ def _emit_backend_notes(backend: _PassBackend, *, json_output: bool) -> None:
     if json_output:
         return
     if backend.note:
-        console.print(f"[dim]{backend.note}[/dim]")
+        console.print(f"[muted]{backend.note}[/muted]")
     if backend.use_plan and backend.plan_adapter is not None and backend.plan_adapter.tos_note:
         print_warning(backend.plan_adapter.tos_note)
 
@@ -652,18 +652,18 @@ def _render_library_result(result: Any, json_output: bool, *, heartbeat: dict[st
         line = f"  {_STATUS_MARKERS.get(summary.status, summary.status)}  [bold]{_terminal_safe_text(summary.expert)}[/bold]"
         if summary.status == "synced":
             line += (
-                f"  [dim](+{summary.absorbed} beliefs, {summary.flagged} contested, "
-                f"${summary.cost:.3f} {summary.capacity_source})[/dim]"
+                f"  [muted](+{summary.absorbed} beliefs, {summary.flagged} contested, "
+                f"${summary.cost:.3f} {summary.capacity_source})[/muted]"
             )
         elif summary.status == "partial_failure":
             topic_label = "topic" if summary.topics_synced == 1 else "topics"
             line += (
-                f"  [dim]({summary.topics_synced} {topic_label} synced, {summary.failed_topics} failed, "
+                f"  [muted]({summary.topics_synced} {topic_label} synced, {summary.failed_topics} failed, "
                 f"+{summary.absorbed} beliefs, {summary.flagged} contested, "
-                f"${summary.cost:.3f} {summary.capacity_source})[/dim]"
+                f"${summary.cost:.3f} {summary.capacity_source})[/muted]"
             )
         elif summary.detail:
-            line += f"  [dim]{summary.detail[:90]}[/dim]"
+            line += f"  [muted]{summary.detail[:90]}[/muted]"
         console.print(line)
     expert_count = len(result.summaries)
     expert_label = "expert" if expert_count == 1 else "experts"
@@ -672,7 +672,7 @@ def _render_library_result(result: Any, json_output: bool, *, heartbeat: dict[st
             f"\n[bold]{expert_count} {expert_label} reviewed[/bold] · "
             f"{result.would_sync_experts} would sync · {result.failed_experts} failed"
         )
-        console.print("[dim]Preview only: no research, spend, or expert files changed.[/dim]")
+        console.print("[muted]Preview only: no research, spend, or expert files changed.[/muted]")
     else:
         console.print(
             f"\n[bold]{expert_count} {expert_label}[/bold] · {result.synced_experts} synced · "
@@ -680,7 +680,7 @@ def _render_library_result(result: Any, json_output: bool, *, heartbeat: dict[st
         )
     if result.failed_experts:
         print_error("Roster sync completed with failures.")
-        console.print("[dim]Inspect each failed expert: deepr expert loop-status NAME --json[/dim]")
+        console.print("[muted]Inspect each failed expert: deepr expert loop-status NAME --json[/muted]")
     _render_heartbeat_evidence(heartbeat, json_output=json_output)
 
 
@@ -701,7 +701,7 @@ def _emit_empty_roster(
     heartbeat = _heartbeat_evidence(scheduled=scheduled, dry_run=dry_run, success=True)
     if not json_output:
         prefix = "Preview complete: " if dry_run else ""
-        print_success(f"{prefix}No experts yet. Create one with: deepr expert make NAME --local")
+        print_success(f"{prefix}No experts yet. Next: deepr expert make NAME --local")
         _render_heartbeat_evidence(heartbeat, json_output=json_output)
         return
     payload = _cli_library_payload(LibrarySyncResult(started_at=started_at, dry_run=dry_run))
@@ -743,7 +743,9 @@ def _emit_storage_state_error(
         click.echo(_json.dumps(payload, indent=2))
     else:
         print_error(detail)
-        console.print("[dim]Inspect local logs, repair the unreadable profile or subscription file, then retry.[/dim]")
+        console.print(
+            "[muted]Inspect local logs, repair the unreadable profile or subscription file, then retry.[/muted]"
+        )
         _render_heartbeat_evidence(heartbeat, json_output=json_output)
 
 
@@ -907,7 +909,7 @@ def sync_all_cmd(
     )
 
     if backend.use_local and backend.local_model is None:
-        print_error("No local model available. Is Ollama running? Check: deepr capacity --probe")
+        print_error("No local model available. Is Ollama running? Next: deepr capacity --probe")
         sys.exit(2)
     if scheduled and not api and not backend.owned_or_prepaid:
         _emit_roster_wait(

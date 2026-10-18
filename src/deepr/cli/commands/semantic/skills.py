@@ -7,6 +7,7 @@ from deepr.cli.colors import (
     print_error,
     print_header,
     print_key_value,
+    print_next,
     print_success,
     print_warning,
 )
@@ -58,11 +59,11 @@ def list_skills(expert_name):
         if installed:
             console.print("\n[bold]Installed:[/bold]")
             for s in installed:
-                tier_badge = f"[dim][{s.tier}][/dim]"
-                console.print(f"  [green]>[/green] {s.name} - {s.description} {tier_badge}")
+                tier_badge = f"[muted][{s.tier}][/muted]"
+                console.print(f"  [success]>[/success] {s.name} - {s.description} {tier_badge}")
                 console.print(f"    Tools: {', '.join(t.name for t in s.tools)}")
         else:
-            console.print("\n[dim]No skills installed.[/dim]")
+            console.print("\n[muted]No skills installed.[/muted]")
 
         # Available but not installed
         installed_names = {s.name for s in installed}
@@ -71,9 +72,9 @@ def list_skills(expert_name):
             console.print("\n[bold]Available to install:[/bold]")
             for s in not_installed:
                 domains = ", ".join(s.domains[:3]) if s.domains else ""
-                console.print(f"  [dim].[/dim] {s.name} - {s.description}")
+                console.print(f"  [muted].[/muted] {s.name} - {s.description}")
                 if domains:
-                    console.print(f"    [dim]Domains: {domains}[/dim]")
+                    console.print(f"    [muted]Domains: {domains}[/muted]")
     else:
         manager = SkillManager()
         all_skills = manager.list_all()
@@ -81,19 +82,19 @@ def list_skills(expert_name):
         print_header("Available Skills")
 
         if not all_skills:
-            console.print("[dim]No skills found.[/dim]")
-            console.print("Create one with: deepr skill create my-skill")
+            console.print("[muted]No skills found.[/muted]")
+            print_next("deepr skill create my-skill")
             return
 
         for s in all_skills:
-            tier_badge = f"[dim][{s.tier}][/dim]"
+            tier_badge = f"[muted][{s.tier}][/muted]"
             console.print(f"\n  {s.name} v{s.version} {tier_badge}")
             console.print(f"    {s.description}")
             console.print(f"    Tools: {', '.join(t.name for t in s.tools)}")
             if s.domains:
                 console.print(f"    Domains: {', '.join(s.domains)}")
 
-        console.print(f"\n[dim]{len(all_skills)} skill(s) found.[/dim]")
+        console.print(f"\n[muted]{len(all_skills)} skill(s) found.[/muted]")
 
 
 @skill.command(name="install")
@@ -119,7 +120,7 @@ def install_skill(expert_name, skill_name):
     skill_def = manager.get_skill(skill_name)
     if not skill_def:
         print_error(f"Skill not found: {skill_name}")
-        console.print("[dim]Use 'deepr skill list' to see available skills.[/dim]")
+        console.print("[muted]Use 'deepr skill list' to see available skills.[/muted]")
         return
 
     installed = getattr(profile, "installed_skills", [])
@@ -284,7 +285,7 @@ def skill_info(name):
 
     console.print("\n[bold]Tools:[/bold]")
     for tool in skill_def.tools:
-        cost_label = f"[dim]({tool.cost_tier})[/dim]"
+        cost_label = f"[muted]({tool.cost_tier})[/muted]"
         console.print(f"  {tool.name} - {tool.description} {cost_label}")
         console.print(f"    Type: {tool.type}", highlight=False)
         if tool.type == "python":
@@ -304,4 +305,4 @@ def skill_info(name):
         preview = prompt[:300]
         if len(prompt) > 300:
             preview += "..."
-        console.print(f"  [dim]{preview}[/dim]")
+        console.print(f"  [muted]{preview}[/muted]")

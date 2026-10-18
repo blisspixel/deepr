@@ -110,7 +110,7 @@ def _render_summary(payload: dict[str, Any]) -> None:
     print_key_value("Embedding generation", str(contract["embedding_generation"]))
 
     if not candidates:
-        console.print("[dim]No recall candidates matched the current filters.[/dim]")
+        console.print("[muted]No recall candidates matched the current filters.[/muted]")
         return
 
     print_section_header("Candidates")
@@ -118,7 +118,7 @@ def _render_summary(payload: dict[str, Any]) -> None:
         console.print(
             f"  - {candidate['score']:.3f} "
             f"[{candidate['method']}] {candidate['text']} "
-            f"[dim]({candidate['item_id']}, {candidate['verdict']})[/dim]"
+            f"[muted]({candidate['item_id']}, {candidate['verdict']})[/muted]"
         )
 
 

@@ -147,13 +147,13 @@ def _scheduled_gap_fill_wait_payload(
 def _emit_scheduled_gap_fill_wait(profile_name: str, routes: list[Any], *, budget: float, top_n: int) -> None:
     payload = _scheduled_gap_fill_wait_payload(profile_name, routes, budget=budget, top_n=top_n)
     print_warning("Scheduled gap fill is waiting for cheap capacity.")
-    console.print(f"[dim]{payload['detail']}.[/dim]")
+    console.print(f"[muted]{payload['detail']}.[/muted]")
     for action in payload["next_actions"]:
         console.print(f"  {action['status']}: {action['title']}")
         if action.get("detail"):
-            console.print(f"      [dim]{action['detail']}[/dim]")
+            console.print(f"      [muted]{action['detail']}[/muted]")
         if action.get("command"):
-            console.print(f"      [dim]{action['command']}[/dim]")
+            console.print(f"      [muted]{action['command']}[/muted]")
 
 
 def _gap_fill_retry_argv(
@@ -241,8 +241,8 @@ def _scheduled_local_gap_fill_wait_payload(
 
 def _emit_scheduled_local_gap_fill_wait(payload: dict[str, Any]) -> None:
     print_warning("Scheduled local gap fill is waiting because GPU capacity is busy.")
-    console.print(f"[dim]{payload['local_capacity']['detail']}.[/dim]")
-    console.print(f"[dim]Try again at or after {payload['retry_at']}; no fallback was dispatched.[/dim]")
+    console.print(f"[muted]{payload['local_capacity']['detail']}.[/muted]")
+    console.print(f"[muted]Try again at or after {payload['retry_at']}; no fallback was dispatched.[/muted]")
 
 
 def _build_gap_fill_engine(
@@ -270,10 +270,10 @@ def _build_gap_fill_engine(
 
         local_model = resolve_local_maintenance_model(profile, explicit_model=local_model)
         if not local_model:
-            print_error("No local model available. Is Ollama running? Check: deepr capacity --probe")
+            print_error("No local model available. Is Ollama running? Next: deepr capacity --probe")
             sys.exit(2)
         if selection_note and not json_output:
-            console.print(f"[dim]{selection_note}[/dim]")
+            console.print(f"[muted]{selection_note}[/muted]")
         engine = GapFillEngine(
             profile,
             research_fn=make_local_research_fn(local_model),
@@ -290,7 +290,7 @@ def _build_gap_fill_engine(
             print_error(f"Unknown plan-quota backend: {plan_backend_id}")
             sys.exit(2)
         if selection_note and not json_output:
-            console.print(f"[dim]{selection_note}[/dim]")
+            console.print(f"[muted]{selection_note}[/muted]")
         if adapter.tos_note and not json_output:
             print_warning(adapter.tos_note)
         client = PlanQuotaChatClient(adapter, model=plan_model)
@@ -677,18 +677,20 @@ def route_gaps(
 
         print_header(f"Gap fill: {name}")
         marker = {
-            "filled": "[green]filled[/green]",
-            "deferred": "[yellow]deferred[/yellow]",
-            "would_fill": "[yellow]would fill[/yellow]",
-            "skipped": "[yellow]skipped[/yellow]",
-            "failed": "[red]failed[/red]",
+            "filled": "[success]filled[/success]",
+            "deferred": "[warning]deferred[/warning]",
+            "would_fill": "[warning]would fill[/warning]",
+            "skipped": "[warning]skipped[/warning]",
+            "failed": "[error]failed[/error]",
         }
         for outcome in result.outcomes:
             line = f"  {marker.get(outcome.status, outcome.status)}  {outcome.topic}"
             if outcome.status == "filled":
-                line += f"  [dim](+{outcome.absorbed} beliefs, {outcome.flagged} contested, ${outcome.cost:.3f})[/dim]"
+                line += (
+                    f"  [muted](+{outcome.absorbed} beliefs, {outcome.flagged} contested, ${outcome.cost:.3f})[/muted]"
+                )
             elif outcome.detail:
-                line += f"  [dim]{outcome.detail[:100]}[/dim]"
+                line += f"  [muted]{outcome.detail[:100]}[/muted]"
             console.print(line)
         if not dry_run:
             console.print(f"\nTotal cost: ${result.total_cost:.3f}")
@@ -705,14 +707,13 @@ def route_gaps(
         print_success("No open knowledge gaps to route.")
         return
 
-    color = {"recon": "cyan", "distillr": "magenta", "primr": "yellow", "research": "white"}
+    color = {"recon": "accent", "distillr": "accent", "primr": "warning", "research": "text"}
     for route in routes:
-        avail = "" if route.available else " [red](not installed)[/red]"
-        inst = color.get(route.instrument, "white")
+        avail = "" if route.available else " [error](not installed)[/error]"
+        inst = color.get(route.instrument, "text")
         console.print(
-            f"[bold {inst}]{route.instrument}[/bold {inst}]{avail}  "
-            f"~${route.estimated_cost:.2f}  [dim]{route.topic}[/dim]"
+            f"[{inst}]{route.instrument}[/{inst}]{avail}  ~${route.estimated_cost:.2f}  [muted]{route.topic}[/muted]"
         )
         console.print(f"    {route.rationale}")
-        console.print(f"    [white]{route.suggestion}[/white]")
+        console.print(f"    [text]{route.suggestion}[/text]")
         console.print()

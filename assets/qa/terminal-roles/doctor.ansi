@@ -1,0 +1,54 @@
+Running Deepr diagnostics...
+
+Offline mode: provider connectivity checks are skipped.
+
+[?25lRunning checks  [------------------------------------]    0%[?25lRunning checks  [###---------------------------------]   10%[?25lRunning checks  [#######-----------------------------]   20%[?25lRunning checks  [##########--------------------------]   30%[?25lRunning checks  [##############----------------------]   40%[?25lRunning checks  [##################------------------]   50%[?25lRunning checks  [#####################---------------]   60%[?25lRunning checks  [#########################-----------]   70%[?25lRunning checks  [############################--------]   80%[?25lRunning checks  [################################----]   90%[?25lRunning checks  [####################################]  100%[?25h
+Executable capacity not established. Local generation: unverified.
+
+[36mConfiguration[0m
+  [32mok        [0m Configuration files: Dotenv loading disabled (PYTHON_DOTENV_DISABLED)
+
+[36mAPI Keys[0m
+  [2;39mskipped   [0m Metered API capacity: No metered API keys; inspect local and explicit plan capacity 
+with deepr capacity
+
+[36mLocal Capacity[0m
+  [33munverified[0m Local Ollama generation: Unverified: provider connectivity checks were skipped
+[2;39m      Run `deepr capacity` for read-only local cloud/model proof; it performs no inference.[0m
+
+[36mFilesystem[0m
+  [32mok        [0m Temp Directory: Writable
+[2;39m      Path: /tmp[0m
+  [32mok        [0m Current Directory: Writable
+[2;39m      Path: /home/pueo/Work/deepr/.agent/reader-evidence/terminal-theme230-final[0m
+  [32mok        [0m .deepr Directory: Writable
+[2;39m      Path: /home/pueo/.deepr[0m
+
+[36mStorage[0m
+  [32mok        [0m Experts: /home/pueo/Work/deepr/.agent/reader-evidence/terminal-theme230-final/experts
+[2;39m      Set DEEPR_DATA_DIR (or DEEPR_EXPERTS_PATH) to move portable state across machines[0m
+[2;39m      A synced DEEPR_DATA_DIR includes runtime state; stop Deepr services before switching[0m
+[2;39m      Use one writer at a time and wait for sync to finish before switching devices[0m
+  [32mok        [0m Research reports: 
+/home/pueo/Work/deepr/.agent/reader-evidence/terminal-theme230-final/reports
+
+[36mSpend[0m
+  [32mok        [0m Monthly spend vs budget: $0.00 spent this month
+  [32mok        [0m Paid artifacts on disk: No unexplained spend ($0.00 matched, $0.00 disposed, 45 days)
+
+[36mMCP[0m
+  [32mok        [0m MCP offline conformance: ok (6 checks; modern 2026-07-28)
+[36m      Next: deepr mcp conformance --json[0m
+[2;39m      No network, no model, $0; form and side-effect posture only[0m
+  [32mok        [0m MCP host project wiring: advisory: no project .mcp.json with deepr
+[2;39m      Coding hosts need install + session restart, not only a pasted brief[0m
+[36m      Next: deepr mcp install-host --project .[0m
+[36m      Also: deepr mcp host-brief[0m
+[2;39m      claude CLI not on PATH; .mcp.json still usable by hosts that read it[0m
+
+[1mSummary:[0m 10/10 required checks passed; 0 advisory, 10 optional, 1 unverified
+
+No blocking configuration issues; skipped or blocked checks remain unverified.
+
+No metered API keys are configured. Local and plan workflows require their own capacity proof.
+[36mNext: deepr capacity[0m

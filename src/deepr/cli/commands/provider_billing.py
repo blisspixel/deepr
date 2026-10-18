@@ -6,12 +6,12 @@ import json
 from pathlib import Path
 
 import click
-from rich.console import Console
 from rich.table import Table
 
+from deepr.cli.colors import make_console
 from deepr.observability.provider_billing import ProviderBillingError, reconcile_billing_file
 
-console = Console()
+console = make_console()
 
 
 def _usd(microusd: int) -> str:
@@ -57,7 +57,7 @@ def reconcile_billing_command(
         click.echo(json.dumps(report.model_dump(mode="json"), sort_keys=True, separators=(",", ":")))
     else:
         table = Table(title="Provider Billing Reconciliation")
-        table.add_column("Field", style="cyan")
+        table.add_column("Field", style="accent")
         table.add_column("Value")
         table.add_row("Mode", "applied" if apply_result else "write-free preview")
         table.add_row("Status", report.status.upper())

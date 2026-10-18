@@ -7,15 +7,15 @@ Provides commands for viewing provider status and metrics:
 """
 
 import click
-from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from deepr.cli.colors import make_console
 from deepr.cli.commands.openrouter_catalog import openrouter_check
 from deepr.cli.commands.openrouter_key import openrouter_key_check
 from deepr.observability.provider_router import AutonomousProviderRouter
 
-console = Console()
+console = make_console()
 
 
 @click.group()
@@ -41,7 +41,7 @@ def status(show_all: bool):
     total_requests = status_data["total_requests"]
     total_cost = status_data["total_cost"]
 
-    health_color = "green" if unhealthy == 0 else "yellow" if unhealthy < healthy else "red"
+    health_color = "success" if unhealthy == 0 else "warning" if unhealthy < healthy else "error"
 
     console.print(
         Panel(
@@ -56,11 +56,11 @@ def status(show_all: bool):
 
     # Provider table
     if not status_data["providers"]:
-        console.print("\n[dim]No provider metrics recorded yet[/dim]")
+        console.print("\n[muted]No provider metrics recorded yet[/muted]")
         return
 
     table = Table(title="Provider Metrics")
-    table.add_column("Provider/Model", style="cyan")
+    table.add_column("Provider/Model", style="accent")
     table.add_column("Status", justify="center")
     table.add_column("Success Rate", justify="right")
     table.add_column("Avg Latency", justify="right")
@@ -71,9 +71,9 @@ def status(show_all: bool):
         if not show_all and not metrics["healthy"]:
             continue
 
-        status_icon = "[green]>[/green]" if metrics["healthy"] else "[red]>[/red]"
+        status_icon = "[success]>[/success]" if metrics["healthy"] else "[error]>[/error]"
         success_rate = metrics["success_rate"] * 100
-        rate_color = "green" if success_rate >= 95 else "yellow" if success_rate >= 80 else "red"
+        rate_color = "success" if success_rate >= 95 else "warning" if success_rate >= 80 else "error"
 
         table.add_row(
             name,
@@ -92,16 +92,16 @@ def status(show_all: bool):
     ]
 
     if unhealthy_providers:
-        console.print("\n[bold red]Unhealthy Providers:[/bold red]")
+        console.print("\n[error]Unhealthy Providers:[/error]")
         for name, metrics in unhealthy_providers:
-            console.print(f"  [red]>[/red] {name}: {metrics['last_error']}")
+            console.print(f"  [error]>[/error] {name}: {metrics['last_error']}")
 
     # Show auto-disabled providers
     disabled = router.get_disabled_providers()
     if disabled:
-        console.print("\n[bold yellow]Auto-Disabled Providers:[/bold yellow]")
+        console.print("\n[warning]Auto-Disabled Providers:[/warning]")
         for d in disabled:
-            console.print(f"  [yellow].[/yellow] {d['provider']}/{d['model']}: {d['reason']}")
+            console.print(f"  [warning].[/warning] {d['provider']}/{d['model']}: {d['reason']}")
 
 
 @providers.command()
@@ -114,18 +114,18 @@ def fallbacks(limit: int):
     events = status_data.get("recent_fallbacks", [])
 
     if not events:
-        console.print("[dim]No fallback events recorded[/dim]")
+        console.print("[muted]No fallback events recorded[/muted]")
         return
 
     table = Table(title=f"Recent Fallback Events (Last {min(limit, len(events))})")
-    table.add_column("Time", style="dim")
-    table.add_column("Original", style="red")
-    table.add_column("Fallback", style="green")
+    table.add_column("Time", style="muted")
+    table.add_column("Original", style="error")
+    table.add_column("Fallback", style="success")
     table.add_column("Reason")
     table.add_column("Success", justify="center")
 
     for event in events[-limit:]:
-        success_icon = "[green]OK[/green]" if event["success"] else "[red]ERROR[/red]"
+        success_icon = "[success]OK[/success]" if event["success"] else "[error]ERROR[/error]"
         timestamp = event["timestamp"][:16].replace("T", " ")
 
         table.add_row(
@@ -153,17 +153,17 @@ def reset(provider: str | None, model: str | None, reset_all: bool):
         router.metrics.clear()
         router.fallback_events.clear()
         router._save()
-        console.print("[green]OK All provider metrics reset[/green]")
+        console.print("[success]OK All provider metrics reset[/success]")
     elif provider and model:
         key = (provider, model)
         if key in router.metrics:
             del router.metrics[key]
             router._save()
-            console.print(f"[green]OK Metrics reset for {provider}/{model}[/green]")
+            console.print(f"[success]OK Metrics reset for {provider}/{model}[/success]")
         else:
-            console.print(f"[yellow]No metrics found for {provider}/{model}[/yellow]")
+            console.print(f"[warning]No metrics found for {provider}/{model}[/warning]")
     else:
-        console.print("[red]Specify --provider and --model, or use --all[/red]")
+        console.print("[error]Specify --provider and --model, or use --all[/error]")
 
 
 @providers.command()
@@ -183,11 +183,11 @@ def recommend(task_type: str, prefer_cost: bool, prefer_speed: bool):
         Panel(
             f"[bold]Recommended Provider[/bold]\n\n"
             f"Task Type: {task_type}\n"
-            f"Provider: [cyan]{provider}[/cyan]\n"
-            f"Model: [cyan]{model}[/cyan]\n\n"
+            f"Provider: [accent]{provider}[/accent]\n"
+            f"Model: [accent]{model}[/accent]\n\n"
             f"Preferences:\n"
-            f"  Cost: {'[green]Yes[/green]' if prefer_cost else '[dim]No[/dim]'}\n"
-            f"  Speed: {'[green]Yes[/green]' if prefer_speed else '[dim]No[/dim]'}",
+            f"  Cost: {'[success]Yes[/success]' if prefer_cost else '[muted]No[/muted]'}\n"
+            f"  Speed: {'[success]Yes[/success]' if prefer_speed else '[muted]No[/muted]'}",
             title="Provider Recommendation",
         )
     )
@@ -196,7 +196,7 @@ def recommend(task_type: str, prefer_cost: bool, prefer_speed: bool):
     key = (provider, model)
     if key in router.metrics:
         metrics = router.metrics[key]
-        console.print("\n[dim]Historical metrics:[/dim]")
+        console.print("\n[muted]Historical metrics:[/muted]")
         console.print(f"  Success rate: {metrics.success_rate * 100:.1f}%")
         console.print(f"  Avg latency: {metrics.rolling_avg_latency:.0f}ms")
         console.print(f"  Avg cost: ${metrics.rolling_avg_cost:.4f}")
@@ -233,7 +233,7 @@ def benchmark(quick: bool, target_provider: str | None, iterations: int, history
             return
 
         if not data["benchmarks"]:
-            console.print("[dim]No historical benchmark data available[/dim]")
+            console.print("[muted]No historical benchmark data available[/muted]")
             return
 
         # Summary panel
@@ -242,8 +242,8 @@ def benchmark(quick: bool, target_provider: str | None, iterations: int, history
             Panel(
                 f"[bold]Historical Benchmark Summary[/bold]\n\n"
                 f"Total Providers: {summary['total_providers']}\n"
-                f"Healthy: [green]{summary['healthy_providers']}[/green]\n"
-                f"Unhealthy: [red]{summary['unhealthy_providers']}[/red]\n"
+                f"Healthy: [success]{summary['healthy_providers']}[/success]\n"
+                f"Unhealthy: [error]{summary['unhealthy_providers']}[/error]\n"
                 f"Total Requests: {summary['total_requests']:,}\n"
                 f"Total Cost: ${summary['total_cost_usd']:.2f}",
                 title="Historical Data",
@@ -252,20 +252,20 @@ def benchmark(quick: bool, target_provider: str | None, iterations: int, history
 
         # Detailed table
         table = Table(title="Provider Benchmarks (Historical)")
-        table.add_column("Provider/Model", style="cyan")
+        table.add_column("Provider/Model", style="accent")
         table.add_column("Success", justify="center")
         table.add_column("Requests", justify="right")
         table.add_column("P50", justify="right")
         table.add_column("P95", justify="right")
         table.add_column("P99", justify="right")
-        table.add_column("Avg Cost", justify="right", style="yellow")
+        table.add_column("Avg Cost", justify="right", style="money")
         table.add_column("Health", justify="center")
 
         for b in data["benchmarks"]:
             name = f"{b['provider']}/{b['model']}"
             success_pct = b["success_rate"] * 100
-            success_color = "green" if success_pct >= 95 else "yellow" if success_pct >= 80 else "red"
-            health_icon = "[green]>[/green]" if b["health"]["is_healthy"] else "[red]>[/red]"
+            success_color = "success" if success_pct >= 95 else "warning" if success_pct >= 80 else "error"
+            health_icon = "[success]>[/success]" if b["health"]["is_healthy"] else "[error]>[/error]"
 
             table.add_row(
                 name,
@@ -288,7 +288,7 @@ def benchmark(quick: bool, target_provider: str | None, iterations: int, history
         if task_types_found:
             console.print("\n[bold]Success Rate by Task Type[/bold]")
             task_table = Table()
-            task_table.add_column("Provider/Model", style="cyan")
+            task_table.add_column("Provider/Model", style="accent")
             for task_type in sorted(task_types_found):
                 task_table.add_column(task_type.capitalize(), justify="center")
 
@@ -299,10 +299,10 @@ def benchmark(quick: bool, target_provider: str | None, iterations: int, history
                     stats = b["task_types"].get(task_type)
                     if stats:
                         rate = stats["success_rate"] * 100
-                        color = "green" if rate >= 95 else "yellow" if rate >= 80 else "red"
+                        color = "success" if rate >= 95 else "warning" if rate >= 80 else "error"
                         row.append(f"[{color}]{rate:.0f}%[/{color}]")
                     else:
-                        row.append("[dim]-[/dim]")
+                        row.append("[muted]-[/muted]")
                 task_table.add_row(*row)
 
             console.print(task_table)
@@ -338,7 +338,7 @@ def benchmark(quick: bool, target_provider: str | None, iterations: int, history
     if target_provider:
         test_providers = [(p, m) for p, m in test_providers if p == target_provider]
         if not test_providers:
-            console.print(f"[red]Unknown provider: {target_provider}[/red]")
+            console.print(f"[error]Unknown provider: {target_provider}[/error]")
             return
 
     test_prompt = "What is 2+2? Answer in one word."
@@ -446,7 +446,7 @@ def benchmark(quick: bool, target_provider: str | None, iterations: int, history
     console.print()
 
     table = Table(title="Benchmark Results")
-    table.add_column("Provider/Model", style="cyan")
+    table.add_column("Provider/Model", style="accent")
     table.add_column("Success", justify="center")
     table.add_column("Avg", justify="right")
     table.add_column("P50", justify="right")
@@ -456,7 +456,7 @@ def benchmark(quick: bool, target_provider: str | None, iterations: int, history
 
     for name, metrics in sorted(results.items(), key=lambda x: x[1].get("avg_latency", float("inf"))):
         success_pct = metrics["success_rate"] * 100
-        success_color = "green" if success_pct >= 95 else "yellow" if success_pct >= 80 else "red"
+        success_color = "success" if success_pct >= 95 else "warning" if success_pct >= 80 else "error"
 
         if metrics["avg_latency"] > 0:
             table.add_row(
@@ -471,7 +471,7 @@ def benchmark(quick: bool, target_provider: str | None, iterations: int, history
         else:
             table.add_row(
                 name,
-                "[red]0%[/red]",
+                "[error]0%[/error]",
                 "-",
                 "-",
                 "-",
@@ -488,7 +488,7 @@ def benchmark(quick: bool, target_provider: str | None, iterations: int, history
         default=None,
     )
     if best:
-        console.print(f"\n[green]Fastest:[/green] {best[0]} ({best[1]['avg_latency']:.0f}ms avg)")
+        console.print(f"\n[success]Fastest:[/success] {best[0]} ({best[1]['avg_latency']:.0f}ms avg)")
 
 
 @providers.command()
@@ -521,10 +521,10 @@ def list():
     from deepr.providers.registry import MODEL_CAPABILITIES
 
     table = Table(title="Registered Providers & Models")
-    table.add_column("Provider", style="cyan")
+    table.add_column("Provider", style="accent")
     table.add_column("Model")
     table.add_column("Specialization")
-    table.add_column("Cost/Query", justify="right", style="yellow")
+    table.add_column("Cost/Query", justify="right", style="money")
     table.add_column("Latency", justify="right")
     table.add_column("Status")
 
@@ -535,12 +535,12 @@ def list():
             model_display = cap.model
             status = cap.access_note
         elif cap.deprecated:
-            model_display = f"[dim strikethrough]{cap.model}[/dim strikethrough] [red]\\[DEPRECATED][/red]"
+            model_display = f"[dim strikethrough]{cap.model}[/dim strikethrough] [error]\\[DEPRECATED][/error]"
             successor_info = f"-> {cap.successor}" if cap.successor else "No successor"
-            status = f"[red]{successor_info}[/red]"
+            status = f"[error]{successor_info}[/error]"
         elif cap.preview_only:
             model_display = cap.model
-            status = "[yellow]Preview only[/yellow]"
+            status = "[warning]Preview only[/warning]"
         else:
             from deepr.cli.model_choices import model_note
 

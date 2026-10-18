@@ -1,0 +1,19 @@
+{
+  "base_commit": "7b204881193cca83a443f6f3adab6e832d126874",
+  "runtime_diff_sha256": "594794b6702452de99731e78e379a403e15f349faa7ce9fbd987727ec75d2606",
+  "kind": "Actual PTY ANSI rendered with explicit light/dark 16-slot palettes",
+  "columns": 100,
+  "profile": "Canonical synthetic profile reloaded before rendering; no model/portrait call; not expert-quality evidence",
+  "physical_terminal_theme_switch_tested": false,
+  "node": "24.22.0",
+  "raw_ansi_text_rewritten": false,
+  "artifacts": {
+    "doctor.ansi": "27bbea9669452c10dc7fe9940b82c175e010bacb0904d06f6dacfebcac06fabf",
+    "doctor-light.png": "5f020cfb92855712484fd474e4ca80a185f54702cf70455101d5da21fd4d4d37",
+    "doctor-dark.png": "87b2c38f64a8f8d1975378120ab2d637ac8f31cadcb33ba1b1941f0a9e2652c5",
+    "profile.ansi": "307a44a1070c3b75f60385ca57c1acdf2271f5e34f9addbeebc917e803f9bc74",
+    "profile-light.png": "3712a9277ea8fad23e6c4b91e23e74801a1dcfbbc0205279f3b688a8f7500dd5",
+    "profile-dark.png": "42677d8bcbcda5863728d166b3303f8e172944bdde01f5d5a55e7baf1be911d4",
+    "profile-fixture.json": "30133b261d169b294a6a94f28c436bd174d75a01022517514711300f26c6e54b"
+  }
+}

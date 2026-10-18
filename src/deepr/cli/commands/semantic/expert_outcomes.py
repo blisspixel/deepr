@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 import click
 from pydantic import ValidationError
 
-from deepr.cli.colors import print_info, print_success
+from deepr.cli.colors import print_info, print_next, print_success
 from deepr.cli.commands.semantic.experts import expert
 from deepr.experts.consult_traces import load_consult_traces_by_id
 from deepr.experts.experience import build_experience_view, trace_ids_for_experience
@@ -196,7 +196,7 @@ def show_experience(name: str, limit: int, json_output: bool) -> None:
             click.echo(f"  {prediction['resolution_date']} [{prediction['due_status']}] {prediction['question']}")
     click.echo("This derived view makes no quality verdict and applies no learning change.")
     if payload["cases"]:
-        click.echo("Next: deepr expert review-decision NAME --outcome-id ID")
+        print_next("deepr expert review-decision NAME --outcome-id ID")
 
 
 @expert.command(name="review-decision")

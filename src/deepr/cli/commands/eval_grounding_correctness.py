@@ -47,7 +47,7 @@ def _build_checker(checker_plan: str | None, checker_plan_model: str | None, mod
 
         local_model = model or default_local_model()
         if not local_model:
-            raise click.ClickException("No local model available. Is Ollama running? Check: deepr capacity --probe")
+            raise click.ClickException("No local model available. Is Ollama running? Next: deepr capacity --probe")
         checker = build_grounding_checker(
             enabled=True,
             checker_plan=None,
@@ -67,22 +67,22 @@ def _build_checker(checker_plan: str | None, checker_plan_model: str | None, mod
 def _render_report(report: dict, checker_label: str) -> None:
     print_header("Grounding correctness")
     console.print(
-        f"[dim]checker: {checker_label}  |  {report['case_count']} case(s) from "
-        f"{report.get('case_source', 'the golden set')} ({report['label_counts']})[/dim]"
+        f"[muted]checker: {checker_label}  |  {report['case_count']} case(s) from "
+        f"{report.get('case_source', 'the golden set')} ({report['label_counts']})[/muted]"
     )
     console.print(
         f"  [bold]support precision[/bold]: {report['support_precision']:.1%}  "
-        "[dim](when it says SUPPORTED, how often the evidence truly entails)[/dim]"
+        "[muted](when it says SUPPORTED, how often the evidence truly entails)[/muted]"
     )
     console.print(
         f"  [bold]false-support rate[/bold]: {report['false_support_rate']:.1%}  "
-        "[dim](stamped SUPPORTED for contradicted/unrelated evidence - lower is safer)[/dim]"
+        "[muted](stamped SUPPORTED for contradicted/unrelated evidence - lower is safer)[/muted]"
     )
     console.print(f"  support recall: {report['support_recall']:.1%}   abstention: {report['abstention_rate']:.1%}")
     console.print(f"  overall accuracy: {report['overall_accuracy']:.1%}   per-label: {report['label_accuracy']}")
     console.print(
-        "[dim]Agreement on a bounded curated set is not proof of world-truth; it measures "
-        "entailment-verdict correctness. Labels are human-curated; the checker owns the verdict.[/dim]"
+        "[muted]Agreement on a bounded curated set is not proof of world-truth; it measures "
+        "entailment-verdict correctness. Labels are human-curated; the checker owns the verdict.[/muted]"
     )
 
 
@@ -222,4 +222,4 @@ def grounding_correctness(
 
     _render_report(report, checker_label)
     if save:
-        console.print(f"[dim]Saved: {report['saved_to']}[/dim]")
+        console.print(f"[muted]Saved: {report['saved_to']}[/muted]")

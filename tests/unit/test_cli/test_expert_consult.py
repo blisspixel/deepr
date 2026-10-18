@@ -285,7 +285,7 @@ def test_consult_elapsed_limit_is_recorded(monkeypatch, consult_trace_path):
     )
 
     assert result.exit_code == 1
-    assert "elapsed-time ceiling" in result.output
+    assert "elapsed-time ceiling" in " ".join(result.output.split())
     lifecycle_path = consult_trace_path.parent / "consult_lifecycle_events.jsonl"
     events = [json.loads(line) for line in lifecycle_path.read_text(encoding="utf-8").splitlines()]
     assert events[-1]["state"] == "failed"

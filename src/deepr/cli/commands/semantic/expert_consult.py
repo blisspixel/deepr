@@ -20,7 +20,7 @@ from typing import Any, NoReturn
 
 import click
 
-from deepr.cli.colors import console, print_error, print_warning
+from deepr.cli.colors import console, print_error, print_next, print_warning
 from deepr.cli.commands.semantic.experts import expert
 
 # Shared core (also used by the deepr_consult_experts MCP tool). Re-exported so
@@ -62,6 +62,8 @@ def _refuse(
         click.echo(_json.dumps(result.error_payload(hint=hint)))
     else:
         print_error(message)
+        if hint.startswith("deepr "):
+            print_next(hint)
     sys.exit(exit_code)
 
 
@@ -183,11 +185,11 @@ def _make_backend_factory(
 def _make_report_callbacks(json_output: bool):
     def report_started(trace_id: str) -> None:
         if not json_output:
-            console.print(f"[dim]Consult trace: {trace_id}[/dim]")
+            console.print(f"[muted]Consult trace: {trace_id}[/muted]")
 
     def report_backend(backend: Any) -> None:
         if backend.note and not json_output:
-            console.print(f"[dim]{backend.note}[/dim]")
+            console.print(f"[muted]{backend.note}[/muted]")
 
     return report_started, report_backend
 
@@ -295,7 +297,8 @@ def _emit_consult_result(
         sys.exit(2)
     if payload["synthesis_status"] == "skipped_no_valid_perspectives":
         if not json_output:
-            print_warning('No usable perspective; the expert may be unformed. Run deepr expert build "NAME".')
+            print_warning("No usable perspective; the expert may be unformed.")
+            print_next('deepr expert build "NAME"')
         sys.exit(2)
     if payload["synthesis_status"] not in {"completed", "skipped_no_valid_perspectives"}:
         sys.exit(1)

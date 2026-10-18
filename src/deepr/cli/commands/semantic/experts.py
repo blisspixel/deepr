@@ -370,16 +370,18 @@ def make_expert(
 
                 for i, topic in enumerate(curriculum.topics, 1):
                     console.print(f"{i}. [bold]{topic.title}[/bold]")
-                    console.print(f"   [dim]Mode:[/dim] {topic.research_mode} | [dim]Type:[/dim] {topic.research_type}")
                     console.print(
-                        f"   [dim]Cost:[/dim] ${topic.estimated_cost:.4f} | [dim]Time:[/dim] ~{topic.estimated_minutes}min"
+                        f"   [muted]Mode:[/muted] {topic.research_mode} | [muted]Type:[/muted] {topic.research_type}"
+                    )
+                    console.print(
+                        f"   [muted]Cost:[/muted] ${topic.estimated_cost:.4f} | [muted]Time:[/muted] ~{topic.estimated_minutes}min"
                     )
                     if topic.sources:
-                        console.print(f"   [dim]Sources:[/dim] {len(topic.sources)}")
+                        console.print(f"   [muted]Sources:[/muted] {len(topic.sources)}")
                     console.print()
 
                 console.print(
-                    f"[dim]Total:[/dim] ${curriculum.total_estimated_cost:.2f}, ~{curriculum.total_estimated_minutes}min\n"
+                    f"[muted]Total:[/muted] ${curriculum.total_estimated_cost:.2f}, ~{curriculum.total_estimated_minutes}min\n"
                 )
                 console.print("Starting execution...")
 
@@ -481,9 +483,9 @@ def plan_curriculum(
 
     # Generate curriculum
     if not quiet and not output_json and not output_csv:
-        console.print(f"[dim]Generating research plan for:[/dim] [bold]{domain}[/bold]")
+        console.print(f"[muted]Generating research plan for:[/muted] [bold]{domain}[/bold]")
         if budget:
-            console.print(f"[dim]Budget:[/dim] ${budget:.2f}")
+            console.print(f"[muted]Budget:[/muted] ${budget:.2f}")
         console.print()
 
     try:
@@ -542,14 +544,14 @@ def plan_curriculum(
     for group_name, group_topics in groups.items():
         group_cost = sum(t.estimated_cost for t in group_topics)
         console.print(
-            f"\n[bold cyan]{group_name.replace('-', ' ').title()}[/bold cyan]  ({len(group_topics)} topics, ~${group_cost:.2f})"
+            f"\n[accent]{group_name.replace('-', ' ').title()}[/accent]  ({len(group_topics)} topics, ~${group_cost:.2f})"
         )
 
         for t in group_topics:
             topic_num += 1
             prompt_preview = t.research_prompt[:60] + "..." if len(t.research_prompt) > 60 else t.research_prompt
             console.print(
-                f"  {topic_num:>2}. [bold]{t.title:<40}[/bold]  ${t.estimated_cost:<8.3f}[dim]{prompt_preview}[/dim]"
+                f"  {topic_num:>2}. [bold]{t.title:<40}[/bold]  ${t.estimated_cost:<8.3f}[muted]{prompt_preview}[/muted]"
             )
 
     # Summary footer
@@ -559,7 +561,7 @@ def plan_curriculum(
         f"· ~${curriculum.total_estimated_cost:.2f} "
         f"· ~{total_hours:.1f} hours"
     )
-    console.print("\n[dim]To create an expert with this curriculum:[/dim]")
+    console.print("\n[muted]To create an expert with this curriculum:[/muted]")
     console.print(f'  deepr expert make "{domain}" --learn --budget {curriculum.total_estimated_cost:.2f}')
 
 
@@ -612,7 +614,7 @@ def expert_info(name: str):
     claim_count, avg_conf = _expert_claim_inventory(profile)
 
     console.print()
-    console.print("[bold cyan]Knowledge Base[/bold cyan]")
+    console.print("[accent]Knowledge Base[/accent]")
     print_key_value("Vector Store ID", profile.vector_store_id, indent=1)
     print_key_value("Claims (belief store)", str(claim_count), indent=1)
     if avg_conf is not None and claim_count:
@@ -621,20 +623,20 @@ def expert_info(name: str):
     print_key_value("Source Files", str(len(profile.source_files)), indent=1)
     if claim_count > 0 and profile.total_documents == 0:
         console.print(
-            "  [dim]Note: Claims > 0 with Documents: 0 is normal after "
-            "`expert absorb --file` (beliefs without vector-store docs).[/dim]"
+            "  [muted]Note: Claims > 0 with Documents: 0 is normal after "
+            "`expert absorb --file` (beliefs without vector-store docs).[/muted]"
         )
 
     if profile.source_files:
         console.print()
-        console.print("  [dim]Files:[/dim]")
+        console.print("  [muted]Files:[/muted]")
         for f in profile.source_files[:10]:
             print_list_item(os.path.basename(f), indent=2)
         if len(profile.source_files) > 10:
-            console.print(f"    [dim]... and {len(profile.source_files) - 10} more[/dim]")
+            console.print(f"    [muted]... and {len(profile.source_files) - 10} more[/muted]")
 
     console.print()
-    console.print("[bold cyan]Usage Stats[/bold cyan]")
+    console.print("[accent]Usage Stats[/accent]")
     print_key_value("Conversations", str(profile.conversations), indent=1)
     print_key_value("Research Triggered", str(profile.research_triggered), indent=1)
     print_key_value("Total Research Cost", f"${profile.total_research_cost:.2f}", indent=1)
@@ -757,12 +759,12 @@ def validate_claim(
         return
 
     # Human-readable output. Use color to make the verdict glance-able.
-    verdict_color = {"pass": "green", "warn": "yellow", "fail": "red"}[result.verdict]
+    verdict_color = {"pass": "success", "warn": "warning", "fail": "error"}[result.verdict]
     print_header(f"Validation: {profile.name}")
-    console.print(f"Claim: [white]{result.claim}[/white]")
+    console.print(f"Claim: [text]{result.claim}[/text]")
     console.print(
-        f"Verdict: [bold {verdict_color}]{result.verdict.upper()}[/bold {verdict_color}] "
-        f"[dim](confidence {result.confidence:.0%}, model {result.model})[/dim]"
+        f"Verdict: [{verdict_color}]{result.verdict.upper()}[/{verdict_color}] "
+        f"[muted](confidence {result.confidence:.0%}, model {result.model})[/muted]"
     )
     console.print()
     console.print("[bold]Reasoning[/bold]")
@@ -772,13 +774,13 @@ def validate_claim(
         console.print()
         print_section_header("Supporting beliefs")
         for c in result.supporting:
-            print_list_item(f"{c.statement}  [dim](conf {c.confidence:.2f})[/dim]")
+            print_list_item(f"{c.statement}  [muted](conf {c.confidence:.2f})[/muted]")
 
     if result.contradicting:
         console.print()
         print_section_header("Contradicting beliefs")
         for c in result.contradicting:
-            print_list_item(f"{c.statement}  [dim](conf {c.confidence:.2f})[/dim]")
+            print_list_item(f"{c.statement}  [muted](conf {c.confidence:.2f})[/muted]")
 
     if result.caveats:
         console.print()
@@ -884,18 +886,18 @@ def health_check(name: str, json_output: bool, archive_stale: bool, scheduled: b
         click.echo(_json.dumps(report.to_dict(), indent=2))
         return
 
-    status_color = {"healthy": "green", "needs_attention": "yellow", "critical": "red"}.get(report.status, "white")
-    print_header(f"Health Check: {report.expert_name}")
+    status_color = {"healthy": "success", "needs_attention": "warning", "critical": "error"}.get(report.status, "text")
+    print_header(f"Expert health: {report.expert_name}")
     console.print(
-        f"Overall: [bold {status_color}]{report.status.replace('_', ' ').upper()}[/bold {status_color}]"
-        f"  [dim]{report.domain}[/dim]"
+        f"Overall: [{status_color}]{report.status.replace('_', ' ').upper()}[/{status_color}]"
+        f"  [muted]{report.domain}[/muted]"
     )
 
     severity_marker = {
-        "critical": "[red]FAIL[/red]",
-        "warning": "[yellow]WARN[/yellow]",
-        "info": "[cyan]INFO[/cyan]",
-        "ok": "[green] OK [/green]",
+        "critical": "[error]FAIL[/error]",
+        "warning": "[warning]WARN[/warning]",
+        "info": "[accent]INFO[/accent]",
+        "ok": "[success] OK [/success]",
     }
     console.print()
     print_section_header("Findings")
@@ -908,8 +910,8 @@ def health_check(name: str, json_output: bool, archive_stale: bool, scheduled: b
         print_section_header("Recommended actions")
         for a in report.actions:
             cost = "free" if a.estimated_cost <= 0 else f"~${a.estimated_cost:.2f}"
-            console.print(f"  - {a.description} [dim]({cost}, approval: {a.approval_tier})[/dim]")
-            console.print(f"    [white]{a.command}[/white]")
+            console.print(f"  - {a.description} [muted]({cost}, approval: {a.approval_tier})[/muted]")
+            console.print(f"    [text]{a.command}[/text]")
     else:
         console.print()
         print_success("No corrective actions recommended.")
@@ -990,12 +992,12 @@ def what_changed_cmd(name: str, since: str, json_output: bool):
         console.print()
         print_section_header(f"{title} ({len(entries)})")
         for e in entries:
-            console.print(f"  - {e['claim']}  [dim](conf {e['confidence']:.2f})[/dim]")
+            console.print(f"  - {e['claim']}  [muted](conf {e['confidence']:.2f})[/muted]")
             if e.get("reason"):
-                console.print(f"    [dim]{e['reason']}[/dim]")
+                console.print(f"    [muted]{e['reason']}[/muted]")
 
     if result.total_changes == 0:
-        console.print("[dim]No changes in this window.[/dim]")
+        console.print("[muted]No changes in this window.[/muted]")
 
 
 @expert.command(name="why")
@@ -1041,7 +1043,9 @@ def why_cmd(name: str, belief_ref: str, depth: int, json_output: bool):
     b = result.belief
     print_header(f"Why: {name}")
     console.print(f"  {b['claim']}")
-    console.print(f"  [dim]confidence {b['confidence']:.2f}  -  {b['belief_id']}  -  source: {b['source_type']}[/dim]")
+    console.print(
+        f"  [muted]confidence {b['confidence']:.2f}  -  {b['belief_id']}  -  source: {b['source_type']}[/muted]"
+    )
 
     if result.evidence_roots:
         console.print()
@@ -1055,7 +1059,7 @@ def why_cmd(name: str, belief_ref: str, depth: int, json_output: bool):
         for t in result.trajectory:
             line = f"  {t['timestamp'][:16]}  {t['change_type']:<9} conf {t['confidence']:.2f}"
             if t.get("reason"):
-                line += f"  [dim]{t['reason'][:60]}[/dim]"
+                line += f"  [muted]{t['reason'][:60]}[/muted]"
             console.print(line)
 
     for title, entries in (("Supported by", result.supports), ("Derived from", result.derived_from)):
@@ -1064,20 +1068,20 @@ def why_cmd(name: str, belief_ref: str, depth: int, json_output: bool):
         console.print()
         print_section_header(f"{title} ({len(entries)})")
         for e in entries:
-            console.print(f"  - {e['claim']}  [dim](conf {e['confidence']}, {e['hops']} hop(s))[/dim]")
+            console.print(f"  - {e['claim']}  [muted](conf {e['confidence']}, {e['hops']} hop(s))[/muted]")
             if e.get("provenance"):
-                console.print(f"    [dim]via {', '.join(e['provenance'][:3])}[/dim]")
+                console.print(f"    [muted]via {', '.join(e['provenance'][:3])}[/muted]")
 
     if result.contradicts:
         console.print()
         print_section_header(f"Contested with ({len(result.contradicts)})")
         for c in result.contradicts:
             verification = c.get("verification", "unverified")
-            console.print(f"  - {c['claim']}  [dim](conf {c['confidence']}, {c['status']}, {verification})[/dim]")
-        console.print(f"  [dim]Adjudicate: deepr expert resolve-conflicts '{name}'[/dim]")
+            console.print(f"  - {c['claim']}  [muted](conf {c['confidence']}, {c['status']}, {verification})[/muted]")
+        console.print(f"  [muted]Adjudicate: deepr expert resolve-conflicts '{name}'[/muted]")
 
     if not (result.evidence_roots or result.trajectory or result.supports or result.contradicts):
-        console.print("[dim]No recorded evidence, history, or graph context for this belief.[/dim]")
+        console.print("[muted]No recorded evidence, history, or graph context for this belief.[/muted]")
 
 
 @expert.command(name="contested")
@@ -1117,17 +1121,17 @@ def contested_cmd(name: str, json_output: bool):
     )
     for pair in result["pairs"]:
         console.print()
-        marker = "[yellow]open[/yellow]" if pair["status"] == "open" else "[dim]dangling[/dim]"
+        marker = "[warning]open[/warning]" if pair["status"] == "open" else "[muted]dangling[/muted]"
         console.print(f"  [{marker}]")
-        console.print(f"  A: {pair['a']['claim']}  [dim](conf {pair['a'].get('confidence', 0):.2f})[/dim]")
+        console.print(f"  A: {pair['a']['claim']}  [muted](conf {pair['a'].get('confidence', 0):.2f})[/muted]")
         b_claim = pair["b"].get("claim") or f"<{pair['b'].get('note', 'missing')}>"
         b_conf = pair["b"].get("confidence")
-        conf_str = f"  [dim](conf {b_conf:.2f})[/dim]" if isinstance(b_conf, (int, float)) else ""
+        conf_str = f"  [muted](conf {b_conf:.2f})[/muted]" if isinstance(b_conf, (int, float)) else ""
         console.print(f"  B: {b_claim}{conf_str}")
-        console.print(f"  [dim]verification: {pair.get('verification', 'unverified')}[/dim]")
+        console.print(f"  [muted]verification: {pair.get('verification', 'unverified')}[/muted]")
 
     if result["contested_count"] == 0:
-        console.print("[dim]No contested beliefs.[/dim]")
+        console.print("[muted]No contested beliefs.[/muted]")
     else:
         console.print(f"\nAdjudicate with: deepr expert resolve-conflicts '{name}'")
 
@@ -1183,7 +1187,7 @@ def digest_cmd(name: str, print_only: bool, force: bool):
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(content, encoding="utf-8")
     print_success(f"Digest written: {out_path}")
-    console.print("[dim]Derived view - regenerate any time; the belief store stays canonical.[/dim]")
+    console.print("[muted]Derived view - regenerate any time; the belief store stays canonical.[/muted]")
 
 
 @expert.command(name="subscribe")
@@ -1252,14 +1256,14 @@ def subscriptions_cmd(name: str, remove_topic: str | None, json_output: bool):
 
     print_header(f"Subscriptions: {name}")
     if not store.subscriptions:
-        console.print("[dim]No subscriptions. Add one with: deepr expert subscribe[/dim]")
+        console.print("[muted]No subscriptions. Add one with: deepr expert subscribe[/muted]")
         return
     now = datetime.now(UTC)
     for s in store.subscriptions:
-        due = "[yellow]due[/yellow]" if s.is_due(now) else "current"
+        due = "[warning]due[/warning]" if s.is_due(now) else "current"
         last = s.last_synced.strftime("%Y-%m-%d %H:%M") if s.last_synced else "never"
         console.print(
-            f"  - {s.topic}  [dim](every {s.cadence_days:g}d, ${s.budget:.2f}/sync, last: {last})[/dim]  {due}"
+            f"  - {s.topic}  [muted](every {s.cadence_days:g}d, ${s.budget:.2f}/sync, last: {last})[/muted]  {due}"
         )
 
 
@@ -1287,7 +1291,7 @@ def delete_expert(name: str, purge: bool, yes: bool):
         return
 
     if not purge and canonical_expert_dir(name).exists():
-        console.print(f"[dim]Archived to {archive_expert(name)}[/dim]")
+        console.print(f"[muted]Archived to {archive_expert(name)}[/muted]")
 
     if store.delete(name, remove_directory=True):
         print_success(f"Expert {'deleted' if purge else 'archived and deleted'}: {name}")
@@ -1375,7 +1379,7 @@ def learn_expert(
 
         if budget != 1.0 and not dry_run:
             console.print(
-                "[dim]Topic learning uses owned/prepaid capacity; --budget is ignored unless files use legacy upload.[/dim]"
+                "[muted]Topic learning uses owned/prepaid capacity; --budget is ignored unless files use legacy upload.[/muted]"
             )
         run_learn_web_pipeline(
             name=name,
@@ -1430,9 +1434,9 @@ def learn_expert(
     if files:
         print_key_value("Files to upload", str(len(files)))
         for f in files[:5]:
-            console.print(f"  [dim]-[/dim] {os.path.basename(f)}")
+            console.print(f"  [muted]-[/muted] {os.path.basename(f)}")
         if len(files) > 5:
-            console.print(f"  [dim]... and {len(files) - 5} more[/dim]")
+            console.print(f"  [muted]... and {len(files) - 5} more[/muted]")
 
     print_key_value("Synthesize after learning", "Yes" if synthesize else "No")
 
@@ -1456,7 +1460,7 @@ def learn_expert(
 
             session = ExpertChatSession(profile, budget=budget, agentic=True)
 
-            console.print(f"[dim]Query:[/dim] {topic[:80]}{'...' if len(topic) > 80 else ''}")
+            console.print(f"[muted]Query:[/muted] {topic[:80]}{'...' if len(topic) > 80 else ''}")
             console.print("Researching...")
 
             try:
@@ -1474,7 +1478,7 @@ def learn_expert(
                     answer = result.get("answer", "")
                     if answer:
                         snippet = answer[:200] + "..." if len(answer) > 200 else answer
-                        console.print(f"\n[dim]Learned:[/dim]\n{snippet}")
+                        console.print(f"\n[muted]Learned:[/muted]\n{snippet}")
 
             except Exception as e:
                 print_error(f"Research error: {e}")
@@ -1668,7 +1672,7 @@ def resume_expert_learning(name: str, budget: float | None, yes: bool):
     if budget is None:
         # Use a reasonable default based on remaining work
         budget = min(max(estimated_remaining_cost * 1.5, 1.0), 5.0)
-        console.print(f"\n[dim]Using default budget: ${budget:.2f}[/dim]")
+        console.print(f"\n[muted]Using default budget: ${budget:.2f}[/muted]")
 
     # Validate budget
     if not yes:
@@ -1845,13 +1849,13 @@ def reflect_report(
         click.echo(_json.dumps(payload, indent=2))
         return
 
-    verdict_color = {"accept": "green", "revise": "yellow", "re_research": "red", "skipped": "dim"}.get(
-        report.verdict, "white"
+    verdict_color = {"accept": "success", "revise": "warning", "re_research": "error", "skipped": "muted"}.get(
+        report.verdict, "text"
     )
     print_header(f"Reflection: {result.prompt[:60]}")
     console.print(
-        f"Verdict: [bold {verdict_color}]{report.verdict.upper()}[/bold {verdict_color}] "
-        f"[dim](overall {report.overall_score:.0%}, model {report.model})[/dim]"
+        f"Verdict: [{verdict_color}]{report.verdict.upper()}[/{verdict_color}] "
+        f"[muted](overall {report.overall_score:.0%}, model {report.model})[/muted]"
     )
     if report.dimensions:
         console.print()
@@ -1859,7 +1863,7 @@ def reflect_report(
         for d in report.dimensions:
             console.print(f"  {d.score:.0%}  [bold]{d.name}[/bold]: {d.assessment}")
             for issue in d.issues:
-                console.print(f"      [dim]- {issue}[/dim]")
+                console.print(f"      [muted]- {issue}[/muted]")
     if report.followups:
         console.print()
         print_section_header("Suggested follow-up research")
@@ -1882,7 +1886,7 @@ def reflect_report(
         return
     if execute_followups:
         if not report.followups:
-            console.print("[dim]No follow-up queries to execute.[/dim]")
+            console.print("[muted]No follow-up queries to execute.[/muted]")
             record_completed_reflection_loop(
                 profile.name,
                 report_id,
@@ -1917,7 +1921,7 @@ def reflect_report(
 
                 print_warning("Reflection follow-ups are already running for this expert.")
                 loop_run = record_reflection_overlap_loop(profile.name, report_id, budget=budget)
-                console.print(f"[dim]Loop run: {loop_run.run_id} waiting for overlap lock.[/dim]")
+                console.print(f"[muted]Loop run: {loop_run.run_id} waiting for overlap lock.[/muted]")
                 return
 
             routes = routes_from_queries(report.followups)
@@ -1930,11 +1934,11 @@ def reflect_report(
         for o in fill.outcomes:
             if o.status == "filled":
                 console.print(
-                    f"  [green]filled[/green]  {o.topic[:70]}  "
-                    f"[dim](+{o.absorbed} beliefs, {o.flagged} contested, ${o.cost:.3f})[/dim]"
+                    f"  [success]filled[/success]  {o.topic[:70]}  "
+                    f"[muted](+{o.absorbed} beliefs, {o.flagged} contested, ${o.cost:.3f})[/muted]"
                 )
             else:
-                console.print(f"  [yellow]{o.status}[/yellow]  {o.topic[:70]}  [dim]{o.detail[:80]}[/dim]")
+                console.print(f"  [warning]{o.status}[/warning]  {o.topic[:70]}  [muted]{o.detail[:80]}[/muted]")
         console.print(f"\nTotal cost: ${fill.total_cost:.3f}")
         if any(o.flagged for o in fill.outcomes):
             print_warning(f"Contested beliefs recorded. Review: deepr expert contested '{name}'")
@@ -1996,8 +2000,8 @@ def export_skill(name: str, output: str | None, print_only: bool):
     path = packager.generate(out_dir)
     print_success(f"Wrote {path}")
     console.print(
-        f"Install: copy [white]{path.parent}[/white] into your agent's skills directory "
-        "(e.g. [white]~/.claude/skills/[/white]). The host must have a Deepr MCP server configured."
+        f"Install: copy [text]{path.parent}[/text] into your agent's skills directory "
+        "(e.g. [text]~/.claude/skills/[/text]). The host must have a Deepr MCP server configured."
     )
 
 
@@ -2127,7 +2131,7 @@ def import_expert(name: str, corpus: str, yes: bool):
     if not validation["valid"]:
         print_error("Invalid corpus structure")
         for error in validation["errors"]:
-            console.print(f"  [dim]-[/dim] {error}")
+            console.print(f"  [muted]-[/muted] {error}")
         sys.exit(2)
 
     manifest = validation["manifest"]
@@ -2307,13 +2311,13 @@ def fill_gaps(
 
     console.print("Gaps to fill:")
     for i, gap in enumerate(gaps_to_fill, 1):
-        console.print(f"\n  {i}. {gap.topic} [dim](Priority: {gap.priority}/5)[/dim]")
+        console.print(f"\n  {i}. {gap.topic} [muted](Priority: {gap.priority}/5)[/muted]")
         if gap.questions:
             console.print("     Questions:")
             for q in gap.questions[:3]:
-                console.print(f"       [dim]{get_symbol('sub_bullet')}[/dim] {q}")
+                console.print(f"       [muted]{get_symbol('sub_bullet')}[/muted] {q}")
             if len(gap.questions) > 3:
-                console.print(f"       [dim]... and {len(gap.questions) - 3} more[/dim]")
+                console.print(f"       [muted]... and {len(gap.questions) - 3} more[/muted]")
 
     console.print(f"\nEstimated metered OpenAI API cost: ~${budget:.2f} (${budget_per_gap:.2f} per gap)")
 
@@ -2338,7 +2342,7 @@ def fill_gaps(
             from deepr.experts.consensus import ConsensusEngine
 
             consensus_engine = ConsensusEngine()
-            console.print("[dim]Multi-provider consensus enabled[/dim]")
+            console.print("[muted]Multi-provider consensus enabled[/muted]")
 
         # Set up multi-pass pipeline if --deep
         pipeline = None
@@ -2349,7 +2353,7 @@ def fill_gaps(
                 client=provider.client,
                 consensus_engine=consensus_engine,
             )
-            console.print("[dim]3-pass deep pipeline enabled[/dim]")
+            console.print("[muted]3-pass deep pipeline enabled[/muted]")
 
         # Create a chat session for standard research fallback
         session = ExpertChatSession(profile, budget=budget, agentic=True)
@@ -2370,13 +2374,13 @@ def fill_gaps(
             else:
                 query = f"Research and explain: {gap.topic}"
 
-            console.print(f"[dim]Query: {query[:80]}...[/dim]")
+            console.print(f"[muted]Query: {query[:80]}...[/muted]")
 
             try:
                 if pipeline:
                     # Deep 3-pass pipeline
                     console.print(
-                        "[dim]Pass 1: Extracting... Pass 2: Cross-referencing... Pass 3: Synthesizing...[/dim]"
+                        "[muted]Pass 1: Extracting... Pass 2: Cross-referencing... Pass 3: Synthesizing...[/muted]"
                     )
                     mp_result = await pipeline.fill_gap(
                         gap=gap,
@@ -2396,7 +2400,7 @@ def fill_gaps(
 
                 elif consensus_engine:
                     # Consensus-only (no deep pipeline)
-                    console.print("[dim]Researching with consensus...[/dim]")
+                    console.print("[muted]Researching with consensus...[/muted]")
                     cr = await consensus_engine.research_with_consensus(
                         query=query,
                         budget=budget / len(gaps_to_fill),
@@ -2412,7 +2416,7 @@ def fill_gaps(
 
                 else:
                     # Standard single-provider research
-                    console.print("[dim]Researching...[/dim]")
+                    console.print("[muted]Researching...[/muted]")
                     result = await session._standard_research(query)
 
                     if "error" in result:
@@ -2437,7 +2441,7 @@ def fill_gaps(
         # Re-synthesize consciousness with new knowledge
         if filled_gaps:
             print_header("Re-synthesizing Consciousness")
-            console.print("[dim]Expert is integrating new knowledge into beliefs...[/dim]")
+            console.print("[muted]Expert is integrating new knowledge into beliefs...[/muted]")
 
             try:
                 synthesizer = KnowledgeSynthesizer(provider.client)
@@ -2472,7 +2476,7 @@ def fill_gaps(
 
                     # Citation validation if requested
                     if validate_citations and synthesis_result.get("worldview"):
-                        console.print("[dim]Validating citations...[/dim]")
+                        console.print("[muted]Validating citations...[/muted]")
                         try:
                             from deepr.experts.citation_validator import CitationValidator
 
@@ -2655,7 +2659,7 @@ def discover_gaps_cmd(name: str):
     console.print(f"Discovered {len(new_gaps)} new gaps:\n")
     for i, gap in enumerate(new_gaps, 1):
         method = gap.get("discovery_method", "unknown")
-        console.print(f"  {i}. {gap['topic']} [dim][{method}][/dim]")
+        console.print(f"  {i}. {gap['topic']} [muted][{method}][/muted]")
         for q in gap.get("questions", [])[:2]:
             console.print(f"     - {q}")
     print_success(f"Found {len(new_gaps)} gaps. Use route-gaps --execute --scheduled to fill them safely.")
@@ -2735,8 +2739,8 @@ def refresh_expert(name: str, synthesize: bool, yes: bool):
                     import os
 
                     basename = os.path.basename(item["path"])
-                    console.print(f"  [dim]-[/dim] {basename}")
-                    console.print(f"    [dim]File ID:[/dim] {item['file_id']}")
+                    console.print(f"  [muted]-[/muted] {basename}")
+                    console.print(f"    [muted]File ID:[/muted] {item['file_id']}")
                 console.print()
 
             if results["failed"]:
@@ -2745,7 +2749,7 @@ def refresh_expert(name: str, synthesize: bool, yes: bool):
                     import os
 
                     basename = os.path.basename(item["path"])
-                    console.print(f"  [dim]-[/dim] {basename}: {item['error']}")
+                    console.print(f"  [muted]-[/muted] {basename}: {item['error']}")
                 console.print()
 
             if not results["uploaded"] and not results["failed"]:
@@ -2791,7 +2795,7 @@ def refresh_expert(name: str, synthesize: bool, yes: bool):
                     try:
                         existing_worldview = Worldview.load(worldview_path)
                         console.print(
-                            f"[dim]Loaded existing worldview ({existing_worldview.synthesis_count} prior syntheses)[/dim]"
+                            f"[muted]Loaded existing worldview ({existing_worldview.synthesis_count} prior syntheses)[/muted]"
                         )
                     except Exception as e:
                         print_warning(f"Could not load existing worldview: {e}")
@@ -3015,7 +3019,7 @@ def chat_with_expert(name: str, budget: float | None, no_research: bool):
 
             elif user_input in ["/synthesize", "\\synthesize"]:
                 print_section_header("Synthesizing Consciousness")
-                console.print("[dim]Expert is actively processing knowledge to form beliefs...[/dim]")
+                console.print("[muted]Expert is actively processing knowledge to form beliefs...[/muted]")
                 console.print("This may take 1-2 minutes...\n")
 
                 async def do_synthesis():
@@ -3044,7 +3048,7 @@ def chat_with_expert(name: str, budget: float | None, no_research: bool):
                             try:
                                 existing_worldview = Worldview.load(worldview_path)
                                 console.print(
-                                    f"[dim]Building on {existing_worldview.synthesis_count} prior syntheses[/dim]"
+                                    f"[muted]Building on {existing_worldview.synthesis_count} prior syntheses[/muted]"
                                 )
                             except Exception as e:
                                 print_warning(f"Could not load existing worldview: {e}")
@@ -3146,7 +3150,7 @@ def chat_with_expert(name: str, budget: float | None, no_research: bool):
 
                     # Use modern styling with diamond icon
                     spinner_type = "dots" if os.environ.get("WT_SESSION") or sys.platform != "win32" else "line"
-                    status_live.update(Spinner(spinner_type, text=f"[cyan]◆[/cyan] [dim]{status}[/dim]"))
+                    status_live.update(Spinner(spinner_type, text=f"[accent][/accent] [muted]{status}[/muted]"))
 
             # Collect streamed tokens
             streamed_chunks: list[str] = []
@@ -3158,7 +3162,7 @@ def chat_with_expert(name: str, budget: float | None, no_research: bool):
                 if status_live and status_live.is_started:
                     status_live.__exit__(None, None, None)
                     # Print expert name header before first token
-                    console.print(f"[bold cyan]{session.expert.name}[/bold cyan]")
+                    console.print(f"[accent]{session.expert.name}[/accent]")
                     console.print()
                 streamed_chunks.append(text)
                 console.print(text, end="")

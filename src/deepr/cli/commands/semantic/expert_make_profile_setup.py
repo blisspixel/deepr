@@ -88,7 +88,7 @@ def confirm_provider_profile_setup(
 
     setup_preview = build_provider_profile_setup_preview(provider, files)
     for line in format_provider_profile_setup_preview(setup_preview):
-        console.print(f"[yellow]{line}[/yellow]")
+        console.print(f"[warning]{line}[/warning]")
     if yes and not confirm_metered_profile:
         print_error(
             "API-backed expert setup with --yes requires --confirm-metered-profile after reviewing the setup estimate."

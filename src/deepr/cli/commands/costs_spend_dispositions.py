@@ -8,12 +8,12 @@ from pathlib import Path
 from typing import Any
 
 import click
-from rich.console import Console
 from rich.table import Table
 
+from deepr.cli.colors import make_console
 from deepr.observability.cost_ledger import CostLedger
 
-console = Console()
+console = make_console()
 
 
 def disposition_log_path_for_ledger(ledger_path: str | Path | None) -> Path | None:
@@ -53,12 +53,12 @@ def list_dispositions(limit: int, json_output: bool, ledger_path: str | None) ->
         )
         return
     if not records:
-        console.print("[dim]No spend dispositions recorded.[/dim]")
-        console.print(f"[dim]Log: {log_path}[/dim]")
+        console.print("[muted]No spend dispositions recorded.[/muted]")
+        console.print(f"[muted]Log: {log_path}[/muted]")
         return
     table = Table(title="Spend Dispositions (latest per event)")
-    table.add_column("Recorded", style="dim", no_wrap=True)
-    table.add_column("Kind", style="cyan")
+    table.add_column("Recorded", style="muted", no_wrap=True)
+    table.add_column("Kind", style="accent")
     table.add_column("Cost", justify="right")
     table.add_column("Operation")
     table.add_column("Task", max_width=28)
@@ -71,7 +71,7 @@ def list_dispositions(limit: int, json_output: bool, ledger_path: str | None) ->
             str(row.get("task_id", ""))[:28],
         )
     console.print(table)
-    console.print(f"[dim]Log: {log_path} ({len(latest)} latest event keys)[/dim]")
+    console.print(f"[muted]Log: {log_path} ({len(latest)} latest event keys)[/muted]")
 
 
 @click.command("dispose")
@@ -145,7 +145,7 @@ def dispose_spend(
         click.echo(json.dumps(record, indent=2))
         return
     console.print(
-        f"[green]Recorded disposition[/green] {disposition_kind} for event {event_key[:48]} (${cost_usd:.4f})"
+        f"[success]Recorded disposition[/success] {disposition_kind} for event {event_key[:48]} (${cost_usd:.4f})"
     )
 
 
@@ -232,9 +232,9 @@ def dispose_unexplained(
     if len(plan) > 20:
         console.print(f"    ... and {len(plan) - 20} more")
     if apply:
-        console.print(f"[green]Wrote {len(written)} disposition record(s)[/green]")
+        console.print(f"[success]Wrote {len(written)} disposition record(s)[/success]")
     else:
-        console.print("[dim]Dry run only. Re-run with --apply to record dispositions.[/dim]")
+        console.print("[muted]Dry run only. Re-run with --apply to record dispositions.[/muted]")
 
 
 @click.command("parent-budget")
@@ -272,7 +272,7 @@ def parent_budget_command(
             click.echo(json.dumps(payload, indent=2))
             return
         if rebuilt is None:
-            console.print(f"[yellow]No parent budget run {run_id!r}[/yellow]")
+            console.print(f"[warning]No parent budget run {run_id!r}[/warning]")
             return
         console.print_json(data=payload["transaction"])
         return
@@ -288,11 +288,11 @@ def parent_budget_command(
         click.echo(json.dumps(payload, indent=2))
         return
     if not events:
-        console.print("[dim]No parent budget journal events.[/dim]")
-        console.print(f"[dim]Log: {payload['path']}[/dim]")
+        console.print("[muted]No parent budget journal events.[/muted]")
+        console.print(f"[muted]Log: {payload['path']}[/muted]")
         return
     table = Table(title="Parent Budget Journal (latest)")
-    table.add_column("Time", style="dim", no_wrap=True)
+    table.add_column("Time", style="muted", no_wrap=True)
     table.add_column("Event")
     table.add_column("Run", max_width=20)
     table.add_column("Surface / child", max_width=28)
@@ -304,7 +304,7 @@ def parent_budget_command(
             str(event.get("surface") or event.get("child_id") or event.get("operation") or "")[:28],
         )
     console.print(table)
-    console.print(f"[dim]Log: {payload['path']} ({len(events)} events)[/dim]")
+    console.print(f"[muted]Log: {payload['path']} ({len(events)} events)[/muted]")
 
 
 def register_spend_disposition_commands(group: click.Group) -> None:

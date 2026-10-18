@@ -228,7 +228,7 @@ def print_explicit_research_preview(
         return
     console.print()
     console.print("[bold]Research Preview[/bold]")
-    console.print(f"[dim]{'─' * 40}[/dim]")
+    console.print(f"[muted]{'─' * 40}[/muted]")
     console.print(f"  Provider:   {provider}")
     console.print(f"  Model:      {model}")
     console.print(f"  Web search: {'enabled' if not no_web else 'disabled'}")
@@ -240,8 +240,8 @@ def print_explicit_research_preview(
         f"  Est. cost:  ${estimate.min_cost:.4f} - ${estimate.max_cost:.4f} (expected ${estimate.expected_cost:.4f})"
     )
     if estimate.reasoning:
-        console.print(f"  [dim]{estimate.reasoning}[/dim]")
-    console.print("[yellow]  (preview only - no provider call, no spend)[/yellow]")
+        console.print(f"  [muted]{estimate.reasoning}[/muted]")
+    console.print("[warning]  (preview only - no provider call, no spend)[/warning]")
     console.print()
 
 

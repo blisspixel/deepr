@@ -132,7 +132,7 @@ async def _generate_docs(
     if not model:
         model = os.getenv("DEEPR_DEEP_RESEARCH_MODEL", "gpt-5.6-sol")
 
-    console.print(f"[dim]Using {provider}/{model}[/dim]")
+    console.print(f"[muted]Using {provider}/{model}[/muted]")
 
     # Get API key based on provider
     if provider == "xai":
@@ -162,7 +162,7 @@ async def _generate_docs(
     # Read context files if provided
     context_content = ""
     if files:
-        console.print(f"[dim]Reading {len(files)} context files...[/dim]")
+        console.print(f"[muted]Reading {len(files)} context files...[/muted]")
         for file_path in files:
             try:
                 with open(file_path, encoding="utf-8") as f:
@@ -214,7 +214,7 @@ Output format: Well-structured markdown with proper headings, lists, and code bl
 
     if not yes and not outline:
         estimated_cost = "$1.00-$3.00" if "deep-research" in model else "$0.10-$0.50"
-        console.print(f"\n[dim]Estimated cost: {estimated_cost}[/dim]")
+        console.print(f"\n[muted]Estimated cost: {estimated_cost}[/muted]")
         if not click.confirm("\nProceed with documentation generation?"):
             console.print("Cancelled")
             return
@@ -274,7 +274,7 @@ Output format: Well-structured markdown with proper headings, lists, and code bl
 </html>"""
             content = html_doc
         except ImportError:
-            print_error("HTML conversion requires 'markdown' package. Install with: pip install markdown")
+            print_error("HTML conversion requires 'markdown' package. Next: pip install markdown")
             console.print("Saving as markdown instead...")
             output_path = output_path.with_suffix(".md")
 
@@ -303,7 +303,7 @@ Output format: Well-structured markdown with proper headings, lists, and code bl
             finally:
                 os.unlink(temp_md)
 
-            console.print("[dim]PDF generated using pandoc[/dim]")
+            console.print("[muted]PDF generated using pandoc[/muted]")
 
         except FileNotFoundError:
             print_error("PDF export requires pandoc. Install from: https://pandoc.org/installing.html")
@@ -326,12 +326,12 @@ Output format: Well-structured markdown with proper headings, lists, and code bl
     print_key_value("Cost", f"${cost:.4f}")
 
     if outline:
-        console.print("\n[dim]Review the outline, then generate full docs with:[/dim]")
+        console.print("\n[muted]Review the outline, then generate full docs with:[/muted]")
         console.print(f'  deepr make docs "{topic}"')
     else:
         # Show preview
         preview_lines = content.split("\n")[:15]
-        console.print("\n[dim]Preview:[/dim]")
+        console.print("\n[muted]Preview:[/muted]")
         for line in preview_lines:
             console.print(f"  {line[:80]}")
         if len(content.split("\n")) > 15:
@@ -432,7 +432,7 @@ async def _generate_strategy(
     if not model:
         model = os.getenv("DEEPR_DEEP_RESEARCH_MODEL", "gpt-5.6-sol")
 
-    console.print(f"[dim]Using {provider}/{model}[/dim]")
+    console.print(f"[muted]Using {provider}/{model}[/muted]")
 
     # Get API key based on provider
     if provider == "xai":
@@ -525,7 +525,7 @@ Use clear, professional business writing. Target audience: executive leadership 
 
     if not yes:
         estimated_cost = "$2.00-$5.00" if "deep-research" in model else "$0.20-$1.00"
-        console.print(f"\n[dim]Estimated cost: {estimated_cost}[/dim]")
+        console.print(f"\n[muted]Estimated cost: {estimated_cost}[/muted]")
         if not click.confirm("\nProceed with strategic analysis?"):
             console.print("Cancelled")
             return
@@ -565,7 +565,7 @@ Use clear, professional business writing. Target audience: executive leadership 
 
     # Show preview
     preview_lines = content.split("\n")[:20]
-    console.print("\n[dim]Preview:[/dim]")
+    console.print("\n[muted]Preview:[/muted]")
     for line in preview_lines:
         console.print(f"  {line[:80]}")
     if len(content.split("\n")) > 20:
@@ -680,7 +680,7 @@ async def _run_agentic_research(
     if not model:
         model = os.getenv("DEEPR_DEEP_RESEARCH_MODEL", "gpt-5.6-sol")
 
-    console.print(f"[dim]Using {provider}/{model}[/dim]")
+    console.print(f"[muted]Using {provider}/{model}[/muted]")
 
     # Get API key based on provider
     if provider == "xai":
@@ -715,7 +715,7 @@ async def _run_agentic_research(
     if resume and state_file.exists():
         with open(state_file, encoding="utf-8") as f:
             state = json.load(f)
-        console.print(f"[dim]Resuming from round {state['current_round']}/{state['max_rounds']}[/dim]")
+        console.print(f"[muted]Resuming from round {state['current_round']}/{state['max_rounds']}[/muted]")
         current_round = state["current_round"]
         total_cost = state["total_cost"]
         completed_tasks = state["completed_tasks"]
@@ -746,7 +746,7 @@ async def _run_agentic_research(
     print_key_value("Output", str(output_path))
 
     if not yes and not resume:
-        console.print("\n[dim]Estimated cost: $1.00-$5.00 depending on complexity[/dim]")
+        console.print("\n[muted]Estimated cost: $1.00-$5.00 depending on complexity[/muted]")
         if not click.confirm("\nProceed with agentic research?"):
             console.print("Cancelled")
             return
@@ -766,7 +766,7 @@ async def _run_agentic_research(
             print_section_header(f"Round {current_round}/{max_rounds}")
 
             # PHASE 1: PLAN
-            console.print("[bold cyan]PLAN[/bold cyan] - Creating research plan...")
+            console.print("[accent]PLAN[/accent] - Creating research plan...")
 
             plan_prompt = f"""You are a research planner. Create a research plan for:
 
@@ -815,21 +815,21 @@ Respond with JSON:
             except json.JSONDecodeError:
                 tasks = [{"id": 1, "description": f"Research {topic} to achieve: {goal}", "priority": "high"}]
 
-            console.print(f"[dim]Plan created ({len(tasks)} tasks, ${plan_cost:.4f})[/dim]")
+            console.print(f"[muted]Plan created ({len(tasks)} tasks, ${plan_cost:.4f})[/muted]")
             for task in tasks:
-                console.print(f"  • {task['description'][:60]}...")
+                console.print(f"  - {task['description'][:60]}...")
 
             # PHASE 2: EXECUTE
-            console.print("\n[bold cyan]EXECUTE[/bold cyan] - Running research tasks...")
+            console.print("\n[accent]EXECUTE[/accent] - Running research tasks...")
 
             round_results = []
             for task in tasks:
                 if total_cost >= budget:
-                    console.print("[yellow]Budget exhausted. Pausing...[/yellow]")
+                    console.print("[warning]Budget exhausted. Pausing...[/warning]")
                     break
 
                 task_desc = task["description"]
-                console.print(f"\n[dim]Task: {task_desc[:50]}...[/dim]")
+                console.print(f"\n[muted]Task: {task_desc[:50]}...[/muted]")
 
                 with progress.operation("Researching..."):
                     try:
@@ -849,7 +849,7 @@ Provide comprehensive findings with citations [Source: source_name].
                         round_results.append({"task": task_desc, "result": research_content, "cost": research_cost})
                         completed_tasks.append(task_desc)
 
-                        console.print(f"[dim]Complete (${research_cost:.4f})[/dim]")
+                        console.print(f"[muted]Complete (${research_cost:.4f})[/muted]")
 
                     except Exception as e:
                         print_error(f"Research failed: {e}")
@@ -867,7 +867,7 @@ Provide comprehensive findings with citations [Source: source_name].
                     f.write("\n\n---\n\n")
 
             # PHASE 3: REVIEW
-            console.print("\n[bold cyan]REVIEW[/bold cyan] - Evaluating progress...")
+            console.print("\n[accent]REVIEW[/accent] - Evaluating progress...")
 
             review_prompt = f"""Review the research progress:
 
@@ -917,7 +917,7 @@ Respond with JSON:
             progress_pct = review.get("progress_percent", 50)
             goal_achieved = review.get("goal_achieved", False)
 
-            console.print(f"[dim]Progress: {progress_pct}% | Cost: ${total_cost:.2f}[/dim]")
+            console.print(f"[muted]Progress: {progress_pct}% | Cost: ${total_cost:.2f}[/muted]")
 
             # Save state after each round
             current_round += 1
@@ -925,18 +925,18 @@ Respond with JSON:
 
             # Check if goal achieved
             if goal_achieved or review.get("recommendation") == "complete":
-                console.print("\n[green]Goal achieved![/green]")
+                console.print("\n[success]Goal achieved![/success]")
                 break
 
             # Budget check
             if total_cost >= budget * 0.95:
                 console.print(
-                    f"\n[yellow]Budget nearly exhausted (${total_cost:.2f}/${budget:.2f}). Pausing...[/yellow]"
+                    f"\n[warning]Budget nearly exhausted (${total_cost:.2f}/${budget:.2f}). Pausing...[/warning]"
                 )
                 break
 
     except KeyboardInterrupt:
-        console.print("\n[yellow]Interrupted. Saving state...[/yellow]")
+        console.print("\n[warning]Interrupted. Saving state...[/warning]")
         save_state()
         console.print(f'Resume with: deepr agentic research "{topic}" --goal "{goal}" --resume')
         return
@@ -990,7 +990,7 @@ Include all relevant findings with citations.
 
     # Show preview
     preview_lines = synthesis_content.split("\n")[:10]
-    console.print("\n[dim]Preview:[/dim]")
+    console.print("\n[muted]Preview:[/muted]")
     for line in preview_lines:
         console.print(f"  {line[:80]}")
     if len(synthesis_content.split("\n")) > 10:

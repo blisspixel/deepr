@@ -5,9 +5,9 @@ from __future__ import annotations
 import json
 
 import click
-from rich.console import Console
 from rich.table import Table
 
+from deepr.cli.colors import make_console
 from deepr.providers.openrouter_catalog_check import (
     OPENROUTER_CATALOG_CHECK_KIND,
     OPENROUTER_CATALOG_CHECK_SCHEMA_VERSION,
@@ -16,7 +16,7 @@ from deepr.providers.openrouter_catalog_check import (
     openrouter_models,
 )
 
-console = Console()
+console = make_console()
 
 
 @click.command("openrouter-check")
@@ -45,7 +45,7 @@ def openrouter_check(model: str | None, json_output: bool) -> None:
         click.echo(json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False))
     else:
         table = Table(title="OpenRouter Public Catalog Proof")
-        table.add_column("Model", style="cyan")
+        table.add_column("Model", style="accent")
         table.add_column("Exact upstream")
         table.add_column("Observed input / output / cache-write $/M", justify="right")
         table.add_column("Registered input / output / cache-write cap $/M", justify="right")

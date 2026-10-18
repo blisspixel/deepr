@@ -23,11 +23,11 @@ def _render(payload: dict[str, Any]) -> None:
     print_key_value("Middle-context review", str(payload.get("middle_context_review_count", 0)))
     candidates = list(payload.get("candidates", []) or [])
     if not candidates:
-        console.print("[dim]No failed, low-context, or middle-context review consult traces found.[/dim]")
+        console.print("[muted]No failed, low-context, or middle-context review consult traces found.[/muted]")
         return
 
     for candidate in candidates[:10]:
-        console.print(f"\n[bold]{candidate['reason']}[/bold] [dim]{candidate['trace_id']}[/dim]")
+        console.print(f"\n[bold]{candidate['reason']}[/bold] [muted]{candidate['trace_id']}[/muted]")
         console.print(f"  {candidate['question_preview']}")
         console.print(f"  Gap: {candidate['gap']['topic']}")
         checks = candidate.get("failed_checks") or candidate.get("warning_checks") or []

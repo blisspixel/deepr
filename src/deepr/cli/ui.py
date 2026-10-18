@@ -13,18 +13,15 @@ import sys
 from collections.abc import AsyncIterator
 from enum import Enum
 
-from rich.console import Console
 from rich.live import Live
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.spinner import Spinner
 
-# Create console with proper encoding for Windows
-if sys.platform == "win32":
-    # Use legacy Windows mode for better compatibility with cmd.exe
-    console = Console(legacy_windows=True, force_terminal=True)
-else:
-    console = Console()
+from deepr.cli.colors import make_console
+
+# Rich detects the actual terminal; redirected Windows output stays plain.
+console = make_console()
 
 
 class QueryComplexity(Enum):
@@ -112,21 +109,21 @@ def print_welcome(expert_name: str, domain: str, documents: int, updated_date: s
     """
     # Determine knowledge freshness
     if knowledge_age_days == 0:
-        freshness = "[green]fresh[/green]"
+        freshness = "[success]fresh[/success]"
     elif knowledge_age_days <= 7:
-        freshness = "[yellow]recent[/yellow]"
+        freshness = "[warning]recent[/warning]"
     elif knowledge_age_days <= 30:
-        freshness = f"[yellow]{knowledge_age_days} days old[/yellow]"
+        freshness = f"[warning]{knowledge_age_days} days old[/warning]"
     else:
-        freshness = f"[red]{knowledge_age_days} days old[/red]"
+        freshness = f"[error]{knowledge_age_days} days old[/error]"
 
     # Create welcome panel
-    content = f"""[bold]{documents} documents[/bold] • Updated {updated_date} • Knowledge: {freshness}
+    content = f"""[bold]{documents} documents[/bold] - Updated {updated_date} - Knowledge: {freshness}
 Domain: {domain}
 
-Commands: [cyan]/help[/cyan] [cyan]/status[/cyan] [cyan]/quit[/cyan]"""
+Commands: [accent]/help[/accent] [accent]/status[/accent] [accent]/quit[/accent]"""
 
-    panel = Panel(content, title=f"[bold cyan]{expert_name}[/bold cyan]", border_style="cyan", padding=(1, 2))
+    panel = Panel(content, title=f"[accent]{expert_name}[/accent]", border_style="accent", padding=(1, 2))
 
     console.print()
     console.print(panel)
@@ -155,10 +152,12 @@ def print_thinking(action: str, with_spinner: bool = True):
         # Fall back to "line" only on legacy cmd.exe
         spinner_type = "dots" if os.environ.get("WT_SESSION") or sys.platform != "win32" else "line"
         return Live(
-            Spinner(spinner_type, text=f"[cyan]◆[/cyan] [dim]{action}[/dim]"), console=console, refresh_per_second=8
+            Spinner(spinner_type, text=f"[accent][/accent] [muted]{action}[/muted]"),
+            console=console,
+            refresh_per_second=8,
         )
     else:
-        console.print(f"[dim]| {action}[/dim]")
+        console.print(f"[muted]| {action}[/muted]")
 
 
 def print_tool_use(tool_name: str, details: str):
@@ -168,12 +167,12 @@ def print_tool_use(tool_name: str, details: str):
         tool_name: Name of the tool being used
         details: Additional details about tool use
     """
-    console.print(f"[dim]| {details}[/dim]")
+    console.print(f"[muted]| {details}[/muted]")
 
 
 def print_divider():
     """Print a subtle divider line."""
-    console.print("[dim]" + "─" * 60 + "[/dim]")
+    console.print("[muted]" + "─" * 60 + "[/muted]")
 
 
 def print_tool_summary(tool_name: str, duration: float, cost: float):
@@ -185,7 +184,7 @@ def print_tool_summary(tool_name: str, duration: float, cost: float):
         cost: Cost in USD
     """
     console.print()
-    console.print(f"[dim]{tool_name} • {duration:.1f}s • ${cost:.3f}[/dim]")
+    console.print(f"[muted]{tool_name} - {duration:.1f}s - ${cost:.3f}[/muted]")
     print_divider()
 
 
@@ -199,7 +198,7 @@ def stream_response(expert_name: str, text: str):
         expert_name: Name of the expert
         text: Response text
     """
-    console.print(f"[bold cyan]{expert_name}[/bold cyan]")
+    console.print(f"[accent]{expert_name}[/accent]")
     console.print()
 
     # Render as markdown for better formatting
@@ -215,7 +214,7 @@ async def stream_response_async(expert_name: str, text_stream: AsyncIterator[str
         expert_name: Name of the expert
         text_stream: Async iterator yielding text chunks
     """
-    console.print(f"[bold cyan]{expert_name}[/bold cyan]")
+    console.print(f"[accent]{expert_name}[/accent]")
     console.print()
 
     # Accumulate full text for markdown rendering
@@ -236,7 +235,7 @@ def print_error(error_message: str):
     Args:
         error_message: Error message to display
     """
-    console.print(f"[red]Error:[/red] {error_message}")
+    console.print(f"[error]Error:[/error] {error_message}")
     console.print()
 
 
@@ -275,7 +274,7 @@ def print_command_help():
         for cmd in cmds:
             arg_str = f" {cmd.args}" if cmd.args else ""
             aliases = f" ({', '.join('/' + a for a in cmd.aliases)})" if cmd.aliases else ""
-            console.print(f"  [cyan]/{cmd.name}{arg_str}[/cyan]{aliases} - {cmd.description}")
+            console.print(f"  [accent]/{cmd.name}{arg_str}[/accent]{aliases} - {cmd.description}")
         console.print()
     console.print("Use / (web) or \\ (CLI) prefix for commands. Just type to chat.")
     console.print()
@@ -287,14 +286,7 @@ def print_mode_indicator(mode_name: str):
     Args:
         mode_name: Current chat mode name
     """
-    mode_colors = {
-        "ask": "green",
-        "research": "cyan",
-        "advise": "yellow",
-        "focus": "magenta",
-    }
-    color = mode_colors.get(mode_name.lower(), "cyan")
-    console.print(f"[{color}][{mode_name}][/{color}]", end=" ")
+    console.print(f"[info][{mode_name}][/info]", end=" ")
 
 
 def print_status(
@@ -338,14 +330,14 @@ def print_status(
     # Show daily/monthly spending if available
     if daily_limit > 0:
         daily_pct = (daily_spent / daily_limit * 100) if daily_limit > 0 else 0
-        daily_color = "green" if daily_pct < 50 else "yellow" if daily_pct < 80 else "red"
+        daily_color = "success" if daily_pct < 50 else "warning" if daily_pct < 80 else "error"
         console.print(
             f"Daily spending: [{daily_color}]${daily_spent:.2f}[/{daily_color}] / ${daily_limit:.2f} ({daily_pct:.0f}%)"
         )
 
     if monthly_limit > 0:
         monthly_pct = (monthly_spent / monthly_limit * 100) if monthly_limit > 0 else 0
-        monthly_color = "green" if monthly_pct < 50 else "yellow" if monthly_pct < 80 else "red"
+        monthly_color = "success" if monthly_pct < 50 else "warning" if monthly_pct < 80 else "error"
         console.print(
             f"Monthly spending: [{monthly_color}]${monthly_spent:.2f}[/{monthly_color}] / ${monthly_limit:.2f} ({monthly_pct:.0f}%)"
         )
@@ -360,7 +352,7 @@ def print_trace(reasoning_trace: list):
         reasoning_trace: List of reasoning steps
     """
     if not reasoning_trace:
-        console.print("[dim]No reasoning trace available yet.[/dim]")
+        console.print("[muted]No reasoning trace available yet.[/muted]")
         return
 
     console.print()
@@ -371,7 +363,7 @@ def print_trace(reasoning_trace: list):
         step_type = step.get("step", "unknown")
         timestamp = step.get("timestamp", "unknown")
 
-        console.print(f"[bold]{i}. {step_type}[/bold] [dim]({timestamp})[/dim]")
+        console.print(f"[bold]{i}. {step_type}[/bold] [muted]({timestamp})[/muted]")
 
         if step_type == "model_routing":
             console.print(f"   Query: {step.get('query', 'N/A')}")
@@ -384,7 +376,7 @@ def print_trace(reasoning_trace: list):
             console.print(f"   Query: {step.get('query', 'N/A')}")
             reasoning = step.get("reasoning")
             if reasoning:
-                console.print(f"   [cyan]Reasoning:[/cyan] {reasoning}")
+                console.print(f"   [accent]Reasoning:[/accent] {reasoning}")
             console.print(f"   Results: {step.get('results_count', 0)} documents")
             sources = step.get("sources", [])
             if sources:
@@ -394,7 +386,7 @@ def print_trace(reasoning_trace: list):
             console.print(f"   Query: {step.get('query', 'N/A')}")
             reasoning = step.get("reasoning")
             if reasoning:
-                console.print(f"   [cyan]Reasoning:[/cyan] {reasoning}")
+                console.print(f"   [accent]Reasoning:[/accent] {reasoning}")
             console.print(f"   Cost: ${step.get('cost', 0.0):.4f}")
 
         console.print()

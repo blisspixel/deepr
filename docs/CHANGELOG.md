@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Command rendering uses one semantic palette map with default-foreground
+  body/provenance, palette-based effects, explicit status words, neutral passing
+  fleet grades and complete `Next:` / `Also:` command guidance (#230). Doctor,
+  capacity and costs doctor share aligned diagnostic labels. Piped output stays
+  plain; implicit Rich path/number highlighting is disabled. Source/response
+  records, evidence labels, budget enforcement and eligibility are unchanged.
+  See [design](design/terminal-roles.md) and
+  [validation](validation/terminal-roles-2026-10-18.md).
+
 ## [2.50.38] - 2026-10-18
 
 Align maintained runtime support and installation (#225).

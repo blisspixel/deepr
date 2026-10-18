@@ -125,7 +125,7 @@ def _material(expert_name: str) -> tuple[str, str, int]:
         detail = "has no brief" if brief is None else "has a brief holding no positions"
         click.echo(
             f"Error: {expert_name} {detail}, so it has not landed anywhere to describe. "
-            f'Run: deepr expert brief "{expert_name}"',
+            f'Next: deepr expert brief "{expert_name}"',
             err=True,
         )
         sys.exit(2)
@@ -165,34 +165,34 @@ def _render_lists(profile: ExpertProfile) -> None:
     times is where the branch count came from.
     """
     sections = (
-        ("Would be glad to be asked about", "cyan", profile.glad_to_be_asked_about, False),
-        ("Still working on", "yellow", profile.open_questions, False),
-        ("Knows it is weak on", "dim", profile.where_it_is_weak, True),
+        ("Would be glad to be asked about", "accent", profile.glad_to_be_asked_about, False),
+        ("Still working on", "warning", profile.open_questions, False),
+        ("Knows it is weak on", "muted", profile.where_it_is_weak, True),
     )
     for heading, colour, items, dim_items in sections:
         if not items:
             continue
         console.print(f"\n[{colour}]{heading}[/{colour}]")
         for item in items:
-            console.print(f"  [dim]- {item}[/dim]" if dim_items else f"  - {item}")
+            console.print(f"  [muted]- {item}[/muted]" if dim_items else f"  - {item}")
 
 
 def _render(profile: ExpertProfile, *, path: Path) -> None:
     if profile.chosen_name:
         print_key_value("Calls itself", profile.chosen_name)
     if profile.standpoint:
-        console.print(f"\n[bright_white]{profile.standpoint}[/bright_white]")
+        console.print(f"\n[text]{profile.standpoint}[/text]")
     if profile.preferred_lens:
-        console.print(f"\n[dim]Reads it best through: {profile.preferred_lens}[/dim]")
+        console.print(f"\n[muted]Reads it best through: {profile.preferred_lens}[/muted]")
 
     _render_lists(profile)
 
     if profile.shifts:
-        console.print(f"\n[bright_yellow]Has changed its mind {len(profile.shifts)} time(s)[/bright_yellow]")
+        console.print(f"\n[live]Has changed its mind {len(profile.shifts)} time(s)[/live]")
         for shift in profile.shifts[-3:]:
             console.print(f"  - was: {shift.was}")
             console.print(f"    now: {shift.now}")
-            console.print(f"    [dim]because: {shift.because}[/dim]")
+            console.print(f"    [muted]because: {shift.because}[/muted]")
 
     for note in profile.concerns():
         print_warning(note)
@@ -220,7 +220,7 @@ def _render_portrait_if_free(profile: Any) -> None:
     from deepr.experts.local_image_cli import LOCAL_IMAGE_CLI_ENV, is_available
 
     if not is_available():
-        console.print(f"[dim]No portrait: set {LOCAL_IMAGE_CLI_ENV} to render one locally at $0.[/dim]")
+        console.print(f"[muted]No portrait: set {LOCAL_IMAGE_CLI_ENV} to render one locally at $0.[/muted]")
         return
 
     from deepr.experts.profile_store import ExpertStore
@@ -231,7 +231,7 @@ def _render_portrait_if_free(profile: Any) -> None:
     if getattr(stored, "portrait_url", None):
         return
 
-    console.print("[dim]Rendering a portrait locally ($0, this takes a few minutes)...[/dim]")
+    console.print("[muted]Rendering a portrait locally ($0, this takes a few minutes)...[/muted]")
     try:
         import asyncio
 

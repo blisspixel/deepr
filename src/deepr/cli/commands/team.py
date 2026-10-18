@@ -284,7 +284,7 @@ Provide your analysis from this perspective."""
 
                 results.append({"job_id": job_id, "role": member["role"], "content": content, "cost": cost})
 
-                console.print(f"  [success]Completed[/success] [dim](${cost:.4f})[/dim]")
+                console.print(f"  [success]Completed[/success] [muted](${cost:.4f})[/muted]")
 
             else:
                 error_msg = response.error if response.error else "Unknown error"

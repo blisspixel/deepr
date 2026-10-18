@@ -15,10 +15,10 @@ from pathlib import Path
 from typing import Any
 
 import click
-from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from deepr.cli.colors import make_console, status_text
 from deepr.cli.commands.costs_spend_dispositions import (
     disposition_log_path_for_ledger,
     register_spend_disposition_commands,
@@ -28,7 +28,7 @@ from deepr.cli.model_choices import research_model_choice
 from deepr.observability.cost_ledger import CostLedger
 from deepr.observability.costs import CostDashboard
 
-console = Console()
+console = make_console()
 
 SPEND_DECISIONS_SCHEMA_VERSION = "deepr-cost-spend-decisions-v1"
 SPEND_DECISIONS_KIND = "deepr.costs.spend_decisions"
@@ -131,9 +131,9 @@ def _threshold_label(exposure: float, limit: float) -> str | None:
 def _utilization_display(exposure: float, limit: float) -> tuple[str, str]:
     """Render zero ceilings as frozen or breached, never as healthy utilization."""
     if limit <= 0:
-        return ("OVER $0.00 CEILING", "red") if exposure > 0 else ("0.0%", "green")
+        return ("OVER $0.00 CEILING", "error") if exposure > 0 else ("0.0%", "success")
     utilization = exposure / limit * 100
-    color = "green" if utilization < 50 else "yellow" if utilization < 80 else "red"
+    color = "success" if utilization < 50 else "warning" if utilization < 80 else "error"
     return f"{utilization:.1f}%", color
 
 
@@ -169,7 +169,7 @@ def estimate(prompt: str, model: str, web_search: bool):
     try:
         est = CostEstimator.estimate_cost(prompt=prompt, model=model, enable_web_search=web_search)
     except Exception as e:
-        console.print(f"[red]Error:[/red] {e}")
+        console.print(f"[error]Error:[/error] {e}")
         raise click.Abort() from e
 
     console.print(
@@ -237,7 +237,7 @@ def show(daily_limit: float | None, monthly_limit: float | None):
         )
         label = _threshold_label(wallet_exposure, summary["spend_wallet_authorized"])
         if label is not None:
-            console.print(f"[bold red]Wallet alert:[/bold red] {label}")
+            console.print(f"[error]Wallet alert:[/error] {label}")
         return
 
     # Daily summary
@@ -279,7 +279,7 @@ def show(daily_limit: float | None, monthly_limit: float | None):
     for period in ("daily", "weekly", "monthly"):
         label = _threshold_label(summary[f"{period}_exposure"], summary[f"{period}_limit"])
         if label is not None:
-            console.print(f"[bold red]{period.title()} alert:[/bold red] {label}")
+            console.print(f"[error]{period.title()} alert:[/error] {label}")
 
 
 @costs.command()
@@ -290,14 +290,14 @@ def history(days: int):
     hist = dashboard.get_daily_history(days)
 
     table = Table(title=f"Cost History (Last {days} Days)")
-    table.add_column("Date", style="cyan")
+    table.add_column("Date", style="accent")
     table.add_column("Total", justify="right")
     table.add_column("Limit", justify="right")
     table.add_column("Utilization", justify="right")
 
     for day in hist:
         util_pct = day["utilization"] * 100
-        util_color = "green" if util_pct < 50 else "yellow" if util_pct < 80 else "red"
+        util_color = "success" if util_pct < 50 else "warning" if util_pct < 80 else "error"
 
         table.add_row(
             day["date"], f"${day['total']:.2f}", f"${day['limit']:.2f}", f"[{util_color}]{util_pct:.1f}%[/{util_color}]"
@@ -339,11 +339,11 @@ def breakdown(by: str, period: str):
         title = "Cost Breakdown by Model"
 
     if not data:
-        console.print(f"[dim]No cost data for {period_labels[period].lower()}[/dim]")
+        console.print(f"[muted]No cost data for {period_labels[period].lower()}[/muted]")
         return
 
     table = Table(title=f"{title} ({period_labels[period]})")
-    table.add_column(by.title(), style="cyan")
+    table.add_column(by.title(), style="accent")
     table.add_column("Cost", justify="right")
     table.add_column("Percentage", justify="right")
 
@@ -375,10 +375,10 @@ def alerts():
             active.append((period, exposure, limit, label))
 
     if not active:
-        console.print("[green]OK No live cost thresholds crossed[/green]")
+        console.print("[success]OK No live cost thresholds crossed[/success]")
         return
 
-    console.print(f"[bold red]Live Cost Alerts ({len(active)}):[/bold red]\n")
+    console.print(f"[error]Live Cost Alerts ({len(active)}):[/error]\n")
     for period, exposure, limit, label in active:
         console.print(
             Panel(
@@ -409,7 +409,7 @@ def limits(daily: float | None, monthly: float | None):
             config["monthly_limit"] = monthly
 
         mutate_budget_config(update)
-        console.print(f"[green]Authoritative monthly paid API budget set to ${monthly:.2f}[/green]")
+        console.print(f"[success]Authoritative monthly paid API budget set to ${monthly:.2f}[/success]")
 
     try:
         summary = _current_cost_authority()
@@ -444,7 +444,7 @@ def timeline(days: int, weekly: bool):
     hist = dashboard.get_daily_history(days)
 
     if not hist:
-        console.print("[dim]No cost data available[/dim]")
+        console.print("[muted]No cost data available[/muted]")
         return
 
     if weekly:
@@ -475,7 +475,7 @@ def timeline(days: int, weekly: bool):
     bar_width = 30
 
     table = Table(title=f"{period_label} Cost Timeline (Last {days} Days)")
-    table.add_column("Date", style="cyan", no_wrap=True)
+    table.add_column("Date", style="accent", no_wrap=True)
     table.add_column("Cost", justify="right", width=10)
     table.add_column("Chart", no_wrap=True)
 
@@ -484,14 +484,14 @@ def timeline(days: int, weekly: bool):
         is_anomaly = avg_val > 0 and val > 2 * avg_val
 
         if is_anomaly:
-            color = "red"
+            color = "error"
             anomaly_count += 1
             prefix = "! "
         elif avg_val > 0 and val > avg_val:
-            color = "yellow"
+            color = "warning"
             prefix = "  "
         else:
-            color = "green"
+            color = "success"
             prefix = "  "
 
         bar = "█" * bar_len
@@ -500,7 +500,7 @@ def timeline(days: int, weekly: bool):
     console.print(table)
     console.print(
         f"\n  Average: [bold]${avg_val:.2f}/{period_label.lower()[:-2]}y[/bold]"
-        f"  |  Anomalies: [bold red]{anomaly_count}[/bold red] "
+        f"  |  Anomalies: [error]{anomaly_count}[/error] "
         f"{'days' if not weekly else 'weeks'} > 2x average"
     )
 
@@ -515,14 +515,14 @@ def expert_costs(name: str):
     profile = store.load(name)
 
     if profile is None:
-        console.print(f"[red]Expert '{name}' not found[/red]")
+        console.print(f"[error]Expert '{name}' not found[/error]")
         return
 
     # Expert summary
     budget_pct = (
         profile.monthly_spending / profile.monthly_learning_budget * 100 if profile.monthly_learning_budget > 0 else 0
     )
-    budget_color = "green" if budget_pct < 50 else "yellow" if budget_pct < 80 else "red"
+    budget_color = "money"
 
     console.print(
         Panel(
@@ -542,7 +542,7 @@ def expert_costs(name: str):
 
     if breakdown:
         table = Table(title="Cost by Operation Type")
-        table.add_column("Operation", style="cyan")
+        table.add_column("Operation", style="accent")
         table.add_column("Cost", justify="right")
 
         total = sum(breakdown.values())
@@ -552,7 +552,7 @@ def expert_costs(name: str):
 
         console.print(table)
     else:
-        console.print("[dim]No detailed cost entries found for this expert[/dim]")
+        console.print("[muted]No detailed cost entries found for this expert[/muted]")
 
 
 def _spend_decision_state(record: dict[str, Any]) -> str:
@@ -664,13 +664,13 @@ def spend_decisions(expert: str | None, operation: str | None, decision: str, li
         return
 
     if not payload["records"]:
-        console.print("[dim]No spend-decision records matched.[/dim]")
-        console.print(f"[dim]Log: {log_path}[/dim]")
+        console.print("[muted]No spend-decision records matched.[/muted]")
+        console.print(f"[muted]Log: {log_path}[/muted]")
         return
 
     table = Table(title="Spend Decisions")
-    table.add_column("Time", style="dim", no_wrap=True)
-    table.add_column("Expert", style="cyan", min_width=12)
+    table.add_column("Time", style="muted", no_wrap=True)
+    table.add_column("Expert", style="accent", min_width=12)
     table.add_column("Estimate", justify="right")
     table.add_column("Decision", justify="center", min_width=8)
     table.add_column("Reason")
@@ -678,7 +678,7 @@ def spend_decisions(expert: str | None, operation: str | None, decision: str, li
     for record in payload["records"]:
         decision_data = record.get("decision", {}) or {}
         state = _spend_decision_state(record)
-        style = "green" if state == "allowed" else "yellow"
+        style = "success" if state == "allowed" else "warning"
         tier = str(decision_data.get("tier", "") or "")
         reason = str(decision_data.get("reason", "") or "")
         detail = f"{tier}: {reason}" if tier else reason
@@ -760,20 +760,17 @@ def _tracking_integrity_checks(dashboard, ledger, ledger_path: Path, drift_thres
 
 
 def _print_tracking_checks(checks) -> None:
-    table = Table(title="Cost Tracking Doctor")
-    table.add_column("Check", style="cyan")
-    table.add_column("Status", style="bold")
-    table.add_column("Details")
+    console.print("Cost Tracking Doctor", style="accent")
     for name, ok, details in checks:
-        table.add_row(name, "PASS" if ok else "FAIL", details)
-    console.print(table)
+        console.print(status_text("ok" if ok else "failed"), name, markup=False)
+        console.print(f"  {details}", style="muted", markup=False)
 
     passed = sum(1 for _name, ok, _details in checks if ok)
     total = len(checks)
     if passed == total:
-        console.print(f"[green]All checks passed ({passed}/{total})[/green]")
+        console.print(f"[success]All checks passed ({passed}/{total})[/success]")
     else:
-        console.print(f"[red]Issues found ({total - passed}/{total})[/red]")
+        console.print(f"[error]Issues found ({total - passed}/{total})[/error]")
 
 
 def _doctor_classify(events, dir_names, cutoff, dispositions_by_key=None):
@@ -836,7 +833,7 @@ def doctor(
         # directly). Regenerate the view rather than trusting it.
         count = dashboard.rebuild_from_ledger()
         if not json_output:
-            console.print(f"[green]Rebuilt dashboard view from ledger ({count} entries)[/green]")
+            console.print(f"[success]Rebuilt dashboard view from ledger ({count} entries)[/success]")
     ledger = CostLedger(ledger_path=Path(ledger_path)) if ledger_path else CostLedger()
     tracking_ledger_path = ledger.ledger_path
     tracking_checks = _tracking_integrity_checks(
@@ -891,7 +888,7 @@ def doctor(
         console.print(
             f"  disposed spend:    ${disposed_total:.2f} across {len(disposed)} event(s) with durable dispositions"
         )
-        colour = "red" if unexplained_total > 0.005 else "green"
+        colour = "error" if unexplained_total > 0.005 else "success"
         console.print(
             f"  [{colour}]unexplained spend: ${unexplained_total:.2f} across {len(unexplained)} event(s)[/{colour}]"
         )

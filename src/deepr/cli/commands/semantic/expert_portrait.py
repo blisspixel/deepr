@@ -61,10 +61,10 @@ async def _run_portrait_batch(store: Any, targets: list[str], *, provider: str |
         profile = store.load(target)
         try:
             url = await generate_and_save_portrait(profile, store, provider=provider, style=style)
-            console.print(f"  [green]done[/green] {target}  ->  {url}")
+            console.print(f"  [success]done[/success] {target}  ->  {url}")
             done += 1
         except Exception as e:
-            console.print(f"  [red]failed[/red] {target}: {e}")
+            console.print(f"  [error]failed[/error] {target}: {e}")
     return done
 
 
@@ -127,7 +127,7 @@ def expert_portrait(name, all_experts, missing_only, force, style, provider, yes
         # here prints a reason and exits 2.
         print_error(str(exc))
         sys.exit(2)
-    console.print(f"[dim]Provider: {effective} (~${unit:.2f}/image)  Style: {portrait_style(style)}[/dim]")
+    console.print(f"[muted]Provider: {effective} (~${unit:.2f}/image)  Style: {portrait_style(style)}[/muted]")
     est = len(targets) * unit
     if yes and unit > 0 and not confirm_metered_cost:
         print_error(

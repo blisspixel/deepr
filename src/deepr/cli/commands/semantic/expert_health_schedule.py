@@ -93,8 +93,8 @@ def print_scheduled_health_action_plan(plan: dict[str, Any]) -> None:
     console.print(f"  {plan['status']}: {plan['detail']}")
     for action in plan["actions"]:
         console.print(f"  - {action['scheduler_status']}: {action['description']}")
-        console.print(f"    [dim]{action['scheduler_detail']}[/dim]")
-        console.print(f"    [white]{action['command']}[/white]")
+        console.print(f"    [muted]{action['scheduler_detail']}[/muted]")
+        console.print(f"    [text]{action['command']}[/text]")
 
 
 def scheduled_archive_confirmation_payload(expert_name: str, candidates: list[Any]) -> dict[str, Any]:
@@ -190,11 +190,11 @@ def emit_scheduled_archive_confirmation(expert_name: str, candidates: list[Any],
         return
 
     print_warning("Scheduled health-check archive is waiting for confirmation.")
-    console.print(f"[dim]{payload['count']} stale belief(s) are eligible for reversible archival.[/dim]")
+    console.print(f"[muted]{payload['count']} stale belief(s) are eligible for reversible archival.[/muted]")
     for action in payload["next_actions"]:
         console.print(f"  {action['status']}: {action['title']}")
-        console.print(f"      [dim]{action['detail']}[/dim]")
-        console.print(f"      [dim]{action['command']}[/dim]")
+        console.print(f"      [muted]{action['detail']}[/muted]")
+        console.print(f"      [muted]{action['command']}[/muted]")
 
 
 def emit_scheduled_archive_overlap(expert_name: str, *, json_output: bool) -> None:
@@ -206,5 +206,5 @@ def emit_scheduled_archive_overlap(expert_name: str, *, json_output: bool) -> No
     print_warning("Scheduled health-check archive skipped because another run is active.")
     for action in payload["next_actions"]:
         console.print(f"  {action['status']}: {action['title']}")
-        console.print(f"      [dim]{action['detail']}[/dim]")
-        console.print(f"      [dim]{action['command']}[/dim]")
+        console.print(f"      [muted]{action['detail']}[/muted]")
+        console.print(f"      [muted]{action['command']}[/muted]")

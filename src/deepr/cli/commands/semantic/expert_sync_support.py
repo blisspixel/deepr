@@ -254,9 +254,9 @@ def _print_capacity_payload(payload: dict[str, Any]) -> None:
     for action in payload["capacity_next"]["actions"]:
         console.print(f"  [{action['rank']}] {action['status']}: {action['title']}")
         if action.get("detail"):
-            console.print(f"      [dim]{action['detail']}[/dim]")
+            console.print(f"      [muted]{action['detail']}[/muted]")
         if action.get("command"):
-            console.print(f"      [dim]{action['command']}[/dim]")
+            console.print(f"      [muted]{action['command']}[/muted]")
 
 
 def _emit_scheduled_capacity_wait(
@@ -331,7 +331,7 @@ def _emit_scheduled_capacity_wait(
         return
 
     print_warning("Scheduled sync is waiting for cheap capacity.")
-    console.print(f"[dim]{detail}.[/dim]")
+    console.print(f"[muted]{detail}.[/muted]")
     _print_capacity_payload(payload)
 
 
@@ -840,8 +840,8 @@ def _sync_context_builder(*, fresh_context: bool, deep_context: bool, json_outpu
 
         if not json_output:
             console.print(
-                "[dim]Deep context enabled: multi-query free-only web retrieval; "
-                "API-key search providers are not used.[/dim]"
+                "[muted]Deep context enabled: multi-query free-only web retrieval; "
+                "API-key search providers are not used.[/muted]"
             )
         return make_free_deep_context_builder()
     if fresh_context:
@@ -849,7 +849,7 @@ def _sync_context_builder(*, fresh_context: bool, deep_context: bool, json_outpu
 
         if not json_output:
             console.print(
-                "[dim]Fresh context enabled: free-only web retrieval; API-key search providers are not used.[/dim]"
+                "[muted]Fresh context enabled: free-only web retrieval; API-key search providers are not used.[/muted]"
             )
         return make_free_fresh_context_builder()
     return None

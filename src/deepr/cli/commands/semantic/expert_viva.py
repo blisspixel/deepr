@@ -74,7 +74,7 @@ def _load_brief_text(expert_name: str) -> str:
         detail = "has no brief" if brief is None else "has a brief holding no positions"
         click.echo(
             f"Error: {expert_name} {detail}, so it holds no positions to examine. "
-            f'Run: deepr expert brief "{expert_name}"',
+            f'Next: deepr expert brief "{expert_name}"',
             err=True,
         )
         sys.exit(2)
@@ -137,24 +137,24 @@ def _render_human(result: VivaResult, *, path: Path, routes: list[dict[str, Any]
     print_key_value("Examination", result.summary())
 
     if result.positions_that_moved:
-        console.print("\n[bright_yellow]Moved under questioning[/bright_yellow]")
+        console.print("\n[live]Moved under questioning[/live]")
         for item in result.positions_that_moved:
             console.print(f"  - {item}")
 
     if result.gaps:
-        console.print("\n[cyan]Answerable, and unanswered[/cyan]")
+        console.print("\n[accent]Answerable, and unanswered[/accent]")
         by_topic = {r.get("topic", ""): r for r in routes}
         for exchange, item in zip(result.gaps, result.reading_queue(), strict=False):
             console.print(f"  - {item}")
             route = by_topic.get(f"Viva gap ({result.expert_name}): {exchange.would_resolve_it}")
             if route:
                 cost = route.get("estimated_cost", 0.0)
-                console.print(f"    [dim]{route.get('instrument')}, about ${cost:.2f}[/dim]")
+                console.print(f"    [muted]{route.get('instrument')}, about ${cost:.2f}[/muted]")
 
     if result.frontier:
-        console.print("\n[dim]Where the field itself has not settled[/dim]")
+        console.print("\n[muted]Where the field itself has not settled[/muted]")
         for exchange in result.frontier:
-            console.print(f"  [dim]- {exchange.question}[/dim]")
+            console.print(f"  [muted]- {exchange.question}[/muted]")
 
     console.print()
     print_success(f"Written to {path}")
@@ -225,7 +225,7 @@ def expert_viva(
         print_header(f"Viva: {profile.name}")
         print_key_value("Capacity", backend.cost_note)
         print_key_value("Panel", ", ".join(e.name for e in panel))
-        console.print("[dim]The examiners do not hold the answers either. That is the format.[/dim]")
+        console.print("[muted]The examiners do not hold the answers either. That is the format.[/muted]")
 
     result = asyncio.run(
         run_viva(

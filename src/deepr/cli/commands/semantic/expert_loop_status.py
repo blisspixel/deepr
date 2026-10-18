@@ -18,9 +18,9 @@ def _print_due_subscriptions(due: dict[str, Any]) -> None:
     count = int(due.get("count", 0) or 0)
     topics = due.get("topics") or []
     if not count:
-        console.print("[dim]Due subscriptions: none[/dim]")
+        console.print("[muted]Due subscriptions: none[/muted]")
         return
-    console.print(f"[dim]Due subscriptions: {count} ({escape(', '.join(topics))})[/dim]")
+    console.print(f"[muted]Due subscriptions: {count} ({escape(', '.join(topics))})[/muted]")
 
 
 @expert.command(name="loop-status")
@@ -65,10 +65,10 @@ def loop_status(name: str, limit: int, json_output: bool):
         stop = f", stop: {stop_reason}" if stop_reason else ""
         console.print(
             f"  [bold]{run['loop_type']}[/bold] {run['status']} "
-            f"[dim]({run['run_id']}, updated {run['updated_at']}{stop})[/dim]"
+            f"[muted]({run['run_id']}, updated {run['updated_at']}{stop})[/muted]"
         )
         console.print(f"    {run['goal']}")
         next_action = run.get("next_action") or {}
         if next_action:
             title = next_action.get("title") or next_action.get("status") or "next action"
-            console.print(f"    [white]{title}[/white]")
+            console.print(f"    [text]{title}[/text]")

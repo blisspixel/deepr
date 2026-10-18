@@ -10,6 +10,7 @@ from typing import Any
 import click
 
 from deepr.cli.async_runner import run_async_command
+from deepr.cli.colors import print_next
 from deepr.config import load_config
 
 
@@ -358,9 +359,18 @@ def _check_payload(check: DiagnosticCheck) -> dict[str, object]:
     }
 
 
+def _diagnostic_status(check: DiagnosticCheck) -> str:
+    """Project recorded check state; do not turn optional or untested work into a pass."""
+    if check.unverified:
+        return "unverified"
+    if check.passed:
+        return "ok"
+    return {"warning": "warning", "info": "skipped", "error": "failed"}.get(check.failure_severity, "failed")
+
+
 def print_checks(checks: list[DiagnosticCheck], *, show_all: bool = False):
     """Print diagnostic checks in a formatted way."""
-    from deepr.cli.colors import console, get_symbol
+    from deepr.cli.colors import console, get_symbol, print_detail, status_text
 
     console.print(_capacity_summary(checks)["headline"])
 
@@ -376,28 +386,18 @@ def print_checks(checks: list[DiagnosticCheck], *, show_all: bool = False):
             categories[check.category] = []
         categories[check.category].append(check)
 
-    # Display style per severity. "info" is neutral (optional/first-run state),
-    # not a failure - it must not read like a red error.
-    style = {
-        "ok": ("success", "green"),
-        "warning": ("warning", "yellow"),
-        "info": ("info", "dim"),
-        "error": ("error", "red"),
-    }
-
     # Print each category
     for category, category_checks in categories.items():
         console.print()
-        console.print(f"[bold cyan]{category}[/bold cyan]")
+        console.print(f"[accent]{category}[/accent]")
 
         for check in category_checks:
-            symbol_name, color = style.get(check.severity, ("error", "red"))
-            symbol = get_symbol(symbol_name)
-            console.print(f"  [{color}]{symbol}[/{color}] {check.name}: {check.message}")
+            status = _diagnostic_status(check)
+            console.print("  ", status_text(status), f" {check.name}: {check.message}", sep="", markup=False)
 
             if check.details:
                 for detail in check.details:
-                    console.print(f"      [dim]{detail}[/dim]")
+                    print_detail(detail, indent=6)
 
     # Summary: only real errors count against the bill of health. Warnings are
     # advisory; info items (optional features, first-run state) are not problems.
@@ -411,11 +411,11 @@ def print_checks(checks: list[DiagnosticCheck], *, show_all: bool = False):
 
     if counts["errors"]:
         console.print(
-            f"\n[red]{get_symbol('error')}[/red] {counts['errors']} issue(s) need attention. See details above."
+            f"\n[error]{get_symbol('error')}[/error] {counts['errors']} issue(s) need attention. See details above."
         )
     elif counts["warnings"]:
         console.print(
-            f"\n[yellow]{get_symbol('warning')}[/yellow] No blocking issues; {counts['warnings']} advisory warning(s)."
+            f"\n[warning]{get_symbol('warning')}[/warning] No blocking issues; {counts['warnings']} advisory warning(s)."
         )
     else:
         unchecked = counts["unverified"] > 0
@@ -553,7 +553,7 @@ def print_next_step(checks: list[DiagnosticCheck]) -> None:
     errors = [check for check in checks if check.severity == "error"]
     stale_queue = any(check.name == "Queue Lifecycle" and check.severity == "warning" for check in checks)
     if errors:
-        click.echo("\nResolve the ERROR checks above before starting new work.")
+        click.echo("\nResolve the failed checks above before starting new work.")
         if any(check.category == "Connectivity" for check in errors):
             click.echo("For an offline-only diagnosis, rerun `deepr doctor --skip-connectivity`.")
         if stale_queue:
@@ -563,7 +563,7 @@ def print_next_step(checks: list[DiagnosticCheck]) -> None:
         _print_stale_queue_guidance()
         return
     if any(check.severity == "warning" for check in checks):
-        click.echo("\nReview the WARN checks above before starting new work.")
+        click.echo("\nReview the warning checks above before starting new work.")
         return
 
     metered = next((check for check in checks if check.name == "Metered API capacity"), None)
@@ -571,7 +571,7 @@ def print_next_step(checks: list[DiagnosticCheck]) -> None:
         return
     if not metered.passed:
         click.echo("\nNo metered API keys are configured. Local and plan workflows require their own capacity proof.")
-        click.echo("Next: deepr capacity")
+        print_next("deepr capacity")
     else:
         click.echo(
             "\nNo blocking configuration errors. Execution proof remains separate. "
@@ -604,7 +604,7 @@ def check_native_instruments() -> list[DiagnosticCheck]:
             # Optional add-on; absence is not a problem.
             check.failure_severity = "info"
             check.message = "Not installed (optional)"
-            check.details.append("Install with: pip install -U recon-tool")
+            check.details.append("Next: pip install -U recon-tool")
             check.details.append("Enables zero-config passive recon for experts")
     except Exception as e:
         check.failure_severity = "info"
@@ -685,18 +685,18 @@ def check_mcp_conformance() -> list[DiagnosticCheck]:
         if report.ok:
             check.passed = True
             check.message = f"ok ({check_count} checks; modern {modern})"
-            check.details.append("Run: deepr mcp conformance --json")
+            check.details.append("Next: deepr mcp conformance --json")
             check.details.append("No network, no model, $0; form and side-effect posture only")
         else:
             check.message = f"failed: {', '.join(failed) if failed else 'unknown'}"
-            check.details.append("Run: deepr mcp conformance --json")
+            check.details.append("Next: deepr mcp conformance --json")
             for item in report.checks:
                 if item.status != "passed":
                     check.details.append(f"{item.name}: {item.detail}")
     except Exception as exc:
         check.message = f"probe error: {type(exc).__name__}"
         check.details.append(str(exc)[:120])
-        check.details.append("Run: deepr mcp conformance --json")
+        check.details.append("Next: deepr mcp conformance --json")
     return [check]
 
 
@@ -719,12 +719,12 @@ def check_mcp_host_wiring() -> list[DiagnosticCheck]:
         elif probe.get("present"):
             check.message = "project .mcp.json present but deepr server missing"
             check.details.append(str(probe.get("detail")))
-            check.details.append("Run: deepr mcp install-host --project .")
+            check.details.append("Next: deepr mcp install-host --project .")
         else:
             check.message = "no project .mcp.json with deepr"
             check.details.append("Coding hosts need install + session restart, not only a pasted brief")
-            check.details.append("Run: deepr mcp install-host --project .")
-            check.details.append("Then: deepr mcp host-brief")
+            check.details.append("Next: deepr mcp install-host --project .")
+            check.details.append("Also: deepr mcp host-brief")
         if claude:
             check.details.append(f"claude CLI on PATH: {claude}")
         else:
@@ -839,7 +839,7 @@ def check_spend_integrity() -> list[DiagnosticCheck]:
             check.message = (
                 f"${unexplained_total:.2f} of settled spend is unexplained (no artifact and no disposition, 45 days)"
             )
-            check.details.append("Run: deepr costs doctor")
+            check.details.append("Next: deepr costs doctor")
             check.details.append("Investigate: deepr costs dispose-unexplained")
         else:
             check.passed = True

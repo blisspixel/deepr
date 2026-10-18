@@ -899,7 +899,7 @@ def test():
                 click.echo(f"   - {expert['name']}: claims={claims} docs={docs} | {expert.get('domain', '')}")
 
         if not experts or "error" in experts[0]:
-            click.echo("   No experts found. Create one with: deepr expert make")
+            click.echo("   No experts found. Next: deepr expert make")
             return
 
         # Test 2: Get expert info

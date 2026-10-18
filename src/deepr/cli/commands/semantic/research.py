@@ -597,7 +597,7 @@ async def _verify_fact(claim: str, sources: str | None, provider: str | None, mo
         provider = provider or task_provider
         model = model or task_model
 
-    console.print(f"[dim]Using {provider}/{model} for verification[/dim]")
+    console.print(f"[muted]Using {provider}/{model} for verification[/muted]")
 
     # Get API key based on provider
     if provider == "xai":
@@ -707,7 +707,7 @@ Rules:
     console.print(result.to_cli_output())
 
     if verbose and result.reasoning:
-        console.print(f"\n[dim]Full reasoning: {result.reasoning}[/dim]")
+        console.print(f"\n[muted]Full reasoning: {result.reasoning}[/muted]")
 
 
 def _run_batch_research(
@@ -765,7 +765,7 @@ def _run_batch_research(
     # Dry run - just show routing decisions
     if dry_run:
         if output_context.mode not in (OutputMode.JSON, OutputMode.QUIET):
-            console.print("[dim]Dry run - no queries will be executed[/dim]")
+            console.print("[muted]Dry run - no queries will be executed[/muted]")
             console.print()
             console.print("[bold]Routing Decisions:[/bold]")
             for i, decision in enumerate(routing.decisions, 1):
@@ -798,7 +798,7 @@ def _run_batch_research(
     # Execute batch
     def progress_callback(msg: str) -> None:
         if output_context.mode == OutputMode.VERBOSE:
-            console.print(f"  [dim]{msg}[/dim]")
+            console.print(f"  [muted]{msg}[/muted]")
 
     result = run_async_command(
         executor.execute_batch(
@@ -913,7 +913,7 @@ def _run_auto_research(
     if show_decision and output_context.mode not in (OutputMode.JSON, OutputMode.QUIET):
         console.print()
         console.print("[bold]Auto Mode Routing[/bold]")
-        console.print(f"[dim]{'─' * 40}[/dim]")
+        console.print(f"[muted]{'─' * 40}[/muted]")
         console.print(f"  Complexity: {decision.complexity}")
         console.print(f"  Task Type:  {decision.task_type}")
         console.print(f"  Provider:   {decision.provider}")
@@ -924,9 +924,9 @@ def _run_auto_research(
         console.print(f"  Routing estimate: ${decision.cost_estimate:.4f}")
         console.print(f"  Admission maximum: ${admission.max_cost:.4f}")
         console.print(f"  Confidence: {decision.confidence:.0%}")
-        console.print(f"  [dim]{decision.reasoning}[/dim]")
+        console.print(f"  [muted]{decision.reasoning}[/muted]")
         if dry_run:
-            console.print("[yellow]  (preview only - no provider call, no spend)[/yellow]")
+            console.print("[warning]  (preview only - no provider call, no spend)[/warning]")
         console.print()
 
     # Preview / dry run - just show routing, do not submit a job.

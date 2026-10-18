@@ -475,7 +475,7 @@ async def _list_jobs(status_filter: str, limit: int, output_context: OutputConte
         elif job.status == JobStatus.PROCESSING:
             status_style = "info"
         else:
-            status_style = "dim"
+            status_style = "muted"
 
         # Truncate prompt
         prompt_preview = job.prompt[:60] + "..." if len(job.prompt) > 60 else job.prompt

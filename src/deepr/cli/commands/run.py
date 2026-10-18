@@ -113,14 +113,14 @@ def _show_trace_explain(emitter) -> None:
             f"Tasks: {task_count}\n"
             f"Total Cost: {format_cost(total_cost)}",
             title="Explain",
-            border_style="dim",
+            border_style="muted",
         )
     )
 
     for task in emitter.tasks:
         indent = "  " if task.parent_task_id else ""
         icon = "+" if task.status == "completed" else "x" if task.status == "failed" else "o"
-        color = "green" if task.status == "completed" else "red" if task.status == "failed" else "yellow"
+        color = "success" if task.status == "completed" else "error" if task.status == "failed" else "warning"
         console.print(f"{indent}[{color}]{icon}[/] {task.task_type}")
         if task.model:
             reason = f"Used {task.model}"
@@ -128,7 +128,7 @@ def _show_trace_explain(emitter) -> None:
                 reason += f" via {task.provider}"
             if task.cost > 0:
                 reason += f", cost {format_cost(task.cost)}"
-            console.print(f"{indent}  [dim]{reason}[/dim]")
+            console.print(f"{indent}  [muted]{reason}[/muted]")
 
     # Show fallback events if any occurred
     fallback_events = []
@@ -141,10 +141,10 @@ def _show_trace_explain(emitter) -> None:
         console.print("\n[bold]Fallback Events[/bold]")
         for attrs in fallback_events:
             console.print(
-                f"  [yellow]![/] {attrs.get('from_provider')}/{attrs.get('from_model')} "
+                f"  [warning]![/] {attrs.get('from_provider')}/{attrs.get('from_model')} "
                 f"-> {attrs.get('to_provider')}/{attrs.get('to_model')}"
             )
-            console.print(f"    [dim]Reason: {attrs.get('reason', 'unknown')}[/dim]")
+            console.print(f"    [muted]Reason: {attrs.get('reason', 'unknown')}[/muted]")
 
 
 def _show_decision_records(emitter) -> None:
@@ -160,11 +160,11 @@ def _show_decision_records(emitter) -> None:
         return
 
     console.print()
-    table = Table(title="Decision Records", border_style="dim", show_lines=False)
-    table.add_column("Type", style="cyan", width=18)
-    table.add_column("Decision", style="white")
-    table.add_column("Confidence", style="yellow", width=12, justify="right")
-    table.add_column("Cost Impact", style="green", width=12, justify="right")
+    table = Table(title="Decision Records", border_style="muted", show_lines=False)
+    table.add_column("Type", style="accent", width=18)
+    table.add_column("Decision", style="text")
+    table.add_column("Confidence", style="warning", width=12, justify="right")
+    table.add_column("Cost Impact", style="success", width=12, justify="right")
 
     for rec in records:
         conf_str = f"{rec.confidence:.0%}" if rec.confidence else "-"
@@ -183,9 +183,9 @@ def _show_trace_timeline(emitter) -> None:
         return
 
     console.print()
-    table = Table(title="Timeline", border_style="dim", show_lines=False)
-    table.add_column("Offset", style="dim", width=8)
-    table.add_column("Task", style="cyan")
+    table = Table(title="Timeline", border_style="muted", show_lines=False)
+    table.add_column("Offset", style="muted", width=8)
+    table.add_column("Task", style="accent")
     table.add_column("Status", width=10)
     table.add_column("Duration", justify="right", width=10)
     table.add_column("Cost", justify="right", width=8)
@@ -204,7 +204,7 @@ def _show_trace_timeline(emitter) -> None:
         except (ValueError, KeyError):
             offset_str = "[-]"
 
-        status_color = "green" if entry.get("status") == "completed" else "red"
+        status_color = "success" if entry.get("status") == "completed" else "error"
         duration = format_duration(entry["duration_ms"] / 1000) if entry.get("duration_ms") else "-"
         cost = format_cost(entry["cost"]) if entry.get("cost", 0) > 0 else "-"
 
@@ -220,7 +220,7 @@ def _show_trace_timeline(emitter) -> None:
 
     breakdown = emitter.get_cost_breakdown()
     if any(v > 0 for v in breakdown.values()):
-        console.print("\n[dim]Cost by type:[/dim]")
+        console.print("\n[muted]Cost by type:[/muted]")
         for task_type, cost in sorted(breakdown.items(), key=lambda x: x[1], reverse=True):
             if cost > 0:
                 console.print(f"  {task_type}: {format_cost(cost)}")
@@ -230,8 +230,8 @@ def _save_and_show_full_trace(emitter, job_id: str) -> None:
     """Save full trace to disk and print path."""
     trace_path = Path(f"data/traces/{job_id[:12]}_trace.json")
     emitter.save_trace(trace_path)
-    console.print(f"\n[dim]Full trace saved to {trace_path}[/dim]")
-    console.print(f"[dim]  {len(emitter.tasks)} tasks, {len(emitter.trace_context.spans)} spans[/dim]")
+    console.print(f"\n[muted]Full trace saved to {trace_path}[/muted]")
+    console.print(f"[muted]  {len(emitter.tasks)} tasks, {len(emitter.trace_context.spans)} spans[/muted]")
 
 
 def estimate_cost(model: str, enable_web_search: bool = True) -> float:
@@ -446,7 +446,7 @@ async def _run_single(
             provider = selected_provider
             model = selected_model
             if output_context.mode == OutputMode.VERBOSE:
-                console.print(f"  [dim]Router selected: {provider}/{model}[/dim]")
+                console.print(f"  [muted]Router selected: {provider}/{model}[/muted]")
         except Exception as exc:
             logger.debug("Router selection failed; using requested/default provider: %s", exc, exc_info=exc)
     elif not route_resolved and user_specified_model and not user_specified_provider:
@@ -455,7 +455,7 @@ async def _run_single(
         if inferred and inferred != provider:
             provider = inferred
             if output_context.mode == OutputMode.VERBOSE:
-                console.print(f"  [dim]Using {provider} (serves requested model {model})[/dim]")
+                console.print(f"  [muted]Using {provider} (serves requested model {model})[/muted]")
 
     from deepr.cli.commands.research_support import bounded_tool_disable_flags
 
@@ -869,8 +869,8 @@ async def _run_single(
 
             if output_context.mode == OutputMode.VERBOSE:
                 console.print(
-                    f"  [yellow]Falling back: {current_provider}/{current_model} "
-                    f"-> {fallback_provider}/{fallback_model}[/yellow]"
+                    f"  [warning]Falling back: {current_provider}/{current_model} "
+                    f"-> {fallback_provider}/{fallback_model}[/warning]"
                 )
 
             current_provider, current_model = fallback
@@ -929,7 +929,7 @@ def _show_research_header(
     if output_context.mode == OutputMode.VERBOSE:
         console.print()
         console.print("[bold]Research[/bold]", highlight=False)
-        console.print(f"[dim]{'─' * 40}[/dim]")
+        console.print(f"[muted]{'─' * 40}[/muted]")
         console.print(f"  Query:    {query}")
         console.print(f"  Provider: {provider}")
         console.print(f"  Model:    {model}")

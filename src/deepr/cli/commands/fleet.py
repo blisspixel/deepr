@@ -18,7 +18,7 @@ from typing import Any
 import click
 from rich.markup import escape
 
-from deepr.cli.colors import console, print_error, print_success, print_warning
+from deepr.cli.colors import console, print_error, print_next, print_success, print_warning
 from deepr.experts.fleet_schedule import ScheduleRecipe, ScheduleSpec, render_recipe, resolve_platform
 from deepr.experts.fleet_status import build_fleet_status_rollup, fleet_needs_attention
 from deepr.utils.atomic_io import atomic_write_text
@@ -31,16 +31,16 @@ def fleet() -> None:
 
 def _row_tag(row: dict[str, Any]) -> str:
     if row.get("state_errors"):
-        return "[red]UNREADABLE[/red]"
+        return "[error]UNREADABLE[/error]"
     if row["attention"] is True:
-        return "[red]FAILED[/red]"
+        return "[error]FAILED[/error]"
     if row["waiting"]:
-        return "[yellow]waiting[/yellow]"
+        return "[warning]waiting[/warning]"
     if row["refresh_due"]:
-        return "[cyan]refresh due[/cyan]"
+        return "[accent]refresh due[/accent]"
     if not row["has_runs"]:
-        return "[dim]never run[/dim]"
-    return "[green]ok[/green]"
+        return "[muted]never run[/muted]"
+    return "[success]ok[/success]"
 
 
 def _row_detail(row: dict[str, Any]) -> str:
@@ -71,17 +71,17 @@ def _print_row_extras(row: dict[str, Any]) -> None:
             "subscriptions_unreadable": "subscriptions",
         }
         unavailable = ", ".join(labels[code] for code in state_errors if code in labels)
-        console.print(f"      [red]state unavailable:[/red] {_terminal_safe_text(unavailable)}")
+        console.print(f"      [error]state unavailable:[/error] {_terminal_safe_text(unavailable)}")
     if isinstance(row["refresh_due"], int) and row["refresh_due"] > 0:
         topics = ", ".join(_terminal_safe_text(topic) for topic in (row["due_topics"] or [])[:5])
         more = "..." if row["refresh_due"] > 5 else ""
-        console.print(f"      [cyan]refresh due:[/cyan] {row['refresh_due']} topic(s) - {topics}{more}")
+        console.print(f"      [accent]refresh due:[/accent] {row['refresh_due']} topic(s) - {topics}{more}")
     if row["waiting_next_action"]:
         title = _terminal_safe_text(row["waiting_next_action"].get("title", ""))
-        console.print(f"      [yellow]waiting:[/yellow] {title}")
+        console.print(f"      [warning]waiting:[/warning] {title}")
     if row["attention"] is True and row["last_failure"]:
         reason = row["last_failure"].get("failure_reason") or row["last_failure"].get("stop_reason") or ""
-        console.print(f"      [red]last failure:[/red] {_terminal_safe_text(reason)}")
+        console.print(f"      [error]last failure:[/error] {_terminal_safe_text(reason)}")
 
 
 def _render_human(payload: dict[str, Any]) -> None:
@@ -104,13 +104,14 @@ def _render_human(payload: dict[str, Any]) -> None:
         print_error(f"Fleet status is incomplete{suffix}.")
 
     if not rows and payload.get("complete", True):
-        print_warning("No experts yet. Create one with `deepr expert make`.")
+        print_warning("No experts yet.")
+        print_next('deepr expert make "Expert Name" --local')
         return
 
     for row in rows:
         expert = _terminal_safe_text(row["expert"])
         detail = _terminal_safe_text(_row_detail(row))
-        console.print(f"  {_row_tag(row)}  [bold]{expert}[/bold]  [dim]{detail}[/dim]")
+        console.print(f"  {_row_tag(row)}  [bold]{expert}[/bold]  [muted]{detail}[/muted]")
         _print_row_extras(row)
 
     if rows or not payload.get("complete", True):
@@ -146,12 +147,14 @@ def _render_human(payload: dict[str, Any]) -> None:
         for ref in payload.get("state_error_refs", []):
             expert = f"{ref['expert']}: " if ref.get("expert") else ""
             console.print(
-                f"      [red]unreadable source:[/red] {_terminal_safe_text(expert)}{_terminal_safe_text(ref['source'])}"
+                f"      [error]unreadable source:[/error] {_terminal_safe_text(expert)}{_terminal_safe_text(ref['source'])}"
             )
         omitted = payload.get("state_error_refs_omitted", 0)
         if omitted:
-            console.print(f"      [red]{omitted} additional unreadable source(s) omitted[/red]")
-        console.print("[dim]Inspect the listed source under the configured experts root, repair it, then retry.[/dim]")
+            console.print(f"      [error]{omitted} additional unreadable source(s) omitted[/error]")
+        console.print(
+            "[muted]Inspect the listed source under the configured experts root, repair it, then retry.[/muted]"
+        )
 
 
 @fleet.command(name="status")
@@ -196,7 +199,7 @@ def _render_recipe_to_stdout(recipe: ScheduleRecipe) -> None:
         click.echo(recipe.inline)
     print_warning("Preview only: no files were written and no host schedule was installed.")
     if recipe.files:
-        click.echo("Next: rerun this command with --output DIRECTORY to write the recipe files.")
+        print_next("rerun this command with --output DIRECTORY to write the recipe files.")
         click.echo("Install instructions are shown only after all requested files are written.")
         return
     console.print("\n[bold]Install[/bold]")

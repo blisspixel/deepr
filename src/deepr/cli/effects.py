@@ -6,7 +6,6 @@ renderables with safe fallbacks for low-capability terminals.
 
 from __future__ import annotations
 
-import colorsys
 import os
 import sys
 import time
@@ -67,8 +66,8 @@ def resolve_animation_policy(console: Console) -> AnimationPolicy:
             enabled=False,
             fps=0,
             frame_delay=0.0,
-            base_color="#6a6a6a",
-            highlight_color="#cfcfff",
+            base_color="muted",
+            highlight_color="accent",
             sweep_width=0.0,
         )
 
@@ -84,8 +83,8 @@ def resolve_animation_policy(console: Console) -> AnimationPolicy:
         enabled=True,
         fps=fps,
         frame_delay=1.0 / fps,
-        base_color="#606060",
-        highlight_color="#d0d0ff",
+        base_color="muted",
+        highlight_color="accent",
         sweep_width=sweep_width,
     )
 
@@ -111,8 +110,8 @@ def shimmer_text(
     text: str,
     *,
     phase: float | None = None,
-    base_color: str = "#606060",
-    highlight_color: str = "#d0d0ff",
+    base_color: str = "muted",
+    highlight_color: str = "accent",
     sweep_width: float = 0.28,
     power: float = 2.2,
 ) -> Text:
@@ -144,16 +143,9 @@ def gradient_text(
     value: float = 0.92,
     hue_offset: float = 0.0,
 ) -> Text:
-    """Render text with an HSV gradient suitable for branding headers."""
-    if not text:
-        return Text("")
-    if len(text) == 1:
-        return Text(text, style="rgb(235,235,255)")
-
+    """Retain the branding API using palette intensity instead of fixed RGB hues."""
     result = Text()
-    span = len(text) - 1
-    for i, ch in enumerate(text):
-        hue = (start_hue + (end_hue - start_hue) * (i / span) + hue_offset) % 1.0
-        r, g, b = (int(c * 255) for c in colorsys.hsv_to_rgb(hue, saturation, value))
-        result.append(ch, style=f"rgb({r},{g},{b})")
+    for index, character in enumerate(text):
+        phase = (index / max(len(text), 1) + hue_offset) % 1.0
+        result.append(character, style="accent" if phase >= 0.2 else "muted")
     return result

@@ -6,6 +6,7 @@ from typing import Any
 
 from rich.console import Console
 
+from deepr.cli.colors import print_next
 from deepr.experts.claim_inventory import format_knowledge_status, read_claim_inventory
 
 
@@ -37,7 +38,7 @@ def render_expert_inventory(payload: dict[str, Any], console: Console) -> None:
     console.print("Domain Experts", style="bold")
     if not payload["experts"]:
         console.print("No experts found.")
-        console.print('\nCreate one with:\n  deepr expert make "Expert Name" -f documents/*.md')
+        print_next('deepr expert make "Expert Name" --local', target=console)
         return
     console.print(f"Found {payload['count']} expert(s):\n")
     for row in payload["experts"]:

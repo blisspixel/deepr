@@ -17,6 +17,7 @@ from deepr.backends.capacity import BackendKind, detect_capacity
 from deepr.backends.local_capacity import LocalCapacityObservation, probe_local_gpu_occupancy
 from deepr.backends.plan_quota.adapters import get_adapter_by_executable
 from deepr.backends.quota_ledger import QuotaLedgerReadError, QuotaState, summarize_quota_state
+from deepr.cli.colors import status_word
 from deepr.cli.commands.capacity_inventory import print_sources as _print_sources
 from deepr.cli.commands.capacity_validation import (
     FLEET_VALIDATION_DEFAULT_TIMEOUT_S,
@@ -154,10 +155,10 @@ def _print_local_probe(result: dict[str, object]) -> None:
     """Print a human-readable local probe verdict."""
     if result["ok"]:
         click.echo(
-            f"Local probe: OK - {result['model']} replied {result['reply']!r} in {result['latency_ms']}ms (cost $0)\n"
+            f"Local probe: ok - {result['model']} replied {result['reply']!r} in {result['latency_ms']}ms (cost $0)\n"
         )
     else:
-        click.echo(f"Local probe: FAILED - {result['error']}\n")
+        click.echo(f"Local probe: failed - {result['error']}\n")
 
 
 def _print_local_capacity(observation: LocalCapacityObservation) -> None:
@@ -175,13 +176,13 @@ def _print_quota_summary(quota_states: list[QuotaState]) -> None:
     click.echo("Observed quota state (local ledger):")
     for state in quota_states:
         event = state.latest_event
-        mark = "!" if state.exhausted or state.quarantined else "+"
+        mark = "warning" if state.exhausted or state.quarantined else "unverified"
         status = "quarantined" if state.quarantined else "exhausted" if state.exhausted else event.event_type.value
         remaining = _format_remaining(event.units_remaining, event.unit_name)
         confidence = event.remaining_confidence.value
         reset = f", resets {event.reset_at.isoformat()}" if event.reset_at else ""
         detail = f" - {event.detail}" if event.detail else ""
-        click.echo(f"  [{mark}] {state.key:18s} {status:24s} {remaining} ({confidence}){reset}{detail}")
+        click.echo(f"  {status_word(mark)} {state.key:18s} {status:24s} {remaining} ({confidence}){reset}{detail}")
 
 
 def _format_remaining(units_remaining: float | None, unit_name: str) -> str:
@@ -204,7 +205,7 @@ def _print_admissions_summary() -> None:
         click.echo("Local models admitted for automatic owned-capacity-first maintenance:")
         for a in local:
             exp = a.expires_at.strftime("%Y-%m-%d") if a.expires_at else "never"
-            click.echo(f"  [+] {a.model} for {a.task_class} (expires {exp})")
+            click.echo(f"  {status_word('ok')} {a.model} for {a.task_class} (expires {exp})")
     else:
         click.echo("No local models admitted yet. `deepr capacity admit <model> --task-class sync` lets")
         click.echo("`expert sync`/`absorb` use a local model automatically (review quality first).")
