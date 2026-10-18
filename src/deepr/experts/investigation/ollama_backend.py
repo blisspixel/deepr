@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import math
 import os
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -23,6 +24,7 @@ from deepr.experts.chat_backends import (
     ExpertChatStreamChunk,
     ExpertChatUnsupportedFeature,
 )
+from deepr.observability.local_attempts import LocalGenerationAttempt
 
 PostJson = Callable[[str, dict[str, Any], float], Awaitable[dict[str, Any]]]
 GetJson = Callable[[str, float], Awaitable[dict[str, Any]]]
@@ -127,7 +129,8 @@ class NativeOllamaInvestigationBackend:
         self.last_attested_digest = ""
         self.pinned_digest = ""
 
-    async def _attest_model(self, model: str) -> None:
+    async def _attest_model(self, model: str) -> str:
+        self.last_attested_digest = ""
         preflight_timeout = min(self.timeout, 5.0)
         try:
             status = await self._get_json(f"{self.base_url}/api/status", preflight_timeout)
@@ -158,50 +161,67 @@ class NativeOllamaInvestigationBackend:
                 reason="model_identity_changed",
             )
 
+        return self.last_attested_digest
+
     async def preflight(self) -> None:
         """Observe current capacity without caching authority for dispatch."""
         await self._attest_model(self.model or "")
 
-    async def complete(self, request: ExpertChatRequest) -> ExpertChatResult:
-        if request.tools:
-            raise ExpertChatUnsupportedFeature("native Ollama investigation backend does not support tools")
+    async def complete(self, request: ExpertChatRequest, *, correlation_id: str = "") -> ExpertChatResult:
         model = (request.model or self.model or "").strip()
-        if not model:
-            raise ExpertChatUnsupportedFeature("native Ollama investigation backend requires a model")
-        generation = _generation_fields(request.extra)
-        messages = [
-            {
-                "role": str(message.get("role", "user")),
-                "content": str(message.get("content", "") or ""),
+        attempt = LocalGenerationAttempt(model, correlation_id=correlation_id)
+        try:
+            if request.tools:
+                raise ExpertChatUnsupportedFeature("native Ollama investigation backend does not support tools")
+            if not model:
+                raise ExpertChatUnsupportedFeature("native Ollama investigation backend requires a model")
+            generation = _generation_fields(request.extra)
+            messages = [
+                {
+                    "role": str(message.get("role", "user")),
+                    "content": str(message.get("content", "") or ""),
+                }
+                for message in request.messages
+            ]
+            payload: dict[str, Any] = {
+                "model": model,
+                "messages": messages,
+                "stream": False,
+                "keep_alive": self.keep_alive,
+                **generation,
             }
-            for message in request.messages
-        ]
-        payload: dict[str, Any] = {
-            "model": model,
-            "messages": messages,
-            "stream": False,
-            "keep_alive": self.keep_alive,
-            **generation,
-        }
-        await self._attest_model(model)
-        data = await self._post_json(f"{self.base_url}/api/chat", payload, self.timeout)
-        if data.get("error"):
-            raise RuntimeError(f"Ollama chat failed: {data['error']}")
-        message = data.get("message")
-        if not isinstance(message, dict):
-            raise RuntimeError("Ollama chat response is missing message")
-        text = str(message.get("content", "") or "")
-        usage = SimpleNamespace(
-            prompt_tokens=max(0, int(data.get("prompt_eval_count", 0) or 0)),
-            completion_tokens=max(0, int(data.get("eval_count", 0) or 0)),
-        )
-        return ExpertChatResult(
-            message=SimpleNamespace(content=text, tool_calls=[]),
-            usage=usage,
-            raw_response=data,
-            provider_request_id=str(data.get("id", "") or ""),
-            stop_reason=str(data.get("done_reason", "") or ""),
-        )
+            digest = await self._attest_model(model)
+            attempt.dispatch(digest)
+            data = await self._post_json(f"{self.base_url}/api/chat", payload, self.timeout)
+            if data.get("error"):
+                raise RuntimeError(f"Ollama chat failed: {data['error']}")
+            message = data.get("message")
+            if not isinstance(message, dict):
+                raise RuntimeError("Ollama chat response is missing message")
+            text = str(message.get("content", "") or "")
+            usage = SimpleNamespace(
+                prompt_tokens=max(0, int(data.get("prompt_eval_count", 0) or 0)),
+                completion_tokens=max(0, int(data.get("eval_count", 0) or 0)),
+            )
+            result = ExpertChatResult(
+                message=SimpleNamespace(content=text, tool_calls=[]),
+                usage=usage,
+                raw_response=data,
+                provider_request_id=str(data.get("id", "") or ""),
+                stop_reason=str(data.get("done_reason", "") or ""),
+            )
+        except BaseException as error:
+            status = (
+                "cancelled"
+                if isinstance(error, asyncio.CancelledError)
+                else "failed"
+                if attempt.dispatched
+                else "refused"
+            )
+            attempt.finish(status, error_type=type(error).__name__)
+            raise
+        attempt.finish("returned", tokens_input=usage.prompt_tokens, tokens_output=usage.completion_tokens)
+        return result
 
     def stream(self, request: ExpertChatRequest) -> AsyncIterator[ExpertChatStreamChunk]:
         raise ExpertChatUnsupportedFeature("native Ollama investigation backend does not support streaming")

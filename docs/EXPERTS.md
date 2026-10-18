@@ -147,6 +147,13 @@ artifacts match, then the original local profile and environment/inventory.
 A failed first build remains visible in `status` and `health`; `next` prioritizes
 formation over maintenance while a new local expert lacks its foundation.
 
+Native Ollama completions used by local consult, study and investigation record
+content-free `$0` intent, dispatch and terminal events in the configured cost
+ledger. Refusals and cancellations remain visible; an interrupted dispatch
+without a terminal receipt has an unknown outcome. Ledger failure blocks a new
+dispatch or surfaces a settlement error. Prompts and answers stay in their
+existing research/consult records, and inspection-only preflight writes no ledger.
+
 ## What Should This Expert Do Next?
 
 ```bash

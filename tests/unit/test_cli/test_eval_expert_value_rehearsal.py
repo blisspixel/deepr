@@ -320,10 +320,33 @@ class _WarmupBackend:
         self.raw, self.last_attested_digest, self._digest = raw, "", digest
         self.requests: list[Any] = []
 
-    async def complete(self, request: Any) -> Any:
+    async def complete(self, request: Any, *, correlation_id: str = "") -> Any:
+        from deepr.experts.investigation.ollama_backend import NativeOllamaInvestigationBackend
+
         self.requests.append(request)
-        self.last_attested_digest = self._digest
-        return type("Result", (), {"raw_response": self.raw})()
+
+        async def get_json(url: str, _timeout: float) -> dict[str, Any]:
+            if url.endswith("/api/status"):
+                return {"cloud": {"disabled": True, "source": "both"}}
+            return {
+                "models": [
+                    {
+                        "name": request.model,
+                        "model": request.model,
+                        "size": 1000000,
+                        "digest": self._digest,
+                        "details": {"format": "gguf"},
+                    }
+                ]
+            }
+
+        async def post_json(_url: str, _payload: dict[str, Any], _timeout: float) -> dict[str, Any]:
+            return {"message": {"content": "fixture"}, **self.raw}
+
+        backend = NativeOllamaInvestigationBackend(model=request.model, get_json=get_json, post_json=post_json)
+        result = await backend.complete(request, correlation_id=correlation_id)
+        self.last_attested_digest = backend.last_attested_digest
+        return result
 
 
 def test_warmup_refuses_a_saturated_gpu_and_records_the_attempt(tmp_path: Path) -> None:
@@ -336,7 +359,7 @@ def test_warmup_refuses_a_saturated_gpu_and_records_the_attempt(tmp_path: Path) 
         rehearsal.warmup_throughput(
             policy, min_tokens_per_second=5, backend=_WarmupBackend({"eval_count": 3, "eval_duration": 12_000_000_000})
         )
-    with pytest.raises(ValueError, match="0.00 tokens/s"):
+    with pytest.raises(ValueError, match=r"0\.00 tokens/s"):
         rehearsal.warmup_throughput(policy, min_tokens_per_second=5, backend=_WarmupBackend({}))
     with pytest.raises(ValueError, match="digest differs"):
         rehearsal.warmup_throughput(
@@ -345,7 +368,12 @@ def test_warmup_refuses_a_saturated_gpu_and_records_the_attempt(tmp_path: Path) 
     from deepr.observability.cost_ledger import CostLedger
 
     events = CostLedger().ledger_path.read_text(encoding="utf-8")
-    assert events.count('"idempotency_key": "rehearsal-warmup:') == 4 and '"cost_usd": 0.0' in events
+    records = [json.loads(line) for line in events.splitlines()]
+    assert len(records) == 12
+    assert len({record["metadata"]["attempt_id"] for record in records}) == 4
+    assert all(record["request_id"].startswith("rehearsal-warmup:") for record in records)
+    assert all(record["cost_usd"] == 0.0 for record in records)
+    assert sum(record["metadata"]["status"] == "dispatching" for record in records) == 4
 
 
 def test_run_refuses_when_warmup_is_too_slow(workspace: dict[str, Path], monkeypatch: pytest.MonkeyPatch) -> None:

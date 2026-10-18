@@ -16,6 +16,13 @@ brittle rule - it encodes a boundary that no longer matches the code.
 
 ## The axis
 
+Native local generation accounting guards side effects: each completion writes
+content-free intent, dispatch and terminal events at the shared transport seam.
+Unavailable durable accounting blocks dispatch or surfaces an unsettled result;
+inspection preflight remains read-only. Rehearsal mirrors those same events
+without creating another attempt. These receipts prove recorded execution facts,
+not answer quality. See [native local accounting](../design/native-local-attempt-accounting.md).
+
 Decision review projects exact outcome/trace identities and recorded input
 differences. It preserves answers, receipts and operator observations without
 inferring decision equivalence, superseding advice or better judgment. Review

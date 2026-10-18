@@ -39,6 +39,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from deepr.evals.expert_value import ARM_ORDER
 from deepr.evals.expert_value_materialize import materialize_source_world_copy
 from deepr.evals.expert_value_sources import load_source_world_preparation
+from deepr.observability.local_attempts import count_local_attempts
 
 POLICY_SCHEMA: Final = "deepr-expert-value-rehearsal-policy-v1"
 PLAN_SCHEMA: Final = "deepr-expert-value-rehearsal-plan-v1"
@@ -125,6 +126,7 @@ _IDENTITY_MODULES = (
     "evals/expert_value_source_copy.py",
     "evals/expert_value_sources.py",
     "experts/investigation/ollama_backend.py",
+    "observability/local_attempts.py",
     "experts/study.py",
     "experts/brief.py",
 )
@@ -188,20 +190,8 @@ def warmup_throughput(
 
     from deepr.experts.chat_backends import ExpertChatRequest
     from deepr.experts.investigation.ollama_backend import NativeOllamaInvestigationBackend
-    from deepr.observability.cost_ledger import CostLedger
 
     request_id = f"rehearsal-warmup:{secrets.token_hex(8)}"
-    CostLedger().record_event(
-        operation="expert_value_rehearsal",
-        provider="local",
-        cost_usd=0,
-        model=policy.model,
-        request_id=request_id,
-        source="local_value_rehearsal",
-        idempotency_key=request_id,
-        metadata={"status": "attempted", "purpose": "throughput_warmup"},
-        require_fsync=True,
-    )
     client = backend or NativeOllamaInvestigationBackend(
         model=policy.model, base_url=policy.ollama_base_url, timeout=min(policy.call_timeout_seconds, 600.0)
     )
@@ -216,7 +206,7 @@ def warmup_throughput(
             "think": policy.think,
         },
     )
-    result = asyncio.run(client.complete(request))
+    result = asyncio.run(client.complete(request, correlation_id=request_id))
     if client.last_attested_digest != policy.model_digest:
         raise ValueError("warm-up model digest differs from the frozen policy")
     data = result.raw_response or {}
@@ -428,6 +418,7 @@ class RehearsalRun:
                 "wall_seconds": 0.0,
                 "module_sha256": module_hashes(),
                 "worker_ledger_events": len(_jsonl(moved / "costs" / "cost_ledger.jsonl")),
+                "worker_ledger_attempts": count_local_attempts(_jsonl(moved / "costs" / "cost_ledger.jsonl")),
                 "canonical_ledger_events": self._mirror_ledger(moved),
             }
             (moved / "orchestrator.json").write_text(json.dumps(record, indent=2, sort_keys=True), encoding="utf-8")
@@ -543,7 +534,9 @@ class RehearsalRun:
         if memory_before is not None:
             result["memory_before_sha256"] = memory_before
             result["memory_after_sha256"] = tree_digest(worker_dir / "memory")
-        result["worker_ledger_events"] = len(_jsonl(worker_dir / "costs" / "cost_ledger.jsonl"))
+        receipts = _jsonl(worker_dir / "costs" / "cost_ledger.jsonl")
+        result["worker_ledger_events"] = len(receipts)
+        result["worker_ledger_attempts"] = count_local_attempts(receipts)
         try:
             result["canonical_ledger_events"] = self._mirror_ledger(worker_dir)
         # A mirroring failure is surfaced as an unreconciled ledger, never swallowed.
@@ -563,6 +556,7 @@ class RehearsalRun:
         mid-call is still mirrored; completion details are joined when present.
         """
         from deepr.observability.cost_ledger import CostLedger
+        from deepr.observability.local_attempts import mirror_native_attempt_event
 
         attempts = _jsonl(worker_dir / "costs" / "cost_ledger.jsonl")
         if not attempts:
@@ -570,6 +564,8 @@ class RehearsalRun:
         completions = {call.get("request_id"): call for call in _jsonl(worker_dir / "out" / "calls.jsonl")}
         ledger = CostLedger()
         for attempt in attempts:
+            if mirror_native_attempt_event(ledger, attempt):
+                continue
             request_id = str(attempt.get("request_id", ""))
             call = completions.get(request_id, {})
             raw = call.get("raw_response") or {}
@@ -747,6 +743,7 @@ class RehearsalRun:
         reported = [w for w in self.workers if "module_sha256" in w]
         calls = sum(w["usage"]["calls"] for w in self.workers)
         ledgers = sum(w.get("worker_ledger_events", 0) for w in self.workers)
+        attempts = sum(w.get("worker_ledger_attempts", w.get("worker_ledger_events", 0)) for w in self.workers)
         mirrored = sum(w.get("canonical_ledger_events", 0) for w in self.workers)
         checkpoints = self.checkpoint_hashes.items()
         return {
@@ -759,7 +756,7 @@ class RehearsalRun:
                 all(tree_digest(self.root / "checkpoints" / n) == d for n, d in checkpoints) if checkpoints else None
             ),
             "canonical_experts_unchanged": None if experts_before is None else _experts_fingerprint() == experts_before,
-            "ledger_reconciled": ledgers == mirrored and calls <= ledgers,
+            "ledger_reconciled": ledgers == mirrored and calls <= attempts,
         }
 
     def summary(self, elapsed: float, experts_before: str | None = None) -> dict[str, Any]:
@@ -770,6 +767,7 @@ class RehearsalRun:
         failed_checks = sorted(name for name, value in checks.items() if value is False)
         calls = sum(w["usage"]["calls"] for w in self.workers)
         ledgers = sum(w.get("worker_ledger_events", 0) for w in self.workers)
+        attempts = sum(w.get("worker_ledger_attempts", w.get("worker_ledger_events", 0)) for w in self.workers)
         complete = len(self.cells) == planned and not failed_checks
         return {
             "schema_version": SUMMARY_SCHEMA,
@@ -786,7 +784,8 @@ class RehearsalRun:
             "model_calls": calls,
             "worker_ledger_events": ledgers,
             "canonical_ledger_events": sum(w.get("canonical_ledger_events", 0) for w in self.workers),
-            "attempts_without_completion_record": ledgers - calls,
+            "worker_ledger_attempts": attempts,
+            "attempts_without_completion_record": attempts - calls,
             "resources_by_phase": _resources(self.workers),
             "elapsed_seconds": round(elapsed, 3),
             "api_cost_usd": 0,

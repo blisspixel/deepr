@@ -102,7 +102,6 @@ class _Dispatcher:
 
     def __init__(self, spec: dict[str, Any], output: Path) -> None:
         from deepr.experts.investigation.ollama_backend import NativeOllamaInvestigationBackend
-        from deepr.observability.cost_ledger import CostLedger
 
         self.policy = spec["policy"]
         attempt = f":{spec['attempt_id']}" if spec.get("attempt_id") else ""
@@ -117,7 +116,6 @@ class _Dispatcher:
             timeout=float(self.policy["call_timeout_seconds"]),
             keep_alive="30m",
         )
-        self.ledger = CostLedger(Path(os.environ["DEEPR_COST_DATA_DIR"]) / "cost_ledger.jsonl")
 
     def _append(self, record: dict[str, Any]) -> None:
         with open(self.calls_path, "a", encoding="utf-8") as handle:
@@ -148,24 +146,13 @@ class _Dispatcher:
             "prompt": prompt,
             "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
         }
-        # Every dispatched attempt is recorded before the call, at $0 API cost.
-        self.ledger.record_event(
-            operation="expert_value_rehearsal",
-            provider="local",
-            cost_usd=0,
-            model=self.policy["model"],
-            request_id=request_id,
-            source="local_value_rehearsal",
-            idempotency_key=f"rehearsal:{request_id}",
-            metadata={"status": "attempted", "prompt_sha256": record["prompt_sha256"]},
-            require_fsync=True,
-        )
         started = time.monotonic()
         try:
             result = await self.backend.complete(
                 ExpertChatRequest(
                     model=self.policy["model"], messages=[{"role": "user", "content": prompt}], extra=dict(options)
-                )
+                ),
+                correlation_id=request_id,
             )
             if self.backend.last_attested_digest != self.policy["model_digest"]:
                 raise RuntimeError("observed local model digest differs from the frozen policy")

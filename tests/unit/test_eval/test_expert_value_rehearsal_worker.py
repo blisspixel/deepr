@@ -19,7 +19,7 @@ DIGEST = "b" * 64
 ANCHOR = "Synthetic source version 1."
 
 
-class FakeBackend:
+class FakeBackend(ollama_backend.NativeOllamaInvestigationBackend):
     """Answers each prompt kind with the smallest contract-shaped payload."""
 
     prompts: list[str] = []
@@ -28,10 +28,33 @@ class FakeBackend:
     answer_text = "Grounded answer citing [S-abc]."
     stop_reason = "stop"
 
-    def __init__(self, **_kwargs: Any) -> None:
-        self.last_attested_digest = ""
+    def __init__(self, **kwargs: Any) -> None:
+        async def get_json(url: str, _timeout: float) -> dict[str, Any]:
+            if url.endswith("/api/status"):
+                return {"cloud": {"disabled": True, "source": "both"}}
+            return {
+                "models": [
+                    {
+                        "name": kwargs["model"],
+                        "model": kwargs["model"],
+                        "size": 1000000,
+                        "digest": FakeBackend.digest,
+                        "details": {"format": "gguf"},
+                    }
+                ]
+            }
 
-    async def complete(self, request: Any) -> Any:
+        async def post_json(_url: str, payload: dict[str, Any], _timeout: float) -> dict[str, Any]:
+            response = await self._respond(SimpleNamespace(messages=payload["messages"]))
+            return {
+                **response.raw_response,
+                "message": {"content": response.message.content},
+                "done_reason": response.stop_reason,
+            }
+
+        super().__init__(**kwargs, get_json=get_json, post_json=post_json)
+
+    async def _respond(self, request: Any) -> Any:
         prompt = request.messages[0]["content"]
         FakeBackend.prompts.append(prompt)
         self.last_attested_digest = FakeBackend.digest
