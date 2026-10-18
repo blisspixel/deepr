@@ -157,7 +157,7 @@ class TestPassCrossReference:
             summary="Summary",
             entities=[],
             open_questions=[],
-            contradictions=[],
+            contrast_markers=[],
             confidence_avg=0.8,
         )
 
@@ -198,7 +198,7 @@ class TestPassCrossReference:
             summary="",
             entities=[],
             open_questions=[],
-            contradictions=[],
+            contrast_markers=[],
             confidence_avg=0.5,
         )
         result = await pipeline._pass_cross_reference(extraction, [], 1.0)
@@ -227,7 +227,7 @@ class TestPassCrossReference:
             summary="",
             entities=[],
             open_questions=[],
-            contradictions=[],
+            contrast_markers=[],
             confidence_avg=0.5,
         )
         result = await pipeline._pass_cross_reference(extraction, [], 1.0)
@@ -265,7 +265,7 @@ class TestPassSynthesize:
             summary="",
             entities=[],
             open_questions=[],
-            contradictions=[],
+            contrast_markers=[],
             confidence_avg=0.5,
         )
 
@@ -298,7 +298,7 @@ class TestPassSynthesize:
             summary="",
             entities=[],
             open_questions=[],
-            contradictions=[],
+            contrast_markers=[],
             confidence_avg=0.5,
         )
         cross_ref = CrossReferenceResult(confidence_adjustment=0.1)

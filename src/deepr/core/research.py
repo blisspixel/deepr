@@ -801,7 +801,7 @@ class ResearchOrchestrator:
                     summary=f"Phase {phase_num} findings",
                     entities=[],  # Could extract from metadata
                     open_questions=[],
-                    contradictions=[],
+                    contrast_markers=[],
                     confidence_avg=sum(f.confidence for f in phase_findings) / len(phase_findings)
                     if phase_findings
                     else 0.5,

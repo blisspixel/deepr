@@ -16,6 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   100-word request; adherence is improved, not resolved. See
   [validation](validation/consult-requested-length-2026-10-18.md).
 
+- **Research phase handoffs no longer call contrast phrases contradictions.**
+  Sentences matched by "in contrast" or "on the other hand" are quoted as
+  `contrast_markers` under "Contrasting Statements to Examine", with a note
+  that they are phrase matches to check. A lexical match now routes context
+  instead of labeling a conflict.
+
 ## [2.50.39] - 2026-10-18
 
 Complete interface repairs (#230, #234, #235 and #236), retaining the existing
