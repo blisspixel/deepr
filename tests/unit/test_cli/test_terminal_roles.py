@@ -30,7 +30,7 @@ def test_muted_provenance_uses_terminal_foreground():
 def test_commands_have_one_palette_owner():
     violations = []
     for path in (ROOT / "src/deepr/cli").rglob("*.py"):
-        if path.name in {"colors.py", "startup_banner.py"}:
+        if path.name == "colors.py":
             continue
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "Console":

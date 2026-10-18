@@ -135,7 +135,11 @@ details. A successful diagnostic command is not proof of executable capacity;
 [expert inventory schema](schemas/expert-inventory-v1.json).
 
 Capacity inspection creates no directories or quota lock files. The banner's
-seen marker belongs to the per-user state directory. Explicit writes retain
+seen marker belongs to the per-user state directory. The first interactive
+startup/setup has a short palette reveal, followed by static signatures;
+reduced motion stays static, and help/pipes have no banner. Root help and
+inventory wrap to a 60-column window. Complete `Next:`/`Also:` commands remain
+on one logical line, even when a long command exceeds the window. Explicit writes retain
 the configured runtime root and existing locking and durability requirements.
 
 The offline doctor command makes no provider call. Run plain `deepr doctor`

@@ -14,10 +14,12 @@ Interactive Mode:
     deepr interactive
 """
 
+import inspect
 import os
+import shutil
 import sys
 from importlib import import_module
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 import click
 
@@ -259,6 +261,15 @@ def _apply_no_color_option(_ctx: click.Context, _param: click.Option, value: boo
 class SectionedGroup(click.Group):
     """Click group with static root help and lazy top-level command imports."""
 
+    def make_context(
+        self, info_name: str | None, args: list[str], parent: click.Context | None = None, **extra: Any
+    ) -> click.Context:
+        """Respect the real window while retaining explicit caller width settings."""
+        width = shutil.get_terminal_size((80, 24)).columns
+        extra.setdefault("terminal_width", width)
+        extra.setdefault("max_content_width", width)
+        return super().make_context(info_name, args, parent=parent, **extra)
+
     def list_commands(self, ctx: click.Context) -> list[str]:
         """List built-in recipes plus commands registered dynamically by callers."""
         return sorted(set(_COMMAND_SPECS) | set(super().list_commands(ctx)))
@@ -284,10 +295,14 @@ class SectionedGroup(click.Group):
         return command
 
     def format_help_text(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
-        from deepr.cli.model_choices import research_preview_example
+        from deepr.cli.model_choices import research_preview_example, retained_task_models
 
         # Render a temporary command to keep the stored help template immutable.
-        rendered = (self.help or "").replace("{research_preview}", research_preview_example())
+        preview = research_preview_example()
+        if len(preview) + 4 > formatter.width:
+            provider, model = retained_task_models()["deep_research"]
+            preview = f'deepr research "your question" --preview\n\nShipped preview baseline: {provider} / {model}.'
+        rendered = inspect.cleandoc(self.help or "").replace("{research_preview}", preview)
         click.Command(self.name, help=rendered).format_help_text(ctx, formatter)
 
     def format_commands(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
@@ -334,24 +349,29 @@ def cli():
     """
     Deepr - Persistent domain experts from bounded, auditable research.
 
-    \b
     Start with the executable expert path:
-      deepr capacity                               Inspect local and plan capacity
-      deepr expert next "Expert Name"             See the safest $0 next action
-      deepr expert consult "question" -e "Expert Name" --local
-                                                   Consult stored expert state at $0
 
     \b
+      deepr capacity
+      deepr expert next "Expert Name"
+      deepr expert consult "question" -e "Expert Name" --local
+
+    Inspect local and plan capacity, choose a safe $0 next action,
+    and consult stored expert state at $0.
+
     Preview metered research without dispatch:
+
+    \b
       {research_preview}
 
-    \b
     Explicit attended OpenRouter can run one pinned completion after setup:
-      deepr budget authorize openrouter            Bind provider spend authority
-      deepr research "your question" --provider openrouter
-    Stored keys, owner ceiling, wallet credits and per-run confirmation are required.
 
     \b
+      deepr budget authorize openrouter
+      deepr research "your question" --provider openrouter
+
+    Stored keys, owner ceiling, wallet credits and per-run confirmation are required.
+
     deepr doctor verifies your setup. Everything else lives under
     Advanced commands below - you will not need most of it on day one.
     """

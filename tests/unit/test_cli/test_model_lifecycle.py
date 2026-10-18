@@ -100,16 +100,22 @@ def test_local_setup_does_not_assume_fit(monkeypatch, vram, expected, offers_pul
     assert ("ollama pull" in rendered) is offers_pull
 
 
-def test_root_help_example_tracks_retained_default(monkeypatch):
+@pytest.mark.parametrize("width", [60, 100, 160])
+def test_root_help_example_tracks_retained_default(monkeypatch, width):
     from deepr.cli.main import cli
     from deepr.config import ProviderConfig
 
     monkeypatch.setitem(
         ProviderConfig.model_fields["TASK_MODEL_MAP"].default, "deep_research", ("openai", "gpt-5.6-terra")
     )
-    result = CliRunner().invoke(cli, ["--help"], terminal_width=160)
+    result = CliRunner().invoke(cli, ["--help"], terminal_width=width)
     assert result.exit_code == 0
-    assert "--model gpt-5.6-terra --preview" in result.output
+    assert " \\\n" not in result.output
+    if width >= 100:
+        assert "--model gpt-5.6-terra --preview" in result.output
+    else:
+        assert 'deepr research "your question" --preview' in result.output
+        assert "Shipped preview baseline: openai / gpt-5.6-terra." in result.output
 
 
 def test_web_allowlist_excludes_shutdown_models():

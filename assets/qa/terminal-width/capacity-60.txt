@@ -1,0 +1,68 @@
+Capacity sources detected (execution eligibility is 
+workflow-specific)
+
+Local runtime (detection only)
+  unverified Ollama (local models): detected; $0 (local)
+    6 model(s): embeddinggemma-2:270m, 
+nomic-embed-text:v1.5, qwen3.6:35b-ctx65536...
+Local generation: ready (disabled=True, source=config). 
+Persistent cloud disablement and a materialized local model 
+were observed; dispatch rechecks both.
+
+Plan CLIs (installation only)
+  skipped    Claude Code (claude): not installed; quota 
+(prepaid)
+    not installed - separate credit pool at API rates 
+(2026-06-15); overflow must be off
+  skipped    Codex CLI (codex): not installed; quota 
+(prepaid)
+    not installed - ChatGPT plan, 5h rolling windows
+  skipped    Copilot CLI (copilot): not installed; paid per 
+call
+    not installed - GitHub plan, monthly AI credits (metered
+per token; overflow admin-capped)
+  skipped    Cursor CLI (cursor-agent): not installed; quota
+(prepaid)
+    not installed - Cursor plan; Auto model free, frontier 
+models metered
+  skipped    OpenCode CLI (opencode): not installed; quota 
+(prepaid)
+    not installed - BYO provider; route to an 
+OAuth/subscription or local model for $0/prepaid
+  skipped    Antigravity (agy): not installed; quota 
+(prepaid)
+    not installed - Google AI plan, weekly compute caps
+  skipped    Kiro CLI (kiro-cli): not installed; quota 
+(prepaid)
+    not installed - monthly credits (overage risk - reserve 
+floor)
+  skipped    Grok Build (grok): not installed; quota 
+(prepaid)
+    not installed - SuperGrok/X Premium+ subscription; 
+headless use is ToS gray-zone
+
+Metered API credentials (configuration only)
+  skipped    OpenAI: not configured; paid per call
+    set OPENAI_API_KEY to enable
+  skipped    Gemini: not configured; paid per call
+    set GEMINI_API_KEY to enable
+  skipped    xAI Grok: not configured; paid per call
+    set XAI_API_KEY to enable
+  skipped    Anthropic: not configured; paid per call
+    set ANTHROPIC_API_KEY to enable
+  skipped    Azure OpenAI: not configured; paid per call
+    set AZURE_OPENAI_API_KEY to enable
+  skipped    OpenRouter: not configured; paid per call
+    set OPENROUTER_API_KEY to enable
+
+Inventory only: detection, installation, or credential 
+presence does not prove execution.
+Next: deepr capacity next --task-class sync
+
+Local GPU capacity: free - card1 amdgpu: 0% busy
+
+No plan quota observations recorded yet.
+
+No local models admitted yet. Review quality before 
+automatic local maintenance.
+Also: deepr capacity admit --help

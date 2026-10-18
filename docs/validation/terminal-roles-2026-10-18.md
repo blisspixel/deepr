@@ -28,7 +28,9 @@ combined statement/branch coverage. The independent coverage gate also passes.
 All 293 strict island files pass; the wider baseline remains exactly 196 errors
 in 60 files, with no added or removed diagnostics. Source lint/format, size,
 complexity/security ratchets, paid boundaries and documentation checks pass.
-Exact-head CI and merge acceptance remain required.
+PR #248 passed all 25 exact-head checks on `f9ef6215` and merged by title-only
+squash to `0e6fb2f4`. Exact resulting-main CI and the coherent interface release
+remain separate gates.
 
 [Doctor light](../../assets/qa/terminal-roles/doctor-light.png),
 [doctor dark](../../assets/qa/terminal-roles/doctor-dark.png),

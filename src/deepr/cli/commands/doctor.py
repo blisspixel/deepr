@@ -10,7 +10,7 @@ from typing import Any
 import click
 
 from deepr.cli.async_runner import run_async_command
-from deepr.cli.colors import print_next
+from deepr.cli.colors import console, print_next
 from deepr.config import load_config
 
 
@@ -570,13 +570,13 @@ def print_next_step(checks: list[DiagnosticCheck]) -> None:
     if metered is None:
         return
     if not metered.passed:
-        click.echo("\nNo metered API keys are configured. Local and plan workflows require their own capacity proof.")
+        console.print(
+            "\nNo metered API keys are configured. Local and plan workflows require their own capacity proof."
+        )
         print_next("deepr capacity")
     else:
-        click.echo(
-            "\nNo blocking configuration errors. Execution proof remains separate. "
-            'Preview a route: deepr research "Your question here" --preview'
-        )
+        console.print("\nNo blocking configuration errors. Execution proof remains separate.")
+        print_next('deepr research "Your question here" --preview')
 
 
 def _print_stale_queue_guidance() -> None:

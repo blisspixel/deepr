@@ -1,0 +1,23 @@
+Capacity sources detected (execution eligibility is workflow-specific)
+
+Local runtime (detection only)
+unverified  Ollama  detected  $0 (local)  A materialized local runtime was detected; execution proof
+                                          remains separate.                                         
+
+Plan CLIs (installation only)
+unverified  Claude Code  installed  quota (prepaid)  Installation does not prove confinement, plan  
+                                                     authentication or overage posture.             
+
+Metered API credentials (configuration only)
+skipped     OpenRouter  not configured  paid per call  [config] No stored key.
+
+Inventory only: detection, installation, or credential presence does not prove execution.
+Next: deepr capacity next --task-class sync
+Also: deepr capacity fleet
+
+Local GPU capacity: unknown - GPU occupancy was not observed by this fixture.
+
+No plan quota observations recorded yet.
+
+No local models admitted yet. Review quality before automatic local maintenance.
+Also: deepr capacity admit --help

@@ -1,0 +1,16 @@
+Running Deepr diagnostics...
+
+Offline mode: provider connectivity checks are skipped.
+
+Executable capacity not established. Local generation: unverified.
+
+Environment
+  ok         State directory: Private runtime roots are configured.
+      /fixture/retained/input.txt
+
+Summary: 1/1 required checks passed; 0 advisory, 1 optional, 1 unverified
+
+No blocking configuration issues; skipped or blocked checks remain unverified.
+
+No metered API keys are configured. Local and plan workflows require their own capacity proof.
+Next: deepr capacity

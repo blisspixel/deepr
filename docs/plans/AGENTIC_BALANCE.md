@@ -391,3 +391,9 @@ decay, and judge-bias findings are high-confidence (primary sources). The exact
 80%-vs-50% horizon multiple (~5x) is approximate (METR 80% curve via secondary
 analysis). Quotes were taken from live pages on 2026-06-13; re-verify before
 relying on any single line in print.
+
+Banner policy and width guards constrain presentation form: terminal attendance,
+accessibility, bounded sleeps and synchronized frames. The seen marker controls
+an optional reveal, not execution eligibility. Inventory renders the same
+collected source, quota and admission fields at either width; a fitted table is
+not a new capacity proof. See [terminal banner and width](../design/terminal-banner-width.md).

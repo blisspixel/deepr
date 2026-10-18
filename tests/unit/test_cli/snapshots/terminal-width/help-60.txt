@@ -1,0 +1,94 @@
+Usage: deepr [OPTIONS] COMMAND [ARGS]...
+
+  Deepr - Persistent domain experts from bounded, auditable
+  research.
+
+  Start with the executable expert path:
+
+    deepr capacity
+    deepr expert next "Expert Name"
+    deepr expert consult "question" -e "Expert Name" --local
+
+  Inspect local and plan capacity, choose a safe $0 next
+  action, and consult stored expert state at $0.
+
+  Preview metered research without dispatch:
+
+    deepr research "your question" --preview
+
+  Shipped preview baseline: openai / gpt-5.6-sol.
+
+  Explicit attended OpenRouter can run one pinned completion
+  after setup:
+
+    deepr budget authorize openrouter
+    deepr research "your question" --provider openrouter
+
+  Stored keys, owner ceiling, wallet credits and per-run
+  confirmation are required.
+
+  deepr doctor verifies your setup. Everything else lives
+  under Advanced commands below - you will not need most of
+  it on day one.
+
+Options:
+  --no-color  Disable ANSI color output.
+  --version   Show the version and exit.
+  -h, --help  Show this message and exit.
+
+Core commands:
+  expert    Create and maintain domain experts (beliefs,
+            temporal graph, purpose - not a list of facts).
+  capacity  Inspect local, plan-quota, and gated metered
+            capacity.
+  research  Preview research or run explicit attended
+            OpenRouter.
+  costs     Cost tracking and budget management.
+  doctor    Verify configuration and executable capacity.
+  web       Start the Deepr web dashboard.
+
+Advanced commands:
+  a2a          Agent-to-Agent interoperability tools.
+  agentic      Inspect legacy autonomous research commands
+               (metered execution gated).
+  analytics    View usage analytics and success metrics.
+  budget       Manage monthly research budget.
+  check        Verify a factual claim quickly.
+  completion   Generate shell tab completion.
+  config       Manage and validate configuration.
+  diagnostics  Diagnostics and self-awareness tools for
+               experts.
+  docs         Analyze documentation and queue research for
+               gaps.
+  eval         Run model evaluation workflows with cost
+               safety defaults.
+  fleet        Roster-wide expert fleet health (read-only,
+               $0).
+  help         Get help on Deepr commands and concepts.
+  init         Configure Deepr through a guided first run.
+  interactive  Start interactive mode for guided research.
+  jobs         Manage research jobs (list, status, get
+               results, cancel).
+  keys         Inspect, store, and check provider API keys
+               without exposing them.
+  knowledge    Manage expert vector stores and knowledge
+               bases.
+  learn        Inspect legacy multi-phase research (metered
+               execution gated).
+  make         Create artifacts from research.
+  mcp          Model Context Protocol server for AI agent
+               integration.
+  migrate      Migrate and organize legacy reports.
+  providers    Provider management and monitoring.
+  route        Explain routing decisions before dispatch.
+  run          Run research jobs (single, campaign, or
+               team).
+  search       Search and discover related research.
+  skill        Manage expert skills - domain-specific
+               capability packages.
+  team         Inspect legacy multi-perspective research
+               (metered execution gated).
+  templates    Manage prompt templates.
+  upgrade      Update deepr to the latest released version.
+  vector       Manage expert vector stores and knowledge
+               bases.

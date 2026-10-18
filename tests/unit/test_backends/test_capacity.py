@@ -222,7 +222,7 @@ class TestCapacityCommand:
         assert "installed" in copilot
         assert "installed" in claude
         assert "Owned/prepaid capacity available" not in result.output
-        assert "does not prove execution" in result.output
+        assert "does not prove execution" in " ".join(result.output.split())
 
     def test_json_output(self):
         result = CliRunner().invoke(capacity, ["--json"])
@@ -363,7 +363,7 @@ class TestCapacityCommand:
         assert result.exit_code == 0, result.output
         assert "Observed quota state" in result.output
         assert "kiro-cli" in result.output
-        assert "overage state unknown" in result.output
+        assert "overage state unknown" in " ".join(result.output.split())
 
 
 class TestAdmissionCommands:

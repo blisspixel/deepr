@@ -273,6 +273,10 @@ def init(yes: bool, budget: float | None, data_dir: str | None, local_env: bool)
     """
     if not yes and not click.get_text_stream("stdin").isatty():
         raise click.UsageError("Interactive setup requires a terminal. Use deepr init --yes for noninteractive setup.")
+    from deepr import __version__
+    from deepr.cli.startup_banner import show_startup_banner
+
+    show_startup_banner(console, version=__version__)
     print_section_header("Deepr setup")
 
     env_path = configuration_env_path(local=local_env)
