@@ -5,10 +5,11 @@
 ## Next round
 
 Completed reader, recovery, inspection, lifecycle and first-run repairs are in
-[the changelog](docs/CHANGELOG.md). The v2.50.35 candidate completes the #228
+[the changelog](docs/CHANGELOG.md). v2.50.35 completes the #228
 read-only decision review over existing consultation and outcome records.
 It preserves original answers and observations, makes missing evidence explicit,
-and leaves semantic review unqualified. Publication is a separate gate.
+and leaves semantic review unqualified. Validation records and the matching
+GitHub release distinguish implementation, tested behavior and publication.
 
 - [ ] **v2.51 is S0.** Locate the frozen source worlds, policy and case inventory,
   then run the 48-cell local rehearsal. The archived policy used qwen3.6:27b;
