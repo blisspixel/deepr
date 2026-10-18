@@ -206,7 +206,9 @@ async def resolve_consult_local_model(experts: list[str], explicit_model: str | 
         profile = await asyncio.to_thread(store.load, experts[0], persist_migration=False)
         if profile is not None and str(profile.provider).strip().lower() == "local":
             formed_model = await asyncio.to_thread(successful_formation_model, profile.name)
-    model = await resolve_local_maintenance_model_async(profile, explicit_model=explicit_model or formed_model)
+    model = await resolve_local_maintenance_model_async(
+        profile, explicit_model=(explicit_model or "").strip() or formed_model
+    )
     if explicit_model and explicit_model.strip():
         source = "explicit operation model"
     elif formed_model and profile is not None:

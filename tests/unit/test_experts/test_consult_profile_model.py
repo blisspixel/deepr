@@ -165,6 +165,8 @@ async def test_completed_formation_model_wins_failed_profile_without_writes(loca
     assert calls == ["formed:27b"]
     assert payload["capacity"]["model_selection"] == "completed local formation: Risk Expert"
     assert path.read_bytes() == before
+    await invoke(interface, ["Risk Expert"], " ")
+    assert calls[-1] == "formed:27b"
     await invoke(interface, ["Risk Expert"], "explicit:8b")
     assert calls[-1] == "explicit:8b"
     (directory / "brief.json").write_text('{"positions": [{"stance": "Later view"}]}')

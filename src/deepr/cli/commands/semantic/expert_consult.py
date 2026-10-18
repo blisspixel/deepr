@@ -334,6 +334,7 @@ def expert_consult(
         )
     if not plan_backend:
         use_local = True
+    local_model = (local_model or "").strip() or None
     _validate_consult_limits(
         budget=budget,
         max_elapsed_seconds=max_elapsed_seconds,
