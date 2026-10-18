@@ -61,8 +61,9 @@ def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def read_formation_state(name: str) -> dict[str, Any] | None:
-    path = canonical_expert_dir(name) / "formation/current.json"
+def read_formation_state(name: str, *, directory: Path | None = None) -> dict[str, Any] | None:
+    directory = directory or canonical_expert_dir(name)
+    path = directory / "formation/current.json"
     if not path.exists():
         return None
     payload = read_record(path)
@@ -82,7 +83,36 @@ def read_formation_state(name: str) -> dict[str, Any] | None:
                 "status": "interrupted",
                 "progress": "Build deadline passed without completion; inspect retained work before retrying.",
             }
+    operation = str(payload.get("operation_id") or "")
+    if len(operation) == 32 and all(char in "0123456789abcdef" for char in operation):
+        candidate = directory / "formation/runs" / operation / "study.json"
+        if candidate.resolve().is_relative_to(directory.resolve()) and candidate.is_file():
+            study = read_record(candidate)
+            if isinstance(study, dict):
+                payload = {
+                    **payload,
+                    "study_attempt": {
+                        "totals": study.get("totals") or {},
+                        "model": study.get("model") or payload.get("model", ""),
+                        "started_at": study.get("started_at", ""),
+                    },
+                }
     return payload
+
+
+def successful_formation_model(name: str) -> str | None:
+    """Prefer the actual completed local formation while its artifacts match."""
+    directory = canonical_expert_dir(name)
+    state = read_formation_state(name, directory=directory)
+    if not state or state.get("status") != "research_complete":
+        return None
+    if not str(state.get("capacity_source", "")).startswith("local:"):
+        return None
+    recorded = state.get("final_artifacts")
+    current = _snapshot(directory)
+    if not recorded or recorded != current or not all(current.values()):
+        return None
+    return str(state.get("model") or "").strip() or None
 
 
 def _snapshot(directory: Path) -> dict[str, str | None]:
@@ -213,6 +243,13 @@ class FormationRun:
 def _require_stage(name: str, payload: dict[str, Any]) -> None:
     stage = get_stage(name)
     if stage is None or stage.succeeds_when is None or not stage.succeeds_when(payload):
+        if name == STAGE_STUDY:
+            totals = payload.get("totals") or {}
+            raise ValueError(
+                f"Formation study ran with {payload.get('model') or 'unrecorded model'}: "
+                f"{totals.get('grounded_findings', 0)} of {totals.get('findings', 0)} findings anchored. "
+                "Required evidence missing; retry expert build with an appropriate --local-model."
+            )
         raise ValueError(f"Formation {name} did not produce its required evidence")
 
 

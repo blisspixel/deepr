@@ -16,6 +16,13 @@ brittle rule - it encodes a boundary that no longer matches the code.
 
 ## The axis
 
+Brief statement origins are recorded model judgments: studied sources, broader
+knowledge, or reasoning. Code checks their shape, finding identity and study
+binding; it does not classify legacy text or judge entailment. Knowledge views
+can locate a literal excerpt in hash-verified bytes without certifying advice.
+Terminal support labels remain uncalibrated recorded signals. See
+[reader evidence](../design/expert-evidence-reading.md).
+
 Research CLI refusal handling is a workflow boundary: validation, credential
 presence, route continuity, budget confirmation, output mode, and terminal
 attendance guard execution form and side effects. They make no semantic verdict

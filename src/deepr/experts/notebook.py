@@ -139,6 +139,13 @@ def _render_finding(finding: StudyFinding, index: int) -> list[str]:
         if text:
             lines.append(f"   - {_label(key)}: {text}")
 
+    for anchor in finding.anchors:
+        lines.extend(["", *[f"   > {line}" for line in anchor.splitlines()], ""])
+    if finding.anchors:
+        lines.append(
+            f"   - Recorded excerpt matches: {finding.grounded_anchor_count}; "
+            f"unmatched: {finding.ungrounded_anchor_count}. Literal matches do not verify the interpretation."
+        )
     if finding.is_grounded:
         sources = ", ".join(sha[:12] for sha in finding.corpus_shas)
         lines.append(f"   - Sources: {sources}")

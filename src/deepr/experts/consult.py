@@ -196,15 +196,23 @@ def build_synthesis_backend(
 async def resolve_consult_local_model(experts: list[str], explicit_model: str | None) -> tuple[str | None, str]:
     """Resolve one named profile read-only within the host transaction deadline."""
     from deepr.backends.local import resolve_local_maintenance_model_async
+    from deepr.experts.formation import successful_formation_model
     from deepr.experts.profile import ExpertStore
 
     profile = None
+    formed_model = None
     if not (explicit_model or "").strip() and len(experts) == 1:
         store = ExpertStore(create=False)
         profile = await asyncio.to_thread(store.load, experts[0], persist_migration=False)
-    model = await resolve_local_maintenance_model_async(profile, explicit_model=explicit_model)
+        if profile is not None and str(profile.provider).strip().lower() == "local":
+            formed_model = await asyncio.to_thread(successful_formation_model, profile.name)
+    model = await resolve_local_maintenance_model_async(
+        profile, explicit_model=(explicit_model or "").strip() or formed_model
+    )
     if explicit_model and explicit_model.strip():
         source = "explicit operation model"
+    elif formed_model and profile is not None:
+        source = f"completed local formation: {profile.name}"
     elif (
         profile is not None
         and str(profile.provider).strip().lower() == "local"

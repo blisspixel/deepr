@@ -38,6 +38,8 @@ import re
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from deepr.experts.brief_attribution import OrientationStatement, read_orientation_statements
+
 BRIEF_SCHEMA_VERSION = "deepr-expert-brief-v2"
 
 LIKELIHOOD_BANDS: dict[str, tuple[int, int]] = {
@@ -290,6 +292,9 @@ class ExpertBrief:
     positional id for different content.
     """
 
+    orientation_statements: list[OrientationStatement] = field(default_factory=list)
+    """Optional model-recorded origins; older paragraphs remain unattributed."""
+
     @property
     def unfalsifiable_positions(self) -> list[Position]:
         """Positions with no stated falsifier. These are assertions, not judgments."""
@@ -363,6 +368,7 @@ class ExpertBrief:
             expert_name=data.get("expert", ""),
             schema_version=data.get("schema_version", BRIEF_SCHEMA_VERSION),
             orientation=data.get("orientation", ""),
+            orientation_statements=read_orientation_statements(data.get("orientation_statements")),
             state=SettledState(
                 settled=list(state.get("settled") or []),
                 live=list(state.get("live") or []),
@@ -406,6 +412,7 @@ class ExpertBrief:
             "expert": self.expert_name,
             "finding_titles": self.finding_titles,
             "orientation": self.orientation,
+            "orientation_statements": [item.to_dict() for item in self.orientation_statements],
             "positions": [p.to_dict() for p in self.positions],
             "state": self.state.to_dict(),
             "key_quantities": self.key_quantities,

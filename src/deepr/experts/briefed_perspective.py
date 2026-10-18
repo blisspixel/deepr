@@ -83,6 +83,11 @@ def build_briefed_perspective(query: str, name: str, domain: str, perspective_cl
         context={
             "source": "brief",
             "coverage": context.coverage,
+            "studied_at": context.studied_at,
+            "orientation": context.orientation,
+            "positions": [position.to_dict() for position in context.positions],
+            "passages": [{"sha256": sha, "origin": origin, "text": text} for sha, origin, text in context.sources],
+            "findings_anchored": sum(finding.is_grounded for finding in context.findings),
             "positions_included": len(context.positions),
             "findings_included": len(context.findings),
             "source_passages": len(context.sources),

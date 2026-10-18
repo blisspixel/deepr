@@ -82,6 +82,10 @@ def _render_next_actions(payload: dict[str, Any]) -> None:
 def expert_next(name: str, limit: int, json_output: bool) -> None:
     """Show the highest-value next actions for an expert at $0."""
     from deepr.experts.blueprint import BlueprintStorageError, ExpertBlueprintStore
+    from deepr.experts.consult_context import load_brief
+    from deepr.experts.corpus_store import CorpusStore
+    from deepr.experts.expert_layout import part_in
+    from deepr.experts.formation import read_formation_state
     from deepr.experts.loop_runs import ExpertLoopRunStore
     from deepr.utils.security import PathTraversalError
 
@@ -102,12 +106,18 @@ def expert_next(name: str, limit: int, json_output: bool) -> None:
     try:
         loop_runs = ExpertLoopRunStore(profile.name).list_runs(limit=20)
         has_attested_blueprint = ExpertBlueprintStore().load_latest(profile.name) is not None
+        manifest = profile.get_manifest(read_only=True, expert_dir=expert_dir)
         payload = build_expert_next_actions(
             profile,
-            profile.get_manifest(read_only=True, expert_dir=expert_dir),
+            manifest,
             loop_runs=loop_runs,
             max_actions=limit,
             has_attested_blueprint=has_attested_blueprint,
+            formation=read_formation_state(profile.name, directory=expert_dir),
+            needs_formation=profile.provider == "local"
+            and manifest.claim_count == 0
+            and not bool((brief := load_brief(part_in(expert_dir, "hold_current"))) and brief.positions),
+            has_sources=bool(CorpusStore(profile.name, storage_dir=expert_dir / "corpus").active_entries()),
         )
     except ValueError as exc:
         raise click.BadParameter(str(exc), param_hint="--limit") from exc

@@ -24,6 +24,25 @@ def _status_value(value: object) -> str:
     return str(raw or "")
 
 
+def formation_next_action(name: str, *, has_sources: bool, formation: dict[str, Any] | None = None) -> dict[str, Any]:
+    """One formation-first action, shared by status, health and next."""
+    attempt = (formation or {}).get("study_attempt") or {}
+    totals = attempt.get("totals") or {}
+    reason = "The expert has no completed research foundation."
+    if attempt:
+        reason = (
+            f"Study ran with {attempt.get('model') or 'unrecorded model'}: "
+            f"{totals.get('grounded_findings', 0)} of {totals.get('findings', 0)} findings anchored. "
+            "Formation is incomplete; retained work is available for retry."
+        )
+    argv = ["deepr", "expert", "build", name]
+    if has_sources:
+        argv.append("--no-discovery")
+    return _action(
+        "complete_formation", priority=0, title="Complete the research foundation", reason=reason, command_argv=[argv]
+    )
+
+
 def _action(
     action_id: str,
     *,
@@ -77,6 +96,21 @@ def _operational_stage(*, claim_count: int, freshness_status: str, learning: dic
     return "maintenance"
 
 
+def _prioritize_actions(
+    actions: list[dict[str, Any]],
+    *,
+    name: str,
+    needs_formation: bool,
+    has_sources: bool,
+    formation: dict[str, Any] | None,
+    max_actions: int,
+) -> list[dict[str, Any]]:
+    """A missing foundation must precede every maintenance suggestion."""
+    if needs_formation:
+        return [formation_next_action(name, has_sources=has_sources, formation=formation)]
+    return sorted(actions, key=lambda item: (int(item["priority"]), str(item["id"])))[:max_actions]
+
+
 def build_expert_next_actions(
     profile: ExpertProfile,
     manifest: ExpertManifest,
@@ -84,6 +118,9 @@ def build_expert_next_actions(
     loop_runs: Iterable[ExpertLoopRun] = (),
     max_actions: int = 3,
     has_attested_blueprint: bool,
+    formation: dict[str, Any] | None = None,
+    needs_formation: bool = False,
+    has_sources: bool = False,
 ) -> dict[str, Any]:
     """Build deterministic, read-only guidance from current expert evidence."""
     if max_actions < 1:
@@ -258,7 +295,14 @@ def build_expert_next_actions(
             ]
         )
 
-    ordered_actions = sorted(actions, key=lambda item: (int(item["priority"]), str(item["id"])))[:max_actions]
+    ordered_actions = _prioritize_actions(
+        actions,
+        name=name,
+        needs_formation=needs_formation,
+        has_sources=has_sources,
+        formation=formation,
+        max_actions=max_actions,
+    )
     return {
         "schema_version": EXPERT_NEXT_SCHEMA_VERSION,
         "kind": EXPERT_NEXT_KIND,
