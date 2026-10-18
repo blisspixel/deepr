@@ -41,7 +41,9 @@ Doctor adds no inference, release lookup or credential validation operation.
 
 Local consultation for one explicitly selected profile follows the canonical
 local-maintenance resolver: an explicit operation/admitted capacity model,
-then a valid local profile model, then DEEPR_LOCAL_MODEL and installed inventory.
+then the completed local formation model while its published artifact hashes
+still match, then a valid local profile model, then DEEPR_LOCAL_MODEL and
+installed inventory.
 This deliberately preserves the existing owner's profile-before-environment
 precedence rather than the issue's suggested reversal. Resolve names, aliases
 and slugs read-only, without profile migration. Automatic or mixed councils

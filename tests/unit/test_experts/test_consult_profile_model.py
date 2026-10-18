@@ -141,3 +141,32 @@ async def test_unavailable_profile_model_is_not_replaced_by_environment(local_pr
     result = await consult_experts_tool(question="q", experts=["Risk Expert"])
     assert result["error_code"] == "CONSULT_BACKEND_UNAVAILABLE"
     assert calls == ["profile:32b"]
+
+
+@pytest.mark.parametrize("interface", ["cli", "mcp", "a2a"])
+async def test_completed_formation_model_wins_failed_profile_without_writes(local_profiles, interface):
+    from deepr.experts.formation import _snapshot
+
+    path, before, calls = local_profiles
+    directory = path.parent
+    (directory / "formation").mkdir()
+    (directory / "study.json").write_text('{"model": "formed:27b"}')
+    (directory / "brief.json").write_text('{"positions": [{"stance": "Retained view"}]}')
+    (directory / "positions.json").write_text('{"revisions": []}')
+    state = {
+        "schema_version": "deepr-formation-v1",
+        "status": "research_complete",
+        "model": "formed:27b",
+        "capacity_source": "local:formed:27b",
+        "final_artifacts": _snapshot(directory),
+    }
+    (directory / "formation/current.json").write_text(json.dumps(state))
+    payload = await invoke(interface, ["Risk Expert"])
+    assert calls == ["formed:27b"]
+    assert payload["capacity"]["model_selection"] == "completed local formation: Risk Expert"
+    assert path.read_bytes() == before
+    await invoke(interface, ["Risk Expert"], "explicit:8b")
+    assert calls[-1] == "explicit:8b"
+    (directory / "brief.json").write_text('{"positions": [{"stance": "Later view"}]}')
+    await invoke(interface, ["Risk Expert"])
+    assert calls[-1] == "profile:32b"

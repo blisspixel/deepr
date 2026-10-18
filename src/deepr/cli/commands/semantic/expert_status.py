@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from subprocess import list2cmdline
 from typing import Any
 
 import click
@@ -34,8 +35,9 @@ from deepr.cli.colors import console, print_header, print_key_value, print_warni
 from deepr.cli.commands.semantic.experts import expert
 from deepr.experts.expert_layout import resolve_relative
 from deepr.experts.formation import read_formation_state
+from deepr.experts.next_actions import formation_next_action
 from deepr.experts.paths import canonical_expert_dir
-from deepr.experts.stage_contract import STAGES, evaluate_all, next_stage
+from deepr.experts.stage_contract import STAGES, StageState, evaluate_all, next_stage
 
 _STATUS_COLOR = {"done": "green", "ready": "cyan", "failed": "red", "blocked": "yellow"}
 
@@ -86,6 +88,29 @@ def _read_artifacts(directory: Path) -> dict[str, dict[str, Any] | None]:
     return artifacts
 
 
+def _formation_status(
+    name: str,
+    artifacts: dict[str, dict[str, Any] | None],
+    states: list[StageState],
+    formation: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Expose candidate study failure without publishing it as current knowledge."""
+    action = None
+    if formation and not any(state.name == "brief" and state.succeeded for state in states):
+        action = formation_next_action(
+            name,
+            has_sources=any(bool((value or {}).get("active_count")) for value in artifacts.values()),
+            formation=formation,
+        )
+        if (formation or {}).get("study_attempt"):
+            for state in states:
+                if state.name == "study" and not state.produced:
+                    state.produced, state.succeeded, state.blockers = True, False, []
+                    state.success_means = f"Candidate study retained, not published. {action['reason']}"
+
+    return action
+
+
 @expert.command(name="status")
 @click.argument("name")
 @click.option("--json", "as_json", is_flag=True, help="Emit the stage states as JSON")
@@ -109,17 +134,21 @@ def expert_status(name: str, as_json: bool) -> None:
       deepr expert status "My Expert"
     """
     profile = _load_profile(name)
-    states = evaluate_all(_read_artifacts(canonical_expert_dir(profile.name)))
+    artifacts = _read_artifacts(canonical_expert_dir(profile.name))
+    states = evaluate_all(artifacts)
     try:
         formation = read_formation_state(profile.name)
     except (OSError, ValueError):
         formation = {"status": "unreadable", "progress": "Inspect formation/current.json before retrying the build."}
 
+    action = _formation_status(profile.name, artifacts, states, formation)
+
     if as_json:
         payload = {
             "expert": profile.name,
             "stages": [state.to_dict() for state in states],
-            "next": (nxt.name if (nxt := next_stage(states)) else None),
+            "next": "build" if action else (nxt.name if (nxt := next_stage(states)) else None),
+            "next_action": action,
             "cost_usd": 0.0,
             "formation": formation,
         }
@@ -144,7 +173,9 @@ def expert_status(name: str, as_json: bool) -> None:
             "building on top of them - a later stage cannot tell the difference."
         )
 
-    if nxt := next_stage(states):
+    if action:
+        print_key_value("Next", list2cmdline(action["command_argv"][0]))
+    elif nxt := next_stage(states):
         print_key_value("Next", f"{nxt.name} - {_STATUS_MEANING[nxt.status]}")
     else:
         print_key_value("Next", "nothing; every stage has produced what it promised")

@@ -291,7 +291,15 @@ def expert_retain(
     else:
         console.print(f"[dim]Already retained ({entry.sha256[:12]}); nothing written.[/dim]")
     print_key_value("Origin", entry.origin_key)
-    console.print(f'[dim]Next: deepr expert study "{profile.name}" --local[/dim]')
+    if hold_current_path(profile.name).exists():
+        console.print(f'[dim]Next: deepr expert study "{profile.name}" --local[/dim]')
+    else:
+        from subprocess import list2cmdline
+
+        from deepr.experts.next_actions import formation_next_action
+
+        action = formation_next_action(profile.name, has_sources=True)
+        console.print("Next: " + list2cmdline(action["command_argv"][0]), markup=False)
 
 
 @expert.command(name="acquire")

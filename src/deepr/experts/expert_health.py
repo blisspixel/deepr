@@ -214,10 +214,12 @@ class ExpertHealth:
     not being maintained by anything, whatever its corpus looks like."""
 
     integrity_warnings: list[str] = field(default_factory=list)
+    study_attempted: bool = False
+    formation_guidance: str = ""
 
     @property
     def is_studied(self) -> bool:
-        return self.findings > 0
+        return self.study_attempted or self.findings > 0
 
     @property
     def is_consultable(self) -> bool:
@@ -362,6 +364,7 @@ class ExpertHealth:
         unfalsifiable = self.positions - self.falsifiable_positions
         missing = "no open questions" if not self.open_questions else "nothing it is weak on"
         return [
+            (bool(self.formation_guidance) and not self.positions, self.formation_guidance),
             (not self.sources and not self.beliefs, "Empty. Give it a subject and run acquire."),
             (
                 not self.sources,
@@ -547,6 +550,17 @@ def last_consulted_days(*, now: datetime | None = None, limit: int = 500) -> dic
     return seen
 
 
+def _formation_guidance(health: ExpertHealth, formation: dict[str, Any] | None) -> None:
+    """Keep the incomplete-build next step ahead of maintenance guidance."""
+    from subprocess import list2cmdline
+
+    from deepr.experts.next_actions import formation_next_action
+
+    if formation and formation.get("status") != "research_complete":
+        action = formation_next_action(health.name, has_sources=bool(health.sources), formation=formation)
+        health.formation_guidance = f"{action['reason']} Next: {list2cmdline(action['command_argv'][0])}"
+
+
 def assess_expert(
     name: str,
     expert_dir: Path,
@@ -564,6 +578,16 @@ def assess_expert(
     health = ExpertHealth(name=name, beliefs=beliefs, consulted_days_ago=consulted_days_ago)
 
     study = _load_json(part_in(expert_dir, "noticed"))
+
+    from deepr.experts.formation import read_formation_state
+
+    try:
+        formation = read_formation_state(name, directory=expert_dir)
+    except (OSError, ValueError):
+        formation = None
+    if not study and formation and formation.get("study_attempt"):
+        study = formation["study_attempt"]
+        health.study_attempted = True
     if study:
         totals = study.get("totals") or {}
         health.findings = int(totals.get("findings", 0) or 0)
@@ -588,6 +612,8 @@ def assess_expert(
                 health.sources = active_source_count(index.read_text(encoding="utf-8"))
             except OSError:
                 pass
+
+    _formation_guidance(health, formation)
 
     brief = _load_json(part_in(expert_dir, "hold_current"))
     if brief:
