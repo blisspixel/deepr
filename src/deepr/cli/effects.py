@@ -9,10 +9,29 @@ from __future__ import annotations
 import os
 import sys
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 
 from rich.console import Console
 from rich.text import Text
+
+_SYNC_START = "\033[?2026h"
+_SYNC_END = "\033[?2026l"
+
+
+@contextmanager
+def synchronized_output(console: Console) -> Iterator[None]:
+    """Commit one complete terminal frame, releasing sync on failure or interrupt."""
+    if not console.is_terminal:
+        yield
+        return
+    try:
+        console.file.write(_SYNC_START)
+        yield
+    finally:
+        console.file.write(_SYNC_END)
+        console.file.flush()
 
 
 @dataclass(frozen=True)

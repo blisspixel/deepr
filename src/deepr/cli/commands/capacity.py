@@ -17,8 +17,18 @@ from deepr.backends.capacity import BackendKind, detect_capacity
 from deepr.backends.local_capacity import LocalCapacityObservation, probe_local_gpu_occupancy
 from deepr.backends.plan_quota.adapters import get_adapter_by_executable
 from deepr.backends.quota_ledger import QuotaLedgerReadError, QuotaState, summarize_quota_state
-from deepr.cli.colors import status_word
-from deepr.cli.commands.capacity_inventory import print_sources as _print_sources
+from deepr.cli.commands.capacity_inventory import (
+    _format_remaining as _format_remaining,
+)
+from deepr.cli.commands.capacity_inventory import (
+    _print_admissions_summary,
+    _print_local_capacity,
+    _print_local_probe,
+    _print_quota_summary,
+)
+from deepr.cli.commands.capacity_inventory import (
+    print_sources as _print_sources,
+)
 from deepr.cli.commands.capacity_validation import (
     FLEET_VALIDATION_DEFAULT_TIMEOUT_S,
     build_fleet_validation_payload,
@@ -149,73 +159,6 @@ def _run_local_probe() -> dict[str, object]:
     from deepr.cli.async_runner import run_async_command
 
     return run_async_command(probe_local())
-
-
-def _print_local_probe(result: dict[str, object]) -> None:
-    """Print a human-readable local probe verdict."""
-    if result["ok"]:
-        click.echo(
-            f"Local probe: ok - {result['model']} replied {result['reply']!r} in {result['latency_ms']}ms (cost $0)\n"
-        )
-    else:
-        click.echo(f"Local probe: failed - {result['error']}\n")
-
-
-def _print_local_capacity(observation: LocalCapacityObservation) -> None:
-    click.echo("")
-    click.echo(f"Local GPU capacity: {observation.state.value} - {observation.detail}")
-
-
-def _print_quota_summary(quota_states: list[QuotaState]) -> None:
-    """Show latest observed quota state from the local append-only ledger."""
-    click.echo("")
-    if not quota_states:
-        click.echo("No plan quota observations recorded yet.")
-        return
-
-    click.echo("Observed quota state (local ledger):")
-    for state in quota_states:
-        event = state.latest_event
-        mark = "warning" if state.exhausted or state.quarantined else "unverified"
-        status = "quarantined" if state.quarantined else "exhausted" if state.exhausted else event.event_type.value
-        remaining = _format_remaining(event.units_remaining, event.unit_name)
-        confidence = event.remaining_confidence.value
-        reset = f", resets {event.reset_at.isoformat()}" if event.reset_at else ""
-        detail = f" - {event.detail}" if event.detail else ""
-        click.echo(f"  {status_word(mark)} {state.key:18s} {status:24s} {remaining} ({confidence}){reset}{detail}")
-
-
-def _format_remaining(units_remaining: float | None, unit_name: str) -> str:
-    if units_remaining is None:
-        return "remaining unknown"
-    return f"{units_remaining:g} {unit_name} remaining"
-
-
-def _print_admissions_summary() -> None:
-    """List models/CLIs admitted for the automatic owned-capacity-first path."""
-    from deepr.backends.admission import list_active
-    from deepr.backends.waterfall import PLAN_ADMISSION_PREFIX
-
-    admitted = list_active()
-    local = [a for a in admitted if not a.model.startswith(PLAN_ADMISSION_PREFIX)]
-    plan = [a for a in admitted if a.model.startswith(PLAN_ADMISSION_PREFIX)]
-
-    click.echo("")
-    if local:
-        click.echo("Local models admitted for automatic owned-capacity-first maintenance:")
-        for a in local:
-            exp = a.expires_at.strftime("%Y-%m-%d") if a.expires_at else "never"
-            click.echo(f"  {status_word('ok')} {a.model} for {a.task_class} (expires {exp})")
-    else:
-        click.echo("No local models admitted yet. `deepr capacity admit <model> --task-class sync` lets")
-        click.echo("`expert sync`/`absorb` use a local model automatically (review quality first).")
-
-    if plan:
-        click.echo("")
-        click.echo("Plan-quota CLIs with recorded routing intent (quota observation still required):")
-        for a in plan:
-            exp = a.expires_at.strftime("%Y-%m-%d") if a.expires_at else "never"
-            click.echo(f"  [+] {a.model.removeprefix(PLAN_ADMISSION_PREFIX)} for {a.task_class} (expires {exp})")
 
 
 @capacity.command(name="next")

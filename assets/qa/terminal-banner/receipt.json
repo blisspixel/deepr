@@ -1,0 +1,172 @@
+{
+  "source_base": "f9ef6215792ea498ab8d0feeac306771957a4ed1",
+  "runtime_diff_sha256": "c7bf39764c1fed038da11eb65b5eb0a2641ff8c6bd488f91738e66cf141e4d61",
+  "owning_svg_sha256": "305c2bf97c4c5e64995a940a87cd6f647190ba1f8568385a151a2c7bb4c35b88",
+  "columns": 60,
+  "provider_calls": 0,
+  "cases": [
+    {
+      "case": "first",
+      "exit": 0,
+      "seconds": 0.80096,
+      "sync_frames": 8,
+      "sha256": "a767562fedf398f87488f48020be9f991638cfa12018a4a94b4902feea38b38a",
+      "chunks": [
+        {
+          "seconds": 0.103413,
+          "bytes": 846,
+          "sync_frames": 1
+        },
+        {
+          "seconds": 0.187691,
+          "bytes": 841,
+          "sync_frames": 1
+        },
+        {
+          "seconds": 0.271178,
+          "bytes": 843,
+          "sync_frames": 1
+        },
+        {
+          "seconds": 0.354666,
+          "bytes": 843,
+          "sync_frames": 1
+        },
+        {
+          "seconds": 0.438163,
+          "bytes": 843,
+          "sync_frames": 1
+        },
+        {
+          "seconds": 0.521642,
+          "bytes": 843,
+          "sync_frames": 1
+        },
+        {
+          "seconds": 0.605127,
+          "bytes": 843,
+          "sync_frames": 1
+        },
+        {
+          "seconds": 0.688624,
+          "bytes": 845,
+          "sync_frames": 1
+        },
+        {
+          "seconds": 0.772017,
+          "bytes": 20,
+          "sync_frames": 0
+        },
+        {
+          "seconds": 0.77226,
+          "bytes": 15,
+          "sync_frames": 0
+        },
+        {
+          "seconds": 0.772347,
+          "bytes": 2,
+          "sync_frames": 0
+        }
+      ]
+    },
+    {
+      "case": "seen",
+      "exit": 0,
+      "seconds": 0.13659,
+      "sync_frames": 0,
+      "sha256": "2b6aff29488c5fb087a0b408716edc04c1acd660b31c6a9375d23885d5744a15",
+      "chunks": [
+        {
+          "seconds": 0.107988,
+          "bytes": 814,
+          "sync_frames": 0
+        },
+        {
+          "seconds": 0.108046,
+          "bytes": 15,
+          "sync_frames": 0
+        },
+        {
+          "seconds": 0.108071,
+          "bytes": 2,
+          "sync_frames": 0
+        }
+      ]
+    },
+    {
+      "case": "no-color",
+      "exit": 0,
+      "seconds": 0.139458,
+      "sync_frames": 0,
+      "sha256": "1e0f28d376fe7414a353aa054b811b047bec8d43c6699928e83229a084731e11",
+      "chunks": [
+        {
+          "seconds": 0.111654,
+          "bytes": 760,
+          "sync_frames": 0
+        },
+        {
+          "seconds": 0.111714,
+          "bytes": 15,
+          "sync_frames": 0
+        },
+        {
+          "seconds": 0.111783,
+          "bytes": 2,
+          "sync_frames": 0
+        }
+      ]
+    },
+    {
+      "case": "reduced",
+      "exit": 0,
+      "seconds": 0.148855,
+      "sync_frames": 0,
+      "sha256": "2b6aff29488c5fb087a0b408716edc04c1acd660b31c6a9375d23885d5744a15",
+      "chunks": [
+        {
+          "seconds": 0.115961,
+          "bytes": 814,
+          "sync_frames": 0
+        },
+        {
+          "seconds": 0.116008,
+          "bytes": 15,
+          "sync_frames": 0
+        },
+        {
+          "seconds": 0.116023,
+          "bytes": 2,
+          "sync_frames": 0
+        }
+      ]
+    },
+    {
+      "case": "screen-reader",
+      "exit": 0,
+      "seconds": 0.150254,
+      "sync_frames": 0,
+      "sha256": "e438002b78111e72eef00d1dc2b55d60f682c276c52ef4b9c592575469e7acb5",
+      "chunks": [
+        {
+          "seconds": 0.119424,
+          "bytes": 15,
+          "sync_frames": 0
+        }
+      ]
+    }
+  ],
+  "kind": "Actual 60-column PTY capture; static seen-state bytes rendered through explicit 16-slot palettes",
+  "node": "24.22.0",
+  "physical_theme_switch_tested": false,
+  "mark_recipe": "Sample the three SVG path segments at 16x24 pixel centers; include centers within 1.3 SVG units; encode standard braille dot order into eight columns and six rows. Owning geometry is asserted by tests.",
+  "artifacts": {
+    "first.ansi": "a767562fedf398f87488f48020be9f991638cfa12018a4a94b4902feea38b38a",
+    "seen.ansi": "2b6aff29488c5fb087a0b408716edc04c1acd660b31c6a9375d23885d5744a15",
+    "no-color.ansi": "1e0f28d376fe7414a353aa054b811b047bec8d43c6699928e83229a084731e11",
+    "reduced.ansi": "2b6aff29488c5fb087a0b408716edc04c1acd660b31c6a9375d23885d5744a15",
+    "screen-reader.ansi": "e438002b78111e72eef00d1dc2b55d60f682c276c52ef4b9c592575469e7acb5",
+    "banner-light.png": "40638af6607453432654b6a803ce4087ab35a23e420ba8c62bc6365959c9360f",
+    "banner-dark.png": "530beab20460c4363e7464d3e835df1d64b52c23982da7641e464319d877af32"
+  }
+}

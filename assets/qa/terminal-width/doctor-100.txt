@@ -1,0 +1,55 @@
+Running Deepr diagnostics...
+
+Offline mode: provider connectivity checks are skipped.
+
+Running checks  [------------------------------------]    0%Running checks  [###---------------------------------]   10%Running checks  [#######-----------------------------]   20%Running checks  [##########--------------------------]   30%Running checks  [##############----------------------]   40%Running checks  [##################------------------]   50%Running checks  [#####################---------------]   60%Running checks  [#########################-----------]   70%Running checks  [############################--------]   80%Running checks  [################################----]   90%Running checks  [####################################]  100%
+Executable capacity not established. Local generation: unverified.
+
+Configuration
+  ok         Configuration files: Dotenv loading disabled (PYTHON_DOTENV_DISABLED)
+
+API Keys
+  skipped    Metered API capacity: No metered API keys; inspect local and explicit plan capacity 
+with deepr capacity
+
+Local Capacity
+  unverified Local Ollama generation: Unverified: provider connectivity checks were skipped
+      Run `deepr capacity` for read-only local cloud/model proof; it performs no inference.
+
+Filesystem
+  ok         Temp Directory: Writable
+      Path: /tmp
+  ok         Current Directory: Writable
+      Path: /home/pueo/Work/deepr/.agent/reader-evidence/terminal-width234-portable-final
+  ok         .deepr Directory: Writable
+      Path: /home/pueo/.deepr
+
+Storage
+  ok         Experts: 
+/home/pueo/Work/deepr/.agent/reader-evidence/terminal-width234-portable-final/experts
+      Set DEEPR_DATA_DIR (or DEEPR_EXPERTS_PATH) to move portable state across machines
+      A synced DEEPR_DATA_DIR includes runtime state; stop Deepr services before switching
+      Use one writer at a time and wait for sync to finish before switching devices
+  ok         Research reports: 
+/home/pueo/Work/deepr/.agent/reader-evidence/terminal-width234-portable-final/reports
+
+Spend
+  ok         Monthly spend vs budget: $0.00 spent this month
+  ok         Paid artifacts on disk: No unexplained spend ($0.00 matched, $0.00 disposed, 45 days)
+
+MCP
+  ok         MCP offline conformance: ok (6 checks; modern 2026-07-28)
+      Next: deepr mcp conformance --json
+      No network, no model, $0; form and side-effect posture only
+  ok         MCP host project wiring: advisory: no project .mcp.json with deepr
+      Coding hosts need install + session restart, not only a pasted brief
+      Next: deepr mcp install-host --project .
+      Also: deepr mcp host-brief
+      claude CLI not on PATH; .mcp.json still usable by hosts that read it
+
+Summary: 10/10 required checks passed; 0 advisory, 10 optional, 1 unverified
+
+No blocking configuration issues; skipped or blocked checks remain unverified.
+
+No metered API keys are configured. Local and plan workflows require their own capacity proof.
+Next: deepr capacity

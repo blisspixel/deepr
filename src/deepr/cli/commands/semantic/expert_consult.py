@@ -389,6 +389,7 @@ def expert_consult(
     answer with agreements and dissent. Experts do not exchange model-generated
     turns, and the consultation never writes beliefs or graph state.
 
+    \b
     EXAMPLES:
       deepr expert consult "How should we harden absorption provenance?"
       deepr expert consult "Cost vs quality tradeoff?" -e "AI Cost Optimization" -e "LLM Evaluation and Calibration"

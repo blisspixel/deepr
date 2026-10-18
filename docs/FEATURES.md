@@ -1542,7 +1542,14 @@ Notes:
 - Legacy direct env keys still work (for example `DEEPR_ANIMATIONS=light`)
 - Startup banner controls:
 - `DEEPR_BANNER_MODE=off|static|light|full`
-- `DEEPR_BANNER_DURATION=<seconds>` (animated modes only)
+- `DEEPR_BANNER_DURATION=<seconds>` (animated modes only; default 0.6s, bounded 0.3-6s)
+- `DEEPR_BANNER_FPS=<frames>` (bounded 1-12; default 12)
+
+The palette-based mark and wordmark reveal once on the first interactive
+startup or setup, then stay static. Reduced motion, `NO_COLOR`, CI and dumb
+terminals stay static; screen readers, legacy encodings and narrow windows
+get a compact signature. Help and redirected output never show it. An explicit
+banner or branding opt-out wins over a force-show request.
 
 ## Analytics
 

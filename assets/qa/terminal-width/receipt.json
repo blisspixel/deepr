@@ -1,0 +1,71 @@
+{
+  "kind": "Actual local read-only PTY commands, no model or paid provider calls; host capacity varies independently of rendering",
+  "source_base": "f9ef6215792ea498ab8d0feeac306771957a4ed1",
+  "runtime_diff_sha256": "c7bf39764c1fed038da11eb65b5eb0a2641ff8c6bd488f91738e66cf141e4d61",
+  "captures": [
+    {
+      "command": [
+        "--help"
+      ],
+      "width": 60,
+      "exit": 0,
+      "widest": 60,
+      "over_width": []
+    },
+    {
+      "command": [
+        "capacity"
+      ],
+      "width": 60,
+      "exit": 0,
+      "widest": 60,
+      "over_width": []
+    },
+    {
+      "command": [
+        "doctor",
+        "--skip-connectivity"
+      ],
+      "width": 60,
+      "exit": 0,
+      "widest": 60,
+      "over_width": []
+    },
+    {
+      "command": [
+        "--help"
+      ],
+      "width": 100,
+      "exit": 0,
+      "widest": 99,
+      "over_width": []
+    },
+    {
+      "command": [
+        "capacity"
+      ],
+      "width": 100,
+      "exit": 0,
+      "widest": 100,
+      "over_width": []
+    },
+    {
+      "command": [
+        "doctor",
+        "--skip-connectivity"
+      ],
+      "width": 100,
+      "exit": 0,
+      "widest": 98,
+      "over_width": []
+    }
+  ],
+  "artifacts": {
+    "help-60.txt": "188793600720338431fd24e88b0d263abdd301961afad953fd6c809737576239",
+    "capacity-60.txt": "118d25d7cc87f6b4f12c0ec535412a1c039b8b2f7b28db5b3f942169e41c735a",
+    "doctor-60.txt": "e3cda4d57a620a53579b455d615a4a22835a00b1408664b121fbaee1f7d5621e",
+    "help-100.txt": "87bb1e6663fb78968278310314355c40cec6a44fbecaba01e43ef70f8a1126db",
+    "capacity-100.txt": "59c58d6038003aadea2c1af452e96cb84041ff30d273c57f9b311cc82cde5a4a",
+    "doctor-100.txt": "7965d975ed19a264c7fd3f3b54e7f351ce945c92b64717033d1e7fcf186a5413"
+  }
+}

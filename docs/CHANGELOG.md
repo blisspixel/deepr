@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Startup and narrow terminals** use the owning dashboard mark and terminal
+  palette, with one bounded synchronized reveal and accessible static fallbacks.
+  Root help, capacity and offline doctor fit 60/100 columns; complete next
+  commands stay intact and consult examples retain separate lines.
+
 - Command rendering uses one semantic palette map with default-foreground
   body/provenance, palette-based effects, explicit status words, neutral passing
   fleet grades and complete `Next:` / `Also:` command guidance (#230). Doctor,

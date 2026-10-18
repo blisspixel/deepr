@@ -23,9 +23,11 @@ Validation and practical limits: [reader evidence repairs](docs/validation/exper
 [local embedding profiles](docs/validation/local-embedding-profiles-2026-10-18.md),
 [maintained runtimes](docs/validation/maintained-runtimes-2026-10-18.md).
 
-Terminal roles and status words (#230) pass local verification and await
-exact-head CI. Next: startup/width (#234), the optional companion (#235) and
-interface tracker (#236).
+Terminal roles and status words (#230) merged through PR #248 after all
+exact-head checks passed; they remain under Unreleased. Startup/width (#234)
+passes local unit/coverage and width verification and awaits exact-head CI.
+Next: the optional companion (#235) and actual built-dashboard
+light/dark acceptance (#236).
 SearXNG, unattended and MCP OpenRouter, and sleep-time overwrite of claims
 stay blocked.
 

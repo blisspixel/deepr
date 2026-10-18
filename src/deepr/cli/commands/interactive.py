@@ -644,7 +644,13 @@ def _help_menu(ctx: click.Context | None = None):
 
 
 @click.command()
-@click.option("--banner", "banner_override", flag_value="on", default=None, help="Force-show startup banner")
+@click.option(
+    "--banner",
+    "banner_override",
+    flag_value="on",
+    default=None,
+    help="Request startup banner; reduced motion and opt-outs still apply",
+)
 @click.option("--no-banner", "banner_override", flag_value="off", help="Skip startup banner")
 @click.pass_context
 def interactive(ctx: click.Context, banner_override: str | None):

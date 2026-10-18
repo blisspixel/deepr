@@ -25,8 +25,8 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 # Baselines measured with ruff 0.16.0 over deepr/. These are
 # ceilings: the count may fall (then lower the baseline) but never rise.
 BASELINES: dict[str, int] = {
-    "C901": 134,  # functions over the mccabe complexity cap (max-complexity 10)
-    "S": 48,  # flake8-bandit security findings
+    "C901": 133,  # functions over the mccabe complexity cap (max-complexity 10)
+    "S": 47,  # flake8-bandit security findings
 }
 
 

@@ -1,222 +1,245 @@
-"""Tests for startup banner policy and defaults."""
+"""Startup presentation policy, palette, timing and interruption regressions."""
 
+import math
+import re
 from io import StringIO
 from pathlib import Path
 
 import pytest
 from rich.console import Console
 
-from deepr.cli.startup_banner import (
-    _BANNER_ART,
-    _banner_end_hold_seconds,
-    _duration_for_mode,
-    _ease_in_out_cubic,
-    _fps_for_banner,
-    _is_truthy,
-    _mark_seen,
-    _precompute_gradient,
-    _render_ansi_frame,
-    _render_static,
-    _supports_full_banner,
-    _terminal_width,
-    colorize_banner,
-    resolve_banner_plan,
-    show_startup_banner,
-)
-
-
-def _interactive_console() -> Console:
-    return Console(force_terminal=True, force_interactive=True, width=100)
+import deepr.cli.effects as effects
+import deepr.cli.startup_banner as banner
 
 
 @pytest.fixture(autouse=True)
-def _isolate_banner_environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Banner policy is env-sensitive; keep hermetic under dumb/CI shells."""
+def isolate(monkeypatch):
     monkeypatch.setenv("TERM", "xterm-256color")
-    monkeypatch.delenv("CI", raising=False)
-    monkeypatch.delenv("NO_COLOR", raising=False)
-    monkeypatch.delenv("DEEPR_BRANDING", raising=False)
-    monkeypatch.delenv("DEEPR_ANIMATIONS", raising=False)
-    monkeypatch.delenv("DEEPR_BANNER_MODE", raising=False)
-    monkeypatch.delenv("DEEPR_SCREEN_READER", raising=False)
+    for key in (
+        "CI",
+        "NO_COLOR",
+        "DEEPR_BRANDING",
+        "DEEPR_ANIMATIONS",
+        "DEEPR_BANNER_MODE",
+        "DEEPR_SCREEN_READER",
+        "SCREENREADER",
+        "TERM_SCREEN_READER",
+        "DEEPR_BANNER_FPS",
+        "DEEPR_BANNER_DURATION",
+    ):
+        monkeypatch.delenv(key, raising=False)
 
 
-def test_banner_defaults_to_full_on_first_run(tmp_path: Path):
-    plan = resolve_banner_plan(_interactive_console(), state_dir=tmp_path)
-
-    assert plan.show is True
-    assert plan.mode == "full"
-    assert plan.mark_seen is True
+def terminal(width=100, **options):
+    return Console(
+        file=StringIO(), force_terminal=True, force_interactive=True, width=width, legacy_windows=False, **options
+    )
 
 
-def test_banner_defaults_to_full_after_seen(tmp_path: Path):
-    (tmp_path / "banner_seen_v1").write_text("seen\n", encoding="utf-8")
-    plan = resolve_banner_plan(_interactive_console(), state_dir=tmp_path)
-
-    assert plan.show is True
-    assert plan.mode == "full"
-
-
-def test_banner_disabled_in_ci_unless_forced(monkeypatch, tmp_path: Path):
-    monkeypatch.setenv("CI", "1")
-
-    default_plan = resolve_banner_plan(_interactive_console(), state_dir=tmp_path)
-    forced_plan = resolve_banner_plan(_interactive_console(), override="on", state_dir=tmp_path)
-
-    assert default_plan.show is False
-    assert forced_plan.show is True
+def test_first_encounter_animates_then_seen_is_static(tmp_path):
+    console = terminal()
+    assert banner.resolve_banner_plan(console, state_dir=tmp_path) == banner.BannerPlan(True, "full", True)
+    banner._mark_seen(tmp_path)
+    assert banner.resolve_banner_plan(console, override="on", state_dir=tmp_path) == banner.BannerPlan(
+        True, "static", False
+    )
 
 
-def test_banner_respects_branding_off(monkeypatch, tmp_path: Path):
-    monkeypatch.setenv("DEEPR_BRANDING", "off")
+@pytest.mark.parametrize(
+    "key,value",
+    [
+        ("CI", "1"),
+        ("NO_COLOR", ""),
+        ("TERM", "dumb"),
+        ("DEEPR_ANIMATIONS", "off"),
+        ("DEEPR_SCREEN_READER", "1"),
+        ("SCREENREADER", "true"),
+        ("TERM_SCREEN_READER", "yes"),
+        ("DEEPR_BANNER_MODE", "static"),
+    ],
+)
+def test_reduced_motion_is_static_even_when_requested(monkeypatch, tmp_path, key, value):
+    monkeypatch.setenv(key, value)
+    plan = banner.resolve_banner_plan(terminal(), override="on", state_dir=tmp_path)
+    assert plan.show and plan.mode == "static"
 
-    plan = resolve_banner_plan(_interactive_console(), state_dir=tmp_path)
 
-    assert plan.show is False
-    assert plan.mode == "off"
+@pytest.mark.parametrize("key", ["DEEPR_BANNER_MODE", "DEEPR_BRANDING"])
+def test_environment_off_is_final(monkeypatch, tmp_path, key):
+    monkeypatch.setenv(key, "off")
+    assert not banner.resolve_banner_plan(terminal(), override="on", state_dir=tmp_path).show
 
 
-def test_banner_static_when_animations_off(monkeypatch, tmp_path: Path):
+@pytest.mark.parametrize("override", [None, "on", "off"])
+def test_redirected_output_has_no_banner_or_marker(tmp_path, override):
+    console = Console(file=StringIO(), force_terminal=False)
+    banner.show_startup_banner(console, version="test", override=override, state_dir=tmp_path)
+    assert console.file.getvalue() == "" and list(tmp_path.iterdir()) == []
+
+
+def test_explicit_off_has_no_marker(tmp_path):
+    console = terminal()
+    banner.show_startup_banner(console, version="test", override="off", state_dir=tmp_path)
+    assert console.file.getvalue() == "" and list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("options", [{"no_color": True}, {"color_system": None}])
+def test_console_capability_reduces_motion_without_environment(tmp_path, options):
+    assert banner.resolve_banner_plan(terminal(**options), state_dir=tmp_path).mode == "static"
+
+
+@pytest.mark.parametrize("value,expected", [("600", 12), ("12", 12), ("1", 1), ("0", 1), ("bad", 12)])
+def test_frame_rate_is_bounded(monkeypatch, value, expected):
+    monkeypatch.setenv("DEEPR_BANNER_FPS", value)
+    assert banner._fps_for_banner() == expected
+
+
+@pytest.mark.parametrize(
+    "value,expected", [("3", 3.0), ("0", 0.3), ("99", 6.0), ("bad", 0.6), ("nan", 0.6), ("inf", 0.6)]
+)
+def test_duration_is_finite_and_bounded(monkeypatch, value, expected):
+    monkeypatch.setenv("DEEPR_BANNER_DURATION", value)
+    assert banner._duration_for_mode("full") == expected
+
+
+def test_one_sleep_per_synchronized_frame_and_final_cursor_restore(tmp_path, monkeypatch):
+    sleeps = []
+    monkeypatch.setattr(banner.time, "sleep", sleeps.append)
+    console = terminal()
+    banner.show_startup_banner(console, version="test", state_dir=tmp_path)
+    output = console.file.getvalue()
+    assert len(sleeps) == output.count(effects._SYNC_START) == 8
+    assert all(delay >= 1 / 12 for delay in sleeps)
+    assert 0.6 <= sum(sleeps) <= 0.75
+    assert output.count(effects._SYNC_END) == 9
+    assert banner._ANSI_SHOW_CURSOR in output
+    assert (tmp_path / "banner_seen_v1").read_text() == "seen\n"
+    for sequence in re.findall(r"\x1b\[([0-9;]*)m", output):
+        assert all(int(code) in {0, 1, 2, 36} for code in sequence.split(";") if code)
+    assert banner._render_ansi_frame("X", 0) == "\x1b[2;36mX\x1b[0m"
+    assert banner._render_ansi_frame("X", 1) == "\x1b[1;36mX\x1b[0m"
+
+
+def test_interrupt_restores_output_and_does_not_mark_seen(tmp_path, monkeypatch):
+    def interrupt(_):
+        raise KeyboardInterrupt()
+
+    monkeypatch.setattr(banner.time, "sleep", interrupt)
+    console = terminal()
+    with pytest.raises(KeyboardInterrupt):
+        banner.show_startup_banner(console, version="test", state_dir=tmp_path)
+    assert console.file.getvalue().endswith(effects._SYNC_END + banner._ANSI_SHOW_CURSOR + "\x1b[0m")
+    assert not (tmp_path / "banner_seen_v1").exists()
+
+
+def test_render_failure_restores_cursor_before_static_fallback(tmp_path, monkeypatch):
+    def fail(*_):
+        raise RuntimeError("frame failed")
+
+    monkeypatch.setattr(banner, "_render_ansi_frame", fail)
+    console = terminal()
+    banner.show_startup_banner(console, version="test", state_dir=tmp_path)
+    text = console.file.getvalue()
+    assert text.index(banner._ANSI_SHOW_CURSOR) < text.index("deepr test")
+    assert (tmp_path / "banner_seen_v1").is_file()
+
+
+@pytest.mark.parametrize("width,reader", [(30, False), (60, True)])
+def test_accessible_compact_signature(monkeypatch, tmp_path, width, reader):
     monkeypatch.setenv("DEEPR_ANIMATIONS", "off")
-
-    plan = resolve_banner_plan(_interactive_console(), state_dir=tmp_path)
-
-    assert plan.show is True
-    assert plan.mode == "static"
-
-
-def test_banner_disabled_for_screen_reader(monkeypatch, tmp_path: Path):
-    monkeypatch.setenv("DEEPR_SCREEN_READER", "true")
-
-    plan = resolve_banner_plan(_interactive_console(), state_dir=tmp_path)
-
-    assert plan.show is False
-    assert plan.mode == "off"
+    if reader:
+        monkeypatch.setenv("DEEPR_SCREEN_READER", "1")
+    console = terminal(width)
+    banner.show_startup_banner(console, version="test", state_dir=tmp_path)
+    assert console.file.getvalue() == "deepr test\n"
 
 
-def test_banner_override_off_always_disables(tmp_path: Path):
-    plan = resolve_banner_plan(_interactive_console(), override="off", state_dir=tmp_path)
-
-    assert plan.show is False
-    assert plan.mode == "off"
-
-
-def test_banner_mode_env_override(monkeypatch, tmp_path: Path):
-    monkeypatch.setenv("DEEPR_BANNER_MODE", "static")
-
-    plan = resolve_banner_plan(_interactive_console(), state_dir=tmp_path)
-
-    assert plan.show is True
-    assert plan.mode == "static"
+def test_no_color_retains_static_shape_and_version(tmp_path, monkeypatch):
+    monkeypatch.setenv("NO_COLOR", "1")
+    console = terminal()
+    banner.show_startup_banner(console, version="test", state_dir=tmp_path)
+    text = console.file.getvalue()
+    assert "\x1b" not in text and "█" in text and "deepr test" in text
 
 
-def test_banner_mode_env_off(monkeypatch, tmp_path: Path):
-    monkeypatch.setenv("DEEPR_BANNER_MODE", "off")
+def test_mark_is_projection_of_the_owning_dashboard_geometry():
+    svg = (Path(__file__).resolve().parents[3] / "src/deepr/web/frontend/public/deepr.svg").read_text()
+    assert 'd="M23 10L16 4V28"' in svg and 'd="M16 15L9 22"' in svg
+    segments = [((23, 10), (16, 4)), ((16, 4), (16, 28)), ((16, 15), (9, 22))]
 
-    plan = resolve_banner_plan(_interactive_console(), state_dir=tmp_path)
+    def covered(x, y):
+        for (ax, ay), (bx, by) in segments:
+            t = max(0, min(1, ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / ((bx - ax) ** 2 + (by - ay) ** 2)))
+            if math.hypot(x - (ax + t * (bx - ax)), y - (ay + t * (by - ay))) <= 1.3:
+                return True
+        return False
 
-    assert plan.show is False
-    assert plan.mode == "off"
-
-
-def test_duration_override_env(monkeypatch):
-    monkeypatch.setenv("DEEPR_BANNER_DURATION", "3.0")
-    assert _duration_for_mode("full") == 3.0
-
-
-def test_duration_override_invalid_falls_back(monkeypatch):
-    monkeypatch.setenv("DEEPR_BANNER_DURATION", "not-a-number")
-    assert _duration_for_mode("light") == 0.8
-
-
-def test_is_truthy_and_fps_and_hold(monkeypatch):
-    assert _is_truthy("YES")
-    assert not _is_truthy("no")
-    monkeypatch.setenv("DEEPR_BANNER_FPS", "12")
-    assert _fps_for_banner() == 12
-    monkeypatch.setenv("DEEPR_BANNER_FPS", "bad")
-    assert _fps_for_banner() == 60
-    monkeypatch.setenv("DEEPR_BANNER_HOLD", "1.5")
-    assert _banner_end_hold_seconds() == 1.5
-    monkeypatch.setenv("DEEPR_BANNER_HOLD", "nope")
-    assert _banner_end_hold_seconds() == 0.0
-
-
-def test_ease_gradient_and_ansi_frame():
-    assert _ease_in_out_cubic(0.0) == 0.0
-    assert _ease_in_out_cubic(1.0) == 1.0
-    assert _ease_in_out_cubic(0.25) < 0.5
-    codes = _precompute_gradient(4)
-    assert len(codes) == 4
-    assert codes[0].startswith("\033[1;38;2;")
-    frame = _render_ansi_frame(["AB", "  "], 2, 1.0, codes[:2], "\033[38;2;96;96;96m")
-    assert "A" in frame
-    assert "B" in frame
+    rows = []
+    for row in range(6):
+        cells = []
+        for col in range(8):
+            bits = sum(
+                1 << bit
+                for dx, dy, bit in [
+                    (0, 0, 0),
+                    (0, 1, 1),
+                    (0, 2, 2),
+                    (1, 0, 3),
+                    (1, 1, 4),
+                    (1, 2, 5),
+                    (0, 3, 6),
+                    (1, 3, 7),
+                ]
+                if covered((col * 2 + dx + 0.5) * 2, (row * 4 + dy + 0.5) * 32 / 24)
+            )
+            cells.append(chr(0x2800 + bits) if bits else " ")
+        rows.append("".join(cells))
+    assert tuple(rows) == banner._MARK_ART
+    assert max(map(len, banner._BANNER_ART.splitlines())) <= 54
 
 
-def test_supports_full_banner_and_width():
-    wide = Console(force_terminal=True, width=80, file=StringIO(), legacy_windows=False)
-    assert _terminal_width(wide) == 80
-    assert _supports_full_banner(wide, 80) is True
-    assert _supports_full_banner(wide, 20) is False
-    legacy = Console(force_terminal=True, width=80, file=StringIO(), legacy_windows=True)
-    assert _supports_full_banner(legacy, 80) is False
-
-
-def test_colorize_and_static_render():
-    markup = colorize_banner("DEEPR", sweep_progress=1.0)
-    assert "D" in markup
-    empty = colorize_banner("")
-    assert empty == ""
-    buf = StringIO()
-    console = Console(file=buf, force_terminal=True, color_system=None, width=80)
-    _render_static(console, "9.9.9")
-    assert "9.9.9" in buf.getvalue()
-
-
-def test_mark_seen_and_hidden_banner(tmp_path: Path):
-    _mark_seen(tmp_path)
-    assert (tmp_path / "banner_seen_v1").is_file()
-    buf = StringIO()
-    console = Console(file=buf, force_terminal=False, force_interactive=False)
-    show_startup_banner(console, version="1.0.0", override="off", state_dir=tmp_path)
-    assert buf.getvalue() == ""
-
-
-def test_show_static_banner_marks_seen(tmp_path: Path, monkeypatch):
-    monkeypatch.setenv("DEEPR_BANNER_MODE", "static")
-    buf = StringIO()
-    console = Console(file=buf, force_terminal=True, force_interactive=True, width=100)
-    show_startup_banner(console, version="1.2.3", state_dir=tmp_path)
-    output = buf.getvalue()
-    assert "deepr" in output
-    assert "1.2" in output
-    assert not (tmp_path / "banner_seen_v1").is_file()
-
-
-def test_show_full_banner_with_sleep_patched(tmp_path: Path, monkeypatch):
-    monkeypatch.setenv("DEEPR_BANNER_DURATION", "0.3")
-    monkeypatch.setenv("DEEPR_BANNER_FPS", "8")
-    monkeypatch.setenv("DEEPR_BANNER_HOLD", "0")
-    monkeypatch.setattr("deepr.cli.startup_banner._precise_sleep", lambda _target: None)
-    buf = StringIO()
-    console = Console(file=buf, force_terminal=True, force_interactive=True, width=100)
-    show_startup_banner(console, version="2.50.18", override="on", state_dir=tmp_path)
-    output = buf.getvalue()
-    assert "deepr" in output
-    assert "2.50" in output
-    assert "█" in _BANNER_ART
-    assert (tmp_path / "banner_seen_v1").is_file()
-
-
-def test_default_banner_marker_is_per_user_and_cwd_is_untouched(tmp_path, monkeypatch):
+def test_default_marker_is_per_user_and_does_not_touch_cwd(tmp_path, monkeypatch):
     home = tmp_path / "user"
     cwd = tmp_path / "working"
     cwd.mkdir()
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
     monkeypatch.chdir(cwd)
     monkeypatch.setenv("DEEPR_ANIMATIONS", "off")
-    console = Console(file=StringIO(), force_terminal=True, force_interactive=True, width=60)
-    show_startup_banner(console, version="test")
-    assert (home / ".deepr" / "banner_seen_v1").read_text() == "seen\n"
+    banner.show_startup_banner(terminal(60), version="test")
+    assert (home / ".deepr/banner_seen_v1").read_text() == "seen\n"
     assert list(cwd.iterdir()) == []
+
+
+def test_synchronized_output_does_not_escape_into_pipes():
+    output = StringIO()
+    console = Console(file=output, force_terminal=False)
+    with effects.synchronized_output(console):
+        output.write("frame")
+    assert output.getvalue() == "frame"
+
+
+def test_legacy_encoding_uses_compact_plain_signature(tmp_path):
+    class LegacyStream(StringIO):
+        @property
+        def encoding(self):
+            return "cp1252"
+
+    output = LegacyStream()
+    console = Console(file=output, force_terminal=True, legacy_windows=False, width=100)
+    banner.show_startup_banner(console, version="test", state_dir=tmp_path)
+    assert output.getvalue() == "deepr test\n"
+
+
+def test_init_requests_banner_only_after_noninteractive_refusal(monkeypatch, tmp_path):
+    from click.testing import CliRunner
+    from deepr.cli.main import cli
+
+    calls = []
+    monkeypatch.setattr(banner, "show_startup_banner", lambda *args, **kwargs: calls.append(kwargs))
+    runner = CliRunner()
+    with runner.isolated_filesystem(temp_dir=tmp_path):
+        refused = runner.invoke(cli, ["init", "--local-env"])
+        assert refused.exit_code == 2 and not calls and not Path(".env").exists()
+        completed = runner.invoke(cli, ["init", "--local-env", "--yes"])
+        assert completed.exit_code == 0, completed.output
+        assert len(calls) == 1 and calls[0]["version"]
