@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.50.31 current main, 2026-10-17. This document defines what users and host
+Status: v2.50.32 current main, 2026-10-17. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -8,6 +8,8 @@ path is structurally complete but remains execution-blocked without verified
 provider prepaid-no-overage or hard-stop evidence. Attended OpenRouter research
 is the exception: one pinned no-tool completion after wallet credits and
 `deepr budget authorize openrouter`.
+
+**v2.50.32 maintenance:** Research previews explain why web search is disabled. Capacity quota inspection creates no files; partial final records refuse inspection. Doctor and expert list expose JSON, and doctor separates capacity proof from generation. Consultation pre-result refusals expose structured errors. These repairs add no execution or learning authority.
 
 **v2.50.31 maintenance:** Knowledge pages show excerpts, recorded match counts and position support labels. New brief statements record studied, broader-knowledge or reasoning origins; older prose remains unattributed. Statement links require matching study identity. Consult displays full answers with grounds, support, stored-only currency and pushback. Failed first-build studies remain inspectable and share a formation-first next step; one-expert local consult prefers the completed formation model while the recorded artifacts still match, after an explicit override. These are structural disclosure repairs, not advice qualification or a completed S0 baseline.
 
@@ -207,6 +209,15 @@ does not yet execute work through it.
 must not be described as usable capacity.
 
 ## Stable Today
+
+- `doctor --json` and `expert list --json` expose stored inspection results;
+  doctor progress goes to stderr and optional details are available with
+  `--all`. Local cloud/model proof is distinct from a generation test.
+  Consultation pre-result refusals preserve exit codes and expose structured
+  error classification and next-step hints. Capacity inspection creates no
+  quota directory or lock, and refuses partial final records without writing.
+  Research previews explain the effective web-search posture without opening
+  new tool or provider execution.
 
 - Write-free bounded research preview through `deepr research --preview` for
   provider/model/tool combinations with a complete finite cost envelope.

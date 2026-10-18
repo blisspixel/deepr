@@ -1424,3 +1424,17 @@ complete input, context, control, and staged-apply workflow.
 - [FEATURES.md](FEATURES.md) - Full command reference
 - [MODELS.md](MODELS.md) - Model selection guide
 - [../ROADMAP.md](../ROADMAP.md) - Development priorities
+
+## Machine-readable inspection
+
+`deepr expert list --json` emits the same stored inventory as the human view:
+claim and document counts, conversation and research totals, dates and the
+recorded knowledge status. Claim confidence estimates are not expertise grades.
+The [inventory schema](schemas/expert-inventory-v1.json) describes this view.
+
+Before a versioned consultation result exists, `expert consult --json`
+refusals include `status: error` and an `error` object with `code`, `message`,
+`category`, `retryable` and `hint`. Missing local capacity keeps exit code 2
+and points to `deepr capacity --probe`. Completed or incomplete consultation
+artifacts retain their existing `deepr-consult-v1` contract and exit codes.
+No inspection command grants research, spend or learning authority.

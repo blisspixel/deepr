@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Deepr stored expert inventory v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "experts",
+    "count",
+    "cost_usd"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "deepr-expert-inventory-v1"
+    },
+    "experts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "created_at",
+          "updated_at",
+          "knowledge_status",
+          "description",
+          "average_claim_confidence",
+          "research_cost_usd",
+          "claims",
+          "documents",
+          "conversations",
+          "research_jobs"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "knowledge_status": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "average_claim_confidence": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "research_cost_usd": {
+            "type": "number",
+            "minimum": 0
+          },
+          "claims": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "documents": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "conversations": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "research_jobs": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "cost_usd": {
+      "const": 0.0
+    }
+  }
+}

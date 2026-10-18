@@ -17,7 +17,7 @@ from deepr.cli.colors import (
     print_warning,
 )
 from deepr.cli.commands.semantic.local_expert import local_creation_options, make_local_expert_profile
-from deepr.experts.claim_inventory import format_knowledge_status, read_claim_inventory
+from deepr.experts.claim_inventory import read_claim_inventory
 from deepr.experts.metered_mutation_gate import (
     MeteredExpertMutationDisabledError,
     require_metered_expert_mutation,
@@ -569,66 +569,18 @@ def _expert_claim_inventory(expert) -> tuple[int, float | None]:
 
 
 @expert.command(name="list")
-def list_experts():
-    """List all available experts.
+@click.option("--json", "json_output", is_flag=True, help="Emit the stored expert inventory as JSON.")
+def list_experts(json_output: bool = False):
+    """List available experts and their stored knowledge inventory."""
+    import json
 
-    Shows expert names, descriptions, belief claim counts, document counts,
-    conversation history, creation dates, and knowledge freshness status.
+    from deepr.cli.expert_inventory import expert_inventory, render_expert_inventory
 
-    USAGE:
-      deepr expert list
-      deepr expert --list
-      deepr expert -l
-    """
-    from deepr.cli.colors import console, print_header
-    from deepr.experts.profile import ExpertStore
-
-    print_header("Domain Experts")
-
-    store = ExpertStore()
-    experts = store.list_all()
-
-    if not experts:
-        console.print("No experts found.")
-        console.print("\nCreate one with:")
-        console.print('  deepr expert make "Expert Name" -f documents/*.md')
-        return
-
-    console.print(f"Found {len(experts)} expert(s):\n")
-
-    for expert in experts:
-        inventory = read_claim_inventory(expert)
-        claim_count, avg_conf = inventory.claim_count, inventory.avg_confidence
-        console.print(f"  [bold]Name:[/bold] {expert.name}")
-        if expert.description:
-            console.print(f"    Description: [dim]{expert.description}[/dim]")
-        conf_bit = f", avg conf {avg_conf:.2f}" if avg_conf is not None and claim_count else ""
-        console.print(f"    Claims: {claim_count}{conf_bit}")
-        console.print(f"    Documents: {expert.total_documents}")
-        console.print(f"    Conversations: {expert.conversations}")
-        if expert.research_triggered > 0:
-            console.print(
-                f"    Research: {expert.research_triggered} jobs [yellow](${expert.total_research_cost:.2f})[/yellow]"
-            )
-
-        # Show temporal information
-        created_str = expert.created_at.strftime("%Y-%m-%d")
-        updated_str = expert.updated_at.strftime("%Y-%m-%d")
-
-        if created_str == updated_str:
-            console.print(f"    Created: {created_str}")
-        else:
-            console.print(f"    Created: {created_str}, Updated: {updated_str}")
-
-        console.print(f"    Knowledge: {format_knowledge_status(expert, inventory)}")
-
-        console.print()
-
-    console.print("Usage:")
-    console.print('  deepr expert consult "your question" --expert "<name>" --local')
-    console.print(
-        "  Note: Claims are the belief-store inventory. Documents: 0 with Claims > 0 is normal after absorb --file."
-    )
+    payload = expert_inventory()
+    if json_output:
+        click.echo(json.dumps(payload, indent=2))
+    else:
+        render_expert_inventory(payload, console)
 
 
 @expert.command(name="info")

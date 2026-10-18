@@ -1,9 +1,11 @@
 """Diagnostics command for troubleshooting Deepr configuration."""
 
 import asyncio
+import json
 import os
 import tempfile
 from pathlib import Path
+from typing import Any
 
 import click
 
@@ -320,14 +322,44 @@ def _summarize(checks: list[DiagnosticCheck]) -> dict[str, int]:
     }
 
 
-def print_checks(checks: list[DiagnosticCheck]):
+def _capacity_summary(checks: list[DiagnosticCheck]) -> dict[str, str | bool]:
+    local = next((check for check in checks if check.name == "Local Ollama generation"), None)
+    state = "ready" if local and local.passed else "unverified" if local is None or local.unverified else "unavailable"
+    headline = (
+        "Local capacity proof is ready; generation has not been exercised by doctor."
+        if state == "ready"
+        else f"Executable capacity not established. Local generation: {state}."
+    )
+    return {"local_capacity_proof": state, "generation_tested": False, "headline": headline}
+
+
+def _check_payload(check: DiagnosticCheck) -> dict[str, object]:
+    return {
+        "name": check.name,
+        "category": check.category,
+        "passed": check.passed,
+        "severity": check.severity,
+        "failure_severity": check.failure_severity,
+        "unverified": check.unverified,
+        "message": check.message,
+        "details": check.details,
+        "visible": check.visible,
+    }
+
+
+def print_checks(checks: list[DiagnosticCheck], *, show_all: bool = False):
     """Print diagnostic checks in a formatted way."""
     from deepr.cli.colors import console, get_symbol
+
+    console.print(_capacity_summary(checks)["headline"])
 
     # Group by category
     categories: dict[str, list[DiagnosticCheck]] = {}
     for check in checks:
-        if not check.visible:
+        if not show_all and (
+            not check.visible
+            or (check.failure_severity == "info" and check.category not in {"API Keys", "Local Capacity"})
+        ):
             continue
         if check.category not in categories:
             categories[check.category] = []
@@ -381,12 +413,39 @@ def print_checks(checks: list[DiagnosticCheck]):
             if unchecked
             else "Required configuration checks passed; optional items are not blocking."
         )
-        console.print(f"\n[green]{get_symbol('success')}[/green] {message}")
+        console.print(f"\n{message}")
+
+
+def diagnostic_report(checks: list[DiagnosticCheck]) -> dict[str, Any]:
+    """One diagnostic result, independent of progress and presentation."""
+    from deepr.cli.output import OperationResult
+
+    counts = _summarize(checks)
+    payload = {
+        "schema_version": "deepr-doctor-v1",
+        "status": "error" if counts["errors"] else "success",
+        "counts": counts,
+        "capacity": _capacity_summary(checks),
+        "checks": [_check_payload(check) for check in checks],
+    }
+    if counts["errors"]:
+        failure = OperationResult(
+            False,
+            0,
+            0,
+            error="Diagnostics found one or more errors.",
+            error_code="DOCTOR_CHECKS_FAILED",
+            category="config",
+        )
+        payload.update(failure.error_payload(hint="deepr doctor --all"))
+    return payload
 
 
 @click.command()
 @click.option("--skip-connectivity", is_flag=True, help="Skip all provider network calls (recommended first run)")
-def doctor(skip_connectivity: bool):
+@click.option("--json", "json_output", is_flag=True, help="Emit diagnostic checks and counts as JSON.")
+@click.option("--all", "show_all", is_flag=True, help="Include optional integration details in the human view.")
+def doctor(skip_connectivity: bool, json_output: bool, show_all: bool):
     """Run diagnostics to check Deepr configuration and connectivity.
 
     Checks:
@@ -399,11 +458,12 @@ def doctor(skip_connectivity: bool):
         deepr doctor --skip-connectivity
         deepr doctor  # read-only local proof; external provider calls remain blocked
     """
-    click.echo("Running Deepr diagnostics...\n")
-    if skip_connectivity:
+    if not json_output:
+        click.echo("Running Deepr diagnostics...\n")
+    if skip_connectivity and not json_output:
         click.echo("Offline mode: provider connectivity checks are skipped.\n")
 
-    async def run_diagnostics() -> int:
+    async def run_diagnostics() -> list[DiagnosticCheck]:
         all_checks = []
 
         # Load config
@@ -414,7 +474,7 @@ def doctor(skip_connectivity: bool):
             raise click.ClickException("Could not load configuration. Review local settings and retry.") from exc
 
         # Run all checks
-        with click.progressbar(length=10, label="Running checks") as bar:
+        with click.progressbar(length=10, label="Running checks", file=click.get_text_stream("stderr")) as bar:
             all_checks.extend(await check_api_keys(config))
             bar.update(1)
 
@@ -447,14 +507,30 @@ def doctor(skip_connectivity: bool):
             all_checks.extend(check_mcp_host_wiring())
             bar.update(1)
 
-        # Print results
-        print_checks(all_checks)
-        print_next_step(all_checks)
-        return _summarize(all_checks)["errors"]
+        return all_checks
 
-    # Run async checks
-    if run_async_command(run_diagnostics()):
-        raise click.ClickException("Diagnostics found one or more errors.")
+    from deepr.cli.output import OperationResult
+
+    try:
+        checks = run_async_command(run_diagnostics())
+    except click.ClickException as exc:
+        if not json_output:
+            raise
+        failure = OperationResult(False, 0, 0, error=str(exc), error_code="DOCTOR_CONFIG_FAILED", category="config")
+        click.echo(json.dumps(failure.error_payload(hint="deepr config show")))
+        raise click.exceptions.Exit(1) from exc
+    payload = diagnostic_report(checks)
+    counts = payload["counts"]
+    if json_output:
+        click.echo(json.dumps(payload, indent=2))
+    else:
+        print_checks(checks, show_all=show_all)
+        print_next_step(checks)
+    if counts["errors"]:
+        error = (
+            click.exceptions.Exit(1) if json_output else click.ClickException("Diagnostics found one or more errors.")
+        )
+        raise error
 
 
 def print_next_step(checks: list[DiagnosticCheck]) -> None:

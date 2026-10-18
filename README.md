@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.50.31-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.31)
+[![Version](https://img.shields.io/badge/version-2.50.32-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.32)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -171,6 +171,12 @@ deepr providers openrouter-check
 deepr costs doctor
 ```
 
+Current `deepr research` defaults keep web search off, and the attended
+OpenRouter route uses no tools. These answers use model knowledge and supplied
+context; they do not check live web sources. Human and JSON previews explain
+whether a tool was disabled by the caller or by the existing cost boundary.
+A previewed web-search request is not an admitted execution route.
+
 OpenRouter catalog slugs can be previewed write-free. Automatic routing, expert
 routing, and evaluation stay blocked. Explicit attended research can run one
 pinned completion after `deepr budget authorize openrouter`. Omitting `--model`
@@ -299,6 +305,11 @@ eras and published Agent Plugins `1.0.0`. See the
 for tested behavior and the distinction from draft standards and host certification.
 
 ## Direction
+
+v2.50.32 makes setup inspection consistent: research previews explain web-search
+limits, capacity reads create no quota files, and doctor and expert inventory
+provide JSON with the same stored facts as their human views. No execution or
+learning authority changes.
 
 v2.50.31 makes the expert's evidence readable: linked finding pages quote the
 retained excerpts, positions show their recorded support labels, and new brief

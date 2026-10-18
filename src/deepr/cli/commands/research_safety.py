@@ -182,6 +182,7 @@ def print_explicit_research_preview(
     no_web: bool,
     no_code: bool,
     output_context: object,
+    requested_no_web: bool = False,
 ) -> None:
     """Print a write-free preview for an explicit provider/model research run."""
     del upload
@@ -196,6 +197,9 @@ def print_explicit_research_preview(
         no_code=no_code,
         allow_preview_only=True,
     )
+    from deepr.cli.commands.research_support import research_tool_posture
+
+    tools = research_tool_posture(provider, model, no_web=no_web, no_code=no_code, requested_no_web=requested_no_web)
     mode = getattr(output_context, "mode", None)
     if mode == OutputMode.JSON:
         import json
@@ -211,10 +215,7 @@ def print_explicit_research_preview(
                 "max": round(estimate.max_cost, 6),
             },
             "reasoning": estimate.reasoning,
-            "tools": {
-                "web_search": not no_web,
-                "code_interpreter": not no_code,
-            },
+            "tools": tools,
         }
         click.echo(json.dumps(payload, indent=2))
         return
@@ -224,6 +225,9 @@ def print_explicit_research_preview(
     console.print(f"  Provider:   {provider}")
     console.print(f"  Model:      {model}")
     console.print(f"  Web search: {'enabled' if not no_web else 'disabled'}")
+    console.print(f"    {tools['web_search_reason']}")
+    if no_web:
+        console.print("    No live web sources will be checked; answers use model knowledge and supplied context.")
     console.print(f"  Code tool:  {'enabled' if not no_code else 'disabled'}")
     console.print(
         f"  Est. cost:  ${estimate.min_cost:.4f} - ${estimate.max_cost:.4f} (expected ${estimate.expected_cost:.4f})"
