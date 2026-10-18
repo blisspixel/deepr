@@ -30,6 +30,10 @@ is absent from selectable model cards while the available fixture remains.
 Light mobile and dark desktop screenshots were visually inspected. The
 fixture contacted no backend or provider.
 
+The first CI run also caught an outdated committed frontend archive after the
+source build passed. The deterministic archive was regenerated from the pinned
+Node build; packaging checks and a new exact-head CI run verify the correction.
+
 Strict typing passed for 291 files. The wider tree has the same 196 baseline
 errors in 60 files, with no added normalized errors. Package checks passed
 57 cases; clean-wheel plugin checks exercised MCP 2025-06-18 and 2026-07-28,
