@@ -28,8 +28,7 @@ const { Button, buttonVariants } = componentExports('../src/components/ui/button
 const { badgeVariants } = componentExports('../src/components/ui/badge.tsx')
 
 const stylesheet = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8')
-const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8')
-const bootstrap = html.match(/<script\s*>([\s\S]*?)<\/script\s*>/i)[1]
+const bootstrap = readFileSync(new URL('../public/theme-init.js', import.meta.url), 'utf8')
 
 function cssTokens(selector) {
   const block = stylesheet.match(new RegExp(`  ${selector} \\{([\\s\\S]*?)\\n  \\}`))[1]
@@ -244,4 +243,23 @@ test('ordinary loading buttons retain native disabled semantics', () => {
   assert.match(html, /aria-busy="true"/)
   assert.match(html, /<svg[^>]*aria-hidden="true"/)
   assert.match(html, /Create expert<\/button>$/)
+})
+
+
+test('the head initializer remains synchronous and self-hosted under production CSP', () => {
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8')
+  const tag = html.match(/<script\b[^>]*src="\/theme-init\.js"[^>]*>/)?.[0]
+  assert.ok(tag)
+  assert.doesNotMatch(tag, /\b(?:async|defer|type)=?\b/)
+  assert.ok(html.indexOf(tag) < html.indexOf('<body>'))
+})
+
+test('the initializer tolerates unavailable storage without aborting startup', () => {
+  const root = documentRoot()
+  assert.doesNotThrow(() => runInNewContext(bootstrap, {
+    localStorage: { getItem() { throw new Error('Storage denied') } },
+    document: { documentElement: root },
+    window: globalThis.window,
+  }))
+  assert.equal(root.styles.size, 0)
 })

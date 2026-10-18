@@ -5,10 +5,11 @@
 ## Next round
 
 Completed reader, recovery, inspection, lifecycle, first-run, decision-review,
-local accounting and embedding repairs are in [the changelog](docs/CHANGELOG.md).
-v2.50.38 aligns maintained Python support, native installation checks, container
-builds and current Node LTS. Validation and publication remain separate from S0
-and semantic review.
+local accounting, embedding and interface repairs are in
+[the changelog](docs/CHANGELOG.md). The v2.50.39 interface bundle combines terminal
+roles, startup/width, optional companion and actual production-dashboard theme
+checks. Local validation passes; exact-head/resulting-main CI and public
+installation are release acceptance checks. S0 and semantic review stay separate.
 
 - [ ] **v2.51 is S0.** Locate the frozen source worlds, policy and case inventory,
   then run the 48-cell local rehearsal. The archived policy used qwen3.6:27b;
@@ -23,12 +24,6 @@ Validation and practical limits: [reader evidence repairs](docs/validation/exper
 [local embedding profiles](docs/validation/local-embedding-profiles-2026-10-18.md),
 [maintained runtimes](docs/validation/maintained-runtimes-2026-10-18.md).
 
-Terminal roles and status words (#230) merged through PR #248 after all
-exact-head checks passed; they remain under Unreleased. Startup/width (#234)
-passes local unit/coverage and width verification and awaits exact-head CI.
-The optional companion (#235) passes local unit/coverage, pose/lifecycle and
-TTY validation. Actual built-dashboard light/dark acceptance (#236) remains
-the last interface gate before release.
 SearXNG, unattended and MCP OpenRouter, and sleep-time overwrite of claims
 stay blocked.
 
@@ -61,18 +56,6 @@ stay blocked.
 
 ## First-run consistency
 
-- [x] **Interactive action keys (2026-10-18, #235):** real PTY inspection found
-  padding cropped numeric keys and Rich parsed `[q]` as markup. Literal Text and
-  a padding-aware column fix the prompt at 60/80/100 columns. Regression cases
-  and updated actual PTY captures pass; publication remains an independent gate.
-
-- [ ] **Built-dashboard baseline finding (2026-10-18, #236):** actual
-  isolated light/dark browser runs exposed a CSP-blocked inline theme initializer
-  and embedded fonts. The old screenshot QA also reports storage errors on opaque
-  initial pages. Preserve both failed baselines. Add strict built-dashboard theme
-  checks with canonical zero-cost synthetic seeds and unchanged spending/CSP
-  guards; successful mocked-route checks do not establish this acceptance.
-
 - [ ] **Separate local rehearsal findings (2026-10-17):** a newly frozen
   two-world, eight-cell diagnostic reached all terminal outcomes at `$0`, with
   three answers and five blocked by construction failures. Two briefs hit its
@@ -82,35 +65,11 @@ stay blocked.
   rehearsal. The original 48-cell S0 inputs were not recovered, and no semantic
   review or value claim follows from these diagnostic runs.
 
-- [x] **Local consult attempt accounting (2026-10-18):** shared native
-  completion now records intent, dispatch and terminal events, including
-  refusals and cancellation. Rehearsal uses the same boundary and preserves
-  legacy trials. The isolated installed consult records one attempt and three
-  durable `$0` events. See [validation](docs/validation/native-local-accounting-2026-10-18.md).
 - [ ] **Local consult output-adherence review (2026-10-17):** the retained
   installed v2.50.31 answer exceeded an explicit 100-word request. The
   2026-10-18 accounting validation repeated it with 201 words. Keep each
   unscored response for accountable semantic review; accounting receipts do
   not resolve it. See [the validation record](docs/validation/expert-evidence-reading-2026-10-17.md).
-
-- [x] **Public core install repair (2026-10-11):** actual v2.50.25 installation
-  on managed Python 3.13 exposed a missing canonical YAML module that full
-  extras had masked. Canonical PyYAML restores the existing imports; fresh
-  unpinned core wheel installs pass doctor, MCP and safe YAML loading on
-  ordinary Python 3.12, 3.13 and 3.14. The expanded core CI matrix retains
-  these checks. The v2.50.25 public failure stays retained; v2.50.26 still
-  requires public installer acceptance after publication.
-  Preserve the published release and failed acceptance. See
-  [design](docs/design/core-yaml-runtime.md).
-
-- [x] **Implemented 2026-10-11, release pending (issue 204):** requested and
-  effective budget explanation, canonical research-route help, honest doctor
-  categories and read-only credential presence, single-profile consult model
-  precedence across CLI/MCP/A2A, manager-owned release install/repair/update/
-  uninstall, and actionable company/auto research refusals and previews.
-  Focused offline controls cover these boundaries; integrated release validation
-  remains separate. No spend, provider, plan, daemon or fallback authority is
-  widened. See [design](docs/design/first-run-experience.md).
 
 ## Quick Links
 
@@ -773,7 +732,11 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.38)
+## Current Status (v2.50.39)
+
+v2.50.39 completes the interface repair bundle without widening execution or
+write authority. Its validation records distinguish local evidence, exact CI
+and public installation from the still-open S0 experiment.
 
 **Next is v2.51, not more dispatch.** v2.50.32 clarifies bounded tool posture, read-only inspection and CLI JSON parity. v2.50.31 repairs perspective attribution, readable evidence, consult output, and failed-build reporting. S0 remains unrun. v2.50.29 makes consult report whether citations reach the loaded study and a retained passage, and it sends local synthesis through the native 16384-token window study already uses. It does not run S0 or claim the expert got better. v2.50.28 ships the currency inspection and explicit world-time admission. v2.50.27 points deep-research defaults at the live OpenAI substitutes and keeps the 128k web-search ceiling.
 v2.50.26 repairs core-only installation on
@@ -4122,7 +4085,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.38. This roadmap keeps
+v2.50.39. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 

@@ -6,7 +6,7 @@ import globals from 'globals'
 
 export default [
   {
-    ignores: ['dist', 'node_modules', 'screenshots', 'screenshot-qa.mjs'],
+    ignores: ['dist', 'node_modules', 'screenshots'],
   },
   js.configs.recommended,
   {
@@ -16,10 +16,14 @@ export default [
     },
   },
   {
-    files: ['qa/*.mjs'],
+    files: ['qa/*.mjs', 'screenshot-qa.mjs'],
     languageOptions: {
       globals: { ...globals.node, ...globals.browser },
     },
+  },
+  {
+    files: ['public/theme-init.js'],
+    languageOptions: { globals: globals.browser },
   },
   ...tsPlugin.configs['flat/recommended'],
   {

@@ -1,6 +1,7 @@
+import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { mkdirSync } from 'fs';
-import { join, dirname } from 'path';
+import { mkdirSync, writeFileSync } from 'fs';
+import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -22,7 +23,9 @@ const VIEWPORT = { width: 1440, height: 900 };
 const STATUS_BAR_HEIGHT = 32;
 const apiUrl = (path) => `${API.replace(/\/+$/, '')}${path}`;
 
-const screenshotDir = join(__dirname, 'screenshots', THEME === 'dark' ? 'dark' : 'light');
+assert.ok(['light', 'dark'].includes(THEME), 'QA_THEME must be light or dark');
+const screenshotDir = join(resolve(process.env.QA_OUTPUT || join(__dirname, 'screenshots')), THEME);
+const allowedOrigins = new Set([new URL(BASE).origin, new URL(API).origin]);
 mkdirSync(screenshotDir, { recursive: true });
 
 async function fetchJson(path, options = {}) {
@@ -132,53 +135,105 @@ async function main() {
   const pages = buildPages(jobId, expertName);
 
   const browser = await chromium.launch({ headless: true });
+  const observations = { consoleErrors: [], pageErrors: [], failedResponses: [], externalRequests: [] };
+  const captures = [];
   const context = await browser.newContext({
     viewport: VIEWPORT,
     deviceScaleFactor: 1,
+    colorScheme: THEME,
+    storageState: { cookies: [], origins: [{
+      origin: new URL(BASE).origin,
+      localStorage: [{ name: 'deepr-ui-store', value: JSON.stringify({
+        state: { theme: THEME, accent: ACCENT, sidebarCollapsed: false }, version: 0,
+      }) }],
+    }] },
   });
+  await context.route('**/*', async (route) => {
+    const url = new URL(route.request().url());
+    if (!allowedOrigins.has(url.origin)) {
+      observations.externalRequests.push(url.href.slice(0, 200));
+      return route.abort();
+    }
+    return route.continue();
+  });
+  context.on('page', (page) => {
+    page.on('console', (message) => {
+      if (message.type() === 'error') observations.consoleErrors.push(message.text().slice(0, 500));
+    });
+    page.on('pageerror', (error) => observations.pageErrors.push(String(error).slice(0, 500)));
+    page.on('response', (response) => {
+      if (response.status() >= 400) observations.failedResponses.push({ url: response.url(), status: response.status() });
+    });
+  });
+  try {
+    for (const pg of pages) {
+      const page = await context.newPage();
+      const url = `${BASE}${pg.path}`;
+      console.log(`Navigating to ${pg.name}: ${url}`);
 
-  // Seed the persisted UI store so theme + accent apply before first paint,
-  // exactly as a real user's localStorage would (matches the FOUC script).
-  await context.addInitScript(([theme, accent]) => {
-    localStorage.setItem(
-      'deepr-ui-store',
-      JSON.stringify({ state: { theme, accent, sidebarCollapsed: false }, version: 0 })
-    );
-  }, [THEME, ACCENT]);
+      // Hold the application modules, preserving production bytes. The blocking
+      // theme initializer must apply the stored preference before React can run.
+      let releaseModules;
+      const gate = new Promise((resolve) => { releaseModules = resolve; });
+      let observedModule;
+      let moduleTimeout;
+      const moduleRequested = new Promise((resolve, reject) => {
+        observedModule = () => { clearTimeout(moduleTimeout); resolve(); };
+        moduleTimeout = setTimeout(() => reject(new Error('No application module was observed')), 10000);
+      });
+      await page.route((requestUrl) => requestUrl.origin === new URL(BASE).origin &&
+        ((requestUrl.pathname.startsWith('/assets/') && requestUrl.pathname.endsWith('.js')) || requestUrl.pathname === '/src/main.tsx'), async (route) => {
+        observedModule();
+        await gate;
+        await route.continue();
+      });
+      let firstPaint;
+      try {
+        const response = await page.goto(url, { waitUntil: 'commit', timeout: 30000 });
+        assert.ok(response?.ok(), `${pg.name}: document navigation failed`);
+        await Promise.all([
+          page.waitForFunction((theme) => document.documentElement.classList.contains(theme), THEME, { timeout: 10000 }),
+          moduleRequested,
+          page.waitForFunction(() => Boolean(getComputedStyle(document.documentElement).getPropertyValue('--primary').trim()), undefined, { timeout: 10000 }),
+        ]);
+        firstPaint = await page.evaluate(() => ({
+          classes: document.documentElement.className,
+          primary: getComputedStyle(document.documentElement).getPropertyValue('--primary').trim(),
+          applicationMounted: Boolean(document.getElementById('root')?.childElementCount),
+        }));
+        assert.equal(firstPaint.applicationMounted, false, `${pg.name}: theme was checked after application startup`);
+      } finally {
+        clearTimeout(moduleTimeout);
+        releaseModules();
+      }
+      await page.waitForLoadState('networkidle', { timeout: 15000 });
+      await page.locator('main').waitFor({ state: 'visible' });
+      await page.evaluate(() => document.fonts.ready);
+      assert.equal(await page.evaluate((theme) => document.documentElement.classList.contains(theme), THEME), true);
+      assert.ok((await page.locator('main').innerText()).trim(), `${pg.name}: empty route content`);
 
-  for (const pg of pages) {
-    const page = await context.newPage();
-    const url = `${BASE}${pg.path}`;
-    console.log(`Navigating to ${pg.name}: ${url}`);
+      // Extra wait for React Query, lazy-loaded charts, and route-level data.
+      await page.waitForTimeout(2500);
+      if (pg.afterLoad) {
+        await pg.afterLoad(page);
+      }
 
-    try {
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    } catch (err) {
-      console.error(`  Warning: navigation timeout for ${pg.name}, continuing with screenshot wait`);
+      const filepath = join(screenshotDir, `${pg.name}.png`);
+      const capture = CONTENT_ONLY
+        ? { path: filepath, clip: { x: 0, y: 0, width: VIEWPORT.width, height: VIEWPORT.height - STATUS_BAR_HEIGHT } }
+        : { path: filepath, fullPage: FULL_PAGE };
+      await page.screenshot({ ...capture, animations: 'disabled' });
+      captures.push({ name: pg.name, path: pg.path, firstPaint, theme: THEME });
+      console.log(`  Saved: ${filepath}`);
+      await page.close();
     }
 
-    try {
-      await page.waitForLoadState('networkidle', { timeout: 10000 });
-    } catch {
-      console.error(`  Warning: network idle timeout for ${pg.name}, continuing after fixed wait`);
-    }
-
-    // Extra wait for React Query, lazy-loaded charts, and route-level data.
-    await page.waitForTimeout(2500);
-    if (pg.afterLoad) {
-      await pg.afterLoad(page);
-    }
-
-    const filepath = join(screenshotDir, `${pg.name}.png`);
-    const capture = CONTENT_ONLY
-      ? { path: filepath, clip: { x: 0, y: 0, width: VIEWPORT.width, height: VIEWPORT.height - STATUS_BAR_HEIGHT } }
-      : { path: filepath, fullPage: FULL_PAGE };
-    await page.screenshot(capture);
-    console.log(`  Saved: ${filepath}`);
-    await page.close();
+    assert.equal(captures.length, pages.length);
+    assert.deepEqual(observations, { consoleErrors: [], pageErrors: [], failedResponses: [], externalRequests: [] });
+  } finally {
+    writeFileSync(join(screenshotDir, 'receipt.json'), JSON.stringify({ theme: THEME, captures, observations }, null, 2));
+    await browser.close();
   }
-
-  await browser.close();
   console.log('\nDone! All screenshots saved to:', screenshotDir);
 }
 

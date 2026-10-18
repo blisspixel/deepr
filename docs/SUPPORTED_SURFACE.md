@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.50.38 current main, 2026-10-18. This document defines what users and host
+Status: v2.50.39 current main, 2026-10-18. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -8,6 +8,12 @@ path is structurally complete but remains execution-blocked without verified
 provider prepaid-no-overage or hard-stop evidence. Attended OpenRouter research
 is the exception: one pinned no-tool completion after wallet credits and
 `deepr budget authorize openrouter`.
+
+**v2.50.39 interface repairs:** CLI roles/status, startup signature, narrow
+terminal output and optional workflow companion retain existing execution and
+evidence authority. Production dashboard initialization and fonts comply with
+unchanged CSP; real-backend light/dark captures join the CI gate. Exact-main CI
+and public installer acceptance are separate publication requirements.
 
 **v2.50.38 maintenance:** Maintained ordinary CPython 3.11 through 3.15 is
 supported; development, managed uv installation and single-version CI use 3.15.
@@ -368,6 +374,11 @@ must not be described as usable capacity.
   Saved chat remains inspectable and local
   consultation is an explicit CLI handoff. Browser chat and paid research
   retain their execution gates even when a wallet is funded.
+  Production dashboard appearance uses a blocking self-hosted theme initializer
+  and self-hosted fonts under the existing CSP. CI captures twelve routes in light
+  and dark against isolated zero-cost synthetic canonical state; this validates
+  rendering and initialization, not expert quality or currency. See the
+  [theme validation](validation/dashboard-themes-2026-10-18.md).
 - Expert councils, task planning contracts, and approval flows. Standalone
   metered expert chat is gated as described under Visible Or Planned Only.
 - `deepr eval expert-value-rehearsal plan|run|blind|bind-labels|workbook`
