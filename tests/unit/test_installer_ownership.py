@@ -61,7 +61,7 @@ uv() {
     if [ "$1 $2" = 'tool dir' ]; then printf '%s\n' "$DEEPR_SHIM_BIN"; return; fi
     printf 'uv %s\n' "$*" >> "$DEEPR_SHIM_LOG"
     if [ "$1 $2" = 'python find' ]; then printf 'python3\n'; fi
-    if [ "$1 $2" = 'tool install' ]; then install_count=$((install_count+1)); fi
+    if [ "$1 $2" = 'tool install' ]; then printf '%s\n' "${PYYAML_FORCE_LIBYAML-unset}" >> "$DEEPR_SHIM_BUILD_LOG"; install_count=$((install_count+1)); fi
 }
 pipx() {
     if [ "$1" = --version ]; then printf '1.17.2\n'; return 0; fi
@@ -77,7 +77,7 @@ pipx() {
         return
     fi
     printf 'pipx %s\n' "$*" >> "$DEEPR_SHIM_LOG"
-    if [ "$1" = install ]; then install_count=$((install_count+1)); fi
+    if [ "$1" = install ]; then printf '%s\n' "${PYYAML_FORCE_LIBYAML-unset}" >> "$DEEPR_SHIM_BUILD_LOG"; install_count=$((install_count+1)); fi
 }
 /owned/deepr-research/bin/python() {
     [ "$DEEPR_SHIM_OWNED_PYTHON" != missing ] || return 127
@@ -94,6 +94,7 @@ exec(sys.argv[1].replace("import sys;", "", 1).replace("import sys", "", 1).stri
 }
 curl() { printf 'release\n' >> "$DEEPR_SHIM_REQUEST_LOG"; printf '%s' "$DEEPR_SHIM_RELEASE"; }
 deepr() {
+    printf '%s\n' "${PYYAML_FORCE_LIBYAML-unset}" >> "$DEEPR_SHIM_RUNTIME_LOG"
     if [ "$DEEPR_SHIM_REPAIR" = true ] && [ "$install_count" -lt 2 ]; then return 7; fi
     printf 'deepr, version 9.9.9\n'
 }
@@ -141,7 +142,7 @@ exec(sys.argv[1].replace('import sys;', '', 1).replace('import sys', '', 1).stri
     & $env:DEEPR_SHIM_PYTHON @args
 }
 function py {
-    if ($args[0] -ne '-3.13') { $global:LASTEXITCODE = 1; return }
+    if ($args[0] -ne '-3.15') { $global:LASTEXITCODE = 1; return }
     $probeArgs = @($args | Select-Object -Skip 1)
     python @probeArgs
 }
@@ -153,7 +154,7 @@ function uv {
     }
     if ($args[0] -eq 'tool' -and $args[1] -eq 'dir') { $env:DEEPR_SHIM_BIN; return }
     Add-Content -LiteralPath $env:DEEPR_SHIM_LOG -Value ('uv ' + ($args -join ' '))
-    if ($args[0] -eq 'tool' -and $args[1] -eq 'install') { $global:installCount += 1 }
+    if ($args[0] -eq 'tool' -and $args[1] -eq 'install') { Add-Content -LiteralPath $env:DEEPR_SHIM_BUILD_LOG -Value $(if (Test-Path Env:PYYAML_FORCE_LIBYAML) { $env:PYYAML_FORCE_LIBYAML } else { 'unset' }); $global:installCount += 1 }
 }
 function pipx {
     $global:LASTEXITCODE = 0
@@ -170,7 +171,7 @@ function pipx {
         return
     }
     Add-Content -LiteralPath $env:DEEPR_SHIM_LOG -Value ('pipx ' + ($args -join ' '))
-    if ($args[0] -eq 'install') { $global:installCount += 1 }
+    if ($args[0] -eq 'install') { Add-Content -LiteralPath $env:DEEPR_SHIM_BUILD_LOG -Value $(if (Test-Path Env:PYYAML_FORCE_LIBYAML) { $env:PYYAML_FORCE_LIBYAML } else { 'unset' }); $global:installCount += 1 }
 }
 function OwnedPython {
     if ($env:DEEPR_SHIM_OWNED_PYTHON -eq 'missing') { $global:LASTEXITCODE = 127; return }
@@ -187,6 +188,7 @@ exec(sys.argv[1].replace('import sys;', '', 1).replace('import sys', '', 1).stri
 }
 Set-Alias -Name (Join-Path '/owned' 'deepr-research/Scripts/python.exe') -Value OwnedPython
 function deepr {
+    Add-Content -LiteralPath $env:DEEPR_SHIM_RUNTIME_LOG -Value $(if (Test-Path Env:PYYAML_FORCE_LIBYAML) { $env:PYYAML_FORCE_LIBYAML } else { 'unset' })
     $global:LASTEXITCODE = 0
     if ($env:DEEPR_SHIM_REPAIR -eq 'true' -and $global:installCount -lt 2) { $global:LASTEXITCODE = 7; return }
     'deepr, version 9.9.9'
@@ -209,6 +211,7 @@ def run_installer(
     script_root=ROOT,
     owned_python="13",
     host_python="13",
+    libyaml=None,
 ):
     suffix = "ps1" if family == "powershell" else "sh"
     wrapper = tmp_path / f"run.{suffix}"
@@ -226,8 +229,14 @@ def run_installer(
         "DEEPR_SHIM_SCRIPT": str(script_root / "scripts" / f"install.{suffix}"),
         "DEEPR_SHIM_LOG": str(log),
         "DEEPR_SHIM_REQUEST_LOG": str(tmp_path / "release-requests.txt"),
+        "DEEPR_SHIM_BUILD_LOG": str(tmp_path / "build-settings.txt"),
+        "DEEPR_SHIM_RUNTIME_LOG": str(tmp_path / "runtime-settings.txt"),
         "DEEPR_SHIM_PYTHON": sys.executable,
     }
+    if libyaml is None:
+        env.pop("PYYAML_FORCE_LIBYAML", None)
+    else:
+        env["PYYAML_FORCE_LIBYAML"] = libyaml
     shell = _installer_shell(family)
     args = (
         [shell, "-NoProfile", "-NonInteractive", "-File", str(wrapper)]
@@ -264,7 +273,7 @@ def test_installer_preserves_owner_and_pins_interpreter(tmp_path, family, owner,
         assert "--force" not in installs[1].split(), installs
     assert all(op.startswith(expected) and "--python " in op for op in installs)
     if expected == "uv":
-        assert all("--python 3.13 --managed-python" in op for op in installs)
+        assert all("--python 3.15.0 --managed-python" in op for op in installs)
     assert all(not op.startswith("pip ") for op in operations)
     assert all(op.startswith(expected) for op in operations)
 
@@ -303,7 +312,7 @@ def test_untrusted_wheel_refuses_before_tool_mutation(tmp_path, family):
 
 
 @pytest.mark.parametrize("family", ["bash", "powershell"])
-@pytest.mark.parametrize("owned_python", ["15", "prerelease", "pypy", "missing", "unreadable-root"])
+@pytest.mark.parametrize("owned_python", ["10", "16", "prerelease", "pypy", "missing", "unreadable-root"])
 def test_owned_pipx_runtime_refuses_before_mutation_despite_supported_path_python(tmp_path, family, owned_python):
     result, operations = run_installer(tmp_path, family, "pipx", owned_python=owned_python)
     assert result.returncode != 0, result.stdout + result.stderr
@@ -317,7 +326,7 @@ def test_owned_pipx_runtime_refuses_before_mutation_despite_supported_path_pytho
 @pytest.mark.parametrize("family", ["bash", "powershell"])
 @pytest.mark.parametrize("owner", ["pipx", "pipx-module"])
 def test_owned_pipx_refusal_guidance_uses_the_detected_manager_entrypoint(tmp_path, family, owner):
-    result, operations = run_installer(tmp_path, family, owner, owned_python="15")
+    result, operations = run_installer(tmp_path, family, owner, owned_python="16")
     assert result.returncode != 0
     assert operations == []
     output = result.stdout + result.stderr
@@ -331,7 +340,7 @@ def test_owned_pipx_refusal_guidance_uses_the_detected_manager_entrypoint(tmp_pa
 
 
 @pytest.mark.parametrize("family", ["bash", "powershell"])
-@pytest.mark.parametrize("owned_python", ["12", "13", "14"])
+@pytest.mark.parametrize("owned_python", ["11", "12", "13", "14", "15"])
 @pytest.mark.parametrize("repair", [False, True])
 def test_supported_owned_pipx_runtime_keeps_its_base_interpreter(tmp_path, family, owned_python, repair):
     result, operations = run_installer(tmp_path, family, "pipx", owned_python=owned_python, repair=repair)
@@ -350,8 +359,8 @@ def test_owned_pipx_uninstall_does_not_require_supported_runtime(tmp_path, famil
 
 @pytest.mark.parametrize("family", ["bash", "powershell"])
 @pytest.mark.parametrize("owner", ["pipx", "pipx-module"])
-@pytest.mark.parametrize("owned_python", ["12", "13", "14"])
-@pytest.mark.parametrize("host_python", ["15", "prerelease"])
+@pytest.mark.parametrize("owned_python", ["11", "12", "13", "14", "15"])
+@pytest.mark.parametrize("host_python", ["10", "16", "prerelease"])
 @pytest.mark.parametrize("repair", [False, True])
 def test_supported_owned_pipx_runtime_works_without_a_supported_path_python(
     tmp_path, family, owner, owned_python, host_python, repair
@@ -367,8 +376,8 @@ def test_supported_owned_pipx_runtime_works_without_a_supported_path_python(
 
 @pytest.mark.parametrize("family", ["bash", "powershell"])
 @pytest.mark.parametrize("owner", ["pipx", "pipx-module"])
-@pytest.mark.parametrize("owned_python", ["15", "missing", "unreadable-root"])
-@pytest.mark.parametrize("host_python", ["15", "prerelease"])
+@pytest.mark.parametrize("owned_python", ["10", "16", "missing", "unreadable-root"])
+@pytest.mark.parametrize("host_python", ["10", "16", "prerelease"])
 def test_unsupported_owned_and_path_python_refuses_with_explicit_repair_guidance(
     tmp_path, family, owner, owned_python, host_python
 ):
@@ -378,15 +387,29 @@ def test_unsupported_owned_and_path_python_refuses_with_explicit_repair_guidance
     assert not (tmp_path / "release-requests.txt").exists()
     output = result.stdout + result.stderr
     assert "reinstall deepr-research --python" in output
-    assert "3.12, 3.13 or 3.14" in output
+    assert "3.11, 3.12, 3.13, 3.14 or 3.15" in output
     assert "rerun" in output.lower()
     assert "Done." not in output
 
 
 @pytest.mark.parametrize("family", ["bash", "powershell"])
-@pytest.mark.parametrize("host_python", ["15", "prerelease"])
+@pytest.mark.parametrize("host_python", ["10", "16", "prerelease"])
 def test_fresh_pipx_requires_a_supported_path_python(tmp_path, family, host_python):
     result, operations = run_installer(tmp_path, family, "fresh-pipx", host_python=host_python)
     assert result.returncode != 0, result.stdout + result.stderr
     assert operations == []
     assert not (tmp_path / "release-requests.txt").exists()
+
+
+@pytest.mark.parametrize("family", ["bash", "powershell"])
+@pytest.mark.parametrize("owner", ["uv", "pipx", "pipx-module"])
+@pytest.mark.parametrize("libyaml", [None, "0", "1"])
+def test_optional_yaml_build_setting_is_scoped_and_preserves_operator_choice(tmp_path, family, owner, libyaml):
+    result, operations = run_installer(tmp_path, family, owner, libyaml=libyaml, repair=True)
+    assert result.returncode == 0, result.stdout + result.stderr
+    builds = (tmp_path / "build-settings.txt").read_text(encoding="utf-8-sig").splitlines()
+    runtime = (tmp_path / "runtime-settings.txt").read_text(encoding="utf-8-sig").splitlines()
+    assert len(builds) == 2
+    assert set(builds) == {"0" if libyaml is None else libyaml}
+    assert runtime and set(runtime) == {"unset" if libyaml is None else libyaml}
+    assert all(not operation.startswith("pip ") for operation in operations)

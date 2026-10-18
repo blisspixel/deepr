@@ -1,4 +1,4 @@
-FROM python:3.12.13-slim@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de
+FROM python:3.15-slim@sha256:2da676046630d7bf14c6764ae1143dc7fa0377a53f94bf5a642f0b214aca5bce
 
 # Security: non-root user
 RUN groupadd -r deepr && useradd -r -g deepr -u 1000 deepr
@@ -6,7 +6,7 @@ RUN groupadd -r deepr && useradd -r -g deepr -u 1000 deepr
 WORKDIR /app
 
 # Install the exact lock-selected application and AWS worker dependencies.
-RUN pip install --no-cache-dir uv==0.11.32
+RUN pip install --no-cache-dir uv==0.13.0
 COPY pyproject.toml uv.lock setup.py README.md LICENSE MANIFEST.in ./
 COPY src/ src/
 COPY skills/ skills/

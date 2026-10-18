@@ -24,6 +24,7 @@ from filelock import Timeout as FileLockTimeout
 
 from deepr.experts.okf_contract import portable_relative_path_failure
 from deepr.utils.atomic_io import atomic_write_text
+from deepr.utils.paths import is_junction
 
 OKF_PUBLICATION_SCHEMA_VERSION = "deepr-okf-publication-v1"
 OKF_PUBLICATION_MANIFEST = ".deepr-okf-manifest.json"
@@ -65,8 +66,16 @@ def _lexists(path: Path) -> bool:
     return os.path.lexists(path)
 
 
+def _is_junction(path: Path) -> bool:
+    """Detect Windows mount-point links without following their target."""
+    try:
+        return is_junction(path)
+    except (OSError, ValueError):
+        return False
+
+
 def _is_link_like(path: Path) -> bool:
-    return path.is_symlink() or path.is_junction()
+    return path.is_symlink() or _is_junction(path)
 
 
 def _path_identity(path: Path) -> _PathIdentity:
@@ -186,7 +195,7 @@ def _inventory_tree(root: Path) -> _TreeInventory:
         for entry in ordered:
             relative = (prefix / entry.name).as_posix()
             path = Path(entry.path)
-            if entry.is_symlink() or path.is_junction():
+            if entry.is_symlink() or _is_junction(path):
                 links.add(relative)
                 continue
             if entry.is_dir(follow_symlinks=False):
@@ -252,7 +261,7 @@ def _remove_tree_no_follow(path: Path) -> None:
     if path.is_symlink():
         path.unlink()
         return
-    if path.is_junction():
+    if _is_junction(path):
         path.rmdir()
         return
     mode = os.lstat(path).st_mode

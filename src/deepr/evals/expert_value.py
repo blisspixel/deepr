@@ -14,7 +14,7 @@ import math
 import re
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal, Self
+from typing import Any, Literal, Self, TypeAlias
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
@@ -29,13 +29,13 @@ EXPERT_VALUE_REPORT_KIND = "deepr.eval.expert_value_report"
 EXPERT_VALUE_METHODOLOGY_VERSION = "1.0"
 EXPERT_VALUE_RUBRIC_VERSION = "expert-value-rubric-v1"
 
-type ArmName = Literal[
+ArmName: TypeAlias = Literal[
     "fresh_research",
     "static_history",
     "compiled_expert",
     "maintained_expert",
 ]
-type EvaluationRole = Literal[
+EvaluationRole: TypeAlias = Literal[
     "initial",
     "retention",
     "update",

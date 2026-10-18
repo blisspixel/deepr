@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.50.37 current main, 2026-10-18. This document defines what users and host
+Status: v2.50.38 current main, 2026-10-18. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -8,6 +8,13 @@ path is structurally complete but remains execution-blocked without verified
 provider prepaid-no-overage or hard-stop evidence. Attended OpenRouter research
 is the exception: one pinned no-tool completion after wallet credits and
 `deepr budget authorize openrouter`.
+
+**v2.50.38 maintenance:** Maintained ordinary CPython 3.11 through 3.15 is
+supported; development, managed uv installation and single-version CI use 3.15.
+The 3.11 export boundary uses the native mount-point tag without following
+junctions. Native Windows/macOS wheel checks and all three container builds
+join the existing full-suite gates. Node is pinned to 24.22.0 LTS. No provider
+eligibility, research, spend or expert-quality gate changes.
 
 **v2.50.37 maintenance:** Explicit local embedding profiles distinguish query
 and document inputs, bind vector index identity and require matching dimensions.

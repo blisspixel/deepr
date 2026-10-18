@@ -340,5 +340,53 @@ def test_force_replaces_root_symlink_without_touching_external_target(tmp_path):
 
     assert root.is_dir()
     assert not root.is_symlink()
-    assert not root.is_junction()
+    assert not publication._is_junction(root)
+    assert protected.read_text(encoding="utf-8") == "keep\n"
+
+
+def test_publication_does_not_require_python312_path_api(tmp_path, monkeypatch):
+    monkeypatch.delattr(Path, "is_junction", raising=False)
+    root = tmp_path / "okf"
+    _publish({"index.md": "prior\n"}, root)
+    _publish({"index.md": "replacement\n"}, root)
+    assert (root / "index.md").read_text(encoding="utf-8") == "replacement\n"
+
+
+@pytest.mark.parametrize("tag, expected", [(0, False), (0xA0000003, True), (0xA000000C, False)])
+def test_junction_probe_distinguishes_mount_points_from_other_reparse_tags(tag, expected):
+    from types import SimpleNamespace
+
+    path = SimpleNamespace(lstat=lambda: SimpleNamespace(st_reparse_tag=tag))
+    assert publication._is_junction(path) is expected
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Real Windows junction behavior runs in the platform matrix")
+def test_windows_root_and_nested_junctions_preserve_external_contents(tmp_path):
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    protected = outside / "protected.txt"
+    protected.write_text("keep\n", encoding="utf-8")
+
+    def junction(path):
+        result = subprocess.run(
+            ["cmd.exe", "/d", "/c", "mklink", "/J", str(path), str(outside)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert publication._is_junction(path)
+
+    root = tmp_path / "root-junction"
+    junction(root)
+    with pytest.raises(ValueError):
+        _publish({"index.md": "generated\n"}, root)
+    _publish({"index.md": "generated\n"}, root, force=True)
+    assert not publication._is_junction(root)
+    nested = root / "external"
+    junction(nested)
+    with pytest.raises(ValueError, match="link or special entries"):
+        _publish({"index.md": "replacement\n"}, root)
+    _publish({"index.md": "replacement\n"}, root, force=True)
+    assert not os.path.lexists(nested)
     assert protected.read_text(encoding="utf-8") == "keep\n"

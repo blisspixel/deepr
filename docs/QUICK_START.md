@@ -3,7 +3,7 @@
 Set up local capacity, build one consultable expert from a source you trust,
 and optionally preview a bounded provider request without dispatch.
 
-This guide follows v2.50.37. Release installers include default research
+This guide follows v2.50.38. Release installers include default research
 formation, `expert build`, and `expert knowledge`. Research completion does
 not certify practical guidance; review retained evidence and answers.
 
@@ -11,9 +11,9 @@ not certify practical guidance; review retained evidence and answers.
 
 ## Prerequisites
 
-- uv or pipx for release installation; fresh uv manages CPython 3.13, while
-  pipx requires installed stable CPython 3.12, 3.13 or 3.14
-- Python 3.12 or higher for an explicit source environment
+- uv or pipx for release installation; fresh uv manages CPython 3.15.0, while
+  pipx requires installed stable CPython 3.11, 3.12, 3.13, 3.14 or 3.15
+- Python 3.11 or higher for an explicit source environment
 - Owned local Ollama with an installed model and cloud execution disabled
 - An API key only when intentionally running supported live credential checks
 

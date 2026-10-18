@@ -2,8 +2,8 @@
 
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.50.37-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.37)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Version](https://img.shields.io/badge/version-2.50.38-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.38)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -210,9 +210,9 @@ curl -fsSL https://raw.githubusercontent.com/blisspixel/deepr/main/scripts/insta
 ```
 
 Installers use the latest verified GitHub Release wheel and preserve an existing
-uv or pipx installation. Fresh installs prefer uv with managed CPython 3.13;
-pipx requires an explicitly selected stable CPython 3.12, 3.13 or 3.14. Install
-uv or pipx first using its official instructions. The scripts do not bootstrap
+uv or pipx installation. Fresh installs prefer uv with managed CPython 3.15.0;
+pipx requires an explicitly selected stable CPython 3.11, 3.12, 3.13, 3.14 or 3.15.
+Install uv or pipx first using its official instructions. The scripts do not bootstrap
 pip into a user site or system Python, and refuse conflicting managed copies.
 Repair, `deepr upgrade`, and uninstall keep the same tool manager. PyPI
 publication is not enabled.
@@ -305,6 +305,11 @@ eras and published Agent Plugins `1.0.0`. See the
 for tested behavior and the distinction from draft standards and host certification.
 
 ## Direction
+
+v2.50.38 supports maintained CPython 3.11 through 3.15, with 3.15 as the
+development and managed-install default. CI covers all five minors, native
+Windows/macOS installation and the three locked container builds. Node uses
+24.22.0 LTS. See the [runtime decision](docs/design/maintained-runtime-support.md).
 
 v2.50.37 adds explicit local embedding roles and profile/dimension compatibility
 checks. A frozen published-label comparison leaves defaults unchanged; all

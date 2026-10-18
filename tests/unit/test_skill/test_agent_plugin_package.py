@@ -201,3 +201,83 @@ def test_builder_rejects_parent_alias_into_source(tmp_path: Path) -> None:
         build_agent_plugin(copied, alias / "nested" / "plugin.tar.gz")
 
     assert not (copied / "nested").exists()
+
+
+@pytest.mark.parametrize("tag, expected", [(0, False), (0xA0000003, True), (0xA000000C, False)])
+def test_link_detection_without_python312_path_api(tag, expected):
+    from types import SimpleNamespace
+
+    from deepr.skills.agent_plugin import _is_link
+
+    path = SimpleNamespace(is_symlink=lambda: False, lstat=lambda: SimpleNamespace(st_reparse_tag=tag))
+    assert _is_link(path) is expected
+
+
+def test_link_detection_fails_closed_when_lstat_is_unreadable():
+    from types import SimpleNamespace
+
+    from deepr.skills.agent_plugin import _is_link
+
+    def unreadable():
+        raise PermissionError("fixture")
+
+    assert _is_link(SimpleNamespace(is_symlink=lambda: False, lstat=unreadable))
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Real Windows package junctions run in the platform matrix")
+def test_package_root_and_nested_junctions_are_refused_without_reading_target(tmp_path, monkeypatch):
+    monkeypatch.delattr(Path, "is_junction", raising=False)
+    copied = tmp_path / "plugin"
+    shutil.copytree(PACKAGE, copied)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    shutil.copytree(copied / "skills", outside / "skills")
+    protected = outside / "protected.txt"
+    protected.write_text("retain external bytes", encoding="utf-8")
+    before = {p.relative_to(outside): p.read_bytes() for p in outside.rglob("*") if p.is_file()}
+
+    def junction(link, target):
+        created = subprocess.run(
+            ["cmd.exe", "/d", "/c", "mklink", "/J", str(link), str(target)], capture_output=True, text=True
+        )
+        assert created.returncode == 0, created.stdout + created.stderr
+
+    alias = tmp_path / "root-alias"
+    junction(alias, copied)
+    output = tmp_path / "root-output.tar.gz"
+    with pytest.raises(ValueError, match="invalid_root"):
+        build_agent_plugin(alias, output)
+    assert not output.exists()
+    alias.rmdir()
+    shutil.rmtree(copied / "skills")
+    junction(copied / "skills", outside / "skills")
+    output = tmp_path / "nested-output.tar.gz"
+    with pytest.raises(ValueError, match="linked_entry"):
+        build_agent_plugin(copied, output)
+    assert not output.exists()
+    assert {p.relative_to(outside): p.read_bytes() for p in outside.rglob("*") if p.is_file()} == before
+    (copied / "skills").rmdir()
+
+
+@pytest.mark.parametrize("boundary, code", [("root", "invalid_root"), ("skills", "linked_entry")])
+def test_package_refuses_mount_point_metadata_before_archive_creation(tmp_path, monkeypatch, boundary, code):
+    from types import SimpleNamespace
+
+    copied = tmp_path / "plugin"
+    shutil.copytree(PACKAGE, copied)
+    marked = copied if boundary == "root" else copied / "skills"
+    original = Path.lstat
+
+    def tagged(path, *args, **kwargs):
+        result = original(path, *args, **kwargs)
+        return SimpleNamespace(st_mode=result.st_mode, st_reparse_tag=0xA0000003) if path == marked else result
+
+    monkeypatch.delattr(Path, "is_junction", raising=False)
+    monkeypatch.setattr(Path, "lstat", tagged)
+    result = validate_agent_plugin(copied)
+    assert not result.valid
+    assert code in {violation.code for violation in result.violations}
+    output = tmp_path / "must-not-be-created.tar.gz"
+    with pytest.raises(ValueError, match=code):
+        build_agent_plugin(copied, output)
+    assert not output.exists()

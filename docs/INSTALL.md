@@ -4,7 +4,7 @@ Complete installation guide for Deepr on Linux, macOS, and Windows.
 
 ## Quick Install (5 minutes)
 
-**Deepr works on Windows, macOS, and Linux** (Python 3.12+). The distribution
+**Deepr works on Windows, macOS, and Linux** (Python 3.11+). The distribution
 package is named `deepr-research`; the CLI command is `deepr`. Public packages
 currently ship as verified GitHub release assets. PyPI publication is not yet
 enabled.
@@ -25,12 +25,26 @@ curl -fsSL https://raw.githubusercontent.com/blisspixel/deepr/main/scripts/insta
 
 The installers resolve the latest supported wheel from GitHub Releases and
 preserve an existing uv or pipx owner. A fresh install prefers uv and explicitly
-requires managed stable CPython 3.13. A Python version request alone does not
+requires managed stable CPython 3.15.0. A Python version request alone does not
 require a managed interpreter. If uv is unavailable, an existing pipx uses an
-explicit stable CPython 3.12, 3.13 or 3.14 interpreter. Install a manager first:
+explicit stable CPython 3.11, 3.12, 3.13, 3.14 or 3.15 interpreter.
+Install a manager first:
 [uv installation](https://docs.astral.sh/uv/getting-started/installation/) or
 [pipx installation](https://pipx.pypa.io/stable/installation/). The scripts never
 bootstrap pipx with `pip --user` into a venv or externally managed interpreter.
+
+Managed installation requests final CPython 3.15.0 exactly. CI uses uv 0.13.0;
+if an older manager cannot find that release, update uv through its owning
+installation method. A beta is not a supported substitute. Optional full/search
+dependencies still include source-only Brotli at 3.15 and need a C toolchain;
+the core runtime has current native wheels apart from PyYAML. Installers and
+`deepr upgrade` default source builds to `PYYAML_FORCE_LIBYAML=0`, disabling
+its optional accelerator without changing canonical `safe_load`. An explicit
+operator setting is preserved and the default is scoped to installation.
+For a manual pip/pipx install on an interpreter without a PyYAML wheel, set
+`PYYAML_FORCE_LIBYAML=0` in that command's environment (PowerShell:
+`$env:PYYAML_FORCE_LIBYAML = "0"`). Frozen uv source installs carry the same
+package-specific build setting.
 
 Install, repair, `deepr upgrade`, and uninstall preserve the selected manager.
 Conflicting uv/pipx installations or an unmanaged CLI require explicit cleanup
@@ -39,7 +53,7 @@ installation when GitHub is unreachable or the latest release
 does not contain a supported wheel. If the CLI still fails after the automatic
 repair attempt, the installer exits with a failure status and recovery guidance.
 
-An existing pipx environment must itself run stable CPython 3.12, 3.13 or 3.14;
+An existing pipx environment must itself run stable CPython 3.11, 3.12, 3.13, 3.14 or 3.15;
 a supported Python elsewhere on PATH does not repair its interpreter. An
 unsupported or unreadable environment stops before any package changes and
 prints an explicit `pipx reinstall deepr-research --python <supported-python>`
@@ -90,7 +104,7 @@ deepr --version
 **Alternative with pipx** (simplest for CLI tools - handles isolation + PATH automatically):
 
 ```bash
-pipx install --python python3.13 -e .
+pipx install --python python3.15 -e .
 ```
 
 ### Bare / fast path
@@ -190,11 +204,11 @@ for component support, then follow that host's instructions.
    visible on the host process's executable search path. Verify with
    `Get-Command deepr-mcp` in PowerShell or `command -v deepr-mcp` on macOS or
    Linux. A desktop host may need restarting after PATH changes.
-2. Download `deepr-agent-plugin-2.50.37.tar.gz` from the
-   [matching release](https://github.com/blisspixel/deepr/releases/tag/v2.50.37).
+2. Download `deepr-agent-plugin-2.50.38.tar.gz` from the
+   [matching release](https://github.com/blisspixel/deepr/releases/tag/v2.50.38).
    Match the plugin version to the installed Deepr version and verify the
    asset checksum shown by GitHub. Extract it with
-   `tar -xzf deepr-agent-plugin-2.50.37.tar.gz` or your archive utility.
+   `tar -xzf deepr-agent-plugin-2.50.38.tar.gz` or your archive utility.
 3. In the host's local plugin flow, select the extracted `deepr-research`
    directory containing `plugin.json`, `mcp.json`, `LICENSE`, `SHA256SUMS`,
    and `skills/`. When using a source checkout, the plugin root is
@@ -227,7 +241,7 @@ explicitly versioned reference; see [Supported Surface](SUPPORTED_SURFACE.md).
 
 ```bash
 # Download the wheel for the selected release, then install it locally.
-python -m pip install ./deepr_research-2.50.37-py3-none-any.whl
+python -m pip install ./deepr_research-2.50.38-py3-none-any.whl
 deepr --version
 ```
 
@@ -427,17 +441,17 @@ deepr list
 
 ### Linux
 - Works on all major distributions (Ubuntu, Debian, Fedora, Arch)
-- Python 3.12+ required
+- Python 3.11+ required
 - May need `python3-dev` for some dependencies
 
 ### macOS
 - Works on Intel and Apple Silicon
-- Python 3.12+ required
+- Python 3.11+ required
 - Install via Homebrew: `brew install python3`
 
 ### Windows
 - Works on Windows 10/11
-- Python 3.12+ required from python.org
+- Python 3.11+ required from python.org
 - PowerShell or Command Prompt both supported
 - Git Bash works but use native Python (not MinGW)
 

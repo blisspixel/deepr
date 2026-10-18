@@ -92,17 +92,17 @@ if (-not $manager) {
 }
 
 # Explicitly select stable CI-supported CPython, never arbitrary prerelease PATH Python.
-$pythonProbe = "import sys; ok = sys.implementation.name == 'cpython' and sys.version_info[:2] in {(3,12),(3,13),(3,14)} and sys.version_info.releaselevel == 'final'; print(getattr(sys, '_base_executable', sys.executable)) if ok else None; raise SystemExit(not ok)"
+$pythonProbe = "import sys; ok = sys.implementation.name == 'cpython' and sys.version_info[:2] in {(3,11),(3,12),(3,13),(3,14),(3,15)} and sys.version_info.releaselevel == 'final'; print(getattr(sys, '_base_executable', sys.executable)) if ok else None; raise SystemExit(not ok)"
 $python = $null
 if (Get-Command py -ErrorAction SilentlyContinue) {
-    foreach ($version in @("-3.13", "-3.12", "-3.14")) {
+    foreach ($version in @("-3.15", "-3.14", "-3.13", "-3.12", "-3.11")) {
         try {
             $candidatePath = & py $version -c $pythonProbe 2>$null
             if ($LASTEXITCODE -eq 0 -and $candidatePath) { $python = $candidatePath; break }
         } catch { }
     }
 }
-foreach ($candidate in @("python3.13", "python3.12", "python3.14", "python", "py")) {
+foreach ($candidate in @("python3.15", "python3.14", "python3.13", "python3.12", "python3.11", "python", "py")) {
     if ($python) { break }
     if (Get-Command $candidate -ErrorAction SilentlyContinue) {
         try {
@@ -131,7 +131,7 @@ if ($manager -eq "pipx") {
             }
         } catch { $ownedBase = $null }
         if (-not $ownedBase) {
-            Write-Err "Error: the existing pipx environment does not have a verifiable stable CPython 3.12, 3.13 or 3.14. No changes were made."
+            Write-Err "Error: the existing pipx environment does not have a verifiable stable CPython 3.11, 3.12, 3.13, 3.14 or 3.15. No changes were made."
             if (-not $pipxPython) {
                 $pipxPython = "C:\path\to\supported\python.exe"
                 Write-Host "Install a supported stable interpreter and replace C:\path\to\supported\python.exe with its executable."
@@ -145,7 +145,7 @@ if ($manager -eq "pipx") {
         }
         $pipxPython = $ownedBase
     } elseif (-not $pipxPython) {
-        Write-Err "Error: pipx requires stable CPython 3.12, 3.13 or 3.14. Install a supported interpreter and retry."
+        Write-Err "Error: pipx requires stable CPython 3.11, 3.12, 3.13, 3.14 or 3.15. Install a supported interpreter and retry."
         exit 1
     }
 }
@@ -191,15 +191,21 @@ Write-Step "Resolved $releaseTag from GitHub Releases."
 function Invoke-ManagedInstall([switch]$Force) {
     $forceArgs = @()
     if ($Force) { $forceArgs = @("--force") }
-    if ($manager -eq "uv") { & uv tool install --python 3.13 --managed-python @forceArgs $wheelUrl }
-    else { Invoke-Pipx install --python $pipxPython @forceArgs $wheelUrl }
+    $hadLibyamlSetting = Test-Path Env:PYYAML_FORCE_LIBYAML
+    try {
+        if (-not $hadLibyamlSetting) { $env:PYYAML_FORCE_LIBYAML = "0" }
+        if ($manager -eq "uv") { & uv tool install --python 3.15.0 --managed-python @forceArgs $wheelUrl }
+        else { Invoke-Pipx install --python $pipxPython @forceArgs $wheelUrl }
+    } finally {
+        if (-not $hadLibyamlSetting) { Remove-Item Env:PYYAML_FORCE_LIBYAML -ErrorAction SilentlyContinue }
+    }
 }
 function Remove-ManagedInstall {
     if ($manager -eq "uv") { & uv tool uninstall $Package }
     else { Invoke-Pipx uninstall $Package }
 }
 if ($manager -eq "uv") {
-    & uv python install 3.13
+    & uv python install 3.15.0
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 function Test-DeeprWorks {
@@ -244,5 +250,5 @@ Write-Host "Update later:  re-run this one-liner, or '$Cli upgrade'"
 Write-Host "Uninstall:     re-run this one-liner with -Uninstall"
 Write-Host ""
 Write-Host "Dev / editable from source:"
-Write-Host "  git clone https://github.com/blisspixel/deepr.git; cd deepr; uv tool install --python 3.13 --managed-python -e ."
+Write-Host "  git clone https://github.com/blisspixel/deepr.git; cd deepr; uv tool install --python 3.15.0 --managed-python -e ."
 Write-Host ""
