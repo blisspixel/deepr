@@ -92,7 +92,8 @@ def test_command_width_snapshots(monkeypatch, command_fixtures, width, name, arg
         monkeypatch.setattr(module, "console", console)
     result = CliRunner().invoke(cli, args, terminal_width=width, prog_name="deepr")
     assert result.exit_code == 0, result.output
-    assert all(len(line) <= width for line in result.stdout.splitlines())
+    overflow = [line for line in result.stdout.splitlines() if len(line) > width]
+    assert not overflow, overflow
     assert result.stdout == (SNAPSHOTS / f"{name}-{width}.txt").read_text(encoding="utf-8")
 
 
@@ -111,3 +112,17 @@ def test_complete_next_command_is_the_documented_width_exception():
     command = 'deepr expert consult "a long question" -e "Long Expert Name" --local'
     colors.print_next(command, target=console)
     assert output.getvalue() == "Next: " + command + "\n"
+
+
+@pytest.mark.parametrize("width", [60, 100])
+@pytest.mark.parametrize("indent", [4, 8])
+def test_root_help_normalizes_template_before_inserting_preview(monkeypatch, width, indent):
+    import inspect
+
+    original = inspect.cleandoc(cli.help)
+    template = "\n".join(" " * indent + line if line else "" for line in original.splitlines())
+    monkeypatch.setattr(cli, "help", template)
+    result = CliRunner().invoke(cli, ["--help"], terminal_width=width, prog_name="deepr")
+    assert result.exit_code == 0, result.output
+    assert result.stdout == (SNAPSHOTS / f"help-{width}.txt").read_text(encoding="utf-8")
+    assert cli.help == template

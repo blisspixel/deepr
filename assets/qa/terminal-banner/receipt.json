@@ -1,6 +1,6 @@
 {
-  "source_base": "f9ef6215792ea498ab8d0feeac306771957a4ed1",
-  "runtime_diff_sha256": "c7bf39764c1fed038da11eb65b5eb0a2641ff8c6bd488f91738e66cf141e4d61",
+  "source_base": "536653cb2a8f2d399b228b47edd903c9892ac60d",
+  "runtime_diff_sha256": "65048633dce583a23814fb169a5ba0858dd20dc9290784189bf6f947a56d90bd",
   "owning_svg_sha256": "305c2bf97c4c5e64995a940a87cd6f647190ba1f8568385a151a2c7bb4c35b88",
   "columns": 60,
   "provider_calls": 0,
@@ -8,62 +8,62 @@
     {
       "case": "first",
       "exit": 0,
-      "seconds": 0.80096,
+      "seconds": 0.836383,
       "sync_frames": 8,
       "sha256": "a767562fedf398f87488f48020be9f991638cfa12018a4a94b4902feea38b38a",
       "chunks": [
         {
-          "seconds": 0.103413,
+          "seconds": 0.107533,
           "bytes": 846,
           "sync_frames": 1
         },
         {
-          "seconds": 0.187691,
+          "seconds": 0.191094,
           "bytes": 841,
           "sync_frames": 1
         },
         {
-          "seconds": 0.271178,
+          "seconds": 0.274619,
           "bytes": 843,
           "sync_frames": 1
         },
         {
-          "seconds": 0.354666,
+          "seconds": 0.358121,
           "bytes": 843,
           "sync_frames": 1
         },
         {
-          "seconds": 0.438163,
+          "seconds": 0.441614,
           "bytes": 843,
           "sync_frames": 1
         },
         {
-          "seconds": 0.521642,
+          "seconds": 0.525143,
           "bytes": 843,
           "sync_frames": 1
         },
         {
-          "seconds": 0.605127,
+          "seconds": 0.608653,
           "bytes": 843,
           "sync_frames": 1
         },
         {
-          "seconds": 0.688624,
+          "seconds": 0.692163,
           "bytes": 845,
           "sync_frames": 1
         },
         {
-          "seconds": 0.772017,
+          "seconds": 0.775579,
           "bytes": 20,
           "sync_frames": 0
         },
         {
-          "seconds": 0.77226,
+          "seconds": 0.777211,
           "bytes": 15,
           "sync_frames": 0
         },
         {
-          "seconds": 0.772347,
+          "seconds": 0.777296,
           "bytes": 2,
           "sync_frames": 0
         }
@@ -72,22 +72,22 @@
     {
       "case": "seen",
       "exit": 0,
-      "seconds": 0.13659,
+      "seconds": 0.142446,
       "sync_frames": 0,
       "sha256": "2b6aff29488c5fb087a0b408716edc04c1acd660b31c6a9375d23885d5744a15",
       "chunks": [
         {
-          "seconds": 0.107988,
+          "seconds": 0.116741,
           "bytes": 814,
           "sync_frames": 0
         },
         {
-          "seconds": 0.108046,
+          "seconds": 0.116774,
           "bytes": 15,
           "sync_frames": 0
         },
         {
-          "seconds": 0.108071,
+          "seconds": 0.116839,
           "bytes": 2,
           "sync_frames": 0
         }
@@ -96,22 +96,22 @@
     {
       "case": "no-color",
       "exit": 0,
-      "seconds": 0.139458,
+      "seconds": 0.132474,
       "sync_frames": 0,
       "sha256": "1e0f28d376fe7414a353aa054b811b047bec8d43c6699928e83229a084731e11",
       "chunks": [
         {
-          "seconds": 0.111654,
+          "seconds": 0.105848,
           "bytes": 760,
           "sync_frames": 0
         },
         {
-          "seconds": 0.111714,
+          "seconds": 0.105884,
           "bytes": 15,
           "sync_frames": 0
         },
         {
-          "seconds": 0.111783,
+          "seconds": 0.105954,
           "bytes": 2,
           "sync_frames": 0
         }
@@ -120,22 +120,22 @@
     {
       "case": "reduced",
       "exit": 0,
-      "seconds": 0.148855,
+      "seconds": 0.138042,
       "sync_frames": 0,
       "sha256": "2b6aff29488c5fb087a0b408716edc04c1acd660b31c6a9375d23885d5744a15",
       "chunks": [
         {
-          "seconds": 0.115961,
+          "seconds": 0.111283,
           "bytes": 814,
           "sync_frames": 0
         },
         {
-          "seconds": 0.116008,
+          "seconds": 0.111336,
           "bytes": 15,
           "sync_frames": 0
         },
         {
-          "seconds": 0.116023,
+          "seconds": 0.111376,
           "bytes": 2,
           "sync_frames": 0
         }
@@ -144,12 +144,12 @@
     {
       "case": "screen-reader",
       "exit": 0,
-      "seconds": 0.150254,
+      "seconds": 0.137095,
       "sync_frames": 0,
       "sha256": "e438002b78111e72eef00d1dc2b55d60f682c276c52ef4b9c592575469e7acb5",
       "chunks": [
         {
-          "seconds": 0.119424,
+          "seconds": 0.110583,
           "bytes": 15,
           "sync_frames": 0
         }
@@ -159,7 +159,7 @@
   "kind": "Actual 60-column PTY capture; static seen-state bytes rendered through explicit 16-slot palettes",
   "node": "24.22.0",
   "physical_theme_switch_tested": false,
-  "mark_recipe": "Sample the three SVG path segments at 16x24 pixel centers; include centers within 1.3 SVG units; encode standard braille dot order into eight columns and six rows. Owning geometry is asserted by tests.",
+  "mark_recipe": "Sample the three SVG path segments at 16x24 pixel centers; include centers within 1.3 SVG units; encode standard braille dot order into eight columns and six rows.",
   "artifacts": {
     "first.ansi": "a767562fedf398f87488f48020be9f991638cfa12018a4a94b4902feea38b38a",
     "seen.ansi": "2b6aff29488c5fb087a0b408716edc04c1acd660b31c6a9375d23885d5744a15",

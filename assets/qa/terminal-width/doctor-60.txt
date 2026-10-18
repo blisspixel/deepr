@@ -26,14 +26,14 @@ Filesystem
   ok         Current Directory: Writable
       Path: 
 /home/pueo/Work/deepr/.agent/reader-evidence/terminal-width2
-34-portable-final
+34-template-final
   ok         .deepr Directory: Writable
       Path: /home/pueo/.deepr
 
 Storage
   ok         Experts: 
 /home/pueo/Work/deepr/.agent/reader-evidence/terminal-width2
-34-portable-final/experts
+34-template-final/experts
       Set DEEPR_DATA_DIR (or DEEPR_EXPERTS_PATH) to move 
 portable state across machines
       A synced DEEPR_DATA_DIR includes runtime state; stop 
@@ -42,7 +42,7 @@ Deepr services before switching
 before switching devices
   ok         Research reports: 
 /home/pueo/Work/deepr/.agent/reader-evidence/terminal-width2
-34-portable-final/reports
+34-template-final/reports
 
 Spend
   ok         Monthly spend vs budget: $0.00 spent this month

@@ -14,6 +14,7 @@ Interactive Mode:
     deepr interactive
 """
 
+import inspect
 import os
 import shutil
 import sys
@@ -301,7 +302,7 @@ class SectionedGroup(click.Group):
         if len(preview) + 4 > formatter.width:
             provider, model = retained_task_models()["deep_research"]
             preview = f'deepr research "your question" --preview\n\nShipped preview baseline: {provider} / {model}.'
-        rendered = (self.help or "").replace("{research_preview}", preview)
+        rendered = inspect.cleandoc(self.help or "").replace("{research_preview}", preview)
         click.Command(self.name, help=rendered).format_help_text(ctx, formatter)
 
     def format_commands(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:

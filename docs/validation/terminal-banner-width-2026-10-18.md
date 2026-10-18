@@ -42,9 +42,16 @@ messages and all state/exit checks. Review also rejected POSIX-only preview
 continuations; narrow help keeps a portable example and the owning model
 baseline, with lifecycle checks at three widths. Strict islands pass
 all 293 files. The wider type baseline remains exactly 196 errors in 60 files, with no
-changed diagnostics. The final frozen revision passes 13,400 offline unit tests, with 22 existing
-platform/optional skips and 85.50% combined statement/branch coverage. The
-independent coverage gate also passes. Exact-head and resulting-main CI remain
+changed diagnostics. CI on the first candidate exposed extra help indentation on Python 3.11/3.12.
+A narrow-preview paragraph was inserted before Click normalized the original
+template. Normalize before interpolation instead; four regression cases preserve
+the original template and compare 60/100-column output with forced indentation.
+The focused help/model/lazy-import run passes 41 cases on 3.11, 3.12 and 3.15,
+and fresh 3.12 PTY captures fit both widths. The final frozen revision passes
+13,404 offline unit tests on both 3.15 and 3.12, each with 22 existing
+platform/optional skips. Combined coverage is 85.50% and 85.58%, respectively;
+both independent coverage gates pass. The earlier failed CI and passed local
+revision remain retained. Exact-head and resulting-main CI remain
 required before publication. Failed prototypes and fixture setup
 runs remain in the private evidence directory. No provider flag, credential,
 route, cost computation or execution authority changed. No current codegraph

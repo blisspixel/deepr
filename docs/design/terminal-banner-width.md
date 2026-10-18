@@ -67,3 +67,7 @@ JSON and command orchestration in capacity.py, retaining its private rendering
 imports for callers/tests. This closes an existing split: wrapping only source
 rows left the admission footer at 83 columns. It also avoids growing an almost
 1000-line command file; no new rendering module or data authority is introduced.
+
+Normalize the stored help template before interpolating a new paragraph. Raw
+indentation on older supported Python runtimes must not change Click layout;
+forced-indentation snapshots guard this across all interpreter versions.
