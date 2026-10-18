@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.50.29 current main, 2026-10-17. This document defines what users and host
+Status: v2.50.30 current main, 2026-10-17. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -8,6 +8,8 @@ path is structurally complete but remains execution-blocked without verified
 provider prepaid-no-overage or hard-stop evidence. Attended OpenRouter research
 is the exception: one pinned no-tool completion after wallet credits and
 `deepr budget authorize openrouter`.
+
+**v2.50.30 maintenance:** The roadmap records the next round. Runtime behavior, spend authority, and S0 through S4 are unchanged from v2.50.29.
 
 **v2.50.29 maintenance:** Consult coverage is grounded only when every selected position's citations match the loaded study and each cited finding has an anchored retained passage. Older briefs without a study fingerprint stay unbound. Local synthesis uses the native Ollama runtime at `num_ctx` 16384 with `think: false` and does not use the OpenAI-compatible endpoint. Plan-quota synthesis is unchanged. Recorded live items, unknowns, and dissent are delivered or named in the omission line. `dissent_preserved` is that structural delivery check. Semantic preservation stays unassessed. No spend authority changes. S0 remains open.
 

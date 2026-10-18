@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.50.29-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.29)
+[![Version](https://img.shields.io/badge/version-2.50.30-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.30)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -299,6 +299,10 @@ eras and published Agent Plugins `1.0.0`. See the
 for tested behavior and the distinction from draft standards and host certification.
 
 ## Direction
+
+v2.50.30 names the next round in the roadmap: the remaining reader-facing
+expert (#221, #220, #229, #223), then the S0 baseline as v2.51. This release
+does not change runtime behavior.
 
 v2.50.29 makes a consult report whether its citations reach the loaded study
 and a retained passage. Local synthesis uses Ollama's native chat API at the
