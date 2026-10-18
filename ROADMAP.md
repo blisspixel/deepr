@@ -4,12 +4,12 @@
 
 ## Next round
 
-Completed reader, recovery, inspection, lifecycle and first-run repairs are in
-[the changelog](docs/CHANGELOG.md). v2.50.35 completes the #228
-read-only decision review over existing consultation and outcome records.
-It preserves original answers and observations, makes missing evidence explicit,
-and leaves semantic review unqualified. Validation records and the matching
-GitHub release distinguish implementation, tested behavior and publication.
+Completed reader, recovery, inspection, lifecycle, first-run and decision-review
+repairs are in [the changelog](docs/CHANGELOG.md). v2.50.36 repairs missing native
+local attempt accounting at the shared transport boundary. Refused, failed and
+cancelled completions remain recorded at `$0`; rehearsal preserves one attempt
+identity across its lifecycle events. Validation and publication remain separate
+from semantic review or the S0 evidence gate.
 
 - [ ] **v2.51 is S0.** Locate the frozen source worlds, policy and case inventory,
   then run the 48-cell local rehearsal. The archived policy used qwen3.6:27b;
@@ -19,7 +19,8 @@ GitHub release distinguish implementation, tested behavior and publication.
   Only S4 can support a claim that the expert got better.
 
 Validation and practical limits: [reader evidence repairs](docs/validation/expert-evidence-reading-2026-10-17.md),
-[first-run record clarity](docs/validation/first-run-record-clarity-2026-10-18.md).
+[first-run record clarity](docs/validation/first-run-record-clarity-2026-10-18.md),
+[native local accounting](docs/validation/native-local-accounting-2026-10-18.md).
 
 Next after decision review: #216 (embedder prefixes),
 and #225 (Python and Node platform). Polish #230, #234, #235, and #236 waits.
@@ -64,13 +65,16 @@ stay blocked.
   rehearsal. The original 48-cell S0 inputs were not recovered, and no semantic
   review or value claim follows from these diagnostic runs.
 
-- [ ] **Local consult live findings (2026-10-17):** the installed v2.50.31
-  candidate delivered the synthetic checkpoint answer and its retained evidence
-  at `$0`, but exceeded an explicit 100-word request. The local call was in
-  consult traces without an event in the isolated append-only cost ledger.
-  Reconcile local consult attempt accounting at the owning dispatch boundary,
-  including failures and pre-dispatch refusals; retain the unscored response for
-  output-adherence review. See [the validation record](docs/validation/expert-evidence-reading-2026-10-17.md).
+- [x] **Local consult attempt accounting (2026-10-18):** shared native
+  completion now records intent, dispatch and terminal events, including
+  refusals and cancellation. Rehearsal uses the same boundary and preserves
+  legacy trials. The isolated installed consult records one attempt and three
+  durable `$0` events. See [validation](docs/validation/native-local-accounting-2026-10-18.md).
+- [ ] **Local consult output-adherence review (2026-10-17):** the retained
+  installed v2.50.31 answer exceeded an explicit 100-word request. The
+  2026-10-18 accounting validation repeated it with 201 words. Keep each
+  unscored response for accountable semantic review; accounting receipts do
+  not resolve it. See [the validation record](docs/validation/expert-evidence-reading-2026-10-17.md).
 
 - [x] **Public core install repair (2026-10-11):** actual v2.50.25 installation
   on managed Python 3.13 exposed a missing canonical YAML module that full
@@ -752,7 +756,7 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.35)
+## Current Status (v2.50.36)
 
 **Next is v2.51, not more dispatch.** v2.50.32 clarifies bounded tool posture, read-only inspection and CLI JSON parity. v2.50.31 repairs perspective attribution, readable evidence, consult output, and failed-build reporting. S0 remains unrun. v2.50.29 makes consult report whether citations reach the loaded study and a retained passage, and it sends local synthesis through the native 16384-token window study already uses. It does not run S0 or claim the expert got better. v2.50.28 ships the currency inspection and explicit world-time admission. v2.50.27 points deep-research defaults at the live OpenAI substitutes and keeps the 128k web-search ceiling.
 v2.50.26 repairs core-only installation on
@@ -4092,7 +4096,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.35. This roadmap keeps
+v2.50.36. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 

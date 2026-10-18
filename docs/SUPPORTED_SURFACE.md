@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.50.35 current main, 2026-10-18. This document defines what users and host
+Status: v2.50.36 current main, 2026-10-18. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -8,6 +8,12 @@ path is structurally complete but remains execution-blocked without verified
 provider prepaid-no-overage or hard-stop evidence. Attended OpenRouter research
 is the exception: one pinned no-tool completion after wallet credits and
 `deepr budget authorize openrouter`.
+
+**v2.50.36 maintenance:** Native local completions now record durable intent,
+dispatch and terminal events at `$0`, including refusals, failures and
+cancellation. Rehearsal workers use the same recorder, count distinct attempts
+and mirror events idempotently; old trial records remain readable. Inspection
+preflight stays read-only. These receipts do not qualify advice or advance S0.
 
 **v2.50.34 maintenance:** Setup refuses unavailable interaction before writing
 config, storage inspection resolves paths, and generated review/currentness

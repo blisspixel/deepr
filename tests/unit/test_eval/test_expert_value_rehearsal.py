@@ -736,3 +736,17 @@ def test_a_second_writer_is_refused_while_a_run_holds_its_root(tmp_path: Path) -
         first.execute()
     # The interrupted run released the root, so a verified resume may now take it.
     assert _resume(bundle, tmp_path, FakeLauncher()).execute()["status"] == "operationally_complete"
+
+
+def test_lifecycle_rows_cannot_hide_missing_attempts(tmp_path: Path) -> None:
+    rehearsal, _ = run(tmp_path, FakeLauncher())
+    worker = rehearsal.workers[0]
+    original_calls = worker["usage"]["calls"]
+    worker["worker_ledger_events"] = worker["canonical_ledger_events"] = original_calls * 3
+    worker["worker_ledger_attempts"] = original_calls
+    summary = rehearsal.summary(0)
+    assert summary["ledger_reconciled"] is True
+    assert summary["attempts_without_completion_record"] == 0
+    assert summary["worker_ledger_attempts"] == summary["model_calls"]
+    worker["usage"]["calls"] = original_calls + 1
+    assert rehearsal.summary(0)["ledger_reconciled"] is False

@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.36] - 2026-10-18
+
+Repair the retained native local consult ledger finding.
+See [design](design/native-local-attempt-accounting.md).
+
+### Fixed
+
+- Shared native Ollama completion records durable, content-free `$0` intent,
+  dispatch and terminal receipts. Refused requests, failed responses and
+  cancellation retain their status; a missing terminal event stays uncertain.
+- Persistence failure prevents dispatch before its marker or surfaces an
+  accounting error after transport. No prompt, answer or raw exception text
+  enters the ledger. Per-attempt digest binding cannot reuse an earlier proof.
+- Rehearsal workers and warm-up use the shared recorder. Idempotent mirroring
+  preserves lifecycle events without a second attempt writer; legacy retained
+  trials still reconcile. Read-only capacity preflight writes no ledger.
+
 ## [2.50.35] - 2026-10-18
 
 Compatible completion of read-only experience inspection (#228).

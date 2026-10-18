@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.50.35-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.35)
+[![Version](https://img.shields.io/badge/version-2.50.36-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.36)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -305,6 +305,11 @@ eras and published Agent Plugins `1.0.0`. See the
 for tested behavior and the distinction from draft standards and host certification.
 
 ## Direction
+
+v2.50.36 records native local completion attempts at the shared transport
+boundary, including refusals and failures. Durable `$0` receipts contain no
+prompt or answer text. Rehearsal reuses the same recorder; no execution gate or
+expert-quality claim is widened.
 
 v2.50.35 completes experience inspection with an explicit decision review:
 original advice, recorded context, delivered prompts and later observations in
