@@ -467,6 +467,47 @@ def test_sync_appends_running_before_dispatch_then_completes_same_run(monkeypatc
     assert capacity_source == "local"
 
 
+def test_slow_sync_reports_progress_with_its_loop_run_id(monkeypatch, tmp_path, capsys):
+    """Regression (live 2026-07-12): 17 silent minutes could not be told apart from a stuck call."""
+
+    class SlowEngine:
+        async def sync(self, **kwargs):
+            await asyncio.sleep(0.2)
+            return SyncResult(
+                expert_name="GPU Expert",
+                started_at=datetime.now(UTC),
+                outcomes=[SyncOutcome("GPU scheduling", "no_changes")],
+                total_cost=0.0,
+            )
+
+    _wire_running_snapshot_test(monkeypatch, tmp_path, SlowEngine())
+    monkeypatch.setattr("deepr.cli.run_progress.DEFAULT_INTERVAL_SECONDS", 0.02)
+
+    _, loop_run, _ = _run_sync_with_loop_guard(
+        SimpleNamespace(name="GPU Expert"),
+        name="GPU Expert",
+        budget=0.5,
+        sync_all=False,
+        dry_run=False,
+        scheduled=True,
+        jitter=0.0,
+        use_local=True,
+        local_model="local-model",
+        use_plan=False,
+        plan_adapter=None,
+        plan_model=None,
+        context_builder=None,
+    )
+
+    captured = capsys.readouterr()
+    beats = [line for line in captured.err.splitlines() if line.startswith("Sync: ")]
+    assert beats, captured.err
+    assert "syncing due topics with local capacity" in beats[0]
+    assert all(f"trace {loop_run.run_id}" in line for line in beats)
+    assert beats[-1].startswith("Sync: finished after ")
+    assert "Sync: " not in captured.out
+
+
 def test_sync_execution_error_transitions_running_snapshot_to_failed(monkeypatch, tmp_path):
     class CostedRuntimeError(RuntimeError):
         actual_cost = 0.17

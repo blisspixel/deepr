@@ -23,6 +23,7 @@ import click
 from deepr.cli.colors import console, print_error, print_next, print_warning
 from deepr.cli.commands.semantic.experts import expert
 from deepr.cli.companion import companion_allowed, companion_work, print_companion
+from deepr.cli.run_progress import run_progress
 
 # Shared core (also used by the deepr_consult_experts MCP tool). Re-exported so
 # existing importers/tests keep working.
@@ -213,7 +214,19 @@ def _execute_cli_consult(
     json_output: bool = False,
 ) -> dict[str, Any]:
     try:
-        with companion_work("Consult synthesis", console=console, enabled=not json_output, report_error=False):
+        with (
+            run_progress("Consult", phase="preparing experts and capacity") as progress,
+            companion_work("Consult synthesis", console=console, enabled=not json_output, report_error=False),
+        ):
+
+            def started(trace_id: str) -> Any:
+                progress.set_trace(trace_id)
+                return report_started(trace_id)
+
+            def backend_ready(backend: Any) -> Any:
+                progress.set_phase("waiting for model generation")
+                return report_backend(backend)
+
             return asyncio.run(
                 execute_consult_transaction(
                     question=question,
@@ -225,8 +238,8 @@ def _execute_cli_consult(
                     requested_capacity=capacity_request,
                     max_elapsed_seconds=max_elapsed_seconds,
                     run_consult_fn=run_consult,
-                    on_started=report_started,
-                    on_backend_ready=report_backend,
+                    on_started=started,
+                    on_backend_ready=backend_ready,
                 )
             )
     except (click.UsageError, ConsultBackendError) as exc:

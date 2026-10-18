@@ -1246,6 +1246,13 @@ The preserved MCP selector is
 `synthesis_backend: "plan" | "local"`. When Deepr asks its own experts, this is
 a one-shot self-consult, not a recursive loop.
 
+Long interactive `expert consult`, `expert absorb` and `expert sync` runs write
+a line to stderr every 30 seconds with the current command-level phase,
+elapsed time, the consult trace or sync loop-run id, and a Ctrl+C reminder.
+Interrupting prints how long the run took before it was cancelled. Runs shorter
+than 30 seconds print nothing extra, and stdout and `--json` output are
+unchanged. The heartbeat only observes: it never shortens the local timeout.
+
 #### Eval-only structured local consultation
 
 To test question-specific independent expert positions before one synthesis,
