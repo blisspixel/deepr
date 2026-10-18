@@ -70,6 +70,11 @@ stay blocked.
   2026-10-18 accounting validation repeated it with 201 words. Keep each
   unscored response for accountable semantic review; accounting receipts do
   not resolve it. See [the validation record](docs/validation/expert-evidence-reading-2026-10-17.md).
+  **2026-10-18 partial correction:** the requested length now outranks the
+  default 700-word cap and caveat elements, and the question is restated after
+  the evidence. Four runs per arm on the same fixture moved from 190-243 words
+  (0 of 4 under 100) to 72-169 (2 of 4). Not resolved; see
+  [the comparison](docs/validation/consult-requested-length-2026-10-18.md).
 
 ## Quick Links
 

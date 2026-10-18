@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Consult honors a requested length more often.** A length, format or scope
+  in the question now outranks the default 700-word synthesis cap and the
+  caveat elements, and the question is restated after the evidence. On the
+  retained local fixture, four runs moved from 190-243 words to 72-169 for a
+  100-word request; adherence is improved, not resolved. See
+  [validation](validation/consult-requested-length-2026-10-18.md).
+
 ## [2.50.39] - 2026-10-18
 
 Complete interface repairs (#230, #234, #235 and #236), retaining the existing
