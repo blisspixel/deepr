@@ -21,10 +21,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           activate-environment: true
-          python-version: "3.12"
+          python-version: "3.15"
           version: "0.11.32"
 
       - name: Install lint tooling
@@ -57,6 +57,11 @@ jobs:
       - name: Docs consistency (counts match source)
         run: python scripts/check_docs_consistency.py
 
+      - name: Install Python floor dependency types
+        # NumPy 2.5 uses Python 3.12 syntax in its stubs. Resolve the real
+        # Python 3.11 branch for floor checking instead of ignoring its types.
+        run: UV_PROJECT_ENVIRONMENT=.agent/type-floor uv sync --frozen --python 3.11 --extra dev
+
       - name: Type check (mypy baseline, non-blocking)
         # Phase E (Engineering Standards): type checking is being introduced
         # incrementally. This runs non-blocking to record the baseline error
@@ -66,7 +71,7 @@ jobs:
         # first) as annotations land.
         # Config lives in [tool.mypy] in pyproject.toml.
         continue-on-error: true
-        run: mypy
+        run: mypy --python-executable .agent/type-floor/bin/python
 
       - name: Type check strict islands (mypy --strict, BLOCKING)
         # Phase E: strict-clean islands enforced as a blocking gate - a strict
@@ -75,7 +80,10 @@ jobs:
         # whether a `# type: ignore[import-untyped]` is "used" depends on which
         # third-party packages are present (e.g. PyYAML). Decouple the gate
         # from that so it is reproducible regardless of the install set.
-        run: mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/core src/deepr/providers src/deepr/mcp src/deepr/security src/deepr/queue src/deepr/storage src/deepr/tools src/deepr/routing src/deepr/worker src/deepr/webhooks src/deepr/a2a src/deepr/skills src/deepr/backends src/deepr/agents src/deepr/evals src/deepr/observability src/deepr/services
+        run: mypy --python-executable .agent/type-floor/bin/python --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/core src/deepr/providers src/deepr/mcp src/deepr/security src/deepr/queue src/deepr/storage src/deepr/tools src/deepr/routing src/deepr/worker src/deepr/webhooks src/deepr/a2a src/deepr/skills src/deepr/backends src/deepr/agents src/deepr/evals src/deepr/observability src/deepr/services
+
+      - name: Type check promoted runtime dependencies (BLOCKING)
+        run: mypy --python-version 3.15 --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/core src/deepr/providers src/deepr/mcp src/deepr/security src/deepr/queue src/deepr/storage src/deepr/tools src/deepr/routing src/deepr/worker src/deepr/webhooks src/deepr/a2a src/deepr/skills src/deepr/backends src/deepr/agents src/deepr/evals src/deepr/observability src/deepr/services
 
   security:
     runs-on: ubuntu-latest
@@ -86,10 +94,10 @@ jobs:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           activate-environment: true
-          python-version: "3.12"
+          python-version: "3.15"
           version: "0.11.32"
 
       - name: Secret scan (Gitleaks, blocking)
@@ -132,12 +140,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12", "3.13", "3.14"]
+        python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           activate-environment: true
           python-version: ${{ matrix.python-version }}
@@ -182,10 +190,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           activate-environment: true
-          python-version: "3.12"
+          python-version: "3.15"
           version: "0.11.32"
 
       - name: Build Python and Agent Plugin distributions
@@ -209,7 +217,7 @@ jobs:
           .venv/bin/python -m pip download \
             --dest "${RUNNER_TEMP}/deepr-wheelhouse" \
             "$(find dist -maxdepth 1 -name '*.whl' -print -quit)"
-          uv venv .agent-plugin-venv --python 3.12
+          uv venv .agent-plugin-venv --python 3.15
           uv pip install \
             --offline \
             --no-index \
@@ -247,7 +255,7 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: "24.18.0"
+          node-version: "24.22.0"
           cache: npm
           cache-dependency-path: src/deepr/web/frontend/package-lock.json
 
@@ -278,10 +286,10 @@ jobs:
       - name: Production build (vite)
         run: npx vite build
 
-      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           activate-environment: true
-          python-version: "3.12"
+          python-version: "3.15"
           version: "0.11.32"
 
       - name: Verify committed frontend archive is current
@@ -303,23 +311,81 @@ jobs:
             "$(find dist -maxdepth 1 -name '*.whl' -print -quit)" \
             "$(find dist -maxdepth 1 -name '*.tar.gz' -print -quit)"
 
+  platform-install:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+        python-version: ["3.11", "3.15"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          activate-environment: true
+          python-version: ${{ matrix.python-version }}
+          version: "0.11.32"
+      - name: Install the frozen full test environment
+        run: uv sync --frozen --extra dev --extra full
+      - name: Exercise export boundaries and installer ownership
+        run: python -m pytest -q tests/unit/test_experts/test_okf_publication.py tests/unit/test_installer_ownership.py tests/unit/test_release_installers.py tests/unit/test_cli/test_upgrade.py
+      - name: Audit the platform dependency branch
+        run: pip-audit --skip-editable
+      - name: Build the wheel
+        run: python -m build
+      - name: Verify a clean core wheel and native entry points
+        run: python scripts/check_platform_install.py --dist-dir dist --runtime-root ".agent/platform install"
+      - name: Retain platform receipts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: platform-${{ matrix.os }}-${{ matrix.python-version }}
+          path: .agent/platform install/*.log
+          if-no-files-found: warn
+          retention-days: 7
+
+  containers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - surface: stdio
+            dockerfile: Dockerfile
+          - surface: worker
+            dockerfile: deploy/aws/src/worker/Dockerfile
+          - surface: http
+            dockerfile: deploy/mcp-http/Dockerfile
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build the locked image without deployment
+        run: docker build --pull --file "${{ matrix.dockerfile }}" --tag "deepr-platform:${{ matrix.surface }}" .
+      - name: Verify runtime imports without network access
+        run: >-
+          docker run --rm --network none --entrypoint python "deepr-platform:${{ matrix.surface }}"
+          -c "import sys, deepr, numpy, yaml; assert sys.version_info[:2] == (3, 15); assert yaml.safe_load('safe: true') == {'safe': True}; assert float(numpy.dot([1., 2.], [3., 4.])) == 11.; print(deepr.__version__)"
+      - name: Verify offline MCP conformance as the runtime user
+        run: >-
+          docker run --rm --network none --env PYTHON_DOTENV_DISABLED=1
+          --env DEEPR_DATA_DIR=/tmp/deepr-platform --entrypoint deepr "deepr-platform:${{ matrix.surface }}"
+          mcp conformance --json
+
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
-        # Floor is 3.12 (3.11 supported only to Oct 2027; 3.12 to Oct 2028 -
-        # see Phase E). 3.14 promoted to blocking 2026-06-11: the full
-        # [dev,full] extras install and the entire suite pass on it, so the
-        # original wheel-availability caveat no longer applies.
-        python-version: ["3.12", "3.13", "3.14"]
+        # Every maintained ordinary CPython minor is a blocking full-suite gate.
+        python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           activate-environment: true
           python-version: ${{ matrix.python-version }}
@@ -327,6 +393,10 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --frozen --extra dev --extra full
+
+      - name: Audit the Python 3.11 dependency branch
+        if: matrix.python-version == '3.11'
+        run: pip-audit --skip-editable
 
       - name: Unit tests with coverage
         # Coverage threshold lives in pyproject.toml (currently 80%).

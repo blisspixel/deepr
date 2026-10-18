@@ -29,6 +29,8 @@ OKF_PUBLICATION_SCHEMA_VERSION = "deepr-okf-publication-v1"
 OKF_PUBLICATION_MANIFEST = ".deepr-okf-manifest.json"
 _RECOVERY_SCHEMA_VERSION = "deepr-okf-recovery-v1"
 _MAX_MANIFEST_BYTES = 1024 * 1024
+# stat exposes this Windows tag only on Windows; lstat supplies it there.
+_WINDOWS_MOUNT_POINT_TAG = 0xA0000003
 _WINDOWS_DEVICE_NAMES = frozenset(
     {"CON", "PRN", "AUX", "NUL"}
     | {f"COM{number}" for number in range(1, 10)}
@@ -65,8 +67,16 @@ def _lexists(path: Path) -> bool:
     return os.path.lexists(path)
 
 
+def _is_junction(path: Path) -> bool:
+    """Detect Windows mount-point links without following their target."""
+    try:
+        return getattr(path.lstat(), "st_reparse_tag", 0) == _WINDOWS_MOUNT_POINT_TAG
+    except (OSError, ValueError):
+        return False
+
+
 def _is_link_like(path: Path) -> bool:
-    return path.is_symlink() or path.is_junction()
+    return path.is_symlink() or _is_junction(path)
 
 
 def _path_identity(path: Path) -> _PathIdentity:
@@ -186,7 +196,7 @@ def _inventory_tree(root: Path) -> _TreeInventory:
         for entry in ordered:
             relative = (prefix / entry.name).as_posix()
             path = Path(entry.path)
-            if entry.is_symlink() or path.is_junction():
+            if entry.is_symlink() or _is_junction(path):
                 links.add(relative)
                 continue
             if entry.is_dir(follow_symlinks=False):
@@ -252,7 +262,7 @@ def _remove_tree_no_follow(path: Path) -> None:
     if path.is_symlink():
         path.unlink()
         return
-    if path.is_junction():
+    if _is_junction(path):
         path.rmdir()
         return
     mode = os.lstat(path).st_mode

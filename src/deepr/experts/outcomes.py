@@ -9,7 +9,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal, Self, TypedDict
+from typing import Any, Literal, Self, TypeAlias, TypedDict
 
 from filelock import FileLock
 from filelock import Timeout as FileLockTimeout
@@ -27,7 +27,7 @@ OUTCOME_RELATIVE_PATH = Path("outcomes") / "outcomes.jsonl"
 
 _ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$")
 _HASH_PATTERN = re.compile(r"^[0-9a-f]{64}$")
-type OutcomeResult = Literal["succeeded", "mixed", "failed", "unresolved"]
+OutcomeResult: TypeAlias = Literal["succeeded", "mixed", "failed", "unresolved"]
 
 _RESULTS: tuple[OutcomeResult, ...] = ("succeeded", "mixed", "failed", "unresolved")
 _LOCK_TIMEOUT_SECONDS = 10.0

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "deepr-research"
-version = "2.50.37"
+version = "2.50.38"
 description = "Research automation platform that replicates human research team workflows using AI"
 readme = "README.md"
 license = "Apache-2.0"
@@ -12,15 +12,17 @@ license-files = ["LICENSE"]
 authors = [
     {name = "Nick Seal"}
 ]
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
 ]
 keywords = ["research", "ai", "automation", "deep-research", "knowledge-graph", "llm"]
 
@@ -279,7 +281,7 @@ exclude_lines = [
 ]
 
 [tool.ruff]
-target-version = "py312"
+target-version = "py311"
 line-length = 120
 
 [tool.ruff.lint]
@@ -369,7 +371,7 @@ markers = [
 # baseline; these settings are deliberately lenient so the baseline is the set
 # of real type errors, not import-resolution noise. Strictness is ratcheted up
 # package-by-package (core/, providers/, mcp/, security/, queue/, storage/, tools/, routing/, worker/, webhooks/, a2a/, importable skills package first) as annotations land.
-python_version = "3.12"
+python_version = "3.11"
 # src layout: src is the package base, so src/deepr/foo maps to the module
 # deepr.foo (not src.deepr.foo). Without this, mypy names files passed by path
 # differently from how they are imported, and the same class reads as two

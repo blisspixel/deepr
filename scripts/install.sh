@@ -87,12 +87,12 @@ fi
 # Stable CI-supported CPython only; pipx must receive an explicit interpreter.
 PYTHON_PROBE='
 import sys
-ok = sys.implementation.name == "cpython" and sys.version_info[:2] in {(3,12),(3,13),(3,14)} and sys.version_info.releaselevel == "final"
+ok = sys.implementation.name == "cpython" and sys.version_info[:2] in {(3,11),(3,12),(3,13),(3,14),(3,15)} and sys.version_info.releaselevel == "final"
 print(getattr(sys, "_base_executable", sys.executable)) if ok else None
 raise SystemExit(not ok)
 '
 PYTHON=""
-for candidate in python3.13 python3.12 python3.14 python3; do
+for candidate in python3.15 python3.14 python3.13 python3.12 python3.11 python3; do
     if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c "$PYTHON_PROBE" >/dev/null 2>&1; then
         PYTHON=$candidate
         break
@@ -111,10 +111,10 @@ if [ "$MANAGER" = pipx ]; then
             OWNED_BASE=$("$OWNED_PYTHON" -c "$PYTHON_PROBE" 2>/dev/null) || OWNED_BASE=""
         fi
         if [ -z "$OWNED_BASE" ]; then
-            echo "Error: the existing pipx environment does not have a verifiable stable CPython 3.12, 3.13 or 3.14. No changes were made." >&2
+            echo "Error: the existing pipx environment does not have a verifiable stable CPython 3.11, 3.12, 3.13, 3.14 or 3.15. No changes were made." >&2
             if [ -z "$PIPX_PYTHON" ]; then
-                PIPX_PYTHON=/path/to/supported/python3.13
-                echo "Install a supported stable interpreter and replace /path/to/supported/python3.13 with its executable." >&2
+                PIPX_PYTHON=/path/to/supported/python3.15
+                echo "Install a supported stable interpreter and replace /path/to/supported/python3.15 with its executable." >&2
             fi
             echo "Rebuild it explicitly with a supported interpreter:" >&2
             printf ' ' >&2
@@ -126,7 +126,7 @@ if [ "$MANAGER" = pipx ]; then
         PIPX_PYTHON=$OWNED_BASE
         PYTHON=$OWNED_PYTHON
     elif [ -z "$PIPX_PYTHON" ]; then
-        echo "Error: pipx requires stable CPython 3.12, 3.13 or 3.14. Install a supported interpreter and retry." >&2
+        echo "Error: pipx requires stable CPython 3.11, 3.12, 3.13, 3.14 or 3.15. Install a supported interpreter and retry." >&2
         exit 1
     fi
 fi
@@ -143,9 +143,9 @@ if ! RELEASE_JSON=$(curl -fsSL --connect-timeout 10 --max-time 30 \
 fi
 
 if [ -z "$PYTHON" ]; then
-    uv python install 3.13
+    uv python install 3.15
     UV_PYTHON_READY=true
-    PYTHON=$(uv python find --managed-python 3.13)
+    PYTHON=$(uv python find --managed-python 3.15)
 fi
 
 if ! RELEASE_INFO=$(printf '%s' "$RELEASE_JSON" | "$PYTHON" -c '
@@ -191,8 +191,8 @@ step "Resolved $RELEASE_TAG from GitHub Releases."
 
 # Keep manager and interpreter choice identical through install and repair.
 if [ "$MANAGER" = uv ]; then
-    if [ "$UV_PYTHON_READY" = false ]; then uv python install 3.13; fi
-    INSTALL=(uv tool install --python 3.13 --managed-python)
+    if [ "$UV_PYTHON_READY" = false ]; then uv python install 3.15; fi
+    INSTALL=(uv tool install --python 3.15 --managed-python)
     REMOVE=(uv tool uninstall)
 else
     INSTALL=("${PIPX[@]}" install --python "$PIPX_PYTHON")
@@ -235,5 +235,5 @@ echo "Update later:  re-run this one-liner, or '$CLI upgrade'"
 echo "Uninstall:     re-run this one-liner with -- --uninstall"
 echo ""
 echo "Dev / editable from source:"
-echo "  git clone https://github.com/blisspixel/deepr.git && cd deepr && uv tool install --python 3.13 --managed-python -e ."
+echo "  git clone https://github.com/blisspixel/deepr.git && cd deepr && uv tool install --python 3.15 --managed-python -e ."
 echo ""

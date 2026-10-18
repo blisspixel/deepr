@@ -141,7 +141,7 @@ exec(sys.argv[1].replace('import sys;', '', 1).replace('import sys', '', 1).stri
     & $env:DEEPR_SHIM_PYTHON @args
 }
 function py {
-    if ($args[0] -ne '-3.13') { $global:LASTEXITCODE = 1; return }
+    if ($args[0] -ne '-3.15') { $global:LASTEXITCODE = 1; return }
     $probeArgs = @($args | Select-Object -Skip 1)
     python @probeArgs
 }
@@ -264,7 +264,7 @@ def test_installer_preserves_owner_and_pins_interpreter(tmp_path, family, owner,
         assert "--force" not in installs[1].split(), installs
     assert all(op.startswith(expected) and "--python " in op for op in installs)
     if expected == "uv":
-        assert all("--python 3.13 --managed-python" in op for op in installs)
+        assert all("--python 3.15 --managed-python" in op for op in installs)
     assert all(not op.startswith("pip ") for op in operations)
     assert all(op.startswith(expected) for op in operations)
 
@@ -303,7 +303,7 @@ def test_untrusted_wheel_refuses_before_tool_mutation(tmp_path, family):
 
 
 @pytest.mark.parametrize("family", ["bash", "powershell"])
-@pytest.mark.parametrize("owned_python", ["15", "prerelease", "pypy", "missing", "unreadable-root"])
+@pytest.mark.parametrize("owned_python", ["10", "16", "prerelease", "pypy", "missing", "unreadable-root"])
 def test_owned_pipx_runtime_refuses_before_mutation_despite_supported_path_python(tmp_path, family, owned_python):
     result, operations = run_installer(tmp_path, family, "pipx", owned_python=owned_python)
     assert result.returncode != 0, result.stdout + result.stderr
@@ -317,7 +317,7 @@ def test_owned_pipx_runtime_refuses_before_mutation_despite_supported_path_pytho
 @pytest.mark.parametrize("family", ["bash", "powershell"])
 @pytest.mark.parametrize("owner", ["pipx", "pipx-module"])
 def test_owned_pipx_refusal_guidance_uses_the_detected_manager_entrypoint(tmp_path, family, owner):
-    result, operations = run_installer(tmp_path, family, owner, owned_python="15")
+    result, operations = run_installer(tmp_path, family, owner, owned_python="16")
     assert result.returncode != 0
     assert operations == []
     output = result.stdout + result.stderr
@@ -331,7 +331,7 @@ def test_owned_pipx_refusal_guidance_uses_the_detected_manager_entrypoint(tmp_pa
 
 
 @pytest.mark.parametrize("family", ["bash", "powershell"])
-@pytest.mark.parametrize("owned_python", ["12", "13", "14"])
+@pytest.mark.parametrize("owned_python", ["11", "12", "13", "14", "15"])
 @pytest.mark.parametrize("repair", [False, True])
 def test_supported_owned_pipx_runtime_keeps_its_base_interpreter(tmp_path, family, owned_python, repair):
     result, operations = run_installer(tmp_path, family, "pipx", owned_python=owned_python, repair=repair)
@@ -350,8 +350,8 @@ def test_owned_pipx_uninstall_does_not_require_supported_runtime(tmp_path, famil
 
 @pytest.mark.parametrize("family", ["bash", "powershell"])
 @pytest.mark.parametrize("owner", ["pipx", "pipx-module"])
-@pytest.mark.parametrize("owned_python", ["12", "13", "14"])
-@pytest.mark.parametrize("host_python", ["15", "prerelease"])
+@pytest.mark.parametrize("owned_python", ["11", "12", "13", "14", "15"])
+@pytest.mark.parametrize("host_python", ["10", "16", "prerelease"])
 @pytest.mark.parametrize("repair", [False, True])
 def test_supported_owned_pipx_runtime_works_without_a_supported_path_python(
     tmp_path, family, owner, owned_python, host_python, repair
@@ -367,8 +367,8 @@ def test_supported_owned_pipx_runtime_works_without_a_supported_path_python(
 
 @pytest.mark.parametrize("family", ["bash", "powershell"])
 @pytest.mark.parametrize("owner", ["pipx", "pipx-module"])
-@pytest.mark.parametrize("owned_python", ["15", "missing", "unreadable-root"])
-@pytest.mark.parametrize("host_python", ["15", "prerelease"])
+@pytest.mark.parametrize("owned_python", ["10", "16", "missing", "unreadable-root"])
+@pytest.mark.parametrize("host_python", ["10", "16", "prerelease"])
 def test_unsupported_owned_and_path_python_refuses_with_explicit_repair_guidance(
     tmp_path, family, owner, owned_python, host_python
 ):
@@ -378,13 +378,13 @@ def test_unsupported_owned_and_path_python_refuses_with_explicit_repair_guidance
     assert not (tmp_path / "release-requests.txt").exists()
     output = result.stdout + result.stderr
     assert "reinstall deepr-research --python" in output
-    assert "3.12, 3.13 or 3.14" in output
+    assert "3.11, 3.12, 3.13, 3.14 or 3.15" in output
     assert "rerun" in output.lower()
     assert "Done." not in output
 
 
 @pytest.mark.parametrize("family", ["bash", "powershell"])
-@pytest.mark.parametrize("host_python", ["15", "prerelease"])
+@pytest.mark.parametrize("host_python", ["10", "16", "prerelease"])
 def test_fresh_pipx_requires_a_supported_path_python(tmp_path, family, host_python):
     result, operations = run_installer(tmp_path, family, "fresh-pipx", host_python=host_python)
     assert result.returncode != 0, result.stdout + result.stderr

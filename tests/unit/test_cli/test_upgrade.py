@@ -228,7 +228,7 @@ def test_uv_upgrade_keeps_manager_and_requires_managed_stable_python(monkeypatch
     monkeypatch.setattr(subprocess, "run", lambda cmd, **_: calls.append(cmd) or subprocess.CompletedProcess(cmd, 0))
     result = CliRunner().invoke(upgrade, [])
     assert result.exit_code == 0
-    assert calls == [["uv", "tool", "install", "--force", "--python", "3.13", "--managed-python", WHEEL_URL]]
+    assert calls == [["uv", "tool", "install", "--force", "--python", "3.15", "--managed-python", WHEEL_URL]]
 
 
 def test_externally_managed_pip_upgrade_refuses_without_subprocess(monkeypatch, tmp_path):

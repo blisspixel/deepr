@@ -33,8 +33,9 @@ exercise those installed entry points. See the official
 [environment activation](https://docs.python.org/3/library/venv.html#how-venvs-work)
 and [lock/sync behavior](https://docs.astral.sh/uv/concepts/projects/sync/).
 
-Requires Python 3.12+ (tested on 3.12 / 3.13 / 3.14). `uv` is the canonical
-toolchain; plain `pip` works too.
+Requires Python 3.11+ (tested on 3.11 / 3.12 / 3.13 / 3.14 / 3.15).
+The development default is 3.15. `uv` is the canonical toolchain; plain `pip`
+works too.
 
 Runtime setup uses `deepr init` and the per-user `~/.deepr/.env`. For an
 explicit checkout configuration, use `deepr init --local-env` and set
@@ -148,6 +149,20 @@ not add day, sprint, week, quarter, or release-date estimates to active plans.
    installer, and confirm the installed CLI reports that version.
 6. Record a failed live validation in the roadmap and fix it in the next patch.
    Never move or reuse a published tag to hide the finding.
+
+The mypy language floor stays 3.11. NumPy's 3.12+ branch uses newer stub
+syntax, so floor checking needs the dependencies actually resolved for 3.11:
+
+```bash
+UV_PROJECT_ENVIRONMENT=.agent/type-floor uv sync --frozen --python 3.11 --extra dev
+python -m mypy --python-executable .agent/type-floor/bin/python
+```
+
+In PowerShell, set `$env:UV_PROJECT_ENVIRONMENT = ".agent/type-floor"` for the
+sync, remove it afterward, and pass `.agent/type-floor/Scripts/python.exe`.
+Use that `--python-executable` with the strict island command too. CI checks
+both this floor environment and the default 3.15 environment with unchanged
+strict flags. No imported types are ignored to bypass the syntax difference.
 
 ## Code style
 

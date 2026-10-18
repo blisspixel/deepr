@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.38] - 2026-10-18
+
+Align maintained runtime support and installation (#225).
+See [design](design/maintained-runtime-support.md) and
+[validation](validation/maintained-runtimes-2026-10-18.md).
+
+### Fixed
+
+- Support ordinary CPython 3.11 through 3.15; use 3.15 for development,
+  managed uv installation, self-upgrade and single-version CI. Pipx retains
+  its owner and supported base interpreter, refusing retired or prerelease
+  runtimes before mutation. The deployment helper package agrees with the floor.
+- Equivalent type aliases and one shared Windows mount-point tag check preserve
+  OKF no-follow publication, inventory and cleanup on Python 3.11.
+- All five Python minors have blocking core/full-suite checks. Windows and macOS
+  check native entry points and isolated core wheels at the floor and default;
+  all three digest-pinned 3.15-slim containers build and run offline smoke checks.
+- Node uses 24.22.0 LTS, engines require 24+, and setup-uv uses pinned v10.3.0.
+  Targeted NumPy/lxml lock updates supply native 3.15 wheels. Pip-api 0.0.35
+  repairs the audit tool's removed-standard-library import on Python 3.15.
+- Strict typing checks both the real frozen 3.11 dependency branch and the
+  promoted runtime, retaining imported dependency types and existing strictness.
+
+
 ## [2.50.37] - 2026-10-18
 
 Repair explicit local embedding input contracts (#216).

@@ -13,8 +13,8 @@ chmod +x scripts/install.sh
 
 Resolves the latest supported Deepr wheel from GitHub Releases and installs it
 with the existing uv/pipx owner, or preferably uv for a fresh installation.
-Fresh uv environments explicitly require managed CPython 3.13; pipx receives a
-verified stable CPython 3.12, 3.13 or 3.14 interpreter. A manager must already be
+Fresh uv environments explicitly require managed CPython 3.15; pipx receives a
+verified stable CPython 3.11, 3.12, 3.13, 3.14 or 3.15 interpreter. A manager must already be
 installed; the scripts never bootstrap `pip --user`. Re-running updates or
 repairs through the same owner. Ambiguous/unmanaged copies require explicit
 cleanup. A network failure or release without a wheel stops before the existing
@@ -185,3 +185,18 @@ Runs the complete test suite across all modules.
 ```
 
 Configures environment variables for local development on Windows.
+
+## Cross-platform installed-wheel check
+
+After a frozen development install and `python -m build`, run:
+
+```bash
+python scripts/check_platform_install.py --dist-dir dist --runtime-root ".agent/platform install"
+```
+
+The runtime root must be new. This installs the core wheel in an isolated
+environment, checks YAML/NumPy and no-follow export boundaries, exercises
+no-spend CLI inspection and preview, and reuses the two-era stdio and host-profile
+checks. Native entry points and paths with spaces are exercised on Windows and
+macOS at the Python floor and default in CI. Logs and a version receipt stay in
+the supplied root. No provider is dispatched.
