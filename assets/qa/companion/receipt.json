@@ -1,0 +1,261 @@
+{
+  "base": "bf922c456d05286b7b48016d5159979c588b42db",
+  "runtime_diff_sha256": "71a1151c11c88dad29c90c0dc02f53a131ed34a4f03015e083be5f8dfacd04b4",
+  "renderer_sha256": "8f4f1409629fa42cc5562d005d11818f2a9642433b3a0bf449f94bc150fec6e3",
+  "columns": 100,
+  "paid_provider_calls": 0,
+  "model_calls": 0,
+  "kind": "Actual local PTY output; explicitly synthetic state gallery; static captures rendered through 16-slot palettes. Animation bytes retained without stacked-frame screenshots.",
+  "cases": [
+    {
+      "case": "poses",
+      "exit": 0,
+      "seconds": 0.093384,
+      "sha256": "b75ca71c3afdf400e663ba83ba19a7ce84bf07b7519d9d5514b5090d00c3c0ba",
+      "chunks": [
+        {
+          "seconds": 0.071837,
+          "sync_starts": 0,
+          "bytes": 64
+        },
+        {
+          "seconds": 0.072512,
+          "sync_starts": 0,
+          "bytes": 630
+        },
+        {
+          "seconds": 0.072562,
+          "sync_starts": 0,
+          "bytes": 2
+        },
+        {
+          "seconds": 0.073002,
+          "sync_starts": 0,
+          "bytes": 630
+        },
+        {
+          "seconds": 0.073044,
+          "sync_starts": 0,
+          "bytes": 2
+        },
+        {
+          "seconds": 0.073453,
+          "sync_starts": 0,
+          "bytes": 630
+        },
+        {
+          "seconds": 0.073492,
+          "sync_starts": 0,
+          "bytes": 2
+        },
+        {
+          "seconds": 0.073882,
+          "sync_starts": 0,
+          "bytes": 630
+        },
+        {
+          "seconds": 0.07392,
+          "sync_starts": 0,
+          "bytes": 2
+        },
+        {
+          "seconds": 0.074323,
+          "sync_starts": 0,
+          "bytes": 652
+        },
+        {
+          "seconds": 0.07436,
+          "sync_starts": 0,
+          "bytes": 2
+        }
+      ]
+    },
+    {
+      "case": "monochrome",
+      "exit": 0,
+      "seconds": 0.089328,
+      "sha256": "65b4d8358b315ccfcf7e5a04b3a12507f63d8a658b2a2436a29e408855959cbf",
+      "chunks": [
+        {
+          "seconds": 0.071427,
+          "sync_starts": 0,
+          "bytes": 64
+        },
+        {
+          "seconds": 0.072064,
+          "sync_starts": 0,
+          "bytes": 252
+        },
+        {
+          "seconds": 0.072117,
+          "sync_starts": 0,
+          "bytes": 2
+        },
+        {
+          "seconds": 0.072546,
+          "sync_starts": 0,
+          "bytes": 252
+        },
+        {
+          "seconds": 0.072569,
+          "sync_starts": 0,
+          "bytes": 2
+        },
+        {
+          "seconds": 0.072983,
+          "sync_starts": 0,
+          "bytes": 252
+        },
+        {
+          "seconds": 0.073005,
+          "sync_starts": 0,
+          "bytes": 2
+        },
+        {
+          "seconds": 0.073407,
+          "sync_starts": 0,
+          "bytes": 252
+        },
+        {
+          "seconds": 0.07343,
+          "sync_starts": 0,
+          "bytes": 2
+        },
+        {
+          "seconds": 0.073822,
+          "sync_starts": 0,
+          "bytes": 256
+        },
+        {
+          "seconds": 0.073844,
+          "sync_starts": 0,
+          "bytes": 2
+        }
+      ]
+    },
+    {
+      "case": "active",
+      "exit": 0,
+      "seconds": 3.900485,
+      "sha256": "0052838a39b891f3e6dc86c4dca4af2b5d1753bbf66b2ca4a29cf718a0c1841c",
+      "chunks": [
+        {
+          "seconds": 0.066001,
+          "sync_starts": 1,
+          "bytes": 14
+        },
+        {
+          "seconds": 0.066696,
+          "sync_starts": 0,
+          "bytes": 684
+        },
+        {
+          "seconds": 0.317867,
+          "sync_starts": 1,
+          "bytes": 721
+        },
+        {
+          "seconds": 0.568918,
+          "sync_starts": 1,
+          "bytes": 721
+        },
+        {
+          "seconds": 0.819915,
+          "sync_starts": 1,
+          "bytes": 721
+        },
+        {
+          "seconds": 1.07069,
+          "sync_starts": 1,
+          "bytes": 721
+        },
+        {
+          "seconds": 1.322131,
+          "sync_starts": 1,
+          "bytes": 721
+        },
+        {
+          "seconds": 1.57325,
+          "sync_starts": 1,
+          "bytes": 721
+        },
+        {
+          "seconds": 1.824368,
+          "sync_starts": 1,
+          "bytes": 721
+        },
+        {
+          "seconds": 2.075507,
+          "sync_starts": 1,
+          "bytes": 721
+        },
+        {
+          "seconds": 2.327169,
+          "sync_starts": 1,
+          "bytes": 721
+        },
+        {
+          "seconds": 2.57814,
+          "sync_starts": 1,
+          "bytes": 721
+        },
+        {
+          "seconds": 2.828849,
+          "sync_starts": 1,
+          "bytes": 721
+        },
+        {
+          "seconds": 3.079926,
+          "sync_starts": 1,
+          "bytes": 721
+        },
+        {
+          "seconds": 3.3309,
+          "sync_starts": 1,
+          "bytes": 721
+        },
+        {
+          "seconds": 3.468546,
+          "sync_starts": 1,
+          "bytes": 762
+        },
+        {
+          "seconds": 3.869419,
+          "sync_starts": 0,
+          "bytes": 734
+        }
+      ]
+    },
+    {
+      "case": "idle-enabled",
+      "exit": 0,
+      "sample_seconds": 1.2002063740001176,
+      "cpu_ticks": 0,
+      "ticks_per_second": 100,
+      "sha256": "765ad75960f36f37daddbb745b42ecb44fa04d154b7434f373a3f1c8829b56e8"
+    },
+    {
+      "case": "idle-disabled",
+      "exit": 0,
+      "sample_seconds": 1.2002137109957403,
+      "cpu_ticks": 0,
+      "ticks_per_second": 100,
+      "sha256": "d5b27f6624a8a8d89384f7da04cec21f9e1b286c522c29ffc78ae2a1eda96f97"
+    }
+  ],
+  "node": "24.22.0",
+  "physical_theme_switch_tested": false,
+  "artifacts": {
+    "active.ansi": "0052838a39b891f3e6dc86c4dca4af2b5d1753bbf66b2ca4a29cf718a0c1841c",
+    "idle-disabled.ansi": "d5b27f6624a8a8d89384f7da04cec21f9e1b286c522c29ffc78ae2a1eda96f97",
+    "idle-enabled-dark.png": "cd55753eafad21ba8ad8469c1e8bce1efe7eaf5a7ba15367a01a8da15177a489",
+    "idle-enabled-light.png": "5ff6792f67571a0fe32a374b473f093899576f36954e3e6ed5b4f646d80a8531",
+    "idle-enabled.ansi": "765ad75960f36f37daddbb745b42ecb44fa04d154b7434f373a3f1c8829b56e8",
+    "monochrome-dark.png": "0ff9d7a259637c58ab1bff8454f006c9806d14a0484a7d6c0e996f8c0a05971e",
+    "monochrome-light.png": "e6475ab35536fba6f1c296114d95be84accc22ca2967d68b03b790e2a547688c",
+    "monochrome.ansi": "65b4d8358b315ccfcf7e5a04b3a12507f63d8a658b2a2436a29e408855959cbf",
+    "poses-dark.png": "3ec95dc8e1ef53a06618c9ec1ba87aebd11174c761a311f9d7be8483feb859b6",
+    "poses-light.png": "ac19690f675814d231e5b578bd10a4a91deb3b94f5a1786f7c43f9b857495940",
+    "poses.ansi": "b75ca71c3afdf400e663ba83ba19a7ce84bf07b7519d9d5514b5090d00c3c0ba"
+  }
+}

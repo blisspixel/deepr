@@ -1,0 +1,26 @@
+Brim - synthetic presentation states; no expert-quality claim.
+   ▄█▄    ▄█▄    idle                    
+  ███▀▄██▀▄███   Synthetic workflow state
+   ▀████████▀                            
+  ▄▄▄██▄▄██▄▄▄                           
+
+   ▄█▄    ▄█▄    working                 
+  ████▀▄██▀▄██   Synthetic workflow state
+   ▀████████▀                            
+  ▄▄▄██▄▄██▄▄▄                           
+
+   ▄█▄    ▄█▄    success                 
+  ███▄▄██▄▄███   Synthetic workflow state
+   ▀████████▀                            
+  ▄▄▄██▄▄██▄▄▄                           
+
+   ▄█▀    ▄█▄    skeptical               
+  ███▀▄██▀▄███   Synthetic workflow state
+   ▀████████▀                            
+  ▄▄▄██▄▄██▄▄▄                           
+
+  ▀▄██    ██▄▀   error                   
+  ███▀▄██▀▄███   Synthetic workflow state
+   ▀████████▀                            
+  ▄▄▄██▄▄██▄▄▄                           
+

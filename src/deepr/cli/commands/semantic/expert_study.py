@@ -30,6 +30,7 @@ import click
 from deepr.cli.colors import console, print_header, print_key_value, print_next, print_success, print_warning
 from deepr.cli.commands.semantic.experts import expert
 from deepr.cli.commands.semantic.study_backend import StudyBackendError, build_study_backend
+from deepr.cli.companion import companion_work, print_companion
 from deepr.experts.corpus_store import CorpusStore
 from deepr.experts.expert_layout import hold_current_path, hold_history_path, hold_rendered_path, noticed_path
 from deepr.experts.loop_lock import expert_verb_lock
@@ -599,6 +600,12 @@ async def _warn_if_cpu_bound(model: str, *, quiet: bool) -> None:
 
 
 def _render_study_summary(result: Any) -> None:
+    if (
+        getattr(result, "exit_code", None) == 0
+        and result.findings
+        and len(result.findings) == len(result.grounded_findings)
+    ):
+        print_companion("success", "Findings anchored (recorded matches)", console=console)
     for outcome in result.outcomes:
         marker = "[success]ok[/success]" if outcome.status == "ok" else f"[error]{outcome.status}[/error]"
         detail = f" - {outcome.detail}" if outcome.detail else ""
@@ -871,21 +878,22 @@ async def _run_study_with_capacity(
             if local_model:
                 chunks, progress = await _prepare_local_chunk_run(profile.name, backend, rebuild, as_json)
                 cleanup_eligible = True
-            result = await run_study(
-                expert_name=profile.name,
-                corpus=store,
-                completion=backend.completion,
-                lens_keys=[lens.key for lens in resolved],
-                max_corpus_chars=max_corpus_chars,
-                chunk_chars=backend.chunk_chars,
-                capacity_source=backend.capacity_source,
-                model=backend.model,
-                on_progress=None if as_json else _echo_progress,
-                checkpoint=_checkpoint_study(profile.name),
-                resume_from=None if chunks else _resume_source(profile.name, rebuild=rebuild),
-                chunk_checkpoint=chunks,
-                on_chunk_progress=progress,
-            )
+            with companion_work("Study retained sources", console=console, enabled=not as_json) as status:
+                result = await run_study(
+                    expert_name=profile.name,
+                    corpus=store,
+                    completion=backend.completion,
+                    lens_keys=[lens.key for lens in resolved],
+                    max_corpus_chars=max_corpus_chars,
+                    chunk_chars=backend.chunk_chars,
+                    capacity_source=backend.capacity_source,
+                    model=backend.model,
+                    on_progress=None if as_json else status.update if status else _echo_progress,
+                    checkpoint=_checkpoint_study(profile.name),
+                    resume_from=None if chunks else _resume_source(profile.name, rebuild=rebuild),
+                    chunk_checkpoint=chunks,
+                    on_chunk_progress=progress,
+                )
             if any(outcome.status == "capacity_refused" for outcome in result.outcomes):
                 cleanup_eligible = False
             return result

@@ -14,7 +14,14 @@ from rich.style import Style
 from rich.text import Text
 
 from deepr.cli.colors import ROLE_STYLES
-from deepr.cli.effects import _SYNC_END, resolve_animation_policy, synchronized_output
+from deepr.cli.effects import (
+    _SYNC_END,
+    resolve_animation_policy,
+    synchronized_output,
+)
+from deepr.cli.effects import (
+    screen_reader_enabled as _screen_reader_enabled,
+)
 
 _BANNER_SENTINEL = "banner_seen_v1"
 _ANSI_HIDE_CURSOR = "\033[?25l"
@@ -46,14 +53,6 @@ class BannerPlan:
     show: bool
     mode: str
     mark_seen: bool
-
-
-def _is_truthy(value: str) -> bool:
-    return value.strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _screen_reader_enabled() -> bool:
-    return any(_is_truthy(os.getenv(key, "")) for key in ("DEEPR_SCREEN_READER", "SCREENREADER", "TERM_SCREEN_READER"))
 
 
 def _banner_seen_path(state_dir: Path) -> Path:

@@ -22,6 +22,7 @@ import click
 
 from deepr.cli.colors import console, print_error, print_next, print_warning
 from deepr.cli.commands.semantic.experts import expert
+from deepr.cli.companion import companion_allowed, companion_work, print_companion
 
 # Shared core (also used by the deepr_consult_experts MCP tool). Re-exported so
 # existing importers/tests keep working.
@@ -61,7 +62,10 @@ def _refuse(
         result = OperationResult(False, 0, 0, error=message, error_code=code, category=category, retryable=retryable)
         click.echo(_json.dumps(result.error_payload(hint=hint)))
     else:
-        print_error(message)
+        if companion_allowed(console):
+            print_companion("error", message, console=console)
+        else:
+            print_error(message)
         if hint.startswith("deepr "):
             print_next(hint)
     sys.exit(exit_code)
@@ -209,21 +213,22 @@ def _execute_cli_consult(
     json_output: bool = False,
 ) -> dict[str, Any]:
     try:
-        return asyncio.run(
-            execute_consult_transaction(
-                question=question,
-                requested_experts=list(experts),
-                max_experts=max_experts,
-                budget=budget,
-                backend_mode=backend_mode,
-                backend_factory=backend_factory,
-                requested_capacity=capacity_request,
-                max_elapsed_seconds=max_elapsed_seconds,
-                run_consult_fn=run_consult,
-                on_started=report_started,
-                on_backend_ready=report_backend,
+        with companion_work("Consult synthesis", console=console, enabled=not json_output, report_error=False):
+            return asyncio.run(
+                execute_consult_transaction(
+                    question=question,
+                    requested_experts=list(experts),
+                    max_experts=max_experts,
+                    budget=budget,
+                    backend_mode=backend_mode,
+                    backend_factory=backend_factory,
+                    requested_capacity=capacity_request,
+                    max_elapsed_seconds=max_elapsed_seconds,
+                    run_consult_fn=run_consult,
+                    on_started=report_started,
+                    on_backend_ready=report_backend,
+                )
             )
-        )
     except (click.UsageError, ConsultBackendError) as exc:
         _refuse(
             str(exc),

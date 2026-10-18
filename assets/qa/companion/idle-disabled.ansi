@@ -1,0 +1,16 @@
+[2;39mStatus: [0m[34mprovider: xai[0m[2;39m  ·  [0m[1;39mspent: $0.00[0m[2;39m  ·  [0m[34mqueue: 0 queued, 0 running[0m
+
+[2;39mType [0m[36m[r][0m[2;39mesearch [0m[36m[e][0m[2;39mxperts [0m[36m[j][0m[2;39mobs [0m[36m[c][0m[2;39mosts [0m[36m[g][0m[2;39mconfig [0m[36m[?][0m[2;39mhelp [0m[2;39mor [0m[36m[q][0m[2;39muit[0m
+[2;39mPro mode:[0m type a command directly (example: jobs list, costs show)
+[36m  [0m[36m   [0m[36m  [0m[1;2;39mPrimary[0m[1m     [0m[1m  [0m[2;39m                                     [0m[2;39m  [0m
+[36m  [0m[36m[1][0m[36m  [0m[1mResearch    [0m[1m  [0m[2;39mSubmit a new research query          [0m[2;39m  [0m
+[36m  [0m[36m[2][0m[36m  [0m[1mExperts     [0m[1m  [0m[2;39mChat with domain experts             [0m[2;39m  [0m
+[36m  [0m[36m[3][0m[36m  [0m[1mJobs        [0m[1m  [0m[2;39mView job queue and history           [0m[2;39m  [0m
+[36m  [0m[36m   [0m[36m  [0m[1;2;39mUtility[0m[1m     [0m[1m  [0m[2;39m                                     [0m[2;39m  [0m
+[36m  [0m[36m[4][0m[36m  [0m[1mCosts       [0m[1m  [0m[2;39mView spending and budgets            [0m[2;39m  [0m
+[36m  [0m[36m[5][0m[36m  [0m[1mConfig      [0m[1m  [0m[2;39mSettings and API keys                [0m[2;39m  [0m
+[36m  [0m[36m[6][0m[36m  [0m[1mHelp        [0m[1m  [0m[2;39mCommands and documentation           [0m[2;39m  [0m
+[36m  [0m[36m[q][0m[36m  [0m[1mQuit        [0m[1m  [0m[2;39mExit interactive mode (q/quit/exit/0)[0m[2;39m  [0m
+
+[36m[22m[22m[23mAction[0m: q
+[32mok: Goodbye![0m

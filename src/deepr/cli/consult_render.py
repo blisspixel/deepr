@@ -9,6 +9,7 @@ from rich.markdown import Markdown
 from rich.text import Text
 
 from deepr.cli.colors import ROLE_STYLES
+from deepr.cli.companion import CompanionState, companion_allowed, render_companion
 from deepr.experts.consult_support import recorded_statement
 
 
@@ -87,8 +88,8 @@ def _currency(console: Console, payload: dict[str, Any]) -> None:
     _text(console, "Study time is an observation date, not proof that advice is current.")
 
 
-def _pushback(console: Console, payload: dict[str, Any]) -> None:
-    _section(console, "Pushback")
+def pushback_rows(payload: dict[str, Any]) -> list[str]:
+    """One projection shared by the displayed Pushback section and its pose."""
     rows = []
     for item in payload.get("disagreements") or []:
         rows.append(f"Disagreements: {item}")
@@ -101,7 +102,13 @@ def _pushback(console: Console, payload: dict[str, Any]) -> None:
         for position in context.get("positions") or []:
             if revision := recorded_statement(position.get("would_change_my_mind")):
                 rows.append(f"{name}, revision condition: {revision}")
-    for row in dict.fromkeys(rows):
+    return list(dict.fromkeys(rows))
+
+
+def _pushback(console: Console, payload: dict[str, Any]) -> None:
+    _section(console, "Pushback")
+    rows = pushback_rows(payload)
+    for row in rows:
         _text(console, row)
     if not rows:
         _text(console, "None recorded; this is not proof of consensus. Premise challenge is not separately assessed.")
@@ -129,6 +136,14 @@ def render_consult(payload: dict[str, Any], console: Console) -> None:
     _text(console, "Mode: one-shot stored-context council; experts do not exchange turns")
     capacity = payload.get("capacity") or {}
     route = " ".join(str(capacity[key]) for key in ("synthesis_backend", "model") if capacity.get(key))
-    console.print(
-        Text(f"${payload.get('cost_usd', 0):.4f} {route} | Knowledge writes: none; review-only output.", style="muted")
+    footer = Text(
+        f"${payload.get('cost_usd', 0):.4f} {route} | Knowledge writes: none; review-only output.",
+        style=ROLE_STYLES["muted"],
     )
+    if companion_allowed(console):
+        pose: CompanionState = "error"
+        if status == "completed" and payload.get("experts_consulted"):
+            pose = "skeptical" if pushback_rows(payload) else "success"
+        console.print(render_companion(pose, footer, console=console))
+    else:
+        console.print(footer)
