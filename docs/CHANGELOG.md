@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.41] - 2026-10-19
+
+Evidence-delivery repairs and a new zero-cost diagnostic, retaining the
+existing execution, spend and knowledge-write boundaries. Semantic effects are
+untested; S0 and accountable review remain open.
+
+### Added
+
+- **Correction survival diagnostic** (`deepr eval correction-survival`, #259).
+  A frozen, hashed case set of eleven correction, premise, history,
+  disagreement, missing-evidence and repetition cases over three dated
+  synthetic worlds. Each case runs the production study, brief, retrieval and
+  packing path beside an oracle packet and a fresh source read under one
+  prompt bound, and records per-obligation stage receipts so a lost correction
+  can be traced to the stage that dropped it. Answers are a fixed mock at `$0`;
+  answer use stays unreviewed until a blinded label is bound to the exact
+  answer hash. With 60 distractor sources it localized one retrieval miss on a
+  near-match version question. See
+  [the design note](design/correction-survival-diagnostic.md) and
+  [the first runs](validation/correction-survival-2026-10-19.md).
+
 ### Fixed
 
 - **Brief synthesis no longer drops whole lenses at its finding cap.** It took

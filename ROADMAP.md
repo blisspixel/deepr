@@ -6,7 +6,9 @@
 
 Completed reader, recovery, inspection, lifecycle, first-run, decision-review,
 local accounting, embedding and interface repairs are in
-[the changelog](docs/CHANGELOG.md). v2.50.40 closes the cross-verb belief
+[the changelog](docs/CHANGELOG.md). v2.50.41 records and repairs evidence
+selection at the brief and consult prompt boundaries and adds a stage-resolved
+correction-survival diagnostic. v2.50.40 closes the cross-verb belief
 overwrite race, silent long local runs, MoE/hybrid KV overestimates and the
 contrast-phrase contradiction label, and partially corrects consult length
 adherence. Exact-main CI and public installation are release acceptance
@@ -97,6 +99,24 @@ stay blocked.
   per budget); at tight budgets fewer standalone findings fit. Remaining: a
   blinded semantic comparison of both packers under the same allowance. See
   [the design note](docs/design/evidence-selection-and-delivery.md).
+
+- [ ] **Correction survival across source history and production answers
+  (#259, 2026-10-19):** trace each correction obligation from source through
+  study, briefing, retrieval and prompt delivery to the reviewed answer.
+  **2026-10-19 first increment:** `deepr eval correction-survival` runs a
+  frozen 11-case, 3-world set through the production path, an oracle packet and
+  a fresh source read at `$0` with mock answers, with stage receipts, complete
+  attempt accounting, completion-marked runs and blinded label binding. Open:
+  a separately approved local semantic run with an attested model digest and
+  blinded reviewer labels; no answer-quality claim exists yet. See
+  [the design note](docs/design/correction-survival-diagnostic.md).
+- [ ] **Consult retrieval misses near-match evidence under on-topic noise
+  (2026-10-19):** with 60 distractor sources the diagnostic's
+  `near-match-version` case lost its v2 finding at retrieval. Literal token
+  overlap scored filler mentioning "agents" above a finding saying "agent
+  platform", and no position cited the finding. Measure any router change
+  against the diagnostic before adopting it; overlap may route, never decide.
+  See [the record](docs/validation/correction-survival-2026-10-19.md).
 
 ## Quick Links
 
@@ -762,9 +782,12 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.40)
+## Current Status (v2.50.41)
 
-v2.50.40 makes belief mutations one cross-process transaction, reports long
+v2.50.41 selects brief evidence across lenses, packs consult positions with
+their cited evidence, records what each prompt delivered, and adds the `$0`
+correction-survival diagnostic, without widening execution or write
+authority. v2.50.40 makes belief mutations one cross-process transaction, reports long
 local run progress on stderr, sizes local KV fit from attention metadata and
 improves requested consult length adherence, without widening execution or
 write authority. v2.50.39 completes the interface repair bundle. Its validation records distinguish local evidence, exact CI
@@ -4128,7 +4151,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.40. This roadmap keeps
+v2.50.41. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 

@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.50.40 current main, 2026-10-18. This document defines what users and host
+Status: v2.50.41 current main, 2026-10-19. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -8,6 +8,13 @@ path is structurally complete but remains execution-blocked without verified
 provider prepaid-no-overage or hard-stop evidence. Attended OpenRouter research
 is the exception: one pinned no-tool completion after wallet credits and
 `deepr budget authorize openrouter`.
+
+**v2.50.41 corrections:** Brief synthesis selects whole findings one lens at a
+time and records presented, omitted and shortened findings with the prompt
+hash. Consult packs each position with the findings it cites, names missing or
+unresolved support per position, keeps the omission notice inside its bound
+and stores a per-position delivery manifest. `deepr eval correction-survival`
+is new and `$0`.
 
 **v2.50.40 corrections:** Belief mutations from any CLI, MCP or web writer run
 in one cross-process transaction that reloads current state and refuses to
@@ -682,6 +689,17 @@ must not be described as usable capacity.
   review as `unreviewed`. This evaluator does not enable a generic deliberation
   runtime. The separate experimental local CLI investigation has its own
   bounded contract; remote multi-expert CLI, MCP, and A2A chat remains gated.
+- `deepr eval correction-survival` runs the frozen `correction-survival-v1`
+  diagnostic at `$0` with a fixed mock answer and no model call. Eleven cases
+  over three dated synthetic source worlds pass through the production study,
+  brief, consult retrieval and synthesis-packing path, an oracle evidence
+  packet and a fresh source read under one prompt bound. Each obligation gets
+  mechanical stage receipts (source, study, briefing, retrieval, delivery);
+  answer use stays `unreviewed` until a blinded reviewer label is bound to the
+  exact answer hash. `--distractors N` adds on-topic filler so retrieval and
+  packing bounds are exercised. A run is never reused without its completion
+  marker, matching case-set hash and recipe hash. It is not S0 and makes no
+  answer-quality claim.
 - `deepr eval conversation` emits `deepr-conversation-eval-v1` from twelve
   built-in frozen-fixture checks at `$0`. The five conversation contracts and
   evaluator report cover protocol-neutral identity, optimistic concurrency,

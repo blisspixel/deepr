@@ -123,6 +123,7 @@ _COMMAND_SPECS: dict[str, _LazyCommandSpec] = {
         "Run model evaluation workflows with cost safety defaults.",
         load_after=(
             "deepr.cli.commands.eval_conversation",
+            "deepr.cli.commands.eval_correction_survival",
             "deepr.cli.commands.eval_deliberation",
             "deepr.cli.commands.eval_expert_value",
             "deepr.cli.commands.eval_expert_value_rehearsal",
