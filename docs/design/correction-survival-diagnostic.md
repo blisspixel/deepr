@@ -70,6 +70,11 @@ answer this. This diagnostic is separate from the frozen S0 pilot in
 
 `deepr eval correction-survival [--distractors N] [--output-dir DIR]` runs the
 mock diagnostic at `$0` and writes the run with `report.json` and `report.md`.
+`--local-model MODEL [--model-digest DIGEST]` answers instead through the
+production consult system prompt and native local dispatch
+(`evals/correction_survival_local.py`): the digest is attested before the
+first call and on every call, a mismatch refuses or fails the attempt, and
+each attempt records its dispatch (stop reason, tokens, elapsed time, `$0`).
 
 ## Decisions and alternatives rejected
 

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Local answers for the correction-survival diagnostic** (#259).
+  `--local-model MODEL [--model-digest DIGEST]` answers each case through the
+  production consult system prompt and local dispatch, pinned to the model
+  digest and recorded per call. The first run on `qwen3.8:27b` completed all
+  36 attempts at `$0`; the answers await blinded review. See
+  [the record](validation/correction-survival-2026-10-19.md).
+
 ## [2.50.41] - 2026-10-19
 
 Evidence-delivery repairs and a new zero-cost diagnostic, retaining the
