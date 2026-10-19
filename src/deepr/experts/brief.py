@@ -44,14 +44,19 @@ from deepr.experts.brief_contracts import (
     SettledState,
     SourceCredibility,
 )
+from deepr.experts.brief_selection import (
+    BriefSelection,
+    render_payload_fields,
+    seal_selection,
+    select_findings,
+    start_selection,
+)
 from deepr.experts.consult_support import study_fingerprint
 from deepr.experts.corpus_store import CorpusStore
 from deepr.experts.study_contracts import StudyFinding, StudyResult
 
 BriefCompletion = Callable[[str], Awaitable[str]]
 
-_MAX_FINDINGS_IN_PROMPT = 120
-_MAX_FIELD_CHARS = 600
 _LIKELIHOOD_CHOICES = ", ".join(f'"{term}"' for term in LIKELIHOOD_BANDS)
 _CONFIDENCE_CHOICES = ", ".join(f'"{level}"' for level in CONFIDENCE_LEVELS)
 
@@ -60,7 +65,7 @@ def _utc_today() -> date:
     return datetime.now(UTC).date()
 
 
-def _render_finding(finding: StudyFinding) -> str:
+def _render_finding(finding: StudyFinding, selection: BriefSelection | None = None) -> str:
     """One finding as a compact line the synthesis cites by its id.
 
     The id leads because it is what citations resolve against. Titles collide
@@ -68,13 +73,7 @@ def _render_finding(finding: StudyFinding) -> str:
     several findings at once or none at all.
     """
     parts = [f"{finding.finding_id} [{finding.lens}] {finding.title}"]
-    for key, value in finding.payload.items():
-        if key in {"anchors", "name", "title", "thread"}:
-            continue
-        text = "; ".join(str(v) for v in value) if isinstance(value, list) else str(value)
-        text = " ".join(text.split())[:_MAX_FIELD_CHARS]
-        if text:
-            parts.append(f"  {key}: {text}")
+    parts.extend(render_payload_fields(finding, selection))
     if not finding.is_grounded:
         parts.append("  (UNVERIFIED: quoted support not found in the corpus)")
     return "\n".join(parts)
@@ -126,20 +125,59 @@ def build_brief_prompt(
     as_of_date: date | None = None,
 ) -> str:
     """Assemble the synthesis prompt from independent findings."""
-    findings = result.findings[:_MAX_FINDINGS_IN_PROMPT]
-    rendered = "\n".join(_render_finding(f) for f in findings)
-    contested = [f for f in result.findings if f.lens == "contention"]
-    prior_block = _prior_positions_block(list(prior_positions or []))
-    today = (as_of_date or _utc_today()).isoformat()
+    prompt, _ = brief_prompt_with_selection(
+        result,
+        expert_name=expert_name,
+        domain=domain,
+        prior_positions=prior_positions,
+        as_of_date=as_of_date,
+    )
+    return prompt
 
-    dissent_note = (
-        f"\n{len(contested)} finding(s) came from the contention lens, which looks for disagreement "
+
+def _dissent_note(selection: BriefSelection) -> str:
+    """Count the contention findings the synthesis actually sees."""
+    if not selection.contention_total:
+        return "\nNo contention findings were produced. Do not manufacture disagreement to fill the field.\n"
+    shown = selection.contention_presented
+    note = (
+        f"\n{shown} finding(s) below came from the contention lens, which looks for disagreement "
         "between sources. Any position touching those must state what it does not resolve.\n"
-        if contested
-        else "\nNo contention findings were produced. Do not manufacture disagreement to fill the field.\n"
+    )
+    if shown < selection.contention_total:
+        note += (
+            f"{selection.contention_total - shown} further contention finding(s) exist in the study but are "
+            "not shown here. Do not describe disagreement as absent or settled on that account.\n"
+        )
+    return note
+
+
+def _omission_note(selection: BriefSelection) -> str:
+    if not selection.omitted_ids:
+        return ""
+    return (
+        f"\nYou are shown {len(selection.presented_ids)} of {selection.total_findings} study findings, chosen "
+        "one lens at a time. Do not claim the whole study was considered, and cite only ids listed below.\n"
     )
 
-    return f"""You are preparing a briefing on "{expert_name}"{f" ({domain})" if domain else ""}.
+
+def brief_prompt_with_selection(
+    result: StudyResult,
+    *,
+    expert_name: str,
+    domain: str = "",
+    prior_positions: list[Any] | None = None,
+    as_of_date: date | None = None,
+) -> tuple[str, BriefSelection]:
+    """The synthesis prompt and the receipt of which findings it carries."""
+    findings = select_findings(result)
+    selection = start_selection(result, findings, study_fingerprint(result))
+    rendered = "\n".join(_render_finding(f, selection) for f in findings)
+    prior_block = _prior_positions_block(list(prior_positions or []))
+    today = (as_of_date or _utc_today()).isoformat()
+    dissent_note = _dissent_note(selection) + _omission_note(selection)
+
+    prompt = f"""You are preparing a briefing on "{expert_name}"{f" ({domain})" if domain else ""}.
 
 Below are findings produced by several independent analytical passes over a source corpus. Your
 job is not to summarize them. It is to produce what an expert carries into a conversation: where
@@ -221,6 +259,7 @@ Return JSON only, no prose outside it, with this shape:
 {rendered}
 ===== FINDINGS END =====
 """
+    return prompt, seal_selection(selection, prompt)
 
 
 def _as_list(value: Any) -> list[str]:
@@ -324,13 +363,13 @@ def _positions_from(
     result: StudyResult,
     corpus: CorpusStore,
     as_of_date: date,
+    known_ids: set[str],
 ) -> list[Position]:
     """Build positions, keeping only citations that name a real finding.
 
     A position citing something that does not exist cannot answer "why do you
     think that", and keeping the citation would make it look like it could.
     """
-    known_ids = {f.finding_id for f in result.findings if f.finding_id}
     positions: list[Position] = []
     for raw in raw_positions or []:
         if not isinstance(raw, dict):
@@ -368,15 +407,23 @@ def assemble_brief(
     result: StudyResult,
     corpus: CorpusStore,
     as_of_date: date | None = None,
+    selection: BriefSelection | None = None,
 ) -> ExpertBrief:
-    """Turn a parsed synthesis into a brief, keeping only verifiable citations."""
+    """Turn a parsed synthesis into a brief, keeping only verifiable citations.
+
+    With a selection receipt, citations are limited to findings the synthesis
+    was actually shown: an id it never saw cannot be what a position rests on.
+    """
     known_ids = {f.finding_id for f in result.findings if f.finding_id}
+    if selection is not None:
+        known_ids &= set(selection.presented_ids)
 
     positions = _positions_from(
         parsed.get("positions"),
         result=result,
         corpus=corpus,
         as_of_date=as_of_date or _utc_today(),
+        known_ids=known_ids,
     )
 
     questions = [
@@ -423,7 +470,15 @@ def assemble_brief(
             "retained corpus. Positions resting on them inherit that."
         )
     brief.limitations.extend(result.limitations)
+    _record_selection(brief, selection)
     return brief
+
+
+def _record_selection(brief: ExpertBrief, selection: BriefSelection | None) -> None:
+    if selection is None:
+        return
+    brief.synthesis_input = selection.to_dict()
+    brief.limitations.extend(selection.limitations())
 
 
 async def build_brief(
@@ -452,7 +507,7 @@ async def build_brief(
         return brief
 
     effective_date = as_of_date or _utc_today()
-    prompt = build_brief_prompt(
+    prompt, selection = brief_prompt_with_selection(
         result,
         expert_name=expert_name,
         domain=domain,
@@ -464,6 +519,7 @@ async def build_brief(
     except Exception as exc:
         brief = ExpertBrief(expert_name=expert_name, generated_from_findings=len(result.findings))
         brief.limitations.append(f"Synthesis call failed: {str(exc)[:200]}")
+        _record_selection(brief, selection)
         return brief
 
     parsed, error = extract_json_object(raw)
@@ -471,6 +527,7 @@ async def build_brief(
         brief = ExpertBrief(expert_name=expert_name, generated_from_findings=len(result.findings))
         snippet = " ".join((raw or "").split())[:200]
         brief.limitations.append(f"Synthesis did not return usable JSON ({error}). Began: {snippet!r}")
+        _record_selection(brief, selection)
         return brief
 
     return assemble_brief(
@@ -479,6 +536,7 @@ async def build_brief(
         result=result,
         corpus=corpus,
         as_of_date=effective_date,
+        selection=selection,
     )
 
 

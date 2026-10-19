@@ -295,6 +295,14 @@ class ExpertBrief:
     orientation_statements: list[OrientationStatement] = field(default_factory=list)
     """Optional model-recorded origins; older paragraphs remain unattributed."""
 
+    synthesis_input: dict[str, Any] = field(default_factory=dict)
+    """Which study findings the synthesis was shown, omitted or shortened.
+
+    ``generated_from_findings`` keeps its legacy meaning, the study's total.
+    Empty here means the brief predates the receipt; what its synthesis saw
+    cannot be reconstructed from the brief alone.
+    """
+
     @property
     def unfalsifiable_positions(self) -> list[Position]:
         """Positions with no stated falsifier. These are assertions, not judgments."""
@@ -380,6 +388,7 @@ class ExpertBrief:
             limitations=list(data.get("limitations") or []),
             generated_from_findings=int(data.get("generated_from_findings", 0) or 0),
             study_fingerprint=str(data.get("study_fingerprint") or ""),
+            synthesis_input=dict(data.get("synthesis_input") or {}),
         )
         brief.positions = [_position_from(p) for p in (data.get("positions") or []) if isinstance(p, dict)]
         brief.anticipated_questions = [
@@ -422,6 +431,7 @@ class ExpertBrief:
             "generated_from_findings": self.generated_from_findings,
             "cost_usd": self.cost_usd,
             "study_fingerprint": self.study_fingerprint,
+            "synthesis_input": self.synthesis_input,
             "integrity_warnings": self.integrity_warnings(),
             "limitations": self.limitations,
         }

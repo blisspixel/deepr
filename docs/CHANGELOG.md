@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Brief synthesis no longer drops whole lenses at its finding cap.** It took
+  the first 120 findings in lens order, so a large study could reach synthesis
+  without a single contention finding while the prompt still counted them all.
+  Findings are now chosen whole, one lens at a time; long fields are cut at a
+  boundary and marked as shortened; citations to unshown findings are dropped;
+  and the brief records presented, omitted and shortened finding ids with the
+  prompt hash (`synthesis_input`). See
+  [the design note](design/evidence-selection-and-delivery.md).
+
 ## [2.50.40] - 2026-10-18
 
 Correctness and local-run repairs, retaining the existing execution, spend and

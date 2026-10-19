@@ -1,0 +1,195 @@
+"""Which findings a brief synthesis sees is a recorded, lens-balanced choice."""
+
+import hashlib
+import itertools
+from collections import Counter
+
+import pytest
+
+from deepr.experts.brief import assemble_brief, brief_prompt_with_selection, build_brief
+from deepr.experts.brief_contracts import ExpertBrief
+from deepr.experts.brief_selection import (
+    MAX_FIELD_CHARS,
+    MAX_FINDINGS_IN_PROMPT,
+    BriefSelection,
+    select_findings,
+    shorten_field,
+)
+from deepr.experts.consult_support import study_fingerprint
+from deepr.experts.corpus_store import CorpusStore
+from deepr.experts.study_contracts import LensOutcome, StudyFinding, StudyResult
+
+
+def _finding(lens: str, ordinal: int, **payload: object) -> StudyFinding:
+    return StudyFinding(
+        lens=lens,
+        axis="interrogation",
+        kind="notes",
+        title=f"{lens} note {ordinal}",
+        finding_id=f"{lens}-{ordinal}",
+        payload=dict(payload) or {"note": f"{lens} detail {ordinal}"},
+        grounded_anchor_count=1,
+    )
+
+
+def _study(*lenses: tuple[str, int]) -> StudyResult:
+    return StudyResult(
+        expert_name="E",
+        outcomes=[
+            LensOutcome(
+                lens=lens,
+                axis="interrogation",
+                status="ok",
+                findings=[_finding(lens, ordinal) for ordinal in range(1, count + 1)],
+            )
+            for lens, count in lenses
+        ],
+    )
+
+
+@pytest.fixture
+def corpus(tmp_path):
+    return CorpusStore("Selection Expert", storage_dir=tmp_path / "corpus")
+
+
+def test_late_contention_reaches_synthesis_past_the_finding_cap():
+    """The prefix cap used to drop every contention finding behind 130 notes."""
+    study = _study(("synopsis", 130), ("contention", 3))
+    prompt, selection = brief_prompt_with_selection(study, expert_name="E")
+
+    assert all(f"contention-{n} [contention]" in prompt for n in (1, 2, 3))
+    assert len(selection.presented_ids) == MAX_FINDINGS_IN_PROMPT
+    assert selection.total_findings == 133
+    assert len(selection.omitted_ids) == 13
+    assert selection.contention_presented == selection.contention_total == 3
+    assert not selection.complete
+    assert "3 finding(s) below came from the contention lens" in prompt
+    assert f"shown {MAX_FINDINGS_IN_PROMPT} of 133 study findings" in prompt
+    assert "Do not claim the whole study was considered" in prompt
+    assert set(selection.presented_ids).isdisjoint(selection.omitted_ids)
+    assert set(selection.presented_ids) | set(selection.omitted_ids) == {f.finding_id for f in study.findings}
+
+
+def test_selection_is_invariant_to_lens_order():
+    """Which lens runs first must not decide which lenses synthesis hears from."""
+    shapes = [("synopsis", 90), ("mechanism", 40), ("contention", 12), ("failure", 2)]
+    counts = set()
+    for order in itertools.permutations(shapes):
+        chosen = select_findings(_study(*order))
+        counts.add(tuple(sorted(Counter(f.lens for f in chosen).items())))
+    assert counts == {(("contention", 12), ("failure", 2), ("mechanism", 40), ("synopsis", 66))}
+
+
+def test_selection_keeps_study_order_within_and_across_lenses():
+    study = _study(("synopsis", 3), ("contention", 2))
+    assert [f.finding_id for f in select_findings(study, limit=4)] == [
+        "synopsis-1",
+        "synopsis-2",
+        "contention-1",
+        "contention-2",
+    ]
+
+
+def test_small_study_is_presented_whole_and_reports_complete():
+    study = _study(("synopsis", 2), ("contention", 1))
+    prompt, selection = brief_prompt_with_selection(study, expert_name="E")
+    assert selection.complete
+    assert selection.omitted_ids == []
+    assert selection.limitations() == []
+    assert "You are shown" not in prompt
+    assert selection.prompt_sha256 == hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+    assert selection.prompt_chars == len(prompt)
+    assert selection.study_fingerprint == study_fingerprint(study)
+
+
+def test_trailing_condition_is_marked_shortened_not_silently_dropped():
+    condition = "This only holds on version 3 and fails on Windows."
+    long_field = ("The setting is safe to enable in production deployments. " * 12) + condition
+    finding = _finding("synopsis", 1, note=long_field, short="kept whole")
+    study = StudyResult(
+        expert_name="E",
+        outcomes=[LensOutcome(lens="synopsis", axis="interrogation", status="ok", findings=[finding])],
+    )
+    prompt, selection = brief_prompt_with_selection(study, expert_name="E")
+
+    assert condition not in prompt
+    assert f"of {len(long_field)} characters; full text in the study]" in prompt
+    assert "short: kept whole\n" in prompt
+    assert [(item.finding_id, item.field, item.original_chars) for item in selection.shortened] == [
+        ("synopsis-1", "note", len(long_field))
+    ]
+    assert not selection.complete
+    assert any("shortened" in note for note in selection.limitations())
+
+
+def test_shortening_prefers_a_sentence_boundary_and_never_marks_fitting_text():
+    fitting = "x" * MAX_FIELD_CHARS
+    assert shorten_field(fitting) == fitting
+    text = "First sentence ends here. " * 30
+    shown = shorten_field(text)
+    kept = shown.rsplit(" [shortened:", 1)[0]
+    assert kept.endswith("here.")
+    assert len(kept) <= MAX_FIELD_CHARS
+    unbroken = "y" * (MAX_FIELD_CHARS + 50)
+    assert shorten_field(unbroken).startswith("y" * MAX_FIELD_CHARS + " [shortened:")
+
+
+def test_contention_omitted_by_the_cap_is_counted_and_disclosed():
+    study = _study(*[(f"lens{n}", 20) for n in range(7)], ("contention", 20))
+    prompt, selection = brief_prompt_with_selection(study, expert_name="E")
+    assert selection.contention_presented == 15
+    assert selection.contention_total == 20
+    assert "5 further contention finding(s) exist in the study but are not shown here" in prompt
+    assert any("5 of 20 contention" in note for note in selection.limitations())
+
+
+def test_citation_of_an_unshown_finding_is_dropped(corpus):
+    study = _study(("synopsis", 130), ("contention", 1))
+    _, selection = brief_prompt_with_selection(study, expert_name="E")
+    unshown = selection.omitted_ids[0]
+    parsed = {
+        "positions": [
+            {
+                "question": "q",
+                "stance": "s",
+                "reasoning": "r",
+                "would_change_my_mind": "A measured counterexample.",
+                "supported_by": [unshown, "contention-1"],
+            }
+        ],
+        "anticipated_questions": [{"question": "why", "answer": "a", "supported_by": [unshown]}],
+    }
+    brief = assemble_brief(parsed, expert_name="E", result=study, corpus=corpus, selection=selection)
+
+    assert brief.positions[0].supported_by == ["contention-1"]
+    assert brief.anticipated_questions[0].supported_by == []
+    assert brief.generated_from_findings == 131
+    assert brief.synthesis_input["omitted_ids"] == selection.omitted_ids
+    assert any("Synthesis was shown 120 of 131" in note for note in brief.limitations)
+
+
+def test_receipt_round_trips_and_legacy_briefs_report_none(corpus):
+    study = _study(("synopsis", 2))
+    _, selection = brief_prompt_with_selection(study, expert_name="E")
+    brief = assemble_brief({"positions": []}, expert_name="E", result=study, corpus=corpus, selection=selection)
+
+    restored = ExpertBrief.from_dict(brief.to_dict())
+    assert restored.synthesis_input == brief.synthesis_input
+    assert BriefSelection.from_dict(restored.synthesis_input) == selection
+    legacy = ExpertBrief.from_dict({"expert": "E", "generated_from_findings": 4})
+    assert legacy.synthesis_input == {}
+    assert BriefSelection.from_dict(legacy.synthesis_input) is None
+
+
+async def test_failed_synthesis_still_records_what_it_was_shown(corpus):
+    study = _study(("synopsis", 125))
+    prompts: list[str] = []
+
+    async def failing(prompt: str) -> str:
+        prompts.append(prompt)
+        raise RuntimeError("local model unavailable")
+
+    brief = await build_brief(expert_name="E", result=study, corpus=corpus, completion=failing)
+    assert brief.synthesis_input["prompt_sha256"] == hashlib.sha256(prompts[0].encode("utf-8")).hexdigest()
+    assert len(brief.synthesis_input["omitted_ids"]) == 5
+    assert any("Synthesis call failed" in note for note in brief.limitations)
