@@ -181,3 +181,46 @@ async def test_native_local_truncation_can_exhaust_context_before_output_ceiling
     completion = _completion_from_native_ollama(Backend(), "fixture", max_tokens=16000, context_tokens=16384)
     with pytest.raises(StudyBackendError, match="observed 11598 input and 4786 generated tokens"):
         await completion("A large briefing")
+
+
+def test_fit_metadata_fetch_keeps_only_reported_models():
+    from deepr.cli.commands.semantic.study_backend import _kv_per_token_by_model
+
+    info = {
+        "general.architecture": "qwen35",
+        "qwen35.block_count": 65,
+        "qwen35.attention.head_count": 24,
+        "qwen35.attention.head_count_kv": 4,
+        "qwen35.attention.key_length": 256,
+        "qwen35.attention.value_length": 256,
+        "qwen35.full_attention_interval": 4,
+    }
+
+    class Response:
+        def __init__(self, payload, status=200):
+            self._payload, self._status = payload, status
+
+        def raise_for_status(self):
+            if self._status >= 400:
+                raise RuntimeError("show failed")
+
+        def json(self):
+            return self._payload
+
+    class Client:
+        def __init__(self):
+            self.calls = []
+
+        def post(self, url, json):
+            self.calls.append((url, json["model"]))
+            if json["model"] == "broken:1b":
+                return Response({}, status=500)
+            if json["model"] == "bare:1b":
+                return Response({"model_info": {}})
+            return Response({"model_info": info})
+
+    client = Client()
+    tags = {"models": [{"name": "qwen3.8:27b"}, {"name": "broken:1b"}, {"name": "bare:1b"}, {"name": ""}]}
+    assert _kv_per_token_by_model(client, "http://127.0.0.1:11434", tags) == {"qwen3.8:27b": 65_536}
+    assert [model for _, model in client.calls] == ["qwen3.8:27b", "broken:1b", "bare:1b"]
+    assert all(url == "http://127.0.0.1:11434/api/show" for url, _ in client.calls)

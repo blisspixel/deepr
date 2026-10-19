@@ -144,3 +144,83 @@ class TestPreferLocalModel:
     def test_embedding_requires_an_embedding_tag(self):
         assert prefer_local_model(["qwen2.5:14b"], task_class="embedding") is None
         assert prefer_local_model(["nomic-embed-text"], task_class="embedding") == "nomic-embed-text"
+
+
+# Ollama /api/show metadata for the installed models, retained 2026-10-18.
+_QWEN38_27B_INFO = {
+    "general.architecture": "qwen35",
+    "qwen35.block_count": 65,
+    "qwen35.attention.head_count": 24,
+    "qwen35.attention.head_count_kv": 4,
+    "qwen35.attention.key_length": 256,
+    "qwen35.attention.value_length": 256,
+    "qwen35.embedding_length": 5120,
+    "qwen35.full_attention_interval": 4,
+}
+_QWEN36_35B_MOE_INFO = {
+    "general.architecture": "qwen35moe",
+    "qwen35moe.block_count": 41,
+    "qwen35moe.attention.head_count": 16,
+    "qwen35moe.attention.head_count_kv": 2,
+    "qwen35moe.attention.key_length": 256,
+    "qwen35moe.attention.value_length": 256,
+    "qwen35moe.embedding_length": 2048,
+    "qwen35moe.expert_count": 256,
+    "qwen35moe.full_attention_interval": 4,
+}
+
+
+class TestKvFromMetadata:
+    def test_hybrid_models_count_only_cached_layers(self):
+        from deepr.backends.local_fit import kv_bytes_per_token
+
+        assert kv_bytes_per_token(_QWEN38_27B_INFO) == 16 * 4 * 512 * 2
+        assert kv_bytes_per_token(_QWEN36_35B_MOE_INFO) == 10 * 2 * 512 * 2
+
+    def test_standard_attention_defaults(self):
+        from deepr.backends.local_fit import kv_bytes_per_token
+
+        info = {"general.architecture": "bert", "bert.block_count": 12, "bert.attention.head_count": 12}
+        assert kv_bytes_per_token(info) is None  # no head size without embedding_length
+        info["bert.embedding_length"] = 768
+        assert kv_bytes_per_token(info) == 12 * 12 * (64 + 64) * 2
+
+    def test_incomplete_or_malformed_metadata_is_unknown(self):
+        from deepr.backends.local_fit import kv_bytes_per_token
+
+        assert kv_bytes_per_token({}) is None
+        assert kv_bytes_per_token({"general.architecture": "x", "x.block_count": True}) is None
+        assert kv_bytes_per_token({"general.architecture": "x", "x.block_count": -3}) is None
+
+    def test_metadata_corrects_moe_overestimate_but_never_raises_it(self):
+        constant = estimate_fit(
+            name="qwen3.6:35b", weight_bytes=22 * _GB, param_b=35.5, context_tokens=65536, vram_bytes=_VRAM_24 + 8 * _GB
+        )
+        derived = estimate_fit(
+            name="qwen3.6:35b",
+            weight_bytes=22 * _GB,
+            param_b=35.5,
+            context_tokens=65536,
+            vram_bytes=_VRAM_24 + 8 * _GB,
+            kv_per_token=20_480,
+        )
+        assert constant.kv_bytes > 38 * _GB
+        assert derived.kv_bytes == 2 * 20_480 * 65536
+        assert not constant.fits and derived.fits
+        huge = estimate_fit(
+            name="m", weight_bytes=8 * _GB, param_b=7, context_tokens=8192, vram_bytes=_VRAM_24, kv_per_token=10**7
+        )
+        assert huge.kv_bytes == 7 * 16_500 * 8192
+
+    def test_chooser_uses_metadata_when_supplied(self):
+        candidates = [("qwen3.6:35b", 22 * _GB, "35.5B"), ("qwen3.8:27b", 17_741_872_154, "27.3B")]
+        vram = 32 * _GB
+        without, _ = choose_fitting_model(candidates, context_tokens=65536, vram_bytes=vram)
+        with_meta, _ = choose_fitting_model(
+            candidates,
+            context_tokens=65536,
+            vram_bytes=vram,
+            kv_per_token={"qwen3.6:35b": 20_480, "qwen3.8:27b": 65_536},
+        )
+        assert without is None
+        assert with_meta == "qwen3.6:35b"

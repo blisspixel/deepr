@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Local fit no longer overstates hybrid and MoE models.** The KV-cache
+  estimate now uses each installed model's Ollama attention metadata (layers
+  that keep a cache, KV heads and head size) with a 2x margin, and never
+  exceeds the previous per-parameter estimate. `qwen3.6:35b` at 64K context
+  drops from about 38 GB of estimated KV to 2.7 GB, so study no longer skips it
+  for a smaller model on a card where it fits.
+
 - **Consult honors a requested length more often.** A length, format or scope
   in the question now outranks the default 700-word synthesis cap and the
   caveat elements, and the question is restated after the evidence. On the

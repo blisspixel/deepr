@@ -802,8 +802,13 @@ Open v2.51 work:
   stored packets plus one synthesis, not N expert processes. Shipped:
   `deepr route collapse` (`$0` load report, not a quality verdict) and local
   defaults that skip coder/thinking tags when an instruct model is installed.
-  Remaining: persist richer replay, VRAM fit by weight bytes rather than total
-  params, and entailment-specific refusal of coder-only lists at call sites.
+  Remaining: persist richer replay and entailment-specific refusal of
+  coder-only lists at call sites. KV fit (2026-10-18): estimates now take the
+  smaller of the per-parameter constant and twice the KV derived from Ollama
+  attention metadata, so hybrid and MoE models such as qwen3.6:35b are no
+  longer charged about 28x their cache; the constant still bounds every
+  estimate. Free-VRAM detection remains NVIDIA-only, so unified-memory AMD
+  hosts still skip fit selection.
   It must not train a gate, rebrand the council as MoE, add a `local-moe`
   capacity class, or change routing defaults.
   [Design note](docs/design/mixture-of-experts-and-deepr-experts.md).

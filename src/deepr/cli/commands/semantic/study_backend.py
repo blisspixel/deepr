@@ -17,11 +17,14 @@ same terms-of-service notes apply.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
 from deepr.experts.study import StudyCompletion
+
+logger = logging.getLogger(__name__)
 
 
 class StudyBackendError(ValueError):
@@ -288,6 +291,28 @@ def _build_local_backend(
     )
 
 
+def _kv_per_token_by_model(client: Any, base: str, tags: dict[str, Any]) -> dict[str, int]:
+    """Metadata-derived KV bytes per token for each installed model, where reported."""
+    from deepr.backends.local_fit import kv_bytes_per_token
+
+    derived: dict[str, int] = {}
+    for entry in tags.get("models") or []:
+        name = str(entry.get("name") or "")
+        if not name:
+            continue
+        try:
+            shown = client.post(f"{base}/api/show", json={"model": name})
+            shown.raise_for_status()
+            value = kv_bytes_per_token((shown.json() or {}).get("model_info") or {})
+        except Exception as exc:
+            # The per-parameter estimate still applies to this model.
+            logger.debug("No attention metadata for %s: %s", name, type(exc).__name__)
+            continue
+        if value:
+            derived[name] = value
+    return derived
+
+
 def _select_fitting_model(current: str | None, context_tokens: int) -> tuple[str | None, str]:
     """Choose a locally-installed model that fits in free VRAM. Best effort.
 
@@ -309,6 +334,7 @@ def _select_fitting_model(current: str | None, context_tokens: int) -> tuple[str
             # too big and falls back to the largest model.
             resident = client.get(f"{base}/api/ps")
             reclaimable = sum(int(entry.get("size_vram") or 0) for entry in (resident.json() or {}).get("models") or [])
+            kv_per_token = _kv_per_token_by_model(client, base, response.json() or {})
         candidates = [
             (
                 str(entry.get("name") or ""),
@@ -322,6 +348,7 @@ def _select_fitting_model(current: str | None, context_tokens: int) -> tuple[str
             candidates,
             context_tokens=context_tokens,
             vram_bytes=detect_vram_bytes(reclaimable_bytes=reclaimable),
+            kv_per_token=kv_per_token,
         )
     except Exception:
         return None, ""
