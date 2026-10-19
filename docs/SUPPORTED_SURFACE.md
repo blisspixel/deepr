@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.50.39 current main, 2026-10-18. This document defines what users and host
+Status: v2.50.40 current main, 2026-10-18. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -8,6 +8,13 @@ path is structurally complete but remains execution-blocked without verified
 provider prepaid-no-overage or hard-stop evidence. Attended OpenRouter research
 is the exception: one pinned no-tool completion after wallet credits and
 `deepr budget authorize openrouter`.
+
+**v2.50.40 corrections:** Belief mutations from any CLI, MCP or web writer run
+in one cross-process transaction that reloads current state and refuses to
+overwrite an unseen snapshot. Interactive local consult, absorb and sync report
+phase, elapsed time and trace id on stderr. Local KV fit uses attention
+metadata and never exceeds the previous estimate. Consult length adherence is
+improved, not resolved.
 
 **v2.50.39 interface repairs:** CLI roles/status, startup signature, narrow
 terminal output and optional workflow companion retain existing execution and

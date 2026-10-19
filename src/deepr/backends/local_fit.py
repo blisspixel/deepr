@@ -19,6 +19,7 @@ real split afterwards with :func:`deepr.backends.local.local_model_runs_on_gpu`.
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 # Headroom for the CUDA context, fragmentation, and the compute buffers Ollama
@@ -50,6 +51,18 @@ _VRAM_OVERHEAD_BYTES = 1_800_000_000
 # `local_model_runs_on_gpu`, which observes the real split and warns; there is no
 # equivalent recovery from silently never offering a model that would have run.
 _KV_BYTES_PER_TOKEN_PER_B = 16_500
+
+# Margin over the KV size derived from a model's own attention metadata. The
+# measured (total - weights) above also holds compute buffers that grow with
+# context: it ran 1.4-1.6x the pure fp16 KV formula for qwen2.5:14b and
+# qwen3:30b. Hybrid attention models break the per-parameter constant in the
+# other direction. On 2026-10-18, qwen3.8:27b and qwen3.6:35b (MoE) keep a KV
+# cache on one layer in four; Ollama's footprint grew about 6 KB and 4 KB per
+# token from 8K to 32K context, against 450 KB and 586 KB from the constant.
+# The estimate takes the smaller of the constant and twice the derived KV, so
+# metadata can only correct an overestimate, never exceed today's estimate.
+_DERIVED_KV_MARGIN = 2
+_FP16_BYTES = 2
 
 # Task-class hygiene. These are filename/tag conventions, not a quality verdict.
 # They route which installed model is eligible for a task; they do not conclude
@@ -151,6 +164,46 @@ def parse_param_billions(name: str, *, parameter_size: str = "") -> float:
     return 0.0
 
 
+def _positive_int(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, list):
+        values = [_positive_int(item) for item in value]
+        return max((item for item in values if item is not None), default=None)
+    if isinstance(value, (int, float)) and value > 0:
+        return int(value)
+    return None
+
+
+def kv_bytes_per_token(model_info: Mapping[str, object]) -> int | None:
+    """Upper-bound fp16 KV bytes per token from Ollama ``/api/show`` metadata.
+
+    Counts only layers that keep a KV cache: hybrid models report
+    ``full_attention_interval`` and cache one layer in that many. Returns None
+    when the metadata is incomplete, so callers keep the per-parameter estimate.
+    """
+    arch = model_info.get("general.architecture")
+    if not isinstance(arch, str) or not arch:
+        return None
+
+    def field(key: str) -> int | None:
+        return _positive_int(model_info.get(f"{arch}.{key}"))
+
+    layers = field("block_count")
+    heads = field("attention.head_count")
+    kv_heads = field("attention.head_count_kv") or heads
+    embedding = field("embedding_length")
+    head_dim = embedding // heads if embedding and heads else None
+    key_length = field("attention.key_length") or head_dim
+    value_length = field("attention.value_length") or head_dim
+    if not (layers and kv_heads and key_length and value_length):
+        return None
+    interval = field("full_attention_interval")
+    if interval and interval > 1:
+        layers = max(1, layers // interval)
+    return layers * kv_heads * (key_length + value_length) * _FP16_BYTES
+
+
 def estimate_fit(
     *,
     name: str,
@@ -158,9 +211,18 @@ def estimate_fit(
     param_b: float,
     context_tokens: int,
     vram_bytes: int,
+    kv_per_token: int | None = None,
 ) -> ModelFit:
-    """Estimate whether weights plus KV cache fit at ``context_tokens``."""
-    kv_bytes = int(param_b * context_tokens * _KV_BYTES_PER_TOKEN_PER_B) if param_b > 0 else 0
+    """Estimate whether weights plus KV cache fit at ``context_tokens``.
+
+    ``kv_per_token`` is the metadata-derived value from :func:`kv_bytes_per_token`.
+    """
+    per_token_estimates = []
+    if param_b > 0:
+        per_token_estimates.append(param_b * _KV_BYTES_PER_TOKEN_PER_B)
+    if kv_per_token and kv_per_token > 0:
+        per_token_estimates.append(float(kv_per_token * _DERIVED_KV_MARGIN))
+    kv_bytes = int(min(per_token_estimates) * context_tokens) if per_token_estimates else 0
     return ModelFit(
         name=name,
         param_b=param_b,
@@ -224,10 +286,13 @@ def choose_fitting_model(
     *,
     context_tokens: int,
     vram_bytes: int | None = None,
+    kv_per_token: Mapping[str, int] | None = None,
 ) -> tuple[str | None, list[ModelFit]]:
     """Pick the largest candidate expected to fit. Returns (name, all estimates).
 
     ``candidates`` is (name, weight_bytes, parameter_size) as Ollama reports it.
+    ``kv_per_token`` optionally maps a name to :func:`kv_bytes_per_token` from
+    its ``/api/show`` metadata.
     Largest-that-fits, because within a family more parameters generally read
     better, and the constraint that matters is not spilling.
 
@@ -248,6 +313,7 @@ def choose_fitting_model(
             param_b=parse_param_billions(name, parameter_size=parameter_size),
             context_tokens=context_tokens,
             vram_bytes=vram,
+            kv_per_token=(kv_per_token or {}).get(name),
         )
         for name, weight_bytes, parameter_size in candidates
     ]

@@ -228,8 +228,15 @@ def _print_local_setup() -> None:
     console.print("  - Local model: install Ollama (https://ollama.com), with cloud disabled persistently.")
     console.print("    Library example: qwen3.8:27b, about 18 GB download (checked 2026-10-18).")
     if vram > 0:
+        # 65,536 KV bytes/token: 16 cached layers x 4 KV heads x 512 x fp16, from
+        # the model's Ollama metadata (checked 2026-10-18).
         fit = estimate_fit(
-            name="qwen3.8:27b", weight_bytes=18_000_000_000, param_b=27, context_tokens=8192, vram_bytes=vram
+            name="qwen3.8:27b",
+            weight_bytes=18_000_000_000,
+            param_b=27,
+            context_tokens=8192,
+            vram_bytes=vram,
+            kv_per_token=65_536,
         )
         console.print(f"    Estimated fit at 8K context: {fit.explain()}")
         if fit.fits:
