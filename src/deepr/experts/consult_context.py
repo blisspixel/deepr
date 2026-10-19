@@ -56,6 +56,8 @@ _STOPWORDS = frozenset(
 
 _MAX_POSITIONS = 6
 _MAX_FINDINGS = 24
+_MAX_SEMANTIC_CANDIDATES = 24
+_RRF_K = 60
 _MAX_SOURCES = 8
 _SOURCE_SPAN_CHARS = 2_000
 
@@ -175,13 +177,33 @@ def _finding_text(finding: StudyFinding) -> str:
     return f"{finding.title} {payload}"
 
 
+def _fused_ranks(lexical: list[str], semantic: list[str]) -> dict[str, float]:
+    """Reciprocal-rank fusion of two candidate orders. Ranks route; they decide nothing."""
+    fused: dict[str, float] = {}
+    for ranking in (lexical, semantic):
+        for rank, finding_id in enumerate(ranking):
+            fused[finding_id] = fused.get(finding_id, 0.0) + 1.0 / (_RRF_K + rank + 1)
+    return fused
+
+
 def gather_findings(
-    question: str, result: StudyResult, positions: list[Position], *, additional_citations: list[str] | None = None
+    question: str,
+    result: StudyResult,
+    positions: list[Position],
+    *,
+    additional_citations: list[str] | None = None,
+    semantic_ranking: list[str] | None = None,
 ) -> list[StudyFinding]:
     """Findings the question matches, plus every finding the positions rest on.
 
     The second half is the point: support arrives with the position it
     supports, so the expert can show its work in the same breath.
+
+    ``semantic_ranking`` is an optional order of finding ids by embedding
+    similarity to the question. It is fused with the lexical order, so a
+    finding phrased differently from the question can still be offered. It
+    only chooses candidates; whether a finding is relevant stays with the
+    answering model and review.
     """
     cited = {fid for p in positions for fid in p.supported_by}
     cited.update(additional_citations or [])
@@ -196,10 +218,17 @@ def gather_findings(
     ]
     matched = sorted((s for s in scored if s[0] > 0), key=lambda item: (-item[0], item[1]))
     room = max(0, _MAX_FINDINGS - len(carried))
-    selected = carried + [f for _, _, f in matched[:room]]
-    # Support remains present, but alphabetical finding IDs must not put a
-    # tangential position's bibliography ahead of the question's direct evidence.
-    return sorted(selected, key=lambda finding: -_overlap(query, _finding_text(finding)))
+    if semantic_ranking is None:
+        selected = carried + [f for _, _, f in matched[:room]]
+        # Support remains present, but alphabetical finding IDs must not put a
+        # tangential position's bibliography ahead of the question's direct evidence.
+        return sorted(selected, key=lambda finding: -_overlap(query, _finding_text(finding)))
+    lexical = [f.finding_id for _, _, f in matched]
+    semantic = [fid for fid in semantic_ranking if fid in by_id][:_MAX_SEMANTIC_CANDIDATES]
+    fused = _fused_ranks(lexical, semantic)
+    pool = sorted((fid for fid in fused if fid not in already), key=lambda fid: (-fused[fid], fid))
+    selected = carried + [by_id[fid] for fid in pool[:room]]
+    return sorted(selected, key=lambda finding: -fused.get(finding.finding_id, 0.0))
 
 
 def _source_passage(text: str, anchors: list[str], max_chars: int) -> str:
@@ -288,8 +317,14 @@ def build_consult_context(
     brief: ExpertBrief | None,
     result: StudyResult | None,
     corpus: CorpusStore | None,
+    semantic_ranking: list[str] | None = None,
+    routing_note: str = "",
 ) -> ConsultContext:
-    """Assemble one turn's evidence. $0, deterministic, no model call."""
+    """Assemble one turn's evidence. $0 and deterministic for the inputs given.
+
+    No model is called here. A caller that ran a local embedding router passes
+    its finding order as ``semantic_ranking`` and says so in ``routing_note``.
+    """
     context = ConsultContext(expert_name=expert_name)
     if brief is not None:
         context.orientation = render_orientation(
@@ -316,7 +351,13 @@ def build_consult_context(
             if brief and bind_study(brief, result) == "matched"
             else []
         )
-        context.findings = gather_findings(question, result, context.positions, additional_citations=orientation_ids)
+        context.findings = gather_findings(
+            question,
+            result,
+            context.positions,
+            additional_citations=orientation_ids,
+            semantic_ranking=semantic_ranking,
+        )
         if corpus is not None:
             context.sources = gather_sources(context.findings, corpus)
             context.finding_sources = gather_finding_sources(context, corpus)
@@ -325,6 +366,8 @@ def build_consult_context(
         context.limitations.append(
             "Local reference lookup searched at most 240,000 retained characters and selected at most four passages by text overlap; this is not a relevance or currentness verdict."
         )
+    if routing_note:
+        context.limitations.append(routing_note)
     context.study_fingerprint = brief.study_fingerprint if brief is not None else ""
     context.study_binding = bind_study(brief, result)
     context.support = support_for_positions(

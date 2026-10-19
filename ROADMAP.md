@@ -6,7 +6,9 @@
 
 Completed reader, recovery, inspection, lifecycle, first-run, decision-review,
 local accounting, embedding and interface repairs are in
-[the changelog](docs/CHANGELOG.md). v2.50.41 records and repairs evidence
+[the changelog](docs/CHANGELOG.md). v2.50.42 adds opt-in local embedding
+routing for consult findings and digest-pinned local answers for the
+correction-survival diagnostic. v2.50.41 records and repairs evidence
 selection at the brief and consult prompt boundaries and adds a stage-resolved
 correction-survival diagnostic. v2.50.40 closes the cross-verb belief
 overwrite race, silent long local runs, MoE/hybrid KV overestimates and the
@@ -120,13 +122,18 @@ stay blocked.
   consult prompt with the digest pinned per call. The first `qwen3.8:27b` run
   completed 36 of 36 attempts at `$0`; a blinded review packet is ready and
   unlabelled.
-- [ ] **Consult retrieval misses near-match evidence under on-topic noise
+- [x] **Consult retrieval misses near-match evidence under on-topic noise
   (2026-10-19):** with 60 distractor sources the diagnostic's
   `near-match-version` case lost its v2 finding at retrieval. Literal token
   overlap scored filler mentioning "agents" above a finding saying "agent
   platform", and no position cited the finding. Measure any router change
   against the diagnostic before adopting it; overlap may route, never decide.
   See [the record](docs/validation/correction-survival-2026-10-19.md) and #264.
+  **Fixed 2026-10-19 as an opt-in:** `consult.embedding_model` fuses lexical
+  overlap with local embedding similarity. Both installed embedding models
+  recovered the miss at 60 distractors and changed nothing without them.
+  Default-on routing waits for reviewed answers (#259). See
+  [the design note](docs/design/consult-embedding-routing.md).
 
 ## Quick Links
 
@@ -792,9 +799,11 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.41)
+## Current Status (v2.50.42)
 
-v2.50.41 selects brief evidence across lenses, packs consult positions with
+v2.50.42 adds opt-in local embedding routing for consult findings and local
+answers for the correction-survival diagnostic, without widening execution or
+write authority. v2.50.41 selects brief evidence across lenses, packs consult positions with
 their cited evidence, records what each prompt delivered, and adds the `$0`
 correction-survival diagnostic, without widening execution or write
 authority. v2.50.40 makes belief mutations one cross-process transaction, reports long
@@ -4161,7 +4170,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.41. This roadmap keeps
+v2.50.42. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 

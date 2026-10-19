@@ -44,9 +44,19 @@ def _code_identity() -> str:
     default="",
     help="Refuse to run unless the local model's installed digest matches this value.",
 )
+@click.option(
+    "--embedding-model",
+    default=None,
+    help="Route production findings with this installed local embedding model fused with lexical overlap.",
+)
 @click.option("--json", "json_output", is_flag=True, help="Emit the report as JSON.")
 def eval_correction_survival(
-    output_dir: Path | None, distractors: int, local_model: str | None, model_digest: str, json_output: bool
+    output_dir: Path | None,
+    distractors: int,
+    local_model: str | None,
+    model_digest: str,
+    embedding_model: str | None,
+    json_output: bool,
 ) -> None:
     """Trace frozen correction cases through study, brief, retrieval and prompt (cost $0).
 
@@ -73,6 +83,12 @@ def eval_correction_survival(
         completion, model_identity = answerer, answerer.identity
         click.echo(f"Answering with {model_identity}; no paid capacity is used.", err=True)
 
+    router: Any = None
+    if embedding_model:
+        from deepr.experts.consult_routing import local_finding_router
+
+        router = local_finding_router(embedding_model)
+
     def progress(attempt: dict[str, Any], done: int, total: int) -> None:
         if local_model:
             click.echo(f"[{done}/{total}] {attempt['attempt_id']}: {attempt['status']}", err=True)
@@ -92,6 +108,7 @@ def eval_correction_survival(
             model_identity=model_identity,
             distractors=distractors,
             on_attempt=progress,
+            finding_router=router,
         )
     )
     report = build_report(run)

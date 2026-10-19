@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.50.41-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.41)
+[![Version](https://img.shields.io/badge/version-2.50.42-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.42)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -305,6 +305,12 @@ eras and published Agent Plugins `1.0.0`. See the
 for tested behavior and the distinction from draft standards and host certification.
 
 ## Direction
+
+v2.50.42 adds optional local embedding routing for consult findings
+(`consult.embedding_model`, off by default) and lets the correction-survival
+diagnostic answer through an attested local model. No execution, spend or
+write authority is widened. See
+[the changelog](docs/CHANGELOG.md#25042---2026-10-19).
 
 v2.50.41 makes evidence loss visible at both prompt boundaries. Brief
 synthesis now chooses findings one lens at a time instead of dropping whole

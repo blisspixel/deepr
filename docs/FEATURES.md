@@ -1543,6 +1543,11 @@ Notes:
 - `cli.branding` maps to `DEEPR_BRANDING`
 - `cli.companion` maps to `DEEPR_COMPANION`; persisted changes apply on restart
 - Legacy direct env keys still work (for example `DEEPR_ANIMATIONS=light`)
+- `consult.embedding_model` maps to `DEEPR_CONSULT_EMBEDDING_MODEL`. Naming an
+  installed local Ollama embedding model (for example `nomic-embed-text:v1.5`)
+  makes consult fuse lexical finding routing with local embedding similarity
+  at `$0`; unset, routing stays lexical. Similarity only chooses candidates.
+  See [the design note](design/consult-embedding-routing.md).
 - Startup banner controls:
 - `DEEPR_BANNER_MODE=off|static|light|full`
 - `DEEPR_BANNER_DURATION=<seconds>` (animated modes only; default 0.6s, bounded 0.3-6s)

@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.50.41 current main, 2026-10-19. This document defines what users and host
+Status: v2.50.42 current main, 2026-10-19. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -8,6 +8,11 @@ path is structurally complete but remains execution-blocked without verified
 provider prepaid-no-overage or hard-stop evidence. Attended OpenRouter research
 is the exception: one pinned no-tool completion after wallet credits and
 `deepr budget authorize openrouter`.
+
+**v2.50.42 additions:** `consult.embedding_model` optionally fuses lexical
+finding routing with local embedding similarity at `$0` (off by default,
+disclosed, lexical fallback). `deepr eval correction-survival --local-model`
+answers through the production consult prompt, digest-pinned.
 
 **v2.50.41 corrections:** Brief synthesis selects whole findings one lens at a
 time and records presented, omitted and shortened findings with the prompt
@@ -689,6 +694,12 @@ must not be described as usable capacity.
   review as `unreviewed`. This evaluator does not enable a generic deliberation
   runtime. The separate experimental local CLI investigation has its own
   bounded contract; remote multi-expert CLI, MCP, and A2A chat remains gated.
+- Optional consult finding routing: `deepr config set consult.embedding_model
+  MODEL` fuses lexical overlap with local Ollama embedding similarity when
+  offering study findings, for CLI and MCP consult alike, at `$0` with durable
+  local receipts. Unset is lexical only; a routing failure falls back to
+  lexical and is disclosed in the packet. Similarity is never a relevance
+  verdict.
 - `deepr eval correction-survival` runs the frozen `correction-survival-v1`
   diagnostic at `$0` with a fixed mock answer and no model call, or with
   `--local-model MODEL [--model-digest DIGEST]` one owned local Ollama answer
