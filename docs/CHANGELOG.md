@@ -22,6 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that they are phrase matches to check. A lexical match now routes context
   instead of labeling a conflict.
 
+- **Long local runs are no longer silent.** Interactive `expert consult`,
+  `expert absorb` and `expert sync` report the current phase, elapsed time,
+  trace or loop-run id and a Ctrl+C reminder on stderr every 30 seconds, and
+  say how long a run took when it is cancelled. Short runs, stdout and JSON
+  output are unchanged; local timeouts are not shortened.
+
 ## [2.50.39] - 2026-10-18
 
 Complete interface repairs (#230, #234, #235 and #236), retaining the existing

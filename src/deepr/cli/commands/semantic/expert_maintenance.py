@@ -50,6 +50,7 @@ from deepr.cli.commands.semantic.grounding_support import (
     validate_grounding_flags,
 )
 from deepr.cli.model_choices import model_help
+from deepr.cli.run_progress import run_progress
 from deepr.cli.validation import confirm_interactively
 from deepr.experts.metered_mutation_gate import (
     MeteredExpertMutationDisabledError,
@@ -327,16 +328,17 @@ def absorb_report(
             sys.exit(0)
 
     try:
-        result = asyncio.run(
-            absorber.absorb(
-                report_id,
-                report_text,
-                min_confidence=min_confidence,
-                dry_run=dry_run,
-                budget=budget,
-                trust_class=resolved_trust,
+        with run_progress("Absorb", phase=f"extracting and checking claims from {report_id}"):
+            result = asyncio.run(
+                absorber.absorb(
+                    report_id,
+                    report_text,
+                    min_confidence=min_confidence,
+                    dry_run=dry_run,
+                    budget=budget,
+                    trust_class=resolved_trust,
+                )
             )
-        )
     except ReportAbsorberCostError as e:
         if e.actual_cost > 0:
             profile.total_research_cost += e.actual_cost

@@ -17,6 +17,7 @@ import click
 
 from deepr.backends.local_capacity import LocalCapacityObservation, LocalCapacityState
 from deepr.cli.colors import console, print_error, print_warning
+from deepr.cli.run_progress import run_progress
 from deepr.evals.recall_quality import (
     LEXICAL_ROUTE as RECALL_LEXICAL_ROUTE,
 )
@@ -733,7 +734,7 @@ def _run_sync_with_loop_guard(
 ) -> tuple[Any, Any | None, str]:
     from deepr.experts.maintenance_engine import build_sync_engine
 
-    def run_once() -> tuple[Any, str]:
+    def run_once(run_id: str | None = None) -> tuple[Any, str]:
         engine, capacity_source = build_sync_engine(
             profile,
             use_local=use_local,
@@ -749,14 +750,16 @@ def _run_sync_with_loop_guard(
             recall_embedding_model=recall_embedding_model,
             recall_route_preference=recall_route_preference,
         )
-        result = asyncio.run(
-            engine.sync(
-                budget=budget,
-                only_due=not sync_all,
-                dry_run=dry_run,
-                apply_graph_commits=apply_graph_commits,
+        phase = "previewing due topics" if dry_run else "syncing due topics"
+        with run_progress("Sync", phase=f"{phase} with {capacity_source} capacity", trace=run_id):
+            result = asyncio.run(
+                engine.sync(
+                    budget=budget,
+                    only_due=not sync_all,
+                    dry_run=dry_run,
+                    apply_graph_commits=apply_graph_commits,
+                )
             )
-        )
         return result, capacity_source
 
     if dry_run:
@@ -802,7 +805,7 @@ def _run_sync_with_loop_guard(
             profile=profile,
         )
         try:
-            result, capacity_source = run_once()
+            result, capacity_source = run_once(run_id)
         except Exception as exc:
             _record_failed_sync_execution(
                 name,
