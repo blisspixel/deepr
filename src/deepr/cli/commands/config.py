@@ -11,6 +11,7 @@ _CLI_ENV_KEY_ALIASES = {
     "cli.branding": "DEEPR_BRANDING",
     "cli.animations": "DEEPR_ANIMATIONS",
     "cli.companion": "DEEPR_COMPANION",
+    "consult.embedding_model": "DEEPR_CONSULT_EMBEDDING_MODEL",
 }
 
 _ALLOWED_CONFIG_VALUES = {

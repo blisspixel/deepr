@@ -32,7 +32,9 @@ def confidence_for_coverage(coverage: str) -> float:
     return COVERAGE_CONFIDENCE.get(coverage, 0.0)
 
 
-def load_consult_context(query: str, name: str) -> Any:
+def load_consult_context(
+    query: str, name: str, semantic_ranking: list[str] | None = None, routing_note: str = ""
+) -> Any:
     """Assemble the studied layers for this question, or None if unbriefed."""
     from deepr.experts.consult_context import build_consult_context, load_brief, load_study
     from deepr.experts.corpus_store import CorpusStore
@@ -53,17 +55,26 @@ def load_consult_context(query: str, name: str) -> Any:
         brief=brief,
         result=load_study(part_in(expert_dir, "noticed")),
         corpus=corpus,
+        semantic_ranking=semantic_ranking,
+        routing_note=routing_note,
     )
 
 
-def build_briefed_perspective(query: str, name: str, domain: str, perspective_cls: Any) -> Any:
+def build_briefed_perspective(
+    query: str,
+    name: str,
+    domain: str,
+    perspective_cls: Any,
+    semantic_ranking: list[str] | None = None,
+    routing_note: str = "",
+) -> Any:
     """A perspective built from the study, or None to fall back to beliefs.
 
     Never raises. A malformed artifact on disk must degrade to the belief
     path rather than take the consult down with it.
     """
     try:
-        context = load_consult_context(query, name)
+        context = load_consult_context(query, name, semantic_ranking, routing_note)
     except Exception:  # pragma: no cover - defensive around on-disk artifacts
         logger.debug("consult context unavailable for %s", name, exc_info=True)
         return None
@@ -82,6 +93,7 @@ def build_briefed_perspective(query: str, name: str, domain: str, perspective_cl
         synthesis_blocks=brief_synthesis_blocks(context),
         context={
             "source": "brief",
+            "finding_routing": "lexical+local-embedding" if semantic_ranking is not None else "lexical",
             "coverage": context.coverage,
             "study_fingerprint": context.study_fingerprint,
             "study_binding": context.study_binding,
@@ -106,7 +118,14 @@ def build_briefed_perspective(query: str, name: str, domain: str, perspective_cl
     )
 
 
-def briefed_perspective_without_beliefs(query: str, name: str, domain: str, perspective_cls: Any) -> Any:
+def briefed_perspective_without_beliefs(
+    query: str,
+    name: str,
+    domain: str,
+    perspective_cls: Any,
+    semantic_ranking: list[str] | None = None,
+    routing_note: str = "",
+) -> Any:
     """A perspective for an expert that has a brief and no belief ledger.
 
     acquire -> study -> brief never writes the claim ledger, because admission
@@ -118,4 +137,4 @@ def briefed_perspective_without_beliefs(query: str, name: str, domain: str, pers
 
     if not hold_current_path(name).exists():
         return None
-    return build_briefed_perspective(query, name, domain, perspective_cls)
+    return build_briefed_perspective(query, name, domain, perspective_cls, semantic_ranking, routing_note)

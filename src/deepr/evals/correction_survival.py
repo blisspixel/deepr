@@ -69,6 +69,7 @@ _RECIPE_MODULES = (
     "deepr/experts/study_contracts.py",
     "deepr/experts/consult_context.py",
     "deepr/experts/consult_prompt.py",
+    "deepr/experts/consult_routing.py",
     "deepr/evals/correction_survival.py",
     "deepr/evals/correction_survival_cases.py",
 )
@@ -247,7 +248,9 @@ def _perspective(name: str, blocks: list[Any], context: dict[str, Any]) -> Any:
     return ExpertPerspective(expert_name=name, domain="tern", response="", synthesis_blocks=blocks, context=context)
 
 
-def _arm_packet(arm: str, case: Case, built: _Materialized, brief: Any) -> tuple[str, dict[str, Any], Any]:
+def _arm_packet(
+    arm: str, case: Case, built: _Materialized, brief: Any, ranking: list[str] | None = None, note: str = ""
+) -> tuple[str, dict[str, Any], Any]:
     """Return (prompt, delivery manifest, consult context or None) for one arm."""
     from deepr.experts.consult_context import ConsultContext, build_consult_context
     from deepr.experts.consult_prompt import brief_synthesis_blocks, build_synthesis_packet
@@ -259,6 +262,8 @@ def _arm_packet(arm: str, case: Case, built: _Materialized, brief: Any) -> tuple
             brief=brief,
             result=built.study,
             corpus=built.corpus,
+            semantic_ranking=ranking,
+            routing_note=note,
         )
         meta = {
             "source": "brief",
@@ -429,9 +434,16 @@ async def _attempt(
     built: _Materialized,
     completion: AnswerCompletion,
     run_dir: Path,
+    router: Any = None,
 ) -> dict[str, Any]:
     brief = built.briefs[cycle - 1]
-    prompt, manifest, context = _arm_packet(arm, case, built, brief)
+    ranking: list[str] | None = None
+    note = ""
+    if arm == "production" and router is not None:
+        from deepr.experts.consult_routing import route_findings
+
+        ranking, note = await route_findings(router, case.question, built.study.findings)
+    prompt, manifest, context = _arm_packet(arm, case, built, brief, ranking, note)
     attempt_id = f"{case.case_id}.{arm}.c{cycle}"
     started = time.perf_counter()
     status, error, answer = "completed", "", ""
@@ -482,6 +494,7 @@ async def run_diagnostic(
     cases: tuple[Case, ...] = CASES,
     distractors: int = 0,
     on_attempt: Callable[[dict[str, Any], int, int], None] | None = None,
+    finding_router: Any = None,
 ) -> dict[str, Any]:
     """Run every scheduled case, arm and cycle, then mark the run complete.
 
@@ -500,7 +513,7 @@ async def run_diagnostic(
         built = worlds[key]
         for cycle in range(1, case.cycles + 1):
             for arm in ARMS:
-                attempts.append(await _attempt(case, arm, cycle, built, completion, run_dir))
+                attempts.append(await _attempt(case, arm, cycle, built, completion, run_dir, finding_router))
                 if on_attempt is not None:
                     on_attempt(attempts[-1], len(attempts), sum(c.cycles * len(ARMS) for c in cases))
     compression = {
@@ -518,6 +531,7 @@ async def run_diagnostic(
         "model_identity": model_identity,
         "arms": list(ARMS),
         "distractors_per_world": distractors,
+        "finding_routing": f"lexical+local-embedding:{finding_router.model}" if finding_router else "lexical",
         "scheduled_attempts": sum(case.cycles * len(ARMS) for case in cases),
         "attempts": attempts,
         "repeated_compression": compression,
@@ -658,6 +672,7 @@ def build_report(run: dict[str, Any], reviews: dict[tuple[str, str], str] | None
         "recipe_sha256": run["recipe_sha256"],
         "model_identity": run["model_identity"],
         "distractors_per_world": run["distractors_per_world"],
+        "finding_routing": run.get("finding_routing", "lexical"),
         "scheduled_attempts": run["scheduled_attempts"],
         "recorded_attempts": len(run["attempts"]),
         "reviewed_obligations": len(reviews),
@@ -677,7 +692,8 @@ def render_report(report: dict[str, Any]) -> str:
         f"# Correction survival diagnostic ({report['case_set_version']})",
         "",
         f"- Model: {report['model_identity']}; paid calls: {report['paid_calls']}; "
-        f"distractor sources per world: {report['distractors_per_world']}",
+        f"distractor sources per world: {report['distractors_per_world']}; "
+        f"finding routing: {report['finding_routing']}",
         f"- Cases: {'full set' if report['complete_case_set'] else 'SUBSET of the case set'}; "
         f"attempts: {report['recorded_attempts']} of {report['scheduled_attempts']} scheduled; "
         f"reviewed obligations: {report['reviewed_obligations']}",

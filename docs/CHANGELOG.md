@@ -7,13 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.42] - 2026-10-19
+
+Opt-in local retrieval routing and local diagnostic answers, retaining the
+existing execution, spend and knowledge-write boundaries. Answer quality is
+unreviewed.
+
 ### Added
 
+- **Optional local embedding routing for consult findings** (#264).
+  `deepr config set consult.embedding_model MODEL` fuses literal overlap with
+  local embedding similarity when consult offers study findings, so evidence
+  phrased differently from the question is not crowded out by on-topic noise.
+  Off by default, `$0`, disclosed in the packet, lexical fallback on any
+  failure. On the correction-survival diagnostic with 60 distractors it
+  recovered the one retrieval miss with both installed embedding models and
+  changed nothing without distractors. See
+  [the design note](design/consult-embedding-routing.md).
 - **Local answers for the correction-survival diagnostic** (#259).
   `--local-model MODEL [--model-digest DIGEST]` answers each case through the
   production consult system prompt and local dispatch, pinned to the model
   digest and recorded per call. The first run on `qwen3.8:27b` completed all
-  36 attempts at `$0`; the answers await blinded review. See
+  36 attempts at `$0`; the answers await blinded review. `--embedding-model`
+  routes its production arm the same way. See
   [the record](validation/correction-survival-2026-10-19.md).
 
 ## [2.50.41] - 2026-10-19

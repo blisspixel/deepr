@@ -208,7 +208,9 @@ class ExpertCouncil:
         synthesis_model: str = UTILITY_MODEL,
         synthesis_provider: str = "openai",
         allow_live_fallback: bool = False,
+        finding_router: Any | None = None,
     ) -> None:
+        self._finding_router = finding_router
         self._synthesis_client = synthesis_client
         self._synthesis_model = synthesis_model
         self._synthesis_provider = synthesis_provider
@@ -338,6 +340,8 @@ class ExpertCouncil:
         *,
         perspective_state: dict[str, Any] | None = None,
         recent_invalidations: list[Any] | None = None,
+        semantic_ranking: list[str] | None = None,
+        routing_note: str = "",
     ) -> ExpertPerspective | None:
         """Build a deterministic perspective from an expert's belief store.
 
@@ -358,7 +362,8 @@ class ExpertCouncil:
         # falsifier and the dissent it did not resolve, and behind each position
         # the findings and the retained passage. Beliefs remain the fallback for
         # experts that have never been studied.
-        if (briefed := build_briefed_perspective(query, name, domain, ExpertPerspective)) is not None:
+        briefed = build_briefed_perspective(query, name, domain, ExpertPerspective, semantic_ranking, routing_note)
+        if briefed is not None:
             return briefed
 
         perspective_state = perspective_state or build_perspective_state_packet(name, limit=3)
@@ -425,7 +430,14 @@ class ExpertCouncil:
             context=context,
         )
 
-    def _load_stored_perspective(self, query: str, name: str, domain: str) -> ExpertPerspective | None:
+    def _load_stored_perspective(
+        self,
+        query: str,
+        name: str,
+        domain: str,
+        semantic_ranking: list[str] | None = None,
+        routing_note: str = "",
+    ) -> ExpertPerspective | None:
         """Load stored beliefs for an expert and build a council perspective."""
         from deepr.experts.beliefs import BeliefStore
         from deepr.experts.paths import canonical_expert_dir
@@ -434,7 +446,9 @@ class ExpertCouncil:
         original_ideas = list(perspective_state["original_ideas"])
         belief_file = canonical_expert_dir(name) / "beliefs" / "beliefs.json"
         if not belief_file.exists() and not original_ideas:
-            return briefed_perspective_without_beliefs(query, name, domain, ExpertPerspective)
+            return briefed_perspective_without_beliefs(
+                query, name, domain, ExpertPerspective, semantic_ranking, routing_note
+            )
 
         store = BeliefStore(name, read_only=True, read_path=belief_file)
         perspective = self.build_stored_perspective(
@@ -444,6 +458,8 @@ class ExpertCouncil:
             store.beliefs.values(),
             perspective_state=perspective_state,
             recent_invalidations=store.get_recent_invalidations(limit=5),
+            semantic_ranking=semantic_ranking,
+            routing_note=routing_note,
         )
         if perspective is not None:
             self._attach_self_model_context(perspective.context, name)
@@ -522,7 +538,10 @@ class ExpertCouncil:
         )
         await self._notify(progress_callback, name, "querying")
         try:
-            stored = self._load_stored_perspective(query, name, domain)
+            from deepr.experts.consult_routing import route_expert_findings
+
+            ranking, routing_note = await route_expert_findings(self._finding_router, query, name)
+            stored = self._load_stored_perspective(query, name, domain, ranking, routing_note)
             if stored is not None:
                 if child_identity is not None:
                     stored.context["agent_identity"] = child_identity.to_dict()

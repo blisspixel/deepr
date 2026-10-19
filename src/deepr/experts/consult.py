@@ -609,11 +609,14 @@ async def run_consult(
     else:
         chosen = None
 
+    from deepr.experts.consult_routing import configured_finding_router
+
     council = ExpertCouncil(
         synthesis_client=synthesis_client,
         synthesis_model=synthesis_model or UTILITY_MODEL,
         synthesis_provider=synthesis_provider,
         allow_live_fallback=allow_live_fallback,
+        finding_router=configured_finding_router(),
     )
     if chosen is None:
         chosen = await council.select_experts(question, max_experts=max_experts)

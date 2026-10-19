@@ -173,7 +173,9 @@ async def test_run_consult_passes_synthesis_backend_options(monkeypatch):
             synthesis_model,
             synthesis_provider,
             allow_live_fallback,
+            finding_router,
         ):
+            captured["finding_router"] = finding_router
             captured["synthesis_client"] = synthesis_client
             captured["synthesis_model"] = synthesis_model
             captured["synthesis_provider"] = synthesis_provider
@@ -188,6 +190,7 @@ async def test_run_consult_passes_synthesis_backend_options(monkeypatch):
             return {"query": question, "perspectives": [], "synthesis": "", "total_cost": 0.0}
 
     monkeypatch.setattr("deepr.experts.council.ExpertCouncil", FakeCouncil)
+    monkeypatch.delenv("DEEPR_CONSULT_EMBEDDING_MODEL", raising=False)
 
     await run_consult(
         "q",
@@ -200,6 +203,7 @@ async def test_run_consult_passes_synthesis_backend_options(monkeypatch):
         allow_live_fallback=False,
     )
 
+    assert captured["finding_router"] is None
     assert captured["synthesis_client"] is sentinel_client
     assert captured["synthesis_model"] == "local-model"
     assert captured["synthesis_provider"] == "local"
