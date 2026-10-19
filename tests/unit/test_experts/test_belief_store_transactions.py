@@ -24,6 +24,18 @@ def _claims(store: BeliefStore) -> set[str]:
     return {belief.claim for belief in store.beliefs.values()}
 
 
+def test_reading_creates_no_files(tmp_path):
+    """Regression (agent-plugin smoke): read-only launches must leave expert data byte-identical."""
+    seed = _store(tmp_path)
+    seed.add_belief(Belief(claim="Seeded fact", confidence=0.8), check_conflicts=False)
+    (tmp_path / "beliefs" / "beliefs.lock").unlink(missing_ok=True)
+    before = sorted(p.name for p in (tmp_path / "beliefs").iterdir())
+
+    reader = _store(tmp_path)
+    assert _claims(reader) == {"Seeded fact"}
+    assert sorted(p.name for p in (tmp_path / "beliefs").iterdir()) == before
+
+
 def test_stale_store_reloads_instead_of_overwriting_another_commit(tmp_path):
     absorb = _store(tmp_path)
     sync = _store(tmp_path)  # loaded before absorb commits, like a concurrent verb

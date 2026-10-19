@@ -488,8 +488,8 @@ class BeliefStore:
         self._lock = threading.Lock()
         self._unreadable = False
         self._snapshot = SnapshotGuard(self)
-        with self._snapshot.locked():
-            self._load()
+        # Reads need no lock: snapshots are replaced atomically. Only writes lock.
+        self._load()
 
     def _store_edge(self, edge: Edge, provenance: str, temporal_context: dict[str, str] | None) -> Edge:
         stored = self.edges.setdefault(edge.key(), edge)

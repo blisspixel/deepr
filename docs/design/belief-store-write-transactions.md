@@ -32,6 +32,9 @@ The store owns the transaction, because it is the canonical belief authority
 - If the store holds unsaved in-memory edits (`add_edge(save=False)` batches)
   and the disk changed, it raises `BeliefStoreConflictError` instead of
   reloading over them.
+- Plain loads take no lock and create no file: snapshots are replaced by
+  atomic rename, and read-only launches must leave expert data byte-identical
+  (the agent-plugin smoke checks this).
 - `_save()` refuses to overwrite a snapshot that changed since it was last
   seen, so an unwrapped direct mutation fails closed instead of silently
   overwriting. Multi-step external writers (`graph_commit_apply`,
