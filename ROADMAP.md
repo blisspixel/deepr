@@ -15,11 +15,17 @@ adherence. Exact-main CI and public installation are release acceptance
 checks. S0 and semantic review stay separate.
 
 - [ ] **v2.51 is S0.** Locate the frozen source worlds, policy and case inventory,
-  then run the 48-cell local rehearsal. The archived policy used qwen3.6:27b;
-  that model is absent on this workstation. Preserve the earlier failed runs
+  then run the 48-cell local rehearsal. Preserve the earlier failed runs
   and do not silently substitute inputs or a model. Publish terminal results,
   including failures, and record human review before revealing the arm key.
   Only S4 can support a claim that the expert got better.
+  **2026-10-19:** the original S0 cannot be reproduced. A full-disk search
+  found none of the September source worlds or cases, and `qwen3.6:27b` now
+  pulls digest `bcbdbd4bcf86...`, not the archived `a50eda8ed977...`. The path
+  forward is the replacement protocol drafted 2026-10-17 (new synthetic worlds,
+  pinned digest), recorded openly as a substitution. Open decision: approve
+  its review criteria before any answer is collected, or run it as a diagnostic
+  that cannot serve as the S0 baseline. Tracked in #263.
 
 Validation and practical limits: [reader evidence repairs](docs/validation/expert-evidence-reading-2026-10-17.md),
 [first-run record clarity](docs/validation/first-run-record-clarity-2026-10-18.md),
@@ -116,7 +122,7 @@ stay blocked.
   overlap scored filler mentioning "agents" above a finding saying "agent
   platform", and no position cited the finding. Measure any router change
   against the diagnostic before adopting it; overlap may route, never decide.
-  See [the record](docs/validation/correction-survival-2026-10-19.md).
+  See [the record](docs/validation/correction-survival-2026-10-19.md) and #264.
 
 ## Quick Links
 
