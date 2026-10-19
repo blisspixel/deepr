@@ -479,3 +479,20 @@ def test_apply_graph_commit_envelope_blocks_malformed_replay_without_crashing(tm
     assert result["summary"]["status"] == "blocked"
     assert result["operation_results"][0]["status"] == "blocked"
     assert result["operation_results"][0]["failure_reasons"] == ["invalid_idempotency_key"]
+
+
+def test_apply_validates_against_a_concurrent_commit_not_a_stale_snapshot(tmp_path):
+    """Regression (2.50.40 review): validation ran before the write transaction reloaded."""
+    stale = BeliefStore("Compiler Expert", storage_dir=tmp_path / "beliefs")
+    other = BeliefStore("Compiler Expert", storage_dir=tmp_path / "beliefs")
+    competing = graph_commit_envelope(graph_commit_operation("b1", "A different claim under the same id.", "b" * 64))
+    assert apply_graph_commit_envelope(competing, other, dry_run=False)["summary"]["status"] == "applied"
+
+    envelope = graph_commit_envelope(
+        graph_commit_operation("b1", "Release text changed the compiler behavior.", "a" * 64)
+    )
+    result = apply_graph_commit_envelope(envelope, stale, dry_run=False)
+
+    assert result["summary"]["status"] == "blocked"
+    fresh = BeliefStore("Compiler Expert", storage_dir=tmp_path / "beliefs")
+    assert fresh.beliefs["b1"].claim == "A different claim under the same id."

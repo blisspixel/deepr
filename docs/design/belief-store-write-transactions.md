@@ -56,7 +56,17 @@ model construction. They are no longer the only protection for belief data.
   complete enough to replay every field (usage counters are state, not
   events), so it cannot be the write path today.
 
+A real graph-commit apply runs its validation and writes in one transaction,
+so idempotency checks see any concurrent commit. When a mutation raises, the
+store reloads the last commit instead of keeping half-applied edits; if that
+reload fails, the instance refuses further writes. A legacy migration save that
+meets a concurrent write during load is deferred to the next transaction.
+
 ## Limits
+
+An in-process reader on another thread can briefly observe the store mid-reload,
+because reads take no lock. Fingerprints use stat (mtime, size, inode), which is
+weaker on filesystems without inode numbers or with coarse timestamps.
 
 Profile counters and per-verb sidecars (subscriptions, loop runs) keep their
 own write paths. Candidates a verb computed from a stale view are still

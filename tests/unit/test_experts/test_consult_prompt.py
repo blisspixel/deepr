@@ -188,3 +188,11 @@ def test_requested_length_outranks_default_and_follows_the_evidence():
     assert prompt.rindex("Evidence block.") < prompt.rindex("Answer this question: In under 100 words, can I reuse")
     assert prompt.rindex("Evidence block.") < prompt.rindex(closing)
     assert prompt.endswith(closing)
+
+
+def test_long_question_is_referenced_not_restated():
+    perspective = ExpertPerspective(expert_name="Reader", domain="d", response="", synthesis_blocks=["Evidence."])
+    question = "Explain the checkpoint rule. " + "context " * 400
+    prompt = build_synthesis_prompt(question, [perspective])
+    assert prompt.count(question) == 1
+    assert "Answer this question: the question stated above" in prompt
