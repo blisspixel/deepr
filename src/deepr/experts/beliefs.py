@@ -5,6 +5,7 @@ import logging
 import math
 import re
 import threading
+from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import Enum
@@ -14,9 +15,11 @@ from urllib.parse import urlsplit
 
 from deepr.experts import mutation_audit as audit
 from deepr.experts.belief_edges import EDGE_TYPES, Edge, normalized_edge_temporal_context
-from deepr.experts.belief_event_wal import event_log_conflicts_with_snapshot
+from deepr.experts.belief_snapshot import BeliefStoreConflictError as BeliefStoreConflictError
+from deepr.experts.belief_snapshot import BeliefStoreError as BeliefStoreError
+from deepr.experts.belief_snapshot import SnapshotGuard, load_snapshot, save_snapshot, transactional
 from deepr.experts.maker_checker import strongest_grounding_event
-from deepr.utils.atomic_io import append_jsonl_durable, atomic_write_json
+from deepr.utils.atomic_io import append_jsonl_durable
 
 logger = logging.getLogger(__name__)
 
@@ -424,13 +427,6 @@ class BeliefChange:
         )
 
 
-# Provenance for edges migrated from contradictions_with lists.
-_MIGRATED_PROVENANCE = "migrated:contradictions_with"
-
-
-class BeliefStoreError(RuntimeError): ...
-
-
 class BeliefStore:
     """Store and manage beliefs for an expert.
 
@@ -490,7 +486,10 @@ class BeliefStore:
         self.changes: list[BeliefChange] = []
         self.edges: dict[tuple[str, str, str], Edge] = {}
         self._lock = threading.Lock()
-        self._load()
+        self._unreadable = False
+        self._snapshot = SnapshotGuard(self)
+        with self._snapshot.locked():
+            self._load()
 
     def _store_edge(self, edge: Edge, provenance: str, temporal_context: dict[str, str] | None) -> Edge:
         stored = self.edges.setdefault(edge.key(), edge)
@@ -501,6 +500,11 @@ class BeliefStore:
             stored.temporal_contexts.append(normalized_temporal_context)
         return stored
 
+    def mutation(self) -> AbstractContextManager[None]:
+        """Hold one write transaction across a multi-step read-check-write."""
+        return self._snapshot.mutation()
+
+    @transactional
     def add_edge(
         self,
         src_id: str,
@@ -535,6 +539,8 @@ class BeliefStore:
 
         if save:
             self._save()
+        else:
+            self._snapshot.dirty = True
         return edge
 
     def edges_for(self, belief_id: str, edge_type: str | None = None) -> list[Edge]:
@@ -572,6 +578,7 @@ class BeliefStore:
         self.changes.append(change)
         with self._lock:
             append_jsonl_durable(self.events_path, change.to_dict(), fsync=True)
+            self._snapshot.note_own_event()
             audit_entry = audit.build_mutation_audit_entry(
                 expert=self.expert_name,
                 actor=actor,
@@ -621,6 +628,7 @@ class BeliefStore:
         """Read append-only mutation audit entries, oldest first."""
         return audit.iter_mutation_audit(self.mutation_audit_path, since=since)
 
+    @transactional
     def add_belief(
         self,
         belief: Belief,
@@ -684,6 +692,7 @@ class BeliefStore:
         self._save()
         return belief, change
 
+    @transactional
     def add_contested_belief(
         self,
         belief: Belief,
@@ -737,6 +746,7 @@ class BeliefStore:
         self._save()
         return belief, change
 
+    @transactional
     def update_belief(
         self,
         belief_id: str,
@@ -781,6 +791,7 @@ class BeliefStore:
         self._save()
         return change
 
+    @transactional
     def revise_belief(
         self,
         belief_id: str,
@@ -836,6 +847,7 @@ class BeliefStore:
         self._save()
         return change
 
+    @transactional
     def archive_belief(
         self, belief_id: str, reason: str = "", invalidated_at: datetime | None = None
     ) -> BeliefChange | None:
@@ -887,6 +899,7 @@ class BeliefStore:
         self._save()
         return change
 
+    @transactional
     def restore_belief(self, belief_id: str) -> Belief | None:
         """Restore an archived belief from its archival snapshot.
 
@@ -930,6 +943,7 @@ class BeliefStore:
         self._save()
         return belief
 
+    @transactional
     def record_retrieval(self, belief_ids: list[str], context: str = "") -> int:
         """Record that beliefs were load-bearing in an answer (usage salience).
 
@@ -993,6 +1007,7 @@ class BeliefStore:
             candidates.append(belief)
         return sorted(candidates, key=lambda b: b.get_current_confidence())
 
+    @transactional
     def archive_stale(
         self, *, min_confidence: float = 0.2, unused_days: int = 90, reason: str = ""
     ) -> list[BeliefChange]:
@@ -1374,70 +1389,10 @@ class BeliefStore:
             self.domain_index[belief.domain].discard(belief.id)
 
     def _save(self):
-        if self.read_only:
-            raise BeliefStoreError("read-only belief store cannot be saved")
-        if self._unreadable:
-            raise BeliefStoreError("refusing to overwrite unreadable belief store")
-        atomic_write_json(
-            self.storage_path,
-            {
-                "edges": [e.to_dict() for e in self.edges.values()],
-                "beliefs": {bid: b.to_dict() for bid, b in self.beliefs.items()},
-                "changes": [c.to_dict() for c in self.changes[-100:]],
-            },
-            fsync=True,
-        )
+        save_snapshot(self)
 
     def _load(self):
-        self._unreadable = False
-        if not self.storage_path.exists():
-            if event_log_conflicts_with_snapshot(self.events_path, snapshot_exists=False, latest_change=None):
-                self._unreadable = True
-            return
-        try:
-            if self.storage_path.stat().st_size > 50 * 1024 * 1024:
-                self._unreadable = True
-                logger.error("Belief store at %s exceeds 50 MB; refusing to load.", self.storage_path)
-                return
-            with open(self.storage_path, encoding="utf-8") as f:
-                data = json.load(f)
-        except (json.JSONDecodeError, OSError) as exc:
-            self._unreadable = True
-            logger.error("Failed to load beliefs from %s: %s. Refusing writes.", self.storage_path, exc)
-            return
-        self.beliefs = {bid: Belief.from_dict(bdata) for bid, bdata in data.get("beliefs", {}).items()}
-        for belief in self.beliefs.values():
-            self._index_belief(belief)
-        for edata in data.get("edges", []):
-            try:
-                edge = Edge.from_dict(edata)
-            except (KeyError, TypeError, ValueError) as exc:
-                self._unreadable = True
-                logger.error("Malformed edge in %s: %s. Refusing writes.", self.storage_path, exc)
-                return
-            self.edges[edge.key()] = edge
-        # Migrate legacy contradictions_with lists to typed contradicts edges.
-        migrated = 0
-        for belief in self.beliefs.values():
-            for other_id in belief.contradictions_with:
-                probe = Edge(src_id=belief.id, dst_id=other_id, edge_type="contradicts")
-                if probe.key() not in self.edges:
-                    probe.provenance.append(_MIGRATED_PROVENANCE)
-                    self.edges[probe.key()] = probe
-                    migrated += 1
-        if migrated and not self.read_only:
-            logger.info("Migrated %d contradictions_with pair(s) to typed edges for %s", migrated, self.expert_name)
-            self._save()
-        for cdata in data.get("changes", []):
-            try:
-                self.changes.append(BeliefChange.from_dict(cdata))
-            except (KeyError, TypeError, ValueError) as exc:
-                self._unreadable = True
-                logger.error("Malformed change record in %s: %s. Refusing writes.", self.storage_path, exc)
-                return
-        latest = self.changes[-1].timestamp if self.changes else None
-        if event_log_conflicts_with_snapshot(self.events_path, snapshot_exists=True, latest_change=latest):
-            self._unreadable = True
+        load_snapshot(self)
 
 
 from deepr.experts.semantic_recall import install_belief_store_recall_methods as _install_recall_methods

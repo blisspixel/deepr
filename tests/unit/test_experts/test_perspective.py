@@ -9,7 +9,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from deepr.experts.beliefs import Belief, BeliefChange, BeliefStore
+import pytest
+
+from deepr.experts.beliefs import Belief, BeliefChange, BeliefStore, BeliefStoreError
 from deepr.experts.perspective import contested, temporal_edges, what_changed
 
 
@@ -189,9 +191,7 @@ class TestTemporalEdges:
         source, _ = store.add_belief(_belief("Default apply is enabled"), check_conflicts=False)
         target, _ = store.add_belief(_belief("Verified compiler emits graph commits"), check_conflicts=False)
         observed_only = {"observed_at": "2026-06-29T00:00:00+00:00"}
-        store.add_edge(
-            source.id, target.id, "derived_from", provenance="graph-commit", temporal_context=observed_only
-        )
+        store.add_edge(source.id, target.id, "derived_from", provenance="graph-commit", temporal_context=observed_only)
 
         result = temporal_edges(store, valid_at="2026-06-15T00:00:00+00:00")
 
@@ -395,13 +395,16 @@ class TestBeliefEventLog:
     def test_malformed_event_lines_skipped_not_fatal(self, tmp_path):
         store = _store(tmp_path)
         store.add_belief(_belief("Good fact"), check_conflicts=False)
+        store.add_belief(_belief("Another good fact"), check_conflicts=False)
         with open(store.events_path, "a", encoding="utf-8") as f:
             f.write("this is not json\n")
             f.write('{"missing": "required fields"}\n')
-        store.add_belief(_belief("Another good fact"), check_conflicts=False)
 
         events = store.iter_events()
         assert [e.new_claim for e in events] == ["Good fact", "Another good fact"]
+        # A write after outside corruption reloads and fails closed, exactly as a fresh process would.
+        with pytest.raises(BeliefStoreError, match="unreadable"):
+            store.add_belief(_belief("Third fact"), check_conflicts=False)
 
     def test_since_filter_is_strictly_after(self, tmp_path):
         store = _store(tmp_path)

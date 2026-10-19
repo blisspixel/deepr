@@ -948,11 +948,13 @@ def apply_graph_commit_envelope(
         )
 
     pending = _pending_operations(operations, operation_results)
-    applied_changes = {
-        **_add_missing_beliefs(pending, store),
-        **_promote_missing_tracker_states(pending, gap_tracker, generated_at=resolved_generated_at),
-    }
-    edge_counts = _add_missing_edges(pending, store)
+    # One transaction: the idempotency re-checks below see any concurrent commit.
+    with store.mutation():
+        applied_changes = {
+            **_add_missing_beliefs(pending, store),
+            **_promote_missing_tracker_states(pending, gap_tracker, generated_at=resolved_generated_at),
+        }
+        edge_counts = _add_missing_edges(pending, store)
     final_results = _applied_operation_results(operations, operation_results, applied_changes, edge_counts)
     status = "applied" if any(result["status"] == "applied" for result in final_results) else "already_applied"
     return _result(
