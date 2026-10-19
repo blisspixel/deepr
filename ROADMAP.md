@@ -77,6 +77,21 @@ stay blocked.
   (0 of 4 under 100) to 72-169 (2 of 4). Not resolved; see
   [the comparison](docs/validation/consult-requested-length-2026-10-18.md).
 
+- [ ] **Evidence selection and delivery across briefing and consult packing
+  (#258, 2026-10-19):** record which study findings, qualifications and
+  disagreements reach each bounded prompt, select whole units by a named
+  policy, and report missing support exactly.
+  **2026-10-19 briefing increment:** brief synthesis now takes whole findings
+  one lens at a time instead of the first 120 in lens order, marks every
+  shortened field, drops citations to findings it was not shown, and records
+  presented, omitted and shortened ids with the prompt hash on the brief. On
+  synthetic default-lens studies of 240 or more findings the old prefix showed
+  2 to 4 of 8 lenses and no contention finding; balanced selection shows all 8.
+  No retained real study here exceeds seven findings, and the semantic effect
+  is untested. Consult packing (dependency-aware position groups, a delivery
+  manifest and a bounded omission notice) is the next increment. See
+  [the design note](docs/design/evidence-selection-and-delivery.md).
+
 ## Quick Links
 
 | Document | Description |
