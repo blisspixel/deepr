@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.40] - 2026-10-18
+
+Correctness and local-run repairs, retaining the existing execution, spend and
+knowledge-write boundaries. Consult length adherence is improved, not resolved;
+S0 and accountable semantic review remain open.
+
 ### Fixed
 
 - **Local fit no longer overstates hybrid and MoE models.** The KV-cache

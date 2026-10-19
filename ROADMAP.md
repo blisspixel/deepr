@@ -6,10 +6,11 @@
 
 Completed reader, recovery, inspection, lifecycle, first-run, decision-review,
 local accounting, embedding and interface repairs are in
-[the changelog](docs/CHANGELOG.md). The v2.50.39 interface bundle combines terminal
-roles, startup/width, optional companion and actual production-dashboard theme
-checks. Local validation passes; exact-head/resulting-main CI and public
-installation are release acceptance checks. S0 and semantic review stay separate.
+[the changelog](docs/CHANGELOG.md). v2.50.40 closes the cross-verb belief
+overwrite race, silent long local runs, MoE/hybrid KV overestimates and the
+contrast-phrase contradiction label, and partially corrects consult length
+adherence. Exact-main CI and public installation are release acceptance
+checks. S0 and semantic review stay separate.
 
 - [ ] **v2.51 is S0.** Locate the frozen source worlds, policy and case inventory,
   then run the 48-cell local rehearsal. The archived policy used qwen3.6:27b;
@@ -697,7 +698,10 @@ reliable product, not a four-language architecture diagram.
   same-host serialization, and cancellation cleanup; HTTP/Wayback bodies gained
   decompressed-byte ceilings and redirect SSRF validation; and quota-ledger
   reads/writes gained shared cross-process serialization. Remaining: NumPy
-  semantic-recall batching, bulk projection writes, native async cancellation
+  semantic-recall batching (measured 2026-10-18: pure-Python recall over
+  768-dimension vectors takes about 20 ms at 500 beliefs, 83 ms at 2,000 and
+  408 ms at 10,000, while the 50 MB index caps a store near 6,500; deferred
+  until a workload shows users waiting on it), bulk projection writes, native async cancellation
   for the compatibility scraper thread, and the versioned benchmark harness.
 - [x] Bound plan-quota CLI output capture to 8 MiB per stream (2026-07-12).
   The shared runner now writes stdin while draining stdout and stderr
@@ -737,10 +741,12 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.39)
+## Current Status (v2.50.40)
 
-v2.50.39 completes the interface repair bundle without widening execution or
-write authority. Its validation records distinguish local evidence, exact CI
+v2.50.40 makes belief mutations one cross-process transaction, reports long
+local run progress on stderr, sizes local KV fit from attention metadata and
+improves requested consult length adherence, without widening execution or
+write authority. v2.50.39 completes the interface repair bundle. Its validation records distinguish local evidence, exact CI
 and public installation from the still-open S0 experiment.
 
 **Next is v2.51, not more dispatch.** v2.50.32 clarifies bounded tool posture, read-only inspection and CLI JSON parity. v2.50.31 repairs perspective attribution, readable evidence, consult output, and failed-build reporting. S0 remains unrun. v2.50.29 makes consult report whether citations reach the loaded study and a retained passage, and it sends local synthesis through the native 16384-token window study already uses. It does not run S0 or claim the expert got better. v2.50.28 ships the currency inspection and explicit world-time admission. v2.50.27 points deep-research defaults at the live OpenAI substitutes and keeps the 128k web-search ceiling.
@@ -2737,7 +2743,10 @@ over-reach for a solo project; Letta/MemOS already own the "OS" label).
     only while read-only advisory; it must NOT be the verdict on the `--execute`
     path. Keep keywords as a high-recall prefilter and let the model pick the
     route (or confirm it) before any spend. Do not extend the keyword map - that
-    is the trap (see AGENTIC_BALANCE.md).
+    is the trap (see AGENTIC_BALANCE.md). Checked 2026-10-18: `--execute` runs
+    only research-route fills through metered dispatch, which stays
+    quarantined, and defers specialist routes, so the keyword choice cannot
+    currently start spend. Fix before metered fills are re-enabled.
   - [x] Value/cost estimation per gap-fill option (per-route cost estimate + ev_cost_ratio ordering)
   - [x] Strategic prioritization that actually *executes* (2026-06-11): `deepr expert route-gaps --execute [--budget X] [--dry-run]` runs the highest-value research-route fills (ev_cost_ratio ordering), absorbs findings through the verification-gated pipeline, per-gap budgets inside a run ceiling with skip-not-fail. Bounded autonomy by design: specialist-instrument routes (recon/distillr/primr) are DEFERRED with their command printed - approval-gated multi-minute paid jobs never start as a side effect of a sweep.
 - [x] Expert-as-guardrail mode:
@@ -3358,7 +3367,10 @@ Sequenced smallest-shippable-first:
         because it needs no server cooperation. Design:
         [change-detection-gate.md](docs/design/change-detection-gate.md);
         AGENTIC_BALANCE surface row added.
-  - [ ] **Conditional-GET slice** (next): persist `etag`/`last_modified` per
+  - [x] **Conditional-GET slice** (shipped 2026-06-30 in 16b6906f; checked
+        off 2026-10-18): per-source validators send `If-None-Match` /
+        `If-Modified-Since` and a `304` reuses the cached source, covered in
+        `test_fresh_context.py`. Original scope: persist `etag`/`last_modified` per
         source and send `If-None-Match`/`If-Modified-Since` on the next fetch so
         a `304` skips *before* retrieval cost, not just before absorb cost.
         Needs a pre-research probe over known URLs plus HTTP-header plumbing
@@ -4095,7 +4107,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.39. This roadmap keeps
+v2.50.40. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 
