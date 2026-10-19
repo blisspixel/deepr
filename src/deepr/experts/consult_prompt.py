@@ -33,6 +33,7 @@ _INSTRUCTIONS = (
     "answer, including verification, omissions, and uncertainty, fits inside it. Then state only the most "
     "material uncertainty briefly inside the answer instead of adding sections.\n\n"
 )
+_RESTATE_MAX_CHARS = 1000
 _CLOSING = (
     "\n\nAnswer this question: {query}\nAny length, format, or scope it requests governs the entire answer, "
     "including caveats."
@@ -161,7 +162,9 @@ def _fit_blocks(blocks: list[str], budget: int) -> str:
 def build_synthesis_prompt(query: str, perspectives: list[ExpertPerspective]) -> str:
     eligible = [perspective for perspective in perspectives if perspective.confidence > 0]
     prefix = _INSTRUCTIONS + f"Question: {query}\n\nContributors: {len(eligible)}\n\n"
-    closing = _CLOSING.format(query=query)
+    # Restate a short question after the evidence; a long one is referenced so
+    # it does not consume the bounded prompt twice.
+    closing = _CLOSING.format(query=query if len(query) <= _RESTATE_MAX_CHARS else "the question stated above")
     headers = [f"Expert: {perspective.expert_name}\n" for perspective in eligible]
     available = MAX_SYNTHESIS_PROMPT_CHARS - len(prefix) - len(closing) - sum(map(len, headers)) - 2 * len(headers)
     if not eligible or available < _OMISSION_RESERVE * len(eligible):

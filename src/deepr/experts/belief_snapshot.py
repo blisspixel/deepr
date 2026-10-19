@@ -100,16 +100,30 @@ class SnapshotGuard:
 
     @contextmanager
     def mutation(self) -> Iterator[None]:
-        """Run one mutation against current on-disk state."""
+        """Run one mutation against current on-disk state; roll back memory on failure."""
         with self.locked():
-            if self._file_lock is not None and self._depth == 1 and self.fingerprint() != self.seen:
+            outermost = self._file_lock is not None and self._depth == 1
+            if outermost and self.fingerprint() != self.seen:
                 if self.dirty:
                     raise BeliefStoreConflictError(
                         f"belief store for {self._store.expert_name!r} changed in another process while this "
                         "process held unsaved edits; nothing was overwritten. Retry the command."
                     )
                 reload_snapshot(self._store)
-            yield
+            try:
+                yield
+            except BaseException:
+                if outermost:
+                    self._roll_back()
+                raise
+
+    def _roll_back(self) -> None:
+        """Discard half-applied in-memory edits; disk holds the last commit."""
+        try:
+            reload_snapshot(self._store)
+        except Exception:
+            self._store._unreadable = True
+            logger.exception("Belief store rollback failed for %s; refusing further writes.", self._store.expert_name)
 
     def check_unchanged(self) -> None:
         if self.seen is not None and _stat(self._store.storage_path) != self.seen[0]:
@@ -157,6 +171,7 @@ def reload_snapshot(store: BeliefStore) -> None:
     store.domain_index = {}
     store.changes = []
     store.edges = {}
+    store._snapshot.dirty = False
     load_snapshot(store)
 
 
@@ -214,4 +229,9 @@ def load_snapshot(store: BeliefStore) -> None:
                 migrated += 1
     if migrated and not store.read_only:
         logger.info("Migrated %d contradictions_with pair(s) to typed edges for %s", migrated, store.expert_name)
-        store._save()
+        try:
+            store._save()
+        except BeliefStoreConflictError:
+            # Another process wrote while this one loaded. The edges are derived
+            # from stored lists, so the next write transaction reloads and migrates.
+            logger.info("Deferred contradictions_with migration for %s to the next write", store.expert_name)

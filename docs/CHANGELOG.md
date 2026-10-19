@@ -24,7 +24,8 @@ S0 and accountable semantic review remain open.
 
 - **Consult honors a requested length more often.** A length, format or scope
   in the question now outranks the default 700-word synthesis cap and the
-  caveat elements, and the question is restated after the evidence. On the
+  caveat elements, and a question up to 1,000 characters is restated after the
+  evidence (longer ones are referenced so they do not use the bound twice). On the
   retained local fixture, four runs moved from 190-243 words to 72-169 for a
   100-word request; adherence is improved, not resolved. See
   [validation](validation/consult-requested-length-2026-10-18.md).
@@ -46,8 +47,11 @@ S0 and accountable semantic review remain open.
   stale copy, dropping another process's beliefs and sometimes leaving the
   store unreadable. Each belief mutation now runs in one cross-process
   transaction that reloads current state first and refuses to overwrite a
-  snapshot it has not seen. A legacy contradiction-list migration that could
-  drop the change window on first load is also fixed. See
+  snapshot it has not seen; graph-commit apply validates and writes inside
+  that transaction, and a failed mutation rolls memory back to the last
+  commit. A legacy contradiction-list migration that could drop the change
+  window on first load is also fixed, and it defers instead of failing when
+  another process writes during load. See
   [design](design/belief-store-write-transactions.md).
 
 ## [2.50.39] - 2026-10-18

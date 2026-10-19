@@ -916,8 +916,23 @@ def apply_graph_commit_envelope(
 
     The semantic verdicts have already happened upstream. This function only
     validates the write contract, checks idempotency, and performs the explicit
-    state mutation requested by the caller.
+    state mutation requested by the caller. A real apply validates and writes in
+    one belief-store transaction, so its checks see any concurrent commit.
     """
+    if dry_run:
+        return _apply_envelope(envelope, store, gap_tracker=gap_tracker, dry_run=True, generated_at=generated_at)
+    with store.mutation():
+        return _apply_envelope(envelope, store, gap_tracker=gap_tracker, dry_run=False, generated_at=generated_at)
+
+
+def _apply_envelope(
+    envelope: dict[str, Any],
+    store: BeliefStore,
+    *,
+    gap_tracker: MetaCognitionTracker | None,
+    dry_run: bool,
+    generated_at: str,
+) -> dict[str, Any]:
     resolved_generated_at = _generated_at(generated_at)
     envelope_failures = _envelope_failure_reasons(envelope, store)
     operations = _envelope_operations(envelope)
@@ -948,13 +963,11 @@ def apply_graph_commit_envelope(
         )
 
     pending = _pending_operations(operations, operation_results)
-    # One transaction: the idempotency re-checks below see any concurrent commit.
-    with store.mutation():
-        applied_changes = {
-            **_add_missing_beliefs(pending, store),
-            **_promote_missing_tracker_states(pending, gap_tracker, generated_at=resolved_generated_at),
-        }
-        edge_counts = _add_missing_edges(pending, store)
+    applied_changes = {
+        **_add_missing_beliefs(pending, store),
+        **_promote_missing_tracker_states(pending, gap_tracker, generated_at=resolved_generated_at),
+    }
+    edge_counts = _add_missing_edges(pending, store)
     final_results = _applied_operation_results(operations, operation_results, applied_changes, edge_counts)
     status = "applied" if any(result["status"] == "applied" for result in final_results) else "already_applied"
     return _result(
