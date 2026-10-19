@@ -29,7 +29,7 @@ GRANDFATHERED: dict[str, int] = {
     "deepr/experts/chat.py": 2502,
     "deepr/experts/lazy_graph_rag.py": 2034,
     "deepr/mcp/server.py": 1781,
-    "deepr/experts/beliefs.py": 1448,
+    "deepr/experts/beliefs.py": 1403,
     "deepr/experts/curriculum.py": 1339,
     "deepr/cli/commands/run.py": 1301,
     "deepr/experts/memory.py": 1291,

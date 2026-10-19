@@ -173,25 +173,26 @@ def close_claim(
     reason_text = evidence.strip()
     if not reason_text:
         raise WorldValidityError("A world end requires the evidence that dated it.")
-    belief = _require_live(store, belief_id)
-    belief.history.append(
-        {
-            "kind": WORLD_TIME_KIND,
-            "status": CLOSED,
-            "basis": basis,
-            "invalidated_at": ended.isoformat(),
-            "evidence": reason_text,
-            "recorded_at": datetime.now(UTC).isoformat(),
-        }
-    )
-    change = store.archive_belief(
-        belief_id,
-        reason=f"world_end:{basis}",
-        invalidated_at=ended,
-    )
-    if change is None or change.invalidated_at is None:
-        raise WorldValidityError("The store did not record a world end.")
-    return change
+    with store.mutation():
+        belief = _require_live(store, belief_id)
+        belief.history.append(
+            {
+                "kind": WORLD_TIME_KIND,
+                "status": CLOSED,
+                "basis": basis,
+                "invalidated_at": ended.isoformat(),
+                "evidence": reason_text,
+                "recorded_at": datetime.now(UTC).isoformat(),
+            }
+        )
+        change = store.archive_belief(
+            belief_id,
+            reason=f"world_end:{basis}",
+            invalidated_at=ended,
+        )
+        if change is None or change.invalidated_at is None:
+            raise WorldValidityError("The store did not record a world end.")
+        return change
 
 
 def affirm_in_force(
@@ -210,40 +211,41 @@ def affirm_in_force(
         raise WorldValidityError("An in-force mark requires the evidence that supports it.")
     if valid_from is not None and valid_from.tzinfo is None:
         raise WorldValidityError("valid_from needs a timezone.")
-    belief = _require_live(store, belief_id)
-    if live_status(belief) == CLOSED_ON_LIVE:
-        raise WorldValidityError("Refusing to affirm a live belief that already carries a closed mark.")
-    started = valid_from.astimezone(UTC).isoformat() if valid_from is not None else None
-    before = belief_snapshot(belief)
-    belief.history.append(
-        {
-            "kind": WORLD_TIME_KIND,
-            "status": IN_FORCE,
-            "basis": AFFIRM_BASIS,
-            "valid_from": started,
-            "invalidated_at": None,
-            "evidence": reason_text,
-            "recorded_at": datetime.now(UTC).isoformat(),
-        }
-    )
-    change = BeliefChange(
-        belief_id=belief_id,
-        change_type="updated",
-        old_claim=belief.claim,
-        new_claim=belief.claim,
-        old_confidence=belief.confidence,
-        new_confidence=belief.confidence,
-        reason="world_time:in_force",
-        evidence=reason_text,
-    )
-    store._record_change(
-        change,
-        before=before,
-        after=belief_snapshot(belief),
-        operation="world_time_affirm",
-    )
-    store._save()
-    return change
+    with store.mutation():
+        belief = _require_live(store, belief_id)
+        if live_status(belief) == CLOSED_ON_LIVE:
+            raise WorldValidityError("Refusing to affirm a live belief that already carries a closed mark.")
+        started = valid_from.astimezone(UTC).isoformat() if valid_from is not None else None
+        before = belief_snapshot(belief)
+        belief.history.append(
+            {
+                "kind": WORLD_TIME_KIND,
+                "status": IN_FORCE,
+                "basis": AFFIRM_BASIS,
+                "valid_from": started,
+                "invalidated_at": None,
+                "evidence": reason_text,
+                "recorded_at": datetime.now(UTC).isoformat(),
+            }
+        )
+        change = BeliefChange(
+            belief_id=belief_id,
+            change_type="updated",
+            old_claim=belief.claim,
+            new_claim=belief.claim,
+            old_confidence=belief.confidence,
+            new_confidence=belief.confidence,
+            reason="world_time:in_force",
+            evidence=reason_text,
+        )
+        store._record_change(
+            change,
+            before=before,
+            after=belief_snapshot(belief),
+            operation="world_time_affirm",
+        )
+        store._save()
+        return change
 
 
 def status_at(belief: Belief, moment: datetime) -> str:

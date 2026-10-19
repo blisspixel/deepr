@@ -28,6 +28,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   say how long a run took when it is cancelled. Short runs, stdout and JSON
   output are unchanged; local timeouts are not shortened.
 
+- **Concurrent expert writes no longer lose beliefs.** Absorb, sync,
+  graph-commit apply and other writers could rewrite the belief snapshot from a
+  stale copy, dropping another process's beliefs and sometimes leaving the
+  store unreadable. Each belief mutation now runs in one cross-process
+  transaction that reloads current state first and refuses to overwrite a
+  snapshot it has not seen. A legacy contradiction-list migration that could
+  drop the change window on first load is also fixed. See
+  [design](design/belief-store-write-transactions.md).
+
 ## [2.50.39] - 2026-10-18
 
 Complete interface repairs (#230, #234, #235 and #236), retaining the existing
