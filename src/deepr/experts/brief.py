@@ -448,6 +448,9 @@ def assemble_brief(
     statements = read_orientation_statements(parsed.get("orientation_statements"))
     for statement in statements:
         statement.text = _text(statement.text)
+        if selection is not None:
+            # Like positions: an id synthesis was not shown cannot be what a statement rests on.
+            statement.supported_by = [fid for fid in statement.supported_by if fid in known_ids]
     brief = ExpertBrief(
         expert_name=expert_name,
         orientation=" ".join(item.text for item in statements) if statements else _text(parsed.get("orientation")),

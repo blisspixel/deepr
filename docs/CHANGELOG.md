@@ -18,6 +18,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   prompt hash (`synthesis_input`). See
   [the design note](design/evidence-selection-and-delivery.md).
 
+- **Consult keeps each position with its own cited evidence.** Positions and
+  findings were interleaved by list index, so a stance could keep a neighbour's
+  evidence while its own was dropped without notice. Each position is now
+  followed by the findings it cites; room for every stance is reserved before
+  evidence fills the rest; a stance whose evidence does not fit says which
+  finding ids are missing; and the omission notice always fits its reserve. The
+  consult artifact records a per-position delivery manifest
+  (`context_delivery.delivery_manifest`) and the CLI names partial support.
+
 ## [2.50.40] - 2026-10-18
 
 Correctness and local-run repairs, retaining the existing execution, spend and

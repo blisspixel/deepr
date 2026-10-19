@@ -91,6 +91,10 @@ class ConsultContext:
     """Per-position citation resolution. Empty until build_consult_context runs."""
 
     studied_at: str = ""
+    study_fingerprint: str = ""
+    """The brief's study identity; finding ids are only meaningful within it."""
+    study_binding: str = ""
+    """matched, unbound, mismatch, or no_study, as resolved for this turn."""
 
     @property
     def coverage(self) -> str:
@@ -321,6 +325,8 @@ def build_consult_context(
         context.limitations.append(
             "Local reference lookup searched at most 240,000 retained characters and selected at most four passages by text overlap; this is not a relevance or currentness verdict."
         )
+    context.study_fingerprint = brief.study_fingerprint if brief is not None else ""
+    context.study_binding = bind_study(brief, result)
     context.support = support_for_positions(
         context.positions,
         brief=brief,

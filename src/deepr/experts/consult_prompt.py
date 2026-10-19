@@ -4,18 +4,40 @@ from __future__ import annotations
 
 import hashlib
 import json
-from itertools import zip_longest
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from deepr.experts.consult_context import ConsultContext, _source_passage
 from deepr.experts.consult_support import recorded_statement
 
 if TYPE_CHECKING:
+    from deepr.experts.brief_contracts import Position
     from deepr.experts.council import ExpertPerspective
     from deepr.experts.study_contracts import StudyFinding
 
 MAX_SYNTHESIS_PROMPT_CHARS = 16000
-_OMISSION_RESERVE = 120
+_OMISSION_RESERVE = 240
+_NOTICE_NAME_CHARS = 60
+_MAX_NAMED_MISSING = 6
+
+
+@dataclass(frozen=True)
+class PacketBlock:
+    """One whole unit of synthesis context and what it depends on.
+
+    ``key`` is ``position:<rank>``, ``finding:<id>``, ``reference:<sha>`` or a
+    fixed section name. ``cites`` lists the finding ids a position rests on.
+    """
+
+    text: str
+    key: str = ""
+    cites: tuple[str, ...] = ()
+    passages: tuple[str, ...] = ()
+    label: str = ""
+    unresolved: tuple[str, ...] = ()
+    """Cited ids whose support did not resolve to this study and a read passage."""
+
+
 _INSTRUCTIONS = (
     "Answer the question directly, in a form suited to the task and specialty. Explain mechanisms, "
     "conditions, alternatives, and useful verification. Use AGREEMENTS or DISAGREEMENTS only for "
@@ -62,104 +84,318 @@ def _support_line(context: ConsultContext, question: str) -> str | None:
     return None
 
 
-def _position_blocks(context: ConsultContext) -> list[str]:
-    blocks = []
-    for position in context.positions:
-        lines = [f"Position: {position.question}", f"Stance: {position.stance}", f"Reason: {position.reasoning}"]
-        dissent = recorded_statement(position.unresolved_dissent)
-        revision = recorded_statement(position.would_change_my_mind)
-        if dissent:
-            lines.append(f"Unresolved dissent: {dissent}")
-        if revision:
-            lines.append(f"Revision condition: {revision}")
-        if position.resolution:
-            lines.append(f"Resolution: {position.resolution}")
-        if position.confidence:
-            lines.append(f"Recorded support label: {position.confidence}")
-        lines.append(f"Supporting findings: {', '.join(position.supported_by)}")
-        unresolved = _support_line(context, position.question)
-        if unresolved:
-            lines.append(unresolved)
-        blocks.append("\n".join(lines))
-    return blocks
+def _position_text(context: ConsultContext, position: Position) -> str:
+    lines = [f"Position: {position.question}", f"Stance: {position.stance}", f"Reason: {position.reasoning}"]
+    dissent = recorded_statement(position.unresolved_dissent)
+    revision = recorded_statement(position.would_change_my_mind)
+    if dissent:
+        lines.append(f"Unresolved dissent: {dissent}")
+    if revision:
+        lines.append(f"Revision condition: {revision}")
+    if position.resolution:
+        lines.append(f"Resolution: {position.resolution}")
+    if position.confidence:
+        lines.append(f"Recorded support label: {position.confidence}")
+    lines.append(f"Supporting findings: {', '.join(position.supported_by)}")
+    unresolved = _support_line(context, position.question)
+    if unresolved:
+        lines.append(unresolved)
+    return "\n".join(lines)
 
 
-def _caveat_blocks(context: ConsultContext) -> list[str]:
+def _unresolved_ids(context: ConsultContext, position: Position) -> tuple[str, ...]:
+    """Cited ids that do not resolve to this study's anchored, read passages.
+
+    Delivering a block does not make it support: a reused id from another
+    study, an unanchored finding or an unread passage stays unresolved.
+    """
+    for item in context.support:
+        if item.get("question") != position.question:
+            continue
+        if item.get("study_binding") != "matched":
+            return tuple(position.supported_by)
+        resolved = set(item.get("resolved_finding_ids") or [])
+        return tuple(fid for fid in position.supported_by if fid not in resolved)
+    return ()
+
+
+def _caveat_blocks(context: ConsultContext) -> list[PacketBlock]:
     blocks = []
     if context.live:
-        blocks.append("Live:\n" + "\n".join(f"- {item}" for item in context.live))
+        blocks.append(PacketBlock("Live:\n" + "\n".join(f"- {item}" for item in context.live), key="caveat:live"))
     if context.unknown:
-        blocks.append("Unknown:\n" + "\n".join(f"- {item}" for item in context.unknown))
+        blocks.append(
+            PacketBlock("Unknown:\n" + "\n".join(f"- {item}" for item in context.unknown), key="caveat:unknown")
+        )
     return blocks
 
 
 def _finding_block(
     finding: StudyFinding, sources: dict[str, tuple[str, str]], own_source: tuple[str, str, str] | None = None
-) -> str:
+) -> PacketBlock:
     lines = [f"Finding [{finding.finding_id}]: {finding.title}", f"Interpretation: {json.dumps(finding.payload)}"]
     if not finding.is_grounded:
         lines.append("No recorded excerpt was matched to a retained source.")
     elif finding.ungrounded_anchor_count:
         lines.append("Some recorded excerpts did not match the retained source.")
+    key = f"finding:{finding.finding_id}"
     if own_source:
         sha, origin, passage = own_source
         lines.append(f"Retained passage [{sha}] ({origin}):\n{passage}")
-        return "\n".join(lines)
+        return PacketBlock("\n".join(lines), key=key, passages=(sha,))
     for sha in finding.corpus_shas:
         if sha in sources:
             origin, passage = sources[sha]
             lines.append(f"Retained passage [{sha}] ({origin}):\n{_source_passage(passage, finding.anchors, 600)}")
-            break
-    return "\n".join(lines)
+            return PacketBlock("\n".join(lines), key=key, passages=(sha,))
+    return PacketBlock("\n".join(lines), key=key)
 
 
-def brief_synthesis_blocks(context: ConsultContext) -> list[str]:
-    """Keep complete judgments interleaved with their retained evidence.
+def brief_synthesis_blocks(context: ConsultContext) -> list[PacketBlock]:
+    """Each position followed by the evidence it cites, then the rest.
 
-    The full packet remains the artifact. These blocks make omission explicit
-    at the final prompt boundary instead of losing every later packet layer.
+    The full packet remains the artifact. Grouping by citation, not by list
+    position, is what lets the packer keep a stance with its own support or
+    say exactly which support did not fit.
     """
     sources = {sha: (origin, passage) for sha, origin, passage in context.sources}
-    findings = [
-        _finding_block(finding, sources, context.finding_sources.get(finding.finding_id))
+    findings = {
+        finding.finding_id: _finding_block(finding, sources, context.finding_sources.get(finding.finding_id))
         for finding in context.findings
-    ]
-    blocks = ["Stored research only; no live check was performed for this answer."]
+    }
+    blocks = [PacketBlock("Stored research only; no live check was performed for this answer.", key="notice")]
     blocks.extend(_caveat_blocks(context))
     blocks.extend(
-        f"Reference library passage (bounded excerpt) [{sha}] ({origin}):\n{passage}"
+        PacketBlock(
+            f"Reference library passage (bounded excerpt) [{sha}] ({origin}):\n{passage}",
+            key=f"reference:{sha}",
+            passages=(sha,),
+        )
         for sha, origin, passage in context.reference_passages
     )
-    for position, finding in zip_longest(_position_blocks(context), findings):
-        blocks.extend(block for block in (position, finding) if block)
+    placed: set[str] = set()
+    for index, position in enumerate(context.positions, 1):
+        blocks.append(
+            PacketBlock(
+                _position_text(context, position),
+                key=f"position:{index}",
+                cites=tuple(position.supported_by),
+                label=position.question,
+                unresolved=_unresolved_ids(context, position),
+            )
+        )
+        for finding_id in position.supported_by:
+            if finding_id in findings and finding_id not in placed:
+                placed.add(finding_id)
+                blocks.append(findings[finding_id])
+    blocks.extend(block for finding_id, block in findings.items() if finding_id not in placed)
     if context.orientation:
-        blocks.append(f"Orientation: {context.orientation}")
+        blocks.append(PacketBlock(f"Orientation: {context.orientation}", key="orientation"))
     if context.integrity_warnings or context.limitations:
-        blocks.append("Study limitations:\n" + "\n".join(context.integrity_warnings + context.limitations))
+        blocks.append(
+            PacketBlock(
+                "Study limitations:\n" + "\n".join(context.integrity_warnings + context.limitations),
+                key="limitations",
+            )
+        )
     return blocks
 
 
-def _fit_blocks(blocks: list[str], budget: int) -> str:
-    selected: list[str] = []
-    omitted_blocks: list[str] = []
-    remaining = budget - _OMISSION_RESERVE
-    for block in blocks:
-        required = len(block) + (2 if selected else 0)
-        if required <= remaining:
-            selected.append(block)
-            remaining -= required
-        else:
-            omitted_blocks.append(block)
-    if omitted_blocks:
-        names = "; ".join(block.split("\n", 1)[0][:160] for block in omitted_blocks)
-        selected.append(
-            f"[{len(omitted_blocks)} context block(s) omitted by the prompt limit: {names}. "
-            "Coverage is incomplete; consult the full artifact.]"
+def _partial_line(missing: list[str]) -> str:
+    shown = ", ".join(missing[:_MAX_NAMED_MISSING])
+    more = f" and {len(missing) - _MAX_NAMED_MISSING} more" if len(missing) > _MAX_NAMED_MISSING else ""
+    return (
+        f"Delivered support: partial. Cited evidence not in this prompt: {shown}{more}. "
+        "Treat that part of the stance as a stored interpretation without delivered support."
+    )
+
+
+def _omission_notice(omitted: list[PacketBlock]) -> str:
+    """Name omitted blocks while they fit the reserve, then count the rest."""
+    head = f"[{len(omitted)} context block(s) omitted by the prompt limit: "
+    tail = ". Coverage is incomplete; consult the full artifact.]"
+    names: list[str] = []
+    for index, block in enumerate(omitted):
+        name = block.text.split("\n", 1)[0][:_NOTICE_NAME_CHARS]
+        rest = len(omitted) - index - 1
+        more = f"; and {rest} more" if rest else ""
+        # The reserve also pays for the separator in front of the notice.
+        if len(head) + len("; ".join([*names, name])) + len(more) + len(tail) > _OMISSION_RESERVE - 2:
+            break
+        names.append(name)
+    listed = "; ".join(names)
+    unnamed = len(omitted) - len(names)
+    if unnamed:
+        listed = f"{listed}; and {unnamed} more" if listed else f"{unnamed} unnamed"
+    return head + listed + tail
+
+
+class _Packer:
+    """Greedy fit of whole blocks, keeping a position with its cited evidence.
+
+    When the first position is reached, room is reserved for every stance that
+    fits, together with its worst-case partial-support line. Evidence then fills
+    what is left, group by group. Without the reservation the first position's
+    evidence could crowd every later stance out of a tight prompt.
+    """
+
+    def __init__(self, blocks: list[PacketBlock], budget: int) -> None:
+        self.blocks = blocks
+        self.remaining = budget - _OMISSION_RESERVE
+        self.selected: list[str] = []
+        self.omitted: list[PacketBlock] = []
+        self.delivered: set[str] = set()
+        self.considered: set[str] = set()
+        self.findings = {block.key: block for block in blocks if block.key.startswith("finding:")}
+        self.positions: list[dict[str, object]] = []
+        self.reserved: dict[str, int] | None = None
+        self.unplaced: list[tuple[PacketBlock, list[str], list[str]]] = []
+
+    def _cost(self, text: str) -> int:
+        return len(text) + (2 if self.selected else 0)
+
+    def _place(self, block: PacketBlock, text: str | None = None) -> bool:
+        body = block.text if text is None else text
+        if self._cost(body) > self.remaining:
+            return False
+        self.remaining -= self._cost(body)
+        self.selected.append(body)
+        if block.key:
+            self.delivered.add(block.key)
+        return True
+
+    def _with_support(self, block: PacketBlock, missing: list[str]) -> str:
+        return f"{block.text}\n{_partial_line(missing)}" if missing else block.text
+
+    def _reserve_positions(self) -> dict[str, int]:
+        reserved: dict[str, int] = {}
+        for block in self.blocks:
+            if not block.key.startswith("position:"):
+                continue
+            # Longest ids first: any later missing subset names no more characters than this.
+            cited = sorted((fid for fid in block.cites if f"finding:{fid}" in self.findings), key=len, reverse=True)
+            cost = len(self._with_support(block, cited)) + 2
+            if cost <= self.remaining:
+                self.remaining -= cost
+                reserved[block.key] = cost
+        return reserved
+
+    def _position(self, block: PacketBlock) -> None:
+        available = [f"finding:{fid}" for fid in block.cites if f"finding:{fid}" in self.findings]
+        unavailable = [fid for fid in block.cites if f"finding:{fid}" not in self.findings]
+        if self.reserved is None:
+            self.reserved = self._reserve_positions()
+        if block.key not in self.reserved:
+            # Recorded after packing: its evidence may still be delivered on its own.
+            self.omitted.append(block)
+            self.unplaced.append((block, available, unavailable))
+            return
+        self.remaining += self.reserved.pop(block.key)
+        pending = [key for key in available if key not in self.delivered and key not in self.considered]
+        self.considered.update(pending)
+
+        def ids(keys: list[str]) -> list[str]:
+            return [key.split(":", 1)[1] for key in keys]
+
+        # Evidence another position already tried and could not fit stays missing here too.
+        earlier = [key for key in available if key not in self.delivered and key not in pending]
+        lead = self._with_support(block, ids(earlier))
+        members = [self.findings[key] for key in pending]
+        whole = self._cost(lead) + sum(len(member.text) + 2 for member in members)
+        if whole <= self.remaining:
+            self._place(block, lead)
+            for member in members:
+                self._place(member)
+            self._record(block, available, unavailable)
+            return
+
+        missing_now = ids([key for key in available if key not in self.delivered])
+        worst = self._with_support(block, sorted(missing_now, key=len, reverse=True))
+        index = len(self.selected)
+        self.remaining -= self._cost(worst)
+        self.selected.append(worst)
+        self.delivered.add(block.key)
+        for member in members:
+            if not self._place(member):
+                self.omitted.append(member)
+        text = self._with_support(block, ids([key for key in available if key not in self.delivered]))
+        self.remaining += len(worst) - len(text)
+        self.selected[index] = text
+        self._record(block, available, unavailable)
+
+    def _record(self, block: PacketBlock, available: list[str], unavailable: list[str], *, status: str = "") -> None:
+        delivered = [key.split(":", 1)[1] for key in available if key in self.delivered]
+        omitted = [key.split(":", 1)[1] for key in available if key not in self.delivered]
+        supported = [fid for fid in delivered if fid not in block.unresolved]
+        if not status:
+            if not block.cites:
+                status = "no_cited_support"
+            elif len(supported) == len(block.cites):
+                status = "complete"
+            else:
+                status = "partial" if supported else "absent"
+        self.positions.append(
+            {
+                "key": block.key,
+                "question": block.label,
+                "status": status,
+                "cited": list(block.cites),
+                "delivered": delivered,
+                "omitted_by_limit": omitted,
+                "unavailable": unavailable,
+                "unresolved_support": list(block.unresolved),
+            }
         )
-    return "\n\n".join(selected)
+
+    def pack(self) -> str:
+        for block in self.blocks:
+            if block.key in self.delivered or block.key in self.considered:
+                continue
+            if block.key.startswith("position:"):
+                self._position(block)
+            elif not self._place(block):
+                self.omitted.append(block)
+        for block, available, unavailable in self.unplaced:
+            self._record(block, available, unavailable, status="omitted")
+        order = {block.key: index for index, block in enumerate(self.blocks)}
+        self.positions.sort(key=lambda item: order.get(str(item["key"]), 0))
+        if self.omitted:
+            self.selected.append(_omission_notice(self.omitted))
+        return "\n\n".join(self.selected)
+
+    def manifest(self) -> dict[str, object]:
+        delivered = [block for block in self.blocks if block.key in self.delivered]
+        return {
+            "positions": self.positions,
+            "findings_delivered": [b.key.split(":", 1)[1] for b in delivered if b.key.startswith("finding:")],
+            "findings_omitted": [b.key.split(":", 1)[1] for b in self.omitted if b.key.startswith("finding:")],
+            "passages_delivered": sorted({sha for block in delivered for sha in block.passages}),
+            "blocks_omitted": len(self.omitted),
+            "omitted_keys": [block.key for block in self.omitted if block.key],
+        }
+
+
+def pack_blocks(blocks: list[PacketBlock | str], budget: int) -> tuple[str, dict[str, object]]:
+    """Fit blocks into ``budget`` characters and report what was delivered."""
+    packer = _Packer([block if isinstance(block, PacketBlock) else PacketBlock(block) for block in blocks], budget)
+    return packer.pack(), packer.manifest()
+
+
+def _fit_blocks(blocks: list[PacketBlock | str], budget: int) -> str:
+    return pack_blocks(blocks, budget)[0]
 
 
 def build_synthesis_prompt(query: str, perspectives: list[ExpertPerspective]) -> str:
+    return build_synthesis_packet(query, perspectives)[0]
+
+
+def build_synthesis_packet(query: str, perspectives: list[ExpertPerspective]) -> tuple[str, dict[str, object]]:
+    """The bounded synthesis prompt and a manifest of what each expert delivered.
+
+    Delivery coverage is reported separately from the packet's assembly
+    coverage. Neither says the cited evidence entails the stance or that the
+    answer used it well.
+    """
     eligible = [perspective for perspective in perspectives if perspective.confidence > 0]
     prefix = _INSTRUCTIONS + f"Question: {query}\n\nContributors: {len(eligible)}\n\n"
     # Restate a short question after the evidence; a long one is referenced so
@@ -173,15 +409,37 @@ def build_synthesis_prompt(query: str, perspectives: list[ExpertPerspective]) ->
         )
     budget = available // len(eligible)
     parts = []
+    experts: list[dict[str, object]] = []
     for header, perspective in zip(headers, eligible):
         blocks = perspective.synthesis_blocks or [block for block in perspective.response.split("\n\n") if block]
-        parts.append(header + _fit_blocks(blocks, budget))
-    return prefix + "\n\n".join(parts) + closing
+        text, manifest = pack_blocks(list(blocks), budget)
+        parts.append(header + text)
+        context = perspective.context or {}
+        experts.append(
+            {
+                "expert": perspective.expert_name,
+                "source": context.get("source", ""),
+                "assembly_coverage": context.get("coverage", ""),
+                "study_fingerprint": context.get("study_fingerprint", ""),
+                "study_binding": context.get("study_binding", ""),
+                "budget_chars": budget,
+                "delivered_chars": len(text),
+                **manifest,
+            }
+        )
+    manifest_out: dict[str, object] = {
+        "kind": "deepr.synthesis-delivery-manifest.v1",
+        "experts": experts,
+        "note": "Delivery records what reached the prompt; it does not establish entailment or answer quality.",
+    }
+    return prefix + "\n\n".join(parts) + closing, manifest_out
 
 
-def synthesis_delivery(system_prompt: str, user_prompt: str) -> dict[str, object]:
+def synthesis_delivery(
+    system_prompt: str, user_prompt: str, manifest: dict[str, object] | None = None
+) -> dict[str, object]:
     """Bind the audit artifact to the messages actually handed to dispatch."""
-    return {
+    receipt: dict[str, object] = {
         "kind": "deepr.synthesis-context.v1",
         "system_prompt": system_prompt,
         "user_prompt": user_prompt,
@@ -190,3 +448,6 @@ def synthesis_delivery(system_prompt: str, user_prompt: str) -> dict[str, object
         "user_prompt_limit_chars": MAX_SYNTHESIS_PROMPT_CHARS,
         "freshness": "stored_context_only",
     }
+    if manifest is not None:
+        receipt["delivery_manifest"] = manifest
+    return receipt

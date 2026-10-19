@@ -88,8 +88,14 @@ stay blocked.
   synthetic default-lens studies of 240 or more findings the old prefix showed
   2 to 4 of 8 lenses and no contention finding; balanced selection shows all 8.
   No retained real study here exceeds seven findings, and the semantic effect
-  is untested. Consult packing (dependency-aware position groups, a delivery
-  manifest and a bounded omission notice) is the next increment. See
+  is untested.
+  **2026-10-19 consult packing increment:** each position is packed with the
+  findings it cites, stances are reserved before evidence, missing support is
+  named per position, the omission notice is bounded, and the consult artifact
+  records a per-position delivery manifest. Across 1,200 seeded contexts no
+  kept position lost evidence silently (the old packer did so for 225 to 828
+  per budget); at tight budgets fewer standalone findings fit. Remaining: a
+  blinded semantic comparison of both packers under the same allowance. See
   [the design note](docs/design/evidence-selection-and-delivery.md).
 
 ## Quick Links

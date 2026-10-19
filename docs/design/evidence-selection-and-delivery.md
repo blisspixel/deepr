@@ -1,7 +1,6 @@
 # Evidence selection and delivery across briefing and consult packing
 
-Status: briefing selection implemented 2026-10-19; consult packing is the next
-increment. Issue: #258. Continues the shipped
+Status: briefing selection and consult packing implemented 2026-10-19. Issue: #258. Continues the shipped
 [consult evidence delivery](consult-evidence-delivery.md) repair (#227, #238);
 it does not reopen it or try to fit the whole library into every prompt.
 
@@ -61,8 +60,9 @@ semantic judgment and is not decided here.
 - **Prompt honesty.** The contention note counts contention findings actually
   shown and says how many more exist. When findings are omitted the prompt
   says how many were shown and forbids claiming the whole study was
-  considered. Citations to an id the synthesis was not shown are dropped,
-  like any other unknown id. The brief's limitations state omissions and
+  considered. Citations to an id the synthesis was not shown are dropped
+  from positions, anticipated questions and orientation statements, like any
+  other unknown id. The brief's limitations state omissions and
   shortening.
 
 Comparison before choosing (structural only, `.agent/evidence-delivery-2026-10-19/`),
@@ -84,21 +84,73 @@ effect on useful supported positions is untested; a later briefing review
 should compare both policies under the same allowance and reject the balanced
 policy if it preserves more labels but worsens supported answers.
 
-### Consult packing (next increment)
+### Consult packing (implemented)
 
-- Pack each position with the findings and passages it cites as one
-  dependency-aware group, deduplicating evidence already placed. If the whole
-  group cannot fit, keep the position with an explicit partial-support line
-  naming the cited evidence not delivered, or omit it when even that cannot
-  fit. Uncited findings follow the groups.
-- Return a structured delivery manifest with the prompt: per position
-  delivered, partial or omitted support with cited, delivered and missing
-  finding ids, delivered passage hashes, and the study fingerprint and
-  binding. Assembly coverage (`grounded`/`partial`) is reported separately
-  from delivery coverage. Neither implies entailment or answer correctness.
-- Bound the omission notice inside its reserve: name omitted blocks while
-  they fit, then count the rest. The final prompt stays within the configured
-  limit including notices, instructions, question and contributor identities.
+`experts/consult_prompt.py` packs `PacketBlock` units. A block carries a key
+(`position:<rank>`, `finding:<id>`, `reference:<sha>` or a section name),
+the finding ids a position cites, and the passage hashes it contains. Plain
+string blocks from other perspective sources still work.
+
+- **Dependency-aware groups.** Each position is followed by the findings it
+  cites, in citation order, not by whichever finding shares its list index.
+  Evidence already placed for an earlier position is not repeated. Uncited
+  findings follow all groups.
+- **Stances first, then evidence.** At the first position, room is reserved
+  for every stance that fits, each with its worst-case partial-support line.
+  Evidence then fills the remainder group by group. If a group does not fit
+  whole, the stance stays with `Delivered support: partial. Cited evidence not
+  in this prompt: <ids>`, naming exactly its own missing evidence, including
+  evidence an earlier position could not fit. A stance that cannot be
+  reserved is omitted and its evidence may still be offered alone.
+- **Delivery manifest.** `build_synthesis_packet` returns the prompt and a
+  `deepr.synthesis-delivery-manifest.v1` record, stored as
+  `context_delivery.delivery_manifest`. Per expert: source, assembly coverage,
+  study fingerprint and binding, budget and delivered characters, and per
+  position `complete`, `partial`, `absent`, `omitted` or `no_cited_support`,
+  with cited, delivered, omitted-by-limit, unavailable and unresolved finding
+  ids. A delivered block counts as support only when the position's citation
+  resolved to this study and a read passage, so a reused id from another
+  study or an unanchored finding is never `complete`. An omitted position is
+  recorded after packing, so evidence delivered on its own is not listed as
+  missing. Plus
+  delivered and omitted findings, delivered passage hashes and omitted block
+  keys. The CLI names each position whose support was not fully delivered.
+  Delivery coverage is separate from assembly coverage; neither implies
+  entailment or answer correctness.
+- **Bounded notice.** The omission notice names omitted blocks (first line,
+  at most 60 characters each) only while the whole notice and its separator
+  fit the 240-character reserve, then counts the rest. The previous notice
+  could list every omitted name after a 120-character reserve, and never
+  counted its separator.
+- **Proven bound.** A property-based test packs random mixes of positions,
+  tiny and huge findings, short and long ids, and budgets, and asserts the
+  packed text never exceeds its budget. It found the uncounted separator; a
+  deterministic test pins the second case it exposed, where a partial-support
+  line naming long missing ids could outgrow the room reserved when shorter
+  ids were listed. Room is now always reserved for the longest ids.
+
+Comparison before choosing (structural only, same budgets, 300 seeded random
+single-expert contexts per budget, 1 to 6 positions citing 1 to 4 of 4 to 24
+findings): positions kept, positions kept with all cited evidence, positions
+kept with missing evidence and no flag, and findings delivered.
+
+| Budget (chars) | Positions | Old: kept / complete / silent | New: kept / complete / silent | Findings old / new |
+|---|---|---|---|---|
+| 2,500 | 1,052 | 758 / 22 / 736 | 888 / 45 / 0 | 453 / 204 |
+| 5,000 | 1,058 | 982 / 154 / 828 | 1,058 / 328 / 0 | 1,186 / 1,000 |
+| 8,000 | 1,020 | 1,020 / 395 / 625 | 1,020 / 769 / 0 | 2,107 / 2,006 |
+| 15,000 | 1,017 | 1,017 / 792 / 225 | 1,017 / 1,010 / 0 | 3,648 / 3,630 |
+
+A group-first variant without the stance reservation was rejected: at 2,500
+characters it kept 457 positions against the old packer's 758. The adopted
+packer keeps at least as many positions as the old one at every budget and
+never leaves missing support unflagged. Its cost is fewer standalone findings
+at tight budgets (204 against 453 at 2,500 characters, 1,000 against 1,186 at
+5,000), because the reserved stances and partial-support lines take that room.
+A single-expert consult has roughly 13,000 characters and three experts about
+4,500 each. Whether flagged stances with less loose evidence give better
+answers than more loose evidence is a semantic question this table does not
+answer; it needs the blinded review described in #258 and #259.
 
 ## Alternatives rejected
 

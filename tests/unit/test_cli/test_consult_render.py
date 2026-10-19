@@ -18,6 +18,16 @@ def packet():
         "context_delivery": {
             "freshness": "stored_context_only",
             "user_prompt": "[1 context block(s) omitted by the prompt limit: Reference. Coverage is incomplete; consult the full artifact.]",
+            "delivery_manifest": {
+                "experts": [
+                    {
+                        "positions": [
+                            {"question": "When is it ready?", "status": "partial", "omitted_by_limit": ["failure-2"]},
+                            {"question": "Does salt matter?", "status": "complete", "omitted_by_limit": []},
+                        ]
+                    }
+                ]
+            },
         },
         "perspectives": [
             {
@@ -78,6 +88,7 @@ def test_all_sections_full_answer_narrow_width_and_no_payload_mutation(terminal)
         "Dissent 7.",
         "revision condition",
         "study binding unbound",
+        "Delivered support for When is it ready?: partial; not delivered: failure-2.",
         "context block(s) omitted",
         "$0.0000 local fixture-model",
         "Knowledge writes: none",
