@@ -167,3 +167,24 @@ async def test_oversized_question_fails_before_dispatch_without_silent_shortenin
     )
     assert result["synthesis_status"] == "failed"
     assert result["cost"] == 0
+
+
+def test_requested_length_outranks_default_and_follows_the_evidence():
+    """Regression (2026-10-17/18): a 100-word request competed with a fixed 700-word cap."""
+    perspective = ExpertPerspective(
+        expert_name="Reader",
+        domain="d",
+        response="",
+        synthesis_blocks=["Evidence block. " * 50],
+    )
+    prompt = build_synthesis_prompt("In under 100 words, can I reuse this checkpoint?", [perspective])
+    assert len(prompt) <= MAX_SYNTHESIS_PROMPT_CHARS
+    assert "context block(s) omitted" not in prompt
+    assert "Keep the complete answer under 700 words.\n" not in prompt
+    assert "Without a requested length" in prompt
+    assert "takes precedence over that default" in prompt
+    assert "including verification, omissions, and uncertainty, fits inside it" in prompt
+    closing = "Any length, format, or scope it requests governs the entire answer, including caveats."
+    assert prompt.rindex("Evidence block.") < prompt.rindex("Answer this question: In under 100 words, can I reuse")
+    assert prompt.rindex("Evidence block.") < prompt.rindex(closing)
+    assert prompt.endswith(closing)
