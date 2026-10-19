@@ -229,7 +229,7 @@ def test_normalized_anchor_reaches_synthesis_as_original_source_bytes(tmp_path):
     context = build_consult_context(
         expert_name="Runtime", question="Caller context", brief=None, result=study, corpus=corpus
     )
-    prompt_blocks = "\n".join(brief_synthesis_blocks(context))
+    prompt_blocks = "\n".join(block.text for block in brief_synthesis_blocks(context))
     assert original in prompt_blocks
     assert entry.sha256 in prompt_blocks
     assert "Unrelated introduction." * 100 not in prompt_blocks

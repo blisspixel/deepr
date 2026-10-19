@@ -18,7 +18,7 @@ from typing import Any
 from deepr.experts.briefed_perspective import briefed_perspective_without_beliefs, build_briefed_perspective
 from deepr.experts.constants import MAX_COUNCIL_CONCURRENCY, SYNTHESIS_BUDGET_FRACTION, UTILITY_MODEL
 from deepr.experts.consult_lifecycle import ConsultLifecycleError
-from deepr.experts.consult_prompt import build_synthesis_prompt, synthesis_delivery
+from deepr.experts.consult_prompt import build_synthesis_packet, synthesis_delivery
 from deepr.experts.council_synthesis_costs import (
     SynthesisCostBound,
     attach_synthesis_settlement,
@@ -165,7 +165,8 @@ class ExpertPerspective:
     confidence: float = 0.9
     cost: float = 0.0
     context: dict[str, Any] = field(default_factory=dict)
-    synthesis_blocks: list[str] = field(default_factory=list, repr=False)
+    synthesis_blocks: list[Any] = field(default_factory=list, repr=False)
+    """Plain strings or ``consult_prompt.PacketBlock`` units for the bounded synthesis prompt."""
 
 
 @dataclass(frozen=True)
@@ -916,7 +917,7 @@ class ExpertCouncil:
             }
 
         try:
-            user_prompt = build_synthesis_prompt(query, perspectives)
+            user_prompt, delivery_manifest = build_synthesis_packet(query, perspectives)
         except ValueError as error:
             return failed_synthesis(error, cost_bound=None, dispatched=False)
         system_prompt = _SYNTHESIS_SYSTEM_PROMPT
@@ -954,7 +955,7 @@ class ExpertCouncil:
             )
             return {
                 **_shape_synthesis_response(response),
-                "context_delivery": synthesis_delivery(system_prompt, user_prompt),
+                "context_delivery": synthesis_delivery(system_prompt, user_prompt, delivery_manifest),
             }
         except asyncio.CancelledError as error:
             if dispatched and cost_bound is not None:

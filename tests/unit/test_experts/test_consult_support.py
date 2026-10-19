@@ -156,7 +156,7 @@ def test_live_and_unknown_reach_the_prompt_or_are_named_when_omitted():
             }
         ],
     )
-    rendered = "\n\n".join(brief_synthesis_blocks(context))
+    rendered = "\n\n".join(block.text for block in brief_synthesis_blocks(context))
     assert "Live:\n- The threshold may have moved since the measurement." in rendered
     assert "Unknown:\n- Behaviour above five hundred clusters." in rendered
     assert "Support unresolved (unbound)" in rendered

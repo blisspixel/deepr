@@ -83,6 +83,8 @@ def build_briefed_perspective(query: str, name: str, domain: str, perspective_cl
         context={
             "source": "brief",
             "coverage": context.coverage,
+            "study_fingerprint": context.study_fingerprint,
+            "study_binding": context.study_binding,
             "studied_at": context.studied_at,
             "orientation": context.orientation,
             "positions": [position.to_dict() for position in context.positions],

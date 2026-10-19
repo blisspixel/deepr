@@ -58,7 +58,7 @@ def test_new_brief_roundtrip_and_every_read_surface_preserve_origins(material):
     context = build_consult_context(
         expert_name="Bread", question="Temperature?", brief=restored, result=study, corpus=corpus
     )
-    for output in (render_brief(restored), context.orientation, "\n".join(brief_synthesis_blocks(context))):
+    for output in (render_brief(restored), context.orientation, "\n".join(block.text for block in brief_synthesis_blocks(context))):
         assert "Broader knowledge, not established by this study: Yeast strain" in output
         assert "Expert reasoning, not a source observation: Measure" in output
         assert "synopsis-1" in output

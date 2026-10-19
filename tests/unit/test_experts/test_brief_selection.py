@@ -193,3 +193,18 @@ async def test_failed_synthesis_still_records_what_it_was_shown(corpus):
     assert brief.synthesis_input["prompt_sha256"] == hashlib.sha256(prompts[0].encode("utf-8")).hexdigest()
     assert len(brief.synthesis_input["omitted_ids"]) == 5
     assert any("Synthesis call failed" in note for note in brief.limitations)
+
+
+def test_orientation_cannot_cite_a_finding_synthesis_was_not_shown(corpus):
+    """Review finding: orientation statements kept citations to unshown findings."""
+    study = _study(("synopsis", 130), ("contention", 1))
+    _, selection = brief_prompt_with_selection(study, expert_name="E")
+    unshown = selection.omitted_ids[0]
+    parsed = {
+        "orientation_statements": [
+            {"text": "Studied claim.", "origin": "studied", "supported_by": [unshown, "contention-1"]}
+        ],
+        "positions": [],
+    }
+    brief = assemble_brief(parsed, expert_name="E", result=study, corpus=corpus, selection=selection)
+    assert brief.orientation_statements[0].supported_by == ["contention-1"]

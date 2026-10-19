@@ -116,6 +116,22 @@ def _pushback(console: Console, payload: dict[str, Any]) -> None:
         _text(console, f"Agreements: {item}")
 
 
+def _delivery(console: Console, manifest: object) -> None:
+    """Name each position whose cited evidence did not all reach the model."""
+    experts = manifest.get("experts") if isinstance(manifest, dict) else None
+    for expert in experts if isinstance(experts, list) else []:
+        for position in expert.get("positions") or [] if isinstance(expert, dict) else []:
+            status = position.get("status") if isinstance(position, dict) else None
+            if status not in {"partial", "absent", "omitted"}:
+                continue
+            missing = [*position.get("omitted_by_limit", []), *position.get("unavailable", [])]
+            unresolved = [item for item in position.get("unresolved_support", []) if item not in missing]
+            detail = f"; not delivered: {', '.join(str(item) for item in missing)}" if missing else ""
+            if unresolved:
+                detail += f"; delivered but unresolved: {', '.join(str(item) for item in unresolved)}"
+            _text(console, f"Delivered support for {position.get('question') or 'position'}: {status}{detail}.")
+
+
 def render_consult(payload: dict[str, Any], console: Console) -> None:
     """Never slice the answer or modify the machine-readable artifact."""
     console.print(Text("Position / Synthesis", style="bold"))
@@ -133,6 +149,7 @@ def render_consult(payload: dict[str, Any], console: Console) -> None:
     for line in str(delivery.get("user_prompt") or "").splitlines():
         if line.startswith("[") and "context block(s) omitted by the prompt limit:" in line:
             _text(console, line)
+    _delivery(console, delivery.get("delivery_manifest"))
     _text(console, "Mode: one-shot stored-context council; experts do not exchange turns")
     capacity = payload.get("capacity") or {}
     route = " ".join(str(capacity[key]) for key in ("synthesis_backend", "model") if capacity.get(key))
