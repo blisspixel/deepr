@@ -2666,13 +2666,13 @@ over-reach for a solo project; Letta/MemOS already own the "OS" label).
     uses. Also fixed a latent `_emit_thought(evidence_refs=...)` TypeError the
     model path now reaches. 45 tests (lexical-behavior tests replaced with
     model-based + no-model + malformed-JSON + form-filter cases).
-  - [ ] **Sibling lexical-contradiction debt (audit finding 2026-06-24, lower
-    severity):** `context_chainer._detect_contradictions` regex-matches discourse
-    markers ("in contrast", "on the other hand") and labels them "contradictions"
-    in the phase-to-phase research context. Ephemeral context enrichment, not a
-    belief verdict (beliefs persist only through verified absorb), and the whole
-    module is lexical context-structuring. Fix when the phase-handoff structuring
-    goes model-based. Disposition in
+  - [x] **Sibling lexical-contradiction debt (audit finding 2026-06-24, lower
+    severity; fixed 2026-10-18):** `context_chainer` regex-matched discourse
+    markers ("in contrast", "on the other hand") and labeled them
+    "contradictions" in the phase-to-phase research context. Matches are now
+    quoted as `contrast_markers` under "Contrasting Statements to Examine" with
+    a phrase-match caveat, so the lexical check routes and no longer labels.
+    Disposition in
     [checks-deterministic-vs-agentic.md](docs/design/checks-deterministic-vs-agentic.md).
   - [x] Dedup-merge verdict on the absorb gate (2026-06-14): the sibling brittle
     verdict. `_find_similar`'s >0.7 word-overlap decided merges, so two different

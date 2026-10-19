@@ -72,7 +72,9 @@ class StructuredPhaseOutput:
     summary: str
     entities: list[str]
     open_questions: list[str]
-    contradictions: list[str]
+    # Lexical contrast-marker matches. They route the next phase to passages
+    # worth examining; they are not contradiction verdicts.
+    contrast_markers: list[str]
     confidence_avg: float
     timestamp: datetime = field(default_factory=_utc_now)
     token_count: int = 0
@@ -84,7 +86,7 @@ class StructuredPhaseOutput:
             "summary": self.summary,
             "entities": self.entities,
             "open_questions": self.open_questions,
-            "contradictions": self.contradictions,
+            "contrast_markers": self.contrast_markers,
             "confidence_avg": self.confidence_avg,
             "timestamp": self.timestamp.isoformat(),
             "token_count": self.token_count,
@@ -141,8 +143,8 @@ class ContextChainer:
         # Extract open questions
         open_questions = self._extract_questions(raw_output)
 
-        # Detect contradictions
-        contradictions = self._detect_contradictions(raw_output)
+        # Locate contrasting statements for the next phase to examine
+        contrast_markers = self._find_contrast_markers(raw_output)
 
         # Generate summary
         summary = self._generate_summary(raw_output, findings)
@@ -170,7 +172,7 @@ class ContextChainer:
             summary=summary,
             entities=entities,
             open_questions=open_questions,
-            contradictions=contradictions,
+            contrast_markers=contrast_markers,
             confidence_avg=conf_avg,
             token_count=token_count,
         )
@@ -225,14 +227,15 @@ class ContextChainer:
                 sections.append(f"- {q}")
             sections.append("")
 
-        # Any contradictions to resolve
-        all_contradictions = []
+        # Contrasting statements worth examining (phrase matches, not verdicts)
+        all_markers = []
         for phase_output in prior_phases:
-            all_contradictions.extend(phase_output.contradictions)
+            all_markers.extend(phase_output.contrast_markers)
 
-        if all_contradictions:
-            sections.append("## Contradictions to Resolve")
-            for c in all_contradictions[:3]:
+        if all_markers:
+            sections.append("## Contrasting Statements to Examine")
+            sections.append("Phrase matches only; check whether each is an actual conflict before relying on it.")
+            for c in all_markers[:3]:
                 sections.append(f"- {c}")
             sections.append("")
 
@@ -394,32 +397,33 @@ class ContextChainer:
 
         return questions[:10]
 
-    def _detect_contradictions(self, text: str) -> list[str]:
-        """Detect potential contradictions in text.
+    def _find_contrast_markers(self, text: str) -> list[str]:
+        """Locate sentences that use contrast phrases.
+
+        A discourse marker such as "in contrast" routes a passage to the next
+        phase; it does not establish that two claims conflict, so matches are
+        quoted without a contradiction label.
 
         Args:
             text: Text to analyze
 
         Returns:
-            List of contradiction descriptions
+            Quoted sentence fragments that contain a contrast phrase
         """
-        contradictions = []
-
-        # Look for contradiction indicators
-        indicators = [
-            (r"however[^.]*contradicts[^.]*\.", "Direct contradiction"),
-            (r"in contrast[^.]*\.", "Contrasting view"),
-            (r"on the other hand[^.]*\.", "Alternative perspective"),
-            (r"contrary to[^.]*\.", "Contrary finding"),
-            (r"despite[^.]*evidence[^.]*\.", "Evidence conflict"),
+        markers = []
+        patterns = [
+            r"however[^.]*contradicts[^.]*\.",
+            r"in contrast[^.]*\.",
+            r"on the other hand[^.]*\.",
+            r"contrary to[^.]*\.",
+            r"despite[^.]*evidence[^.]*\.",
         ]
 
-        for pattern, label in indicators:
-            matches = re.findall(pattern, text, re.IGNORECASE)
-            for match in matches:
-                contradictions.append(f"{label}: {match.strip()[:100]}")
+        for pattern in patterns:
+            for match in re.findall(pattern, text, re.IGNORECASE):
+                markers.append(f'"{match.strip()[:100]}"')
 
-        return contradictions[:5]
+        return markers[:5]
 
     def _generate_summary(
         self,

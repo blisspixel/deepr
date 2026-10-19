@@ -40,8 +40,20 @@ class TestStructurePhaseOutput:
         assert any(e in {"CERN", "LHC", "Higgs", "Bell", "Research"} for e in out.entities)
         # Question extracted
         assert any("?" in q for q in out.open_questions)
-        # Contradiction caught (we used "in contrast")
-        assert out.contradictions
+        # The contrast sentence is routed for examination, quoted without a verdict label
+        assert out.contrast_markers
+        assert all("contradiction" not in m.lower() for m in out.contrast_markers)
+
+    def test_contrast_phrase_is_not_labeled_a_contradiction(self, chainer):
+        """Regression (audit 2026-06-24): discourse markers were labeled contradictions."""
+        text = "Python is interpreted. In contrast, Rust compiles ahead of time."
+        out = chainer.structure_phase_output(text, phase=1)
+        assert out.contrast_markers == ['"In contrast, Rust compiles ahead of time."']
+        assert "contradictions" not in out.to_dict()
+        ctx = chainer.build_structured_context([out], current_phase=2, max_tokens=4000)
+        assert "Contradiction" not in ctx
+        assert "## Contrasting Statements to Examine" in ctx
+        assert "Phrase matches only" in ctx.split("## Contrasting Statements to Examine", 1)[1].splitlines()[1]
 
     def test_records_findings_in_tracker(self, chainer):
         tracker = TemporalKnowledgeTracker(job_id="t1")
@@ -71,13 +83,13 @@ class TestBuildStructuredContext:
             summary="Phase 1 covered architecture.",
             entities=["Rust", "Tokio"],
             open_questions=["What does Tokio offer?"],
-            contradictions=["Some say Rust is too restrictive."],
+            contrast_markers=["Some say Rust is too restrictive."],
             confidence_avg=0.8,
         )
         ctx = chainer.build_structured_context([prior], current_phase=2, max_tokens=4000)
         assert "Phase 1" in ctx
         assert "Open Questions" in ctx
-        assert "Contradictions to Resolve" in ctx
+        assert "Contrasting Statements to Examine" in ctx
         assert "Phase 2" in ctx
 
     def test_no_questions_no_contradictions_section(self, chainer):
@@ -87,7 +99,7 @@ class TestBuildStructuredContext:
             summary="empty",
             entities=[],
             open_questions=[],
-            contradictions=[],
+            contrast_markers=[],
             confidence_avg=0.5,
         )
         ctx = chainer.build_structured_context([prior], current_phase=2)
@@ -113,7 +125,7 @@ class TestBuildStructuredContext:
             summary="s",
             entities=[],
             open_questions=[],
-            contradictions=[],
+            contrast_markers=[],
             confidence_avg=0.7,
         )
         ctx = chainer.build_structured_context(
@@ -229,7 +241,7 @@ class TestFormatPhaseContext:
             summary="s",
             entities=["E1"],
             open_questions=[],
-            contradictions=[],
+            contrast_markers=[],
             confidence_avg=0.5,
         )
         section, _tokens = chainer._format_phase_context(phase, budget=200, focus_query=None)
@@ -243,7 +255,7 @@ class TestFormatPhaseContext:
             summary="s",
             entities=[],
             open_questions=[],
-            contradictions=[],
+            contrast_markers=[],
             confidence_avg=0.5,
         )
         section, _ = chainer._format_phase_context(phase, budget=1000, focus_query=None)
