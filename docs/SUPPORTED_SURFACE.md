@@ -690,7 +690,9 @@ must not be described as usable capacity.
   runtime. The separate experimental local CLI investigation has its own
   bounded contract; remote multi-expert CLI, MCP, and A2A chat remains gated.
 - `deepr eval correction-survival` runs the frozen `correction-survival-v1`
-  diagnostic at `$0` with a fixed mock answer and no model call. Eleven cases
+  diagnostic at `$0` with a fixed mock answer and no model call, or with
+  `--local-model MODEL [--model-digest DIGEST]` one owned local Ollama answer
+  per attempt through the production consult prompt, digest-pinned. Eleven cases
   over three dated synthetic source worlds pass through the production study,
   brief, consult retrieval and synthesis-packing path, an oracle evidence
   packet and a fresh source read under one prompt bound. Each obligation gets

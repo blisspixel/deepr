@@ -38,3 +38,12 @@ def test_default_location_is_the_configured_benchmarks_directory(tmp_path: Path,
     runs = list((tmp_path / "data" / "benchmarks" / "correction-survival").iterdir())
     assert len(runs) == 1
     assert (runs[0] / "COMPLETE.json").is_file()
+
+
+def test_model_digest_without_a_local_model_is_a_usage_error(tmp_path: Path) -> None:
+    result = CliRunner().invoke(
+        cli, ["eval", "correction-survival", "--output-dir", str(tmp_path / "r"), "--model-digest", "abc"]
+    )
+    assert result.exit_code != 0
+    assert "--model-digest requires --local-model" in result.output
+    assert not (tmp_path / "r").exists()

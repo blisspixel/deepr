@@ -40,6 +40,33 @@ fills with filler. This is the near-match weakness the issue predicted. It is
 recorded as a routing gap, not fixed here: changing the router needs its own
 measurement, and a lexical score may route but never decide relevance.
 
+## First local answers
+
+`deepr eval correction-survival --local-model qwen3.8:27b --model-digest
+aaee06c39dcf...` (digest `aaee06c39dcf2437cde036998d960e1fc1494b8191be7cc9657d01e509097813`,
+Q4_K_M), no distractors, at `$0`. Each answer is one call through the
+production consult system prompt and native local dispatch, with the digest
+attested per call.
+
+| Arm | Attempts completed | Median seconds | Prompt tokens | Output tokens | Median answer chars |
+|---|---|---|---|---|---|
+| production | 12 of 12 | 98 | 28,790 | 7,368 | 2,449 |
+| oracle_packet | 12 of 12 | 78 | 9,791 | 6,564 | 2,278 |
+| fresh_sources | 12 of 12 | 113 | 13,822 | 8,007 | 3,073 |
+
+All 36 calls stopped normally; none was truncated or failed, and the digest
+never changed. The completed run verifies under `load_run` against the current
+case set and recipe. The stage receipts match the mock run (18 of 18
+source-backed obligations delivered in every arm). These are mechanical facts
+only: no answer has been labelled, so nothing here says whether a correction
+was used, ignored or misapplied.
+
+A blinded review packet (36 answers under opaque ids, 60 obligation rows, the
+frozen rubric and a label template) was generated with the arm key in a
+separate folder. Answer style can still hint at an arm, and the run directory
+names arms, so a reviewer should work from the packet only. The run, packet
+and key are retained under `.agent/correction-survival-2026-10-19/`.
+
 ## Limits
 
 The worlds are tiny, synthetic and authored for this diagnostic. The brief
@@ -47,5 +74,4 @@ synthesis is frozen fixture output, so no briefing-stage loss from a real
 model is measured. The fresh arm receives sources in corpus order; the
 fixture's real origins sort before the filler, which favours it here. Mock
 answers say nothing about whether a correction would be used, ignored or
-misapplied. That requires a separately approved local run with an attested
-model digest and blinded reviewer labels.
+misapplied. The local answers above still need blinded reviewer labels.

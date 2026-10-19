@@ -463,6 +463,9 @@ async def _attempt(
         "brief_synthesis_input": _selection(brief) if arm == "production" else {},
         "stage_receipts": receipts,
     }
+    calls = getattr(completion, "calls", None)
+    if isinstance(calls, list) and calls:
+        record["dispatch"] = dict(calls[-1])
     if case.forbidden_sources:
         record["isolation"] = _isolation(case, built, prompt, manifest)
     record["prompt_file_sha256"] = _write_json(run_dir / "attempts" / attempt_id / "prompt.json", {"prompt": prompt})
@@ -478,6 +481,7 @@ async def run_diagnostic(
     model_identity: str = "mock:no-inference",
     cases: tuple[Case, ...] = CASES,
     distractors: int = 0,
+    on_attempt: Callable[[dict[str, Any], int, int], None] | None = None,
 ) -> dict[str, Any]:
     """Run every scheduled case, arm and cycle, then mark the run complete.
 
@@ -497,6 +501,8 @@ async def run_diagnostic(
         for cycle in range(1, case.cycles + 1):
             for arm in ARMS:
                 attempts.append(await _attempt(case, arm, cycle, built, completion, run_dir))
+                if on_attempt is not None:
+                    on_attempt(attempts[-1], len(attempts), sum(c.cycles * len(ARMS) for c in cases))
     compression = {
         f"{world_id}.c{cycles}": _compression(built) for (world_id, cycles), built in worlds.items() if cycles > 1
     }

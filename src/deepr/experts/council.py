@@ -67,6 +67,9 @@ _SYNTHESIS_SYSTEM_PROMPT = (
 )
 _SYNTHESIS_OUTPUT_TOKENS = 800
 _LOCAL_SYNTHESIS_OUTPUT_TOKENS = 8000
+# Public names for diagnostics that must answer through the production prompt and budget.
+SYNTHESIS_SYSTEM_PROMPT = _SYNTHESIS_SYSTEM_PROMPT
+LOCAL_SYNTHESIS_OUTPUT_TOKENS = _LOCAL_SYNTHESIS_OUTPUT_TOKENS
 _TRUNCATED_STOP_REASONS = frozenset({"length", "max_tokens"})
 _EMPTY_SYNTHESIS_TEXT = "Synthesis unavailable: the model returned no visible answer."
 _EMPTY_TRUNCATED_SYNTHESIS_TEXT = (

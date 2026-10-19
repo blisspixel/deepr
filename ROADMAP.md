@@ -116,6 +116,10 @@ stay blocked.
   a separately approved local semantic run with an attested model digest and
   blinded reviewer labels; no answer-quality claim exists yet. See
   [the design note](docs/design/correction-survival-diagnostic.md).
+  **2026-10-19 local answers:** `--local-model` answers through the production
+  consult prompt with the digest pinned per call. The first `qwen3.8:27b` run
+  completed 36 of 36 attempts at `$0`; a blinded review packet is ready and
+  unlabelled.
 - [ ] **Consult retrieval misses near-match evidence under on-topic noise
   (2026-10-19):** with 60 distractor sources the diagnostic's
   `near-match-version` case lost its v2 finding at retrieval. Literal token
