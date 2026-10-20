@@ -71,6 +71,26 @@ stay blocked.
 
 ## First-run consistency
 
+- [ ] **Frozen dashboard guidance (#278, 2026-10-20):** actual production
+  theme checks show Research Studio correctly blocks paid dispatch but also
+  tells a user without an OpenAI key to add it and restart before submitting.
+  Align the next action with the actual admission state; retain previews,
+  drafts, local CLI guidance and every server-side gate. The passing layout
+  checks do not cover this contradiction. Track the interface repair
+  separately from the dependency audit repair.
+
+- [x] **Dependency audit repair (#277, 2026-10-20):** new advisories block
+  the existing Python and frontend CI audits. Require the repaired Certifi
+  trust store in installed package metadata and lock Certifi 2026.10.19,
+  follow-redirects 1.16.1 and Vite 8.1.6. Preserve audit gates, TLS verification
+  and runtime pins; verify both Python branches and the rebuilt dashboard
+  before accepting the increment.
+  **2026-10-20 verified:** both local full suites, strict types and audits pass,
+  as do frontend and packaged dashboard checks. The archive is unchanged;
+  [the validation record](docs/validation/dependency-audit-repair-2026-10-20.md)
+  records setup failures and the separate #278 guidance finding. See
+  [the dependency decision](docs/design/maintained-runtime-support.md#advisory-driven-lock-repair-2026-10-20-277).
+
 - [ ] **Replacement rehearsal maintenance timeout (2026-10-20):** the
   pinned local model passed its short warm-up, but third-world maintenance
   reached the unchanged 600-second call limit. Its last completed checkpoint

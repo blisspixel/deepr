@@ -131,3 +131,44 @@ OKF keeps its prior false-on-probe-error wrapper, while package validation keeps
 its fail-closed error policy. Native Windows package tests join both platform
 jobs. A package whose files otherwise match the immutable manifest must still
 refuse junctions before archive creation. Preserve external target bytes.
+
+## Advisory-driven lock repair (2026-10-20, #277)
+
+The first #275 PR run stopped at both existing dependency audit gates:
+Certifi 2026.7.22, follow-redirects 1.16.0 and Vite 8.1.5 are now covered by
+upstream advisories. Preserve the failed logs and update the affected locked
+packages in a separate increment before updating the historical-review PR.
+
+Use Certifi 2026.10.19, follow-redirects 1.16.1 and Vite 8.1.6. These are the
+compatible patched releases on the existing lines. The registry metadata
+retains MPL-2.0 for Certifi and MIT for both npm packages; Certifi has a universal
+Python wheel and requires Python 3.7+, while Vite supports the pinned Node 24.
+Keep Python, Node 24.22.0, npm 12.0.1, uv 0.13.0 and all audit thresholds fixed.
+Tighten Vite's declared minimum patch and change only the affected locks and
+required coupled packages. Do not suppress advisory IDs or disable TLS checks.
+Declare Certifi's patched minimum in core metadata as well: an existing wheel
+installation must not retain an affected transitive version merely because it
+satisfies HTTPX's broader constraint. This promotes an existing dependency;
+it does not add another library or cap future trust-store security updates.
+
+Certifi's CA-store repair intentionally changes trust in affected emSign roots.
+It adds no request, credential, spend or model capability. The Vite advisories
+cover its bundled editor-launch helper, including Windows paths. Rebuild the
+existing frontend archive with the pinned tooling, run frontend lint, tests,
+build and browser checks, inspect actual dashboard captures, and verify wheel
+contents. Both Python dependency branches must pass their audits, full offline
+tests and strict type checks. Existing audit gates are the regression for these
+upstream dependency versions; do not replace them with a version-only test.
+
+Primary records checked before the lock update:
+
+- [Certifi advisory](https://github.com/pypa/advisory-database/blob/main/vulns/certifi/PYSEC-2026-4320.yaml).
+- [follow-redirects array headers](https://github.com/advisories/GHSA-q3jh-wrc6-jgq8)
+  and [header escaping](https://github.com/advisories/GHSA-8r9p-f939-6h3c).
+- [Editor argument escaping](https://github.com/advisories/GHSA-698v-4r3x-3vcv),
+  [editor flag handling](https://github.com/advisories/GHSA-r825-w8mm-5pxw) and
+  [Windows path validation](https://github.com/advisories/GHSA-587h-7wmj-h5pm).
+
+Registry metadata and original audit failures are retained in the existing
+gitignored task evidence. A green audit is dependency evidence, not a claim
+that every application path has been exhaustively assessed.
