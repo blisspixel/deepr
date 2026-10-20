@@ -76,6 +76,27 @@ production consult system prompt and native local dispatch
 first call and on every call, a mismatch refuses or fails the attempt, and
 each attempt records its dispatch (stop reason, tokens, elapsed time, `$0`).
 
+### Routing identity and latency (unreleased repair, #259)
+
+`--embedding-model MODEL` keeps one attested embedding digest, resolved profile
+and vector dimension across query/document calls and later attempts. An identity
+change takes the disclosed lexical fallback. Each attempt's `finding_routing`
+records configured and effective routes, success/fallback/unused state, identity,
+reason and content-free call summaries referencing the canonical local attempt
+ledger. Failed/refused calls remain visible; missing usage is null, not known
+zero. Unavailable durable accounting cannot produce a successful ranking.
+
+`elapsed_ms` retains its original answer-only meaning, also named
+`answer_elapsed_ms`. `routing_elapsed_ms` includes embedding work and refusal;
+`total_elapsed_ms` measures routing plus packet assembly through answer
+completion. Shared fixture materialization and artifact writes are outside that
+attempt measure. The report aggregates timings and effective-route/state counts,
+embedding calls, known input tokens, unknown usage and unsettled accounting.
+Legacy records have unknown routing/total times, never fabricated zeros. Recipe
+identity now includes the embedding backend/profile and native attempt recorder;
+retained old runs are not rewritten. See
+[the design decision](consult-embedding-routing.md#identity-and-diagnostic-accounting-repair-2026-10-20-259).
+
 ## Decisions and alternatives rejected
 
 - **No lexical answer scoring.** Whether an answer used a correction is

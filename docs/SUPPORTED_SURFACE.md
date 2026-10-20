@@ -9,6 +9,13 @@ provider prepaid-no-overage or hard-stop evidence. Attended OpenRouter research
 is the exception: one pinned no-tool completion after wallet credits and
 `deepr budget authorize openrouter`.
 
+**Unreleased routing repair:** opt-in embedding routing pins one digest,
+resolved profile and vector dimension across query/document calls and later
+rankings. Identity changes use disclosed lexical fallback. Correction-survival
+attempts retain configured/effective routes, canonical local attempt references,
+unknown usage and separate routing, answer and total-attempt times. These are
+identity/accounting checks; answer review and default promotion remain open.
+
 **v2.50.42 additions:** `consult.embedding_model` optionally fuses lexical
 finding routing with local embedding similarity at `$0` (off by default,
 disclosed, lexical fallback). `deepr eval correction-survival --local-model`
@@ -699,7 +706,8 @@ must not be described as usable capacity.
   offering study findings, for CLI and MCP consult alike, at `$0` with durable
   local receipts. Unset is lexical only; a routing failure falls back to
   lexical and is disclosed in the packet. Similarity is never a relevance
-  verdict.
+  verdict. The unreleased repair pins the first attested embedding digest,
+  resolved profile and dimension across calls using the same router.
 - `deepr eval correction-survival` runs the frozen `correction-survival-v1`
   diagnostic at `$0` with a fixed mock answer and no model call, or with
   `--local-model MODEL [--model-digest DIGEST]` one owned local Ollama answer
@@ -712,7 +720,10 @@ must not be described as usable capacity.
   exact answer hash. `--distractors N` adds on-topic filler so retrieval and
   packing bounds are exercised. A run is never reused without its completion
   marker, matching case-set hash and recipe hash. It is not S0 and makes no
-  answer-quality claim.
+  answer-quality claim. The unreleased routing repair records configured and
+  effective routes, local embedding receipt references and unknown usage per
+  attempt; reports separate answer-only, routing and total-attempt latency.
+  Shared world/study/brief setup and artifact writes are outside that total.
 - `deepr eval conversation` emits `deepr-conversation-eval-v1` from twelve
   built-in frozen-fixture checks at `$0`. The five conversation contracts and
   evaluator report cover protocol-neutral identity, optimistic concurrency,

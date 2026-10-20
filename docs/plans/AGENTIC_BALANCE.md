@@ -28,6 +28,14 @@ form and side effects. Published relevance labels drive retrieval metrics;
 neither those metrics nor a green suite qualifies advice or promotes a default.
 See [local embedding profiles](../design/local-embedding-profiles.md).
 
+Optional consult routing additionally pins embedding digest, resolved profile
+and dimensions across query/document calls and later attempts. Routing receipts
+reference canonical local attempts and distinguish configured/effective routes,
+unknown usage and routing/answer/total timing. Identity mismatch chooses the
+disclosed lexical fallback; these are form and accounting checks, never semantic
+review or authority to promote routing defaults. See
+[consult embedding routing](../design/consult-embedding-routing.md).
+
 Native local generation accounting guards side effects: each completion writes
 content-free intent, dispatch and terminal events at the shared transport seam.
 Unavailable durable accounting blocks dispatch or surfaces an unsettled result;

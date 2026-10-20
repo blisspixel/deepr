@@ -122,6 +122,15 @@ stay blocked.
   consult prompt with the digest pinned per call. The first `qwen3.8:27b` run
   completed 36 of 36 attempts at `$0`; a blinded review packet is ready and
   unlabelled.
+  **2026-10-20 accounting repair:** query/document routing and later attempts
+  share a pinned embedding digest, resolved profile and vector dimension.
+  Identity changes refuse ranking and disclose lexical fallback. Attempts now
+  retain configured/effective routes, canonical local embedding receipt
+  references, unknown usage and separate routing, answer and total-attempt
+  times. Deterministic regressions cover delayed routing, tag/dimension changes
+  and failed/refused/unsettled calls. Blinded answer review remains open; no
+  semantic acceptance or default promotion follows. See
+  [the repair contract](docs/design/consult-embedding-routing.md#identity-and-diagnostic-accounting-repair-2026-10-20-259).
 - [x] **Consult retrieval misses near-match evidence under on-topic noise
   (2026-10-19):** with 60 distractor sources the diagnostic's
   `near-match-version` case lost its v2 finding at retrieval. Literal token
