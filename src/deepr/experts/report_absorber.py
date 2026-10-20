@@ -143,11 +143,6 @@ ESTIMATED_ADJUDICATION_COST = 0.05
 # Source tag recorded on every absorbed belief.
 SOURCE_TYPE = "absorbed_report"
 
-# Above this router score a lexical dedup match is near-identical (clearly the
-# same claim), so it merges without a model verdict; only the uncertain band
-# (0.7, this] is verified, which bounds the dedup-verification cost.
-_DEDUP_VERIFY_CEILING = 0.92
-
 
 def build_attended_openai_client(*, model: str) -> Any:
     """Construct and attest the one supported attended metered client.
@@ -342,13 +337,11 @@ class ReportAbsorber:
                 extraction client, and stays inside the same caller ceiling.
                 False disables semantic confirmation and cannot create a typed
                 contradiction edge from lexical overlap alone.
-            verify_dedup: Before the lexical >0.7 word-overlap merges a candidate
-                into a similar existing belief, confirm with the model that they
-                are the SAME fact (not different facts that share words - e.g.
-                different numbers, dates, entities). Distinct claims are added
-                separately instead of silently merged into one (which loses
-                data). Cost-bounded: only the uncertain band (router score
-                <= 0.92) is verified; near-identical matches merge directly.
+            verify_dedup: Confirm every routed merge with an explicit SAME
+                model verdict bound to that pair. Different, unavailable or
+                malformed verdicts preserve separate claims. False disables
+                these calls and cannot authorize lexical merging. Every call
+                remains inside the existing caller ceiling.
             adjudicate: Additionally run ``ConflictResolver.resolve`` on each
                 flagged pair (one paid LLM call per conflict) and record the
                 verdict on the flag. Advisory only - never mutates beliefs.
@@ -539,18 +532,9 @@ class ReportAbsorber:
                 existing.append(belief)
                 continue
 
-            # Dedup gate: the lexical >0.7 overlap is a router, not a merge
-            # verdict. In the uncertain band ask the model whether the claims are
-            # the SAME fact; if distinct, block the merge so we do not collapse
-            # two different facts that merely share words into one (data loss).
-            # If contradiction routing could not obtain a semantic verdict, do
-            # not let the separate lexical dedup router collapse the same pair
-            # into one belief. Preserve both claims without a contradiction edge
-            # so later review still has the information needed to decide.
-            merge_blocked = contradiction_unverified
-            if verify_dedup and not merge_blocked:
-                merge_blocked = await self._merge_would_lose_data(belief, existing)
-            if merge_blocked:
+            # Unknown equivalence cannot combine claims or their provenance.
+            item = await self._stage_dedup(belief, existing, verify=verify_dedup and not contradiction_unverified)
+            if item.merge_blocked:
                 merges_blocked += 1
 
             if dry_run:
@@ -569,7 +553,7 @@ class ReportAbsorber:
                     )
                 )
                 continue
-            staged.append(StagedAbsorption(belief=belief, merge_blocked=merge_blocked))
+            staged.append(item)
             existing.append(belief)
 
         if not dry_run:
@@ -745,23 +729,16 @@ class ReportAbsorber:
             return None
         return True
 
-    async def _merge_would_lose_data(self, candidate: Belief, existing: list[Belief]) -> bool:
-        """True if the lexical dedup router would merge the candidate into an
-        existing belief the model says states a DIFFERENT fact.
-
-        The >0.7 word-overlap is a router, not a merge verdict (AGENTIC_BALANCE.md).
-        Only the uncertain band (router score <= ``_DEDUP_VERIFY_CEILING``) is sent
-        to the model; near-identical matches merge directly. A "same" or
-        unverifiable verdict does not block the merge - the conservative default
-        is the existing behavior.
-        """
+    async def _stage_dedup(self, candidate: Belief, existing: list[Belief], *, verify: bool) -> StagedAbsorption:
+        """Only an explicit semantic SAME binds permission to merge this pair."""
         match = self._find_similar_router_match(candidate, existing)
         if match is None:
-            return False
-        similar, score = match
-        if score > _DEDUP_VERIFY_CEILING:
-            return False  # near-identical - clearly the same claim, merge as before
-        return await self._verify_same_claim(candidate, similar) is False
+            return StagedAbsorption(candidate)
+        similar, _score = match
+        item = StagedAbsorption(candidate, merge_target=(similar.id, similar.claim))
+        if verify and await self._verify_same_claim(candidate, similar) is True:
+            return item
+        return StagedAbsorption(candidate, merge_blocked=True)
 
     @staticmethod
     def _find_similar_router_match(candidate: Belief, existing: list[Belief]) -> tuple[Belief, float] | None:
@@ -779,9 +756,8 @@ class ReportAbsorber:
     async def _verify_same_claim(self, candidate: Belief, existing: Belief) -> bool | None:
         """Model verdict: do these two claims assert the SAME fact?
 
-        Returns True (same fact - safe to merge), False (different facts that
-        merely share words - keep both), or None (could not verify; the caller
-        keeps the existing merge behavior).
+        Returns True (same fact), False (different facts), or None (unverified).
+        Only True can authorize a merge; unavailable verification preserves both.
         """
         system = (
             "You judge whether two statements assert the SAME fact - one a restatement or "
@@ -799,12 +775,12 @@ class ReportAbsorber:
             text = (response.choices[0].message.content or "").strip().lower()
         except ReportAbsorberCostError:
             raise
-        except Exception as exc:  # a verdict failure must not change merge behavior
+        except Exception as exc:
             logger.warning("Dedup verification failed for %s: %s", candidate.id, exc)
             return None
-        if text.startswith("same"):
+        if text == "same":
             return True
-        if text.startswith("different"):
+        if text == "different":
             return False
         return None
 

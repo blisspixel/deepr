@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Require an explicit SAME verdict for every report-absorption merge, including
+  near-identical wording. Disabled, unavailable or malformed verification keeps
+  claims separate. The commit boundary checks the exact verified target under
+  the store lock before combining claims and provenance (#271).
+
 - Bind local embedding query/document routing and later rankings to one
   attested digest, resolved profile and vector dimension. A changed identity
   falls back to lexical routing. Correction-survival attempts retain canonical

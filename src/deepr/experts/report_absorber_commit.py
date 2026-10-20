@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from deepr.experts.beliefs import Belief, BeliefStore
 from deepr.experts.report_absorber_contracts import AbsorbedClaim, ReportAbsorberError
@@ -16,6 +16,26 @@ class StagedAbsorption:
     merge_blocked: bool = False
     conflict: Belief | None = None
     verification: str = "lexical_unverified"
+    merge_target: tuple[str, str] | None = None
+    candidate_identity: tuple[str, str] = field(init=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "candidate_identity", (self.belief.claim, self.belief.domain))
+
+
+def _merge_admitted(store: BeliefStore, item: StagedAbsorption, committed: dict[str, Belief]) -> bool:
+    """Bind the semantic verdict to the actual target under the store lock."""
+    if (
+        item.merge_blocked
+        or item.merge_target is None
+        or item.candidate_identity != (item.belief.claim, item.belief.domain)
+    ):
+        return False
+    target_id, target_claim = item.merge_target
+    if target_id in committed:
+        target_id = committed[target_id].id
+    match = store.find_similar_with_score(item.belief)
+    return match is not None and (match[0].id, match[0].claim) == (target_id, target_claim)
 
 
 class ReportAbsorberCommitError(ReportAbsorberError):
@@ -49,14 +69,15 @@ def commit_staged_absorptions(
                 committed_ids.append(stored.id)
                 committed_by_staged_id[item.belief.id] = stored
                 continue
-            pre_ids = set(store.beliefs)
-            stored, _belief_change = store.add_belief(
-                item.belief,
-                check_conflicts=True,
-                dedup=not item.merge_blocked,
-                change_reason=f"absorbed_report:{report_id}",
-                edge_provenance=f"report:{report_id}",
-            )
+            with store.mutation():
+                pre_ids = set(store.beliefs)
+                stored, _belief_change = store.add_belief(
+                    item.belief,
+                    check_conflicts=True,
+                    dedup=_merge_admitted(store, item, committed_by_staged_id),
+                    change_reason=f"absorbed_report:{report_id}",
+                    edge_provenance=f"report:{report_id}",
+                )
             committed_ids.append(stored.id)
             committed_by_staged_id[item.belief.id] = stored
             outcome = "merged" if stored.id in pre_ids else "added"

@@ -16,6 +16,14 @@ brittle rule - it encodes a boundary that no longer matches the code.
 
 ## The axis
 
+Report-absorption deduplication requires an explicit SAME model verdict for
+every routed merge. Lexical proximity, disabled verification and unknown
+verdicts cannot grant write authority. A staged target id/text binding is
+rechecked against the actual merge target under the existing store lock;
+changed or different targets preserve separate claims. Parsing and identity
+checks guard the write, not equivalence. Judge accuracy is still unqualified.
+See [absorption deduplication admission](../design/absorption-dedup-admission.md).
+
 Terminal roles, diagnostic status words and command-hint prefixes guard
 presentation form. They project recorded result states without changing
 eligibility, spend authority, evidence or judgments. Source style guards do not
