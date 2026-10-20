@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Bind local embedding query/document routing and later rankings to one
+  attested digest, resolved profile and vector dimension. A changed identity
+  falls back to lexical routing. Correction-survival attempts retain canonical
+  local embedding receipt references, configured/effective routes, unknown
+  usage and separate routing, answer and total-attempt latency (#259).
+
 ### Documentation
 
 - Require an issue-level acceptance and verification comment before manual or

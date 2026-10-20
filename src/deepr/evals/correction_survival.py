@@ -70,6 +70,10 @@ _RECIPE_MODULES = (
     "deepr/experts/consult_context.py",
     "deepr/experts/consult_prompt.py",
     "deepr/experts/consult_routing.py",
+    "deepr/backends/local.py",
+    "deepr/backends/embedding_profiles.py",
+    "deepr/experts/investigation/ollama_backend.py",
+    "deepr/observability/local_attempts.py",
     "deepr/evals/correction_survival.py",
     "deepr/evals/correction_survival_cases.py",
 )
@@ -436,13 +440,21 @@ async def _attempt(
     run_dir: Path,
     router: Any = None,
 ) -> dict[str, Any]:
+    attempt_started = time.perf_counter()
     brief = built.briefs[cycle - 1]
     ranking: list[str] | None = None
     note = ""
+    routing: dict[str, Any] = {
+        "configured": f"lexical+local-embedding:{router.model}" if router is not None else "lexical",
+        "effective": "lexical" if arm == "production" else "not_used_by_arm",
+        "status": "not_configured" if arm == "production" else "not_used_by_arm",
+        "elapsed_ms": 0.0,
+        "calls": [],
+    }
     if arm == "production" and router is not None:
-        from deepr.experts.consult_routing import route_findings
+        from deepr.experts.consult_routing import route_findings_recorded
 
-        ranking, note = await route_findings(router, case.question, built.study.findings)
+        ranking, note, routing = await route_findings_recorded(router, case.question, built.study.findings)
     prompt, manifest, context = _arm_packet(arm, case, built, brief, ranking, note)
     attempt_id = f"{case.case_id}.{arm}.c{cycle}"
     started = time.perf_counter()
@@ -451,7 +463,8 @@ async def _attempt(
         answer = await completion(prompt)
     except Exception as exc:  # every failure stays in the denominator
         status, error = "failed", type(exc).__name__
-    elapsed_ms = round((time.perf_counter() - started) * 1000, 3)
+    answered = time.perf_counter()
+    elapsed_ms = round((answered - started) * 1000, 3)
     receipts = {
         obligation.obligation_id: _receipt(obligation, arm, built, brief, context, manifest)
         for obligation in case.obligations
@@ -471,6 +484,10 @@ async def _attempt(
         "answer_sha256": _sha(answer) if status == "completed" else "",
         "answer_chars": len(answer),
         "elapsed_ms": elapsed_ms,
+        "answer_elapsed_ms": elapsed_ms,
+        "routing_elapsed_ms": routing["elapsed_ms"],
+        "total_elapsed_ms": round((answered - attempt_started) * 1000, 3),
+        "finding_routing": routing,
         "delivery_manifest": manifest,
         "brief_synthesis_input": _selection(brief) if arm == "production" else {},
         "stage_receipts": receipts,
@@ -657,6 +674,7 @@ def build_report(run: dict[str, Any], reviews: dict[tuple[str, str], str] | None
             "failed": sum(1 for attempt in rows if attempt["status"] == "failed"),
             "prompt_chars": sum(attempt["prompt_chars"] for attempt in rows),
             "elapsed_ms": round(sum(attempt["elapsed_ms"] for attempt in rows), 3),
+            **_routing_report(rows),
             "stages": stages,
         }
     isolation = [
@@ -682,9 +700,41 @@ def build_report(run: dict[str, Any], reviews: dict[tuple[str, str], str] | None
         "paid_calls": run["paid_calls"],
         "limits": (
             "Mechanical stage receipts only. Answer use is unreviewed unless a bound label says otherwise. "
-            "Mock answers establish transport and accounting, not answer quality."
+            "Mock answers establish transport and accounting, not answer quality. "
+            "elapsed_ms is answer-only; total_elapsed_ms includes routing and packet assembly through the answer, "
+            "excluding shared world/study/brief setup and artifact writes. Legacy routing/total timing is unknown."
         ),
     }
+
+
+def _routing_report(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Aggregate recorded routing work without inventing observations for old runs."""
+    routes = [row["finding_routing"] for row in rows if "finding_routing" in row]
+    calls = [call for route in routes for call in route["calls"]]
+    effective: dict[str, int] = {}
+    statuses: dict[str, int] = {}
+    for route in routes:
+        effective[route["effective"]] = effective.get(route["effective"], 0) + 1
+        statuses[route["status"]] = statuses.get(route["status"], 0) + 1
+    return {
+        "answer_elapsed_ms": round(sum(row["elapsed_ms"] for row in rows), 3),
+        "routing_elapsed_ms": _timing_total(rows, "routing_elapsed_ms"),
+        "total_elapsed_ms": _timing_total(rows, "total_elapsed_ms"),
+        "routing": {
+            "observed_attempts": len(routes),
+            "unknown_attempts": len(rows) - len(routes),
+            "effective_counts": effective,
+            "status_counts": statuses,
+            "embedding_calls": len(calls),
+            "embedding_tokens_input_known": sum(call["tokens_input"] or 0 for call in calls),
+            "embedding_usage_unknown_calls": sum(call["tokens_input"] is None for call in calls),
+            "unsettled_calls": sum(call["accounting"] != "recorded" for call in calls),
+        },
+    }
+
+
+def _timing_total(rows: list[dict[str, Any]], key: str) -> float | None:
+    return round(sum(row[key] for row in rows), 3) if all(key in row for row in rows) else None
 
 
 def render_report(report: dict[str, Any]) -> str:
@@ -693,7 +743,7 @@ def render_report(report: dict[str, Any]) -> str:
         "",
         f"- Model: {report['model_identity']}; paid calls: {report['paid_calls']}; "
         f"distractor sources per world: {report['distractors_per_world']}; "
-        f"finding routing: {report['finding_routing']}",
+        f"configured finding routing: {report['finding_routing']}",
         f"- Cases: {'full set' if report['complete_case_set'] else 'SUBSET of the case set'}; "
         f"attempts: {report['recorded_attempts']} of {report['scheduled_attempts']} scheduled; "
         f"reviewed obligations: {report['reviewed_obligations']}",
@@ -703,6 +753,16 @@ def render_report(report: dict[str, Any]) -> str:
         lines.append(f"## {arm}")
         lines.append(
             f"{data['completed']} completed, {data['failed']} failed, {data['prompt_chars']} prompt characters"
+        )
+        lines.append(
+            f"Elapsed ms: answer {data['answer_elapsed_ms']}, routing {data['routing_elapsed_ms']}, "
+            f"total attempt {data['total_elapsed_ms']} (None means unknown)."
+        )
+        lines.append(
+            f"Effective routes: {data['routing']['effective_counts']}; routing states: {data['routing']['status_counts']}; "
+            f"embedding calls: {data['routing']['embedding_calls']} "
+            f"({data['routing']['embedding_usage_unknown_calls']} with unknown token usage, "
+            f"{data['routing']['unsettled_calls']} with unsettled accounting)."
         )
         lines.append("")
         lines.append("| Stage | States |")

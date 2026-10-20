@@ -36,6 +36,7 @@ from deepr.backends.context_building import (
     context_generation_readiness,
     context_not_ready_error,
 )
+from deepr.backends.embedding_profiles import EmbeddingIdentity
 from deepr.experts.semantic_model_gate import require_zero_dollar_client
 
 # research_fn seam contract (deepr/experts/sync.py): (query, budget) -> result.
@@ -343,11 +344,16 @@ def make_local_embedder(
     role: str = "document",
     dimensions: int | None = None,
     get_json: Callable[[str, float], Awaitable[dict[str, Any]]] | None = None,
+    identity: EmbeddingIdentity | None = None,
+    attempt_receipts: list[dict[str, Any]] | None = None,
 ) -> EmbedClaimsFn:
     """Build a role-aware, durably recorded local $0 embedding batcher.
 
     Raw input remains the default. Profile and dimension changes require an
     explicit index refresh; there is no metered fallback or automatic pull.
+    Calls share the first attested digest and vector dimensions. Pass one
+    identity across query/document factories to pin the same embedding space.
+    Optional content-free receipts reference the canonical local attempt ledger.
     """
     import asyncio
 
@@ -360,6 +366,8 @@ def make_local_embedder(
         raise ValueError("embedding model is required")
     spec = resolve_embedding_profile(chosen, profile, dimensions)
     spec.prepare("", role)
+    bound = identity or EmbeddingIdentity(chosen, spec.name, dimensions=spec.dimensions)
+    bound.require_profile(chosen, spec)
     owned_base_url = _base_url(base_url)
     embeddings_client = client if client is not None else ollama_chat_client(owned_base_url)
     require_zero_dollar_client(embeddings_client, capacity_source="local")
@@ -368,42 +376,68 @@ def make_local_embedder(
     async def embed_claims(claims: list[str]) -> list[tuple[float, ...]]:
         if not claims:
             return []
-        attempt = LocalGenerationAttempt(chosen, kind="embedding")
+        started = time.perf_counter()
+        attempt: LocalGenerationAttempt | None = None
+        receipt: dict[str, Any] = {
+            "model": chosen,
+            "profile": spec.name,
+            "role": role,
+            "status": "unsettled",
+            "accounting": "unsettled",
+            "tokens_input": None,
+            "cost_usd": 0.0,
+            "input_count": len(claims),
+        }
         try:
+            attempt = LocalGenerationAttempt(chosen, kind="embedding")
+            receipt.update(
+                attempt_id=attempt.attempt_id,
+                request_id=attempt.request_id,
+                ledger_path=str(attempt.ledger.ledger_path.resolve()),
+                cost_state_id=attempt.ledger.cost_state_id,
+            )
             inputs = [spec.prepare(text, role) for text in claims]
+            proof.pinned_digest = bound.digest
             digest = await proof.attest_model(chosen)
+            bound.bind(digest)
             attempt.dispatch(digest)
             response = await embeddings_client.embeddings.create(
                 model=chosen,
                 input=inputs,
                 extra_body={"keep_alive": _KEEP_ALIVE},
             )
-            rows = sorted(response.data, key=lambda row: row.index)
-            if len(rows) != len(claims):
-                raise RuntimeError(
-                    f"local embedding model {chosen} returned {len(rows)} vector(s) for {len(claims)} claim(s)"
-                )
-            if any(type(row.index) is not int for row in rows) or [row.index for row in rows] != list(
-                range(len(claims))
-            ):
-                raise ValueError("embedding response indices must be a unique complete input permutation")
-            vectors = [spec.vector(row.embedding) for row in rows]
-            if len({len(vector) for vector in vectors}) != 1:
-                raise ValueError("embedding response mixed vector dimensions")
             usage = getattr(response, "usage", None)
-            tokens_input = max(0, int(getattr(usage, "prompt_tokens", 0) or 0))
+            reported_tokens = getattr(usage, "prompt_tokens", None)
+            if reported_tokens is not None:
+                receipt["tokens_input"] = max(0, int(reported_tokens))
+            vectors = spec.ordered_vectors([(row.index, row.embedding) for row in response.data], len(claims))
+            receipt["response_dimensions"] = [len(vector) for vector in vectors]
+            bound.bind(digest, len(vectors[0]))
         except BaseException as error:
             status = (
                 "cancelled"
                 if isinstance(error, asyncio.CancelledError)
                 else "failed"
-                if attempt.dispatched
+                if attempt is not None and attempt.dispatched
                 else "refused"
             )
-            attempt.finish(status, error_type=type(error).__name__)
+            receipt.update(status=status, error_type=type(error).__name__)
+            if attempt is not None:
+                attempt.finish(status, tokens_input=receipt["tokens_input"] or 0, error_type=type(error).__name__)
+                receipt["accounting"] = "recorded"
             raise
-        attempt.finish("returned", tokens_input=tokens_input)
-        return vectors
+        else:
+            attempt.finish("returned", tokens_input=receipt["tokens_input"] or 0)
+            receipt.update(status="returned", accounting="recorded")
+            return vectors
+        finally:
+            receipt.update(
+                model_digest=proof.last_attested_digest,
+                dimensions=bound.dimensions,
+                elapsed_ms=round((time.perf_counter() - started) * 1000, 3),
+            )
+            if attempt_receipts is not None:
+                attempt_receipts.append(receipt)
 
     return embed_claims
 

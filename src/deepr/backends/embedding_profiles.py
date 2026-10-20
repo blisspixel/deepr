@@ -9,6 +9,31 @@ from dataclasses import dataclass
 PROFILE_CHOICES = ("none", "auto", "nomic-v1", "embeddinggemma-fact-checking-v1")
 
 
+@dataclass
+class EmbeddingIdentity:
+    """One embedding space shared by role-specific calls and later rankings."""
+
+    model: str
+    profile: str
+    digest: str = ""
+    dimensions: int | None = None
+
+    def require_profile(self, model: str, spec: EmbeddingProfile) -> None:
+        if (self.model, self.profile) != (model, spec.name):
+            raise ValueError("embedding model/profile does not match the shared identity")
+        if spec.dimensions is not None and self.dimensions not in {None, spec.dimensions}:
+            raise ValueError("embedding dimensions do not match the shared identity")
+
+    def bind(self, digest: str, dimensions: int | None = None) -> None:
+        if not digest or (self.digest and digest != self.digest):
+            raise ValueError("embedding model identity changed")
+        if dimensions is not None:
+            if self.dimensions is not None and dimensions != self.dimensions:
+                raise ValueError("embedding dimensions changed")
+            self.dimensions = dimensions
+        self.digest = digest
+
+
 @dataclass(frozen=True)
 class EmbeddingProfile:
     name: str
@@ -44,6 +69,22 @@ class EmbeddingProfile:
         if not math.isfinite(math.hypot(*vector)) or math.hypot(*vector) == 0:
             raise ValueError("embedding must not have zero norm")
         return vector
+
+    def ordered_vectors(
+        self, rows: Sequence[tuple[int, Sequence[float]]], expected_count: int
+    ) -> list[tuple[float, ...]]:
+        """Parse a complete indexed response into the profile's vector space."""
+        if len(rows) != expected_count:
+            raise RuntimeError(f"local embedding returned {len(rows)} vector(s) for {expected_count} claim(s)")
+        if any(type(index) is not int for index, _ in rows):
+            raise ValueError("embedding response indices must be a unique complete input permutation")
+        ordered = sorted(rows, key=lambda row: row[0])
+        if [index for index, _ in ordered] != list(range(expected_count)):
+            raise ValueError("embedding response indices must be a unique complete input permutation")
+        vectors = [self.vector(values) for _, values in ordered]
+        if len({len(vector) for vector in vectors}) != 1:
+            raise ValueError("embedding response mixed vector dimensions")
+        return vectors
 
 
 def resolve_embedding_profile(model: str, profile: str = "none", dimensions: int | None = None) -> EmbeddingProfile:

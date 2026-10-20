@@ -22,7 +22,9 @@ from __future__ import annotations
 import logging
 import math
 import os
+import time
 from collections.abc import Awaitable, Callable, Sequence
+from dataclasses import asdict
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -39,19 +41,51 @@ def _cosine(left: Sequence[float], right: Sequence[float]) -> float:
 class FindingRouter:
     """Order study findings by embedding similarity to a question."""
 
-    def __init__(self, model: str, *, embed_query: EmbedFn, embed_documents: EmbedFn) -> None:
+    def __init__(
+        self, model: str, *, embed_query: EmbedFn | None = None, embed_documents: EmbedFn | None = None
+    ) -> None:
+        from deepr.backends.embedding_profiles import EmbeddingIdentity, resolve_embedding_profile
+
+        if (embed_query is None) != (embed_documents is None):
+            raise ValueError("query and document embedders must be supplied together")
         self.model = model
         self._embed_query = embed_query
         self._embed_documents = embed_documents
+        self._local_client: Any = None
+        spec = resolve_embedding_profile(model, "auto")
+        self.identity = EmbeddingIdentity(model, spec.name, dimensions=spec.dimensions)
 
-    async def rank(self, question: str, findings: Sequence[Any]) -> list[str]:
+    async def rank(
+        self, question: str, findings: Sequence[Any], *, receipts: list[dict[str, Any]] | None = None
+    ) -> list[str]:
+        from deepr.backends.local import make_local_embedder, ollama_chat_client
         from deepr.experts.consult_context import _finding_text
 
         candidates = [finding for finding in findings if finding.finding_id]
         if not candidates or not question.strip():
             return []
-        (query,) = await self._embed_query([question])
-        vectors = await self._embed_documents([_finding_text(finding) for finding in candidates])
+        if self._embed_query is None and self._local_client is None:
+            self._local_client = ollama_chat_client()
+        query_fn = self._embed_query or make_local_embedder(
+            self.model,
+            client=self._local_client,
+            profile="auto",
+            role="query",
+            identity=self.identity,
+            attempt_receipts=receipts,
+        )
+        document_fn = self._embed_documents or make_local_embedder(
+            self.model,
+            client=self._local_client,
+            profile="auto",
+            role="document",
+            identity=self.identity,
+            attempt_receipts=receipts,
+        )
+        (query,) = await query_fn([question])
+        vectors = await document_fn([_finding_text(finding) for finding in candidates])
+        if len(vectors) != len(candidates):
+            raise ValueError("embedding response count does not match the candidate findings")
         scored = sorted(
             ((_cosine(query, vector), index) for index, vector in enumerate(vectors)),
             key=lambda item: (-item[0], item[1]),
@@ -68,13 +102,7 @@ class FindingRouter:
 
 def local_finding_router(model: str) -> FindingRouter:
     """A router over an installed local embedding model with its known profile."""
-    from deepr.backends.local import make_local_embedder
-
-    return FindingRouter(
-        model,
-        embed_query=make_local_embedder(model, profile="auto", role="query"),
-        embed_documents=make_local_embedder(model, profile="auto", role="document"),
-    )
+    return FindingRouter(model)
 
 
 def configured_finding_router() -> FindingRouter | None:
@@ -87,14 +115,36 @@ def configured_finding_router() -> FindingRouter | None:
 
 async def route_findings(router: FindingRouter, question: str, findings: Sequence[Any]) -> tuple[list[str] | None, str]:
     """Rank findings, or fall back to lexical routing with a note saying why."""
+    ranking, note, _ = await route_findings_recorded(router, question, findings)
+    return ranking, note
+
+
+async def route_findings_recorded(
+    router: FindingRouter, question: str, findings: Sequence[Any]
+) -> tuple[list[str] | None, str, dict[str, Any]]:
+    """Return the route actually used, its latency and canonical attempt references."""
+    started = time.perf_counter()
+    calls: list[dict[str, Any]] = []
+    configured = f"lexical+local-embedding:{router.model}"
+    receipt: dict[str, Any] = {"configured": configured, "effective": "lexical", "status": "fallback", "calls": calls}
     try:
-        return await router.rank(question, findings), router.note
+        ranking = await router.rank(question, findings, receipts=calls)
+        receipt.update(effective=configured if ranking else "lexical", status="success" if ranking else "unused")
+        note = router.note if ranking else "No embedding ranking was needed; findings use lexical overlap only."
+        return ranking, note, receipt
     except Exception as error:  # routing must never take the consult down
         logger.debug("consult embedding routing unavailable", exc_info=True)
-        return None, (
-            f"Local embedding routing ({router.model}) was unavailable ({type(error).__name__}); "
-            "findings were offered by lexical overlap only."
+        receipt.update(error_type=type(error).__name__, reason=getattr(error, "reason", type(error).__name__))
+        return (
+            None,
+            (
+                f"Local embedding routing ({router.model}) was unavailable ({type(error).__name__}); "
+                "findings were offered by lexical overlap only."
+            ),
+            receipt,
         )
+    finally:
+        receipt.update(identity=asdict(router.identity), elapsed_ms=round((time.perf_counter() - started) * 1000, 3))
 
 
 async def route_expert_findings(

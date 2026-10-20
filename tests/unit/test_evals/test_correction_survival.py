@@ -254,3 +254,20 @@ def test_a_label_cannot_be_rebound_in_a_later_call(mock_run):
     bound = cs.bind_review_labels(run, key, [first])
     with pytest.raises(ValueError, match="duplicate"):
         cs.bind_review_labels(run, key, [{**first, "label": "used_correctly"}], existing=bound)
+
+
+def test_legacy_answer_timing_is_never_relabelled_as_total_attempt_time(mock_run):
+    from copy import deepcopy
+
+    _, original = mock_run
+    run = deepcopy(original)
+    for attempt in run["attempts"]:
+        for key in ("answer_elapsed_ms", "routing_elapsed_ms", "total_elapsed_ms", "finding_routing"):
+            attempt.pop(key)
+    report = cs.build_report(run)
+    for arm in report["arms"].values():
+        assert arm["answer_elapsed_ms"] == arm["elapsed_ms"]
+        assert arm["routing_elapsed_ms"] is None and arm["total_elapsed_ms"] is None
+        assert arm["routing"]["unknown_attempts"] == arm["attempts"]
+        assert arm["routing"]["effective_counts"] == {}
+    assert "None means unknown" in cs.render_report(report)

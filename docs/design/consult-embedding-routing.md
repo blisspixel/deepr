@@ -69,3 +69,43 @@ citing their support; the router helps the findings no position carries.
 Synthetic worlds with designed filler. Delivery counts are not answer quality.
 Finding vectors are recomputed per consult; an index can follow if latency
 matters. No promotion to default without reviewed answers.
+
+## Identity and diagnostic accounting repair (2026-10-20, #259)
+
+Decision recorded before implementation: bind a router's query and document calls, including
+later attempts using that router, to the first attested model digest, resolved
+input profile and vector dimensions. Recheck owned-local proof before every
+dispatch. A changed identity refuses the ranking and uses the existing disclosed
+lexical fallback. Do not compare equal-sized vectors from different revisions.
+Standalone embedding callers keep the existing vector-returning callable seam;
+optional shared identity and receipt collection reuse the local backend.
+
+The diagnostic records configured and effective routes separately per attempt,
+success/fallback/unused status, error reason, pinned identity and references to
+the canonical native-local attempt ledger. Collect content-free summaries of
+returned, failed, refused and unsettled calls, with unknown token usage explicit.
+These summaries reference the existing ledger; they are not a second ledger.
+
+Keep legacy `elapsed_ms` as answer-only latency and name it explicitly. Add
+routing and total-attempt elapsed time measured before routing through answer
+completion, including packet assembly. Report per-arm totals and effective-route
+counts; legacy runs have unknown routing/total timing rather than invented
+zeros. Source/study/brief fixture materialization is shared setup outside the
+attempt, not end-to-end research time. Preserve full prompt/answer hash binding
+and completion-marker checks; include embedding identity/profile/backend code
+in the recipe identity. No migration or rewriting of retained runs.
+
+Use mocked local attestation/transport and a controlled clock to test tag
+changes between query/documents and between attempts, dimension mismatch,
+failure after dispatch, missing usage, and actual elapsed time. No new inference
+or semantic review is needed for this repair; existing answers stay unreviewed.
+The lexical default, capacity/spend boundaries and canonical expert writes do
+not change. This guards identity and side effects, not meaning.
+
+Rejected: a second ledger, trusting a mutable tag or matching vector lengths,
+silently relabeling legacy answer latency as total time, or default promotion
+based on mechanical delivery counts.
+
+The [dated verification](../validation/consult-routing-accounting-2026-10-20.md)
+records the failing baseline, controlled-clock comparison, full offline suite
+and source CLI check. Blinded semantic review remains open.
