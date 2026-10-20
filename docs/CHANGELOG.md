@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- Require an issue-level acceptance and verification comment before manual or
+  PR-triggered closure, preserving unmet criteria and the existing roadmap and
+  verification gates (#268).
+
 ## [2.50.42] - 2026-10-19
 
 Opt-in local retrieval routing and local diagnostic answers, retaining the
