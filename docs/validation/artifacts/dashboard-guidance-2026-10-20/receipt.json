@@ -1,0 +1,50 @@
+{
+  "issue": 278,
+  "baseline": {
+    "baseline_commit": "c8eacc80b578a8c59d1f90e1df94723fad787c03",
+    "research_studio_sha256": "0bd0cafd86955f82e30dca866c4e4538646301dee6f8c84899adeb331ce4bd32",
+    "test": "rendered frozen-missing-key next action",
+    "expected_instruction_count": 0,
+    "observed_instruction_count": 1,
+    "exit": 1,
+    "draft_saved_before_assertion": true,
+    "new_model_calls": 0,
+    "initial_locator_timeout_retained": true
+  },
+  "source_sha256": "09a768aad4116b390a247ebb1f6edda7610f738210832567c8452ee7f9d85054",
+  "frontend_unit_passed": 89,
+  "browser_layout_state_checks": 126,
+  "scenarios": [
+    "frozen-missing-key",
+    "frozen-present-key",
+    "funded-missing-key",
+    "unknown-money-missing-key",
+    "funded-present-key"
+  ],
+  "actual_production_captures": 24,
+  "actual_themes_visually_inspected": [
+    "light/02-research-studio.png",
+    "dark/02-research-studio.png"
+  ],
+  "actual_dashboard_ledger_events": 0,
+  "actual_dashboard_outgoing_connections": 0,
+  "full_offline_unit_passed": 13596,
+  "existing_skips": 22,
+  "combined_coverage": "85.68%",
+  "packaged_frontend": {
+    "frontend_archive_sha256": "c2eda0586a8aa2ab7e7bc4bb5552fd59541d53cf2102c07d51117b56863d4624",
+    "wheel_sha256": "4ab8e0acff691ec9af39976853c59dee2c507337893642cd73a5758885bf3176",
+    "frontend_members_compared": 125,
+    "every_frontend_member_byte_equal": true,
+    "obsolete_instruction_absent_from_packaged_javascript": true,
+    "preview_present": true,
+    "new_model_calls": 0
+  },
+  "tooling": {
+    "node": "24.22.0",
+    "npm": "12.0.1",
+    "uv": "0.13.0"
+  },
+  "new_model_calls": 0,
+  "semantic_review": "unreviewed"
+}

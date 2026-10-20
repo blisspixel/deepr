@@ -21,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   1.16.1 and Vite to 8.1.6 for the newly reported dependency advisories,
   retaining TLS verification and the existing audit gates (#277).
 
+- Remove the Research Studio banner that recommended adding an OpenAI key
+  before submitting while dashboard dispatch is unavailable. Drafts, cost
+  estimates and blocked submission remain intact with missing or present keys,
+  funded accounting and unknown money state (#278).
+
 - Disclose failed rehearsal workers and calls with unknown token usage in JSON
   and the final CLI summary. Token values are explicitly reported worker
   subtotals, with warm-up kept separate; missing counters and legacy absence

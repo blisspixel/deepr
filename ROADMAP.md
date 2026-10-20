@@ -85,13 +85,18 @@ stay blocked.
   combined coverage score is 85.69%. See
   [the validation record](docs/validation/historical-diagnostic-review-2026-10-20.md).
 
-- [ ] **Frozen dashboard guidance (#278, 2026-10-20):** actual production
+- [x] **Frozen dashboard guidance (#278, 2026-10-20):** actual production
   theme checks show Research Studio correctly blocks paid dispatch but also
   tells a user without an OpenAI key to add it and restart before submitting.
   Align the next action with the actual admission state; retain previews,
   drafts, local CLI guidance and every server-side gate. The passing layout
   checks do not cover this contradiction. Track the interface repair
   separately from the dependency audit repair.
+  **Fixed and locally verified 2026-10-20:** remove the obsolete instruction;
+  126 rendered checks preserve drafts, estimates and disabled submission
+  across key, funding and unknown-money states. Both actual production themes
+  and packaged bytes pass; see
+  [the validation record](docs/validation/dashboard-guidance-2026-10-20.md).
 
 - [x] **Dependency audit repair (#277, 2026-10-20):** new advisories block
   the existing Python and frontend CI audits. Require the repaired Certifi

@@ -118,3 +118,26 @@ validated implementation, clearly identifying any synthetic fixture roster.
   motivates narrow-screen checks without loss of information or function.
 - [IBM typeface guidance](https://www.ibm.com/design/language/typography/typeface/)
   supports retaining the existing self-hosted type family.
+
+## Frozen research guidance correction (2026-10-20, #278)
+
+Actual production-theme validation for #277 shows two conflicting next actions:
+Research Studio correctly says paid dispatch is unavailable, then asks a user
+without an OpenAI key to add it and restart before submitting. Its owning
+`paidDispatchBlocked` flag is unconditionally true in the supported release.
+A key or funded budget cannot change that admission state.
+
+Remove the obsolete missing-key submit banner. Retain the existing preview,
+draft, estimate, provider-readiness and submit guards, canonical money-state
+disclosure, local CLI handoff and server-side refusal. Do not add a second
+readiness helper, infer authority from a key, or make an eligible dashboard
+state merely to test that instruction. Future admitted dashboard execution
+will need guidance matched to its actual contract before promotion.
+
+Extend the existing rendered browser checks with independent key-presence and
+funding fixtures. Frozen, funded and unknown-money views must preserve a draft
+and disabled submission without recommending a key as an execution remedy.
+The old source must fail the new missing-key regression. Check both themes
+and all existing widths, rebuild the canonical archive, inspect actual
+production captures, and run frontend and packaging gates. Retain the failed
+baseline and require exact-head and exact-main CI for the separate increment.

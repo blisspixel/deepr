@@ -359,17 +359,6 @@ export default function ResearchStudio() {
         </div>
       )}
 
-      {config && !providerReady && (
-        <div role="alert" className="rounded-lg border border-warning/30 bg-warning/5 px-4 py-3 flex items-start gap-3">
-          <Info className="w-4 h-4 text-warning shrink-0 mt-0.5" />
-          <p className="text-sm text-muted-foreground">
-            Dashboard research currently requires OpenAI, but <code className="text-xs">OPENAI_API_KEY</code> is not set.
-            Add the key and restart Deepr before submitting. Other configured providers remain available through CLI workflows.{' '}
-            <Link to="/help" className="text-primary hover:underline">View capacity setup</Link>.
-          </p>
-        </div>
-      )}
-
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Main Input Card */}
         <div className="rounded-lg border bg-card overflow-hidden">

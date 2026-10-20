@@ -9,6 +9,11 @@ provider prepaid-no-overage or hard-stop evidence. Attended OpenRouter research
 is the exception: one pinned no-tool completion after wallet credits and
 `deepr budget authorize openrouter`.
 
+**Unreleased dashboard guidance repair:** Research Studio keeps its preview,
+drafts and estimates without recommending an API key as a way to submit.
+Keys and funded local accounting do not admit dashboard paid dispatch; the
+existing unavailable state and local CLI guidance remain in effect (#278).
+
 **Unreleased routing repair:** opt-in embedding routing pins one digest,
 resolved profile and vector dimension across query/document calls and later
 rankings. Identity changes use disclosed lexical fallback. Correction-survival
