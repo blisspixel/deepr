@@ -426,7 +426,11 @@ v2.50.22 adds `deepr eval expert-value-rehearsal`: the local four-arm
 rehearsal with isolated worker inputs, blinded review binding, verified
 resume and assembly of the value workbook, at `$0`. It also repairs local
 study prompts, which had repeated every source three times. No review or
-value result is claimed; the full run is pending.
+value result is claimed; baseline acceptance remains pending. The openly
+substituted [2026-10-20 diagnostic](docs/validation/replacement-rehearsal-2026-10-20.md)
+answered all 48 cells at `$0`, retaining one maintenance timeout and one call
+with unknown usage. No rubric was approved before collection, so it cannot
+serve as the S0 baseline. Its exploratory review packet remains unlabelled.
 
 v2.50.21 adds a local-only fleet-seat profile (`deepr mcp seat-profile`)
 so an external harness or host-side router can consult experts without a

@@ -1,0 +1,22 @@
+{
+  "call_timeout_seconds": 600.0,
+  "lenses": [
+    "synopsis",
+    "change"
+  ],
+  "max_calls_per_phase": 6,
+  "max_output_tokens": 4096,
+  "memory_prefix_max_chars": 8000,
+  "model": "qwen3.8:27b",
+  "model_digest": "aaee06c39dcf2437cde036998d960e1fc1494b8191be7cc9657d01e509097813",
+  "num_ctx": 32768,
+  "ollama_base_url": "http://127.0.0.1:11434",
+  "schema_version": "deepr-expert-value-rehearsal-policy-v1",
+  "seed": 20261018,
+  "status": "unreviewed_operational_rehearsal",
+  "study_chunk_chars": 20000,
+  "study_max_corpus_chars": 20000,
+  "temperature": 0.0,
+  "think": false,
+  "worker_timeout_seconds": 1800.0
+}

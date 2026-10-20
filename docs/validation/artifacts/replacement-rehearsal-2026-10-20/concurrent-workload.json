@@ -1,0 +1,12 @@
+{
+  "purpose": "Disclosure of uncontrolled local workload during diagnostic collection, not a timing adjustment",
+  "recorded_at": "2026-10-20T15:45:25.788026+00:00",
+  "diagnostic_start_utc": "2026-10-20T14:20:03Z",
+  "repair_worktree": ".agent/semantic-dedup-worktree",
+  "workload": "Synthetic focused unit suites, strict and nonblocking type checks, and full offline unit suites for issue #271 ran concurrently during part of the second source world. The final full suite began approximately 15:33 UTC; its exact end is retained in process logs.",
+  "source_isolation": "Running diagnostic imports the unchanged original checkout at 7f531c286fe824e247943014b7eaed35b71ceed1; repair imports the isolated worktree through explicit PYTHONPATH.",
+  "latency_comparison_controlled": false,
+  "limits": "No CPU/GPU/IO contention correction is inferred. Wall times are observations under this workload, not a controlled speed ranking. This is already an unreviewed diagnostic and cannot become an approved baseline. No worker bounds, model, sources or review gate were changed.",
+  "additional_workload": "2026-10-20 16:11-16:15 UTC: compressed, compared and removed only earlier task-owned temporary unit fixtures, retaining their verified archive under .agent/routing-accounting-2026-10-20/. Recovered about 3 GB and 962224 tmpfs entries. This further prevents controlled timing comparisons; no latency correction is inferred.",
+  "reporting_repair_workload": "2026-10-20 16:58 UTC onward: the full offline unit suite for #273 runs concurrently with the final source world, after focused synthetic tests and strict type checks. This also prevents controlled latency comparisons; no CPU, GPU or IO correction is inferred."
+}

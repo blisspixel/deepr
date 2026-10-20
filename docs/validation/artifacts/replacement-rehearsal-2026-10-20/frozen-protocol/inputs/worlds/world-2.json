@@ -1,0 +1,74 @@
+{
+  "clock_basis": "synthetic",
+  "information_cutoff": "2026-02-20T00:00:00Z",
+  "kind": "deepr.expert.value_source_world",
+  "predecessor_source_world_id": "replacement-draft-world-1",
+  "schema_version": "deepr-expert-value-source-world-v1",
+  "source_world_id": "replacement-draft-world-2",
+  "sources": [
+    {
+      "artifact_ref": "sources/rivet-1-spec.md",
+      "available_at": "2026-01-05T00:00:00Z",
+      "bytes": 415,
+      "sha256": "d27443d5a60050d9c861152d9aa812c02a406d3ea8e9278fc401473bc5aa7986",
+      "snapshot_collected_at": "2026-10-18T05:18:24.982483+00:00",
+      "source_version_id": "rivet-1-spec"
+    },
+    {
+      "artifact_ref": "sources/rivet-1-failure.md",
+      "available_at": "2026-01-06T00:00:00Z",
+      "bytes": 402,
+      "sha256": "f7517a7e3d751e18f5867ae23dfac13c5488eadd662364a241eebc95b062e1a6",
+      "snapshot_collected_at": "2026-10-18T05:18:24.982483+00:00",
+      "source_version_id": "rivet-1-failure"
+    },
+    {
+      "artifact_ref": "sources/rivet-1-study.md",
+      "available_at": "2026-01-07T00:00:00Z",
+      "bytes": 382,
+      "sha256": "99e2337c8386293b6cb79648e6f2079bc43e99e2c0bac755140cbcecab8bf2cf",
+      "snapshot_collected_at": "2026-10-18T05:18:24.982483+00:00",
+      "source_version_id": "rivet-1-study"
+    },
+    {
+      "artifact_ref": "sources/rivet-1-operations.md",
+      "available_at": "2026-01-08T00:00:00Z",
+      "bytes": 438,
+      "sha256": "4c79cefc3452146eb71a7460b1d6ed8d95b401adc0242fce31d13ecbf96686bf",
+      "snapshot_collected_at": "2026-10-18T05:18:24.982483+00:00",
+      "source_version_id": "rivet-1-operations"
+    },
+    {
+      "artifact_ref": "sources/rivet-11-spec.md",
+      "available_at": "2026-02-05T00:00:00Z",
+      "bytes": 460,
+      "sha256": "b07b3c45a758712889f67aa3a744edd6a81b3c5f42464dbeb5381bfd62c0ae10",
+      "snapshot_collected_at": "2026-10-18T05:18:24.982483+00:00",
+      "source_version_id": "rivet-11-spec"
+    },
+    {
+      "artifact_ref": "sources/report-r17.md",
+      "available_at": "2026-02-06T00:00:00Z",
+      "bytes": 404,
+      "sha256": "e118a74c6a276fc6f431fc9db53615784c12c3fbb4f861c121c8931a653c75a6",
+      "snapshot_collected_at": "2026-10-18T05:18:24.982483+00:00",
+      "source_version_id": "report-r17"
+    },
+    {
+      "artifact_ref": "sources/rivet-11-limits.md",
+      "available_at": "2026-02-07T00:00:00Z",
+      "bytes": 429,
+      "sha256": "9ec45b4bd8bf728b66442c21679a920ddee1cbf350e65c137c71a14c1625ddd7",
+      "snapshot_collected_at": "2026-10-18T05:18:24.982483+00:00",
+      "source_version_id": "rivet-11-limits"
+    },
+    {
+      "artifact_ref": "sources/rivet-11-incident.md",
+      "available_at": "2026-02-08T00:00:00Z",
+      "bytes": 415,
+      "sha256": "e58e0578e82e61891b71c6b23930668a5830373f0f97886dd562a9cd9f629234",
+      "snapshot_collected_at": "2026-10-18T05:18:24.982483+00:00",
+      "source_version_id": "rivet-11-incident"
+    }
+  ]
+}

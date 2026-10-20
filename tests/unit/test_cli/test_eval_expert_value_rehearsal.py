@@ -194,6 +194,36 @@ def test_run_human_summary_and_invalid_inputs(workspace: dict[str, Path]) -> Non
     assert result.exit_code != 0 and "Could not read" in result.output
 
 
+def test_human_summary_discloses_failed_phase_and_unknown_usage(workspace, monkeypatch):
+    from tests.unit.test_eval.test_rehearsal_resource_accounting import TimedOutMaintenance
+
+    class FailedRun(rehearsal.RehearsalRun):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs, launcher=TimedOutMaintenance())
+
+    monkeypatch.setattr(cli, "RehearsalRun", FailedRun)
+    w = workspace
+    result = invoke(
+        "run",
+        "--policy",
+        str(w["policy"]),
+        "--plan",
+        str(w["plan"]),
+        "--from-file",
+        str(w["index"]),
+        "--artifact-root",
+        str(w["artifacts"]),
+        "--run-root",
+        str(w["root"] / "run"),
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "8 answered, 0 failed" in result.output
+    assert "failed workers: 1" in result.output
+    assert "worker calls with unknown usage: 1" in result.output
+    assert "attempts without call record: 0" in result.output
+
+
 def test_blind_keeps_key_apart_and_reports_refusals(workspace: dict[str, Path]) -> None:
     w = workspace
     common = ["--from-file", str(w["index"]), "--artifact-root", str(w["artifacts"])]

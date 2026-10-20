@@ -1,0 +1,20 @@
+{
+  "observed_at": "2026-10-20T16:27:47.417833+00:00",
+  "phase": "maintain",
+  "source_world": "third cumulative world",
+  "call_error_type": "ReadTimeout",
+  "call_elapsed_seconds": 600.247,
+  "worker_wall_seconds": 1186.147,
+  "returned_calls": 2,
+  "known_prompt_tokens": 4944,
+  "known_output_tokens": 2910,
+  "calls_with_unknown_usage": 1,
+  "worker_ledger_attempts": 3,
+  "worker_ledger_events": 9,
+  "canonical_ledger_events": 9,
+  "checkpoint_policy": "failed_kept_last_checkpoint",
+  "bounds_changed": false,
+  "automatic_retry_performed": false,
+  "api_cost_usd": 0,
+  "quality_review_performed": false
+}

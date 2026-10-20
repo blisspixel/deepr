@@ -1,0 +1,42 @@
+{
+  "clock_basis": "synthetic",
+  "cost_usd": 0,
+  "declared_availability_within_cutoff": true,
+  "evidence_writes": 0,
+  "execution_authorized": false,
+  "historical_availability_independently_verified": false,
+  "index_sha256": "a8e4db1a99690af7d6dc2bd5b2be4392cf1cdc224439312ccf8c3d0adbf37c96",
+  "kind": "deepr.expert.value_source_preflight",
+  "network_access": false,
+  "process_isolation_verified": false,
+  "provider_calls": 0,
+  "review_blinding_verified": false,
+  "run_ready": false,
+  "schema_version": "deepr-expert-value-source-preflight-v1",
+  "semantic_quality_assessed": false,
+  "source_reference_count": 24,
+  "source_world_count": 3,
+  "status": "structural_preflight_passed",
+  "verified_source_bytes": 5133,
+  "verified_source_file_count": 12,
+  "worlds": [
+    {
+      "information_cutoff": "2026-01-20T00:00:00+00:00",
+      "manifest_sha256": "8b7aa7240ff90bc53d9ac33748e2e292e6a21c6b7c24543087f89c199b678fdf",
+      "source_count": 4,
+      "source_world_id": "replacement-draft-world-1"
+    },
+    {
+      "information_cutoff": "2026-02-20T00:00:00+00:00",
+      "manifest_sha256": "5d7f7937f12305c8a5dd4d2659d06efbb2eb8749580ce957ea2705cc3a419e55",
+      "source_count": 8,
+      "source_world_id": "replacement-draft-world-2"
+    },
+    {
+      "information_cutoff": "2026-03-20T00:00:00+00:00",
+      "manifest_sha256": "24f227bf1350e837745db7051a5b810b18fd10b75bc5adb2cdf25aa9b50555c5",
+      "source_count": 12,
+      "source_world_id": "replacement-draft-world-3"
+    }
+  ]
+}

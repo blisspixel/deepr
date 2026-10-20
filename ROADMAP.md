@@ -25,9 +25,13 @@ checks. S0 and semantic review stay separate.
   found none of the September source worlds or cases, and `qwen3.6:27b` now
   pulls digest `bcbdbd4bcf86...`, not the archived `a50eda8ed977...`. The path
   forward is the replacement protocol drafted 2026-10-17 (new synthetic worlds,
-  pinned digest), recorded openly as a substitution. Open decision: approve
-  its review criteria before any answer is collected, or run it as a diagnostic
-  that cannot serve as the S0 baseline. Tracked in #263.
+  pinned digest), recorded openly as a substitution.
+  **2026-10-20 decision (#263):** use the existing draft and pinned
+  `qwen3.8:27b` for a local diagnostic. No rubric was approved before collection,
+  so this trial cannot serve as the S0 baseline. All 48 cells answered at `$0`,
+  with one failed maintenance worker and one call with unknown usage. The
+  [record and frozen protocol](docs/validation/replacement-rehearsal-2026-10-20.md)
+  preserve that failure and an unlabelled review packet; S0 remains open.
 
 Validation and practical limits: [reader evidence repairs](docs/validation/expert-evidence-reading-2026-10-17.md),
 [first-run record clarity](docs/validation/first-run-record-clarity-2026-10-18.md),
@@ -66,6 +70,29 @@ stay blocked.
 > those *and* a user does not feel it - **cut it.**
 
 ## First-run consistency
+
+- [ ] **Replacement rehearsal maintenance timeout (2026-10-20):** the
+  pinned local model passed its short warm-up, but third-world maintenance
+  reached the unchanged 600-second call limit. Its last completed checkpoint
+  was kept and the failed candidate retained. Before any new baseline,
+  prospectively freeze a reviewed protocol and phase bounds appropriate to
+  the selected capacity. The diagnostic's concurrent test and archive work
+  prevents a controlled timing comparison. Reporting the failure does not
+  resolve it or qualify the subsequent answers. See
+  [the retained diagnostic](docs/validation/replacement-rehearsal-2026-10-20.md).
+
+- [x] **Rehearsal failure and resource disclosure (#273, 2026-10-20):** a
+  retained maintenance timeout kept the last completed checkpoint, while the
+  top-level summary could show all answer cells completed without naming the
+  failed phase and treated missing token counters as zero. Expose failed
+  workers, returned calls and unknown usage, label reported worker subtotals,
+  and keep warm-up distinct. Preserve the failed trial and existing bounds;
+  green CI and completed cells cannot accept S0. See
+  [the reporting contract](docs/design/local-four-arm-rehearsal.md#failed-phases-and-missing-resource-evidence-2026-10-20-273).
+  **2026-10-20 verified:** source repair exposes those counts; 65 focused
+  tests and 13,596 offline unit tests pass, with 85.70% combined coverage.
+  A read-only projection of the real failed trial agrees with its independent
+  audit. This is an Unreleased reporting repair, not a timeout resolution.
 
 - [x] **Unverified absorption merges (#271, 2026-10-20):** an offline price
   change with 0.941 word overlap bypassed the verifier and replaced the prior
@@ -244,7 +271,8 @@ That rank is not the time a claim stopped being true. A missing
   existing harness. Publish the dated record, including failures. Human
   review is recorded before the arm key is revealed. A negative result
   finishes the measurement. It does not open autonomy, metered refresh, or
-  automatic belief updates.
+  automatic belief updates. The 2026-10-20 replacement diagnostic has no
+  prospectively approved rubric and cannot satisfy this baseline gate.
 - [ ] **3. S1 prepared consultation.** One shared CLI and MCP packet before
   the answer: question, stakes, retained dates, open contradictions, checks
   that were not done, and premises the question assumed. Canonical beliefs,

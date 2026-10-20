@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Disclose failed rehearsal workers and calls with unknown token usage in JSON
+  and the final CLI summary. Token values are explicitly reported worker
+  subtotals, with warm-up kept separate; missing counters and legacy absence
+  cannot masquerade as observed zero usage (#273).
+
 - Require an explicit SAME verdict for every report-absorption merge, including
   near-identical wording. Disabled, unavailable or malformed verification keeps
   claims separate. The commit boundary checks the exact verified target under
@@ -21,6 +26,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   usage and separate routing, answer and total-attempt latency (#259).
 
 ### Documentation
+
+- Archive the byte-preserved replacement rehearsal protocol and dated
+  48-answer local diagnostic, retaining its maintenance timeout, unknown
+  usage and native accounting audit. The unlabelled exploratory packet is
+  retained locally with its key withheld. This closes #263's execution
+  choice, not S0 or semantic acceptance.
 
 - Require an issue-level acceptance and verification comment before manual or
   PR-triggered closure, preserving unmet criteria and the existing roadmap and

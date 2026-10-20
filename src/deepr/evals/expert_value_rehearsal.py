@@ -777,6 +777,12 @@ class RehearsalRun:
             "answered": statuses.count("answered"),
             "failed": statuses.count("failed"),
             "blocked": statuses.count("blocked"),
+            "failed_workers": sum(w.get("status") == "failed" for w in self.workers),
+            "unknown_usage_calls": sum(
+                w["usage"].get("unknown_usage_calls", w["usage"]["calls"]) for w in self.workers
+            ),
+            "resource_scope": "worker_only_reported_token_subtotals",
+            "warmup_included": False,
             "truncated_answers": sum(1 for c in self.cells if c.get("answer_truncated")),
             **checks,
             "failed_checks": failed_checks,
@@ -797,13 +803,20 @@ class RehearsalRun:
 
 
 def _call_usage(calls_path: Path) -> dict[str, int]:
-    usage = {"calls": 0, "returned": 0, "prompt_tokens": 0, "output_tokens": 0}
+    """Reported subtotals; missing counters never become observed zero usage."""
+    usage = {"calls": 0, "returned": 0, "prompt_tokens": 0, "output_tokens": 0, "unknown_usage_calls": 0}
     for record in _jsonl(calls_path):
-        raw = record.get("raw_response") or {}
+        raw = record.get("raw_response")
+        raw = raw if isinstance(raw, dict) else {}
         usage["calls"] += 1
         usage["returned"] += record.get("status") == "returned"
-        usage["prompt_tokens"] += int(raw.get("prompt_eval_count", 0) or 0)
-        usage["output_tokens"] += int(raw.get("eval_count", 0) or 0)
+        observed = 0
+        for field, counter in (("prompt_tokens", "prompt_eval_count"), ("output_tokens", "eval_count")):
+            value = raw.get(counter)
+            if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+                usage[field] += value
+                observed += 1
+        usage["unknown_usage_calls"] += observed != 2
     return usage
 
 
@@ -879,17 +892,26 @@ def _jsonl(path: Path) -> list[dict[str, Any]]:
 
 
 def _resources(workers: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
-    """Construction, maintenance and consultation work reported separately."""
+    """Phase outcomes and known worker subtotals, with unobserved usage explicit."""
     totals: dict[str, dict[str, float]] = {}
     for worker in workers:
-        bucket = totals.setdefault(
-            worker["phase"], {"workers": 0, "calls": 0, "prompt_tokens": 0, "output_tokens": 0, "wall_seconds": 0.0}
-        )
-        bucket["workers"] += 1
-        bucket["calls"] += worker["usage"]["calls"]
-        bucket["prompt_tokens"] += worker["usage"]["prompt_tokens"]
-        bucket["output_tokens"] += worker["usage"]["output_tokens"]
-        bucket["wall_seconds"] = round(bucket["wall_seconds"] + worker["wall_seconds"], 3)
+        usage = worker["usage"]
+        values: dict[str, float] = {
+            "workers": 1,
+            "failed_workers": int(worker.get("status") == "failed"),
+            "calls": usage["calls"],
+            "returned_calls": usage["returned"],
+            "prompt_tokens": usage["prompt_tokens"],
+            "output_tokens": usage["output_tokens"],
+            "known_prompt_tokens": usage["prompt_tokens"],
+            "known_output_tokens": usage["output_tokens"],
+            "unknown_usage_calls": usage.get("unknown_usage_calls", usage["calls"]),
+            "wall_seconds": worker["wall_seconds"],
+        }
+        bucket = totals.setdefault(worker["phase"], dict.fromkeys(values, 0))
+        for field, value in values.items():
+            bucket[field] += value
+        bucket["wall_seconds"] = round(bucket["wall_seconds"], 3)
     return totals
 
 

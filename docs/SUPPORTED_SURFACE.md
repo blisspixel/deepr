@@ -23,6 +23,13 @@ checks the actual target id/text under the existing store lock. Existing cost
 ceilings still bound verification; model accuracy and historical data repair
 are not established. See [the contract](design/absorption-dedup-admission.md).
 
+**Unreleased rehearsal reporting repair:** JSON and final CLI output disclose
+failed workers and calls with unobserved token usage. Phase resources retain
+known token subtotals and returned-call counts. Totals explicitly cover workers;
+warm-up stays in the run metadata and native ledger. Operational completion
+means all terminal outcomes were recorded, including failures. It does not
+qualify answers or accept S0. See [the contract](design/local-four-arm-rehearsal.md).
+
 **v2.50.42 additions:** `consult.embedding_model` optionally fuses lexical
 finding routing with local embedding similarity at `$0` (off by default,
 disclosed, lexical fallback). `deepr eval correction-survival --local-model`

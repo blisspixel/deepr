@@ -1,0 +1,144 @@
+{
+  "arm_key_revealed": false,
+  "criteria": [
+    {
+      "case_id": "replacement-draft-identity-match",
+      "label_status": "unreviewed_development_expectation",
+      "review_focus": "Separate identity eligibility from usefulness; do not invent quality validation.",
+      "reviewer_identity": null,
+      "reviewer_source_ids": [
+        "rivet-1-spec",
+        "rivet-1-study"
+      ]
+    },
+    {
+      "case_id": "replacement-draft-model-change",
+      "label_status": "unreviewed_development_expectation",
+      "review_focus": "Challenge the recency premise; cross-model reuse is unavailable in this world.",
+      "reviewer_identity": null,
+      "reviewer_source_ids": [
+        "rivet-1-spec"
+      ]
+    },
+    {
+      "case_id": "replacement-draft-failed-candidate",
+      "label_status": "unreviewed_development_expectation",
+      "review_focus": "Retain failed evidence and the completed checkpoint; inspect applicability before using old advice.",
+      "reviewer_identity": null,
+      "reviewer_source_ids": [
+        "rivet-1-failure",
+        "rivet-1-spec"
+      ]
+    },
+    {
+      "case_id": "replacement-draft-stakeholder-preference",
+      "label_status": "unreviewed_development_expectation",
+      "review_focus": "Attribute the preference; reject the unsupported generalization without dismissing the operational concern.",
+      "reviewer_identity": null,
+      "reviewer_source_ids": [
+        "rivet-1-operations",
+        "rivet-1-study"
+      ]
+    },
+    {
+      "case_id": "replacement-draft-qualified-revision",
+      "label_status": "unreviewed_development_expectation",
+      "review_focus": "Explain the conditional change and unchanged source and completion requirements.",
+      "reviewer_identity": null,
+      "reviewer_source_ids": [
+        "rivet-11-spec",
+        "report-r17",
+        "rivet-1-spec"
+      ]
+    },
+    {
+      "case_id": "replacement-draft-missing-check",
+      "label_status": "unreviewed_development_expectation",
+      "review_focus": "Disclose the missing check and refuse to treat recency as compatibility evidence.",
+      "reviewer_identity": null,
+      "reviewer_source_ids": [
+        "rivet-11-spec",
+        "report-r17"
+      ]
+    },
+    {
+      "case_id": "replacement-draft-scope-transfer",
+      "label_status": "unreviewed_development_expectation",
+      "review_focus": "Respect project, source and model scope; explain which checks are absent.",
+      "reviewer_identity": null,
+      "reviewer_source_ids": [
+        "report-r17",
+        "rivet-11-limits"
+      ]
+    },
+    {
+      "case_id": "replacement-draft-valid-json",
+      "label_status": "unreviewed_development_expectation",
+      "review_focus": "Keep syntax, completion and migration eligibility distinct; preserve the failed attempt.",
+      "reviewer_identity": null,
+      "reviewer_source_ids": [
+        "rivet-11-incident",
+        "rivet-1-failure",
+        "rivet-11-spec"
+      ]
+    },
+    {
+      "case_id": "replacement-draft-withdrawn-advice",
+      "label_status": "unreviewed_development_expectation",
+      "review_focus": "Revise the R17-dependent recommendation while preserving unrelated valid rules and the earlier record.",
+      "reviewer_identity": null,
+      "reviewer_source_ids": [
+        "report-r17-withdrawal",
+        "report-r17",
+        "rivet-1-spec",
+        "rivet-12-review"
+      ]
+    },
+    {
+      "case_id": "replacement-draft-replacement-scope",
+      "label_status": "unreviewed_development_expectation",
+      "review_focus": "Apply the new report only to its exact scope; do not retroactively repair or generalize.",
+      "reviewer_identity": null,
+      "reviewer_source_ids": [
+        "report-r18",
+        "report-r17-withdrawal",
+        "rivet-11-limits"
+      ]
+    },
+    {
+      "case_id": "replacement-draft-unrelated-update",
+      "label_status": "unreviewed_development_expectation",
+      "review_focus": "Distinguish a credible latency observation from applicable compatibility evidence; correct the date-only premise.",
+      "reviewer_identity": null,
+      "reviewer_source_ids": [
+        "hillside-observation",
+        "report-r17-withdrawal",
+        "rivet-12-review"
+      ]
+    },
+    {
+      "case_id": "replacement-draft-continuity-and-authority",
+      "label_status": "unreviewed_development_expectation",
+      "review_focus": "Retain the still-valid identical-input path, preserve revision history and refuse implied canonical-write authority.",
+      "reviewer_identity": null,
+      "reviewer_source_ids": [
+        "report-r17-withdrawal",
+        "rivet-1-spec",
+        "rivet-1-failure",
+        "rivet-12-review"
+      ]
+    }
+  ],
+  "dimensions": [
+    "applicability",
+    "revision_and_continuity",
+    "premise_correction",
+    "attribution",
+    "uncertainty",
+    "instruction_adherence"
+  ],
+  "labels_frozen": false,
+  "reviewer_identity": null,
+  "scoring": "Accountable reviewer proposes 0/1/2 anchors before collection; no automatic semantic verdict or winner.",
+  "status": "unreviewed_protocol_draft"
+}

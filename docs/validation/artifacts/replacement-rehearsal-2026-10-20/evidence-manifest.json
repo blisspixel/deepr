@@ -1,0 +1,11 @@
+{
+  "scope": "Aggregate diagnostic receipts; no answers, semantic review or approved baseline",
+  "files": {
+    "decision-before-collection.json": "7434936964ec4e7e6d7a7339895553c7463b7980d16aa2456758eea1300a4511",
+    "audit-receipt.json": "81b6a94b424178e8d7012c3de2b1a8b84ae514d96fbc8d4286e85c5a4571a0f1",
+    "reporting-offline-projection.json": "6dcdb3f15d1163fc1c113e022fafed3c0d10b57b946f75772d66abadd3511b1c",
+    "maintenance-timeout.json": "671e544d298bf5433016ebcc39ad969d853855bdf866906a7888c4a247b495cf",
+    "concurrent-workload.json": "cf1f774ee916dc62c608df85a1fafa3ca7f00196dc74b17c65b4a6e16ece8c48",
+    "review-preparation-receipt.json": "64f7a6e75f7e30ac5ee365f4eeb110e10163fab9b6d381a2133c9c2365405d2a"
+  }
+}
