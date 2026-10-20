@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Keep completed correction diagnostics reviewable after recipe-code updates
+  through an explicit historical recipe pin and the read-only
+  `correction-survival-report` command. All completion and artifact checks
+  remain mandatory; reports preserve original identity and show the current
+  recipe comparison without rewriting retained runs or qualifying answers
+  (#275).
+
 - Require Certifi's repaired trust store for installed wheel upgrades as well
   as locked environments. Update Certifi to 2026.10.19, follow-redirects to
   1.16.1 and Vite to 8.1.6 for the newly reported dependency advisories,

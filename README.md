@@ -306,6 +306,11 @@ for tested behavior and the distinction from draft standards and host certificat
 
 ## Direction
 
+Unreleased source includes `deepr eval correction-survival-report` for
+read-only inspection of completed diagnostics by an explicit recorded recipe
+hash. Original code identity stays visible after an update; answer review
+remains separate. See [the historical review contract](docs/design/correction-survival-diagnostic.md#historical-review-after-a-code-update-2026-10-20-275).
+
 v2.50.42 adds optional local embedding routing for consult findings
 (`consult.embedding_model`, off by default) and lets the correction-survival
 diagnostic answer through an attested local model. No execution, spend or

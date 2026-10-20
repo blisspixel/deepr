@@ -738,6 +738,15 @@ must not be described as usable capacity.
   effective routes, local embedding receipt references and unknown usage per
   attempt; reports separate answer-only, routing and total-attempt latency.
   Shared world/study/brief setup and artifact writes are outside that total.
+- Unreleased: `deepr eval correction-survival-report --run-dir DIR
+  --recipe-sha256 SHA [--json]` verifies and reports retained diagnostic
+  artifacts without generation or writes. The required full recorded recipe
+  pin permits historical inspection while the default Python loader still
+  requires current code. Completion, current case-set, denominator and
+  prompt/answer file checks remain mandatory. Reports retain original code
+  and recipe identity and separately compare current recipe bytes. A changed
+  case set still needs the original implementation. No labels or quality
+  verdicts are created.
 - `deepr eval conversation` emits `deepr-conversation-eval-v1` from twelve
   built-in frozen-fixture checks at `$0`. The five conversation contracts and
   evaluator report cover protocol-neutral identity, optimistic concurrency,

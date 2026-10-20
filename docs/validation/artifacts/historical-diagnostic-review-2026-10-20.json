@@ -1,0 +1,14 @@
+{
+  "observed_at": "2026-10-20T22:20:30.428748+00:00",
+  "retained_files_verified_unchanged": 96,
+  "recorded_recipe_sha256": "9d909236d977157010192a2827d910d006b3140912693d5a8b711c0babbe06c8",
+  "current_recipe_sha256": "2ecd0a58d34adeea76720dc19ddd3dc2783524de33659371e8300d75ebf2eea8",
+  "recorded_code_identity": "deepr 2.50.41",
+  "recorded_attempts": 36,
+  "reviewed_obligations": 0,
+  "new_model_calls": 0,
+  "data_or_cost_roots_created": false,
+  "answer_text_inspected": false,
+  "assignment_key_opened": false,
+  "ambient_live_test_optin_present": false
+}

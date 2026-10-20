@@ -570,8 +570,16 @@ def _verify_attempt_files(run_dir: Path, attempts: list[dict[str, Any]]) -> None
                 raise RunNotReusableError(f"attempt file {path} is missing or altered")
 
 
-def load_run(run_dir: Path) -> dict[str, Any]:
-    """Load a completed run, refusing anything incomplete, altered or stale."""
+def load_run(run_dir: Path, *, expected_recipe_sha256: str | None = None) -> dict[str, Any]:
+    """Verify completed artifacts against current code or an explicit historical pin.
+
+    A historical pin permits artifact inspection only. Completion, case-set,
+    denominator and file checks still apply; this never admits execution reuse.
+    """
+    if expected_recipe_sha256 is not None and (
+        len(expected_recipe_sha256) != 64 or any(c not in "0123456789abcdef" for c in expected_recipe_sha256)
+    ):
+        raise ValueError("recipe SHA-256 must contain exactly 64 lowercase hexadecimal characters")
     marker = run_dir / COMPLETE_MARKER
     run_path = run_dir / "run.json"
     if not marker.is_file() or not run_path.is_file():
@@ -589,8 +597,14 @@ def load_run(run_dir: Path) -> dict[str, Any]:
         raise RunNotReusableError("run was produced from a different case set")
     if not len(run["attempts"]) == run.get("scheduled_attempts") == expected.get("attempts"):
         raise RunNotReusableError("run does not record every scheduled attempt")
-    if run.get("recipe_sha256") != recipe_sha256():
-        raise RunNotReusableError("run was produced by different selection or packing code")
+    expected_recipe = recipe_sha256() if expected_recipe_sha256 is None else expected_recipe_sha256
+    if run.get("recipe_sha256") != expected_recipe:
+        message = (
+            "run was produced by different selection or packing code"
+            if expected_recipe_sha256 is None
+            else "run does not match the pinned recipe SHA-256"
+        )
+        raise RunNotReusableError(message)
     _verify_attempt_files(run_dir, run["attempts"])
     return run
 
@@ -682,12 +696,16 @@ def build_report(run: dict[str, Any], reviews: dict[tuple[str, str], str] | None
         for attempt in run["attempts"]
         if "isolation" in attempt
     ]
+    current_recipe = recipe_sha256()
     return {
         "kind": REPORT_SCHEMA,
         "case_set_version": run["case_set_version"],
         "case_set_sha256": run["case_set_sha256"],
         "complete_case_set": run["complete_case_set"],
         "recipe_sha256": run["recipe_sha256"],
+        "code_identity": run.get("code_identity", "unknown"),
+        "current_recipe_sha256": current_recipe,
+        "recipe_matches_current": run["recipe_sha256"] == current_recipe,
         "model_identity": run["model_identity"],
         "distractors_per_world": run["distractors_per_world"],
         "finding_routing": run.get("finding_routing", "lexical"),
@@ -747,6 +765,9 @@ def render_report(report: dict[str, Any]) -> str:
         f"- Cases: {'full set' if report['complete_case_set'] else 'SUBSET of the case set'}; "
         f"attempts: {report['recorded_attempts']} of {report['scheduled_attempts']} scheduled; "
         f"reviewed obligations: {report['reviewed_obligations']}",
+        f"- Recorded code: {report.get('code_identity', 'unknown')}; recorded recipe: {report['recipe_sha256']}",
+        f"- Current recipe: {report.get('current_recipe_sha256')}; "
+        f"recorded/current match: {report.get('recipe_matches_current')} (None means unknown).",
         "",
     ]
     for arm, data in report["arms"].items():
