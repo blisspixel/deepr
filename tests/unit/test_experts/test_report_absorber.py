@@ -784,11 +784,10 @@ async def test_duplicate_claim_merges_not_duplicates(tmp_path):
     content = _claims_json(
         {"statement": "Model X leads on benchmark Y consistently", "confidence": 0.95, "evidence": []}
     )
-    absorber = _absorber(content, tmp_path, beliefs=[existing])
+    absorber = _absorber(content, tmp_path, beliefs=[existing], contradiction_responses=("SAME",))
     result = await absorber.absorb("rep1", "body")
 
-    # Near-identical statement should merge into the existing belief, not add a
-    # second one.
+    # An explicit SAME verdict permits merging even identical wording.
     assert len(absorber.belief_store.beliefs) == 1
     assert result.merged_count == 1
     assert result.added_count == 0
@@ -991,15 +990,15 @@ async def test_dedup_merges_same_claim_after_verdict(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_verify_dedup_off_merges_lexically(tmp_path):
-    """verify_dedup=False restores the old lexical-only merge (the data-loss path)."""
+async def test_verify_dedup_off_preserves_separate_claims(tmp_path):
+    """Disabling semantic calls cannot authorize a lexical merge."""
     existing = Belief(claim="GPT-5 costs $10 per million tokens", confidence=0.9, domain="ai")
     content = _claims_json({"statement": "GPT-5 costs $30 per million tokens", "confidence": 0.9, "evidence": []})
     absorber = _absorber(content, tmp_path, beliefs=[existing])
 
     await absorber.absorb("rep1", "body", verify_dedup=False)
 
-    assert len(absorber.belief_store.beliefs) == 1  # merged (old brittle behavior)
+    assert len(absorber.belief_store.beliefs) == 2
 
 
 def test_get_client_without_key_raises(monkeypatch):

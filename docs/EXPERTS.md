@@ -566,8 +566,11 @@ extracted and weak claims dropped. The free word-overlap heuristics only *route*
 An initial model YES receives a fresh-context structured disconfirmation pass;
 only two agreeing judgments can record a model-confirmed contradiction edge, so
 phrasing-level false contradictions are not recorded as contested beliefs and
-two different facts that merely share words
-(e.g. "$10/M" vs "$30/M") are not silently merged. Genuine conflicts are flagged
+deduplication requires an explicit SAME verdict for every proposed merge,
+including near-identical wording. Different, malformed or unavailable verdicts
+preserve separate claims; disabling verification cannot authorize a merge.
+The exact pair is checked again under the store lock before combining it.
+Genuine conflicts are flagged
 contested (the existing belief is never overwritten without approval); the rest
 are integrated (deduped) with the report id as provenance. Metered runs apply
 one `--budget` ceiling across extraction and every dynamically routed semantic

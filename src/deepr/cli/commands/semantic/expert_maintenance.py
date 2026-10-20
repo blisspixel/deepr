@@ -193,10 +193,10 @@ def absorb_report(
 ):
     """Promote a completed research report into an expert's permanent knowledge.
 
-    Extracts report-grounded claims, gates them (drops weak claims and any that
-    contradict the expert's existing beliefs), then integrates the survivors as
-    beliefs with the report id recorded as provenance. Deduped against existing
-    beliefs, so re-absorbing only adds the delta.
+    Extracts report-grounded claims, drops weak candidates and retains flagged
+    conflicts for review, then integrates survivors with report provenance.
+    Proposed duplicates merge only after an explicit SAME verdict; unavailable
+    verification preserves separate claims.
 
     Effective confidence is capped by source trust at read time: tertiary
     single-source claims cannot exceed 0.60 (poisoned-web backstop). Use
@@ -376,8 +376,8 @@ def absorb_report(
     )
     if result.contradictions_refuted or result.merges_blocked:
         console.print(
-            f"[muted]Model verdicts caught {result.contradictions_refuted} false contradiction(s) "
-            f"and {result.merges_blocked} false merge(s) the word-overlap heuristic flagged.[/muted]"
+            f"[muted]Contradiction candidates refuted: {result.contradictions_refuted}; "
+            f"merges blocked: {result.merges_blocked} (no admitted equivalence).[/muted]"
         )
 
     if result.absorbed:

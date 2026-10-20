@@ -67,6 +67,19 @@ stay blocked.
 
 ## First-run consistency
 
+- [x] **Unverified absorption merges (#271, 2026-10-20):** an offline price
+  change with 0.941 word overlap bypassed the verifier and replaced the prior
+  claim. An unavailable verdict also permitted a destructive merge.
+  **Fixed 2026-10-20:** every routed absorption merge requires explicit SAME;
+  disabled or unavailable verification preserves separate claims. The commit
+  checks the exact verified pair under the existing store lock. The CLI reports
+  admission counts without calling unknown equivalence a false merge.
+  Core full-suite and final CLI checks pass; see
+  [the validation record](docs/validation/absorption-dedup-admission-2026-10-20.md).
+  This does not repair
+  historical merges or qualify semantic accuracy. See
+  [the admission contract](docs/design/absorption-dedup-admission.md).
+
 - [ ] **Separate local rehearsal findings (2026-10-17):** a newly frozen
   two-world, eight-cell diagnostic reached all terminal outcomes at `$0`, with
   three answers and five blocked by construction failures. Two briefs hit its
@@ -2764,8 +2777,10 @@ over-reach for a solo project; Letta/MemOS already own the "OS" label).
     model verdict decides SAME vs DIFFERENT fact, and `add_belief(dedup=False)`
     adds distinct claims separately. Cost-bounded, every existing caller
     unchanged. Covers chat + sync (they ingest through `ReportAbsorber.absorb`).
-    Only remaining lexical dedup is the low-stakes shared belief store
-    (`_find_similar_in_domain`, a no-client cross-expert copy).
+    **2026-10-20 follow-up (#271):** near-identical and unknown-verdict bypasses
+    remained in absorption. The admission repair requires explicit SAME for
+    every absorption merge and binds it to the exact target at commit. Legacy
+    generic/shared belief-store deduplication remains outside this repair.
   - Atomic claim decomposition at absorb: extraction prompt already enforces
     one-assertion claims (the model does the decomposition - correct). The
     "deterministic atomicity-rate check" that was here is **CUT** - it is the

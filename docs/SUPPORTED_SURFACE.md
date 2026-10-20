@@ -16,6 +16,13 @@ attempts retain configured/effective routes, canonical local attempt references,
 unknown usage and separate routing, answer and total-attempt times. These are
 identity/accounting checks; answer review and default promotion remain open.
 
+**Unreleased absorption repair:** every report-absorption merge requires an
+explicit SAME model verdict, including near-identical wording. Disabled,
+unavailable or malformed verification preserves separate claims. The commit
+checks the actual target id/text under the existing store lock. Existing cost
+ceilings still bound verification; model accuracy and historical data repair
+are not established. See [the contract](design/absorption-dedup-admission.md).
+
 **v2.50.42 additions:** `consult.embedding_model` optionally fuses lexical
 finding routing with local embedding similarity at `$0` (off by default,
 disclosed, lexical fallback). `deepr eval correction-survival --local-model`

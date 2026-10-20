@@ -698,10 +698,11 @@ deepr expert route-gaps "Azure Architect" --execute --scheduled --top 3
 
 # Absorb a completed report into permanent beliefs (verification-gated, deduped)
 # The free word-overlap heuristics only ROUTE; a cheap model verdict concludes -
-# it drops phrasing-level false contradictions and refuses to merge two different
-# facts that merely share words (e.g. "$10/M" vs "$30/M"). The result reports how
-# many false positives the verdicts caught. Pass --no-... equivalents in code via
-# verify_contradictions / verify_dedup to disable.
+# it drops phrasing-level false contradictions. Every merge requires explicit
+# SAME, bound to the exact pair. Disabled or unavailable verification preserves
+# separate claims. Blocked merge counts do not establish that claims differ.
+# Python callers can disable calls with verify_contradictions / verify_dedup;
+# doing so cannot authorize lexical graph writes or merging.
 deepr expert absorb "Azure Architect" <job_id> --dry-run   # preview
 deepr expert absorb "Azure Architect" <job_id>             # apply
 

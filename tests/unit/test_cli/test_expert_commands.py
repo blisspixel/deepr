@@ -882,7 +882,8 @@ class TestExpertAbsorbCommand:
             assert "no report found" in result.output.lower()
             assert result.exit_code == 2
 
-    def test_paid_absorb_dry_run_saves_cost_but_not_refresh(self, runner):
+    @pytest.mark.parametrize("merges_blocked", [0, 1])
+    def test_paid_absorb_dry_run_saves_cost_but_not_refresh(self, runner, merges_blocked):
         with (
             patch("deepr.experts.profile.ExpertStore") as mock_store_class,
             patch("deepr.services.context_index.ContextIndex") as mock_idx,
@@ -897,7 +898,9 @@ class TestExpertAbsorbCommand:
             mock_store_class.return_value = mock_store
             mock_idx.return_value.get_report_content.return_value = "report body"
             inst = MagicMock()
-            inst.absorb = AsyncMock(return_value=self._stub_result(dry_run=True))
+            absorption = self._stub_result(dry_run=True)
+            absorption.merges_blocked = merges_blocked
+            inst.absorb = AsyncMock(return_value=absorption)
             mock_absorber.return_value = inst
 
             with patch(
@@ -908,6 +911,9 @@ class TestExpertAbsorbCommand:
 
             assert result.exit_code == 0
             assert "DRY RUN" in result.output
+            if merges_blocked:
+                assert "merges blocked: 1" in result.output
+                assert "false merge" not in result.output
             assert expert.total_research_cost == 0.0125
             assert expert.knowledge_cutoff_date is None
             assert expert.last_knowledge_refresh is None
