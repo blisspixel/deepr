@@ -105,6 +105,9 @@ A change is done when all of these hold - not "the code works":
 - [ ] No em-dashes in docs/markdown (use ` - `). No AI attribution in commit
       messages.
 - [ ] CI green after push.
+- [ ] Before closing an issue, including through an auto-closing PR, leave the
+      acceptance and verification comment required by
+      [the issue-closeout rule](AGENTS.md#working-loop-and-canonical-seams).
 
 ## Branches, merges, and hygiene
 

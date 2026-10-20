@@ -50,6 +50,16 @@ docs and roadmap/changelog. Repeated failures should strengthen the shared
 boundary or regression tests, not add another warning. This file is the shared
 agent guide; do not create duplicate tool-specific engineering manifests.
 
+Before manually closing an issue or merging an auto-closing PR, comment on the
+issue with the change and code/PR links, checks actually run and their results,
+and the user-visible outcome against its acceptance criteria. Link existing
+receipts; state skipped checks and material limits. A merge does not establish
+release, deployment, live acceptance, or semantic answer quality. Keep unmet
+criteria open unless an agreed scope change is recorded with durable follow-up
+links. Duplicate or not-planned closures need a reason and the canonical issue
+or decision. Documentation-only work may cite link and consistency review;
+this adds no blanket test requirement. ROADMAP.md remains the active-work authority.
+
 For expert-quality or currency claims, retain the actual sources, observation
 times, hashes, applicable versions, delivered context and reviewed answers.
 Graph size, matched quotations, a recent file date and green CI cannot qualify
