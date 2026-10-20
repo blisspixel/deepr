@@ -1,0 +1,106 @@
+{
+  "clock_basis": "synthetic",
+  "information_cutoff": "2026-03-20T00:00:00Z",
+  "kind": "deepr.expert.value_source_world",
+  "predecessor_source_world_id": "replacement-draft-world-2",
+  "schema_version": "deepr-expert-value-source-world-v1",
+  "source_world_id": "replacement-draft-world-3",
+  "sources": [
+    {
+      "artifact_ref": "sources/rivet-1-spec.md",
+      "available_at": "2026-01-05T00:00:00Z",
+      "bytes": 415,
+      "sha256": "d27443d5a60050d9c861152d9aa812c02a406d3ea8e9278fc401473bc5aa7986",
+      "snapshot_collected_at": "2026-10-18T05:18:24.982483+00:00",
+      "source_version_id": "rivet-1-spec"
+    },
+    {
+      "artifact_ref": "sources/rivet-1-failure.md",
+      "available_at": "2026-01-06T00:00:00Z",
+      "bytes": 402,
+      "sha256": "f7517a7e3d751e18f5867ae23dfac13c5488eadd662364a241eebc95b062e1a6",
+      "snapshot_collected_at": "2026-10-18T05:18:24.982483+00:00",
+      "source_version_id": "rivet-1-failure"
+    },
+    {
+      "artifact_ref": "sources/rivet-1-study.md",
+      "available_at": "2026-01-07T00:00:00Z",
+      "bytes": 382,
+      "sha256": "99e2337c8386293b6cb79648e6f2079bc43e99e2c0bac755140cbcecab8bf2cf",
+      "snapshot_collected_at": "2026-10-18T05:18:24.982483+00:00",
+      "source_version_id": "rivet-1-study"
+    },
+    {
+      "artifact_ref": "sources/rivet-1-operations.md",
+      "available_at": "2026-01-08T00:00:00Z",
+      "bytes": 438,
+      "sha256": "4c79cefc3452146eb71a7460b1d6ed8d95b401adc0242fce31d13ecbf96686bf",
+      "snapshot_collected_at": "2026-10-18T05:18:24.982483+00:00",
+      "source_version_id": "rivet-1-operations"
+    },
+    {
+      "artifact_ref": "sources/rivet-11-spec.md",
+      "available_at": "2026-02-05T00:00:00Z",
+      "bytes": 460,
+      "sha256": "b07b3c45a758712889f67aa3a744edd6a81b3c5f42464dbeb5381bfd62c0ae10",
+      "snapshot_collected_at": "2026-10-18T05:18:24.982483+00:00",
+      "source_version_id": "rivet-11-spec"
+    },
+    {
+      "artifact_ref": "sources/report-r17.md",
+      "available_at": "2026-02-06T00:00:00Z",
+      "bytes": 404,
+      "sha256": "e118a74c6a276fc6f431fc9db53615784c12c3fbb4f861c121c8931a653c75a6",
+      "snapshot_collected_at": "2026-10-18T05:18:24.982483+00:00",
+      "source_version_id": "report-r17"
+    },
+    {
+      "artifact_ref": "sources/rivet-11-limits.md",
+      "available_at": "2026-02-07T00:00:00Z",
+      "bytes": 429,
+      "sha256": "9ec45b4bd8bf728b66442c21679a920ddee1cbf350e65c137c71a14c1625ddd7",
+      "snapshot_collected_at": "2026-10-18T05:18:24.982483+00:00",
+      "source_version_id": "rivet-11-limits"
+    },
+    {
+      "artifact_ref": "sources/rivet-11-incident.md",
+      "available_at": "2026-02-08T00:00:00Z",
+      "bytes": 415,
+      "sha256": "e58e0578e82e61891b71c6b23930668a5830373f0f97886dd562a9cd9f629234",
+      "snapshot_collected_at": "2026-10-18T05:18:24.982483+00:00",
+      "source_version_id": "rivet-11-incident"
+    },
+    {
+      "artifact_ref": "sources/report-r17-withdrawal.md",
+      "available_at": "2026-03-05T00:00:00Z",
+      "bytes": 442,
+      "sha256": "4af8b33162b216f5b09472b961994a19ada3fb1e3c02b7ea40a95a89431ea18e",
+      "snapshot_collected_at": "2026-10-18T05:18:24.982483+00:00",
+      "source_version_id": "report-r17-withdrawal"
+    },
+    {
+      "artifact_ref": "sources/report-r18.md",
+      "available_at": "2026-03-06T00:00:00Z",
+      "bytes": 445,
+      "sha256": "c0bfebebc75f471f6c4f1c5f2a20c86f2dcdfd37f1916c8ecc7380be61fe11c5",
+      "snapshot_collected_at": "2026-10-18T05:18:24.982483+00:00",
+      "source_version_id": "report-r18"
+    },
+    {
+      "artifact_ref": "sources/hillside-observation.md",
+      "available_at": "2026-03-07T00:00:00Z",
+      "bytes": 415,
+      "sha256": "767983a98aabf608bb3c41f6a9fd97ac6f1445239fc7c189f98741e8f2df9162",
+      "snapshot_collected_at": "2026-10-18T05:18:24.982483+00:00",
+      "source_version_id": "hillside-observation"
+    },
+    {
+      "artifact_ref": "sources/rivet-12-review.md",
+      "available_at": "2026-03-08T00:00:00Z",
+      "bytes": 486,
+      "sha256": "1f844a363bf2587c5f91e91ea0287bd81b9363c67119bfdc838da012714466f6",
+      "snapshot_collected_at": "2026-10-18T05:18:24.982483+00:00",
+      "source_version_id": "rivet-12-review"
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "scope": "Read-only projection of original frozen-run artifacts; not a rerun or semantic review",
+  "projector_file_sha256": "0a331ac952d6db292a6fa0cac89054d37671400050151fdbddd74b52bd16c84d",
+  "worker_artifact_binding_sha256": "d2dc98fb5735cdf4456443ce0edffc65a608d7b094be7926ac509f0da0ed5cc2",
+  "failed_workers": 1,
+  "unknown_usage_calls": 1,
+  "worker_calls": 93,
+  "returned_worker_calls": 92,
+  "known_worker_prompt_tokens": 201878,
+  "known_worker_output_tokens": 74688,
+  "warmup_included": false,
+  "resources_by_phase": {
+    "answer": {
+      "workers": 48,
+      "failed_workers": 0,
+      "calls": 48,
+      "returned_calls": 48,
+      "prompt_tokens": 117792,
+      "output_tokens": 14633,
+      "known_prompt_tokens": 117792,
+      "known_output_tokens": 14633,
+      "unknown_usage_calls": 0,
+      "wall_seconds": 3045.721
+    },
+    "construct": {
+      "workers": 13,
+      "failed_workers": 0,
+      "calls": 39,
+      "returned_calls": 39,
+      "prompt_tokens": 73318,
+      "output_tokens": 53404,
+      "known_prompt_tokens": 73318,
+      "known_output_tokens": 53404,
+      "unknown_usage_calls": 0,
+      "wall_seconds": 7408.162
+    },
+    "maintain": {
+      "workers": 2,
+      "failed_workers": 1,
+      "calls": 6,
+      "returned_calls": 5,
+      "prompt_tokens": 10768,
+      "output_tokens": 6651,
+      "known_prompt_tokens": 10768,
+      "known_output_tokens": 6651,
+      "unknown_usage_calls": 1,
+      "wall_seconds": 1648.928
+    }
+  },
+  "raw_artifacts_modified": false
+}

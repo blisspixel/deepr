@@ -1,0 +1,58 @@
+{
+  "observed_at": "2026-10-20T17:41:55.106950+00:00",
+  "code_commit": "7f531c286fe824e247943014b7eaed35b71ceed1",
+  "model": "qwen3.8:27b",
+  "model_digest": "aaee06c39dcf2437cde036998d960e1fc1494b8191be7cc9657d01e509097813",
+  "ollama_version": "0.40.6",
+  "status": "operationally_complete",
+  "terminal_cells": 48,
+  "cell_states": {
+    "answered": 48
+  },
+  "truncated_answers": 0,
+  "checks": {
+    "equal_source_inventory_per_world": true,
+    "worker_code_matches_orchestrator": true,
+    "consultation_memory_unchanged": true,
+    "frozen_checkpoints_unchanged": true,
+    "canonical_experts_unchanged": null,
+    "ledger_reconciled": true
+  },
+  "failed_checks": [],
+  "frozen_file_hashes_verified": 20,
+  "copied_source_files_verified": 504,
+  "returned_worker_digests_match": true,
+  "dispatch_receipts_pin_expected_digest": true,
+  "native_worker_events_match_canonical_mirrors": true,
+  "worker_calls": 93,
+  "worker_statuses": {
+    "completed": 62,
+    "failed": 1
+  },
+  "worker_errors": {
+    "RuntimeError": 1
+  },
+  "maintenance_cell_statuses": {
+    "failed_kept_last_checkpoint": 4,
+    "completed": 4,
+    "not_applicable": 4
+  },
+  "warmup_calls": 1,
+  "total_calls": 94,
+  "native_lifecycle_events": 282,
+  "request_call_and_terminal_joins_verified": true,
+  "retained_request_response_and_answer_hashes_verified": true,
+  "known_prompt_tokens_including_warmup": 201905,
+  "known_output_tokens_including_warmup": 74784,
+  "calls_with_unknown_token_usage": 1,
+  "generation_usage_complete": false,
+  "warmup_output_tokens": 96,
+  "warmup_tokens_per_second": 14.02,
+  "run_elapsed_seconds": 12104.07,
+  "accepted_checkpoints": 14,
+  "workers_reporting_module_hashes": 63,
+  "api_cost_usd": 0,
+  "semantic_review_performed": false,
+  "approved_baseline": false,
+  "value_claim": null
+}

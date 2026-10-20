@@ -167,6 +167,9 @@ def run_command(
     click.echo(
         f"{summary['status']}: {summary['terminal_cells']}/{summary['planned_cells']} terminal cells "
         f"({summary['answered']} answered, {summary['failed']} failed, {summary['blocked']} blocked); "
+        f"failed workers: {summary['failed_workers']}; "
+        f"worker calls with unknown usage: {summary['unknown_usage_calls']}; "
+        f"attempts without call record: {summary['attempts_without_completion_record']}; "
         f"failed checks: {failed}; API cost $0. Answers are unreviewed."
     )
 

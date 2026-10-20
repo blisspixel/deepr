@@ -51,6 +51,13 @@ inspection preflight remains read-only. Rehearsal mirrors those same events
 without creating another attempt. These receipts prove recorded execution facts,
 not answer quality. See [native local accounting](../design/native-local-attempt-accounting.md).
 
+Rehearsal resource reporting also separates failed workers, returned calls,
+missing or invalid usage and attempts without call records. Non-negative
+integer counters are observations; other values remain unknown. Compatible
+token fields are reported worker subtotals, with warm-up recorded separately.
+Neither a complete cell denominator nor known counters certify phase success
+or semantic quality. See [the rehearsal contract](../design/local-four-arm-rehearsal.md).
+
 Decision review projects exact outcome/trace identities and recorded input
 differences. It preserves answers, receipts and operator observations without
 inferring decision equivalence, superseding advice or better judgment. Review

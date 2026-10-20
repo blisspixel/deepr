@@ -1,0 +1,27 @@
+{
+  "kind": "deepr.expert.value_source_index",
+  "schema_version": "deepr-expert-value-source-index-v1",
+  "source_worlds": [
+    {
+      "as_of": "2026-01-20T00:00:00Z",
+      "manifest_ref": "worlds/world-1.json",
+      "manifest_sha256": "8b7aa7240ff90bc53d9ac33748e2e292e6a21c6b7c24543087f89c199b678fdf",
+      "predecessor_source_world_id": null,
+      "source_world_id": "replacement-draft-world-1"
+    },
+    {
+      "as_of": "2026-02-20T00:00:00Z",
+      "manifest_ref": "worlds/world-2.json",
+      "manifest_sha256": "5d7f7937f12305c8a5dd4d2659d06efbb2eb8749580ce957ea2705cc3a419e55",
+      "predecessor_source_world_id": "replacement-draft-world-1",
+      "source_world_id": "replacement-draft-world-2"
+    },
+    {
+      "as_of": "2026-03-20T00:00:00Z",
+      "manifest_ref": "worlds/world-3.json",
+      "manifest_sha256": "24f227bf1350e837745db7051a5b810b18fd10b75bc5adb2cdf25aa9b50555c5",
+      "predecessor_source_world_id": "replacement-draft-world-2",
+      "source_world_id": "replacement-draft-world-3"
+    }
+  ]
+}

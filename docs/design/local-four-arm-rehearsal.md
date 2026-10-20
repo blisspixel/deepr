@@ -99,7 +99,7 @@ strict `deepr eval expert-value` workbook).
 | Protocol requirement | Enforcement |
 | --- | --- |
 | Frozen model identity | `run` compares the installed digest before any work; each call compares the digest observed by the per-dispatch owned-local attestation |
-| Usable capacity | A recorded `$0` warm-up must meet a tokens-per-second floor, so a contended GPU is a refusal rather than a run of timeouts |
+| Usable capacity | A recorded `$0` warm-up must meet a tokens-per-second floor. It measures that short request; longer phases can still reach their frozen limits |
 | Explicit generation settings | Policy pins `num_ctx`, output limit, temperature, seed and `think`; the native backend refuses unknown options |
 | Question-free construction and maintenance | The orchestrator refuses to put a question in their specs, and the worker refuses one if present |
 | Answer bound to its question | Each answer reports its question digest; a mismatch fails the cell, and `blind` refuses criteria for a different question |
@@ -136,3 +136,37 @@ withheld from reviewers along with the key. Label binding checks form, never
 label meaning or reviewer identity. Consultation memory is the rendered brief;
 earlier positions shaped that brief and remain in the checkpoint's position
 history for inspection.
+
+## Failed phases and missing resource evidence (2026-10-20, #273)
+
+The replacement diagnostic reached a 600-second maintenance read timeout.
+The checkpoint and all lifecycle receipts were preserved, but the summary
+could show all answers completed without naming the failed phase. Missing
+raw token counters became zero in ordinary resource totals. This violates
+the protocol's missing-evidence boundary.
+
+Keep the existing meaning of operational completion: all planned terminal
+outcomes and no failed integrity check. Add failed-worker counts globally and
+per phase, returned-call counts, and counts of recorded calls with missing or
+invalid usage. Existing token keys remain compatible reported subtotals; add
+explicit known-subtotal aliases and mark their scope as worker-only. Warm-up
+remains separately recorded in `run.json.runtime` and its native ledger
+attempt. Attempts without call records remain a separate count, since their
+usage cannot be reconstructed from a missing response. Legacy worker metadata
+without usage-observation fields stays unknown, not vacuously complete.
+
+Non-negative integer native counters, including observed zero, are form
+facts. Missing, boolean, negative, fractional or string counters are not
+observations. Preserve each valid subtotal independently. This code cannot
+estimate the unobserved work or grade answers. The final human CLI summary
+must name failed workers and missing usage alongside cell outcomes. A failed
+phase with fully observed usage is distinct from a missing response.
+
+Do not change timeout, output, model, budget, source, fallback, checkpoint or
+review authority. Do not rewrite the active trial or old artifacts to resemble
+a successful run. Raising limits or treating a missing counter as zero would
+hide the failure; renaming operational completion as quality acceptance would
+confuse two gates. Reproduce with synthetic worker artifacts and launcher
+failures, then run the existing verification gates. The short warm-up proves
+its measured throughput only; longer phases can still reach their frozen
+limits, even when the warm-up passed.

@@ -1,0 +1,9 @@
+{
+  "packet_sha256": "4f4a0ee123063af71131553c940c031bc8a823a37e731fd9f87d3416333166ce",
+  "reviewable_answers": 48,
+  "planned_cells": 48,
+  "terminal_cells": 48,
+  "criteria_sha256": "8504d1f2acea011178e913ffc154e87860a585107bab37c8a834d623044b9aea",
+  "review_status": "unreviewed",
+  "key_opened": false
+}

@@ -1,0 +1,65 @@
+{
+  "cases": [
+    {
+      "case_id": "replacement-draft-identity-match",
+      "question": "Our completed checkpoint uses digest A and source S1, both unchanged. What permits reuse and what has not been shown about answer quality? Answer in at most 180 words, with source attribution and remaining uncertainty.",
+      "source_world_id": "replacement-draft-world-1"
+    },
+    {
+      "case_id": "replacement-draft-model-change",
+      "question": "Our source hash still matches S1 but we changed digest A to B. Since the checkpoint is recent, reuse is safe, correct? Answer in at most 180 words, with source attribution and remaining uncertainty.",
+      "source_world_id": "replacement-draft-world-1"
+    },
+    {
+      "case_id": "replacement-draft-failed-candidate",
+      "question": "A new build was truncated. Should we replace the earlier completed checkpoint with its newer partial brief? Answer in at most 180 words, with source attribution and remaining uncertainty.",
+      "source_world_id": "replacement-draft-world-1"
+    },
+    {
+      "case_id": "replacement-draft-stakeholder-preference",
+      "question": "Operations prefers reuse, so can we say the team validated reuse for Spanish documents and other model families? Answer in at most 180 words, with source attribution and remaining uncertainty.",
+      "source_world_id": "replacement-draft-world-1"
+    },
+    {
+      "case_id": "replacement-draft-qualified-revision",
+      "question": "Earlier advice required the same model digest. For Lakeside English S1, R17 names A to B and passes. What changes and what still must match? Answer in at most 180 words, with source attribution and remaining uncertainty.",
+      "source_world_id": "replacement-draft-world-2"
+    },
+    {
+      "case_id": "replacement-draft-missing-check",
+      "question": "We moved from A to B with matching S1, but cannot find any compatibility report. May a recent timestamp stand in for that check? Answer in at most 180 words, with source attribution and remaining uncertainty.",
+      "source_world_id": "replacement-draft-world-2"
+    },
+    {
+      "case_id": "replacement-draft-scope-transfer",
+      "question": "R17 covers Lakeside English S1. Can Hillside reuse it after changing its sources to S2 and model to C? Answer in at most 180 words, with source attribution and remaining uncertainty.",
+      "source_world_id": "replacement-draft-world-2"
+    },
+    {
+      "case_id": "replacement-draft-valid-json",
+      "question": "The new brief parses as JSON but lacks its final source manifest. Is it complete enough to promote, and does the migration exception change that? Answer in at most 180 words, with source attribution and remaining uncertainty.",
+      "source_world_id": "replacement-draft-world-2"
+    },
+    {
+      "case_id": "replacement-draft-withdrawn-advice",
+      "question": "We previously advised A-to-B reuse for Lakeside S1 based on R17. R17 is now withdrawn. What should be reconsidered, and what remains valid? Answer in at most 180 words, with source attribution and remaining uncertainty.",
+      "source_world_id": "replacement-draft-world-3"
+    },
+    {
+      "case_id": "replacement-draft-replacement-scope",
+      "question": "R18 passes A to C on Lakeside English S2. Does that repair our earlier A-to-B recommendation for S1 or authorize reuse in Spanish? Answer in at most 180 words, with source attribution and remaining uncertainty.",
+      "source_world_id": "replacement-draft-world-3"
+    },
+    {
+      "case_id": "replacement-draft-unrelated-update",
+      "question": "A newer Hillside note says B answered quickly. Should it supersede the R17 withdrawal for Lakeside because it is more recent? Answer in at most 180 words, with source attribution and remaining uncertainty.",
+      "source_world_id": "replacement-draft-world-3"
+    },
+    {
+      "case_id": "replacement-draft-continuity-and-authority",
+      "question": "After R17 was withdrawn, a completed A/S1 checkpoint still has identical identities. Must every checkpoint be discarded, and may consultation overwrite its history? Answer in at most 180 words, with source attribution and remaining uncertainty.",
+      "source_world_id": "replacement-draft-world-3"
+    }
+  ],
+  "schema_version": "deepr-expert-value-rehearsal-plan-v1"
+}
