@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Require Certifi's repaired trust store for installed wheel upgrades as well
+  as locked environments. Update Certifi to 2026.10.19, follow-redirects to
+  1.16.1 and Vite to 8.1.6 for the newly reported dependency advisories,
+  retaining TLS verification and the existing audit gates (#277).
+
 - Disclose failed rehearsal workers and calls with unknown token usage in JSON
   and the final CLI summary. Token values are explicitly reported worker
   subtotals, with warm-up kept separate; missing counters and legacy absence

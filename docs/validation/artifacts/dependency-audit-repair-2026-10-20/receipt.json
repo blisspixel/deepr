@@ -1,0 +1,48 @@
+{
+  "issue": 277,
+  "base_commit": "034877e731977b0b9d15d4f1eabe4f02207f20b7",
+  "runtimes": {
+    "native": {
+      "passed": 13596,
+      "existing_skips": 22,
+      "combined_coverage": "85.68%",
+      "strict_files": 296,
+      "dependency_audit": "pass"
+    },
+    "floor": {
+      "passed": 13596,
+      "existing_skips": 22,
+      "combined_coverage": "85.76%",
+      "strict_files": 296,
+      "dependency_audit": "pass"
+    }
+  },
+  "tooling": {
+    "node": "24.22.0",
+    "npm": "12.0.1",
+    "uv": "0.13.0"
+  },
+  "frontend_unit_passed": 89,
+  "browser_layout_state_checks": 102,
+  "actual_dashboard_captures": 24,
+  "visual_inspection": [
+    "light/01-overview.png",
+    "dark/02-research-studio.png",
+    "light/07-expert-profile.png",
+    "dark/08-cost-intelligence.png"
+  ],
+  "dashboard_outgoing_connections": 0,
+  "dashboard_ledger_events": 0,
+  "wheel_certifi_minimum": "certifi>=2026.10.19",
+  "frontend_archive_changed": false,
+  "new_model_calls": 0,
+  "semantic_review": "unreviewed",
+  "followup_finding": 278,
+  "files": {
+    "pyproject.toml": "73e89e9fb7ee78dbb949a107750415dab2f3fe5b0bc1d5c86805af92a9469130",
+    "uv.lock": "0dd1458baecf268897ae1a48e8d6206750ace4350a83f1abe73b573015b48a2e",
+    "src/deepr/web/frontend/package.json": "d82b1aba22bd16258d836e6ee38ebddc825ce18a795cecaa43705f4bbbc2ae36",
+    "src/deepr/web/frontend/package-lock.json": "06b459cd5c581c2bef65346b0d6422c92d6ca55c3dce424cd2be531c754ca370",
+    "src/deepr/web/frontend/frontend-dist.zip": "e8f032bb981d4da4817eae56ca38cdbb5fbb142bd9f9a4818c7a389afff1497f"
+  }
+}
