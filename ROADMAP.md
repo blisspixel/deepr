@@ -102,6 +102,11 @@ stay blocked.
   the evidence. Four runs per arm on the same fixture moved from 190-243 words
   (0 of 4 under 100) to 72-169 (2 of 4). Not resolved; see
   [the comparison](docs/validation/consult-requested-length-2026-10-18.md).
+  **2026-10-20 reproduced and repaired offline:** a paired consult produced
+  235 words against 180 while its legacy counterpart used 163. Narrow literal
+  word-form admission now retains an overlong draft as a typed failure, with
+  count/cap visible in CLI/MCP/A2A and one synthesis call. This does not prove
+  useful concise advice; prospective semantic validation remains pending.
 
 - [ ] **Evidence selection and delivery across briefing and consult packing
   (#258, 2026-10-19):** record which study findings, qualifications and
@@ -123,6 +128,23 @@ stay blocked.
   per budget); at tight budgets fewer standalone findings fit. Remaining: a
   blinded semantic comparison of both packers under the same allowance. See
   [the design note](docs/design/evidence-selection-and-delivery.md).
+  **2026-10-20 review findings:** retain the first 16-answer comparison,
+  including its truncated brief, incomplete initial reviewer source handoff
+  and ambiguous fixture scope. It is not accepted as a clean contrast. A
+  separately audited correction includes every source and delivered prompt,
+  clarifies the obligations, and uses a larger shared briefing output
+  allowance within the original total call/time ceilings. All 16 corrected
+  responses completed, with 36 obligation labels frozen before unblinding.
+  The independent whole-answer audit rejected acceptance: current packing
+  materially worsened one concise answer, and both methods lost the source's
+  renewal-validation prerequisite. Counts do not qualify useful advice.
+  **2026-10-20 repair pending validation:** complete finding admission now
+  replaces field-prefix clipping under an exact declared total prompt bound;
+  receipts bind finding content and omission reasons. Unusable input refuses
+  before completion. Non-forecast advice no longer receives a false missing-
+  likelihood warning. Focused tests and independent source reviews pass, but
+  a separately authorized prospective contrast is still required. Preserve
+  the failed trials and see [the dated record](docs/validation/evidence-review-2026-10-20.md).
 
 - [ ] **Correction survival across source history and production answers
   (#259, 2026-10-19):** trace each correction obligation from source through
@@ -147,18 +169,18 @@ stay blocked.
   and failed/refused/unsettled calls. Blinded answer review remains open; no
   semantic acceptance or default promotion follows. See
   [the repair contract](docs/design/consult-embedding-routing.md#identity-and-diagnostic-accounting-repair-2026-10-20-259).
-- [x] **Consult retrieval misses near-match evidence under on-topic noise
-  (2026-10-19):** with 60 distractor sources the diagnostic's
-  `near-match-version` case lost its v2 finding at retrieval. Literal token
-  overlap scored filler mentioning "agents" above a finding saying "agent
-  platform", and no position cited the finding. Measure any router change
-  against the diagnostic before adopting it; overlap may route, never decide.
-  See [the record](docs/validation/correction-survival-2026-10-19.md) and #264.
-  **Fixed 2026-10-19 as an opt-in:** `consult.embedding_model` fuses lexical
-  overlap with local embedding similarity. Both installed embedding models
-  recovered the miss at 60 distractors and changed nothing without them.
-  Default-on routing waits for reviewed answers (#259). See
-  [the design note](docs/design/consult-embedding-routing.md).
+  **2026-10-20 bounded measurement complete, release pending:** the original
+  source-grounded review exposed incompatible macOS coverage and unsupported
+  fixture interpretations; preserve it. The independently audited v2 trial
+  completed all 36 answers with 60 frozen obligation labels and six blind
+  adjudications. Production: 19 correctly used and one appropriately deferred;
+  oracle: 16 correctly used and four misapplied; fresh: 18 correctly used, one
+  deferred and one misapplied. These are obligation counts, not whole-answer
+  grades or a causal memory benefit. Actual prompt inspection separates oracle
+  assembly gaps from attribution and extrapolation failures. Source-inventory
+  binding and UTF-8/LF repairs have regression evidence. Full final verification,
+  public evidence, release and final acceptance comments remain. See
+  [the dated record](docs/validation/evidence-review-2026-10-20.md).
 
 ## Quick Links
 

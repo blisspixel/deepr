@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from deepr.experts.consult_context import ConsultContext, _source_passage
+from deepr.experts.consult_response import response_form_contract, response_form_instruction
 from deepr.experts.consult_support import recorded_statement
 
 if TYPE_CHECKING:
@@ -397,7 +398,9 @@ def build_synthesis_packet(query: str, perspectives: list[ExpertPerspective]) ->
     answer used it well.
     """
     eligible = [perspective for perspective in perspectives if perspective.confidence > 0]
-    prefix = _INSTRUCTIONS + f"Question: {query}\n\nContributors: {len(eligible)}\n\n"
+    response_form = response_form_contract(query)
+    prefix = _INSTRUCTIONS + response_form_instruction(response_form)
+    prefix += f"Question: {query}\n\nContributors: {len(eligible)}\n\n"
     # Restate a short question after the evidence; a long one is referenced so
     # it does not consume the bounded prompt twice.
     closing = _CLOSING.format(query=query if len(query) <= _RESTATE_MAX_CHARS else "the question stated above")
@@ -430,6 +433,7 @@ def build_synthesis_packet(query: str, perspectives: list[ExpertPerspective]) ->
     manifest_out: dict[str, object] = {
         "kind": "deepr.synthesis-delivery-manifest.v1",
         "experts": experts,
+        "response_form": response_form,
         "note": "Delivery records what reached the prompt; it does not establish entailment or answer quality.",
     }
     return prefix + "\n\n".join(parts) + closing, manifest_out

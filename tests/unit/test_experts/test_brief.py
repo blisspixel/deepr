@@ -132,7 +132,7 @@ class TestPromptContract:
         assert "Do not manufacture disagreement" in prompt
 
     def test_prompt_flags_contention_findings_when_present(self):
-        findings = [_finding("F1"), _finding("Sources disagree on rate", lens="contention")]
+        findings = [_finding("F1"), _finding("Sources disagree on rate", lens="contention", fid="contention-1")]
         prompt = build_brief_prompt(_result(findings), expert_name="E")
         assert "contention lens" in prompt
 
@@ -272,12 +272,25 @@ class TestIntegrityWarnings:
         brief.positions = [_sound_position()]
         assert brief.integrity_warnings() == []
 
-    def test_stance_without_a_likelihood_cannot_be_scored_later(self):
+    def test_non_forecast_advice_does_not_require_a_likelihood(self):
         brief = ExpertBrief(expert_name="E")
         position = _sound_position()
         position.likelihood = ""
         brief.positions = [position]
-        assert any("no likelihood" in w for w in brief.integrity_warnings())
+        assert not any("likelihood" in w or "never a judgment" in w for w in brief.integrity_warnings())
+        assert "never a judgment" not in render_brief(brief)
+
+    @pytest.mark.parametrize("registration", ["falsifier_resolution_criterion", "falsifier_resolution_date"])
+    def test_explicit_prediction_without_likelihood_records_scoring_limitation(self, registration):
+        brief = ExpertBrief(expert_name="E")
+        position = _sound_position()
+        position.likelihood = ""
+        setattr(position, registration, "2030-01-01" if registration.endswith("date") else "A measured reversal.")
+        brief.positions = [position]
+        restored = ExpertBrief.from_dict(brief.to_dict())
+        assert getattr(restored.positions[0], registration) == getattr(position, registration)
+        assert any("Probability scoring is unavailable" in w for w in restored.integrity_warnings())
+        assert "never a judgment" not in render_brief(restored)
 
     def test_several_sources_from_one_publisher_is_not_corroboration(self):
         brief = ExpertBrief(expert_name="E")

@@ -25,10 +25,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from typing import Any
 
-CASE_SET_VERSION = "correction-survival-v1"
+CASE_SET_VERSION = "correction-survival-v2"
 
 REVIEW_LABELS: tuple[str, ...] = ("used_correctly", "ignored", "misapplied", "appropriately_deferred")
 """Reviewer verdicts for one obligation. Assigned by an accountable reviewer only."""
@@ -116,7 +116,7 @@ _MANUAL = FixtureSource(
     "primary",
     "Tern 2 operations manual, section 7 (retries). Tern retries a failed job up to max_retries times "
     "with exponential backoff. A retry is safe because every job carries an idempotency key, and "
-    "idempotency keys are enabled by default on every agent platform, so the worker discards a "
+    "idempotency keys are enabled by default on Linux, Windows and container agents, so the worker discards a "
     "duplicate execution. We recommend max_retries = 5 for ordinary jobs. Section 9 (monitoring). "
     "Trigger the queue-depth alarm at 1,000 pending jobs; below that, backlog clears within one "
     "scheduling interval on the reference cluster.",
@@ -173,17 +173,20 @@ _W1_FINDINGS = (
         "mechanism-1",
         "mechanism",
         "manual-v2",
-        "Idempotency keys make retries safe",
-        {"concept": "A retry is safe because the worker discards duplicates using the idempotency key."},
+        "Worker keys suppress duplicate executions",
+        {"concept": "The worker uses an enabled idempotency key to discard a duplicate job execution."},
         "the worker discards a duplicate execution",
     ),
     FixtureFinding(
         "synopsis-1",
         "synopsis",
         "manual-v2",
-        "Keys are on by default on every platform",
-        {"note": "Idempotency keys are enabled by default on every agent platform; max_retries = 5 recommended."},
-        "idempotency keys are enabled by default on every agent platform",
+        "Tern 2 keys are on by default on the documented platforms",
+        {
+            "note": "Tern 2 idempotency keys are enabled by default on Linux, Windows and container agents; "
+            "max_retries = 5 is recommended for ordinary jobs."
+        },
+        "idempotency keys are enabled by default on Linux, Windows and container agents",
     ),
     FixtureFinding(
         "synopsis-2",
@@ -211,7 +214,7 @@ _W2_FINDINGS = (
         "failure-1",
         "failure",
         "release-v3",
-        "Retries duplicate side effects without keys",
+        "Retries can duplicate side effects without keys",
         {"trigger": "Windows 3.0 agent without keys", "correction": "enable idempotency_keys or max_retries = 0"},
         "a retry can execute a job's side effects twice",
     ),
@@ -230,8 +233,11 @@ _W3_FINDINGS = (
         "failure-2",
         "failure",
         "payments-note",
-        "Payment retries after the provider window charge twice",
-        {"trigger": "retry after a 24 hour provider window", "correction": "cap total retry time for payment jobs"},
+        "Payment retries after the provider window can charge twice",
+        {
+            "trigger": "retry after the actual provider deduplication window, typically 24 hours",
+            "correction": "cap total retry time below that provider-specific window",
+        },
         "A retry that lands after that window can charge twice",
     ),
     FixtureFinding(
@@ -239,7 +245,7 @@ _W3_FINDINGS = (
         "contention",
         "backoff-vendor",
         "Vendor recommends a 60 second backoff cap",
-        {"tension": "Vendor measured 60 seconds on hosted clusters; the maintainer suggests 300 for self-hosted."},
+        {"tension": "Vendor measured a 60 second backoff cap on its hosted clusters only."},
         "cap Tern's exponential backoff at 60 seconds",
     ),
     FixtureFinding(
@@ -247,27 +253,30 @@ _W3_FINDINGS = (
         "contention",
         "backoff-maintainer",
         "Maintainer suggests a 300 second cap for self-hosted clusters",
-        {"tension": "A 60 second cap amplified outage load; the thread remains open with no benchmark."},
+        {
+            "tension": "The maintainer reports amplified outage load at 60 seconds and suggests 300 for "
+            "self-hosted clusters; no supplied benchmark settles the difference."
+        },
         "we suggest 300 seconds for self-hosted clusters",
     ),
 )
 
 _RETRY_V2 = FixturePosition(
     "Is max_retries = 5 safe?",
-    "Yes, because idempotency keys are on by default on every platform.",
+    "For ordinary jobs on Tern 2 Linux, Windows and container agents, keys are enabled by default.",
     "The worker discards duplicate executions using the key.",
     ("mechanism-1", "synopsis-1"),
     would_change_my_mind="A platform where keys are off by default.",
 )
 _ALARM = FixturePosition(
     "Where should the queue-depth alarm trigger?",
-    "At 1,000 pending jobs.",
+    "On the reference cluster, at 1,000 pending jobs.",
     "Below that the backlog clears within one scheduling interval on the reference cluster.",
     ("synopsis-2",),
 )
 _RETRY_V3 = FixturePosition(
     "Is max_retries = 5 safe?",
-    "On Linux and container agents yes; on Tern 3.0 Windows agents only with idempotency keys enabled.",
+    "For ordinary jobs on Linux and container agents yes; on Tern 3.0 Windows agents only with keys enabled.",
     "Keys make retries safe, and 3.0 turned them off by default on Windows only.",
     ("mechanism-1", "change-1", "failure-1"),
     would_change_my_mind="A release note changing the Linux default.",
@@ -277,7 +286,8 @@ _RETRY_V3 = FixturePosition(
 _BACKOFF = FixturePosition(
     "What backoff cap should Tern use?",
     "Unresolved: 60 seconds on hosted clusters per the vendor, 300 seconds self-hosted per the maintainer.",
-    "Each source measured a different deployment and no benchmark compares them.",
+    "The vendor reports hosted measurements. The maintainer reports amplified load at 60 seconds and "
+    "suggests 300 seconds for self-hosted clusters. No supplied benchmark settles the difference.",
     ("contention-2", "contention-3"),
     would_change_my_mind="A benchmark comparing both caps on the same cluster during an outage.",
     unresolved_dissent="Vendor and maintainer disagree and the issue thread is open.",
@@ -286,10 +296,18 @@ _BACKOFF = FixturePosition(
 _PAYMENT = FixturePosition(
     "Are payment job retries safe with keys enabled?",
     "Only if total retry time stays below the provider's deduplication window.",
-    "Provider dedup windows, typically 24 hours, bound what keys protect.",
+    "Keys let the worker suppress duplicate executions. External providers separately deduplicate requests "
+    "within their own window, typically 24 hours; local keys do not extend that provider window.",
     ("failure-2", "mechanism-1"),
     would_change_my_mind="A provider documenting unbounded deduplication.",
     resolution="conditional",
+)
+
+_RETRY_V3_PAYMENTS = replace(
+    _RETRY_V3,
+    stance=_RETRY_V3.stance + " Payment jobs additionally require total retry time below the provider window.",
+    reasoning=_RETRY_V3.reasoning + " Retry count and local keys alone do not settle external payment safety.",
+    supported_by=(*_RETRY_V3.supported_by, "failure-2"),
 )
 
 WORLDS: tuple[World, ...] = (
@@ -307,9 +325,9 @@ WORLDS: tuple[World, ...] = (
         "2026-07-31",
         (_MANUAL, _RELEASE, _FORUM, _PAYMENTS, _BACKOFF_VENDOR, _BACKOFF_MAINTAINER),
         _W3_FINDINGS,
-        (_RETRY_V3, _ALARM, _BACKOFF, _PAYMENT),
+        (_RETRY_V3_PAYMENTS, _ALARM, _BACKOFF, _PAYMENT),
         live=("The right backoff cap for self-hosted clusters.",),
-        unknown=("Retry behaviour on agent platforms other than Linux, containers and Windows.",),
+        unknown=("Tern 3.0 defaults on agent platforms other than Linux, containers and Windows.",),
     ),
 )
 
@@ -372,7 +390,11 @@ CASES: tuple[Case, ...] = (
         "As of January 2026, what did the Tern documentation recommend for max_retries on Windows agents?",
         (
             Obligation(
-                "answer-from-w1", "use", "Keys on by default everywhere; max_retries = 5.", "manual-v2", "synopsis-1"
+                "answer-from-w1",
+                "use",
+                "Tern 2 Windows keys are on by default; max_retries = 5 for ordinary jobs.",
+                "manual-v2",
+                "synopsis-1",
             ),
             Obligation("no-later-knowledge", "isolate", "No 3.0 or later source may inform the answer."),
         ),
@@ -404,8 +426,14 @@ CASES: tuple[Case, ...] = (
         "missing-evidence",
         "missing_evidence",
         "w3",
-        "What retry settings should we use for Tern agents on macOS?",
-        (Obligation("defer-macos", "defer", "No source covers macOS agents; say so and scope the answer."),),
+        "What retry settings should we use for Tern 3.0 agents on macOS?",
+        (
+            Obligation(
+                "defer-macos",
+                "defer",
+                "No provided source establishes Tern 3.0 macOS defaults; scope the gap and name a relevant check.",
+            ),
+        ),
     ),
     Case(
         "answerable-control",
@@ -414,7 +442,11 @@ CASES: tuple[Case, ...] = (
         "At what queue depth should the Tern alarm trigger?",
         (
             Obligation(
-                "alarm", "preserve", "1,000 pending jobs, unchanged since the v2 manual.", "manual-v2", "synopsis-2"
+                "alarm",
+                "preserve",
+                "1,000 pending jobs on the reference cluster, unchanged since the v2 manual.",
+                "manual-v2",
+                "synopsis-2",
             ),
         ),
     ),
@@ -449,7 +481,11 @@ CASES: tuple[Case, ...] = (
                 "payment-window", "use", "Cap retry time below the provider window.", "payments-note", "failure-2"
             ),
             Obligation(
-                "keys-mechanism", "preserve", "Keys still protect within the window.", "manual-v2", "mechanism-1"
+                "keys-mechanism",
+                "preserve",
+                "Local worker keys still suppress duplicate executions; the external provider has its own window.",
+                "manual-v2",
+                "mechanism-1",
             ),
         ),
         cycles=2,
@@ -483,4 +519,40 @@ def case_set_document(cases: tuple[Case, ...] = CASES) -> dict[str, Any]:
 def case_set_sha256(cases: tuple[Case, ...] = CASES) -> str:
     """Hash of exactly the cases a run scheduled; a subset never shares the full set's hash."""
     payload = json.dumps(case_set_document(cases), sort_keys=True, ensure_ascii=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def distractor_sources(count: int) -> list[tuple[str, str]]:
+    """Deterministic on-topic filler that shares vocabulary but carries no obligation.
+
+    Small worlds fit every bound, so retrieval and packing cannot fail there.
+    Filler is what makes those stages observable. It is recorded in the run.
+    """
+    return [
+        (
+            f"distractor-{index}",
+            f"Tern operations note {index}: agents, retries, backoff, queues and idempotency keys are "
+            f"discussed for planning exercise {index} in general terms. This note sets no default, names "
+            "no version or platform, and makes no recommendation. " + "Background detail. " * 20,
+        )
+        for index in range(1, count + 1)
+    ]
+
+
+def source_inventory(item: World, distractors: int) -> tuple[FixtureSource, ...]:
+    """The complete bytes and metadata used to materialize this source world."""
+    return (
+        *item.sources,
+        *(
+            FixtureSource(source_id, f"notes.example/{source_id}", item.cutoff, "secondary", text)
+            for source_id, text in distractor_sources(distractors)
+        ),
+    )
+
+
+def source_inventory_sha256(sources: tuple[FixtureSource, ...]) -> str:
+    """Bind runtime additions as well as base sources, including their metadata."""
+    payload = json.dumps(
+        [asdict(source) for source in sources], sort_keys=True, ensure_ascii=True, separators=(",", ":")
+    )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()

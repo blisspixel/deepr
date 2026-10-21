@@ -28,6 +28,15 @@ checks the actual target id/text under the existing store lock. Existing cost
 ceilings still bound verification; model accuracy and historical data repair
 are not established. See [the contract](design/absorption-dedup-admission.md).
 
+**Unreleased evidence-review candidate:** briefing admits complete finding units
+within an exact declared prompt-character ceiling and records content hashes and
+omission reasons. A narrow literal consult word cap can produce a retained typed
+form failure, with one synthesis call and unchanged spend authority. Ordinary
+non-forecast advice does not require invented likelihoods. These source repairs
+have offline evidence; the [dated comparison](validation/evidence-review-2026-10-20.md)
+failed semantic acceptance and its prospective repair comparison is pending.
+The current published release remains v2.50.43.
+
 **v2.50.43 rehearsal reporting repair:** JSON and final CLI output disclose
 failed workers and calls with unobserved token usage. Phase resources retain
 known token subtotals and returned-call counts. Totals explicitly cover workers;

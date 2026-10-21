@@ -12,10 +12,10 @@ same prompt allowance:
   world's fixture synthesis, ``build_consult_context``, then
   ``build_synthesis_packet``.
 - ``oracle_packet``: the obligation evidence handed over directly through the
-  same packer, which separates retrieval and packing failures from reading
-  failures.
+  same packer. Related qualifications outside those targeted obligations can
+  still be absent; inspect the actual prompt before locating a failure.
 - ``fresh_sources``: no memory, the world's original sources as reference
-  passages, which measures what continuity adds over a fresh read.
+  passages for a descriptive fresh-read comparison.
 
 For every obligation the run records mechanical stage receipts: ids, hashes
 and selection membership. Whether an answer used the evidence well is never
@@ -42,14 +42,20 @@ from typing import Any
 from deepr.evals.correction_survival_cases import (
     CASE_SET_VERSION,
     CASES,
-    REVIEW_LABELS,
     RUBRIC,
     Case,
     Obligation,
     World,
     case_set_sha256,
+    source_inventory,
+    source_inventory_sha256,
     world,
 )
+from deepr.evals.correction_survival_cases import (
+    distractor_sources as distractor_sources,
+)
+from deepr.evals.correction_survival_review import bind_review_labels as bind_review_labels
+from deepr.evals.correction_survival_review import blinded_review_packet as blinded_review_packet
 
 RUN_SCHEMA = "deepr.eval.correction-survival-run.v1"
 REPORT_SCHEMA = "deepr.eval.correction-survival-report.v1"
@@ -69,6 +75,7 @@ _RECIPE_MODULES = (
     "deepr/experts/study_contracts.py",
     "deepr/experts/consult_context.py",
     "deepr/experts/consult_prompt.py",
+    "deepr/experts/consult_response.py",
     "deepr/experts/consult_routing.py",
     "deepr/backends/local.py",
     "deepr/backends/embedding_profiles.py",
@@ -76,6 +83,7 @@ _RECIPE_MODULES = (
     "deepr/observability/local_attempts.py",
     "deepr/evals/correction_survival.py",
     "deepr/evals/correction_survival_cases.py",
+    "deepr/evals/correction_survival_review.py",
 )
 
 
@@ -115,6 +123,7 @@ class _Materialized:
     study: Any
     shas: dict[str, str]
     briefs: list[Any]
+    source_inventory_sha256: str = ""
 
 
 def _normalized(text: str) -> str:
@@ -152,7 +161,7 @@ def _synthesis_json(item: World) -> str:
     """The world's frozen brief synthesis, standing in for a model's output."""
     return json.dumps(
         {
-            "orientation": "Tern retries are safe where idempotency keys are enabled.",
+            "orientation": "Tern retry guidance is scoped by platform, version, job type and the supplied source world.",
             "positions": [
                 {
                     "question": position.question,
@@ -168,23 +177,6 @@ def _synthesis_json(item: World) -> str:
             "state": {"settled": [], "live": list(item.live), "unknown": list(item.unknown)},
         }
     )
-
-
-def distractor_sources(count: int) -> list[tuple[str, str]]:
-    """Deterministic on-topic filler that shares vocabulary but carries no obligation.
-
-    Small worlds fit every bound, so retrieval and packing cannot fail there.
-    Filler is what makes those stages observable. It is recorded in the run.
-    """
-    return [
-        (
-            f"distractor-{index}",
-            f"Tern operations note {index}: agents, retries, backoff, queues and idempotency keys are "
-            f"discussed for planning exercise {index} in general terms. This note sets no default, names "
-            "no version or platform, and makes no recommendation. " + "Background detail. " * 20,
-        )
-        for index in range(1, count + 1)
-    ]
 
 
 async def _materialize(item: World, root: Path, cycles: int, distractors: int = 0) -> _Materialized:
@@ -204,10 +196,14 @@ async def _materialize(item: World, root: Path, cycles: int, distractors: int = 
         )
         shas[source.source_id] = entry.sha256
         texts[source.source_id] = source.text
+    sources = source_inventory(item, distractors)
     study = _study_for(item, shas, texts)
     filler: list[Any] = []
-    for source_id, text in distractor_sources(distractors):
-        entry, _ = corpus.add(text, origin_key=f"notes.example/{source_id}", fetched_at=item.cutoff)
+    for source in sources[len(item.sources) :]:
+        source_id, text = source.source_id, source.text
+        entry, _ = corpus.add(
+            text, origin_key=source.origin, trust_class=source.trust_class, fetched_at=source.observed_at
+        )
         filler.append(
             StudyFinding(
                 lens="synopsis",
@@ -243,7 +239,7 @@ async def _materialize(item: World, root: Path, cycles: int, distractors: int = 
                 as_of_date=date.fromisoformat(item.cutoff),
             )
         )
-    return _Materialized(item, corpus, study, shas, briefs)
+    return _Materialized(item, corpus, study, shas, briefs, source_inventory_sha256(sources))
 
 
 def _perspective(name: str, blocks: list[Any], context: dict[str, Any]) -> Any:
@@ -427,7 +423,7 @@ def _compression(built: _Materialized) -> list[dict[str, Any]]:
 def _write_json(path: Path, payload: Any) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
     text = json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=True) + "\n"
-    path.write_text(text, encoding="utf-8")
+    path.write_text(text, encoding="utf-8", newline="\n")
     return _sha(text)
 
 
@@ -548,6 +544,7 @@ async def run_diagnostic(
         "model_identity": model_identity,
         "arms": list(ARMS),
         "distractors_per_world": distractors,
+        "source_inventory_sha256": {built.world.world_id: built.source_inventory_sha256 for built in worlds.values()},
         "finding_routing": f"lexical+local-embedding:{finding_router.model}" if finding_router else "lexical",
         "scheduled_attempts": sum(case.cycles * len(ARMS) for case in cases),
         "attempts": attempts,
@@ -607,65 +604,6 @@ def load_run(run_dir: Path, *, expected_recipe_sha256: str | None = None) -> dic
         raise RunNotReusableError(message)
     _verify_attempt_files(run_dir, run["attempts"])
     return run
-
-
-def blinded_review_packet(run: dict[str, Any], *, salt: str) -> tuple[list[dict[str, Any]], dict[str, str]]:
-    """Answers under opaque ids, and the key that maps them back to arms.
-
-    Labels are bound by opaque id and answer hash before the key is opened.
-    """
-    items = []
-    key: dict[str, str] = {}
-    for attempt in run["attempts"]:
-        if attempt["status"] != "completed":
-            continue
-        opaque = _sha(f"{salt}:{attempt['attempt_id']}")[:16]
-        key[opaque] = attempt["attempt_id"]
-        items.append(
-            {
-                "item_id": opaque,
-                "case_id": attempt["case_id"],
-                "answer_sha256": attempt["answer_sha256"],
-                "obligations": sorted(attempt["stage_receipts"]),
-            }
-        )
-    items.sort(key=lambda item: item["item_id"])
-    return items, key
-
-
-def bind_review_labels(
-    run: dict[str, Any],
-    key: dict[str, str],
-    labels: list[dict[str, Any]],
-    existing: dict[tuple[str, str], str] | None = None,
-) -> dict[tuple[str, str], str]:
-    """Attach reviewer labels to (attempt, obligation), checking every binding.
-
-    Pass earlier bindings as ``existing``: a slot is labelled once, across
-    calls. Freezing labels before the key is opened is a procedure the caller
-    owns; this function only refuses bindings that do not match the answers.
-    """
-    attempts = {attempt["attempt_id"]: attempt for attempt in run["attempts"]}
-    bound: dict[tuple[str, str], str] = dict(existing or {})
-    for label in labels:
-        attempt = attempts.get(key.get(str(label.get("item_id")), ""))
-        if attempt is None:
-            raise ValueError(f"unknown review item {label.get('item_id')!r}")
-        if label.get("answer_sha256") != attempt["answer_sha256"]:
-            raise ValueError(f"label for {label.get('item_id')!r} is bound to a different answer")
-        obligation = str(label.get("obligation_id"))
-        if obligation not in attempt["stage_receipts"]:
-            raise ValueError(f"unknown obligation {obligation!r} for {label.get('item_id')!r}")
-        verdict = str(label.get("label"))
-        if verdict not in REVIEW_LABELS:
-            raise ValueError(f"label must be one of {REVIEW_LABELS}, got {verdict!r}")
-        if not str(label.get("reviewer") or "").strip():
-            raise ValueError("every label needs an accountable reviewer")
-        slot = (attempt["attempt_id"], obligation)
-        if slot in bound:
-            raise ValueError(f"duplicate label for {slot}")
-        bound[slot] = verdict
-    return bound
 
 
 def build_report(run: dict[str, Any], reviews: dict[tuple[str, str], str] | None = None) -> dict[str, Any]:

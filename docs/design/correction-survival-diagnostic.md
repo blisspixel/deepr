@@ -18,7 +18,7 @@ answer this. This diagnostic is separate from the frozen S0 pilot in
 ## Shape
 
 - **Frozen case set** (`evals/correction_survival_cases.py`,
-  `correction-survival-v1`). Three chronological worlds about an invented job
+  `correction-survival-v2`, with v1 retained separately). Three chronological worlds about an invented job
   scheduler, so no model has prior knowledge: a v2 manual, then a release note
   that changes one default on one platform (plus an unsourced contrary forum
   post), then a genuine exception and an unresolved disagreement. Eleven cases
@@ -32,8 +32,10 @@ answer this. This diagnostic is separate from the frozen S0 pilot in
   findings grounded against the retained sources, `build_brief` with the
   world's frozen synthesis, `build_consult_context`, `build_synthesis_packet`.
   `oracle_packet` hands the obligation evidence to the same packer, separating
-  retrieval and packing from reading. `fresh_sources` supplies the world's
-  library without memory, measuring what continuity adds. All use the same
+  targeted selection from packing. It is not a complete-world upper bound:
+  related qualifications can be absent even when the target source is delivered.
+  Inspect actual prompts before attributing a failure to reading. `fresh_sources`
+  supplies the world's library without memory as a descriptive comparison. All use the same
   completion and prompt bound.
 - **Stage receipts per obligation.** Mechanical states only: source present,
   finding represented and anchored, presented/omitted/shortened at briefing
@@ -60,7 +62,10 @@ answer this. This diagnostic is separate from the frozen S0 pilot in
   re-verified. `load_run` refuses a run without it, with altered files, or
   produced from another case set or recipe; an answer file alone is never a
   completed run. It also refuses a run whose recorded attempts differ from
-  the scheduled count. Historical read-only inspection can instead require an
+  the scheduled count. JSON artifacts use explicit UTF-8 and LF newlines, so
+  their hashes match the actual bytes on Windows as well as other platforms.
+  Ambient text newline translation must not invalidate a newly collected run.
+  Historical read-only inspection can instead require an
   explicit recorded recipe pin, as described below; the default current-code
   guard remains unchanged.
 - **Blinded review.** `blinded_review_packet` lists answers under salted
@@ -78,7 +83,7 @@ production consult system prompt and native local dispatch
 first call and on every call, a mismatch refuses or fails the attempt, and
 each attempt records its dispatch (stop reason, tokens, elapsed time, `$0`).
 
-### Routing identity and latency (unreleased repair, #259)
+### Routing identity and latency (v2.50.43 repair, #259)
 
 `--embedding-model MODEL` keeps one attested embedding digest, resolved profile
 and vector dimension across query/document calls and later attempts. An identity
@@ -101,7 +106,7 @@ retained old runs are not rewritten. See
 
 ## Historical review after a code update (2026-10-20, #275)
 
-The retained 36-answer run still has the frozen case-set identity, but the
+At the time of this repair, the retained 36-answer run still had the frozen case-set identity, but the
 routing/accounting repair changed the recipe hash. The default `load_run`
 correctly refuses it as a current-code result. Review must nevertheless remain
 possible without regenerating answers or reading raw JSON around the verifier.
@@ -125,12 +130,71 @@ Identity equality is not a verdict on answers, code compatibility or quality.
 Reports remain operator artifacts; reviewers continue using the existing
 blinded packet with its assignment key withheld.
 
+The later v2 fixture correction changes the case-set identity as well. Inspect
+v1 with the retained compatible v2.50.43 implementation and its original recipe
+pin; the current implementation correctly refuses that old case set.
+
 Reject a `skip_checks` switch: it would also lose artifact and case binding.
 Reject changing the historical recipe or rewriting the old run to resemble
 current execution. Do not relax the default guard or rerun inference merely to
 produce reviewable artifacts. Reproduce changed-code loading with synthetic
 completion output, then exercise the actual retained run by its original pin,
 without viewing answer text, opening an assignment key or adding labels.
+
+## Retained-answer review completion (2026-10-20, #259)
+
+Review the existing 36-answer, 60-obligation packet using its original frozen
+sources, obligations, rubric and recipe pin. Do not regenerate its answers or
+alter original files. Independent model reviewers must first pass predeclared
+semantic controls. Preserve unsuccessful local and independent calibration, malformed
+outputs and any later review failure. Clarifying mutually exclusive label
+precedence before review is distinct from changing the original obligations or
+adding a retrospective success threshold; retain both the clarification and its
+failed predecessor.
+
+Keep the assignment key closed while model labels and their semantic reasons
+are frozen and inspected. Then use the existing label-binding and report
+functions to join exact answer hashes and stage receipts. Report all scheduled
+attempts, per-case scope errors, appropriate deferrals, nonanswers, original
+resource observations and unknown review costs. A useful negative measurement
+can complete this diagnostic. It cannot establish expertise, approve S0, promote
+embedding routing by default, or validate model judgments outside these cases.
+
+### Prospective fixture and review-handoff correction
+
+Independent source-backed review found a v1 fixture defect: the manual promises
+enabled keys on every platform, while the macOS case says its default is
+unknown. Keep the original sources, answers and resulting ambiguity intact.
+Freeze a v2 case set before collecting replacement answers, explicitly limiting
+the manual, derived findings and initial position to the documented Linux,
+Windows and container platforms, and stating the macOS question's version.
+Audit the other fixture interpretations against their sources as well.
+Preserve the vendor's measurement and the maintainer's suggestion as distinct
+evidence, separate local worker duplicate suppression from external-provider
+windows, retain the provider-specific duration and modal risk, and keep the
+new payment qualification out of earlier source worlds. A fresh v2 measurement
+is separate from the reviewed, defective v1 trial.
+
+The blinded packet must carry its frozen source world and detailed obligations,
+not merely point a reviewer at mutable source code. Move the existing review
+binding and packet functions together into a named read-only review seam,
+preserving their public imports. Bind source bytes and metadata to the scheduled
+case-set identity before producing a packet, and test historical-world isolation
+and stale-case refusal. Include the runtime's deterministic distractor sources
+when configured, with the same source bytes, observation cutoff, origin and
+trust metadata. A note that establishes no recommendation within its own
+planning scope can still affect interpretation; excluding it from review
+would misrepresent what the generator could read. Reuse the fixture generator
+through the owning case module rather than reconstructing a second version.
+Each new run records a fingerprint of its full materialized source inventory,
+including runtime notes and metadata. Packet generation verifies that fingerprint
+before exporting sources. A historical run with auxiliary sources but no bound
+inventory requires its compatible producer; do not reconstruct those bytes from
+a later fixture generator. Legacy zero-distractor runs remain case-bound because
+the case-set digest already includes every base source byte and its metadata.
+Do not add a bypass to the historical case guard: v1
+inspection still uses its retained compatible implementation and explicit recipe
+pin. Its old answers must not become v2 results.
 
 ## Decisions and alternatives rejected
 

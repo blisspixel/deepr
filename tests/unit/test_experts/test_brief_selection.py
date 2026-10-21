@@ -102,7 +102,7 @@ def test_small_study_is_presented_whole_and_reports_complete():
     assert selection.study_fingerprint == study_fingerprint(study)
 
 
-def test_trailing_condition_is_marked_shortened_not_silently_dropped():
+def test_complete_long_field_preserves_its_trailing_condition():
     condition = "This only holds on version 3 and fails on Windows."
     long_field = ("The setting is safe to enable in production deployments. " * 12) + condition
     finding = _finding("synopsis", 1, note=long_field, short="kept whole")
@@ -112,14 +112,11 @@ def test_trailing_condition_is_marked_shortened_not_silently_dropped():
     )
     prompt, selection = brief_prompt_with_selection(study, expert_name="E")
 
-    assert condition not in prompt
-    assert f"of {len(long_field)} characters; full text in the study]" in prompt
+    assert long_field in prompt
+    assert condition in prompt
     assert "short: kept whole\n" in prompt
-    assert [(item.finding_id, item.field, item.original_chars) for item in selection.shortened] == [
-        ("synopsis-1", "note", len(long_field))
-    ]
-    assert not selection.complete
-    assert any("shortened" in note for note in selection.limitations())
+    assert selection.shortened == []
+    assert selection.complete
 
 
 def test_shortening_prefers_a_sentence_boundary_and_never_marks_fitting_text():
@@ -208,3 +205,154 @@ def test_orientation_cannot_cite_a_finding_synthesis_was_not_shown(corpus):
     }
     brief = assemble_brief(parsed, expert_name="E", result=study, corpus=corpus, selection=selection)
     assert brief.orientation_statements[0].supported_by == ["contention-1"]
+
+
+def test_oversized_finding_is_omitted_whole_and_cannot_be_cited(corpus):
+    study = _study(("synopsis", 1), ("contention", 1))
+    long = study.findings[0]
+    long.payload = {"note": "Visible prefix. " + "x" * 60000, "condition": "Only after origin validation."}
+    prompt, selection = brief_prompt_with_selection(study, expert_name="E", max_prompt_chars=8000)
+    assert "Visible prefix." not in prompt
+    assert "Only after origin validation." not in prompt
+    assert selection.presented_ids == ["contention-1"]
+    assert selection.omission_reasons == {"synopsis-1": "prompt_chars"}
+    assert selection.prompt_chars <= selection.max_prompt_chars == 8000
+    brief = assemble_brief(
+        {"positions": [{"stance": "unsafe", "supported_by": [long.finding_id]}]},
+        expert_name="E",
+        result=study,
+        corpus=corpus,
+        selection=selection,
+    )
+    assert brief.positions[0].supported_by == []
+
+
+def test_exact_envelope_and_payload_bound_drill_down():
+    study = _study(("synopsis", 1))
+    study.findings[0].payload = {"note": "Source condition: origin validation is mandatory."}
+    prompt, selection = brief_prompt_with_selection(study, expert_name="Unicode \u96ea")
+    _, tight = brief_prompt_with_selection(study, expert_name="Unicode \u96ea", max_prompt_chars=len(prompt))
+    assert tight.complete
+    restored = BriefSelection.from_dict(tight.to_dict())
+    assert restored == tight
+    assert restored.resolve_finding(study, "synopsis-1") is study.findings[0]
+    study.findings[0].payload["note"] = "Source condition removed."
+    assert study_fingerprint(study) == selection.study_fingerprint
+    with pytest.raises(ValueError, match="content"):
+        restored.resolve_finding(study, "synopsis-1")
+
+
+async def test_oversized_framing_refuses_before_completion_and_retains_receipt(corpus):
+    calls = []
+
+    async def completion(prompt):
+        calls.append(prompt)
+        return "{}"
+
+    study = _study(("synopsis", 1))
+    brief = await build_brief(expert_name="E" * 60000, result=study, corpus=corpus, completion=completion)
+    assert calls == []
+    assert brief.synthesis_input["admission_status"] == "refused_prompt_envelope"
+    assert brief.synthesis_input["presented_ids"] == []
+    assert brief.synthesis_input["omitted_ids"] == ["synopsis-1"]
+    assert any("before dispatch" in note for note in brief.limitations)
+
+
+async def test_no_complete_finding_fit_refuses_before_completion(corpus):
+    study = _study(("synopsis", 1))
+    study.findings[0].payload = {"note": "complete unit " * 5000}
+    calls = []
+
+    async def completion(prompt):
+        calls.append(prompt)
+        return "{}"
+
+    brief = await build_brief(
+        expert_name="E", result=study, corpus=corpus, completion=completion, max_prompt_chars=8000
+    )
+    assert calls == []
+    assert brief.synthesis_input["admission_status"] == "refused_no_complete_findings"
+    assert brief.synthesis_input["omission_reasons"] == {"synopsis-1": "prompt_chars"}
+
+
+@pytest.mark.parametrize("duplicate", [True, False])
+async def test_ambiguous_or_empty_finding_identity_refuses_before_completion(corpus, duplicate):
+    study = _study(("synopsis", 2))
+    study.findings[1].finding_id = study.findings[0].finding_id if duplicate else ""
+    calls = []
+
+    async def completion(prompt):
+        calls.append(prompt)
+        return "{}"
+
+    brief = await build_brief(expert_name="E", result=study, corpus=corpus, completion=completion)
+    assert calls == []
+    assert brief.synthesis_input["admission_status"] == "refused_finding_identity"
+    assert brief.synthesis_input["presented_ids"] == []
+
+
+def test_character_bound_preserves_lens_balance_and_complete_multifield_units():
+    from types import SimpleNamespace
+
+    counts = set()
+    for lenses in itertools.permutations([("lensA", 8), ("lensB", 8), ("lensC", 8)]):
+        study = _study(*lenses)
+        for finding in study.findings:
+            finding.payload = {
+                "note": "qualification \u96ea " * 15,
+                "condition": ["origin validation", "version 3 only"],
+            }
+            finding.grounded_anchor_count = 0
+        prompt, selection = brief_prompt_with_selection(
+            study,
+            expert_name="Unicode \u96ea",
+            prior_positions=[SimpleNamespace(question="Original question?" * 25)],
+            max_prompt_chars=10000,
+        )
+        assert 0 < len(selection.presented_ids) < len(study.findings)
+        assert selection.prompt_chars == len(prompt) <= 10000
+        assert selection.max_prompt_chars == 10000
+        assert selection.shortened == []
+        counts.add(
+            tuple(sorted(Counter(f.lens for f in study.findings if f.finding_id in selection.presented_ids).items()))
+        )
+        for finding in study.findings:
+            assert (f"{finding.finding_id} [{finding.lens}]" in prompt) == (
+                finding.finding_id in selection.presented_ids
+            )
+        assert prompt.count("condition: origin validation; version 3 only") == len(selection.presented_ids)
+        assert prompt.count("UNVERIFIED: quoted support not found") == len(selection.presented_ids)
+    assert all(max(value for _, value in row) - min(value for _, value in row) <= 1 for row in counts)
+    assert len({sum(value for _, value in row) for row in counts}) == 1
+
+
+@pytest.mark.parametrize("with_retry", [False, True])
+def test_shrinking_notices_cannot_hide_a_fitting_complete_unit(with_retry):
+    from datetime import date
+
+    from deepr.experts.brief import _render_brief_prompt, _render_finding
+    from deepr.experts.brief_selection import start_selection
+
+    study = _study(("synopsis", 2 if with_retry else 1), ("contention", 1))
+    study.findings[0].payload = {"note": "x" * (30 if with_retry else 61000)}
+    if with_retry:
+        study.findings[1].payload = {"note": "x" * 61000}
+    study.findings[-1].payload = {"note": "b"}
+    desired = [study.findings[0], study.findings[-1]] if with_retry else [study.findings[-1]]
+    expected = _render_brief_prompt(
+        expert_name="E",
+        domain="",
+        prior_positions=None,
+        as_of_date=date(2026, 10, 20),
+        rendered="\n".join(_render_finding(finding) for finding in desired),
+        selection=start_selection(study, desired, study_fingerprint(study)),
+    )
+    prompt, selection = brief_prompt_with_selection(
+        study,
+        expert_name="E",
+        as_of_date=date(2026, 10, 20),
+        max_prompt_chars=len(expected),
+    )
+    assert prompt == expected
+    assert selection.presented_ids == [finding.finding_id for finding in desired]
+    assert selection.omission_reasons == {"synopsis-2" if with_retry else "synopsis-1": "prompt_chars"}

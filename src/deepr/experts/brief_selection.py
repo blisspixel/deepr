@@ -11,13 +11,13 @@ true and present the surviving prefix as complete.
 This module makes the choice explicit and recorded:
 
 - **Whole findings, balanced across lenses.** Findings are taken one per lens
-  in turn, keeping each lens's own order. Every lens that produced anything is
-  represented before any lens gets a second slot. This is a structural rule
+  in turn, keeping each lens's own order. Each lens gets a candidate considered
+  before any lens gets a second; a complete unit may not fit. This is a structural rule
   about coverage, not a judgment about which disagreement matters; that
   judgment stays with the synthesis model and later review.
-- **Shortening is marked, never silent.** A field over the limit is cut at a
-  sentence or word boundary and labelled with how much was kept and where the
-  full text lives. The full study stays the drill-down.
+- **Complete delivery within a declared prompt bound.** A finding's fields
+  travel together or not at all. Historical marked-shortening receipts remain
+  readable; new syntheses never receive a misleading prefix.
 - **The selection is a receipt.** Presented and omitted finding ids, every
   shortened field, and the exact prompt hash travel with the brief, so nobody
   can later claim the whole study reached synthesis when it did not.
@@ -26,15 +26,19 @@ This module makes the choice explicit and recorded:
 from __future__ import annotations
 
 import hashlib
+import json
 import re
+from collections import deque
+from collections.abc import Callable, Iterator
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from deepr.experts.study_contracts import StudyFinding, StudyResult
 
-SELECTION_POLICY = "lens-balanced-whole-findings-v1"
+SELECTION_POLICY = "lens-balanced-complete-findings-v2"
 MAX_FINDINGS_IN_PROMPT = 120
 MAX_FIELD_CHARS = 600
+MAX_BRIEF_PROMPT_CHARS = 60000
 
 _SENTENCE_END_RE = re.compile(r"[.;!?](?=\s)")
 
@@ -61,11 +65,40 @@ class BriefSelection:
     contention_presented: int = 0
     prompt_sha256: str = ""
     prompt_chars: int = 0
+    max_prompt_chars: int = 0
+    omission_reasons: dict[str, str] = field(default_factory=dict)
+    finding_content_sha256: dict[str, str] = field(default_factory=dict)
+    admission_status: str = "admitted"
 
     @property
     def complete(self) -> bool:
         """True only when every finding reached synthesis unshortened."""
-        return not self.omitted_ids and not self.shortened
+        return self.admission_status == "admitted" and not self.omitted_ids and not self.shortened
+
+    def resolve_finding(self, result: StudyResult, finding_id: str) -> StudyFinding:
+        """Resolve a retained unit only against its original study and content.
+
+        Older receipts without content bindings cannot establish this identity.
+        This does not retrieve evidence or grant synthesis another model call.
+        """
+        from deepr.experts.consult_support import study_fingerprint
+
+        matches = [finding for finding in result.findings if finding.finding_id == finding_id]
+        if study_fingerprint(result) != self.study_fingerprint or len(matches) != 1:
+            raise ValueError("Finding does not resolve to the recorded study identity")
+        finding = matches[0]
+        if self.finding_content_sha256.get(finding_id) != finding_content_hash(finding):
+            raise ValueError("Finding content does not match the recorded receipt")
+        return finding
+
+    def bind_study_content(self, result: StudyResult) -> None:
+        """Require unambiguous study handles before binding their complete units."""
+        identities = [finding.finding_id for finding in result.findings]
+        if not all(identities) or len(identities) != len(set(identities)):
+            self.admission_status = "refused_finding_identity"
+            self.omission_reasons = dict.fromkeys(identities, "finding_identity")
+            raise BriefPromptAdmissionError(self)
+        self.finding_content_sha256 = {finding.finding_id: finding_content_hash(finding) for finding in result.findings}
 
     def limitations(self) -> list[str]:
         """Plain statements of what the synthesis did not see in full."""
@@ -119,6 +152,10 @@ class BriefSelection:
             contention_presented=int(data.get("contention_presented", 0) or 0),
             prompt_sha256=str(data.get("prompt_sha256", "")),
             prompt_chars=int(data.get("prompt_chars", 0) or 0),
+            max_prompt_chars=int(data.get("max_prompt_chars", 0) or 0),
+            omission_reasons=dict(data.get("omission_reasons") or {}),
+            finding_content_sha256=dict(data.get("finding_content_sha256") or {}),
+            admission_status=str(data.get("admission_status", "admitted")),
         )
 
 
@@ -128,13 +165,95 @@ def select_findings(result: StudyResult, limit: int = MAX_FINDINGS_IN_PROMPT) ->
     Returned in study order, so the prompt still reads lens by lens. Only the
     choice of which findings make the cut is balanced.
     """
-    queues = [list(outcome.findings) for outcome in result.outcomes if outcome.findings]
-    chosen: set[int] = set()
-    while len(chosen) < limit and any(queues):
-        for queue in queues:
-            if queue and len(chosen) < limit:
-                chosen.add(id(queue.pop(0)))
+    chosen = {id(finding) for _, finding in zip(range(limit), balanced_findings(result))}
     return [finding for finding in result.findings if id(finding) in chosen]
+
+
+def balanced_findings(result: StudyResult) -> Iterator[StudyFinding]:
+    """Candidate admission order; final presentation retains study order."""
+    queues = [deque(outcome.findings) for outcome in result.outcomes if outcome.findings]
+    while any(queues):
+        for queue in queues:
+            if queue:
+                yield queue.popleft()
+
+
+def finding_content_hash(finding: StudyFinding) -> str:
+    """Bind payload, qualifications, anchors and source identities together."""
+    raw = json.dumps(finding.to_dict(), sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+class BriefPromptAdmissionError(ValueError):
+    """Prompt admission refused; carries a receipt without dispatch."""
+
+    def __init__(self, selection: BriefSelection) -> None:
+        details = {
+            "refused_prompt_envelope": "Brief prompt framing exceeds its character allowance",
+            "refused_no_complete_findings": "No complete study finding fits the brief prompt allowance",
+            "refused_finding_identity": "Brief findings require nonempty unique identities",
+        }
+        super().__init__(details[selection.admission_status] + "; refused before dispatch.")
+        self.selection = selection
+
+
+def admit_complete_findings(
+    result: StudyResult,
+    fingerprint: str,
+    render_prompt: Callable[[list[StudyFinding], BriefSelection], str],
+    max_prompt_chars: int = MAX_BRIEF_PROMPT_CHARS,
+) -> tuple[str, BriefSelection]:
+    """Fit complete units against the exact envelope, never their prefixes."""
+    if type(max_prompt_chars) is not int or not 0 < max_prompt_chars <= MAX_BRIEF_PROMPT_CHARS:
+        raise ValueError(f"Brief prompt allowance must be between 1 and {MAX_BRIEF_PROMPT_CHARS} characters")
+    selected: list[StudyFinding] = []
+    reasons: dict[str, str] = {}
+    identity_receipt = start_selection(result, [], fingerprint)
+    identity_receipt.max_prompt_chars = max_prompt_chars
+    identity_receipt.bind_study_content(result)
+    content_hashes = identity_receipt.finding_content_sha256
+
+    def candidate(findings: list[StudyFinding]) -> tuple[str, BriefSelection]:
+        receipt = start_selection(result, findings, fingerprint)
+        receipt.max_prompt_chars = max_prompt_chars
+        receipt.finding_content_sha256 = content_hashes
+        return render_prompt(findings, receipt), receipt
+
+    capped = select_findings(result)
+    prompt, selection = candidate(capped)
+    if len(prompt) <= max_prompt_chars:
+        selection.omission_reasons = dict.fromkeys(selection.omitted_ids, "finding_cap")
+        return prompt, seal_selection(selection, prompt)
+    prompt, selection = candidate(selected)
+    pending = list(balanced_findings(result))
+    while pending:
+        before = len(selected)
+        deferred: list[StudyFinding] = []
+        for finding in pending:
+            if len(selected) >= MAX_FINDINGS_IN_PROMPT:
+                reasons[finding.finding_id] = "finding_cap"
+                continue
+            proposed_ids = {id(item) for item in [*selected, finding]}
+            proposed = [item for item in result.findings if id(item) in proposed_ids]
+            proposed_prompt, proposed_selection = candidate(proposed)
+            if len(proposed_prompt) <= max_prompt_chars:
+                selected, prompt, selection = proposed, proposed_prompt, proposed_selection
+                reasons.pop(finding.finding_id, None)
+            else:
+                deferred.append(finding)
+                reasons[finding.finding_id] = "prompt_chars"
+        if len(selected) == before:
+            break
+        # Notices can shrink after admission. Revisit rejected complete units;
+        # each continuing pass admits at least one of at most 120 findings.
+        pending = deferred
+    selection.omission_reasons = reasons
+    if not selected and result.findings:
+        selection.admission_status = (
+            "refused_prompt_envelope" if len(prompt) > max_prompt_chars else "refused_no_complete_findings"
+        )
+        raise BriefPromptAdmissionError(seal_selection(selection, prompt))
+    return prompt, seal_selection(selection, prompt)
 
 
 def shorten_field(text: str, limit: int = MAX_FIELD_CHARS) -> str:
@@ -154,7 +273,11 @@ def shorten_field(text: str, limit: int = MAX_FIELD_CHARS) -> str:
 
 
 def render_payload_fields(finding: StudyFinding, selection: BriefSelection | None = None) -> list[str]:
-    """The finding's own fields, each whole or visibly shortened."""
+    """The finding's eligible fields, complete; admission owns the bound.
+
+    ``selection`` remains accepted for callers of the former rendering API.
+    Historical shortening helpers remain available for receipt compatibility.
+    """
     parts: list[str] = []
     for key, value in finding.payload.items():
         if key in {"anchors", "name", "title", "thread"}:
@@ -163,18 +286,7 @@ def render_payload_fields(finding: StudyFinding, selection: BriefSelection | Non
         text = " ".join(text.split())
         if not text:
             continue
-        shown = shorten_field(text)
-        if shown != text and selection is not None:
-            kept = shown.rsplit(" [shortened:", 1)[0]
-            selection.shortened.append(
-                ShortenedField(
-                    finding_id=finding.finding_id,
-                    field=key,
-                    original_chars=len(text),
-                    kept_chars=len(kept),
-                )
-            )
-        parts.append(f"  {key}: {shown}")
+        parts.append(f"  {key}: {text}")
     return parts
 
 

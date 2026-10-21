@@ -311,6 +311,12 @@ SAME verdict before absorption merges, and discloses failed rehearsal phases
 and unknown usage. It also corrects frozen dashboard guidance and affected
 dependencies. See [the changelog](docs/CHANGELOG.md#25043---2026-10-20).
 
+The [2026-10-20 development review](docs/validation/evidence-review-2026-10-20.md)
+completed the bounded correction diagnostic and rejected the packing comparison
+on material answer regressions. It preserves all failed trials and accounting.
+Source repairs have offline verification; prospective semantic acceptance and
+the next release remain pending. This does not qualify expert advice or S0.
+
 `deepr eval correction-survival-report` provides
 read-only inspection of completed diagnostics by an explicit recorded recipe
 hash. Original code identity stays visible after an update; answer review

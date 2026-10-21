@@ -123,6 +123,7 @@ def build_consult_result(payload: dict[str, Any], *, artifact_id: str) -> dict[s
         "synthesis_status": synthesis_status,
         "synthesis_error_type": str(payload.get("synthesis_error_type", "") or ""),
         "synthesis_stop_reason": str(payload.get("synthesis_stop_reason", "") or ""),
+        "response_form": _dict_value(payload.get("response_form")),
         "artifact_id": artifact_id,
         "consult_schema_version": payload.get("schema_version", ""),
         "consult_kind": payload.get("kind", ""),

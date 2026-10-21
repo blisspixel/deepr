@@ -334,9 +334,13 @@ class ExpertBrief:
                 "rest on several sources that trace to a single publisher. That reads as corroboration and is not.",
             ),
             (
-                [p for p in self.positions if p.stance and not p.likelihood],
-                "state a stance with no likelihood. A stance with no stated likelihood cannot be "
-                "scored later, and so was never a judgment.",
+                [
+                    p
+                    for p in self.positions
+                    if (p.falsifier_resolution_criterion or p.falsifier_resolution_date) and not p.likelihood
+                ],
+                "record prediction-registration fields without a likelihood. "
+                "Probability scoring is unavailable without a recorded likelihood.",
             ),
             (
                 [p for p in self.positions if p.resolution == "irreducible" and not p.unresolved_dissent],
