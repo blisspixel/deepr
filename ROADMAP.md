@@ -178,9 +178,37 @@ stay blocked.
   deferred and one misapplied. These are obligation counts, not whole-answer
   grades or a causal memory benefit. Actual prompt inspection separates oracle
   assembly gaps from attribution and extrapolation failures. Source-inventory
-  binding and UTF-8/LF repairs have regression evidence. Full final verification,
-  public evidence, release and final acceptance comments remain. See
+  binding and UTF-8/LF repairs have regression evidence. The final release,
+  public-install verification and acceptance comments remain. See
   [the dated record](docs/validation/evidence-review-2026-10-20.md).
+  **2026-10-20 generation identity repair:** the recipe now also binds the
+  local answerer, council system/output constants and request dispatcher.
+  Three active-expression mutations reproduced false current-recipe matches;
+  default inspection now rejects them while historical pins preserve original
+  artifacts and identity. The 20-module guard passed source and isolated-wheel
+  mutation checks, both strict targets, and a second full offline run of
+  13,667 tests at 85.72% combined coverage. It does not claim full runtime
+  reproducibility or semantic acceptance.
+
+- [x] **Consult retrieval misses near-match evidence under on-topic noise
+  (2026-10-19):** with 60 distractor sources the diagnostic's
+  `near-match-version` case lost its v2 finding at retrieval. Literal token
+  overlap scored filler mentioning "agents" above a finding saying "agent
+  platform", and no position cited the finding. Measure any router change
+  against the diagnostic before adopting it; overlap may route, never decide.
+  See [the record](docs/validation/correction-survival-2026-10-19.md) and #264.
+  **Fixed 2026-10-19 as an opt-in:** `consult.embedding_model` fuses lexical
+  overlap with local embedding similarity. Both installed embedding models
+  recovered the miss at 60 distractors and changed nothing without them.
+  Default-on routing waits for reviewed answers (#259). See
+  [the design note](docs/design/consult-embedding-routing.md).
+
+- [ ] **Default-on embedding routing after correction review (2026-10-20):**
+  the optional router remains off by default. Completing #259's bounded
+  diagnostic does not admit default promotion. Its corrected semantic run had
+  no distractors, and changed fixture wording also changed lexical matching.
+  Require a separately reviewed, context-equivalent contrast under on-topic
+  noise before claiming a general routing benefit or changing that default.
 
 ## Quick Links
 

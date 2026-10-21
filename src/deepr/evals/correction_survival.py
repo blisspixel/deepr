@@ -76,6 +76,8 @@ _RECIPE_MODULES = (
     "deepr/experts/consult_context.py",
     "deepr/experts/consult_prompt.py",
     "deepr/experts/consult_response.py",
+    "deepr/experts/council.py",
+    "deepr/experts/council_synthesis_runtime.py",
     "deepr/experts/consult_routing.py",
     "deepr/backends/local.py",
     "deepr/backends/embedding_profiles.py",
@@ -83,6 +85,7 @@ _RECIPE_MODULES = (
     "deepr/observability/local_attempts.py",
     "deepr/evals/correction_survival.py",
     "deepr/evals/correction_survival_cases.py",
+    "deepr/evals/correction_survival_local.py",
     "deepr/evals/correction_survival_review.py",
 )
 

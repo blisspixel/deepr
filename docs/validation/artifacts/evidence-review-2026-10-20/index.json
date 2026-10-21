@@ -47,6 +47,12 @@
       "bytes": 418264,
       "evidence_files": 76,
       "manifest_sha256": "7bfb7602fced1a4e58aae521fcac1c944973b99db5b19cfa8b6fa05549fc00fc"
+    },
+    "generation-recipe-verification.tar.gz": {
+      "sha256": "c9d0c891516de91d8c93b6085b1984e64971b2d26200ac6a2fad51ce583d0138",
+      "bytes": 310580,
+      "evidence_files": 62,
+      "manifest_sha256": "53599f2680c157ffd645b8d418b42664c8988f467a34d7f2520822549e506b2d"
     }
   },
   "manifest_algorithm": "sha256",

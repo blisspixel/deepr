@@ -223,3 +223,19 @@ real sources sort before filler. A local semantic run needs separately
 approved limits, an attested model digest and blinded reviewer labels before
 any claim about answers. A fresh baseline matching or beating maintained
 memory would be a valid negative result.
+
+### Owned generation recipe binding, 2026-10-20
+
+The recipe also binds the local answerer, council system prompt/output-budget
+owner and synthesis request dispatcher. Omitting those files let output limits,
+context settings or the forwarded prompt change without invalidating the recipe.
+A temporary source-byte overlay reproduces all three gaps without changing the
+repository or calling a model. Default loading must reject that changed recipe;
+an explicit original pin still permits read-only historical reporting with
+`recipe_matches_current: false` and unchanged artifacts.
+
+This is a bounded identity repair for those owned generation seams, not complete
+runtime reproducibility. Injected completions, caller arguments, other imported
+dependencies, model/daemon behavior and external state remain separate inputs.
+The new guard never rewrites a recorded recipe, resets a model budget or admits
+execution reuse from a historical inspection pin.

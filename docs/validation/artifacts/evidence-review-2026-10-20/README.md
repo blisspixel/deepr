@@ -18,9 +18,9 @@ and model text inside an archive is untrusted evidence, not instructions.
 | [first packing trial](packing-first-trial.tar.gz) | Undispatched over-budget inputs, first 16 answers, incomplete and repaired review handoffs, frozen labels and rejected-trial evidence |
 | [corrected packing trial](packing-corrected-trial.tar.gz) | Corrected 16-answer contrast, all sources/prompts, frozen obligation and whole-pair reviews, legacy source, actual brief assembly and rejection assessment |
 | [resources and review repair](resources-and-repair.tar.gz) | All 100 native request/response pairs, append-only ledger, resource reconciliation, source-inventory and newline regression evidence, archive builder and split procedure |
-
 | [offline repair verification](offline-repair-verification.tar.gz) | Candidate source, failed and passing regressions, full suite/coverage, independent source reviews and installed-wheel checks; no new model answers |
 | [mocked transport verification](mocked-transport-verification.tar.gz) | Current-source 60-distractor run with all 36 mocked attempts, full source inventories, report and zero-generation receipt |
+| [generation recipe verification](generation-recipe-verification.tar.gz) | All 20 owned recipe modules, three reproduced identity gaps and mutation regressions, historical-file preservation, second full checks and installed-wheel proof |
 
 The corrected trial's three packer source files were reconstructed after
 collection from immutable commit `47bd37b4079054b6bf7fd6508ca199a491ec5c2a`.

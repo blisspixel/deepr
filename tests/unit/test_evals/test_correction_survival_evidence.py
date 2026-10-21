@@ -171,3 +171,55 @@ def test_legacy_zero_distractor_review_remains_case_bound(historical_run):
     items, _ = cs.blinded_review_packet(legacy, salt="known-base-world")
     assert len(items) == 3
     assert all(len(item["review_context"]["sources"]) == 1 for item in items)
+
+
+@pytest.mark.parametrize(
+    "owner,before,after",
+    [
+        ("deepr/experts/council.py", "_LOCAL_SYNTHESIS_OUTPUT_TOKENS = 8000", "_LOCAL_SYNTHESIS_OUTPUT_TOKENS = 7999"),
+        (
+            "deepr/experts/council_synthesis_runtime.py",
+            "LOCAL_SYNTHESIS_CONTEXT_TOKENS = 16384",
+            "LOCAL_SYNTHESIS_CONTEXT_TOKENS = 8192",
+        ),
+        ("deepr/evals/correction_survival_local.py", "user_prompt=prompt,", 'user_prompt=prompt + "changed",'),
+    ],
+)
+def test_owned_generation_change_invalidates_current_recipe_but_preserves_historical_read(
+    tmp_path, monkeypatch, owner, before, after
+):
+    from pathlib import Path
+
+    actual_root = Path(cs.__file__).resolve().parents[2]
+    overlay = tmp_path / "source"
+    for relative in {*cs._RECIPE_MODULES, owner}:
+        target = overlay / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((actual_root / relative).read_bytes())
+    monkeypatch.setattr(cs, "__file__", str(overlay / "deepr/evals/correction_survival.py"))
+    case = next(case for case in CASES if case.case_id == "historical")
+    root = tmp_path / "run"
+    run = asyncio.run(cs.run_diagnostic(root, cases=(case,)))
+    original = run["recipe_sha256"]
+    hashes = {
+        str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in root.rglob("*")
+        if path.is_file()
+    }
+    target = overlay / owner
+    text = target.read_text(encoding="utf-8")
+    assert before in text
+    target.write_text(text.replace(before, after, 1), encoding="utf-8")
+    assert cs.recipe_sha256() != original
+    with pytest.raises(cs.RunNotReusableError, match=r"different .*code"):
+        cs.load_run(root)
+    restored = cs.load_run(root, expected_recipe_sha256=original)
+    report = cs.build_report(restored)
+    assert report["recipe_sha256"] == original
+    assert report["recipe_matches_current"] is False
+    assert restored["code_identity"] == run["code_identity"]
+    assert {
+        str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in root.rglob("*")
+        if path.is_file()
+    } == hashes

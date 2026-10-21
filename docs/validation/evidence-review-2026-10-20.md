@@ -278,7 +278,7 @@ The separate private S0 key and unrelated research notes are excluded.
 
 ## Offline candidate verification
 
-The unreleased source candidate passed 13,664 unit tests, with 22 platform or
+The first source candidate (`f2043031`) passed 13,664 unit tests, with 22 platform or
 existing conditional skips and 377 warnings. Combined statement/branch coverage
 was 85.72%; a separate coverage report also cleared the unchanged 80% gate.
 The unit process had no API keys, disabled dotenv loading, and retained the
@@ -301,3 +301,31 @@ package. Declared isolated build tooling and the exact locked PyPI dependency
 resolved those environment failures without changing constraints. Failed logs
 remain retained. Final released-wheel and public-install checks must run again
 on the accepted release commit.
+
+## Generation recipe identity repair
+
+A final source review found that the recipe omitted the local answerer, council
+system-prompt/output-budget owner and synthesis dispatcher. Changes to these
+files could alter generation while leaving `recipe_matches_current` true.
+Three temporary source-overlay mutation regressions reproduced that gap before
+the repair. The recipe now binds all 20 declared owned modules, including those
+three generation seams. Historical pins remain read-only inspection authority;
+they do not permit execution reuse or rewrite an original recipe.
+
+After mutation, default loading refuses the old mock run, explicit original-pin
+reporting succeeds with a mismatch, and every run artifact remains unchanged.
+A fresh installed core wheel passes the same three mutation checks under the
+isolated interpreter. The actual retained 94-file v2 collection is also unchanged
+and readable under its original pin. This does not bind every imported
+dependency, injected completion, runtime argument, daemon behavior or external
+state; those remain separate reproducibility inputs.
+
+The second full offline run passed 13,667 tests, with 22 skips and 383 warnings,
+at 85.72% combined statement/branch coverage; the independent coverage report
+passed. Both strict targets, all repository gates and installed-wheel protocol
+checks passed again. The three new guards are metadata/inspection fixes and
+made no native model call. Their
+[verification archive](artifacts/evidence-review-2026-10-20/generation-recipe-verification.tar.gz)
+retains the failures, source bytes, mutation tests, source review and checks.
+The original eight archives remain unchanged. Semantic acceptance and release
+preparation are still pending the separate local-validation budget and review.
