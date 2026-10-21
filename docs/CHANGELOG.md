@@ -15,6 +15,9 @@ Release and issue acceptance records carry exact-main CI and public installation
 
 ### Fixed
 
+- Replace the literal consult word-cap parser's flagged unbounded whitespace
+  regex with a fixed directive match and explicit sentence-boundary checks.
+  Supported syntax, draft retention and call limits remain unchanged.
 - Fix the 2026-10-21 release-audit finding by updating development
   `virtualenv` 21.14.5 to 21.14.12 and its required `packaging` floor from
   26.2 to 26.3. The upstream patch covers CVE-2026-113725 and related

@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-_DIRECTIVE = re.compile(r"(?:^|(?<=[.!?])\s+)(?P<directive>Answer in at most (?P<max_words>[1-9][0-9]{0,4}) words\.)$")
+_DIRECTIVE = re.compile(r"(?P<directive>Answer in at most (?P<max_words>[1-9][0-9]{0,4}) words\.)$")
 _OTHER_WORD_REQUEST = re.compile(r"\bwords?\b", re.IGNORECASE)
 _COUNTING_RULE = "visible-whitespace-tokens-v1"
 
@@ -35,6 +35,8 @@ def response_form_contract(question: str) -> dict[str, Any]:
     if match is None or any(char in question for char in ('"', "'", "`", "\u2018", "\u2019", "\u201c", "\u201d")):
         return contract
     prefix = question[: match.start("directive")]
+    if prefix and (not prefix[-1].isspace() or not prefix.rstrip().endswith((".", "!", "?"))):
+        return contract
     line_prefix = prefix.rsplit("\n", 1)[-1]
     if "~~~" in question or (not line_prefix.strip() and (line_prefix.startswith("    ") or "\t" in line_prefix)):
         return contract

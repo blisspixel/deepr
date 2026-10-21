@@ -446,3 +446,23 @@ requirement for the retained compatible repairs. The v2.50.44 release and issue
 acceptance records own exact-main and public-install validation. Word adherence, brief judgment
 metadata and S0 remain active in ROADMAP. See the
 [final evidence record](../validation/evidence-followup-2026-10-21.md).
+
+### Literal form-parser hardening after CodeQL, 2026-10-21
+
+Exact candidate `821daba5` failed CodeQL on the new literal-cap parser
+(`py/polynomial-redos`, alert #247). The scanner flags the unbounded
+whitespace branch in a search over the caller question. The preceding
+punctuation lookbehind may already prevent overlapping whitespace matches;
+no exploitable slowdown is claimed from the alert alone. Remove that
+ambiguity by matching only the fixed final directive with a bounded numeric
+field, then checking the preceding whitespace and sentence terminator
+explicitly. This is an equivalent syntax boundary, not a meaning heuristic.
+
+Keep every supported/refused directive, quote/code refusal, hard word count,
+full-draft failure, prompt instruction and one-call behavior unchanged. Test
+long whitespace, adjacent text, leading indentation, alternate sentence
+terminators and malformed numeric fields. Compare both parsers over a fixed
+large synthetic string matrix without inference. The prior failed scan is
+retained; exact revised-head CodeQL must pass. Historical semantic recipes
+remain immutable; the final release recipe binds the hardened parser
+separately and does not promote the rejected consult candidate.

@@ -249,6 +249,26 @@ def test_literal_response_form_contract(question, limit):
 
 
 @pytest.mark.parametrize(
+    "prefix,admitted",
+    [
+        ("Question?" + " " * 20000, True),
+        ("Question!" + "\u2003" * 20000, True),
+        ("Question." + "\t" * 20000, True),
+        ("Question?", False),
+        ("Question" + " " * 20000, False),
+        (" " * 20000, False),
+        ("Question?\n" + " " * 20000, False),
+    ],
+)
+def test_literal_form_long_whitespace_preserves_sentence_and_code_boundaries(prefix, admitted):
+    from deepr.experts.consult_response import response_form_contract
+
+    contract = response_form_contract(prefix + "Answer in at most 180 words.")
+    assert contract["admission"] == ("admitted" if admitted else "not_admitted")
+    assert contract["max_words"] == (180 if admitted else None)
+
+
+@pytest.mark.parametrize(
     "status,error", [("completed", ""), ("truncated", "OutputLimit"), ("failed", "TransportFailure")]
 )
 def test_response_form_never_replaces_existing_failure_or_shortens_output(status, error):

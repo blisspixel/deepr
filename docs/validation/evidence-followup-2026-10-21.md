@@ -551,7 +551,8 @@ measurement is complete without a memory-benefit claim. Neither result promotes
 a policy or qualifies expert advice. A positive candidate result is not required
 to release compatible repairs with the rejected changes excluded. Word
 adherence, brief judgment metadata and S0 remain active ROADMAP findings.
-The v2.50.44 release candidate restores the declared `1d5ee` source recipe
+Before the separate parser hardening below, the v2.50.44 candidate restored the
+declared `1d5ee` source recipe
 `55d83ad8928ec52c6a00c7667ad7cce83c6b656b9b2430f0fabc50921960840d`.
 Full release checks validate that restored source separately from the archived
 candidates. Exact-main CI, public installation and final issue acceptance are
@@ -578,3 +579,27 @@ was deliberately interrupted before this resync; its log remains separate and
 is not a final-candidate pass. The restarted full suite validates the final
 locked environment. Windows execution remains part of exact-head hosted CI,
 not a claim from the Linux smoke.
+
+## Final literal parser hardening, 2026-10-21
+
+Candidate `821daba5` failed the PR CodeQL gate on the word-form parser
+([alert #247](https://github.com/blisspixel/deepr/security/code-scanning/247),
+`py/polynomial-redos`). The original annotation and failed check remain
+retained. The scanner flags an unbounded whitespace branch in a search over
+the caller question. The punctuation lookbehind may already prevent
+overlapping matches; this record does not claim a demonstrated exploit.
+
+The release instead matches a fixed final directive with a bounded numeric
+field and checks its preceding whitespace/sentence boundary explicitly. Quote,
+code, alternate word-request and indentation refusals remain unchanged.
+Thirty-four focused tests pass, including seven long-whitespace and boundary
+cases. No prompt guidance, word cap, clipping, retry, model call, budget or
+semantic policy changed. The rejected consult candidates remain excluded.
+
+This compatible syntax hardening changes only `consult_response.py` within
+the 20-module recipe. All other 22 release source dependencies remain identical
+to the restored baseline. The final recipe is
+`5ab6db17434987e29621e9cd48f1a7d0e63626659f74a3c6fb2b642717be77dd`;
+all historical trial recipes retain their original identities. Full tests and
+exact-head CodeQL validate the revised release separately; the earlier full
+unit run was deliberately interrupted and is not reported as a pass.
