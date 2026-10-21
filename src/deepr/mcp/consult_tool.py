@@ -40,6 +40,7 @@ CONSULT_EXPERTS_OUTPUT_SCHEMA: dict[str, Any] = {
         "synthesis_status": {"type": "string"},
         "synthesis_error_type": {"type": "string"},
         "synthesis_stop_reason": {"type": "string"},
+        "response_form": {"type": "object"},
         "cost_usd": {"type": "number", "minimum": 0},
         "capacity": {
             "type": "object",

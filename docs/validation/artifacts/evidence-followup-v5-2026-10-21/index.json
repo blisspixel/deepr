@@ -1,0 +1,26 @@
+{
+  "archives": {
+    "followup-01.tar.gz": {
+      "bytes": 489767,
+      "evidence_files": 185,
+      "manifest_sha256": "e38700f0a5d73d5401b32aec86b9707aaa829d79d326e50b38abcfe804717302",
+      "sha256": "7daeac97f0f8305fad7a63a5039cbd648a715632fb42469a1a4e85f6543125b5"
+    },
+    "followup-02.tar.gz": {
+      "bytes": 487281,
+      "evidence_files": 274,
+      "manifest_sha256": "d6185cb15230cfc28c0d75478dfb54ec500effb70b117267382c141f830a9a0d",
+      "sha256": "e0021e36c5789623a04e252a3528fbbc793f85b65ad328f7e6c6a4210094d0a8"
+    },
+    "followup-03.tar.gz": {
+      "bytes": 130371,
+      "evidence_files": 42,
+      "manifest_sha256": "77226c1f1caeee3f1f56bfb06d3e0d4a3f4406602a8714ca3046ca3a5e8b238e",
+      "sha256": "79452ee9eae30c2d52c0298ae90956f05f057e0973eb31c88be70c1cee972061"
+    }
+  },
+  "builder_sha256": "a3cee3bf842f40da99e466874441ca11a0f13851346bef64b9708151db0520f7",
+  "semantic_acceptance": null,
+  "source_bytes_preserved": true,
+  "source_files": 501
+}

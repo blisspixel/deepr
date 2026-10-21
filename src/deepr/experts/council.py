@@ -19,6 +19,7 @@ from deepr.experts.briefed_perspective import briefed_perspective_without_belief
 from deepr.experts.constants import MAX_COUNCIL_CONCURRENCY, SYNTHESIS_BUDGET_FRACTION, UTILITY_MODEL
 from deepr.experts.consult_lifecycle import ConsultLifecycleError
 from deepr.experts.consult_prompt import build_synthesis_packet, synthesis_delivery
+from deepr.experts.consult_response import admit_response_form
 from deepr.experts.council_synthesis_costs import (
     SynthesisCostBound,
     attach_synthesis_settlement,
@@ -916,6 +917,7 @@ class ExpertCouncil:
             "synthesis_error_type": synthesis.get("synthesis_error_type", ""),
             "synthesis_stop_reason": synthesis.get("stop_reason", ""),
             "context_delivery": synthesis.get("context_delivery", {}),
+            "response_form": synthesis.get("response_form", {}),
             "requested_budget_usd": budget,
             "total_cost": sum(perspective.cost for perspective in perspectives) + synthesis_cost,
         }
@@ -976,7 +978,7 @@ class ExpertCouncil:
                 pre_dispatch_callback=mark_dispatch_started,
             )
             return {
-                **_shape_synthesis_response(response),
+                **admit_response_form(query, _shape_synthesis_response(response)),
                 "context_delivery": synthesis_delivery(system_prompt, user_prompt, delivery_manifest),
             }
         except asyncio.CancelledError as error:

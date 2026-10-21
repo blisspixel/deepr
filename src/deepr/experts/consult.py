@@ -268,6 +268,7 @@ def build_consult_payload(question: str, result: dict[str, Any]) -> dict[str, An
         "synthesis_error_type": result.get("synthesis_error_type", "") or "",
         "synthesis_stop_reason": result.get("synthesis_stop_reason", "") or "",
         "context_delivery": dict(result.get("context_delivery") or {}),
+        "response_form": dict(result.get("response_form") or {}),
         "experts_consulted": [p.get("expert_name", "") for p in perspectives],
         "perspectives": shaped_perspectives,
         "agreements": list(result.get("agreements", []) or []),
@@ -307,7 +308,15 @@ def _dissent_handling(result: dict[str, Any]) -> dict[str, Any]:
     status = str(result.get("synthesis_status") or "")
     delivery = result.get("context_delivery")
     prompt = str(delivery.get("user_prompt") or "") if isinstance(delivery, dict) else ""
-    completed = status in {"", "completed", "truncated", "skipped_no_valid_perspectives"}
+    form = result.get("response_form") or {}
+    form_failure = bool(
+        status == "failed"
+        and result.get("synthesis_error_type") == "ResponseWordLimit"
+        and isinstance(form, dict)
+        and form.get("status") == "exceeded"
+        and prompt
+    )
+    completed = status in {"", "completed", "truncated", "skipped_no_valid_perspectives"} or form_failure
     omitted: list[str] = []
     if not items:
         input_status = "none_recorded"
@@ -317,7 +326,7 @@ def _dissent_handling(result: dict[str, Any]) -> dict[str, Any]:
         else:
             delivered_status = "not_delivered"
             preserved = False
-    elif status not in {"completed", "truncated"} or not prompt:
+    elif not (status in {"completed", "truncated"} or form_failure) or not prompt:
         input_status = "recorded"
         delivered_status = "not_delivered"
         omitted = list(items)
@@ -338,7 +347,7 @@ def _dissent_handling(result: dict[str, Any]) -> dict[str, Any]:
         else:
             delivered_status = "included"
             preserved = True
-    if status and status not in {"completed", "truncated", "skipped_no_valid_perspectives"}:
+    if status and status not in {"completed", "truncated", "skipped_no_valid_perspectives"} and not form_failure:
         delivered_status = "not_delivered"
         preserved = False
     return {

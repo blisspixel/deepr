@@ -58,6 +58,13 @@ identity and separately compare the current recipe; that comparison grants no
 execution, cache, review-label or semantic authority. See
 [historical review](../design/correction-survival-diagnostic.md#historical-review-after-a-code-update-2026-10-20-275).
 
+Blinded correction review also binds the scheduled case identity and rubric
+before handing over complete source bytes, observation dates and obligations.
+These guards establish which evidence the reviewer received. They cannot
+establish what an answer means or validate the fixture's interpretations.
+Independent source review exposed v1 fixture defects; corrected v2 inputs are
+prospective, while old answers and judgments remain separate.
+
 Rehearsal resource reporting also separates failed workers, returned calls,
 missing or invalid usage and attempts without call records. Non-negative
 integer counters are observations; other values remain unknown. Compatible
@@ -133,6 +140,24 @@ continuation." Several 2024-2026 taxonomies make the same point as discrete
 
 So autonomy is a **dial set per surface**, not a global setting, and choosing a
 low setting is a legitimate design decision, not a capability deficit.
+
+The 2026-10-20 material answer review adds two form boundaries: briefing admits
+complete finding payloads under an exact total prompt-character allowance, and
+consult synthesis checks a narrowly parsed literal final word-limit directive.
+Neither checks semantic preservation. Overlong drafts remain retained failures,
+with one synthesis call and unchanged accounting. Explicit forecast registration
+without probability has a scoring limitation; ordinary advice needs no invented
+likelihood or deadline. See the evidence selection design and dated review.
+
+The 2026-10-21 follow-ups exposed advice that promoted narrow observations
+into configuration commands. Proposed advice-strength guidance, query-group
+ordering/reservation and soft drafting targets were evaluated and rejected.
+A four-call cue-placement pilot also left unresolved whole-answer tradeoffs.
+Those changes are unshipped; the committed dependency packer and one-call
+hard-cap failure reporting remain. Word counts guard form, while calibrated
+review judges supported usefulness. Rejection completes the bounded comparison
+without granting policy acceptance or requiring a positive result to release
+compatible repairs. Word adherence, brief metadata and S0 remain active.
 
 ## The rule (where determinism belongs)
 
@@ -433,3 +458,10 @@ rows already displayed. It never classifies the question or grades advice.
 Terminal capability, scoped opt-outs and bounded active-work refresh guard
 presentation form only; routing, budgets, canonical writes and machine payloads
 keep their owning seams. See [the companion decision](../design/optional-companion.md).
+
+The rejected 2026-10-21 query-group and cue-placement designs remain historical
+proposals in [evidence selection](../design/evidence-selection-and-delivery.md).
+They do not change the shipped boundary: deterministic delivery and accounting
+receipts report what happened; source-grounded review judges meaning. Four
+pilot calls brought the task to 208 native attempts at `$0` direct provider API
+cost. Hardware and review-service usage/cost remain unknown.

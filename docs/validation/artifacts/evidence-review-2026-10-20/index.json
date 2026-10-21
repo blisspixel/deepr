@@ -1,0 +1,60 @@
+{
+  "archives": {
+    "correction-v1.tar.gz": {
+      "sha256": "fd295cb34c55fca052b9e21584aa41bc1f80e53e96978d14f0867bbc53538d82",
+      "bytes": 130070,
+      "evidence_files": 117,
+      "manifest_sha256": "30400ef6749ff53e73433e23a68c24050e3b675f0144a470d89bfdbc338b20b0"
+    },
+    "correction-v2.tar.gz": {
+      "sha256": "46c2a7bf22378d86ae81ce88a83acda8fadeaaf5ea65b9bf0d3c4e2009ba650d",
+      "bytes": 222157,
+      "evidence_files": 132,
+      "manifest_sha256": "6ff1614bdb47147a20fb28b3802c610bb74f16cec12a0eed7660b365a5607f65"
+    },
+    "packing-corrected-trial.tar.gz": {
+      "sha256": "6b0b4c5113c9d07821304e6fc8a5ad6611fde20d926b2556a02d9a5903f45545",
+      "bytes": 390105,
+      "evidence_files": 267,
+      "manifest_sha256": "33862de6a7a7a8260eb637b92a62bddcb3c53c639824f082b40bc2d3e9a7925c"
+    },
+    "packing-first-trial.tar.gz": {
+      "sha256": "905f534a8606b7d57357647399f1f0f1960c17926784b443befbcce68bcb70b2",
+      "bytes": 331723,
+      "evidence_files": 645,
+      "manifest_sha256": "fa599ee3bf846b0bc729016a86b07cc6378604263ec61040b2aada684521b537"
+    },
+    "protocol-and-review.tar.gz": {
+      "sha256": "a4d0b38319b7d7b4295ef589063acde7eab9aad2dc8db14bb1d734c6c4426f9e",
+      "bytes": 159495,
+      "evidence_files": 95,
+      "manifest_sha256": "61054a55c348a499c1ec682231d929768b9a5121a478aff4816216176909f0c1"
+    },
+    "resources-and-repair.tar.gz": {
+      "sha256": "aabdb3ace8cc19a9fa59cebd57dacec0631516cdc444b4420828423c8a6a6fad",
+      "bytes": 192500,
+      "evidence_files": 230,
+      "manifest_sha256": "16f89abe2da7206481980f999f2de1db98c148bec73addcd4b082dc358a929f5"
+    },
+    "mocked-transport-verification.tar.gz": {
+      "sha256": "dac27f106fdc382a18006d83b03b6da7d774e033307bb2920a9613f5b1d2eaed",
+      "bytes": 96988,
+      "evidence_files": 337,
+      "manifest_sha256": "6de2e2f43b4f7d4fad07dc9c397e861b06219fd1f6b49651f50bf1b2d149d9db"
+    },
+    "offline-repair-verification.tar.gz": {
+      "sha256": "c877e5e651d61550aa28fbaca036d3c5815728d4262491bbbddb757a4d9d9680",
+      "bytes": 418264,
+      "evidence_files": 76,
+      "manifest_sha256": "7bfb7602fced1a4e58aae521fcac1c944973b99db5b19cfa8b6fa05549fc00fc"
+    },
+    "generation-recipe-verification.tar.gz": {
+      "sha256": "c9d0c891516de91d8c93b6085b1984e64971b2d26200ac6a2fad51ce583d0138",
+      "bytes": 310580,
+      "evidence_files": 62,
+      "manifest_sha256": "53599f2680c157ffd645b8d418b42664c8988f467a34d7f2520822549e506b2d"
+    }
+  },
+  "manifest_algorithm": "sha256",
+  "source_bytes_preserved": true
+}

@@ -143,8 +143,10 @@ uncertainty, without quantification, reduce trust in both the number and the
 source. "There is uncertainty here" is worse than useless. A band with a basis
 is close to free.
 
-This is why the design bans the bare hedge rather than hedging. Every position
-states a likelihood or is flagged for not stating one.
+A forecast can state a likelihood with its basis. Standing definitions,
+documented behavior and engineering advice may leave likelihood and prediction
+registration empty. Missing probability is a scoring limitation only when an
+explicit prediction registration is present; it does not invalidate advice.
 
 ## What this does not do yet
 

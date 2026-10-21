@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.44] - 2026-10-21
+
+Compatible evidence-delivery and diagnostic-review repairs. The bounded
+comparison is complete as evaluated/rejected; no answer-quality promotion.
+Release and issue acceptance records carry exact-main CI and public installation.
+
+### Fixed
+
+- Replace the literal consult word-cap parser's flagged unbounded whitespace
+  regex with a fixed directive match and explicit sentence-boundary checks.
+  Supported syntax, draft retention and call limits remain unchanged.
+- Fix the 2026-10-21 release-audit finding by updating development
+  `virtualenv` 21.14.5 to 21.14.12 and its required `packaging` floor from
+  26.2 to 26.3. The upstream patch covers CVE-2026-113725 and related
+  activator fixes. Other locked packages remain unchanged.
+- Brief synthesis admits complete finding units under its declared total prompt
+  character ceiling, retains content hashes and omission reasons, and refuses
+  unusable framing before dispatch. It preserves the full study for drill-down.
+- Consults retain an overlong draft and its accounting as `ResponseWordLimit`
+  when a supported literal final word-cap directive is exceeded. CLI, MCP and
+  A2A expose the additive form receipt. No clipping, retry or extra synthesis
+  call is introduced. Form compliance does not establish answer quality.
+- Ordinary non-forecast advice no longer receives an invented missing-likelihood
+  scoring warning. Explicit prediction registration keeps its separate scoring
+  requirements.
+- Correction-diagnostic review packets include complete retained source worlds
+  and bind case, rubric and runtime-note inventories. Explicit LF output keeps
+  artifact hashes stable on Windows. Generation recipes also bind the council
+  and native diagnostic paths; historical inspection retains the original pin.
+
+### Validation
+
+- The bounded correction-survival measurement retains defective original cases,
+  corrected prospective inputs, complete attempt accounting and blinded review.
+  Its report separates delivery gaps from reading errors and makes no causal
+  memory-benefit, default embedding or S0 claim.
+- The #258 comparison is complete as evaluated/rejected; #259 is a completed
+  bounded measurement without a memory-benefit claim. V6 lost a known-warning
+  source; V7/V8 left material
+  requested-form failures despite some source-fidelity gains. A separate
+  four-call placement pilot returned two 119-word trailing answers and two
+  199-word leading failures, with both reviewers uncertain on both pairs.
+  Reject the placement and uncommitted V6-V8 consult candidates; retain the
+  shipped dependency packer and committed compatible repairs. All failed
+  trials remain evidence, with 208 total native attempts at `$0` direct provider
+  API cost and unknown review-service usage/cost. Word adherence, brief judgment
+  metadata and S0 remain active. See the
+  [original record](validation/evidence-review-2026-10-20.md) and
+  [follow-up](validation/evidence-followup-2026-10-21.md).
+
 ## [2.50.43] - 2026-10-20
 
 Compatible evidence-review, admission, accounting and interface repairs, with

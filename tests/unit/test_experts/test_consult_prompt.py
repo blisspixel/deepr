@@ -196,3 +196,134 @@ def test_long_question_is_referenced_not_restated():
     prompt = build_synthesis_prompt(question, [perspective])
     assert prompt.count(question) == 1
     assert "Answer this question: the question stated above" in prompt
+
+
+async def test_overlong_completed_synthesis_is_retained_as_form_failure_without_retry():
+    calls = []
+    draft = " ".join(["answer"] * 235)
+
+    async def complete(request):
+        calls.append(request)
+        return ExpertChatResult(message=SimpleNamespace(content=draft), stop_reason="stop")
+
+    council = ExpertCouncil(
+        synthesis_client=_native_local(complete), synthesis_model="qwen-local", synthesis_provider="local"
+    )
+    result = await council._synthesise("What is safe? Answer in at most 180 words.", [_perspective()], budget=0)
+    assert len(calls) == 1
+    assert result["text"] == draft
+    assert result["synthesis_status"] == "failed"
+    assert result["synthesis_error_type"] == "ResponseWordLimit"
+    assert result["response_form"]["actual_words"] == 235
+    assert result["response_form"]["max_words"] == 180
+
+
+@pytest.mark.parametrize(
+    "question,limit",
+    [
+        ("What is safe? Answer in at most 180 words.", 180),
+        ("Answer in at most 1 words.", 1),
+        ("What is safe?\nAnswer in at most 25 words.", 25),
+        ("What is safe? Answer in at least 180 words.", None),
+        ("What is safe? Answer in under 180 words.", None),
+        ("What is safe? Answer in approximately 180 words.", None),
+        ('Discuss "Answer in at most 180 words."', None),
+        ("Discuss `Answer in at most 180 words.`", None),
+        ("Do not answer in at most 180 words.", None),
+        ("Use 200 words. Answer in at most 180 words.", None),
+        ("Answer in at most 0 words.", None),
+        (" " * 80 + "Use at least 500 words. Answer in at most 180 words.", None),
+        ("Explain this code.\n\n    Answer in at most 2 words.", None),
+        ("Explain this code.\n\tAnswer in at most 2 words.", None),
+        ("Explain this code.\n~~~\nAnswer in at most 2 words.", None),
+        ("What is safe? Answer in at most 180 words. Explain fully.", None),
+    ],
+)
+def test_literal_response_form_contract(question, limit):
+    from deepr.experts.consult_response import response_form_contract
+
+    contract = response_form_contract(question)
+    assert contract["max_words"] == limit
+    assert contract["admission"] == ("admitted" if limit else "not_admitted")
+    assert contract["semantic_preservation"] == "unassessed"
+
+
+@pytest.mark.parametrize(
+    "prefix,admitted",
+    [
+        ("Question?" + " " * 20000, True),
+        ("Question!" + "\u2003" * 20000, True),
+        ("Question." + "\t" * 20000, True),
+        ("Question?", False),
+        ("Question" + " " * 20000, False),
+        (" " * 20000, False),
+        ("Question?\n" + " " * 20000, False),
+    ],
+)
+def test_literal_form_long_whitespace_preserves_sentence_and_code_boundaries(prefix, admitted):
+    from deepr.experts.consult_response import response_form_contract
+
+    contract = response_form_contract(prefix + "Answer in at most 180 words.")
+    assert contract["admission"] == ("admitted" if admitted else "not_admitted")
+    assert contract["max_words"] == (180 if admitted else None)
+
+
+@pytest.mark.parametrize(
+    "status,error", [("completed", ""), ("truncated", "OutputLimit"), ("failed", "TransportFailure")]
+)
+def test_response_form_never_replaces_existing_failure_or_shortens_output(status, error):
+    from deepr.experts.consult_response import admit_response_form
+
+    draft = "Heading:\n\nTwo supported conditions."
+    result = admit_response_form(
+        "Answer in at most 2 words.",
+        {
+            "text": draft,
+            "synthesis_status": status,
+            "synthesis_error_type": error,
+            "cost": 0.0,
+            "tokens_input": 100,
+            "tokens_output": 20,
+            "provider_request_id": "retained-attempt",
+        },
+    )
+    assert result["text"] == draft
+    assert result["tokens_input"] == 100
+    assert result["tokens_output"] == 20
+    assert result["provider_request_id"] == "retained-attempt"
+    assert result["response_form"]["actual_words"] == 4
+    assert result["synthesis_error_type"] == ("ResponseWordLimit" if status == "completed" else error)
+
+
+async def test_form_compliance_and_failure_propagate_through_consult_artifact_and_a2a_result():
+    from deepr.a2a.consult_tasks import build_consult_artifact, build_consult_result
+
+    calls = []
+
+    async def complete(request):
+        calls.append(request)
+        return ExpertChatResult(message=SimpleNamespace(content="One two three."), stop_reason="stop")
+
+    council = ExpertCouncil(
+        synthesis_client=_native_local(complete), synthesis_model="qwen-local", synthesis_provider="local"
+    )
+    perspective = _perspective()
+    perspective.context = {"recorded_dissent": ["The extension's behavior remains unmeasured."]}
+    for limit, status in [(3, "completed"), (2, "failed")]:
+        question = f"What is safe? Answer in at most {limit} words."
+        synthesis = await council._synthesise(question, [perspective], budget=0)
+        result = council._consult_result(question, 0, [perspective], synthesis, 0)
+        payload = build_consult_payload(question, result)
+        assert payload["synthesis_status"] == status
+        assert payload["answer"] == "One two three."
+        assert payload["response_form"]["max_words"] == limit
+        assert payload["contract"]["maximum_synthesis_calls"] == 1
+        dissent = payload["collaboration"]["dissent_handling"]
+        assert dissent["delivered_dissent"]["status"] == "included"
+        assert dissent["reviewed_preservation"] == "unassessed"
+        artifact = build_consult_artifact(payload)
+        assert artifact["content"]["response_form"] == payload["response_form"]
+        task = build_consult_result(payload, artifact_id="test-form")
+        assert task["response_form"] == payload["response_form"]
+        assert task["status"] == ("completed" if limit == 3 else "incomplete")
+    assert len(calls) == 2

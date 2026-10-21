@@ -138,8 +138,14 @@ def render_consult(payload: dict[str, Any], console: Console) -> None:
     console.print(Markdown(payload.get("answer") or "None recorded."))
     status = payload.get("synthesis_status") or "unknown"
     if status != "completed":
-        reason = payload.get("synthesis_stop_reason") or payload.get("synthesis_error_type") or "none recorded"
+        reason = payload.get("synthesis_error_type") if status == "failed" else payload.get("synthesis_stop_reason")
+        reason = (
+            reason or payload.get("synthesis_error_type") or payload.get("synthesis_stop_reason") or "none recorded"
+        )
         _text(console, f"Synthesis is incomplete: {status} ({reason}).")
+        form = payload.get("response_form") or {}
+        if reason == "ResponseWordLimit" and isinstance(form, dict):
+            _text(console, f"Response form: {form.get('actual_words')} words; maximum {form.get('max_words')}.")
     perspectives = payload.get("perspectives") or []
     _grounds(console, perspectives)
     _support(console, perspectives)

@@ -4,6 +4,13 @@ Scope: issue #259, first increment. Mock answers only: no model was called and
 no answer was reviewed. This records transport, stage receipts and accounting.
 It is not an answer-quality result, a memory-value claim or part of S0.
 
+Historical record: these statements describe the original v1 collection.
+Subsequent blinded review found source/fixture inconsistencies and completed
+its labels without changing the original run. The prospective v2 fixture has
+a different identity; inspect v1 with the retained compatible v2.50.43
+implementation and its explicit original recipe pin. Current code correctly
+refuses that old case set.
+
 ## Runs
 
 `deepr eval correction-survival` over case set `correction-survival-v1`

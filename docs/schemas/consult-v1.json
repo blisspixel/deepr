@@ -54,6 +54,10 @@
       "type": "string",
       "description": "Provider completion reason when available, including output-limit stops."
     },
+    "response_form": {
+      "type": "object",
+      "description": "Optional literal word-limit form receipt. Compliance does not establish semantic preservation; an overlong draft is retained with failed synthesis status."
+    },
     "experts_consulted": {"type": "array", "items": {"type": "string"}},
     "perspectives": {
       "type": "array",

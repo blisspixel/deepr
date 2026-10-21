@@ -119,3 +119,21 @@ def test_untrusted_rich_markup_is_literal():
     output = StringIO()
     render_consult(payload, Console(file=output, width=80))
     assert "[bold]not markup[/bold]" in output.getvalue()
+
+
+def test_word_form_failure_shows_typed_error_and_count_without_clipping():
+    payload = packet()
+    payload.update(
+        synthesis_status="failed",
+        synthesis_stop_reason="stop",
+        synthesis_error_type="ResponseWordLimit",
+        response_form={"status": "exceeded", "actual_words": 235, "max_words": 180},
+    )
+    before = deepcopy(payload)
+    output = StringIO()
+    render_consult(payload, Console(file=output, width=160, force_terminal=False))
+    rendered = output.getvalue()
+    assert "ResponseWordLimit" in rendered
+    assert "235 words" in rendered and "180" in rendered
+    assert "FINAL SENTENCE." in rendered
+    assert payload == before

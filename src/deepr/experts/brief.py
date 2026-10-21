@@ -45,11 +45,11 @@ from deepr.experts.brief_contracts import (
     SourceCredibility,
 )
 from deepr.experts.brief_selection import (
+    MAX_BRIEF_PROMPT_CHARS,
+    BriefPromptAdmissionError,
     BriefSelection,
+    admit_complete_findings,
     render_payload_fields,
-    seal_selection,
-    select_findings,
-    start_selection,
 )
 from deepr.experts.consult_support import study_fingerprint
 from deepr.experts.corpus_store import CorpusStore
@@ -168,11 +168,35 @@ def brief_prompt_with_selection(
     domain: str = "",
     prior_positions: list[Any] | None = None,
     as_of_date: date | None = None,
+    max_prompt_chars: int = MAX_BRIEF_PROMPT_CHARS,
 ) -> tuple[str, BriefSelection]:
     """The synthesis prompt and the receipt of which findings it carries."""
-    findings = select_findings(result)
-    selection = start_selection(result, findings, study_fingerprint(result))
-    rendered = "\n".join(_render_finding(f, selection) for f in findings)
+    rendered_units = {id(finding): _render_finding(finding) for finding in result.findings}
+    effective_date = as_of_date or _utc_today()
+
+    def render(findings: list[StudyFinding], selection: BriefSelection) -> str:
+        return _render_brief_prompt(
+            expert_name=expert_name,
+            domain=domain,
+            prior_positions=prior_positions,
+            as_of_date=effective_date,
+            rendered="\n".join(rendered_units[id(finding)] for finding in findings),
+            selection=selection,
+        )
+
+    return admit_complete_findings(result, study_fingerprint(result), render, max_prompt_chars)
+
+
+def _render_brief_prompt(
+    *,
+    expert_name: str,
+    domain: str,
+    prior_positions: list[Any] | None,
+    as_of_date: date,
+    rendered: str,
+    selection: BriefSelection,
+) -> str:
+    """Render the entire envelope so admission counts instructions and notices."""
     prior_block = _prior_positions_block(list(prior_positions or []))
     today = (as_of_date or _utc_today()).isoformat()
     dissent_note = _dissent_note(selection) + _omission_note(selection)
@@ -259,7 +283,7 @@ Return JSON only, no prose outside it, with this shape:
 {rendered}
 ===== FINDINGS END =====
 """
-    return prompt, seal_selection(selection, prompt)
+    return prompt
 
 
 def _as_list(value: Any) -> list[str]:
@@ -493,6 +517,7 @@ async def build_brief(
     domain: str = "",
     prior_positions: list[Any] | None = None,
     as_of_date: date | None = None,
+    max_prompt_chars: int = MAX_BRIEF_PROMPT_CHARS,
 ) -> ExpertBrief:
     """Synthesize one brief at the supplied cutoff or the current UTC date.
 
@@ -510,13 +535,20 @@ async def build_brief(
         return brief
 
     effective_date = as_of_date or _utc_today()
-    prompt, selection = brief_prompt_with_selection(
-        result,
-        expert_name=expert_name,
-        domain=domain,
-        prior_positions=prior_positions,
-        as_of_date=effective_date,
-    )
+    try:
+        prompt, selection = brief_prompt_with_selection(
+            result,
+            expert_name=expert_name,
+            domain=domain,
+            prior_positions=prior_positions,
+            as_of_date=effective_date,
+            max_prompt_chars=max_prompt_chars,
+        )
+    except BriefPromptAdmissionError as exc:
+        brief = ExpertBrief(expert_name=expert_name, generated_from_findings=len(result.findings))
+        brief.limitations.append(str(exc))
+        _record_selection(brief, exc.selection)
+        return brief
     try:
         raw = await completion(prompt)
     except Exception as exc:
