@@ -16,7 +16,10 @@ correction-survival diagnostic. v2.50.40 closes the cross-verb belief
 overwrite race, silent long local runs, MoE/hybrid KV overestimates and the
 contrast-phrase contradiction label, and partially corrects consult length
 adherence. Exact-main CI and public installation are release acceptance
-checks. S0 and semantic review stay separate.
+checks. v2.50.44 records the completed bounded correction measurement and
+evaluated/rejected packing comparison with compatible repairs. Completed #258
+and #259 work is in the changelog; rejected candidates remain unshipped and S0
+remains open.
 
 - [ ] **v2.51 is S0.** Locate the frozen source worlds, policy and case inventory,
   then run the 48-cell local rehearsal. Preserve the earlier failed runs
@@ -73,6 +76,17 @@ stay blocked.
 
 ## First-run consistency
 
+- [ ] **Brief judgment metadata and revision checks (2026-10-21):** the
+  retained V5 brief review found forecast likelihoods and check dates attached
+  to standing guidance, raw orientation text inconsistent with its statement
+  list, and hypothetical revision checks that do not necessarily falsify the
+  stated condition. Both methods share defects; preserving the warning and
+  renewal prerequisite does not qualify every generated field. Retain the
+  raw and assembled views, inspect the owning brief prompt/assembly seams,
+  and freeze source-grounded semantic review before claiming these resolved.
+  Do not replace judgment with keyword verdicts. See the
+  [follow-up evidence](docs/validation/evidence-followup-2026-10-21.md).
+
 - [ ] **Replacement rehearsal maintenance timeout (2026-10-20):** the
   pinned local model passed its short warm-up, but third-world maintenance
   reached the unchanged 600-second call limit. Its last completed checkpoint
@@ -106,89 +120,11 @@ stay blocked.
   235 words against 180 while its legacy counterpart used 163. Narrow literal
   word-form admission now retains an overlong draft as a typed failure, with
   count/cap visible in CLI/MCP/A2A and one synthesis call. This does not prove
-  useful concise advice; prospective semantic validation remains pending.
-
-- [ ] **Evidence selection and delivery across briefing and consult packing
-  (#258, 2026-10-19):** record which study findings, qualifications and
-  disagreements reach each bounded prompt, select whole units by a named
-  policy, and report missing support exactly.
-  **2026-10-19 briefing increment:** brief synthesis now takes whole findings
-  one lens at a time instead of the first 120 in lens order, marks every
-  shortened field, drops citations to findings it was not shown, and records
-  presented, omitted and shortened ids with the prompt hash on the brief. On
-  synthetic default-lens studies of 240 or more findings the old prefix showed
-  2 to 4 of 8 lenses and no contention finding; balanced selection shows all 8.
-  No retained real study here exceeds seven findings, and the semantic effect
-  is untested.
-  **2026-10-19 consult packing increment:** each position is packed with the
-  findings it cites, stances are reserved before evidence, missing support is
-  named per position, the omission notice is bounded, and the consult artifact
-  records a per-position delivery manifest. Across 1,200 seeded contexts no
-  kept position lost evidence silently (the old packer did so for 225 to 828
-  per budget); at tight budgets fewer standalone findings fit. Remaining: a
-  blinded semantic comparison of both packers under the same allowance. See
-  [the design note](docs/design/evidence-selection-and-delivery.md).
-  **2026-10-20 review findings:** retain the first 16-answer comparison,
-  including its truncated brief, incomplete initial reviewer source handoff
-  and ambiguous fixture scope. It is not accepted as a clean contrast. A
-  separately audited correction includes every source and delivered prompt,
-  clarifies the obligations, and uses a larger shared briefing output
-  allowance within the original total call/time ceilings. All 16 corrected
-  responses completed, with 36 obligation labels frozen before unblinding.
-  The independent whole-answer audit rejected acceptance: current packing
-  materially worsened one concise answer, and both methods lost the source's
-  renewal-validation prerequisite. Counts do not qualify useful advice.
-  **2026-10-20 repair pending validation:** complete finding admission now
-  replaces field-prefix clipping under an exact declared total prompt bound;
-  receipts bind finding content and omission reasons. Unusable input refuses
-  before completion. Non-forecast advice no longer receives a false missing-
-  likelihood warning. Focused tests and independent source reviews pass, but
-  a separately authorized prospective contrast is still required. Preserve
-  the failed trials and see [the dated record](docs/validation/evidence-review-2026-10-20.md).
-
-- [ ] **Correction survival across source history and production answers
-  (#259, 2026-10-19):** trace each correction obligation from source through
-  study, briefing, retrieval and prompt delivery to the reviewed answer.
-  **2026-10-19 first increment:** `deepr eval correction-survival` runs a
-  frozen 11-case, 3-world set through the production path, an oracle packet and
-  a fresh source read at `$0` with mock answers, with stage receipts, complete
-  attempt accounting, completion-marked runs and blinded label binding. Open:
-  a separately approved local semantic run with an attested model digest and
-  blinded reviewer labels; no answer-quality claim exists yet. See
-  [the design note](docs/design/correction-survival-diagnostic.md).
-  **2026-10-19 local answers:** `--local-model` answers through the production
-  consult prompt with the digest pinned per call. The first `qwen3.8:27b` run
-  completed 36 of 36 attempts at `$0`; a blinded review packet is ready and
-  unlabelled.
-  **2026-10-20 accounting repair:** query/document routing and later attempts
-  share a pinned embedding digest, resolved profile and vector dimension.
-  Identity changes refuse ranking and disclose lexical fallback. Attempts now
-  retain configured/effective routes, canonical local embedding receipt
-  references, unknown usage and separate routing, answer and total-attempt
-  times. Deterministic regressions cover delayed routing, tag/dimension changes
-  and failed/refused/unsettled calls. Blinded answer review remains open; no
-  semantic acceptance or default promotion follows. See
-  [the repair contract](docs/design/consult-embedding-routing.md#identity-and-diagnostic-accounting-repair-2026-10-20-259).
-  **2026-10-20 bounded measurement complete, release pending:** the original
-  source-grounded review exposed incompatible macOS coverage and unsupported
-  fixture interpretations; preserve it. The independently audited v2 trial
-  completed all 36 answers with 60 frozen obligation labels and six blind
-  adjudications. Production: 19 correctly used and one appropriately deferred;
-  oracle: 16 correctly used and four misapplied; fresh: 18 correctly used, one
-  deferred and one misapplied. These are obligation counts, not whole-answer
-  grades or a causal memory benefit. Actual prompt inspection separates oracle
-  assembly gaps from attribution and extrapolation failures. Source-inventory
-  binding and UTF-8/LF repairs have regression evidence. The final release,
-  public-install verification and acceptance comments remain. See
-  [the dated record](docs/validation/evidence-review-2026-10-20.md).
-  **2026-10-20 generation identity repair:** the recipe now also binds the
-  local answerer, council system/output constants and request dispatcher.
-  Three active-expression mutations reproduced false current-recipe matches;
-  default inspection now rejects them while historical pins preserve original
-  artifacts and identity. The 20-module guard passed source and isolated-wheel
-  mutation checks, both strict targets, and a second full offline run of
-  13,667 tests at 85.72% combined coverage. It does not claim full runtime
-  reproducibility or semantic acceptance.
+  useful concise advice. **2026-10-21 still active:** V7/V8 soft drafting
+  targets failed the comparison; the four-call placement pilot met the hard
+  cap only with unresolved whole-answer tradeoffs. Reject those unshipped
+  candidates and retain every draft. A useful answer inside its requested form
+  remains unresolved; see the [follow-up](docs/validation/evidence-followup-2026-10-21.md).
 
 - [x] **Consult retrieval misses near-match evidence under on-topic noise
   (2026-10-19):** with 60 distractor sources the diagnostic's
@@ -875,7 +811,13 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.43)
+## Current Status (v2.50.44)
+
+v2.50.44 records #258 as evaluated/rejected and #259 as a completed bounded
+measurement, retaining compatible repairs without a memory-benefit or semantic
+policy claim. Matching release and issue acceptance records carry exact-main CI
+and public-install evidence.
+The active word-adherence, brief metadata and S0 findings are unchanged.
 
 v2.50.43 closes the compatible source-repair bundle: explicit admission for
 absorption merges, pinned embedding identity and accounting, retained-run
@@ -4250,7 +4192,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.43. This roadmap keeps
+v2.50.44. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 

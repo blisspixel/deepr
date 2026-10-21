@@ -149,6 +149,16 @@ with one synthesis call and unchanged accounting. Explicit forecast registration
 without probability has a scoring limitation; ordinary advice needs no invented
 likelihood or deadline. See the evidence selection design and dated review.
 
+The 2026-10-21 follow-ups exposed advice that promoted narrow observations
+into configuration commands. Proposed advice-strength guidance, query-group
+ordering/reservation and soft drafting targets were evaluated and rejected.
+A four-call cue-placement pilot also left unresolved whole-answer tradeoffs.
+Those changes are unshipped; the committed dependency packer and one-call
+hard-cap failure reporting remain. Word counts guard form, while calibrated
+review judges supported usefulness. Rejection completes the bounded comparison
+without granting policy acceptance or requiring a positive result to release
+compatible repairs. Word adherence, brief metadata and S0 remain active.
+
 ## The rule (where determinism belongs)
 
 Three sources that look like they conflict resolve into one principle.
@@ -448,3 +458,10 @@ rows already displayed. It never classifies the question or grades advice.
 Terminal capability, scoped opt-outs and bounded active-work refresh guard
 presentation form only; routing, budgets, canonical writes and machine payloads
 keep their owning seams. See [the companion decision](../design/optional-companion.md).
+
+The rejected 2026-10-21 query-group and cue-placement designs remain historical
+proposals in [evidence selection](../design/evidence-selection-and-delivery.md).
+They do not change the shipped boundary: deterministic delivery and accounting
+receipts report what happened; source-grounded review judges meaning. Four
+pilot calls brought the task to 208 native attempts at `$0` direct provider API
+cost. Hardware and review-service usage/cost remain unknown.

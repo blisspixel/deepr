@@ -6,6 +6,10 @@ remains despite better delivery of some individual obligations. The repairs
 below have offline evidence; their prospective semantic comparison is pending.
 Neither issue is closed and this record makes no release or S0 claim.
 
+The [2026-10-21 follow-up](evidence-followup-2026-10-21.md) preserves a second
+negative comparison and the subsequent consult repair. This earlier record and
+its nine evidence archives remain unchanged apart from this dated cross-link.
+
 ## Method and review limits
 
 The task uses owned local Ollama generation with paid provider API calls

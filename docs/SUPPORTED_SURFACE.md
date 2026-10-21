@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.50.43 current main, 2026-10-20. This document defines what users and host
+Status: v2.50.44 current main, 2026-10-21. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -28,14 +28,22 @@ checks the actual target id/text under the existing store lock. Existing cost
 ceilings still bound verification; model accuracy and historical data repair
 are not established. See [the contract](design/absorption-dedup-admission.md).
 
-**Unreleased evidence-review candidate:** briefing admits complete finding units
-within an exact declared prompt-character ceiling and records content hashes and
-omission reasons. A narrow literal consult word cap can produce a retained typed
-form failure, with one synthesis call and unchanged spend authority. Ordinary
-non-forecast advice does not require invented likelihoods. These source repairs
-have offline evidence; the [dated comparison](validation/evidence-review-2026-10-20.md)
-failed semantic acceptance and its prospective repair comparison is pending.
-The current published release remains v2.50.43.
+**v2.50.44 evidence closeout:** committed repairs admit complete
+brief findings under a declared prompt-character ceiling, retain content hashes
+and omission reasons, report narrow literal consult word-cap failures with the
+full draft and accounting, and avoid an invented missing-likelihood warning for
+ordinary advice. The shipped dependency packer remains. No extra query-group
+ordering/reservation, soft drafting target or added advice-strength instruction
+is adopted from the rejected V6-V8 candidate. The four-call placement pilot was
+also rejected for unresolved whole-answer tradeoffs. The
+[original measurement](validation/evidence-review-2026-10-20.md) and
+[follow-up](validation/evidence-followup-2026-10-21.md) complete the bounded
+measurement and evaluated/rejected comparison; they establish no memory win,
+general answer quality or S0 acceptance. The task retains 208 native attempts
+at `$0` direct provider API cost, with review-service cost unknown. Word
+adherence and brief judgment metadata remain active findings. Exact-main CI
+and public-install evidence belong to the matching release and issue acceptance
+records.
 
 **v2.50.43 rehearsal reporting repair:** JSON and final CLI output disclose
 failed workers and calls with unobserved token usage. Phase resources retain

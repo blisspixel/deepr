@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.50.43-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.43)
+[![Version](https://img.shields.io/badge/version-2.50.44-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.44)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -306,16 +306,22 @@ for tested behavior and the distinction from draft standards and host certificat
 
 ## Direction
 
-v2.50.43 repairs local embedding identity and accounting, requires an explicit
-SAME verdict before absorption merges, and discloses failed rehearsal phases
-and unknown usage. It also corrects frozen dashboard guidance and affected
-dependencies. See [the changelog](docs/CHANGELOG.md#25043---2026-10-20).
+v2.50.44 repairs complete finding admission, consult form-failure reporting and
+source-complete diagnostic review. It publishes the completed negative packing
+comparison while retaining the shipped dependency packer. See
+[the changelog](docs/CHANGELOG.md#25044---2026-10-21).
 
 The [2026-10-20 development review](docs/validation/evidence-review-2026-10-20.md)
-completed the bounded correction diagnostic and rejected the packing comparison
-on material answer regressions. It preserves all failed trials and accounting.
-Source repairs have offline verification; prospective semantic acceptance and
-the next release remain pending. This does not qualify expert advice or S0.
+completed the bounded correction measurement without establishing a memory win.
+The [2026-10-21 follow-up](docs/validation/evidence-followup-2026-10-21.md)
+completes the packing comparison as evaluated and rejected, including a four-call
+placement pilot. The task retains 208 native attempts at `$0` direct provider API
+cost; review-service usage and cost remain unknown. The rejected consult guidance,
+group-ordering/reservation and soft-target candidates are unshipped. Compatible
+committed repairs and the shipped dependency packer remain. v2.50.44
+records this closeout; release and issue acceptance records carry exact-main CI
+and public-install verification.
+Word adherence, brief judgment metadata and S0 remain active work.
 
 `deepr eval correction-survival-report` provides
 read-only inspection of completed diagnostics by an explicit recorded recipe

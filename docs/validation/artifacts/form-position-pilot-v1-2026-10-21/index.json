@@ -1,0 +1,14 @@
+{
+  "archives": {
+    "followup-01.tar.gz": {
+      "bytes": 334297,
+      "evidence_files": 154,
+      "manifest_sha256": "c8a136b059c44362fd351ccb00d6fd28ee8606cd00d2231f8c16702ee1925844",
+      "sha256": "b7449519fbf7e64eee5ca76076a45c6b357d20884aa5070e564c76c2a0fe93da"
+    }
+  },
+  "builder_sha256": "340aedebfd6e2df989269d32fb3b82a161a4ce1e45fca6aac594009d330da59b",
+  "semantic_acceptance": null,
+  "source_bytes_preserved": true,
+  "source_files": 154
+}
