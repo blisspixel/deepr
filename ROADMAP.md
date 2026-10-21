@@ -71,6 +71,20 @@ stay blocked.
 
 ## First-run consistency
 
+- [x] **Historical correction-diagnostic review (#275, 2026-10-20):** the
+  retained 36-answer run still matches the frozen case set, but a code update
+  makes the default current-recipe loader refuse it. Support explicitly
+  pinned read-only inspection with all existing completion and artifact
+  checks; retain original recipe identity and distinguish the current code.
+  Do not regenerate answers or bypass verification to prepare review. This
+  repairs review continuity only; #258/#259 and S0 remain open. See
+  [the design](docs/design/correction-survival-diagnostic.md#historical-review-after-a-code-update-2026-10-20-275).
+  **2026-10-20 verified:** the Unreleased read-only command reports all 36
+  retained attempts by their original recipe pin, with all 96 files unchanged.
+  The 51 focused checks and 13,611 offline unit tests pass; the independent
+  combined coverage score is 85.69%. See
+  [the validation record](docs/validation/historical-diagnostic-review-2026-10-20.md).
+
 - [ ] **Frozen dashboard guidance (#278, 2026-10-20):** actual production
   theme checks show Research Studio correctly blocks paid dispatch but also
   tells a user without an OpenAI key to add it and restart before submitting.

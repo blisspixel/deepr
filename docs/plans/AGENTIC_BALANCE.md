@@ -51,6 +51,13 @@ inspection preflight remains read-only. Rehearsal mirrors those same events
 without creating another attempt. These receipts prove recorded execution facts,
 not answer quality. See [native local accounting](../design/native-local-attempt-accounting.md).
 
+Historical correction-diagnostic inspection requires an explicit recorded recipe
+hash while retaining completion, case-set, denominator and artifact checks.
+The default loader still requires current code. Reports preserve original
+identity and separately compare the current recipe; that comparison grants no
+execution, cache, review-label or semantic authority. See
+[historical review](../design/correction-survival-diagnostic.md#historical-review-after-a-code-update-2026-10-20-275).
+
 Rehearsal resource reporting also separates failed workers, returned calls,
 missing or invalid usage and attempts without call records. Non-negative
 integer counters are observations; other values remain unknown. Compatible

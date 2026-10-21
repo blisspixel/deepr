@@ -120,3 +120,24 @@ def eval_correction_survival(
     else:
         click.echo(rendered)
         click.echo(f"Saved {output_dir}")
+
+
+@evaluate.command("correction-survival-report")
+@click.option("--run-dir", type=click.Path(exists=True, file_okay=False, path_type=Path), required=True)
+@click.option("--recipe-sha256", required=True, help="Full recorded recipe hash from the retained experiment's record.")
+@click.option("--json", "json_output", is_flag=True, help="Emit the verified report as JSON.")
+def correction_survival_report(run_dir: Path, recipe_sha256: str, json_output: bool) -> None:
+    """Inspect a completed diagnostic by its pinned recipe, without generation or writes.
+
+    Completion, case-set and artifact hashes must verify. The report preserves
+    original identity and shows whether the recipe matches current code.
+    Answer quality remains unreviewed.
+    """
+    from deepr.evals.correction_survival import RunNotReusableError, build_report, load_run, render_report
+
+    try:
+        run = load_run(run_dir, expected_recipe_sha256=recipe_sha256)
+    except (RunNotReusableError, ValueError, OSError) as error:
+        raise click.ClickException(str(error)) from error
+    report = build_report(run)
+    click.echo(json.dumps(report, indent=2, sort_keys=True) if json_output else render_report(report))

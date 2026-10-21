@@ -60,7 +60,9 @@ answer this. This diagnostic is separate from the frozen S0 pilot in
   re-verified. `load_run` refuses a run without it, with altered files, or
   produced from another case set or recipe; an answer file alone is never a
   completed run. It also refuses a run whose recorded attempts differ from
-  the scheduled count.
+  the scheduled count. Historical read-only inspection can instead require an
+  explicit recorded recipe pin, as described below; the default current-code
+  guard remains unchanged.
 - **Blinded review.** `blinded_review_packet` lists answers under salted
   opaque ids with no arm names. `bind_review_labels` accepts a label only for
   a known item, obligation and exact answer hash, from the closed label set,
@@ -96,6 +98,39 @@ Legacy records have unknown routing/total times, never fabricated zeros. Recipe
 identity now includes the embedding backend/profile and native attempt recorder;
 retained old runs are not rewritten. See
 [the design decision](consult-embedding-routing.md#identity-and-diagnostic-accounting-repair-2026-10-20-259).
+
+## Historical review after a code update (2026-10-20, #275)
+
+The retained 36-answer run still has the frozen case-set identity, but the
+routing/accounting repair changed the recipe hash. The default `load_run`
+correctly refuses it as a current-code result. Review must nevertheless remain
+possible without regenerating answers or reading raw JSON around the verifier.
+
+Add an optional, explicit `expected_recipe_sha256` to the existing loader.
+Omitting it still requires the current recipe. Supplying it requires exactly
+64 lowercase hexadecimal characters and an exact match with the recorded
+recipe. This is artifact inspection, not execution or cache admission. All
+existing completion-marker, current case-set, scheduled-count and prompt/answer
+file-hash checks remain mandatory. A changed case set still requires the
+original implementation; this increment does not invent an archived schema
+interpreter or reconstruct missing inputs.
+
+Expose `deepr eval correction-survival-report --run-dir DIR --recipe-sha256 SHA`
+as a read-only command. It cannot construct a completion or router, create a
+run, write a report, alter a ledger or bind labels. The operator obtains the pin
+from the retained experiment's known record, rather than inferring that an
+arbitrary changed run is current. Reports retain recorded code/recipe identity
+and separately show the current recipe and its exact equality comparison.
+Identity equality is not a verdict on answers, code compatibility or quality.
+Reports remain operator artifacts; reviewers continue using the existing
+blinded packet with its assignment key withheld.
+
+Reject a `skip_checks` switch: it would also lose artifact and case binding.
+Reject changing the historical recipe or rewriting the old run to resemble
+current execution. Do not relax the default guard or rerun inference merely to
+produce reviewable artifacts. Reproduce changed-code loading with synthetic
+completion output, then exercise the actual retained run by its original pin,
+without viewing answer text, opening an assignment key or adding labels.
 
 ## Decisions and alternatives rejected
 
