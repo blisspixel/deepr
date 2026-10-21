@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.50.42 current main, 2026-10-19. This document defines what users and host
+Status: v2.50.43 current main, 2026-10-20. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -9,21 +9,26 @@ provider prepaid-no-overage or hard-stop evidence. Attended OpenRouter research
 is the exception: one pinned no-tool completion after wallet credits and
 `deepr budget authorize openrouter`.
 
-**Unreleased routing repair:** opt-in embedding routing pins one digest,
+**v2.50.43 dashboard guidance repair:** Research Studio keeps its preview,
+drafts and estimates without recommending an API key as a way to submit.
+Keys and funded local accounting do not admit dashboard paid dispatch; the
+existing unavailable state and local CLI guidance remain in effect (#278).
+
+**v2.50.43 routing repair:** opt-in embedding routing pins one digest,
 resolved profile and vector dimension across query/document calls and later
 rankings. Identity changes use disclosed lexical fallback. Correction-survival
 attempts retain configured/effective routes, canonical local attempt references,
 unknown usage and separate routing, answer and total-attempt times. These are
 identity/accounting checks; answer review and default promotion remain open.
 
-**Unreleased absorption repair:** every report-absorption merge requires an
+**v2.50.43 absorption repair:** every report-absorption merge requires an
 explicit SAME model verdict, including near-identical wording. Disabled,
 unavailable or malformed verification preserves separate claims. The commit
 checks the actual target id/text under the existing store lock. Existing cost
 ceilings still bound verification; model accuracy and historical data repair
 are not established. See [the contract](design/absorption-dedup-admission.md).
 
-**Unreleased rehearsal reporting repair:** JSON and final CLI output disclose
+**v2.50.43 rehearsal reporting repair:** JSON and final CLI output disclose
 failed workers and calls with unobserved token usage. Phase resources retain
 known token subtotals and returned-call counts. Totals explicitly cover workers;
 warm-up stays in the run metadata and native ledger. Operational completion
@@ -738,7 +743,7 @@ must not be described as usable capacity.
   effective routes, local embedding receipt references and unknown usage per
   attempt; reports separate answer-only, routing and total-attempt latency.
   Shared world/study/brief setup and artifact writes are outside that total.
-- Unreleased: `deepr eval correction-survival-report --run-dir DIR
+- v2.50.43: `deepr eval correction-survival-report --run-dir DIR
   --recipe-sha256 SHA [--json]` verifies and reports retained diagnostic
   artifacts without generation or writes. The required full recorded recipe
   pin permits historical inspection while the default Python loader still

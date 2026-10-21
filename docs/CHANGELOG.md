@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.43] - 2026-10-20
+
+Compatible evidence-review, admission, accounting and interface repairs, with
+patched dependencies. Semantic answer review and the S0 baseline remain open.
+
 ### Fixed
 
 - Keep completed correction diagnostics reviewable after recipe-code updates
@@ -20,6 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   as locked environments. Update Certifi to 2026.10.19, follow-redirects to
   1.16.1 and Vite to 8.1.6 for the newly reported dependency advisories,
   retaining TLS verification and the existing audit gates (#277).
+
+- Remove the Research Studio banner that recommended adding an OpenAI key
+  before submitting while dashboard dispatch is unavailable. Drafts, cost
+  estimates and blocked submission remain intact with missing or present keys,
+  funded accounting and unknown money state (#278).
 
 - Disclose failed rehearsal workers and calls with unknown token usage in JSON
   and the final CLI summary. Token values are explicitly reported worker
@@ -38,6 +48,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   usage and separate routing, answer and total-attempt latency (#259).
 
 ### Documentation
+
+- Point roadmap contribution steps to the canonical operating manual and its
+  source-scoped checks, preserving unrelated fixture bytes.
 
 - Archive the byte-preserved replacement rehearsal protocol and dated
   48-answer local diagnostic, retaining its maintenance timeout, unknown

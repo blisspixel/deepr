@@ -6,7 +6,9 @@
 
 Completed reader, recovery, inspection, lifecycle, first-run, decision-review,
 local accounting, embedding and interface repairs are in
-[the changelog](docs/CHANGELOG.md). v2.50.42 adds opt-in local embedding
+[the changelog](docs/CHANGELOG.md). v2.50.43 repairs guarded absorption,
+local accounting, diagnostic review, failure reporting and dependency audits,
+and corrects frozen dashboard guidance. v2.50.42 adds opt-in local embedding
 routing for consult findings and digest-pinned local answers for the
 correction-survival diagnostic. v2.50.41 records and repairs evidence
 selection at the brief and consult prompt boundaries and adds a stage-resolved
@@ -71,40 +73,6 @@ stay blocked.
 
 ## First-run consistency
 
-- [x] **Historical correction-diagnostic review (#275, 2026-10-20):** the
-  retained 36-answer run still matches the frozen case set, but a code update
-  makes the default current-recipe loader refuse it. Support explicitly
-  pinned read-only inspection with all existing completion and artifact
-  checks; retain original recipe identity and distinguish the current code.
-  Do not regenerate answers or bypass verification to prepare review. This
-  repairs review continuity only; #258/#259 and S0 remain open. See
-  [the design](docs/design/correction-survival-diagnostic.md#historical-review-after-a-code-update-2026-10-20-275).
-  **2026-10-20 verified:** the Unreleased read-only command reports all 36
-  retained attempts by their original recipe pin, with all 96 files unchanged.
-  The 51 focused checks and 13,611 offline unit tests pass; the independent
-  combined coverage score is 85.69%. See
-  [the validation record](docs/validation/historical-diagnostic-review-2026-10-20.md).
-
-- [ ] **Frozen dashboard guidance (#278, 2026-10-20):** actual production
-  theme checks show Research Studio correctly blocks paid dispatch but also
-  tells a user without an OpenAI key to add it and restart before submitting.
-  Align the next action with the actual admission state; retain previews,
-  drafts, local CLI guidance and every server-side gate. The passing layout
-  checks do not cover this contradiction. Track the interface repair
-  separately from the dependency audit repair.
-
-- [x] **Dependency audit repair (#277, 2026-10-20):** new advisories block
-  the existing Python and frontend CI audits. Require the repaired Certifi
-  trust store in installed package metadata and lock Certifi 2026.10.19,
-  follow-redirects 1.16.1 and Vite 8.1.6. Preserve audit gates, TLS verification
-  and runtime pins; verify both Python branches and the rebuilt dashboard
-  before accepting the increment.
-  **2026-10-20 verified:** both local full suites, strict types and audits pass,
-  as do frontend and packaged dashboard checks. The archive is unchanged;
-  [the validation record](docs/validation/dependency-audit-repair-2026-10-20.md)
-  records setup failures and the separate #278 guidance finding. See
-  [the dependency decision](docs/design/maintained-runtime-support.md#advisory-driven-lock-repair-2026-10-20-277).
-
 - [ ] **Replacement rehearsal maintenance timeout (2026-10-20):** the
   pinned local model passed its short warm-up, but third-world maintenance
   reached the unchanged 600-second call limit. Its last completed checkpoint
@@ -114,32 +82,6 @@ stay blocked.
   prevents a controlled timing comparison. Reporting the failure does not
   resolve it or qualify the subsequent answers. See
   [the retained diagnostic](docs/validation/replacement-rehearsal-2026-10-20.md).
-
-- [x] **Rehearsal failure and resource disclosure (#273, 2026-10-20):** a
-  retained maintenance timeout kept the last completed checkpoint, while the
-  top-level summary could show all answer cells completed without naming the
-  failed phase and treated missing token counters as zero. Expose failed
-  workers, returned calls and unknown usage, label reported worker subtotals,
-  and keep warm-up distinct. Preserve the failed trial and existing bounds;
-  green CI and completed cells cannot accept S0. See
-  [the reporting contract](docs/design/local-four-arm-rehearsal.md#failed-phases-and-missing-resource-evidence-2026-10-20-273).
-  **2026-10-20 verified:** source repair exposes those counts; 65 focused
-  tests and 13,596 offline unit tests pass, with 85.70% combined coverage.
-  A read-only projection of the real failed trial agrees with its independent
-  audit. This is an Unreleased reporting repair, not a timeout resolution.
-
-- [x] **Unverified absorption merges (#271, 2026-10-20):** an offline price
-  change with 0.941 word overlap bypassed the verifier and replaced the prior
-  claim. An unavailable verdict also permitted a destructive merge.
-  **Fixed 2026-10-20:** every routed absorption merge requires explicit SAME;
-  disabled or unavailable verification preserves separate claims. The commit
-  checks the exact verified pair under the existing store lock. The CLI reports
-  admission counts without calling unknown equivalence a false merge.
-  Core full-suite and final CLI checks pass; see
-  [the validation record](docs/validation/absorption-dedup-admission-2026-10-20.md).
-  This does not repair
-  historical merges or qualify semantic accuracy. See
-  [the admission contract](docs/design/absorption-dedup-admission.md).
 
 - [ ] **Separate local rehearsal findings (2026-10-17):** a newly frozen
   two-world, eight-cell diagnostic reached all terminal outcomes at `$0`, with
@@ -883,7 +825,13 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.42)
+## Current Status (v2.50.43)
+
+v2.50.43 closes the compatible source-repair bundle: explicit admission for
+absorption merges, pinned embedding identity and accounting, retained-run
+inspection, failed-phase and unknown-usage reporting, patched dependencies
+and accurate frozen dashboard guidance. Its receipts distinguish source tests,
+exact CI and public installation from the unreviewed answer diagnostics.
 
 v2.50.42 adds opt-in local embedding routing for consult findings and local
 answers for the correction-survival diagnostic, without widening execution or
@@ -896,7 +844,7 @@ improves requested consult length adherence, without widening execution or
 write authority. v2.50.39 completes the interface repair bundle. Its validation records distinguish local evidence, exact CI
 and public installation from the still-open S0 experiment.
 
-**Next is v2.51, not more dispatch.** v2.50.32 clarifies bounded tool posture, read-only inspection and CLI JSON parity. v2.50.31 repairs perspective attribution, readable evidence, consult output, and failed-build reporting. S0 remains unrun. v2.50.29 makes consult report whether citations reach the loaded study and a retained passage, and it sends local synthesis through the native 16384-token window study already uses. It does not run S0 or claim the expert got better. v2.50.28 ships the currency inspection and explicit world-time admission. v2.50.27 points deep-research defaults at the live OpenAI substitutes and keeps the 128k web-search ceiling.
+**Next is the v2.51 S0 gate.** v2.50.32 clarifies bounded tool posture, read-only inspection and CLI JSON parity. v2.50.31 repairs perspective attribution, readable evidence, consult output, and failed-build reporting. S0 remains unaccepted. v2.50.29 makes consult report whether citations reach the loaded study and a retained passage, and it sends local synthesis through the native 16384-token window study already uses. It does not run S0 or claim the expert got better. v2.50.28 ships the currency inspection and explicit world-time admission. v2.50.27 points deep-research defaults at the live OpenAI substitutes and keeps the 128k web-search ceiling.
 v2.50.26 repairs core-only installation on
 ordinary Python 3.11 through 3.15 and checks all supported stable Python minors.
 v2.50.25 repairs first-run configuration,
@@ -4242,13 +4190,9 @@ We welcome contributions. Here's where help is most valuable:
 | **Security** | Permission boundaries, sandboxing, isolation | Medium |
 | **Documentation** | Examples, tutorials, API docs | Medium |
 
-**Before contributing:**
-
-1. Check [open issues](https://github.com/blisspixel/deepr/issues) for existing work
-2. For large changes, open an issue first to discuss approach
-3. Run `ruff check . && ruff format .` before committing
-4. Add tests for new functionality
-5. Update documentation if adding features
+**Before contributing:** follow the [operating manual](CONTRIBUTING.md) for
+issue framing, command scopes, tests and release acceptance. Its source-scoped
+checks and normal staged-file hooks avoid rewriting unrelated fixtures.
 
 Most impactful work is on the intelligence layer (prompts, synthesis, expert learning) rather than infrastructure.
 
@@ -4256,7 +4200,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.42. This roadmap keeps
+v2.50.43. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 

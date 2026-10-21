@@ -46,7 +46,7 @@ let browser
 
 async function fixture(width, theme) {
   const context = await browser.newContext({ viewport: { width, height: 900 }, colorScheme: theme })
-  const state = { mode: 'populated', unknownMoney: false, funded: false, created: false, formation: null, buildRequested: false, pendingBuildReads: 0 }
+  const state = { mode: 'populated', unknownMoney: false, funded: false, hasKey: false, created: false, formation: null, buildRequested: false, pendingBuildReads: 0 }
   await context.routeWebSocket('**/*', (socket) => socket.close({ code: 1000, reason: 'Isolated interface fixture' }))
   await context.route('**/*', async (route) => {
     const request = route.request()
@@ -119,7 +119,7 @@ async function fixture(width, theme) {
         : []
       return json({ results: reports, total: reports.length })
     }
-    if (url.pathname === '/api/config') return json({ config: { has_api_key: state.funded, default_model: 'gpt-5.6-sol', monthly_limit: 5 } })
+    if (url.pathname === '/api/config') return json({ config: { has_api_key: state.hasKey, default_model: 'gpt-5.6-sol', monthly_limit: 5 } })
     if (url.pathname === '/api/benchmarks') return json({ benchmarks: [] })
     if (url.pathname === '/api/benchmarks/latest') return json({ result: null })
     if (url.pathname === '/api/benchmarks/status') return json({ status: 'idle' })
@@ -275,8 +275,29 @@ async function fixture(width, theme) {
   await page.getByRole('link', { name: /^Open cost accounting.*UNKNOWN/ }).waitFor()
   await checkLayout('unknown-accounting')
   assert.match(await page.getByRole('link', { name: /^Open cost accounting/ }).getAttribute('aria-label'), /UNKNOWN \/ UNKNOWN/)
+  for (const scenario of [
+    { label: 'frozen-missing-key', funded: false, hasKey: false, unknownMoney: false },
+    { label: 'frozen-present-key', funded: false, hasKey: true, unknownMoney: false },
+    { label: 'funded-missing-key', funded: true, hasKey: false, unknownMoney: false },
+    { label: 'unknown-money-missing-key', funded: false, hasKey: false, unknownMoney: true },
+  ]) {
+    Object.assign(state, scenario)
+    await page.goto(`${base}/research`)
+    await page.getByText('Research preview', { exact: true }).waitFor()
+    const prompt = `Retain this synthetic draft with ${scenario.label}.`
+    await page.getByRole('textbox', { name: 'What do you want to research?' }).fill(prompt)
+    await page.getByText(/^Draft saved in this tab\./).waitFor()
+    await page.getByRole('checkbox', { name: /Approve metered OpenAI API use/ }).check()
+    assert.ok(await page.getByRole('button', { name: 'Submit', exact: true }).isDisabled())
+    assert.equal(await page.getByText(/Add the key and restart Deepr before submitting/).count(), 0)
+    assert.equal(await page.getByText('OPENAI_API_KEY', { exact: true }).count(), 0)
+    assert.equal(await page.evaluate(() => JSON.parse(sessionStorage.getItem('deepr.research-draft.v1')).prompt), prompt)
+    assert.equal(requests.filter((request) => request.method === 'POST' && request.path === '/api/jobs').length, 0)
+    await checkLayout(`research-preview-${scenario.label}`)
+  }
   state.unknownMoney = false
   state.funded = true
+  state.hasKey = true
   await page.goto(`${base}/research`)
   await page.getByText('Research preview', { exact: true }).waitFor()
   await page.getByRole('button', { name: 'Submit', exact: true }).waitFor()

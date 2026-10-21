@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.50.42-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.42)
+[![Version](https://img.shields.io/badge/version-2.50.43-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.43)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -306,7 +306,12 @@ for tested behavior and the distinction from draft standards and host certificat
 
 ## Direction
 
-Unreleased source includes `deepr eval correction-survival-report` for
+v2.50.43 repairs local embedding identity and accounting, requires an explicit
+SAME verdict before absorption merges, and discloses failed rehearsal phases
+and unknown usage. It also corrects frozen dashboard guidance and affected
+dependencies. See [the changelog](docs/CHANGELOG.md#25043---2026-10-20).
+
+`deepr eval correction-survival-report` provides
 read-only inspection of completed diagnostics by an explicit recorded recipe
 hash. Original code identity stays visible after an update; answer review
 remains separate. See [the historical review contract](docs/design/correction-survival-diagnostic.md#historical-review-after-a-code-update-2026-10-20-275).
