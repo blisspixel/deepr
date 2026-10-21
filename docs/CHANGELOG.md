@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.43] - 2026-10-20
+
+Compatible evidence-review, admission, accounting and interface repairs, with
+patched dependencies. Semantic answer review and the S0 baseline remain open.
+
 ### Fixed
 
 - Keep completed correction diagnostics reviewable after recipe-code updates
@@ -43,6 +48,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   usage and separate routing, answer and total-attempt latency (#259).
 
 ### Documentation
+
+- Point roadmap contribution steps to the canonical operating manual and its
+  source-scoped checks, preserving unrelated fixture bytes.
 
 - Archive the byte-preserved replacement rehearsal protocol and dated
   48-answer local diagnostic, retaining its maintenance timeout, unknown

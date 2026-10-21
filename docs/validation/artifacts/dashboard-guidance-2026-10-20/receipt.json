@@ -46,5 +46,39 @@
     "uv": "0.13.0"
   },
   "new_model_calls": 0,
-  "semantic_review": "unreviewed"
+  "semantic_review": "unreviewed",
+  "release_candidate_2_50_43": {
+    "version": "2.50.43",
+    "base_commit": "6b36ce1cc4181f563517e7ba87f1dc267552ae62",
+    "full_offline_unit_passed": 13611,
+    "existing_skips": 22,
+    "combined_coverage": "85.69%",
+    "strict_files_each_runtime": 296,
+    "audited_python_versions": [
+      "3.11.17",
+      "3.15.0"
+    ],
+    "frontend_unit_passed": 89,
+    "frontend_binding": {
+      "source_and_archive_unchanged_from_ui_trial": true,
+      "archive_sha256": "c2eda0586a8aa2ab7e7bc4bb5552fd59541d53cf2102c07d51117b56863d4624",
+      "local_browser_checks_in_retained_ui_trial": 126,
+      "fresh_combined_browser_checks_required_in_ci": true
+    },
+    "production_captures": 24,
+    "production_outgoing_connections": 0,
+    "production_ledger_events": 0,
+    "initial_doc_status_pattern_failure_retained": true,
+    "actual_threat_model_review_date_preserved": "2026-10-19",
+    "new_real_model_calls": 0,
+    "files_sha256": {
+      "pyproject.toml": "76a72a0091f962e0590d9375d2f64c16d55ccc472e2fc80691eee81317f1bd86",
+      "uv.lock": "b791c6ccf57449aa69251fa17081a1798ec1078609080785c9ae3a110a6de98d",
+      "src/deepr/__init__.py": "796831287166139f84d92bf1f491d81958d7a1e2acb7e4e684d22c3b8123f701",
+      "packages/deepr-agent-plugin/plugin.json": "2da82abdfbd114094ec62f26da136c5c171319d3f9c0a33163a44316d0684d06",
+      "packages/deepr-agent-plugin/SHA256SUMS": "578731904dced7f5f7f9e9f7c01c21366cb651fe1628604d5937b1be53658b6f",
+      "tests/fixtures/hosts/openclaw/v2026.7.1-2/profile.json": "a5663448883b797588922411d8a3461947671b05a58a466cd4aa9b33e51fa3d3",
+      "src/deepr/web/frontend/frontend-dist.zip": "c2eda0586a8aa2ab7e7bc4bb5552fd59541d53cf2102c07d51117b56863d4624"
+    }
+  }
 }
