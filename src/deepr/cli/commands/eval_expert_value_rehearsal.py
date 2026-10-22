@@ -17,12 +17,14 @@ from deepr.evals.expert_value_rehearsal import (
     RehearsalPlan,
     RehearsalPolicy,
     RehearsalRun,
+    module_hashes,
     plan_from_blueprint,
     runtime_preflight,
     warmup_throughput,
 )
 from deepr.evals.expert_value_rehearsal_workbook import assemble_workbook
 from deepr.evals.expert_value_sources import load_source_world_preparation
+from deepr.evals.rehearsal_identity import verify_resume_identity
 from deepr.experts.chat_backends import ExpertChatUnsupportedFeature
 
 _FILE = click.Path(exists=True, dir_okay=False, path_type=Path)
@@ -137,6 +139,8 @@ def run_command(
     try:
         policy = RehearsalPolicy.model_validate_json(policy_path.read_bytes())
         plan = RehearsalPlan.model_validate_json(plan_path.read_bytes())
+        if resume:
+            verify_resume_identity(run_root, module_hashes())
         runtime = runtime_preflight(policy)
         runtime.update(warmup_throughput(policy, min_tokens_per_second=min_tokens_per_second))
         run = RehearsalRun(

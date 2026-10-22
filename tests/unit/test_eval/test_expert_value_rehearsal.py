@@ -135,8 +135,13 @@ class FakeLauncher:
             "status": status,
             "error_type": "Fake" if action == "fail" else None,
             "module_sha256": {"x": "y"} if action == "other-code" else rehearsal_module.module_hashes(),
+            "execution_identity_sha256": spec["execution_identity_sha256"],
             "finished_at": datetime.now(UTC).isoformat(),
         }
+        if action == "wrong-identity":
+            result["execution_identity_sha256"] = "0" * 64
+        elif action == "missing-identity":
+            result.pop("execution_identity_sha256")
         if status == "completed" and spec["phase"] == "answer":
             manifest = json.loads((Path(spec["input_copy"]) / "manifest.json").read_text(encoding="utf-8"))
             question = "a different question" if action == "wrong-question" else spec["question"]
@@ -638,6 +643,59 @@ def _resume(bundle: Bundle, tmp_path: Path, launcher: FakeLauncher, **overrides:
         launcher=launcher,
         resume=True,
     )
+
+
+def test_execution_drift_stays_a_failed_integrity_check_before_any_launch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from deepr.evals import rehearsal_identity
+
+    launcher = FakeLauncher()
+    bundle, first = _resumable(tmp_path, launcher)
+    with monkeypatch.context() as changed:
+        changed.setattr(rehearsal_identity, "execution_identity", lambda: {"changed_dependency": "brief_selection"})
+        summary = first.execute()
+    assert launcher.specs == []
+    assert summary["terminal_cells"] == summary["planned_cells"] == 8
+    assert summary["status"] == "incomplete" and summary["execution_identity_unchanged"] is False
+    assert "execution_identity_unchanged" in summary["failed_checks"]
+    assert all(w["error_type"] == "RehearsalIdentityError" for w in first.workers)
+    with pytest.raises(ValueError, match="recorded an execution identity failure"):
+        _resume(bundle, tmp_path, FakeLauncher())
+
+
+def test_deleted_legacy_module_retains_failed_integrity_summary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from deepr.evals import rehearsal_identity
+
+    package = tmp_path / "installation/site-packages/deepr"
+    for name in rehearsal_module._IDENTITY_MODULES:
+        path = package / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("# isolated source fixture\n")
+    monkeypatch.setattr(rehearsal_module, "__file__", str(package / "evals/expert_value_rehearsal.py"))
+    monkeypatch.setattr(rehearsal_identity, "__file__", str(package / "evals/rehearsal_identity.py"))
+    launcher = FakeLauncher()
+    _bundle, first = _resumable(tmp_path, launcher)
+    (package / "experts/study.py").unlink()
+    summary = first.execute()
+    assert launcher.specs == [] and summary["status"] == "incomplete"
+    assert summary["worker_code_matches_orchestrator"] is False
+    assert summary["execution_identity_unchanged"] is False
+    assert json.loads((tmp_path / "run/summary.json").read_text()) == summary
+
+
+@pytest.mark.parametrize("action", ["wrong-identity", "missing-identity"])
+def test_invalid_worker_receipt_never_admits_checkpoint_or_resume(tmp_path: Path, action: str) -> None:
+    launcher = FakeLauncher(lambda spec, _cwd: action if spec["worker_id"] == "construct-compiled" else None)
+    bundle, first = _resumable(tmp_path, launcher)
+    summary = first.execute()
+    assert not (first.root / "checkpoints/compiled-w1").exists()
+    assert summary["status"] == "incomplete" and summary["execution_identity_unchanged"] is False
+    assert all(c["status"] == "blocked" for c in first.cells if c["arm"] in ("compiled_expert", "maintained_expert"))
+    with pytest.raises(ValueError, match="recorded an execution identity failure"):
+        _resume(bundle, tmp_path, FakeLauncher())
 
 
 def test_resume_continues_without_rerunning_finished_phases(tmp_path: Path) -> None:

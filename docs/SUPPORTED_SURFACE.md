@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.50.44 current main, 2026-10-21. This document defines what users and host
+Status: v2.50.45 current main, 2026-10-22. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -8,6 +8,15 @@ path is structurally complete but remains execution-blocked without verified
 provider prepaid-no-overage or hard-stop evidence. Attended OpenRouter research
 is the exception: one pinned no-tool completion after wallet credits and
 `deepr budget authorize openrouter`.
+
+**v2.50.45 rehearsal identity repair:** new runs retain a complete Deepr Python
+source inventory, runtime/dependency versions and checkout lock identity when
+present. Resume checks identity before runtime probes and warm-up. Workers check
+the frozen identity before generation; invalid receipts cannot admit checkpoints.
+Identity failures survive source restoration and block resume. Older runs remain
+readable with their original pins and cannot resume under this contract. Existing
+summary, assignment and binding artifacts retain mixed terminal outcomes; strict
+workbook v1 still refuses absent answers. No S0 or advice-quality claim follows.
 
 **v2.50.43 dashboard guidance repair:** Research Studio keeps its preview,
 drafts and estimates without recommending an API key as a way to submit.

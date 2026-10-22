@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.45] - 2026-10-22
+
+### Fixed
+
+- New four-arm rehearsal runs bind the complete installed Deepr Python source
+  inventory, Python/runtime and dependency versions, and checkout lock/metadata
+  when present. Historical nine-module receipts remain unchanged; older runs
+  stay inspectable but cannot silently resume under the stronger contract.
+- Resume refuses identity changes before local runtime probes or warm-up.
+  Workers verify the frozen identity before model construction, and a missing
+  or mismatched worker receipt cannot admit a checkpoint. Identity drift and
+  unreadable source remain explicit integrity failures even after restoration.
+- Mixed-outcome offline validation joins existing summary, blinded assignment
+  and label bindings without losing failed/blocked cells, truncation or unknown
+  usage. Strict workbook v1 continues to refuse absent answers; no new evaluator
+  or fabricated semantic score is introduced. S0 remains unaccepted.
+
+### Validation
+
+- Offline unit suite: 13,693 passed, 22 skipped, with 85.73% combined
+  statement/branch coverage and the independent coverage gate passing. Strict
+  checks pass for 298 files on Python 3.11 and 3.15; both dependency audits and
+  repository gates pass. The original 48-cell diagnostic remains readable and
+  refuses resume without changing its metadata or opening its private key.
+  No new semantic collection or paid provider API call was performed.
+
+### Planning
+
+- Review the next S0/S1 increments against current GitHub security inventory,
+  primary research and execution seams. Specify failure-preserving reporting,
+  complete generation identity, prospective replacement review, dependency
+  maintenance and caller-scoped preparation boundaries. No runtime capability,
+  experiment acceptance or GitHub security setting changes in this plan.
+
 ## [2.50.44] - 2026-10-21
 
 Compatible evidence-delivery and diagnostic-review repairs. The bounded

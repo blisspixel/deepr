@@ -39,6 +39,14 @@ from pydantic import BaseModel, ConfigDict, Field
 from deepr.evals.expert_value import ARM_ORDER
 from deepr.evals.expert_value_materialize import materialize_source_world_copy
 from deepr.evals.expert_value_sources import load_source_world_preparation
+from deepr.evals.rehearsal_identity import (
+    check_execution_identity,
+    execution_checks,
+    execution_identity,
+    identity_sha256,
+    legacy_worker_code_matches,
+    verify_resume_identity,
+)
 from deepr.observability.local_attempts import count_local_attempts
 
 POLICY_SCHEMA: Final = "deepr-expert-value-rehearsal-policy-v1"
@@ -133,7 +141,7 @@ _IDENTITY_MODULES = (
 
 
 def module_hashes() -> dict[str, str]:
-    """Hashes of the runtime sources a rehearsal phase depends on, as imported now."""
+    """Historical nine-module receipt; new runs also bind a full execution identity."""
     package = Path(__file__).resolve().parents[1]
     return {name: _sha((package / name).read_bytes()) for name in _IDENTITY_MODULES}
 
@@ -141,7 +149,11 @@ def module_hashes() -> dict[str, str]:
 def application_identity() -> dict[str, Any]:
     """Commit and runtime source hashes, so software changes are separable from memory effects."""
     package = Path(__file__).resolve().parents[1]
-    identity: dict[str, Any] = {"package_root": str(package), "module_sha256": module_hashes()}
+    identity: dict[str, Any] = {
+        "package_root": str(package),
+        "module_sha256": module_hashes(),
+        "execution_identity": execution_identity(),
+    }
     git = shutil.which("git")
     try:
         if git is None:
@@ -312,6 +324,7 @@ class RehearsalRun:
         self.finished_workers: dict[str, dict[str, Any]] = {}
         self.arm_orders: dict[str, list[str]] = {}
         self.experts_baseline: str | None = None
+        self.execution_identity_sha256 = ""
         self.resumed = resume
         if resume:
             if not target.is_dir():
@@ -328,13 +341,15 @@ class RehearsalRun:
         target.mkdir(parents=True)
         self._lock = _exclusive_run_lock(target)
         self.run_id = secrets.token_hex(8)
+        application = application_identity()
+        self.execution_identity_sha256 = identity_sha256(application["execution_identity"])
         self._write(
             "run.json",
             {
                 "run_id": self.run_id,
                 "created_at": _now(),
                 "index_path": str(index_path),
-                "application": application_identity(),
+                "application": application,
                 "runtime": runtime,
             },
         )
@@ -353,8 +368,8 @@ class RehearsalRun:
         if not (self.root / "run.json").is_file():
             raise ValueError("resume needs an existing rehearsal run root")
         record = json.loads((self.root / "run.json").read_text(encoding="utf-8"))
-        if record["application"]["module_sha256"] != module_hashes():
-            raise ValueError("rehearsal code changed since this run started; start a new run root")
+        identity = verify_resume_identity(self.root, module_hashes())
+        self.execution_identity_sha256 = identity_sha256(identity)
         stored_policy = json.loads((self.root / "policy.json").read_text(encoding="utf-8"))
         stored_plan = json.loads((self.root / "plan.json").read_text(encoding="utf-8"))
         if stored_policy != self.policy.model_dump() or stored_plan != self.plan.model_dump():
@@ -460,6 +475,7 @@ class RehearsalRun:
             "information_cutoff": world.information_cutoff,
             "output_dir": str(worker_dir / "out"),
             "policy": self.policy.model_dump(),
+            "execution_identity_sha256": self.execution_identity_sha256,
         }
         memory_before = None
         if checkpoint is not None:
@@ -491,6 +507,8 @@ class RehearsalRun:
         code: int | None = None
         memory_before: str | None = None
         try:
+            worker_dir.mkdir(parents=True, exist_ok=True)
+            check_execution_identity(self.execution_identity_sha256)
             spec_path, input_sha, memory_before = self._prepare(
                 worker_dir, worker_id, phase, world_id, checkpoint, question
             )
@@ -500,6 +518,15 @@ class RehearsalRun:
                 spec_path, worker_environment(worker_dir, self.policy), worker_dir, self.policy.worker_timeout_seconds
             )
             result = _reported_outcome(code, _json_object(worker_dir / "out" / "result.json"), result)
+            if (
+                result.get("status") == "completed"
+                and result.get("execution_identity_sha256") != self.execution_identity_sha256
+            ):
+                result.update(
+                    status="failed",
+                    error_type="RehearsalIdentityError",
+                    error="worker identity receipt differs from the frozen execution",
+                )
         # Any failure preparing or launching becomes this phase's recorded terminal cause.
         except Exception as error:
             result.update(status="failed", error_type=type(error).__name__, error=str(error)[:500])
@@ -738,9 +765,6 @@ class RehearsalRun:
             key = (cell.get("input_copy_manifest_sha256"), cell.get("source_digests_sha256"))
             by_world.setdefault(cell["source_world_id"], set()).add(key)
         with_memory = [c for c in self.cells if c.get("memory_unchanged") is not None]
-        expected_modules = module_hashes()
-        # Only workers that ran far enough to report their imported code can be compared.
-        reported = [w for w in self.workers if "module_sha256" in w]
         calls = sum(w["usage"]["calls"] for w in self.workers)
         ledgers = sum(w.get("worker_ledger_events", 0) for w in self.workers)
         attempts = sum(w.get("worker_ledger_attempts", w.get("worker_ledger_events", 0)) for w in self.workers)
@@ -748,9 +772,8 @@ class RehearsalRun:
         checkpoints = self.checkpoint_hashes.items()
         return {
             "equal_source_inventory_per_world": all(len(v) == 1 for v in by_world.values()) if answered else None,
-            "worker_code_matches_orchestrator": (
-                all(w["module_sha256"] == expected_modules for w in reported) if reported else None
-            ),
+            "worker_code_matches_orchestrator": legacy_worker_code_matches(self.workers, module_hashes),
+            **execution_checks(self.workers, self.execution_identity_sha256),
             "consultation_memory_unchanged": all(c["memory_unchanged"] for c in with_memory) if with_memory else None,
             "frozen_checkpoints_unchanged": (
                 all(tree_digest(self.root / "checkpoints" / n) == d for n, d in checkpoints) if checkpoints else None
