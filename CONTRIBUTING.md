@@ -33,8 +33,12 @@ exercise those installed entry points. See the official
 [environment activation](https://docs.python.org/3/library/venv.html#how-venvs-work)
 and [lock/sync behavior](https://docs.astral.sh/uv/concepts/projects/sync/).
 
+Toolchain security: use uv >=0.13.5 and pip >=26.2.2. The frozen dev extra
+includes the pip floor. Existing environments and container layers require an
+explicit refresh; follow [the installer trust repair](docs/INSTALL.md#installer-trust-repair-2026-10-22).
+
 Requires Python 3.11+ (tested on 3.11 / 3.12 / 3.13 / 3.14 / 3.15).
-The development default is final 3.15.0. CI uses uv 0.13.0. `uv` is the canonical toolchain; plain `pip`
+The development default is final 3.15.1. CI uses uv 0.13.5. `uv` is the canonical toolchain; plain `pip`
 works too.
 
 The full 3.15 environment includes source-only Brotli. Install a C toolchain

@@ -24,8 +24,8 @@ jobs:
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           activate-environment: true
-          python-version: "3.15.0"
-          version: "0.13.0"
+          python-version: "3.15.1"
+          version: "0.13.5"
 
       - name: Install lint tooling
         # uv.lock is the dependency authority used by every Python CI job.
@@ -97,8 +97,8 @@ jobs:
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           activate-environment: true
-          python-version: "3.15.0"
-          version: "0.13.0"
+          python-version: "3.15.1"
+          version: "0.13.5"
 
       - name: Secret scan (Gitleaks, blocking)
         run: |
@@ -149,7 +149,7 @@ jobs:
         with:
           activate-environment: true
           python-version: ${{ matrix.python-version }}
-          version: "0.13.0"
+          version: "0.13.5"
 
       - name: Install CORE only (no extras)
         run: uv sync --frozen
@@ -193,8 +193,8 @@ jobs:
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           activate-environment: true
-          python-version: "3.15.0"
-          version: "0.13.0"
+          python-version: "3.15.1"
+          version: "0.13.5"
 
       - name: Build Python and Agent Plugin distributions
         run: |
@@ -219,7 +219,7 @@ jobs:
             --wheel-dir "${RUNNER_TEMP}/deepr-wheelhouse" \
             -r "${RUNNER_TEMP}/deepr-core-requirements.txt"
           cp "$(find dist -maxdepth 1 -name '*.whl' -print -quit)" "${RUNNER_TEMP}/deepr-wheelhouse/"
-          uv venv .agent-plugin-venv --python 3.15.0
+          uv venv .agent-plugin-venv --python 3.15.1
           uv pip install \
             --offline \
             --no-index \
@@ -291,8 +291,8 @@ jobs:
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           activate-environment: true
-          python-version: "3.15.0"
-          version: "0.13.0"
+          python-version: "3.15.1"
+          version: "0.13.5"
 
       - name: Verify committed frontend archive is current
         working-directory: ${{ github.workspace }}
@@ -342,7 +342,7 @@ jobs:
         with:
           activate-environment: true
           python-version: ${{ matrix.python-version }}
-          version: "0.13.0"
+          version: "0.13.5"
       - name: Install the frozen full test environment
         run: uv sync --frozen --extra dev --extra full
       - name: Exercise export boundaries and installer ownership
@@ -378,7 +378,16 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build the locked image without deployment
-        run: docker build --pull --file "${{ matrix.dockerfile }}" --tag "deepr-platform:${{ matrix.surface }}" .
+        run: docker build --pull --no-cache --file "${{ matrix.dockerfile }}" --tag "deepr-platform:${{ matrix.surface }}" .
+      - name: Verify repaired base installer trust without network access
+        run: >-
+          docker run --rm --network none --entrypoint /usr/local/bin/python "deepr-platform:${{ matrix.surface }}"
+          -c "import ensurepip, json, ssl, pip; from pip._vendor import certifi; from pip._vendor.packaging.version import Version;
+          assert Version(pip.__version__) >= Version('26.2.2'); assert Version(ensurepip.version()) >= Version('26.2.2');
+          assert Version(certifi.__version__) >= Version('2026.10.19');
+          roots = ssl.create_default_context(cafile=certifi.where()).get_ca_certs();
+          assert not any(value == 'emSign ECC Root CA - G3' for root in roots for group in root['subject'] for key, value in group if key == 'commonName');
+          print(json.dumps({'pip': pip.__version__, 'ensurepip': ensurepip.version(), 'vendored_certifi': certifi.__version__, 'affected_root_present': False}))"
       - name: Verify runtime imports without network access
         run: >-
           docker run --rm --network none --entrypoint python "deepr-platform:${{ matrix.surface }}"
@@ -406,7 +415,7 @@ jobs:
         with:
           activate-environment: true
           python-version: ${{ matrix.python-version }}
-          version: "0.13.0"
+          version: "0.13.5"
 
       - name: Install dependencies
         run: uv sync --frozen --extra dev --extra full

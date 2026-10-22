@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import tomllib
 from pathlib import Path
 
 import pytest
+import yaml
+from packaging.requirements import Requirement
+from packaging.version import Version
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-PYTHON_IMAGE = "python:3.15-slim@sha256:2da676046630d7bf14c6764ae1143dc7fa0377a53f94bf5a642f0b214aca5bce"
+PYTHON_IMAGE = "python:3.15.1-slim@sha256:08275f764e022331c6d3e3ca55d8cce01fa4684b02111adf0445d71806fe7941"
 
 
 @pytest.mark.parametrize(
@@ -31,7 +35,7 @@ def test_application_containers_use_one_frozen_dependency_authority(
     dockerfile = (REPO_ROOT / path).read_text(encoding="utf-8")
 
     assert dockerfile.splitlines()[0] in {f"FROM {PYTHON_IMAGE}", f"FROM {PYTHON_IMAGE} AS build"}
-    assert "pip install --no-cache-dir uv==0.13.0" in dockerfile
+    assert "python -m pip install --no-cache-dir uv==0.13.5" in dockerfile
     assert "COPY pyproject.toml uv.lock setup.py README.md LICENSE MANIFEST.in ./" in dockerfile
     assert "COPY src/ src/" in dockerfile
     assert sync_command in dockerfile
@@ -54,3 +58,46 @@ def test_http_native_build_tools_stay_out_of_the_runtime_stage():
     assert "COPY --from=build /app /app" in runtime
     assert "build-essential" not in runtime
     assert "USER deepr" in runtime
+
+
+@pytest.mark.parametrize("path", [".github/workflows/ci.yml", ".github/workflows/mutation.yml"])
+def test_maintained_acquisition_uses_patched_uv(path: str) -> None:
+    workflow = yaml.safe_load((REPO_ROOT / path).read_text(encoding="utf-8"))
+    steps = [step for job in workflow["jobs"].values() for step in job["steps"]]
+    uv_steps = [step for step in steps if str(step.get("uses", "")).startswith("astral-sh/setup-uv@")]
+    assert uv_steps
+    assert all(Version(step["with"]["version"]) >= Version("0.13.5") for step in uv_steps)
+
+
+def test_lock_and_dev_tooling_require_repaired_pip_without_runtime_dependency() -> None:
+    project = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    lock = tomllib.loads((REPO_ROOT / "uv.lock").read_text(encoding="utf-8"))
+    assert "pip>=26.2.2" in project["project"]["optional-dependencies"]["dev"]
+    assert not any(Requirement(dep).name == "pip" for dep in project["project"]["dependencies"])
+    assert project["tool"]["uv"]["required-version"] == ">=0.13.5"
+    pip = next(package for package in lock["package"] if package["name"] == "pip")
+    assert Version(pip["version"]) >= Version("26.2.2")
+
+
+def test_current_dev_pip_uses_repaired_vendored_bundle() -> None:
+    from importlib.metadata import version
+
+    from pip._vendor import certifi
+
+    assert Version(version("pip")) >= Version("26.2.2")
+    assert Version(certifi.__version__) >= Version("2026.10.19")
+
+
+def test_container_rebuild_and_base_trust_are_verified_without_network() -> None:
+    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["containers"]["steps"]
+    build = next(step["run"] for step in steps if "docker build" in step.get("run", ""))
+    assert "--pull --no-cache" in build
+    trust = next(
+        step["run"]
+        for step in steps
+        if "Verify repaired base installer trust" == step.get("name", "").removesuffix(" without network access")
+    )
+    assert "--network none" in trust and "/usr/local/bin/python" in trust
+    assert "ensurepip.version()" in trust and "certifi.__version__" in trust
+    assert "emSign ECC Root CA - G3" in trust

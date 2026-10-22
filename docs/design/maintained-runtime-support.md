@@ -1,5 +1,45 @@
 # Maintained runtime support and verified installation
 
+## Installer trust repair, 2026-10-22 (#283)
+
+Decision before implementation: advance maintained acquisition to uv 0.13.5,
+the current patched release, and the managed default to final CPython 3.15.1.
+The emSign incident affects uv's own roots, pip's vendored certifi, and the pip
+wheel bundled with ensurepip. The existing application certifi floor does not
+repair those independent copies. Keep pip >=26.2.2 in development tooling only;
+regenerate the authoritative lock without a general dependency upgrade.
+
+Require patched uv for project operations and reject old or unparseable uv
+before public managed installation or self-upgrade. Uninstall, read-only
+version checks, manager ownership, supported Python minors and manual pip/pipx
+ownership remain intact. Existing external pip/pipx environments require their
+owner to update pip and the underlying interpreter; this change does not
+silently repair arbitrary user environments.
+
+Use the verified official Python 3.15.1 slim multiarch digest in every container
+stage, refresh system CA packages, and rebuild all three images without layer
+cache reuse. Verify base pip, ensurepip and vendored roots separately from the
+unseeded application environment. Keep frozen installs, non-root execution,
+compiler-free runtime stages and offline smoke checks.
+
+Recreate the maintained native and floor environments using patched uv and
+retain exact tool, Python, pip and vendored-certifi observations. Preserve old
+diagnostic environments and evidence without reusing them for acquisition.
+Historical validation records are observations, not active tooling guidance.
+Local Docker access is denied; actual image validation must run in hosted CI.
+
+Rejected alternatives: an application-certifi-only bump leaves installer roots
+affected; a uv-only bump leaves old pip and ensurepip copies; disabling TLS
+verification bypasses the security boundary; changing every application
+dependency or interpreter support floor is unnecessary.
+
+Primary sources: [uv advisory](https://github.com/astral-sh/uv/security/advisories/GHSA-hq85-5cpj-mr62),
+[uv 0.13.5](https://github.com/astral-sh/uv/releases/tag/0.13.5),
+[Python incident notice](https://discuss.python.org/t/information-for-python-users-regarding-emudhra-emsign-ca-certificate-security-incident/109576),
+[CPython 3.15.1](https://www.python.org/downloads/release/python-3151/).
+
+## Original runtime promotion
+
 Decision for issue #225, 2026-10-18. Written before implementation.
 
 Support ordinary CPython 3.11 through 3.15 and make 3.15 the development,

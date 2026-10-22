@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.50.45-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.45)
+[![Version](https://img.shields.io/badge/version-2.50.46-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.46)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -305,6 +305,10 @@ eras and published Agent Plugins `1.0.0`. See the
 for tested behavior and the distinction from draft standards and host certification.
 
 ## Direction
+
+v2.50.46 repairs installer trust with patched uv/pip selections and managed
+CPython 3.15.1. Existing environments and images need an explicit refresh; see
+[the repair record](docs/validation/toolchain-trust-repair-2026-10-22.md).
 
 v2.50.45 repairs rehearsal execution identity and pre-dispatch resume refusal.
 Offline mixed-outcome checks retain failures and unknown usage in the existing

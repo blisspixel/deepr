@@ -54,6 +54,7 @@ exec(sys.argv[1].replace("import sys;", "", 1).replace("import sys", "", 1).stri
     esac
 }
 uv() {
+    if [ "$1" = --version ]; then printf 'uv %s\n' "$DEEPR_SHIM_UV_VERSION"; return; fi
     if [ "$1 $2" = 'tool list' ]; then
         case "$DEEPR_SHIM_OWNER" in uv|uv-no-python|both) printf 'deepr-research v9.9.8\n';; esac
         return 0
@@ -148,6 +149,7 @@ function py {
 }
 function uv {
     $global:LASTEXITCODE = 0
+    if ($args[0] -eq '--version') { "uv $env:DEEPR_SHIM_UV_VERSION"; return }
     if ($args[0] -eq 'tool' -and $args[1] -eq 'list') {
         if ($env:DEEPR_SHIM_OWNER -in @('uv', 'uv-no-python', 'both')) { 'deepr-research v9.9.8' }
         return
@@ -212,6 +214,7 @@ def run_installer(
     owned_python="13",
     host_python="13",
     libyaml=None,
+    uv_version="0.13.5",
 ):
     suffix = "ps1" if family == "powershell" else "sh"
     wrapper = tmp_path / f"run.{suffix}"
@@ -220,6 +223,7 @@ def run_installer(
     env = {
         **os.environ,
         "DEEPR_SHIM_OWNER": owner,
+        "DEEPR_SHIM_UV_VERSION": uv_version,
         "DEEPR_SHIM_OWNED_PYTHON": owned_python,
         "DEEPR_SHIM_HOST_PYTHON": host_python,
         "DEEPR_SHIM_BIN": str(tmp_path / "bin"),
@@ -273,7 +277,7 @@ def test_installer_preserves_owner_and_pins_interpreter(tmp_path, family, owner,
         assert "--force" not in installs[1].split(), installs
     assert all(op.startswith(expected) and "--python " in op for op in installs)
     if expected == "uv":
-        assert all("--python 3.15.0 --managed-python" in op for op in installs)
+        assert all("--python 3.15.1 --managed-python" in op for op in installs)
     assert all(not op.startswith("pip ") for op in operations)
     assert all(op.startswith(expected) for op in operations)
 
@@ -413,3 +417,21 @@ def test_optional_yaml_build_setting_is_scoped_and_preserves_operator_choice(tmp
     assert set(builds) == {"0" if libyaml is None else libyaml}
     assert runtime and set(runtime) == {"unset" if libyaml is None else libyaml}
     assert all(not operation.startswith("pip ") for operation in operations)
+
+
+@pytest.mark.parametrize("family", ["bash", "powershell"])
+@pytest.mark.parametrize("uv_version", ["0.13.0", "0.13.4", "0.13.5rc1", "unknown"])
+def test_unsafe_or_unknown_uv_refuses_before_download_or_mutation(tmp_path, family, uv_version):
+    result, operations = run_installer(tmp_path, family, "uv", uv_version=uv_version)
+    assert result.returncode == 1
+    assert "uv 0.13.5 or newer" in result.stdout + result.stderr
+    assert operations == []
+    assert not (tmp_path / "release-requests.txt").exists()
+
+
+@pytest.mark.parametrize("family", ["bash", "powershell"])
+def test_outdated_uv_can_still_uninstall_without_download(tmp_path, family):
+    result, operations = run_installer(tmp_path, family, "uv", uv_version="0.13.0", uninstall=True)
+    assert result.returncode == 0
+    assert operations == ["uv tool uninstall deepr-research"]
+    assert not (tmp_path / "release-requests.txt").exists()

@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.46] - 2026-10-22
+
+### Fixed
+
+- Repair maintained installer trust after the emSign incident (#283). Pin uv
+  0.13.5 throughout CI, mutation and containers; require it for project and
+  managed public acquisition. Refuse outdated or unparseable uv without install
+  mutations while preserving uninstall and detected ownership.
+- Set pip>=26.2.2 in development tooling and regenerate only that dependency in
+  the authoritative lock. Keep application certifi>=2026.10.19 unchanged and
+  keep pip outside application runtime dependencies.
+- Advance the managed default and all container stages to final CPython 3.15.1,
+  including repaired ensurepip bundles. Refresh container CA packages and build
+  without layer-cache reuse; inspect base pip/ensurepip/vendored roots in
+  network-disabled smokes while retaining frozen, non-root application checks.
+- Recreate maintained native and floor environments with patched tools. Retain
+  the warm-cache failure, old bundle inspection and regression evidence; document
+  explicit repair for existing user environments and deployed images. No TLS,
+  spend, provider, write or semantic acceptance boundary is widened.
+
+See the [validation and limits](validation/toolchain-trust-repair-2026-10-22.md).
+
 ## [2.50.45] - 2026-10-22
 
 ### Fixed

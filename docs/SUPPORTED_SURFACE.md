@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.50.45 current main, 2026-10-22. This document defines what users and host
+Status: v2.50.46 current main, 2026-10-22. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -8,6 +8,14 @@ path is structurally complete but remains execution-blocked without verified
 provider prepaid-no-overage or hard-stop evidence. Attended OpenRouter research
 is the exception: one pinned no-tool completion after wallet credits and
 `deepr budget authorize openrouter`.
+
+**v2.50.46 installer trust repair:** maintained uv is 0.13.5 and the dev-only
+pip floor is 26.2.2. Managed installation requests CPython 3.15.1. Old or unknown
+uv is refused before managed acquisition; uninstall and manager ownership stay
+intact. All container stages use the refreshed base and cold builds. Existing
+pip/pipx environments and deployed images require owner repair; application
+certifi alone does not update these independent bundles. See
+[the repair record](validation/toolchain-trust-repair-2026-10-22.md).
 
 **v2.50.45 rehearsal identity repair:** new runs retain a complete Deepr Python
 source inventory, runtime/dependency versions and checkout lock identity when
