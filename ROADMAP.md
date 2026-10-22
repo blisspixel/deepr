@@ -21,8 +21,9 @@ evaluated/rejected packing comparison with compatible repairs. Completed #258
 and #259 work is in the changelog; rejected candidates remain unshipped and S0
 remains open.
 
-- [ ] **v2.51 is S0.** Locate the frozen source worlds, policy and case inventory,
-  then run the 48-cell local rehearsal. Preserve the earlier failed runs
+- [ ] **v2.51 is S0.** Freeze prospectively reviewed replacement source worlds,
+  policy, case inventory and rubric, then run the 48-cell local rehearsal.
+  Preserve the earlier failed runs
   and do not silently substitute inputs or a model. Publish terminal results,
   including failures, and record human review before revealing the arm key.
   Only S4 can support a claim that the expert got better.
@@ -46,6 +47,32 @@ Validation and practical limits: [reader evidence repairs](docs/validation/exper
 
 SearXNG, unattended and MCP OpenRouter, and sleep-time overwrite of claims
 stay blocked.
+
+### Next bounded sequence, reviewed 2026-10-22
+
+The authenticated GitHub inventory has no open issues, PRs, CodeQL,
+Dependabot or secret-scanning alerts, or repository advisories. CodeQL has
+successful Python, JavaScript/TypeScript and Actions analyses on `660eaf61`.
+This is a dated inventory, not proof that the repository has no vulnerabilities.
+The README correctly describes stored-state consultation and planned default
+preparation. The next product outcome is advice checked against the caller's
+current environment; the next measurement gate remains S0.
+
+| Order | Bounded work and why | Acceptance before proceeding |
+| --- | --- | --- |
+| Parallel maintenance | Reconcile dependency automation with the documented policy. Automatic security-update PRs are disabled, no tracked updater configuration exists, and dependency audits currently run on push/PR. | Reviewed security-update PRs; monthly grouped routine updates for native `uv`, frontend `npm` and pinned Actions; a small scheduled audit; unchanged lock authority and merge gates. No automatic merge or blanket upgrade. |
+| 1. Replacement protocol | Separate development capacity checks from new held-out source worlds and cases. The October answers cannot become a prospective baseline. | Reviewed rubric, reviewer calibration and disagreement policy, complete source/software/model identities, phase and total limits, publication and stop rules frozen before held-out collection. Actual human review is recorded honestly. |
+| 2. One S0 collection | Measure fresh reading, raw history, compiled state and maintained state with the existing four arms. | All 48 terminal cells, complete accounting, reviewed answer bindings before key reveal, case-level comparisons and explicit uncertainty. A negative result can finish measurement; it cannot establish better expertise. |
+| 3. S1 vertical slice | Give one Python expert temporary, dated preparation through the shared CLI/MCP consultation transaction. Start with one structured official source class. | Scoped packet, bounded and counted acquisition, offline/partial behavior, caller isolation and unchanged canonical expert state. Paired preparation-on/off review and a small live-source smoke precede default-on use. |
+
+The [delivery plan](docs/plans/living-expertise.md#next-execution-contract-reviewed-2026-10-22)
+defines these exit and stop conditions; the
+[dated research reassessment](docs/research/s0-s1-practice-2026-09-24.md#reassessment-2026-10-22)
+records current primary sources and source-level gaps. The remaining work above
+is planned. The completed integrity preflight is in the v2.50.45 changelog.
+Brief metadata, concise-answer
+quality and default embedding promotion remain the separate gates below.
+Do not reopen rejected V6-V8 or placement trials to seek a favorable result.
 
 > ## STOP - no brittle junk
 >
@@ -811,7 +838,11 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.44)
+## Current Status (v2.50.45)
+
+v2.50.45 completes the offline rehearsal identity preflight and verifies mixed
+terminal outcomes through existing artifacts. No new S0 run or semantic
+acceptance follows. Historical evidence stays read-only; see the changelog.
 
 v2.50.44 records #258 as evaluated/rejected and #259 as a completed bounded
 measurement, retaining compatible repairs without a memory-benefit or semantic
@@ -2268,7 +2299,7 @@ The gate targets below are firm commitments, not a soft "raise it when convenien
 - **Lint / format**: Ruff remains the single linter + formatter. Ruleset targets the Python 3.11 compatibility floor (PEP 604 unions, `datetime.UTC`); next, complexity caps (C901) and promotion of the security (S) rules from advisory to blocking for new code.
 - **Types**: mypy is a blocking `--strict` gate; target is 100% of `deepr/` strict-clean. Wired non-blocking first to record the baseline, then strict-blocking on `core/` + `providers/` + `mcp/` + `security/` + `queue/` + `storage/` + `tools/` + `routing/` + `worker/` + `webhooks/` + `a2a/` + importable `deepr.skills` and every new module, ratcheting package-by-package until the whole tree is clean. (Astral's `ty` is a candidate to replace mypy once it stabilizes.)
 - **Coverage**: branch coverage enabled; the `fail_under` gate ratchets 80 -> 85 -> 90 -> 95 as branch-covering tests land (80 is the current branch floor; branch is stricter than the old 80% line metric). The justified omit list (LLM-driven and live-provider paths) is preserved, not erased to inflate the number.
-- **Security**: `pip-audit` blocking on every push; weekly dependency update automation (pip + github-actions + npm); SBOM via `uv export` per release; OpenSSF secure-coding practices (boundary validation with Pydantic v2, no secret logging, exception safety) as review criteria.
+- **Security**: `pip-audit` blocks pushes and PRs; SBOM generation uses `uv export`. Dependency-update automation and a scheduled audit are planned in the next bounded sequence above: the 2026-10-22 review found no tracked updater configuration and automatic security-update PRs disabled. The target is monthly grouped routine updates (`uv`, github-actions and npm) with prompt reviewed security fixes. OpenSSF secure-coding practices (boundary validation with Pydantic v2, no secret logging, exception safety) remain review criteria.
 - **Architecture discipline** (Power-of-10, adapted to Python): bounded loops, narrowest-scope declarations, small functions, no runtime `eval`/`exec` - enforced where Ruff can (complexity, S-rules) and applied as review guidance where it cannot.
 - **Validation & invariants** ("parse, don't validate"): external data is parsed once at the boundary into rich domain types (strict Pydantic v2 with `strict=True, extra='forbid'`, frozen dataclasses, `NewType`s) so illegal states are unrepresentable and core logic never receives raw, possibly-invalid primitives. Safety-critical kernel invariants (budget never overspends, cost ledger stays append-only, every claim carries a citation) are enforced with targeted runtime assertions plus the existing Pydantic models. A further **regeneration invariant** keeps generated artifacts honest: every per-expert SKILL.md export, report, briefing, and expert digest is a derived view, never the source of truth - it must be fully regenerable from the structured belief store and is never hand-edited as authoritative, so a stale or hand-edited artifact can never silently become canonical knowledge (the structured-store-is-canonical, views-are-disposable discipline that lets synthesis happen at compile/query time instead of destructively at ingest). (We evaluated the `deal` Design-by-Contract library and chose plain asserts + Pydantic instead - same guarantees on the paths that matter, no extra dependency or runtime-stripping complexity.)
 - **Testing rigor**: beyond branch coverage, prove the suite actually catches regressions. Periodic **mutation testing** (mutmut or equivalent) on kernel modules; **property-based and stateful Hypothesis** for complex lifecycles (budget ledger, expert knowledge/belief state, queue); and **fault-injection / chaos tests** at provider and network boundaries (timeouts, malformed payloads, provider outages) to prove the auto-fallback, circuit breakers, exception hygiene, and structured logging behave under turbulence. `xfail` stays disallowed in CI.
@@ -4192,7 +4223,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.44. This roadmap keeps
+v2.50.45. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 

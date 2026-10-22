@@ -12,6 +12,7 @@ import pytest
 
 from deepr.evals import expert_value_rehearsal_worker as worker
 from deepr.evals.expert_value_materialize import materialize_source_world_copy
+from deepr.evals.rehearsal_identity import execution_identity, identity_sha256
 from deepr.experts.investigation import ollama_backend
 from tests.unit.test_eval.test_expert_value_sources import Bundle
 
@@ -128,6 +129,7 @@ def phase(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             "information_cutoff": "2026-02-20T00:00:00+00:00",
             "output_dir": str(out),
             "policy": _policy(),
+            "execution_identity_sha256": identity_sha256(execution_identity()),
             **extra,
         }
         (tmp_path / f"{name}.json").write_text(json.dumps(spec), encoding="utf-8")
@@ -138,6 +140,15 @@ def phase(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         return result
 
     return run
+
+
+@pytest.mark.parametrize("pin", [None, "0" * 64])
+def test_worker_identity_refuses_before_backend_or_ledger(phase, pin: str | None) -> None:
+    result = phase("wrong-identity", "answer", question="Which version applies?", execution_identity_sha256=pin)
+    assert result["status"] == "failed" and result["error_type"] == "RehearsalIdentityError"
+    assert "execution identity" in result["error"]
+    assert result["model_calls"] == 0 and FakeBackend.prompts == []
+    assert not (result["out"].parent / "costs/cost_ledger.jsonl").exists()
 
 
 def test_construct_then_maintain_then_answer_with_memory(phase) -> None:

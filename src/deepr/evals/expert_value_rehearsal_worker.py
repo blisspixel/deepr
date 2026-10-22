@@ -270,13 +270,13 @@ def run_worker(spec_path: Path) -> int:
     output = Path(spec["output_dir"])
     import deepr
     from deepr.evals.expert_value_rehearsal import module_hashes
+    from deepr.evals.rehearsal_identity import RehearsalIdentityError, check_execution_identity
 
     result: dict[str, Any] = {
         "worker_id": spec.get("worker_id"),
         "phase": spec.get("phase"),
         "started_at": _now(),
         "deepr_package": str(Path(deepr.__file__).resolve().parent),
-        "module_sha256": module_hashes(),
     }
     try:
         check_worker_environment(dict(os.environ))
@@ -284,6 +284,11 @@ def run_worker(spec_path: Path) -> int:
             raise ValueError("unknown rehearsal phase")
         if spec["phase"] != "answer" and "question" in spec:
             raise ValueError("construction and maintenance must not receive a case question")
+        result["execution_identity_sha256"] = check_execution_identity(spec.get("execution_identity_sha256"))
+        try:
+            result["module_sha256"] = module_hashes()
+        except OSError as error:
+            raise RehearsalIdentityError("worker legacy source identity could not be read") from error
         dispatcher = _Dispatcher(spec, output)
         runner = _answer if spec["phase"] == "answer" else _build_memory
         result.update(asyncio.run(runner(spec, output, dispatcher)))

@@ -1,6 +1,7 @@
 # Prepared consultation (S1) contract
 
-Status: proposed design, 2026-09-24. The packet below is not implemented.
+Status: proposed design, 2026-09-24; boundary review 2026-10-22.
+The packet below is not implemented.
 `deepr expert currency` is the earlier read-only inspection. It does not
 fetch, judge, or replace stored-only consult. This note defines
 the additive contract the [delivery plan](../plans/living-expertise.md#s1-prepare-before-consultation-with-bounded-temporary-evidence)
@@ -43,6 +44,34 @@ disclosure. Temporary sources live in an operation-scoped
 5. **Freeze** (code): write the packet, then answer from expert revision plus
    packet. Nothing canonical changes; proposals for learning are staged only.
 
+### Acquisition and privacy admission
+
+Reuse the peer-pinned HTTP transport, not a second networking stack. Generic
+scrape defaults are not a preparation budget: they include retries and archive
+fallback, while pinned HTTP can attempt multiple resolved addresses. One
+operation owns the deadline and cumulative request, source and decoded-byte
+allowances across every redirect, retry, address attempt and response stream.
+Do not reset limits on cache revalidation or cancellation. Disable archive and
+browser fallback for authoritative version/advisory checks. Revalidate allowed
+origins and public destination addresses before each hop, keep environment
+proxies and ambient authentication disabled, and retain structured failure
+receipts without secret-bearing URLs or response content in logs.
+
+Public requests disclose only explicitly admitted package/version coordinates.
+Do not transmit private questions, source text, full lockfiles, paths or caller
+credentials to a metadata/advisory endpoint. Operation storage must have an
+owner, path-safe identity, restrictive permissions, a declared retention and
+cleanup policy, and a receipt for expired or cancelled work. A matching question
+hash never grants another caller access. Define these contracts before private
+packet caching, then test cross-caller reads as well as reuse refusal.
+
+Canonical profile, beliefs, corpus, graph and revision history are invariant.
+Existing consultation lifecycle, trace and cost receipts plus operation-local
+packets are intentional writes, stored separately. Acceptance hashes that
+explicit canonical inventory; it must not disable durable observability to
+make a whole-directory equality assertion pass. Retrieved prose is evidence,
+never permission to add tools, destinations, spend or canonical writes.
+
 ## Packet (`deepr-prepared-context-v1`, proposed)
 
 | Field | Meaning |
@@ -73,14 +102,20 @@ retries do not create fresh allowances.
 
 ## First source classes (Python exemplar)
 
-Structured, keyless, free endpoints checked 2026-09-24, before any general web
-search: PyPI JSON and PEP 691 Simple JSON for versions and yanks; OSV.dev
+Structured, keyless sources documented 2026-09-24 and rechecked against official
+documentation 2026-10-22, before any general web search: release-specific PyPI
+JSON and the Index API for versions and yanks; OSV.dev
 query and querybatch for advisories affecting pinned versions;
 `peps.python.org/api/release-cycle.json` for interpreter support status.
 GitHub's unauthenticated advisory API (60 requests per hour) and
 endoflife.date are corroboration only. Official changelogs and "What's New"
 pages are an allowlisted second tier through the existing pinned HTTP
-transport. Details and limits: [practice review](../research/s0-s1-practice-2026-09-24.md).
+transport. Do not depend on PyPI's deprecated project `releases` key, or treat
+project-latest vulnerability metadata as a check of the caller's pinned release.
+OSV documents no current API rate limit; this never removes Deepr's own request,
+response-size or elapsed-time bounds. These documentation checks are not an
+implemented live-source smoke. Details and limits:
+[practice review](../research/s0-s1-practice-2026-09-24.md#reassessment-2026-10-22).
 SearXNG stays blocked under the current capacity policy.
 
 ## Acceptance evidence (from the delivery plan, made concrete)
@@ -93,7 +128,10 @@ SearXNG stays blocked under the current capacity policy.
 - Deliberately stale sources, mismatched dates, missing links and an
   unsupported "up to date" claim fail the consistency check between packet,
   Markdown, graph and delivered context.
-- Canonical expert files are byte-identical before and after.
+- Canonical profile, beliefs, corpus, graph and revision history are
+  byte-identical before and after; separate operation and lifecycle receipts
+  remain durable. Adversarial fixtures cover cross-caller reads, path traversal,
+  private query disclosure, malicious source instructions and cleanup failures.
 - A separate paired preparation-on/off experiment from one expert revision,
   and a small dated live-source smoke. Neither is a longitudinal claim.
 

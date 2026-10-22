@@ -65,6 +65,38 @@ def invoke(*args: str) -> Any:
     return CliRunner().invoke(root_cli, ["eval", "expert-value-rehearsal", *args])
 
 
+def test_resume_identity_refuses_before_probes_or_warmup(
+    workspace: dict[str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    w = workspace
+    run_root = w["root"] / "old-run"
+    run_root.mkdir()
+    (run_root / "run.json").write_text(json.dumps({"application": {"module_sha256": {"old": "pin"}}}))
+    before = {p.name: p.read_bytes() for p in run_root.iterdir()}
+
+    def forbidden(*args: Any, **kwargs: Any) -> None:
+        pytest.fail("resume reached a runtime probe or model warm-up before identity validation")
+
+    monkeypatch.setattr(cli, "runtime_preflight", forbidden)
+    monkeypatch.setattr(cli, "warmup_throughput", forbidden)
+    result = invoke(
+        "run",
+        "--resume",
+        "--policy",
+        str(w["policy"]),
+        "--plan",
+        str(w["plan"]),
+        "--from-file",
+        str(w["index"]),
+        "--artifact-root",
+        str(w["artifacts"]),
+        "--run-root",
+        str(run_root),
+    )
+    assert result.exit_code == 1 and "identity" in result.output, result.output
+    assert {p.name: p.read_bytes() for p in run_root.iterdir()} == before
+
+
 def test_plan_run_blind_and_bind_end_to_end(workspace: dict[str, Path]) -> None:
     w = workspace
     result = invoke(

@@ -1,6 +1,6 @@
 # Delivery plan: current, cumulative expertise
 
-Status: in progress, 2026-10-17. Step 1 of the
+Status: in progress; execution plan reviewed 2026-10-22. Step 1 of the
 [currency order](../design/expert-currency-order.md) is a read-only inspection
 and an explicit world-time admission. v2.50.29 makes consult say whether a
 citation reaches the loaded study and a retained passage, and it sends local
@@ -116,8 +116,11 @@ materialization and answer-to-review binding where evidence is missing. The
 read-only source-copy verifier now checks exact independent files against a
 selected world. Its [synthetic CLI validation](../validation/source-world-copies-2026-09-21.md)
 does not replace archived run inputs, process confinement or reviewer bindings.
-The existing 12 cases across four arms and three chronological worlds produce
-48 terminal cells, including failures. Preserve development cases separately
+The four-arm, three-world pilot has 12 cases and 48 terminal cells, including
+failures. The original missing inputs and the already collected replacement
+diagnostic remain historical evidence. A new replacement baseline needs new
+held-out inputs and prospective review; neither relabel the old answers nor
+silently replace the historical protocol. Preserve development cases separately
 from held-out cases; reviewers do not see arm identities until labels freeze.
 
 **Exit evidence:** replayable inputs and outputs, failure denominators, binding
@@ -125,6 +128,128 @@ checks, reviewed per-case results, and explicit measured/unmeasured dimensions.
 The workbook is an aggregator, not an arm executor or an automatic winner
 selector. Human review may be unavailable; record that limit and keep the
 value gate open. Do not manufacture attestations to finish a stage.
+
+#### Next execution contract, reviewed 2026-10-22
+
+This refines S0-S1 delivery, not the frozen historical experiments. The
+[roadmap](../../ROADMAP.md#next-bounded-sequence-reviewed-2026-10-22)
+owns order and active work. The
+[research reassessment](../research/s0-s1-practice-2026-09-24.md#reassessment-2026-10-22)
+explains the evidence behind these choices. No model run or GitHub setting
+change is authorized by a planning status alone.
+
+**Offline integrity increment, implemented in v2.50.45.** Existing summary,
+assignment and label binding suffice for the mixed-outcome regression; no new
+projection or evaluator was needed. New execution identities and typed drift
+failures close the source/resume/worker boundary below. The following remains
+the acceptance contract; replacement protocol and S1 work are still planned.
+The rehearsal already retains answered, failed and blocked terminal cells,
+maintenance fallback and unknown usage. Its strict workbook v1 cannot
+represent a cell without an answer and semantic attestation. Keep that refusal;
+do not fill missing answers with zero scores or weaken its schema. First
+exercise the existing operational report and bound-review artifacts together
+on a small mixed-outcome fixture. Add only the missing read-only projection
+needed to show the scheduled denominator, reviewable subset, missing labels,
+phase failures and usage unknowns in one dated report. Do not build a second
+evaluator or count answered-only quality as end-to-end success.
+
+The rehearsal's nine-file source identity omits current dependencies imported
+by briefing, including selection, attribution, contracts and corpus support.
+Extend the owning generation identity after tracing its actual callers;
+include prompt/rendering dependencies and lock/runtime identity. Pin the
+installed artifact used for collection as well. A changed dependency must
+refuse resume before runtime probes, ledger writes or worker dispatch.
+Historical runs retain their original recipe and an explicit compatibility
+status, never a rewritten current pin. Regression evidence must mutate a
+previously omitted dependency in an isolated fixture and prove refusal.
+
+**Capacity development precedes the final freeze.** Use only new development
+sources, never held-out cases or the old answer corpus, to measure realistic
+study, briefing, maintenance and answer phases on the owned laptop. Run
+sequentially without competing generation/test/archive loads. Record RAM,
+context occupancy, model and daemon identity, output stop reason, elapsed time,
+tokens and missing counters. A short warm-up measures startup capacity, not
+maintenance feasibility. Preserve a failed phase rather than increasing its
+limit inside a run. Freeze per-phase call/output/time limits and a total
+attempt/time ceiling from this evidence before held-out collection. If a
+shared policy limit suffices, keep it; introduce phase-specific fields only
+when the measurements require them. The development trial also gets a finite
+prospective manifest and stop rule; unlimited free retries are not an evaluation.
+
+**Freeze a reviewable replacement baseline.** Before any held-out answer,
+publish a timestamped protocol identity binding these items:
+
+- Three new source worlds, 12 cases and four existing arm policies; original
+  bytes, observation times, versions and permitted per-arm source inventories.
+  Construction/maintenance receive no questions, rubric or later sources.
+- Exact installed code/lock/model digest, generation settings, phase and total
+  limits, no metered fallback and append-only attempt accounting. A model tag
+  is not an identity. Failure, cancellation and ambiguous dispatch consume
+  allowances; any resume follows the prospectively declared retry policy.
+- Whole-answer usefulness and support, attribution, stale reuse, warranted
+  correction, retention of still-valid guidance, premise handling, appropriate
+  abstention and requested form as separate review dimensions. An obligation
+  hit or a shorter answer cannot establish overall quality.
+- A separate human-labeled reviewer calibration set, presentation-order checks,
+  conflict/exposure disclosure, numeric agreement and escalation criteria, and
+  a fixed policy for unresolved judgments. Independent model reviews are
+  supplementary evidence, not evidence of human authorship or independent
+  model-family errors. Reusing the answering model as judge is not an adequate
+  independence claim. If only one usable local model exists, use human review
+  for semantic acceptance rather than silently substituting that model.
+- All 48 terminal outcomes in the report. Compare arms within the same case;
+  report world/case-class strata, effect uncertainty, failed construction and
+  maintenance overhead separately. Twelve cases are a pilot, not 48 independent
+  examples or a broad expertise qualification. Do not choose thresholds after
+  seeing which arm wins. Keep any wrong-memory diagnostic separate and bounded.
+
+Freeze actual human review before the arm key is revealed, as the roadmap
+requires. If the reviewer is unavailable, preserve operational results and
+keep the semantic gate open. Do not claim an anonymized packet makes an arm
+uninferable; record suspected arm and reviewer exposure. Final protocol review
+is a concrete checkpoint after the rubric, fixtures and bounds exist, not a
+request to approve an unspecified run. No held-out collection starts in this
+planning change, and the existing private diagnostic key remains unopened.
+
+**Next product increment: one opt-in S1 path.** Once the S0 protocol is frozen,
+prototype one caller-scoped preparation packet through
+`execute_consult_transaction`, using one explicit Python environment and one
+official structured source class. Start with release-specific PyPI metadata
+and index data for versions/yanks. Add OSV advisory evidence and interpreter
+support data as separate increments; version metadata cannot certify advisory
+coverage. Keep the acquired evidence temporary and retain the exact context
+and source bytes supplied to the answer. Trace/lifecycle and operation receipts
+are permitted writes; canonical profile, beliefs, corpus, graph and revision
+history are unchanged. Do not run `sync --fresh-context` as a consult prelude.
+
+Use one acquisition deadline and cumulative request/decoded-byte allowances,
+including redirects, retries and DNS address attempts. No undeclared archive,
+browser or general-search fallback. Public queries receive only admitted
+package/version coordinates, never private task prose or a full lockfile.
+Caller ownership, packet permissions, retention/cleanup and cross-caller reuse
+must be defined before caching private context. See the
+[preparation contract](../design/prepared-consultation.md).
+
+S1 acceptance requires paired preparation-on/off review from the same expert
+revision and matched question, model and answer limits. Acquisition and extra
+reasoning are the treatment and are reported separately. Include advisory,
+version/yank, conflicting-source and misleading/sound-premise cases, plus
+unavailable sources, offline operation, cancellation, duplicate requests,
+slow streaming, redirect/address exhaustion and denied cross-caller reuse.
+Use synthetic transport and a small approved local semantic budget first;
+only then perform a bounded public-source smoke. A live response or a sanitizer
+canary pass does not prove safe, useful advice. Default-on promotion waits
+for S1's own reviewed evidence; S0 need not show memory winning first.
+
+**Stop and disposition.** Identity drift, unavailable mandatory evidence,
+integrity failure, disclosed-key contamination, exhausted limits, unknown
+dispatch state or material unresolved advice tradeoffs stop the affected run
+or promotion. Retain the failed attempt and its dependent terminal outcomes.
+Protocol or code repairs start a new bound trial; do not relabel old evidence.
+S0 measurement may close with a negative result. S1 may remain opt-in. S4 alone
+can establish the later repeated-use benefit claim. No paid-model key is needed
+for the next work; local inference is $0 provider API cost, while hardware and
+independent review resources remain separately reported.
 
 ### S1: prepare before consultation, with bounded temporary evidence
 

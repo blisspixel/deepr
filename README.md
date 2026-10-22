@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.50.44-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.44)
+[![Version](https://img.shields.io/badge/version-2.50.45-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.45)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -306,6 +306,17 @@ for tested behavior and the distinction from draft standards and host certificat
 
 ## Direction
 
+v2.50.45 repairs rehearsal execution identity and pre-dispatch resume refusal.
+Offline mixed-outcome checks retain failures and unknown usage in the existing
+artifacts. Historical runs remain inspectable; this does not collect or accept
+a new S0 baseline. See [the changelog](docs/CHANGELOG.md#25045---2026-10-22).
+
+The [next bounded sequence](ROADMAP.md#next-bounded-sequence-reviewed-2026-10-22)
+continues with a prospectively reviewed replacement baseline after the shipped
+S0 integrity repair, alongside dependency-security maintenance. Prepared consultation is
+the next user-visible feature: check the caller's environment against dated
+evidence without changing canonical expert state. It remains planned.
+
 v2.50.44 repairs complete finding admission, consult form-failure reporting and
 source-complete diagnostic review. It publishes the completed negative packing
 comparison while retaining the shipped dependency packer. See
@@ -480,12 +491,15 @@ compiled state. That measurement comes first because Deepr's product claim is
 durable judgment, not a larger agent runtime. Host wiring, expert-authored
 skills, and broader paid APIs wait until that evidence exists.
 
-The first rehearsal compares all four arms on the same local model and frozen
-sources. It can test the contribution of maintained state under that setup;
-it cannot establish superiority over frontier web research. Next, prepare
-equal isolated source inventories and bind blinded reviews to exact answers.
-The [research assessment](docs/research/deepr-next-evidence-2026-09-13.md)
-explains the evidence, remaining gaps, and acceptance criteria.
+The comparison holds the local answering model and permitted source access
+fixed. It can measure maintained state under that setup, with preprocessing
+and maintenance resources reported separately; it cannot establish superiority
+over frontier web research. The next run needs new held-out replacement inputs,
+a prospectively reviewed rubric and phase limits, complete generation identity,
+and exact blinded review bindings. The October diagnostic cannot become S0
+through retrospective grading. The
+[current research reassessment](docs/research/s0-s1-practice-2026-09-24.md#reassessment-2026-10-22)
+explains the remaining gaps and acceptance criteria.
 
 After the preserved baseline, v2.52 targets preparation before advice; v2.53
 targets durable temporal learning; v2.54 develops perspective and inquiry; and

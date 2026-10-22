@@ -120,6 +120,71 @@ def _executed(tmp_path: Path, launcher: FakeLauncher | None = None) -> Path:
     return tmp_path / "run"
 
 
+def test_mixed_outcomes_preserve_denominator_through_review_without_workbook(
+    tmp_path: Path,
+) -> None:
+    def behavior(spec: dict[str, Any], cwd: Path) -> str | None:
+        worker_id = spec["worker_id"]
+        if worker_id == "construct-fresh-retention-case":
+            return "fail"
+        if worker_id == "maintain-world-2":
+            return "fail"
+        if worker_id == "answer-initial-case-static_history":
+            request = f"timeout:{spec['attempt_id']}"
+            (Path(spec["output_dir"]) / "calls.jsonl").write_text(
+                json.dumps({"request_id": request, "status": "failed", "raw_response": None}) + "\n",
+                encoding="utf-8",
+            )
+            (cwd / "costs").mkdir()
+            (cwd / "costs/cost_ledger.jsonl").write_text(
+                json.dumps({"request_id": request, "cost_usd": 0, "metadata": {}}) + "\n", encoding="utf-8"
+            )
+            return "timeout"
+        if worker_id == "answer-update-case-static_history":
+            return "truncated"
+        return None
+
+    blueprint = _blueprint(tmp_path / "blueprints")
+    root = _executed(tmp_path, FakeLauncher(behavior))
+    summary = json.loads((root / "summary.json").read_text())
+    assert summary["planned_cells"] == summary["terminal_cells"] == 20
+    assert summary["answered"] == 18 and summary["failed"] == summary["blocked"] == 1
+    assert summary["truncated_answers"] == 1 and summary["failed_workers"] == 3
+    assert summary["unknown_usage_calls"] == 1 and summary["ledger_reconciled"] is True
+    # A timeout is retained as a failed worker even when no token counters returned.
+    assert summary["resources_by_phase"]["answer"]["failed_workers"] == 1
+    criteria = reviewer_criteria(
+        {"acceptance_cases": [case.model_dump() for case in blueprint.acceptance_cases]},
+        PLACEMENT,
+        {w["source_world_id"]: w["as_of"] for w in WORLD_CLAIMS["source_worlds"]},
+        WORLD_CLAIMS,
+    )
+    packet, key = build_blind_assignment(root, criteria)
+    assignment = json.loads(key)
+    assert assignment["planned_cells"] == assignment["terminal_cells"] == 20
+    assert assignment["reviewable_cells"] == 18
+    assert {c["status"] for c in assignment["non_reviewable"]} == {"failed", "blocked"}
+    labels = [{"opaque_id": e["opaque_id"], "score": 1} for e in assignment["entries"]]
+    payload = {"reviewer": {"id": "synthetic-review-fixture"}, "labels": labels}
+    binding = bind_review_labels(root, key, packet, json.dumps(payload).encode())
+    assert len(binding["bound"]) == 18 and len(binding["non_reviewable"]) == 2
+    assert binding["semantic_scores_validated"] is False
+    with pytest.raises(ValueError, match="no label"):
+        bind_review_labels(root, key, packet, json.dumps({**payload, "labels": labels[:-1]}).encode())
+    before = {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+    with pytest.raises(ValueError, match="every cell answered"):
+        assemble_workbook(
+            root,
+            blueprint=blueprint,
+            placement=PLACEMENT,
+            world_claims=WORLD_CLAIMS,
+            key_bytes=key,
+            binding=binding,
+            review_set_id="mixed-outcomes",
+        )
+    assert {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()} == before
+
+
 def _label_value(field: str, now: str) -> Any:
     if field in ("correctness", "source_relevance", "factual_support", "uncertainty_calibration"):
         return 3

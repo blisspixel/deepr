@@ -170,3 +170,37 @@ confuse two gates. Reproduce with synthetic worker artifacts and launcher
 failures, then run the existing verification gates. The short warm-up proves
 its measured throughput only; longer phases can still reach their frozen
 limits, even when the warm-up passed.
+
+## Execution identity repair, 2026-10-22
+
+Decision before implementation: retain the historical nine-module pins and add
+a versioned execution identity for new runs. Hash the complete installed Deepr
+Python source inventory, including relative filenames, so additions, removals
+and changes to transitive generation dependencies cannot evade a hand-written
+module list. Record Python implementation/version, installed distribution
+versions, and the authoritative checkout lock/metadata hashes when a verified
+source checkout exists. Installed wheels explicitly record no checkout lock.
+Absolute paths, Git status and commit remain provenance, outside identity
+equality. Dependency versions do not attest immutable third-party package
+bytes, and none of these hashes guarantee deterministic model output.
+
+One read-only validator refuses historical runs without this stronger identity
+and changed identities before CLI runtime probes, warm-up or ledger activity.
+The locked resume path repeats validation. Each worker receives the frozen
+identity digest and checks its own identity before creating its model backend;
+worker receipts and summary checks retain that digest. Old runs and their
+original pins remain available to existing read-only inspection and blinding,
+but cannot be upgraded in place into resumable new-protocol runs.
+
+Rejected alternative: extending only the nine-file list would require another
+import-closure audit after every new dependency and has already missed briefing
+selection and attribution. No second graph builder, evaluator, network stack,
+semantic verdict or inference call is needed for this repair.
+
+Failure reporting reuses existing summary, assignment and bound-label artifacts.
+A mixed-outcome offline regression must retain planned, failed, blocked,
+truncated and reviewable counts, failed maintenance and unknown usage, refuse
+missing labels, and preserve the strict workbook's missing-answer refusal.
+Add another projection only if that test establishes a missing user-visible
+fact. Historical source/answer artifacts and private assignment keys are not
+opened or rewritten by the implementation validation.
