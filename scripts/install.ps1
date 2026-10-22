@@ -91,6 +91,18 @@ if (-not $manager) {
     }
 }
 
+# Check the acquisition tool before any release or interpreter download.
+if ($manager -eq "uv") {
+    $uvVersion = ""
+    try { $uvVersion = (& uv --version 2>$null | Out-String).Trim() } catch { $LASTEXITCODE = 1 }
+    $parsedUv = $null
+    if ($LASTEXITCODE -ne 0 -or $uvVersion -notmatch '^uv ([0-9]+\.[0-9]+\.[0-9]+)(?: .*)?$' -or
+        -not [version]::TryParse($Matches[1], [ref]$parsedUv) -or $parsedUv -lt [version]'0.13.5') {
+        Write-Err "Error: uv 0.13.5 or newer is required. Update uv through its official instructions, then retry. No changes were made."
+        exit 1
+    }
+}
+
 # Explicitly select stable CI-supported CPython, never arbitrary prerelease PATH Python.
 $pythonProbe = "import sys; ok = sys.implementation.name == 'cpython' and sys.version_info[:2] in {(3,11),(3,12),(3,13),(3,14),(3,15)} and sys.version_info.releaselevel == 'final'; print(getattr(sys, '_base_executable', sys.executable)) if ok else None; raise SystemExit(not ok)"
 $python = $null
@@ -194,7 +206,7 @@ function Invoke-ManagedInstall([switch]$Force) {
     $hadLibyamlSetting = Test-Path Env:PYYAML_FORCE_LIBYAML
     try {
         if (-not $hadLibyamlSetting) { $env:PYYAML_FORCE_LIBYAML = "0" }
-        if ($manager -eq "uv") { & uv tool install --python 3.15.0 --managed-python @forceArgs $wheelUrl }
+        if ($manager -eq "uv") { & uv tool install --python 3.15.1 --managed-python @forceArgs $wheelUrl }
         else { Invoke-Pipx install --python $pipxPython @forceArgs $wheelUrl }
     } finally {
         if (-not $hadLibyamlSetting) { Remove-Item Env:PYYAML_FORCE_LIBYAML -ErrorAction SilentlyContinue }
@@ -205,7 +217,7 @@ function Remove-ManagedInstall {
     else { Invoke-Pipx uninstall $Package }
 }
 if ($manager -eq "uv") {
-    & uv python install 3.15.0
+    & uv python install 3.15.1
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 function Test-DeeprWorks {
@@ -250,5 +262,5 @@ Write-Host "Update later:  re-run this one-liner, or '$Cli upgrade'"
 Write-Host "Uninstall:     re-run this one-liner with -Uninstall"
 Write-Host ""
 Write-Host "Dev / editable from source:"
-Write-Host "  git clone https://github.com/blisspixel/deepr.git; cd deepr; uv tool install --python 3.15.0 --managed-python -e ."
+Write-Host "  git clone https://github.com/blisspixel/deepr.git; cd deepr; uv tool install --python 3.15.1 --managed-python -e ."
 Write-Host ""

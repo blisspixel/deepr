@@ -2,6 +2,30 @@
 
 Complete installation guide for Deepr on Linux, macOS, and Windows.
 
+## Installer trust repair (2026-10-22)
+
+Use uv 0.13.5 or newer, pip 26.2.2 or newer, and certifi 2026.10.19 or newer.
+These repair independent certificate bundles after the
+[emSign incident](https://discuss.python.org/t/information-for-python-users-regarding-emudhra-emsign-ca-certificate-security-incident/109576).
+Updating application certifi does not update pip, uv, existing environments,
+base interpreters or previously built images. Managed installation now requests
+CPython 3.15.1, including its repaired ensurepip bundle. Old or unparseable uv is
+refused before managed installation; uninstall remains available.
+
+Update uv using its official installation instructions and verify `uv --version`.
+For an existing pip, follow the incident notice's hash-pinned pip wheel upgrade;
+then verify `python -m pip --version`. Update pip inside each environment that
+still performs installation, including pipx shared/owned environments. Do not
+use an affected installer to fetch arbitrary unpinned replacements or disable
+TLS verification. Upgrading uv does not switch a venv pinned to Python 3.15.0.
+Recreate that venv with a repaired interpreter, then use the frozen project lock.
+
+For maintained containers, use `docker build --pull --no-cache` with the updated
+Dockerfile. Replace any deployed image deliberately; repository changes cannot
+update an existing deployment. The CI matrix builds all three images and checks
+base pip, ensurepip and vendored certifi without network access. The application
+venv remains unseeded and pip is not an application runtime dependency.
+
 ## Quick Install (5 minutes)
 
 **Deepr works on Windows, macOS, and Linux** (Python 3.11+). The distribution
@@ -25,7 +49,7 @@ curl -fsSL https://raw.githubusercontent.com/blisspixel/deepr/main/scripts/insta
 
 The installers resolve the latest supported wheel from GitHub Releases and
 preserve an existing uv or pipx owner. A fresh install prefers uv and explicitly
-requires managed stable CPython 3.15.0. A Python version request alone does not
+requires managed stable CPython 3.15.1. A Python version request alone does not
 require a managed interpreter. If uv is unavailable, an existing pipx uses an
 explicit stable CPython 3.11, 3.12, 3.13, 3.14 or 3.15 interpreter.
 Install a manager first:
@@ -33,7 +57,7 @@ Install a manager first:
 [pipx installation](https://pipx.pypa.io/stable/installation/). The scripts never
 bootstrap pipx with `pip --user` into a venv or externally managed interpreter.
 
-Managed installation requests final CPython 3.15.0 exactly. CI uses uv 0.13.0;
+Managed installation requests final CPython 3.15.1 exactly. CI uses uv 0.13.5;
 if an older manager cannot find that release, update uv through its owning
 installation method. A beta is not a supported substitute. Optional full/search
 dependencies still include source-only Brotli at 3.15 and need a C toolchain;

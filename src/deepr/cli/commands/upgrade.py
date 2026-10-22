@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import shutil
 import subprocess
 import sys
 import sysconfig
@@ -134,7 +136,11 @@ def _fetch_latest_release() -> ReleaseInfo | None:
 def _upgrade_command(origin: str, wheel_url: str) -> list[str] | None:
     """The argv to upgrade for a given install origin (None = manual steps)."""
     if origin == "uv":
-        return ["uv", "tool", "install", "--force", "--python", "3.15.0", "--managed-python", wheel_url]
+        if not _patched_uv_available():
+            raise click.ClickException(
+                "uv 0.13.5 or newer is required. Update uv through its official instructions, then retry. No changes were made."
+            )
+        return ["uv", "tool", "install", "--force", "--python", "3.15.1", "--managed-python", wheel_url]
     if origin == "pipx":
         if (
             sys.implementation.name != "cpython"
@@ -148,6 +154,28 @@ def _upgrade_command(origin: str, wheel_url: str) -> list[str] | None:
             return None
         return [sys.executable, "-m", "pip", "install", "--upgrade", wheel_url]
     return None  # editable: handled with guidance, never auto-run
+
+
+def _invoke_upgrade_tool(
+    command: list[str], *, probe: bool = False, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
+    """Keep read-only probes bounded and installation output attached to the terminal."""
+    return subprocess.run(  # noqa: S603 - only fixed manager argv from this module
+        command, check=False, env=env, capture_output=probe, text=True, timeout=10 if probe else None
+    )
+
+
+def _patched_uv_available() -> bool:
+    """Refuse unsafe or unknown acquisition tools without running an install."""
+    executable = shutil.which("uv")
+    if executable is None:
+        return False
+    try:
+        result = _invoke_upgrade_tool([executable, "--version"], probe=True)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    match = re.fullmatch(r"uv ([0-9]+)\.([0-9]+)\.([0-9]+)(?: .*)?", result.stdout.strip())
+    return result.returncode == 0 and match is not None and tuple(map(int, match.groups())) >= (0, 13, 5)
 
 
 def _release_for_command(ctx: click.Context, *, check: bool) -> ReleaseInfo | None:
@@ -220,7 +248,7 @@ def upgrade(ctx: click.Context, check: bool) -> None:
     try:
         install_env = os.environ.copy()
         install_env.setdefault("PYYAML_FORCE_LIBYAML", "0")
-        result = subprocess.run(cmd, check=False, env=install_env)  # noqa: S603 - argv built from fixed parts
+        result = _invoke_upgrade_tool(cmd, env=install_env)
     except FileNotFoundError:
         print_error(f"Upgrade tool not found: {cmd[0]}. Install it or upgrade manually.")
         ctx.exit(1)

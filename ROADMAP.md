@@ -50,6 +50,11 @@ stay blocked.
 
 ### Next bounded sequence, reviewed 2026-10-22
 
+Subsequent issue #283 identified independent affected installer trust bundles.
+v2.50.46 repairs maintained uv/pip selections, advances the managed Python patch
+and rebuilds container trust. Existing environments and deployments still need
+explicit owner refresh; see [the record](docs/validation/toolchain-trust-repair-2026-10-22.md).
+
 The authenticated GitHub inventory has no open issues, PRs, CodeQL,
 Dependabot or secret-scanning alerts, or repository advisories. CodeQL has
 successful Python, JavaScript/TypeScript and Actions analyses on `660eaf61`.
@@ -838,7 +843,7 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.45)
+## Current Status (v2.50.46)
 
 v2.50.45 completes the offline rehearsal identity preflight and verifies mixed
 terminal outcomes through existing artifacts. No new S0 run or semantic
@@ -4223,7 +4228,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.45. This roadmap keeps
+v2.50.46. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 

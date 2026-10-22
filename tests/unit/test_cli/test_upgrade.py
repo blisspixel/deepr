@@ -224,11 +224,19 @@ def test_detect_origin_uses_uv_receipt_even_with_custom_tool_directory(monkeypat
 def test_uv_upgrade_keeps_manager_and_requires_managed_stable_python(monkeypatch):
     monkeypatch.setattr(upgrade_mod, "_fetch_latest_release", lambda: _release())
     monkeypatch.setattr(upgrade_mod, "_detect_origin", lambda: "uv")
+    monkeypatch.setattr(upgrade_mod.shutil, "which", lambda _: "uv")
     calls = []
-    monkeypatch.setattr(subprocess, "run", lambda cmd, **_: calls.append(cmd) or subprocess.CompletedProcess(cmd, 0))
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda cmd, **_: calls.append(cmd) or subprocess.CompletedProcess(cmd, 0, stdout="uv 0.13.5\n"),
+    )
     result = CliRunner().invoke(upgrade, [])
     assert result.exit_code == 0
-    assert calls == [["uv", "tool", "install", "--force", "--python", "3.15.0", "--managed-python", WHEEL_URL]]
+    assert calls == [
+        ["uv", "--version"],
+        ["uv", "tool", "install", "--force", "--python", "3.15.1", "--managed-python", WHEEL_URL],
+    ]
 
 
 def test_externally_managed_pip_upgrade_refuses_without_subprocess(monkeypatch, tmp_path):
@@ -253,9 +261,12 @@ def test_upgrade_defaults_optional_yaml_build_without_changing_caller_environmen
         monkeypatch.setenv("PYYAML_FORCE_LIBYAML", explicit)
     monkeypatch.setattr(upgrade_mod, "_fetch_latest_release", lambda: _release())
     monkeypatch.setattr(upgrade_mod, "_detect_origin", lambda: "uv")
+    monkeypatch.setattr(upgrade_mod.shutil, "which", lambda _: "uv")
     observed = []
 
     def run(cmd, **kwargs):
+        if cmd == ["uv", "--version"]:
+            return subprocess.CompletedProcess(cmd, 0, stdout="uv 0.13.5\n")
         observed.append(dict(kwargs.get("env", os.environ)))
         return subprocess.CompletedProcess(cmd, 0)
 
@@ -264,3 +275,57 @@ def test_upgrade_defaults_optional_yaml_build_without_changing_caller_environmen
     assert result.exit_code == 0, result.output
     assert observed[0]["PYYAML_FORCE_LIBYAML"] == ("0" if explicit is None else explicit)
     assert os.environ.get("PYYAML_FORCE_LIBYAML") == explicit
+
+
+@pytest.mark.parametrize("output", ["uv 0.13.0", "uv 0.13.4", "uv 0.13.5rc1", "unknown"])
+def test_uv_upgrade_refuses_unsafe_tool_before_install(monkeypatch, output):
+    monkeypatch.setattr(upgrade_mod, "_fetch_latest_release", lambda: _release())
+    monkeypatch.setattr(upgrade_mod, "_detect_origin", lambda: "uv")
+    monkeypatch.setattr(upgrade_mod.shutil, "which", lambda _: "uv")
+    calls = []
+
+    def run(cmd, **kwargs):
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, stdout=output)
+
+    monkeypatch.setattr(subprocess, "run", run)
+    result = CliRunner().invoke(upgrade, [])
+    assert result.exit_code == 1
+    assert "uv 0.13.5 or newer" in result.output
+    assert calls == [["uv", "--version"]]
+
+
+@pytest.mark.parametrize("failure", [FileNotFoundError("uv"), subprocess.TimeoutExpired(["uv", "--version"], 10)])
+def test_uv_probe_failure_refuses_without_install(monkeypatch, failure):
+    monkeypatch.setattr(upgrade_mod, "_fetch_latest_release", lambda: _release())
+    monkeypatch.setattr(upgrade_mod, "_detect_origin", lambda: "uv")
+    monkeypatch.setattr(upgrade_mod.shutil, "which", lambda _: "uv")
+    calls = []
+
+    def run(cmd, **kwargs):
+        calls.append(cmd)
+        raise failure
+
+    monkeypatch.setattr(subprocess, "run", run)
+    result = CliRunner().invoke(upgrade, [])
+    assert result.exit_code == 1
+    assert "uv 0.13.5 or newer" in result.output
+    assert calls == [["uv", "--version"]]
+
+
+@pytest.mark.parametrize("output", ["uv 0.13.5 (build)", "uv 0.14.0", "uv 1.0.0"])
+def test_newer_stable_uv_is_eligible_without_changing_install_owner(monkeypatch, output):
+    monkeypatch.setattr(upgrade_mod, "_fetch_latest_release", lambda: _release())
+    monkeypatch.setattr(upgrade_mod, "_detect_origin", lambda: "uv")
+    monkeypatch.setattr(upgrade_mod.shutil, "which", lambda _: "uv")
+    calls = []
+
+    def run(cmd, **kwargs):
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, stdout=output)
+
+    monkeypatch.setattr(subprocess, "run", run)
+    result = CliRunner().invoke(upgrade, [])
+    assert result.exit_code == 0
+    assert calls[0] == ["uv", "--version"]
+    assert calls[1][0:3] == ["uv", "tool", "install"]

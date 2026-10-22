@@ -159,6 +159,14 @@ review judges supported usefulness. Rejection completes the bounded comparison
 without granting policy acceptance or requiring a positive result to release
 compatible repairs. Word adherence, brief metadata and S0 remain active.
 
+Installer trust checks compare explicit tool versions before acquisition. They
+refuse old or unknown uv and keep uninstall available, with no automatic tool
+replacement or owner switch. The pip development floor, managed interpreter
+patch and cold container rebuilds repair independent trust bundles. These are
+form and side-effect boundaries; they cannot qualify research or prove that an
+existing user environment has been remediated. See
+[the maintained runtime decision](../design/maintained-runtime-support.md#installer-trust-repair-2026-10-22-283).
+
 ## The rule (where determinism belongs)
 
 Three sources that look like they conflict resolve into one principle.
