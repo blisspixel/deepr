@@ -389,6 +389,11 @@ refuses the operation. Extend lifecycle work bounds and phase/progress represent
 to include these two calls before the first preparation dispatch; the current
 roster-plus-one council count cannot silently stand for extra work. Preserve
 the existing one-synthesis-call limit and record preparation overhead separately.
+Set the transaction's work-started state before the first preparation dispatch
+or durable acquisition intent. Subsequent deadline, cancellation or storage
+failures must retain consumed authority and must not advertise a safe automatic
+retry. Regress this transition before council generation, where the current
+transaction first marks provider work started.
 
 Freeze one packet containing the request/owner/operation identities, expert
 revision, model/policy identities, assumptions, raw and corpus source hashes,
