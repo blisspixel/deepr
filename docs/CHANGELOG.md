@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Update only the locked Brotli decoders selected by `ddgs -> httpx[brotli]`:
+  Brotli 1.2.1 and brotlicffi 1.2.1.0 address GHSA-9v8h-qqgm-4m35.
+  Keep the existing CPython/non-CPython selection and installer trust floors.
+- Raise the direct filelock floor to 4.2.4, below 5, after the dependency audit
+  found CVE-2026-112940, CVE-2026-112913 and CVE-2026-112907 in locked 3.32.2.
+  Preserve the existing FileLock/Timeout API and persistence implementation;
+  the [compatibility decision](design/filelock-security-floor.md) records the
+  deliberate major-version change. Read-only quota tests no longer assume
+  released locks leave a marker file, while still checking reads create none.
+- Add lock-selection regressions for both Brotli implementations and filelock,
+  plus offline HTTPX compressed-response and malformed-input checks.
+  These source changes do not refresh existing user installations or deployed
+  images, and do not establish that any installation was exploited.
+- Update only transitive development dependency Zod from 4.4.3 to 4.6.7
+  after the hosted npm audit reported GHSA-mrhx-c7xc-m3w5. The React Hooks
+  lint dependency accepts that release; application dependencies, frontend
+  output and audit thresholds are unchanged.
+- Repair Windows offline-test fixtures exposed by the full local sweep:
+  bound parameter IDs without shrinking pathological inputs, isolate stored
+  doctor credentials, preserve native path and actual-file hash semantics,
+  tolerate released lock-marker cleanup, and separate asyncio loopback
+  self-pipes from blocked external connections. Retain the initial failures
+  and add these regressions to the maintained Windows/macOS install matrix.
+
 ## [2.50.46] - 2026-10-22
 
 ### Fixed

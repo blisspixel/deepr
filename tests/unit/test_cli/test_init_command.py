@@ -137,9 +137,10 @@ class TestInitYes:
             result = runner.invoke(init, ["--local-env", "--yes", "--data-dir", "/synced/deepr"])
             assert result.exit_code == 0
             env = _read_env_file(Path(".env"))
-            assert env["DEEPR_DATA_DIR"] == "/synced/deepr"
-            assert env["DEEPR_EXPERTS_PATH"] == "/synced/deepr/experts"
-            assert env["DEEPR_REPORTS_PATH"] == "/synced/deepr/reports"
+            expected = Path("/synced/deepr").resolve()
+            assert env["DEEPR_DATA_DIR"] == str(expected)
+            assert env["DEEPR_EXPERTS_PATH"] == str(expected / "experts")
+            assert env["DEEPR_REPORTS_PATH"] == str(expected / "reports")
 
     def test_summary_uses_workflow_specific_safe_next_actions(self, monkeypatch):
         monkeypatch.setattr(

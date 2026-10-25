@@ -11,9 +11,33 @@ from __future__ import annotations
 import sys
 import types
 
+import httpx
 import pytest
 
 from deepr.tools.web_search import WebSearchTool, _retry_async
+
+try:
+    import brotli
+except ImportError:
+    import brotlicffi as brotli
+
+
+@pytest.mark.parametrize("chunk_size", [1, 7, 4096])
+def test_httpx_decodes_brotli_search_responses_offline(chunk_size):
+    payload = b'{"results":[{"title":"Python release","url":"https://example.com/"}]}'
+    compressed = brotli.compress(payload)
+    chunks = [compressed[offset : offset + chunk_size] for offset in range(0, len(compressed), chunk_size)]
+    response = httpx.Response(200, headers={"Content-Encoding": "br"}, content=chunks)
+
+    assert response.read() == payload
+    assert response.json()["results"][0]["title"] == "Python release"
+
+
+def test_httpx_rejects_invalid_brotli_search_response_offline():
+    response = httpx.Response(200, headers={"Content-Encoding": "br"}, content=[b"not a brotli stream"])
+
+    with pytest.raises(httpx.DecodingError):
+        response.read()
 
 
 @pytest.fixture(autouse=True)

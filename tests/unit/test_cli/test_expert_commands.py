@@ -410,7 +410,7 @@ class TestExpertListCommand:
 
             result = runner.invoke(cli, ["expert", "list"])
 
-            output = result.output
+            output = " ".join(result.output.split())
             assert "Test Expert" in output
             assert "Test description" in output
             assert "Name:" in output

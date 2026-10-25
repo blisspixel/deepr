@@ -404,6 +404,7 @@ class TestBatchExecutor:
         outcome = ResearchCancellationOutcome(queue_cancelled=False, cost_closed=False)
 
         with (
+            patch("deepr.worker.poller.JobPoller"),
             patch("time.monotonic", side_effect=[0.0, 2.0]),
             patch(
                 "deepr.services.research_cancellation.cancel_reserved_research",

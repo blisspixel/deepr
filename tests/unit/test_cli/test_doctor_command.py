@@ -24,14 +24,19 @@ _PROVIDER_ENV_VARS = (
     "ANTHROPIC_API_KEY",
     "AZURE_OPENAI_API_KEY",
     "AZURE_OPENAI_ENDPOINT",
+    "OPENROUTER_API_KEY",
 )
 
 
 @pytest.fixture(autouse=True)
-def _clear_provider_environment(monkeypatch):
-    """Remove developer keys without clearing the runtime-root isolation."""
+def _clear_provider_environment(monkeypatch, tmp_path):
+    """Isolate stored and quarantined inventory as well as exported keys."""
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    monkeypatch.setattr("deepr.config._configuration_environment", None)
+    monkeypatch.delenv("DEEPR_ENV_FILE", raising=False)
     for name in _PROVIDER_ENV_VARS:
         monkeypatch.delenv(name, raising=False)
+        monkeypatch.delenv("DEEPR_QUARANTINED_" + name, raising=False)
 
 
 class TestDoctorCommandStructure:

@@ -26,7 +26,7 @@ def local_profiles(monkeypatch, tmp_path):
     data = json.loads(path.read_text())
     data["schema_version"] = 1
     path.write_text(json.dumps(data))
-    path.with_suffix(".json.lock").unlink()
+    path.with_suffix(".json.lock").unlink(missing_ok=True)
     before = path.read_bytes()
     calls = []
 

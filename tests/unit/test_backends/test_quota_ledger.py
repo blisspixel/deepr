@@ -394,7 +394,9 @@ def test_read_only_snapshot_does_not_create_parent_or_lock(tmp_path):
     assert list(tmp_path.iterdir()) == []
     ledger.record_event(_event())
     lock = path.with_suffix(".jsonl.lock")
-    lock.unlink()
+    # Newer filelock removes the marker on release; older versions retain it.
+    lock.unlink(missing_ok=True)
+    assert not lock.exists()
     assert ledger.get_events() == [_event()]
     assert not lock.exists()
 

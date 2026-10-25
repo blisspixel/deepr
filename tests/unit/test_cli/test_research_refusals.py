@@ -160,6 +160,16 @@ def test_aborted_budget_confirmation_is_terminal(monkeypatch):
         (QUERY, ["--limit", "nan"]),
         (QUERY, ["--limit", "inf"]),
     ],
+    ids=[
+        "empty",
+        "whitespace",
+        "reserved-command",
+        "overlong",
+        "missing-upload",
+        "zero-limit",
+        "nan-limit",
+        "infinite-limit",
+    ],
 )
 @pytest.mark.parametrize("flags", [[], ["--json"], ["-q"]])
 def test_invalid_inputs_never_report_success(query, extra, flags):
