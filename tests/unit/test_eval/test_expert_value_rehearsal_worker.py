@@ -151,6 +151,25 @@ def test_worker_identity_refuses_before_backend_or_ledger(phase, pin: str | None
     assert not (result["out"].parent / "costs/cost_ledger.jsonl").exists()
 
 
+def test_construct_passes_the_enforced_output_ceiling_to_shared_study(phase, monkeypatch) -> None:
+    from deepr.experts import study
+
+    observed_budgets = []
+    original = study.run_study
+
+    async def capture(**kwargs):
+        observed_budgets.append(kwargs.get("max_output_tokens"))
+        return await original(**kwargs)
+
+    monkeypatch.setattr(study, "run_study", capture)
+    built = phase("output-budget", "construct")
+    assert built["status"] == "completed", built
+    assert observed_budgets == [_policy()["max_output_tokens"]]
+    calls = [json.loads(line) for line in (built["out"] / "calls.jsonl").read_text().splitlines()]
+    assert calls
+    assert all(call["options"]["max_tokens"] == observed_budgets[0] for call in calls)
+
+
 def test_construct_then_maintain_then_answer_with_memory(phase) -> None:
     built = phase("construct", "construct")
     assert built["status"] == "completed", built

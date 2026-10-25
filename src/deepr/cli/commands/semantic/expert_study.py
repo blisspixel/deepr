@@ -883,6 +883,7 @@ async def _run_study_with_capacity(
                     expert_name=profile.name,
                     corpus=store,
                     completion=backend.completion,
+                    max_output_tokens=getattr(backend, "max_output_tokens", None),
                     lens_keys=[lens.key for lens in resolved],
                     max_corpus_chars=max_corpus_chars,
                     chunk_chars=backend.chunk_chars,

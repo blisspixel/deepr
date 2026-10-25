@@ -50,6 +50,17 @@ stay blocked.
 
 ### Next bounded sequence, reviewed 2026-10-22
 
+**2026-10-25 development finding, study budget repair candidate:** after the
+external GPU workload was closed, the original Qwen development synopsis hit
+its 4096-token ceiling and returned incomplete JSON. The study was rejected;
+no brief, maintenance or answer was produced. The candidate communicates the
+existing output ceiling through the shared study renderer, checkpoint identity
+and callers, and forwards pooled requests to members. Plan ceilings remain
+unknown because their transport does not enforce the request argument. The
+repair adds no retry, salvage or higher limit. Preserve both failed trials.
+Offline delivery tests do not establish model compliance, S0 capacity or useful advice. See
+[the output-budget repair](docs/design/study-output-budget-communication.md).
+
 **2026-10-25 development finding, diagnostic repair candidate:** a separately
 bounded local development trial returned two study calls, then its brief call
 timed out. The fallback brief omitted the exception class when its message was

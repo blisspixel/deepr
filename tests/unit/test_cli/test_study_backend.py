@@ -224,3 +224,89 @@ def test_fit_metadata_fetch_keeps_only_reported_models():
     assert _kv_per_token_by_model(client, "http://127.0.0.1:11434", tags) == {"qwen3.8:27b": 65_536}
     assert [model for _, model in client.calls] == ["qwen3.8:27b", "broken:1b", "bare:1b"]
     assert all(url == "http://127.0.0.1:11434/api/show" for url, _ in client.calls)
+
+
+def test_legacy_study_backend_has_unknown_output_budget():
+    backend = study_backend.StudyBackend(completion=lambda prompt: None, capacity_source="fixture", cost_note="fixture")
+    assert backend.max_output_tokens is None
+
+
+@pytest.mark.asyncio
+async def test_local_backend_reports_exact_dispatched_output_budget(monkeypatch, profile):
+    requests = []
+
+    class NativeBackend:
+        def __init__(self, **kwargs):
+            pass
+
+        async def complete(self, request):
+            requests.append(request)
+            return ExpertChatResult(message=SimpleNamespace(content="{}"), stop_reason="stop")
+
+    monkeypatch.setattr(
+        "deepr.backends.local.resolve_local_maintenance_model", lambda profile, explicit_model: explicit_model
+    )
+    monkeypatch.setattr("deepr.experts.investigation.ollama_backend.NativeOllamaInvestigationBackend", NativeBackend)
+    backend = study_backend._build_local_backend(profile=profile, model="fixture", max_tokens=3072)
+
+    await backend.completion("Read these sources")
+
+    assert backend.max_output_tokens == requests[0].extra["max_tokens"] == 3072
+
+
+@pytest.mark.asyncio
+async def test_plan_requested_budget_remains_unknown_transport_ceiling(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from deepr.backends import plan_quota
+
+    create = AsyncMock(
+        return_value=SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content="{}"), finish_reason="stop")]
+        )
+    )
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    monkeypatch.setattr(
+        plan_quota, "get_adapter", lambda name: SimpleNamespace(backend_id="fixture", metered_at_margin=False)
+    )
+    monkeypatch.setattr(plan_quota, "PlanQuotaChatClient", lambda adapter, model: client)
+    backend = study_backend._build_plan_backend(plan="fixture", plan_model="fixture-model", max_tokens=5120)
+
+    await backend.completion("Read these sources")
+
+    assert create.call_args.kwargs["max_tokens"] == 5120
+    assert backend.max_output_tokens is None
+
+
+def test_pooled_backend_reports_common_synthetic_member_budget(monkeypatch, profile):
+    calls = []
+
+    def build(**kwargs):
+        calls.append(kwargs)
+        return study_backend.StudyBackend(
+            completion=lambda prompt: None,
+            capacity_source=f"plan:{kwargs['plan']}",
+            cost_note="fixture",
+            max_output_tokens=kwargs["max_tokens"],
+        )
+
+    monkeypatch.setattr(study_backend, "build_study_backend", build)
+    monkeypatch.setattr("deepr.backends.quota_headroom.read_headroom", lambda: {})
+    backend = study_backend._build_pooled_backend(profile=profile, plans=["first", "second"], max_tokens=6144)
+
+    assert backend.max_output_tokens == 6144
+    assert [call["max_tokens"] for call in calls] == [6144, 6144]
+
+
+def test_plan_pool_does_not_promote_requested_budget_to_ceiling(monkeypatch, profile):
+    from deepr.backends import plan_quota
+
+    monkeypatch.setattr("deepr.backends.quota_headroom.read_headroom", lambda: {})
+    monkeypatch.setattr(
+        plan_quota, "get_adapter", lambda name: SimpleNamespace(backend_id=name, metered_at_margin=False)
+    )
+    monkeypatch.setattr(plan_quota, "PlanQuotaChatClient", lambda adapter, model: object())
+
+    backend = study_backend._build_pooled_backend(profile=profile, plans=["first", "second"], max_tokens=6144)
+
+    assert backend.max_output_tokens is None

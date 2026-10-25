@@ -203,6 +203,7 @@ async def _build_memory(spec: dict[str, Any], output: Path, dispatcher: _Dispatc
         chunk_chars=int(policy["study_chunk_chars"]),
         capacity_source="local",
         model=policy["model"],
+        max_output_tokens=int(policy["max_output_tokens"]),
     )
     (output / "study.json").write_text(json.dumps(study.to_dict(), indent=2, sort_keys=True), encoding="utf-8")
     lenses_ok = len(study.outcomes) == len(policy["lenses"]) and all(o.status == "ok" for o in study.outcomes)

@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Communicate known output token ceilings through shared study prompts and
+  checkpoint identity, using actual backend metadata in CLI, formation and
+  rehearsal callers. Forward requested pooled limits to each member; retain
+  unknown budgets for plan transports and custom or heterogeneous pools. Keep
+  complete-response checks, limits, provider eligibility and one-call behavior unchanged.
+
 - Preserve the exception class when brief synthesis fails with an empty error
   message, without copying private exception details into the retained brief.
   Keep the failed brief, study selection and single-attempt behavior unchanged;

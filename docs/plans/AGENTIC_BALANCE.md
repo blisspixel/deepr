@@ -72,6 +72,15 @@ token fields are reported worker subtotals, with warm-up recorded separately.
 Neither a complete cell denominator nor known counters certify phase success
 or semantic quality. See [the rehearsal contract](../design/local-four-arm-rehearsal.md).
 
+Known study output ceilings now travel from actual backend metadata through
+the shared renderer, prompt hashes and checkpoint admission. Code validates
+the numerical form and retains complete-response refusal; model judgment
+chooses useful supported findings and preserves qualifications within that
+budget. An ignored plan request argument is not an enforced ceiling. Unknown
+ceilings remain unknown. This adds no finding quota, semantic
+keyword verdict, clipping, salvage or automatic retry. See
+[study output budgets](../design/study-output-budget-communication.md).
+
 Decision review projects exact outcome/trace identities and recorded input
 differences. It preserves answers, receipts and operator observations without
 inferring decision equivalence, superseding advice or better judgment. Review

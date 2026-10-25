@@ -70,6 +70,8 @@ class StudyBackend:
     largest determinant of what a study pass finds, and previously discarded."""
     preflight: Callable[[], Awaitable[None]] | None = None
     model_contract: Callable[[], dict[str, Any]] | None = None
+    max_output_tokens: int | None = None
+    """The dispatched output ceiling, or unknown for a legacy/custom callable."""
 
 
 def _completion_from_chat_client(client: Any, model: str, *, max_tokens: int) -> StudyCompletion:
@@ -211,7 +213,7 @@ def _build_pooled_backend(*, profile: Any, plans: list[str], max_tokens: int) ->
     """
     from deepr.experts.backend_pool import build_pool
 
-    pool = build_pool(profile, plans)
+    pool = build_pool(profile, plans, max_tokens=max_tokens)
     if not pool.backends:
         detail = "; ".join(pool.unavailable + pool.skipped) or "none resolved"
         raise StudyBackendError(f"no plan-quota backend available from {', '.join(plans)}: {detail}")
@@ -225,6 +227,7 @@ def _build_pooled_backend(*, profile: Any, plans: list[str], max_tokens: int) ->
         model="",
         cost_note=note,
         chunk_chars=pool.chunk_chars or _PLAN_CHUNK_CHARS,
+        max_output_tokens=pool.max_output_tokens,
     )
 
 
@@ -288,6 +291,7 @@ def _build_local_backend(
         preflight=preflight,
         model_contract=model_contract,
         cost_note=f"$0 (local model {local_model} @ {context_tokens} ctx){fit_note}",
+        max_output_tokens=max_tokens,
     )
 
 
@@ -382,6 +386,9 @@ def _build_plan_backend(*, plan: str, plan_model: str | None, max_tokens: int) -
         model=plan_model or "",
         cost_note="$0 at the margin (prepaid plan)",
         chunk_chars=_PLAN_CHUNK_CHARS,
+        # The plan facade accepts max_tokens but its CLI invocation does not
+        # enforce it. A requested value is not a proven transport ceiling.
+        max_output_tokens=None,
     )
 
 

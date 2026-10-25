@@ -338,3 +338,91 @@ async def test_eta_starts_unknown_then_uses_a_real_completed_chunk_without_probe
     assert progress[1]["timing_samples"] == 1
     assert progress[1]["estimated_study_seconds"] is not None
     assert completion.await_count == len(corpus.iter_study_chunks(chunk_chars=70))
+
+
+@pytest.mark.asyncio
+async def test_known_output_budget_binds_exact_dispatched_prompts(corpus, tmp_path):
+    import hashlib
+
+    chunks = checkpoint(tmp_path, "budget")
+    completion = AsyncMock(return_value='{"fail_patterns": []}')
+    await run(corpus, chunks, completion, max_output_tokens=4096)
+    dispatched = [call.args[0] for call in completion.await_args_list]
+    assert all("4096 output tokens" in prompt for prompt in dispatched)
+    contract = json.loads((chunks.directory / "manifest.json").read_text())
+    assert contract["contract"]["max_output_tokens"] == 4096
+    hashes = {hashlib.sha256(prompt.encode()).hexdigest() for prompt in dispatched}
+    assert set(contract["contract"]["prompts"].values()) == hashes
+
+
+@pytest.mark.asyncio
+async def test_changed_output_budget_refuses_chunk_and_legacy_reuse(corpus, tmp_path):
+    first = checkpoint(tmp_path, "budget-first")
+    original = await run(corpus, first, AsyncMock(return_value='{"fail_patterns": []}'), max_output_tokens=4096)
+    second = checkpoint(tmp_path, "budget-second", "budget-first")
+    changed = AsyncMock(return_value='{"fail_patterns": []}')
+    await run(corpus, second, changed, max_output_tokens=2048)
+    assert second.reused == 0
+    assert changed.await_count == len(first.records)
+    legacy = AsyncMock(return_value='{"fail_patterns": []}')
+    await run_study(
+        expert_name="E",
+        corpus=corpus,
+        completion=legacy,
+        lens_keys=["failure"],
+        chunk_chars=70,
+        model="fixture",
+        capacity_source="local:fixture",
+        resume_from=original.outcomes,
+        max_output_tokens=2048,
+    )
+    assert legacy.await_count == len(first.records)
+
+
+@pytest.mark.parametrize("budget", [0, -1, True, False, 1.5, "4096"])
+@pytest.mark.asyncio
+async def test_invalid_output_budget_refused_before_dispatch(corpus, budget):
+    completion = AsyncMock(return_value='{"fail_patterns": []}')
+    with pytest.raises(ValueError, match="positive integer"):
+        await run_study(expert_name="E", corpus=corpus, completion=completion, max_output_tokens=budget)
+    completion.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_unknown_output_budget_preserves_render_and_contract(corpus, tmp_path):
+    first = checkpoint(tmp_path, "unknown-default")
+    default = AsyncMock(return_value='{"fail_patterns": []}')
+    await run(corpus, first, default)
+    second = checkpoint(tmp_path, "unknown-explicit", "unknown-default")
+    explicit = AsyncMock(side_effect=AssertionError("unknown budget should reuse unchanged chunks"))
+    await run(corpus, second, explicit, max_output_tokens=None)
+    explicit.assert_not_awaited()
+    assert second.reused == len(first.records)
+    assert "output tokens" not in default.await_args.args[0]
+    assert "max_output_tokens" not in second.manifest["contract"]
+
+
+@pytest.mark.asyncio
+async def test_budget_guidance_does_not_salvage_or_retry_truncated_response(corpus):
+    completion = AsyncMock(return_value='{"notes": [{"note": "unfinished')
+    result = await run_study(
+        expert_name="E", corpus=corpus, completion=completion, lens_keys=["synopsis"], max_output_tokens=4096
+    )
+    assert completion.await_count == 1
+    assert result.outcomes[0].status == "parse_failed"
+    assert result.findings == []
+
+
+@pytest.mark.parametrize("original_budget,changed_budget", [(4096, None), (None, 4096)])
+@pytest.mark.asyncio
+async def test_known_unknown_budget_transition_refuses_previous_chunks(
+    corpus, tmp_path, original_budget, changed_budget
+):
+    first = checkpoint(tmp_path, "transition-first")
+    await run(corpus, first, AsyncMock(return_value='{"fail_patterns": []}'), max_output_tokens=original_budget)
+    second = checkpoint(tmp_path, "transition-second", "transition-first")
+    completion = AsyncMock(return_value='{"fail_patterns": []}')
+    await run(corpus, second, completion, max_output_tokens=changed_budget)
+    assert second.reused == 0
+    assert completion.await_count == len(first.records)
+    assert first.manifest["contract_id"] != second.manifest["contract_id"]

@@ -42,6 +42,7 @@ class PooledBackend:
     chunk_chars: int = 0
     calls: int = 0
     failures: int = 0
+    max_output_tokens: int | None = None
 
 
 @dataclass
@@ -79,6 +80,14 @@ class BackendPool:
         """The budget every member can hold, which is the smallest of them."""
         sizes = [b.chunk_chars for b in self.backends if b.chunk_chars > 0]
         return min(sizes) if sizes else 0
+
+    @property
+    def max_output_tokens(self) -> int | None:
+        """Expose only a common known ceiling across every admitted member."""
+        values = [backend.max_output_tokens for backend in self.backends]
+        if not values or any(isinstance(value, bool) or not isinstance(value, int) or value <= 0 for value in values):
+            return None
+        return values[0] if all(value == values[0] for value in values) else None
 
     def usage(self) -> dict[str, dict[str, int]]:
         """Calls and failures per backend, so a lopsided run is visible."""
@@ -153,6 +162,7 @@ def build_pool(
     plans: list[str] | tuple[str, ...],
     *,
     use_headroom: bool = True,
+    max_tokens: int = 16000,
 ) -> BackendPool:
     """Resolve each named plan, best headroom first, skipping the exhausted.
 
@@ -180,14 +190,23 @@ def build_pool(
 
     for plan in plans:
         try:
-            backend = build_study_backend(profile=profile, local=False, plan=plan, plan_model=None, model=None)
+            backend = build_study_backend(
+                profile=profile, local=False, plan=plan, plan_model=None, model=None, max_tokens=max_tokens
+            )
         except Exception as exc:
             # Named rather than dropped: a pool that is quietly one backend
             # instead of four looks identical to one that is working.
             pool.unavailable.append(f"{plan}: {str(exc)[:120]}")
             logger.debug("plan backend %s unavailable", plan, exc_info=True)
             continue
-        pool.backends.append(PooledBackend(name=plan, completion=backend.completion, chunk_chars=backend.chunk_chars))
+        pool.backends.append(
+            PooledBackend(
+                name=plan,
+                completion=backend.completion,
+                chunk_chars=backend.chunk_chars,
+                max_output_tokens=getattr(backend, "max_output_tokens", None),
+            )
+        )
     return pool
 
 

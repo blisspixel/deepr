@@ -22,11 +22,22 @@ for dispatch and fingerprinting, and bind it in checkpoint admission. Changed
 budget instructions must invalidate prior outcomes and chunks. Preserve the
 legacy unknown-budget rendering where no ceiling is known.
 
-Expose the constructor's exact ceiling as optional `StudyBackend` metadata.
+Expose a known enforced ceiling as optional `StudyBackend` metadata. Native
+local construction applies its exact requested ceiling. The real plan client
+currently ignores `max_tokens`, so its metadata must remain unknown; forwarding
+an argument to a mock client does not prove transport enforcement.
 CLI study and formation pass that metadata; the rehearsal worker passes its
 validated policy value. Preserve custom backends with unknown metadata. Do
 not infer a budget from a model name, closure internals or an assumed default.
 This adds no execution authority to blocked plan or pooled adapters.
+
+Source tracing also found that pooled construction did not forward its
+`max_tokens` argument to member builders. Forward the same requested ceiling
+to each member, preserving the existing default for legacy callers. This is
+requested-value forwarding, not proof of transport enforcement. Report a
+common pool ceiling only when actual member metadata supports it; plan,
+custom, unknown or heterogeneous member ceilings remain unknown. Keep quota
+rollover, fallback eligibility and spend authority unchanged.
 
 The prompt will ask the model to allocate its budget across the full JSON
 object, choose useful supported findings and preserve their qualifications.

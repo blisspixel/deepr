@@ -11,10 +11,49 @@ somewhere else.
 """
 
 import asyncio
+from types import SimpleNamespace
 
 import pytest
 
-from deepr.experts.backend_pool import BackendPool, PooledBackend
+from deepr.experts.backend_pool import BackendPool, PooledBackend, build_pool
+
+
+@pytest.mark.parametrize("requested", [None, 3072], ids=["legacy-default", "explicit-budget"])
+def test_build_pool_passes_exact_output_budget_to_every_member(monkeypatch, requested):
+    calls = []
+
+    def build(**kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(completion=_ok("{}"), chunk_chars=100, max_output_tokens=kwargs["max_tokens"])
+
+    monkeypatch.setattr("deepr.cli.commands.semantic.study_backend.build_study_backend", build)
+    options = {} if requested is None else {"max_tokens": requested}
+    pool = build_pool(object(), ["first", "second"], use_headroom=False, **options)
+
+    expected = 16000 if requested is None else requested
+    assert [call["plan"] for call in calls] == ["first", "second"]
+    assert [call["max_tokens"] for call in calls] == [expected, expected]
+    assert pool.max_output_tokens == expected
+
+
+@pytest.mark.parametrize("budgets", [[], [None], [3072, None], [3072, 4096], [True], [0]])
+def test_pool_does_not_invent_common_budget(budgets):
+    pool = BackendPool(
+        backends=[
+            PooledBackend(name=str(index), completion=_ok("{}"), max_output_tokens=value)
+            for index, value in enumerate(budgets)
+        ]
+    )
+    assert pool.max_output_tokens is None
+
+
+def test_legacy_custom_pool_member_keeps_unknown_budget(monkeypatch):
+    monkeypatch.setattr(
+        "deepr.cli.commands.semantic.study_backend.build_study_backend",
+        lambda **kwargs: SimpleNamespace(completion=_ok("{}"), chunk_chars=100),
+    )
+    pool = build_pool(object(), ["legacy"], use_headroom=False, max_tokens=3072)
+    assert pool.max_output_tokens is None
 
 
 def _backend(name: str, behaviour):
