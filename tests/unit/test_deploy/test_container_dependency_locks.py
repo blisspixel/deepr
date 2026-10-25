@@ -88,6 +88,30 @@ def test_current_dev_pip_uses_repaired_vendored_bundle() -> None:
     assert Version(certifi.__version__) >= Version("2026.10.19")
 
 
+@pytest.mark.parametrize("name,minimum", [("brotli", "1.2.1"), ("brotlicffi", "1.2.1.0")])
+def test_search_lock_excludes_vulnerable_brotli_decoders(name: str, minimum: str) -> None:
+    """GHSA-9v8h-qqgm-4m35 affects both HTTPX implementation branches."""
+    lock = tomllib.loads((REPO_ROOT / "uv.lock").read_text(encoding="utf-8"))
+    packages = [package for package in lock["package"] if package["name"] == name]
+    assert packages
+    assert all(Version(package["version"]) >= Version(minimum) for package in packages)
+
+
+def test_filelock_metadata_and_lock_exclude_known_vulnerable_releases() -> None:
+    project = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    requirement = next(
+        Requirement(dep) for dep in project["project"]["dependencies"] if Requirement(dep).name == "filelock"
+    )
+    assert Version("3.32.2") not in requirement.specifier
+    assert Version("4.2.0") not in requirement.specifier
+    assert Version("4.2.4") in requirement.specifier
+    assert Version("5.0.0") not in requirement.specifier
+    lock = tomllib.loads((REPO_ROOT / "uv.lock").read_text(encoding="utf-8"))
+    packages = [package for package in lock["package"] if package["name"] == "filelock"]
+    assert packages
+    assert all(Version(package["version"]) >= Version("4.2.4") for package in packages)
+
+
 def test_container_rebuild_and_base_trust_are_verified_without_network() -> None:
     workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8"))
     steps = workflow["jobs"]["containers"]["steps"]

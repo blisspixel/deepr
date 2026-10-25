@@ -41,10 +41,10 @@ Requires Python 3.11+ (tested on 3.11 / 3.12 / 3.13 / 3.14 / 3.15).
 The development default is final 3.15.1. CI uses uv 0.13.5. `uv` is the canonical toolchain; plain `pip`
 works too.
 
-The full 3.15 environment includes source-only Brotli. Install a C toolchain
-(for Windows, Visual Studio Build Tools with C++ support) when those optional
-dependencies need compilation. The Windows/macOS platform matrix exercises
-that full environment and a separate core wheel installation.
+The locked Brotli 1.2.1 release includes Windows CPython 3.15 wheels. Install a
+C toolchain (for Windows, Visual Studio Build Tools with C++ support) when an
+optional dependency has no wheel for your platform. The Windows/macOS platform
+matrix exercises the full environment and a separate core wheel installation.
 
 Runtime setup uses `deepr init` and the per-user `~/.deepr/.env`. For an
 explicit checkout configuration, use `deepr init --local-env` and set

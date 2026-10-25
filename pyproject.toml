@@ -57,7 +57,7 @@ dependencies = [
     # (deepr.experts.loop_lock) so scheduled verbs never double-run on one
     # expert. Declared as a direct dependency rather than relying on it being
     # pulled in transitively; Windows-first rules out POSIX flock.
-    "filelock>=3.12.0,<4.0.0",
+    "filelock>=4.2.4,<5.0.0",
     # NumPy backs documented expert embedding and semantic-recall surfaces, so
     # it remains a core runtime dependency. Lazy package exports keep it off the
     # root help and version cold-start path. It was previously only in the

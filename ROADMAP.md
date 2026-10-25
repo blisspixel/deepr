@@ -50,6 +50,15 @@ stay blocked.
 
 ### Next bounded sequence, reviewed 2026-10-22
 
+**2026-10-25 maintenance candidate:** the Brotli advisory in
+`security-tracking#68` affects the reviewed search/full lock selections.
+The candidate updates only Brotli to 1.2.1, brotlicffi to 1.2.1.0 and,
+after the current audit found three separate advisories, filelock to 4.2.4.
+The [filelock decision](docs/design/filelock-security-floor.md) records the
+explicit compatibility review. Validation and publication remain separate;
+existing installations and deployed images require owner refresh. S0 and
+prepared consultation are unchanged by this maintenance.
+
 Subsequent issue #283 identified independent affected installer trust bundles.
 v2.50.46 repairs maintained uv/pip selections, advances the managed Python patch
 and rebuilds container trust. Existing environments and deployments still need
