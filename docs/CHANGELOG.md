@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   plus offline HTTPX compressed-response and malformed-input checks.
   These source changes do not refresh existing user installations or deployed
   images, and do not establish that any installation was exploited.
+- Update only transitive development dependency Zod from 4.4.3 to 4.6.7
+  after the hosted npm audit reported GHSA-mrhx-c7xc-m3w5. The React Hooks
+  lint dependency accepts that release; application dependencies, frontend
+  output and audit thresholds are unchanged.
 
 ## [2.50.46] - 2026-10-22
 
