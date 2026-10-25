@@ -113,8 +113,9 @@ changed hash triggers re-study of the affected assumption, not automatic
 invalidation of the answer. Identical concurrent requests share one operation;
 retries do not create fresh allowances.
 
-The first slice below admits only bounded reuse of a completed packet, not
-conditional revalidation. A later conditional request implementation must
+The first slice below admits no completed-packet cache reuse. Replay returns
+an owner-checked duplicate/conflict result without dispatch or a reset.
+The broader reuse contract above is deferred. A later implementation must
 count 304s, redirects and address attempts against the same operation policy;
 it cannot silently gain a fresh request or time allowance.
 
@@ -159,6 +160,8 @@ default and retains its current request/output behavior.
 Proposed additive input is a `preparation` object containing:
 
 - `enabled: true`, `schema_version: deepr-python-preparation-request-v1`;
+- `request_id`: a caller-chosen opaque idempotency key, 16-64 ASCII letters,
+  digits, underscores or hyphens; it is not an owner, path or credential;
 - `environment`: explicit interpreter version, platform label and optional
   caller-supplied lockfile SHA-256, with the declaration distinguished from
   an environment that Deepr inspected;
@@ -172,6 +175,13 @@ coordinates for checking. It may not invent a package or version to transmit
 private task text through a public URL. Duplicate normalized coordinates are
 coalesced before allowance reservation; contradictory declarations are refused.
 Parsing names and versions guards request form, not relevance or correctness.
+The complete input JSON is at most 16 KiB, the question at most 4,000
+characters, platform label 128, package name 200 and version 128 characters.
+Reject extra fields and invalid types before backend or acquisition work.
+Bound assumptions to six records with 512-character reasons and exact admitted
+coordinate IDs. Retained header projections are at most 8 KiB; bounded IPC
+frames include their encoding overhead. Existing HTTP parser header limits
+must be checked against the locked runtime, not described as body allowance.
 
 CLI adds one `--prepare-environment PATH` option that reads this bounded JSON
 object locally and explicitly discloses the outgoing package/version
@@ -218,8 +228,10 @@ policy, not an in-run adjustment.
 
 ### Fixed acquisition process
 
-Use a fixed, Windows-safe acquisition subprocess with no tool access or child
-process creation. It reuses `utils.pinned_http.pinned_get` and
+Use a fixed, Windows-safe trusted acquisition subprocess whose implementation
+invokes no model, tool or child process. This is deadline/cancellation
+containment, not an OS sandbox or a claim that arbitrary hostile Python code
+lacks filesystem or process authority. It reuses `utils.pinned_http.pinned_get` and
 `close_pinned_response`; it does not instantiate another networking stack or
 reuse the generic scraper. Its input contains only admitted coordinates,
 source policy, numerical allowances and opaque operation identity. No private
@@ -267,6 +279,12 @@ and version identities match the requested coordinates; malformed or partial
 metadata is not an empty successful source. File-level yanks and incomplete
 index coverage remain explicit. Conflicting metadata is delivered for model
 interpretation, not resolved by a newest-date or keyword rule.
+Release JSON binds the requested package and version. The project-wide index
+binds its requested project, API/media type and selected file/version records;
+it does not independently assert one release identity. A missing index record
+does not prove absence or lack of a yank. Accept documented JSON index 1.x
+schema forms and refuse an unknown major; retain the observed minor version
+and unavailable fields. An empty-string yank reason still marks a yank.
 
 An operation-local `CorpusStore` receives explicit `storage_dir` and bounded
 source text for existing context machinery. Its text hash normalizes newlines;
@@ -307,23 +325,26 @@ bits alone are not a Windows ACL. On POSIX, require owner-only directory/file
 permissions. Do not write a question, model output, private packet or extended
 trace payload into an unprotected staging directory while attempting to repair
 permissions afterward.
+Create a fresh opaque staging root with no private contents, then protect and
+verify it before any private child or tempfile is created. Windows uses the
+current token SID, protected inheritance and explicit full-control ACEs only
+for that principal and SYSTEM. POSIX requires the current UID and mode 0700
+for directories/0600 for files. Nested directories, locks and atomic tempfiles
+inherit the protected parent. Reject preexisting unexpected entries and
+reparse/link ancestors under the operation lock; do not claim this defeats an
+arbitrary privileged same-account filesystem attacker.
 
-The deduplication key binds exact owner scope, question hash, normalized
-environment, canonical expert revision, admitted coordinate set, preparation
-policy and model identity. Use the existing cross-process locking seam to
-admit one acquisition operation for concurrent identical requests. A waiter
-references the same counters and terminal result; it does not create another
-allowance. Never reuse by question hash alone or reuse another owner's public
-source cache as a private packet. Cross-process stdio reuse remains refused.
-
-A completed packet may be reused for ten minutes only when every key field
-matches and all required observations remain eligible under this policy.
-Reusing a packet still records that the current consult did not perform a new
-fetch. Failed, partial, cancelled, ambiguous or expired operations are not
-promoted to a completed cache hit. Retrying the same operation preserves its
-consumed allowance; a new operation is recorded explicitly as new work.
-No conditional revalidation or reuse across changed identities is included in
-this slice.
+An operation claim binds exact owner scope and request_id to the question,
+environment, captured expert revision, admitted coordinates, policy and model.
+Use the existing cross-process lock to admit that claim once. A concurrent or
+completed duplicate returns an owner-checked typed duplicate result and opaque
+receipt reference without dispatch. A changed input under the same key is a
+conflict. Retain consumed allowance and terminal status for failed, cancelled
+and ambiguous work. Do not silently allocate a new key for a retry. A caller
+may explicitly choose a new request_id for a new operation; report it as new
+work. No private-packet cache lookup, result sharing, conditional revalidation
+or cross-process stdio reuse ships in this slice. Identical question text alone
+provides no access or fresh allowance.
 
 Private bodies, source bytes and projections have a seven-day access TTL.
 Expiry denies service reads and reuse before cleanup. Cleanup records a
@@ -341,6 +362,14 @@ and extended delivery context in the protected operation store under its TTL.
 Copying a full prepared prompt into an append-only global trace would defeat
 that retention policy; the opt-in trace adapter must preserve exact hashes and
 references without creating that second body.
+Use a strict opt-in global-trace allowlist, including every nested payload,
+result, perspective, context and failure path. Global records retain only
+schema/status codes, content hashes, numeric resources, owner-bound opaque
+references and typed failure codes. Questions, final answers, perspective
+prose, implications, raw errors and exact messages remain solely in the
+protected operation store and the authorized caller's returned artifact.
+Trace readers must report protected or expired content as unavailable, never
+as an empty successful answer. Existing opt-out trace behavior is unchanged.
 
 ### Model, packet and delivery bindings
 
@@ -356,7 +385,7 @@ untrusted evidence, not an instruction to change those permissions.
 Both calls use the selected native local backend, with pre-dispatch owned-local
 proof and canonical attempt accounting. Do not use an unrecorded model client,
 silent repair call, output clipping or paid fallback. A changed model identity
-refuses reuse. Extend lifecycle work bounds and phase/progress representation
+refuses the operation. Extend lifecycle work bounds and phase/progress representation
 to include these two calls before the first preparation dispatch; the current
 roster-plus-one council count cannot silently stand for extra work. Preserve
 the existing one-synthesis-call limit and record preparation overhead separately.
@@ -369,21 +398,30 @@ implications, limits, attempt outcomes and stop reason. Its freshness scope is
 behavior remain `unchecked` unless a later admitted source class checks them.
 An unchanged response hash is not a semantic no-change verdict.
 
-Generate Markdown and a small graph projection from that immutable packet,
-recording their hashes. Observation links must resolve to retained bytes;
+Use non-circular hash ordering: canonical preparation content excludes its own
+hash and derived hashes; hash that content, render Markdown and a small graph
+from it, then hash those bytes and freeze a separate projection manifest.
+Final message and answer receipts are later append-only operation records
+binding this frozen content/manifest, never fields fed back into its hash.
+Keep raw-body, normalized corpus, parsed projection, rendered context and final
+message hashes distinct. Observation links must resolve to retained bytes;
 implication links record model interpretations rather than deterministic
 entailment. Deliver the packet as an extra layer through
 `run_consult`, `ExpertCouncil`, `build_briefed_perspective` and
-`build_consult_context`, including the unbriefed fallback where admitted.
+`build_consult_context`, including every admitted fallback path.
 The first formed-expert admission avoids manufacturing useful expert state
 for an expert that has never been built.
+Preparation is a mandatory independent source layer even if no stored
+perspective has positive packing confidence. Report that absence; do not
+increase confidence to force an expert's inclusion. Refuse before synthesis
+if the mandatory notice and its binding cannot fit.
 
 `brief_synthesis_blocks` and `build_synthesis_packet` must reserve and account
 for the preparation notice and bounded evidence, with exact delivered and
 omitted observation IDs. `synthesis_delivery` binds packet hash, operation ID,
 rendered context hash, source hashes and omissions to the actual final messages.
 It retains `stored_context_only` for opt-out calls and describes complete,
-partial, failed, offline and reused preparation accurately for opt-in calls.
+partial, failed and offline preparation accurately for opt-in calls.
 The final payload, trace and caller-visible Markdown use those same bindings.
 Do not replace the notice with a generic claim that the expert is current.
 
@@ -407,6 +445,16 @@ canonical revision is a typed identity failure, not a cache hit or permission
 to answer under the old revision label. Retain the failed candidate and actual
 delivered context; do not overwrite the expert or retry invisibly. Fixtures
 must compare all inventory hashes, not just `beliefs.json` or one graph file.
+Capture the exact formed study/brief/corpus bytes once before model work and
+validate their existing study/source bindings. Use that immutable captured
+context in assumptions, interpretation and final synthesis; do not reread a
+different canonical perspective after acquisition. Require captured hashes to
+match the checked inventory and refuse mismatched or unavailable formed-state
+bindings. The revision identifies this input bundle, not a new universal
+transaction revision across all expert stores. Before/after checks detect
+observed drift; they do not prove absence of transient external writes or that
+Deepr caused a concurrent writer's change. Stronger cross-store snapshot claims
+require the owning writers' shared admission/locking contract first.
 
 Start with the existing transaction, CLI/MCP, consult context/prompt, corpus
 and pinned HTTP tests. Add fixture-backed coverage for changed releases,
@@ -435,7 +483,7 @@ usefulness evidence; S2-S4 remain separate gates.
 
 ### Choices still requiring implementation evidence
 
-The numeric bounds, ten-minute reuse window and seven-day access TTL above are
+The numeric bounds and seven-day access TTL above are
 prospective defaults to test, not measured sufficiency claims. Retain a failed
 capacity or source-size probe rather than increasing them mid-operation. Before
 the first private write, demonstrate the Windows ACL and process-termination
