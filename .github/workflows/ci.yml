@@ -347,6 +347,18 @@ jobs:
         run: uv sync --frozen --extra dev --extra full
       - name: Exercise export boundaries and installer ownership
         run: python -m pytest -q tests/unit/test_experts/test_okf_publication.py tests/unit/test_installer_ownership.py tests/unit/test_release_installers.py tests/unit/test_cli/test_upgrade.py tests/unit/test_skill/test_agent_plugin_package.py
+      - name: Exercise platform-sensitive offline regressions
+        run: >-
+          python -m pytest -q
+          tests/unit/test_cli/test_doctor_command.py
+          tests/unit/test_cli/test_expert_commands.py
+          tests/unit/test_cli/test_init_command.py
+          tests/unit/test_cli/test_research_refusals.py
+          tests/unit/test_config/test_environment_file.py
+          tests/unit/test_evals/test_correction_survival.py
+          tests/unit/test_experts/test_consult_profile_model.py
+          tests/unit/test_experts/test_consult_prompt.py
+          tests/unit/test_services/test_batch_executor.py
       - name: Audit the platform dependency branch
         run: pip-audit --skip-editable
       - name: Build the wheel

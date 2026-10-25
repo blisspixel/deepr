@@ -213,7 +213,7 @@ def test_a_subset_run_is_labelled_and_never_passes_as_the_full_set(tmp_path):
     run_json["attempts"] = run_json["attempts"][:-1]
     text = json.dumps(run_json, indent=2, sort_keys=True, ensure_ascii=True) + "\n"
     (run_dir / "run.json").write_text(text)
-    marker.write_text(json.dumps({**payload, "run_sha256": cs._sha(text)}))
+    marker.write_text(json.dumps({**payload, "run_sha256": cs._sha((run_dir / "run.json").read_bytes())}))
     with pytest.raises(cs.RunNotReusableError, match="every scheduled attempt"):
         cs.load_run(run_dir)
 

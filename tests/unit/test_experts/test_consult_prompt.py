@@ -259,6 +259,15 @@ def test_literal_response_form_contract(question, limit):
         (" " * 20000, False),
         ("Question?\n" + " " * 20000, False),
     ],
+    ids=[
+        "question-spaces",
+        "exclamation-unicode-spaces",
+        "period-tabs",
+        "no-separator",
+        "no-sentence-boundary",
+        "only-spaces",
+        "indented-code",
+    ],
 )
 def test_literal_form_long_whitespace_preserves_sentence_and_code_boundaries(prefix, admitted):
     from deepr.experts.consult_response import response_form_contract

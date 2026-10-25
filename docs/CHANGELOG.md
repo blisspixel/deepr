@@ -26,6 +26,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   after the hosted npm audit reported GHSA-mrhx-c7xc-m3w5. The React Hooks
   lint dependency accepts that release; application dependencies, frontend
   output and audit thresholds are unchanged.
+- Repair Windows offline-test fixtures exposed by the full local sweep:
+  bound parameter IDs without shrinking pathological inputs, isolate stored
+  doctor credentials, preserve native path and actual-file hash semantics,
+  tolerate released lock-marker cleanup, and separate asyncio loopback
+  self-pipes from blocked external connections. Retain the initial failures
+  and add these regressions to the maintained Windows/macOS install matrix.
 
 ## [2.50.46] - 2026-10-22
 

@@ -52,6 +52,7 @@ def _installed_cli(home, cwd, *arguments, overrides=None):
     script = """
 from pathlib import Path
 from importlib.metadata import entry_points
+import ipaddress
 import socket
 import sys
 from unittest.mock import patch
@@ -59,8 +60,24 @@ from unittest.mock import patch
 def refuse_network(*args, **kwargs):
     raise AssertionError('offline installed-entrypoint test attempted network')
 
-socket.socket.connect = refuse_network
+original_connect = socket.socket.connect
+
+def connect_loopback_only(sock, address):
+    # Windows builds asyncio self-pipes with a TCP loopback socketpair.
+    if isinstance(address, tuple) and ipaddress.ip_address(address[0]).is_loopback:
+        return original_connect(sock, address)
+    return refuse_network(sock, address)
+
+socket.socket.connect = connect_loopback_only
 socket.create_connection = refuse_network
+# Confirm the subprocess guard still rejects egress before application imports.
+with socket.socket() as probe:
+    try:
+        probe.connect(('192.0.2.1', 443))
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError('subprocess egress guard did not reject external address')
 with patch.object(Path, 'home', return_value=Path(sys.argv[1])):
     import deepr
     assert Path(deepr.__file__).resolve().is_relative_to(Path(sys.argv[2]))
@@ -401,6 +418,7 @@ def test_http_app_imports_do_not_load_ambient_files_or_restore_keys(configuratio
 import importlib
 import os
 from pathlib import Path
+import ipaddress
 import socket
 import sys
 from unittest.mock import patch
@@ -408,8 +426,24 @@ from unittest.mock import patch
 def refuse_network(*args, **kwargs):
     raise AssertionError('HTTP app import attempted network')
 
-socket.socket.connect = refuse_network
+original_connect = socket.socket.connect
+
+def connect_loopback_only(sock, address):
+    # Windows builds asyncio self-pipes with a TCP loopback socketpair.
+    if isinstance(address, tuple) and ipaddress.ip_address(address[0]).is_loopback:
+        return original_connect(sock, address)
+    return refuse_network(sock, address)
+
+socket.socket.connect = connect_loopback_only
 socket.create_connection = refuse_network
+# Confirm the subprocess guard still rejects egress before application imports.
+with socket.socket() as probe:
+    try:
+        probe.connect(('192.0.2.1', 443))
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError('subprocess egress guard did not reject external address')
 with patch.object(Path, 'home', return_value=Path(sys.argv[1])):
     from deepr.config import load_configuration_environment
     from deepr.security.key_quarantine import quarantine_metered_keys

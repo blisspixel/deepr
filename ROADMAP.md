@@ -56,6 +56,10 @@ The candidate updates only Brotli to 1.2.1, brotlicffi to 1.2.1.0 and,
 after the current audit found three separate advisories, filelock to 4.2.4.
 The hosted npm audit also required Zod 4.6.7 in the frontend development lock;
 only that transitive selection changes.
+The full Windows sweep also exposed test-fixture portability and credential
+isolation failures absent from the narrower hosted platform selection. Their
+repairs preserve production behavior and extend that platform gate; full local
+revalidation remains required before closeout.
 The [filelock decision](docs/design/filelock-security-floor.md) records the
 explicit compatibility review. Validation and publication remain separate;
 existing installations and deployed images require owner refresh. S0 and
