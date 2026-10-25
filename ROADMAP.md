@@ -55,6 +55,13 @@ stay blocked.
 
 ### Next bounded sequence, reviewed 2026-10-22
 
+**2026-10-25 hosted Windows finding, preparation support candidate:** elevated
+Windows runners created atomic files with Administrators as owner, so strict
+private-store admission refused them before preparation could run. The repair
+protects and verifies the empty open file before its first payload byte and
+keeps the actual token user as owner. The permission requirement is unchanged;
+hosted regression validation remains required before this finding is closed.
+
 **2026-10-25 development semantic findings:** initial construction in the
 separately frozen production-derived capacity trial completed, but independent
 review found unsupported memory-scaling and universal-batch conclusions,

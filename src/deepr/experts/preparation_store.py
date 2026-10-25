@@ -128,6 +128,65 @@ class _Protection:
             )
         self.verify(path, directory=True, protected=True)
 
+    def prepare_tempfile(self, descriptor: int, path: Path) -> None:
+        """Protect the same empty open file before any private payload write."""
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode) or info.st_size != 0 or info.st_nlink != 1:
+            raise StoreProtectionError("Expected a new empty private file")
+        if sys.platform == "win32":
+            import msvcrt
+
+            self._set_empty_windows_owner(path, expected_handle=msvcrt.get_osfhandle(descriptor))
+        self.verify(path, directory=False)
+
+    def prepare_empty_lock(self, path: Path) -> None:
+        """Correct only a known empty lock's creation owner, never its DACL."""
+        info = path.lstat()
+        if not stat.S_ISREG(info.st_mode) or info.st_size != 0 or info.st_nlink != 1:
+            raise StoreProtectionError("Expected an empty private lock")
+        if sys.platform == "win32":
+            self._set_empty_windows_owner(path)
+        self.verify(path, directory=False)
+
+    def _set_empty_windows_owner(self, path: Path, *, expected_handle: int | None = None) -> None:
+        """TokenOwner may differ from TokenUser on an elevated Windows runner."""
+        import win32con
+        import win32file
+
+        handle = win32file.CreateFile(
+            str(path),
+            win32con.WRITE_OWNER | win32con.READ_CONTROL | win32con.FILE_READ_ATTRIBUTES,
+            win32con.FILE_SHARE_READ | win32con.FILE_SHARE_WRITE | win32con.FILE_SHARE_DELETE,
+            None,
+            win32con.OPEN_EXISTING,
+            win32con.FILE_FLAG_OPEN_REPARSE_POINT,
+            None,
+        )
+        try:
+            info = win32file.GetFileInformationByHandle(handle)
+            if info[0] & 0x400 or info[5] != 0 or info[6] != 0 or info[7] != 1:
+                raise StoreProtectionError("Unexpected empty Windows file identity")
+            if expected_handle is not None:
+                original = win32file.GetFileInformationByHandle(expected_handle)
+                if (info[4], info[8], info[9]) != (original[4], original[8], original[9]):
+                    raise StoreProtectionError("Windows tempfile handle identity changed")
+            self.security.SetSecurityInfo(
+                handle,
+                self.security.SE_FILE_OBJECT,
+                self.security.OWNER_SECURITY_INFORMATION,
+                self.sid,
+                None,
+                None,
+                None,
+            )
+            descriptor = self.security.GetSecurityInfo(
+                handle, self.security.SE_FILE_OBJECT, self.security.OWNER_SECURITY_INFORMATION
+            )
+            if descriptor.GetSecurityDescriptorOwner() != self.sid:
+                raise StoreProtectionError("Windows private owner assignment failed")
+        finally:
+            handle.Close()
+
     def verify(self, path: Path, *, directory: bool, protected: bool = False) -> None:
         info = path.lstat()
         if stat.S_ISLNK(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
@@ -229,13 +288,20 @@ class PreparationStore:
         self._check(path.parent, directory=True)
         if path.exists() or path.is_symlink():
             self._check(path, directory=False)
-        atomic_write_bytes(path, data, fsync=True, fsync_parent=True)
+        atomic_write_bytes(path, data, fsync=True, fsync_parent=True, prepare_tempfile=self.protection.prepare_tempfile)
         self._check(path, directory=False)
 
     def _write_if_absent(self, path: Path, data: bytes) -> None:
         self._check(path.parent, directory=True)
         try:
-            atomic_write_bytes(path, data, fsync=True, fsync_parent=True, overwrite=False)
+            atomic_write_bytes(
+                path,
+                data,
+                fsync=True,
+                fsync_parent=True,
+                overwrite=False,
+                prepare_tempfile=self.protection.prepare_tempfile,
+            )
         except FileExistsError:
             pass
         self._check(path, directory=False)
@@ -254,6 +320,7 @@ class PreparationStore:
         # Inherit our verified owner/SYSTEM parent instead; POSIX needs mode0600.
         mode = 0o666 if os.name == "nt" else 0o600
         with FileLock(str(self.root / "store.lock"), mode=mode, timeout=10):
+            self.protection.prepare_empty_lock(self.root / "store.lock")
             self._check(self.root / "store.lock", directory=False)
             yield
 
@@ -622,5 +689,10 @@ class PreparationStore:
         self._prepare_lock(self.root / "tombstones.jsonl.append.lock")
         for name in ["tombstones.jsonl", "tombstones.jsonl.append.lock"]:
             self._check(self.root / name, directory=False)
-        append_jsonl_durable(self.root / "tombstones.jsonl", record)
+        append_jsonl_durable(
+            self.root / "tombstones.jsonl",
+            record,
+            lock_mode=0o666 if os.name == "nt" else 0o600,
+            prepare_lock=self.protection.prepare_empty_lock,
+        )
         self._check(self.root / "tombstones.jsonl", directory=False)
