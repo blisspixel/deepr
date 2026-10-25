@@ -396,6 +396,11 @@ applicable versions, observation times, checks and omissions, conflicts,
 implications, limits, attempt outcomes and stop reason. Its freshness scope is
 `pypi_release_and_index_only`; advisory coverage, interpreter support and API
 behavior remain `unchecked` unless a later admitted source class checks them.
+Retain and expose any applicable adverse metadata returned by an admitted
+release response, including reported vulnerabilities. Partial advisory metadata
+does not establish complete coverage, and an empty field does not establish
+absence of vulnerabilities. Source-scope notices must not suppress positive
+evidence already acquired.
 An unchanged response hash is not a semantic no-change verdict.
 
 Use non-circular hash ordering: canonical preparation content excludes its own
