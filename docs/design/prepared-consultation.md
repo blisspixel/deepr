@@ -1,12 +1,18 @@
 # Prepared consultation (S1) contract
 
-Status: proposed design, 2026-09-24; boundary review 2026-10-22.
+Status: proposed design, 2026-09-24; boundary review 2026-10-22;
+first-slice contract refined 2026-10-25.
 The packet below is not implemented.
 `deepr expert currency` is the earlier read-only inspection. It does not
 fetch, judge, or replace stored-only consult. This note defines
 the additive contract the [delivery plan](../plans/living-expertise.md#s1-prepare-before-consultation-with-bounded-temporary-evidence)
 requires before S1 code. Prototypes wait for the frozen S0 protocol; the
 default-on switch waits for S1's own exit evidence.
+The operator selected independent model review for the next protocol and
+answer review. Record that review and its calibration honestly, including
+disagreement and shared-model limitations; do not record human attestations
+that did not occur. This changes neither the code gate nor the evidence
+needed to claim useful advice or improved expertise.
 
 ## Problem
 
@@ -26,6 +32,13 @@ so both surfaces get identical behavior. Its output is one frozen packet that
 evidence layer, and that replaces the stored-only block with a dated
 disclosure. Temporary sources live in an operation-scoped
 `CorpusStore(storage_dir=...)`, never the canonical corpus.
+
+The concrete transaction hook is inside
+`consult_transaction._run_inside_deadline`, after `_construct_backend` proves
+owned local capacity and before `_run_generation` invokes `run_consult`.
+Preparation shares that transaction's deadline, cancellation, lifecycle and
+trace identity. CLI and MCP supply the same validated preparation request;
+neither interface acquires sources or calls `sync --fresh-context` itself.
 
 ## Flow and authority
 
@@ -100,7 +113,12 @@ changed hash triggers re-study of the affected assumption, not automatic
 invalidation of the answer. Identical concurrent requests share one operation;
 retries do not create fresh allowances.
 
-## First source classes (Python exemplar)
+The first slice below admits only bounded reuse of a completed packet, not
+conditional revalidation. A later conditional request implementation must
+count 304s, redirects and address attempts against the same operation policy;
+it cannot silently gain a fresh request or time allowance.
+
+## Source-class sequence (Python exemplar)
 
 Structured, keyless sources documented 2026-09-24 and rechecked against official
 documentation 2026-10-22, before any general web search: release-specific PyPI
@@ -118,7 +136,318 @@ implemented live-source smoke. Details and limits:
 [practice review](../research/s0-s1-practice-2026-09-24.md#reassessment-2026-10-22).
 SearXNG stays blocked under the current capacity policy.
 
+The first implementation is limited to the PyPI release JSON and JSON Index
+API. OSV, interpreter support data, advisory corroboration, changelogs and
+general search remain separate work. A version lookup does not establish
+advisory coverage, interpreter support, or version-dependent API behavior.
+
+## First opt-in slice: one Python environment
+
+Everything in this section is an implementation contract, not shipped
+behavior. Do not begin code until the replacement S0 protocol is frozen.
+An unfavorable S0 result does not block this S1 prototype, and the prototype
+does not change S0's interpretation.
+
+### Admission and interface shape
+
+Require one explicitly named, formed expert, local synthesis, and one declared
+Python environment. Do not auto-select an expert, switch models, install a
+model, infer the caller's installed environment, or route preparation to a
+plan or metered backend. Existing stored-only consultation remains the
+default and retains its current request/output behavior.
+
+Proposed additive input is a `preparation` object containing:
+
+- `enabled: true`, `schema_version: deepr-python-preparation-request-v1`;
+- `environment`: explicit interpreter version, platform label and optional
+  caller-supplied lockfile SHA-256, with the declaration distinguished from
+  an environment that Deepr inspected;
+- `packages`: one to three explicit `{name, version}` coordinates. Names are
+  normalized using the existing packaging conventions; versions must be
+  concrete versions, not ranges, URLs, paths or editable requirements.
+
+The object contains no caller identity, packet path, endpoint override, full
+lockfile, source text or credentials. The model may choose a subset of these
+coordinates for checking. It may not invent a package or version to transmit
+private task text through a public URL. Duplicate normalized coordinates are
+coalesced before allowance reservation; contradictory declarations are refused.
+Parsing names and versions guards request form, not relevance or correctness.
+
+CLI adds one `--prepare-environment PATH` option that reads this bounded JSON
+object locally and explicitly discloses the outgoing package/version
+coordinates. MCP accepts the equivalent object on `deepr_consult_experts`.
+Both reach `execute_consult_transaction`; a supplied object with disabled,
+missing or malformed admission is refused rather than ignored. Packet reads
+are service-owned operations, not arbitrary filesystem reads or new public
+MCP resources. Update input schemas, help, protocol fixtures and clean-wheel
+stdio checks together. Do not add a new tool or expose a network fallback.
+
+### One cumulative allowance
+
+These proposed conservative ceilings apply to an entire preparation operation:
+
+| Resource | Initial ceiling and accounting |
+| --- | --- |
+| Admitted packages | Three normalized name/version coordinates |
+| Public source requests | Six attempts total, at most one release JSON and one JSON index request per selected package |
+| Retained source responses | Six, including failed or partial observations |
+| Response body | 1 MiB per source; 2 MiB cumulative decoded bytes, counting partial bytes before a failure |
+| Acquisition elapsed | 30 seconds total, including DNS, address attempts, headers and streaming |
+| Preparation model calls | Two total: assumptions and interpretation; failures and cancellation consume their attempted slot |
+| Preparation model output | 1,024 tokens per call; truncated or malformed output is retained as a typed failure, never silently repaired by another call |
+| Preparation model input | 32,768 rendered characters per call, including instructions, retained context and source projections; omit whole non-fitting fields/blocks with named omissions rather than silently dropping qualifications |
+| Model-call elapsed | 90 seconds per call, additionally bounded by remaining preparation and transaction time |
+| Cancellable preparation elapsed | 210 seconds total, additionally bounded by the outer consult deadline |
+
+The outer transaction may impose a tighter bound. Durable accounting and
+terminal writes follow its existing awaited-finalization contract; a
+cancelled filesystem write is not assumed absent. Public acquisition counters
+are separate from local runtime preflight and generation receipts. Report
+those local checks and all native attempts as overhead too.
+The character ceiling is not an exact tokenizer proof. Use the native context
+window and retain truncation or refusal; do not claim that a source retained
+outside the delivered projection was read by the model.
+
+An operation never resets these counters on retry, waiting, cancellation or
+duplicate acquisition. Exhaustion records a terminal or partial packet and a
+specific stop reason. It does not increase a limit, replace an input, attempt
+another source class or claim that the checks completed. Inspect representative
+PyPI fixtures and local model capacity before freezing these proposed defaults;
+an inadequate bound is a measured limitation requiring a new prospective
+policy, not an in-run adjustment.
+
+### Fixed acquisition process
+
+Use a fixed, Windows-safe acquisition subprocess with no tool access or child
+process creation. It reuses `utils.pinned_http.pinned_get` and
+`close_pinned_response`; it does not instantiate another networking stack or
+reuse the generic scraper. Its input contains only admitted coordinates,
+source policy, numerical allowances and opaque operation identity. No private
+question, local path, lockfile, credential or model-generated source URL is
+sent to PyPI. Do not pass credentials or dotenv loading to this process.
+
+The initial endpoint templates are HTTPS on `pypi.org` only: a normalized
+project's release-specific JSON path and its JSON Simple Index path. Request
+the JSON media type appropriate to each endpoint. Artifact download URLs in
+the response are data, never authorization to fetch an artifact. Recheck the
+official endpoint/media-type contract before implementation or a live smoke;
+the 2026-10-25 refinement itself made no live-source request.
+
+Set `allow_redirects=False`, `address_failover=False`, zero application retries
+and `Accept-Encoding: identity`. Reject redirects, unexpected content encoding
+and non-JSON content with a structured observation. No browser, archive,
+mirror, compression or general-search fallback is admitted. Preserve TLS-name
+verification, safe public address resolution, and disabled environment proxies
+and ambient authentication. A failure of the selected first address consumes
+one attempt and does not advance through the remaining DNS answers.
+
+The child emits a request intent and waits. Only after the parent durably
+reserves the attempt and acknowledges it may the child send that request.
+Each acknowledged intent is charged even when dispatch becomes ambiguous.
+The parent owns one monotonic acquisition deadline, bounds streamed IPC and
+body sizes, and terminates and awaits the child on expiry or cancellation.
+It records returned bytes and outstanding intents before finalization. No
+orphan downloader may continue after a cancelled consult. Reject an operation
+if its durable intent cannot be recorded.
+
+Blocking DNS and slow streaming must be tested through this process boundary.
+`asyncio.to_thread` plus a Requests idle timeout alone cannot enforce this
+contract. A source that sends small chunks forever still exhausts the one
+elapsed allowance. Unexpected compression is refused before decoding, so a
+decompressor cannot allocate beyond the byte counter before the caller sees
+the output. Cancellation, worker exit and malformed IPC retain distinct
+receipts without response bodies or private details in diagnostic logs.
+
+### Source identity and temporary storage
+
+Retain exact response bytes under their raw SHA-256 and preserve their
+observation time, request identity, HTTP status and relevant date/validator
+headers. Parse a separate bounded representation. Verify that returned package
+and version identities match the requested coordinates; malformed or partial
+metadata is not an empty successful source. File-level yanks and incomplete
+index coverage remain explicit. Conflicting metadata is delivered for model
+interpretation, not resolved by a newest-date or keyword rule.
+
+An operation-local `CorpusStore` receives explicit `storage_dir` and bounded
+source text for existing context machinery. Its text hash normalizes newlines;
+record it separately from the raw response hash. Never claim the normalized
+corpus text is the exact wire bytes. No call in this path omits `storage_dir`,
+absorbs findings, marks a canonical source superseded, or promotes a brief.
+Raw bytes, corpus text and packet projections must cross-link by exact IDs.
+
+Use the configured runtime data root, with opaque owner and operation directory
+names generated by the service. Reject symlinks, reparse points, path traversal
+and caller-supplied storage locations before private reads or writes. Use the
+existing atomic-file and durable-append seams. Do not add a database or copy
+the expert persistence implementation.
+
+### Caller ownership, reuse and expiry
+
+Derive identity at the interface boundary and validate it in the shared service:
+
+- CLI uses the actual operating-system principal in a local operator namespace;
+  do not derive authority from a username environment variable.
+- HTTP MCP requires an authenticated scoped key and uses the server-derived
+  `MCPRequestIdentity` owner. Reject shared-token and unauthenticated requests
+  for this private preparation surface, including shared tokens on loopback.
+- Stdio MCP uses the OS principal plus a server-owned process nonce. The
+  existing constant `mcp:stdio:local-v1` is not a per-client identity and cannot
+  authorize private cache reuse across server processes. Do not accept a
+  caller-supplied nonce or owner ID.
+
+One credential represents one principal. Hosts sharing that credential are
+not isolated from each other by this contract. The local operator retains
+operator authority; packet ownership separates authenticated remote callers,
+not hostile code executing as the same OS account.
+
+Before the first private write, establish a restrictive owner-only directory
+and verify its protection. On Windows, use an actual ACL for the current token
+principal and fail closed if that protection cannot be established; POSIX mode
+bits alone are not a Windows ACL. On POSIX, require owner-only directory/file
+permissions. Do not write a question, model output, private packet or extended
+trace payload into an unprotected staging directory while attempting to repair
+permissions afterward.
+
+The deduplication key binds exact owner scope, question hash, normalized
+environment, canonical expert revision, admitted coordinate set, preparation
+policy and model identity. Use the existing cross-process locking seam to
+admit one acquisition operation for concurrent identical requests. A waiter
+references the same counters and terminal result; it does not create another
+allowance. Never reuse by question hash alone or reuse another owner's public
+source cache as a private packet. Cross-process stdio reuse remains refused.
+
+A completed packet may be reused for ten minutes only when every key field
+matches and all required observations remain eligible under this policy.
+Reusing a packet still records that the current consult did not perform a new
+fetch. Failed, partial, cancelled, ambiguous or expired operations are not
+promoted to a completed cache hit. Retrying the same operation preserves its
+consumed allowance; a new operation is recorded explicitly as new work.
+No conditional revalidation or reuse across changed identities is included in
+this slice.
+
+Private bodies, source bytes and projections have a seven-day access TTL.
+Expiry denies service reads and reuse before cleanup. Cleanup records a
+tombstone with owner binding, operation/packet hashes, prior terminal status,
+expiry and confirmed deletion outcome, without private prose. Reclamation is
+bounded and opportunistic at service access; the TTL is an access cutoff, not
+a promise of wall-clock deletion while the process is stopped. A cleanup
+failure leaves access denied and records `cleanup_failed` or `cleanup_pending`;
+it must not claim bytes were removed. Minimal append-only lifecycle and cost
+receipts remain. Do not reconstruct expired content from a trace or derived
+Markdown view, and test every such read path against the same owner and TTL.
+Long-lived shared journals receive preparation hashes and owner-bound references,
+not a second private packet or preparation prompt body. Keep the exact prompts
+and extended delivery context in the protected operation store under its TTL.
+Copying a full prepared prompt into an append-only global trace would defeat
+that retention policy; the opt-in trace adapter must preserve exact hashes and
+references without creating that second body.
+
+### Model, packet and delivery bindings
+
+The assumptions call receives the question, declared environment, admitted
+coordinates and relevant retained perspective. It names assumptions, marks
+which admitted checks could matter, and explains unavailable or unnecessary
+checks. The interpretation call receives those assumptions plus retained
+observations and distinguishes observations, hypotheses, recommendations,
+conflicts, implications and omissions. Model outputs cannot widen the
+admitted coordinates, destinations, limits, spend or writes. Source text is
+untrusted evidence, not an instruction to change those permissions.
+
+Both calls use the selected native local backend, with pre-dispatch owned-local
+proof and canonical attempt accounting. Do not use an unrecorded model client,
+silent repair call, output clipping or paid fallback. A changed model identity
+refuses reuse. Extend lifecycle work bounds and phase/progress representation
+to include these two calls before the first preparation dispatch; the current
+roster-plus-one council count cannot silently stand for extra work. Preserve
+the existing one-synthesis-call limit and record preparation overhead separately.
+
+Freeze one packet containing the request/owner/operation identities, expert
+revision, model/policy identities, assumptions, raw and corpus source hashes,
+applicable versions, observation times, checks and omissions, conflicts,
+implications, limits, attempt outcomes and stop reason. Its freshness scope is
+`pypi_release_and_index_only`; advisory coverage, interpreter support and API
+behavior remain `unchecked` unless a later admitted source class checks them.
+An unchanged response hash is not a semantic no-change verdict.
+
+Generate Markdown and a small graph projection from that immutable packet,
+recording their hashes. Observation links must resolve to retained bytes;
+implication links record model interpretations rather than deterministic
+entailment. Deliver the packet as an extra layer through
+`run_consult`, `ExpertCouncil`, `build_briefed_perspective` and
+`build_consult_context`, including the unbriefed fallback where admitted.
+The first formed-expert admission avoids manufacturing useful expert state
+for an expert that has never been built.
+
+`brief_synthesis_blocks` and `build_synthesis_packet` must reserve and account
+for the preparation notice and bounded evidence, with exact delivered and
+omitted observation IDs. `synthesis_delivery` binds packet hash, operation ID,
+rendered context hash, source hashes and omissions to the actual final messages.
+It retains `stored_context_only` for opt-out calls and describes complete,
+partial, failed, offline and reused preparation accurately for opt-in calls.
+The final payload, trace and caller-visible Markdown use those same bindings.
+Do not replace the notice with a generic claim that the expert is current.
+
+No cache read, packet rendering, graph projection or final answer grants
+canonical mutation authority. A proposed learning item remains a proposal.
+
+### Canonical invariance and acceptance
+
+Before preparation, freeze the explicit canonical inventory for the selected
+expert: profile authority, beliefs and their durable event/snapshot/mutation
+history, retained corpus bytes/index, study, current brief and position history,
+canonical evidence/perspective graph and existing expert revision records.
+Resolve current and legacy study/brief paths through `expert_layout.part_in`
+and expert identity through `experts.paths`, rather than guessing directories.
+Hash relative paths and bytes, including recorded absences. Do not include the
+separate operation corpus, packet, preparation projections, consultation
+lifecycle, trace or cost receipts in the unchanged-canonical assertion.
+
+Recheck the inventory before answer dispatch and after finalization. A changed
+canonical revision is a typed identity failure, not a cache hit or permission
+to answer under the old revision label. Retain the failed candidate and actual
+delivered context; do not overwrite the expert or retry invisibly. Fixtures
+must compare all inventory hashes, not just `beliefs.json` or one graph file.
+
+Start with the existing transaction, CLI/MCP, consult context/prompt, corpus
+and pinned HTTP tests. Add fixture-backed coverage for changed releases,
+file-level yanks, conflicting and incomplete metadata, misleading and sound
+premises, source unavailability, slow streams and DNS, cancellation, worker
+failure, duplicate callers, denied cross-owner reads, TTL expiry, traversal,
+malicious source instructions and cleanup failure. Exhaust redirect, address,
+request, byte and elapsed allowances without a fallback. Assert that network
+requests contain only admitted coordinates and that intended receipts survive.
+
+Verify packet/Markdown/graph/context agreement and exact CLI/MCP behavior under
+matched fixture scope; random operation IDs and authenticated owners remain
+distinct identities, not fields to forge for byte equality. Run strict types,
+full unit/coverage, lint/format, ratchets, paid-boundary and docs checks. The
+MCP shape change also requires existing protocol conformance and clean-wheel
+stdio smoke evidence. Update `AGENTIC_BALANCE.md` when implementing the new
+surface; this proposed contract does not move the shipped boundary itself.
+
+Then conduct a matched preparation-on/off answer review from one fixed expert
+revision and a bounded authorized live-source smoke. Use independent model
+review under the operator-selected lane, freeze calibration and disagreement
+handling first, preserve whole answers and failures, and disclose correlated
+reviewer/model errors. Neither structural tests nor these bounded results
+establish a longitudinal memory benefit. Default-on requires its own reviewed
+usefulness evidence; S2-S4 remain separate gates.
+
+### Choices still requiring implementation evidence
+
+The numeric bounds, ten-minute reuse window and seven-day access TTL above are
+prospective defaults to test, not measured sufficiency claims. Retain a failed
+capacity or source-size probe rather than increasing them mid-operation. Before
+the first private write, demonstrate the Windows ACL and process-termination
+mechanisms with real isolated filesystem/process tests as well as injected
+failures. Verify official PyPI schemas and content-type behavior before any
+live request. None of these checks was executed by this design refinement.
+
 ## Acceptance evidence (from the delivery plan, made concrete)
+
+The list below covers the broader staged S1 target. In the first PyPI-only
+slice, advisory and interpreter-support fixtures must show explicit unchecked
+coverage; they cannot pass by pretending the later source classes were used.
 
 - CLI and MCP produce the same packet for the same inputs and fixtures.
 - Offline fixtures cover: a new release that changes advice, a new advisory
