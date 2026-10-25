@@ -16,6 +16,15 @@ brittle rule - it encodes a boundary that no longer matches the code.
 
 ## The axis
 
+Offline preparation support guards caller namespaces, exact evidence and
+projection identities, admitted resource ceilings, duplicate claims, access
+expiry and child lifetime. These checks confer no caller authentication or
+semantic verdict. Model interpretation remains separate from source bytes;
+packet references and matching hashes cannot establish entailment, relevance,
+contradiction or useful advice. The helpers have no production entrypoint and
+the final-message receipt cannot feed back into frozen packet identity. See
+[offline preparation fixtures](../design/prepared-consultation-offline-fixtures.md).
+
 Report-absorption deduplication requires an explicit SAME model verdict for
 every routed merge. Lexical proximity, disabled verification and unknown
 verdicts cannot grant write authority. A staged target id/text binding is

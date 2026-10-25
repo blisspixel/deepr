@@ -3,11 +3,14 @@
 2026-10-25. Narrow sequencing amendment for the authorized S1 implementation.
 
 The existing sequence puts S1 prototypes after the final S0 protocol freeze.
-Capacity development has exposed a briefing timeout and two output-truncated
-studies. Those failures are retained; briefing, maintenance and answer capacity
-remain unqualified. Their failure does not satisfy the original gate. The
-prospective comparison, source worlds and review method exist, while final
-capacity limits and held-out collection admission remain open.
+Capacity development exposed a briefing timeout and two output-truncated
+studies. Those failures remain retained. A fourth, separately frozen
+production-derived configuration completed study, briefing, maintenance and
+four answers with known usage. All four answers exceeded the requested word
+limit; successful execution does not establish useful advice. The prospective
+comparison, source worlds and review method exist, while final held-out context
+scope, protocol freeze and collection admission remain open. Neither earlier
+failure nor later execution silently satisfies those gates.
 
 The requested product outcome is preparation before advice. Waiting on every
 capacity qualification before writing deterministic support fixtures would
@@ -45,3 +48,25 @@ were measured, weakening coverage or source permissions, adding another
 evaluator, or enabling live preparation early. Keeping all support work idle
 would delay the bounded user-facing slice without protecting its live gates.
 This exception may produce reviewable code, not a released capability.
+
+## Offline store inspection bounds
+
+The support prototype admits at most 256 root entries, including its five
+service files, and 256 entries per owner namespace, including each operation's
+claim and directory. It checks capacity before insertion so existing operations
+remain inspectable when new admission is refused. An operation contains at most
+16 recognized files. Cleanup processes at most 32 operations per invocation
+and eight times that many scan steps, retaining a scan cursor across calls so
+an unexpired prefix does not permanently starve later expired bodies. These
+bounds limit resource work; they do not judge source relevance or advice.
+Seven-day access denial remains independent of successful deletion.
+
+Private policy/model binding bytes are retained with the admitted envelope,
+and raw source bodies must match the packet's observation hashes exactly.
+Markdown and graph must equal the owning renderer's projections of that packet.
+Final delivered-message and answer identities belong to later append-only
+receipts and cannot enter the preparation content hash. Native Windows ACL
+support currently requires the existing full/docs environment's pywin32;
+a clean core installation remains unqualified and missing APIs fail closed.
+File and parent-directory fsync use the existing atomic writer where supported;
+this does not claim portable Windows power-loss directory durability.

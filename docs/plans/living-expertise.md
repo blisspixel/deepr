@@ -210,13 +210,25 @@ publish a timestamped protocol identity binding these items:
   examples or a broad expertise qualification. Do not choose thresholds after
   seeing which arm wins. Keep any wrong-memory diagnostic separate and bounded.
 
-Freeze actual human review before the arm key is revealed, as the roadmap
-requires. If the reviewer is unavailable, preserve operational results and
-keep the semantic gate open. Do not claim an anonymized packet makes an arm
-uninferable; record suspected arm and reviewer exposure. Final protocol review
-is a concrete checkpoint after the rubric, fixtures and bounds exist, not a
-request to approve an unspecified run. No held-out collection starts in this
-planning change, and the existing private diagnostic key remains unopened.
+**2026-10-25 operator review amendment:** the operator explicitly selected
+independent agent review instead of waiting for a human. For this replacement
+pilot, freeze independent reviewers' labels before revealing the arm key.
+Retain reviewer identity and exposure, presentation order, calibration inputs,
+exact agreement, disagreements and unresolved judgments. Model-authored
+calibration references are not human labels; interval agreement is not exact
+agreement, and separate agents do not establish independent model-family
+errors. Report model-reviewed pilot results with those limitations. Do not
+record a human attestation, claim human-calibrated semantic acceptance or use
+this amendment to qualify improved expertise or expand autonomous authority.
+The earlier human-review and human-labeled calibration requirements above
+remain the stronger acceptance lane, not a blocker on the operator-selected
+pilot collection and model review.
+
+Do not claim an anonymized packet makes an arm uninferable; record suspected
+arm and reviewer exposure. Final protocol review is a concrete checkpoint after
+the rubric, fixtures and bounds exist, not approval of an unspecified run. This
+amendment does not freeze capacity limits or admit held-out collection; those
+prospective gates remain. The existing private diagnostic key remains unopened.
 
 **Next product increment: one opt-in S1 path.** Subject to the offline fixture
 exception above, once the S0 protocol is frozen,

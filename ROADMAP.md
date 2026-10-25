@@ -25,7 +25,12 @@ remains open.
   policy, case inventory and rubric, then run the 48-cell local rehearsal.
   Preserve the earlier failed runs
   and do not silently substitute inputs or a model. Publish terminal results,
-  including failures, and record human review before revealing the arm key.
+  including failures, and freeze review labels before revealing the arm key.
+  **2026-10-25 operator amendment:** use independent agent review for the
+  replacement pilot without waiting for human reviewers. Disclose model-authored
+  calibration, disagreement, exposure and shared-model limits; no human review
+  or human-calibrated acceptance is implied. See the
+  [scoped review amendment](docs/plans/living-expertise.md#next-execution-contract-reviewed-2026-10-22).
   Only S4 can support a claim that the expert got better.
   **2026-10-19:** the original S0 cannot be reproduced. A full-disk search
   found none of the September source worlds or cases, and `qwen3.6:27b` now
@@ -49,6 +54,17 @@ SearXNG, unattended and MCP OpenRouter, and sleep-time overwrite of claims
 stay blocked.
 
 ### Next bounded sequence, reviewed 2026-10-22
+
+**2026-10-25 development semantic findings:** initial construction in the
+separately frozen production-derived capacity trial completed, but independent
+review found unsupported memory-scaling and universal-batch conclusions,
+binary safety wording for unqualified platforms, invented prior assumptions,
+and lost practical validation caveats. A preliminary single-origin metadata concern was withdrawn after inspecting its documented multiple-document definition.
+Prompt hashes and unshortened synthesis delivery were verified; that does not
+prove backend context preservation or advice quality. Retain the run and
+review, inspect owning change/brief prompts and provenance assembly, and add
+source-grounded whole-output review before claiming repair. These are open
+findings, not reasons to change the active trial or its frozen limits.
 
 **2026-10-25 development finding, study budget repair candidate:** after the
 external GPU workload was closed, the original Qwen development synopsis hit

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add isolated offline preparation support: strict packet contracts, private
+  owner-bound operation storage, immutable evidence/projection identities and
+  cumulative PyPI acquisition controls with bounded child cleanup. Synthetic
+  Windows fixtures exercise permissions and concurrent claims. These helpers
+  do not expose CLI, MCP or consultation preparation; live acquisition and
+  useful-advice qualification remain gated.
+
 ### Fixed
 
 - Request native JSON output for rehearsal construction and maintenance while
