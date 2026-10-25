@@ -150,16 +150,17 @@ class _Protection:
 
     def _set_empty_windows_owner(self, path: Path, *, expected_handle: int | None = None) -> None:
         """TokenOwner may differ from TokenUser on an elevated Windows runner."""
+        import ntsecuritycon
         import win32con
         import win32file
 
         handle = win32file.CreateFile(
             str(path),
-            win32con.WRITE_OWNER | win32con.READ_CONTROL | win32con.FILE_READ_ATTRIBUTES,
+            win32con.WRITE_OWNER | win32con.READ_CONTROL | ntsecuritycon.FILE_READ_ATTRIBUTES,
             win32con.FILE_SHARE_READ | win32con.FILE_SHARE_WRITE | win32con.FILE_SHARE_DELETE,
             None,
             win32con.OPEN_EXISTING,
-            win32con.FILE_FLAG_OPEN_REPARSE_POINT,
+            win32file.FILE_FLAG_OPEN_REPARSE_POINT,
             None,
         )
         try:

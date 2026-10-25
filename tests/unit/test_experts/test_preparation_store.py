@@ -470,7 +470,9 @@ def test_windows_creation_owner_is_corrected_to_actual_token_user_before_bytes(m
             return (*info[:9], 124)
         return info
 
-    native = SimpleNamespace(CreateFile=lambda *args: handle, GetFileInformationByHandle=file_info)
+    native = SimpleNamespace(
+        CreateFile=lambda *args: handle, GetFileInformationByHandle=file_info, FILE_FLAG_OPEN_REPARSE_POINT=0x200000
+    )
     constants = SimpleNamespace(
         WRITE_OWNER=0x80000,
         READ_CONTROL=0x20000,
@@ -498,6 +500,7 @@ def test_windows_creation_owner_is_corrected_to_actual_token_user_before_bytes(m
     )
     monkeypatch.setitem(sys.modules, "win32con", constants)
     monkeypatch.setitem(sys.modules, "win32file", native)
+    monkeypatch.setitem(sys.modules, "ntsecuritycon", SimpleNamespace(FILE_READ_ATTRIBUTES=0x80))
     if same_file:
         protection._set_empty_windows_owner(tmp_path / "empty", expected_handle=77)
         assert state["owner"] == "actual-token-user"
