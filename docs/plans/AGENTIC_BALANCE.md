@@ -72,6 +72,12 @@ token fields are reported worker subtotals, with warm-up recorded separately.
 Neither a complete cell denominator nor known counters certify phase success
 or semantic quality. See [the rehearsal contract](../design/local-four-arm-rehearsal.md).
 
+Rehearsal construction and maintenance request native JSON form and refuse a
+length-stopped payload while retaining the raw transport return and its known
+usage. Answers remain prose-capable. These controls establish requested form
+and output-bound refusal, not claim support or semantic completeness. See
+[memory generation](../design/rehearsal-memory-generation.md).
+
 Known study output ceilings now travel from actual backend metadata through
 the shared renderer, prompt hashes and checkpoint admission. Code validates
 the numerical form and retains complete-response refusal; model judgment

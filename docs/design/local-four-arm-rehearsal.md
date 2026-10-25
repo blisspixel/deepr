@@ -100,7 +100,8 @@ strict `deepr eval expert-value` workbook).
 | --- | --- |
 | Frozen model identity | `run` compares the installed digest before any work; each call compares the digest observed by the per-dispatch owned-local attestation |
 | Usable capacity | A recorded `$0` warm-up must meet a tokens-per-second floor. It measures that short request; longer phases can still reach their frozen limits |
-| Explicit generation settings | Policy pins `num_ctx`, output limit, temperature, seed and `think`; the native backend refuses unknown options |
+| Explicit generation settings | Policy pins `num_ctx`, output limit, temperature, seed and `think`; memory generation additionally requests native JSON, while answers remain prose-capable. Effective options are retained and the native backend refuses unknown options |
+| Structured memory admission | A `length` stop refuses the payload even if it parses as JSON. Raw returned output, stop reason and known usage remain retained; transport return and payload admission are separate facts |
 | Question-free construction and maintenance | The orchestrator refuses to put a question in their specs, and the worker refuses one if present |
 | Answer bound to its question | Each answer reports its question digest; a mismatch fails the cell, and `blind` refuses criteria for a different question |
 | Equal source interface | Every worker receives its own new copy of the selected world; each answer reports the source digests it actually rendered, compared per world |

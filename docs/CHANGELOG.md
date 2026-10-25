@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Request native JSON output for rehearsal construction and maintenance while
+  preserving prose-capable answers. Refuse length-stopped memory payloads,
+  including valid JSON prefixes, while retaining raw returned output, stop
+  reasons and known token accounting separately from payload admission.
+
 - Communicate known output token ceilings through shared study prompts and
   checkpoint identity, using actual backend metadata in CLI, formation and
   rehearsal callers. Forward requested pooled limits to each member; retain

@@ -57,8 +57,14 @@ no brief, maintenance or answer was produced. The candidate communicates the
 existing output ceiling through the shared study renderer, checkpoint identity
 and callers, and forwards pooled requests to members. Plan ceilings remain
 unknown because their transport does not enforce the request argument. The
-repair adds no retry, salvage or higher limit. Preserve both failed trials.
-Offline delivery tests do not establish model compliance, S0 capacity or useful advice. See
+repair adds no retry, salvage or higher limit. Its separately frozen live
+validation also failed at the same synopsis ceiling; all three failed
+configurations remain retained. Offline delivery tests do not establish model
+compliance, S0 capacity or useful advice. A further source comparison found
+that rehearsal memory generation omitted the shipped native JSON request and
+length-stop refusal. The candidate adds those controls for memory only while
+retaining raw returned output and known usage. Answers remain prose-capable.
+No further generation follows without a new reviewed capacity proposal. See
 [the output-budget repair](docs/design/study-output-budget-communication.md).
 
 **2026-10-25 development finding, diagnostic repair candidate:** a separately
