@@ -6,13 +6,15 @@ The packet below is not implemented.
 `deepr expert currency` is the earlier read-only inspection. It does not
 fetch, judge, or replace stored-only consult. This note defines
 the additive contract the [delivery plan](../plans/living-expertise.md#s1-prepare-before-consultation-with-bounded-temporary-evidence)
-requires before S1 code. Prototypes wait for the frozen S0 protocol; the
-default-on switch waits for S1's own exit evidence.
+requires before S1 code. The dated [offline fixture amendment](prepared-consultation-offline-fixtures.md)
+permits support components and synthetic fixtures during capacity qualification.
+Exposed or live prototypes still wait for the frozen S0 protocol; the default-on
+switch waits for S1's own exit evidence.
 The operator selected independent model review for the next protocol and
 answer review. Record that review and its calibration honestly, including
 disagreement and shared-model limitations; do not record human attestations
-that did not occur. This changes neither the code gate nor the evidence
-needed to claim useful advice or improved expertise.
+that did not occur. Choosing a review lane alone changes neither the code gate
+nor the evidence needed to claim useful advice or improved expertise.
 
 ## Problem
 
@@ -145,7 +147,9 @@ advisory coverage, interpreter support, or version-dependent API behavior.
 ## First opt-in slice: one Python environment
 
 Everything in this section is an implementation contract, not shipped
-behavior. Do not begin code until the replacement S0 protocol is frozen.
+behavior. The [offline fixture exception](prepared-consultation-offline-fixtures.md)
+permits isolated support components first. Production integration and exposed
+or live preparation still wait for the replacement S0 protocol freeze.
 An unfavorable S0 result does not block this S1 prototype, and the prototype
 does not change S0's interpretation.
 

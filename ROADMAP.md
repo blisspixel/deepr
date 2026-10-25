@@ -460,6 +460,12 @@ start after the S0 protocol is frozen; comparative claims require the preserved
 baseline. Promotion of unattended learning requires positive held-out evidence.
 Each release target below is provisional until its exit gate passes.
 
+The [2026-10-25 offline fixture amendment](docs/design/prepared-consultation-offline-fixtures.md)
+allows separate S1 support code and synthetic fixtures during capacity
+qualification. Exposed or live preparation still waits for the frozen S0
+protocol. This exception grants no collection, default-on, canonical-write or
+comparative-quality acceptance and does not relabel the failed development.
+
 | Target / stage | User-visible outcome | Prerequisite and exit gate |
 | --- | --- | --- |
 | **v2.51 / S0: baseline evidence** | One reviewed four-arm comparison of fresh research, static history, compiled state, and maintained state. | Reuse completed source preflight and operational evidence. Finish isolated inventories and exact blinded answer bindings, retain all 48 terminal cells, and publish separate quality, stale-reuse, transfer, effort, and cost results. A negative result can complete measurement; it cannot justify more autonomy. |

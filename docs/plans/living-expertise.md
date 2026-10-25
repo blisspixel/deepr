@@ -95,11 +95,18 @@ graph connectivity qualifies an expert or that S0-S4 have passed.
 S3 perspective and inquiry -> S4 repeated-use proof -> S5 wider autonomy`
 
 Baseline results may be negative. Recording them completes measurement, not
-proof of value. S1 prototypes and fixtures can proceed after the S0 protocol
-is frozen; the baseline must be preserved before comparative claims. A poor
+proof of value. Subject to the dated offline exception below, S1 prototypes
+and fixtures proceed after the S0 protocol is frozen; the baseline must be
+preserved before comparative claims. A poor
 baseline does not block repairs to preparation. Failed stage acceptance keeps
 that capability experimental. Wider autonomy requires positive held-out
 evidence, rather than completion of every planned module.
+
+The [2026-10-25 offline fixture amendment](../design/prepared-consultation-offline-fixtures.md)
+permits isolated S1 support components and synthetic fixtures while capacity
+qualification continues. This explicitly changes only that preparatory
+sequencing. It does not satisfy S0, admit held-out collection, expose the
+preparation entrypoint or permit live S1 calls before the original gate.
 
 ### S0: preserve the baseline and freeze what improvement means
 
@@ -211,7 +218,8 @@ is a concrete checkpoint after the rubric, fixtures and bounds exist, not a
 request to approve an unspecified run. No held-out collection starts in this
 planning change, and the existing private diagnostic key remains unopened.
 
-**Next product increment: one opt-in S1 path.** Once the S0 protocol is frozen,
+**Next product increment: one opt-in S1 path.** Subject to the offline fixture
+exception above, once the S0 protocol is frozen,
 prototype one caller-scoped preparation packet through
 `execute_consult_transaction`, using one explicit Python environment and one
 official structured source class. Start with release-specific PyPI metadata
