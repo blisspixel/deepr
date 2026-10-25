@@ -4,6 +4,7 @@ import json
 from datetime import date
 
 import pytest
+from httpx import ReadTimeout
 
 from deepr.experts.brief import (
     assemble_brief,
@@ -507,6 +508,29 @@ class TestBuildBrief:
         )
         assert brief.generated_from_findings == 1
         assert any("Synthesis call failed" in limit for limit in brief.limitations)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "detail", ["", "PRIVATE_EXCEPTION_DETAIL: /private/task?token=secret"], ids=["empty-message", "private-message"]
+    )
+    async def test_synthesis_timeout_retains_type_without_private_detail_or_retry(self, corpus, detail):
+        calls = []
+
+        async def _completion(prompt):
+            calls.append(prompt)
+            raise ReadTimeout(detail)
+
+        brief = await build_brief(
+            expert_name="E", result=_result([_finding("F1")]), corpus=corpus, completion=_completion
+        )
+
+        assert len(calls) == 1
+        assert brief.orientation == ""
+        assert brief.positions == []
+        assert brief.generated_from_findings == 1
+        assert brief.synthesis_input["admission_status"] == "admitted"
+        assert brief.limitations == ["Synthesis call failed (ReadTimeout); no brief was produced."]
+        assert "PRIVATE_EXCEPTION_DETAIL" not in json.dumps(brief.to_dict())
 
     @pytest.mark.asyncio
     async def test_unparseable_synthesis_reports_what_came_back(self, corpus):

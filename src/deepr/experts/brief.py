@@ -553,7 +553,7 @@ async def build_brief(
         raw = await completion(prompt)
     except Exception as exc:
         brief = ExpertBrief(expert_name=expert_name, generated_from_findings=len(result.findings))
-        brief.limitations.append(f"Synthesis call failed: {str(exc)[:200]}")
+        brief.limitations.append(f"Synthesis call failed ({type(exc).__name__[:80]}); no brief was produced.")
         _record_selection(brief, selection)
         return brief
 

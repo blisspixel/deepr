@@ -50,6 +50,15 @@ stay blocked.
 
 ### Next bounded sequence, reviewed 2026-10-22
 
+**2026-10-25 development finding, diagnostic repair candidate:** a separately
+bounded local development trial returned two study calls, then its brief call
+timed out. The fallback brief omitted the exception class when its message was
+empty; the lower-level call and attempt receipts retained `ReadTimeout` and
+unknown usage. Preserve that negative result. The candidate reports the
+bounded exception class without private exception details, retaining the
+failed brief and single-call behavior. This repairs diagnosis, not capacity,
+maintenance feasibility or S0 acceptance; held-out collection remains gated.
+
 **2026-10-25 maintenance candidate:** the Brotli advisory in
 `security-tracking#68` affects the reviewed search/full lock selections.
 The candidate updates only Brotli to 1.2.1, brotlicffi to 1.2.1.0 and,

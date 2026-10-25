@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Preserve the exception class when brief synthesis fails with an empty error
+  message, without copying private exception details into the retained brief.
+  Keep the failed brief, study selection and single-attempt behavior unchanged;
+  this diagnostic repair does not establish successful local capacity.
+
 - Update only the locked Brotli decoders selected by `ddgs -> httpx[brotli]`:
   Brotli 1.2.1 and brotlicffi 1.2.1.0 address GHSA-9v8h-qqgm-4m35.
   Keep the existing CPython/non-CPython selection and installer trust floors.
