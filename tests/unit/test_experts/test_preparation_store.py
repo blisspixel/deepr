@@ -2,8 +2,10 @@
 
 import json
 import os
+import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -432,22 +434,18 @@ def test_lower_limits_are_admitted_and_enforced(setup_store):
 
 
 def test_atomic_tempfile_is_private_before_first_payload_byte(setup_store, monkeypatch):
-    from deepr.utils import atomic_io
-
     store, owner, request, _ = setup_store
     first = claim(store, owner, request)
-    original = atomic_io.tempfile.mkstemp
+    original = store.protection.prepare_tempfile
     observed = []
 
-    def checked_tempfile(*args, **kwargs):
-        descriptor, name = original(*args, **kwargs)
-        path = Path(name)
+    def checked_tempfile(descriptor, path):
+        original(descriptor, path)
         store.protection.verify(path, directory=False)
-        assert path.stat().st_size == 0
+        assert os.fstat(descriptor).st_size == 0
         observed.append(path)
-        return descriptor, name
 
-    monkeypatch.setattr(atomic_io.tempfile, "mkstemp", checked_tempfile)
+    monkeypatch.setattr(store.protection, "prepare_tempfile", checked_tempfile)
     frozen = freeze_packet(PreparationPacket(envelope=first.envelope, stop_reason="offline"))
     store.complete(owner, first.operation_id, frozen)
     assert len(observed) >= 5
@@ -573,3 +571,63 @@ def test_delivery_receipts_do_not_refreeze_packet_and_bound_body_honestly(setup_
     event = json.loads(events[-1])
     assert not event["body_available"] and event["messages"] is None
     assert event["messages_sha256"] == sha256(b"x" * 131073)
+
+
+@pytest.mark.parametrize("same_file", [True, False], ids=["elevated-owner", "changed-file"])
+def test_windows_creation_owner_is_corrected_to_actual_token_user_before_bytes(monkeypatch, tmp_path, same_file):
+    from deepr.experts.preparation_store import _Protection
+
+    state = {"owner": "Administrators", "closed": False}
+    owner_information = 1
+
+    class Handle:
+        def Close(self):
+            state["closed"] = True
+
+    handle = Handle()
+    info = (0, None, None, None, 42, 0, 0, 1, 0, 123)
+
+    def file_info(value):
+        if value == 77 and not same_file:
+            return (*info[:9], 124)
+        return info
+
+    native = SimpleNamespace(
+        CreateFile=lambda *args: handle, GetFileInformationByHandle=file_info, FILE_FLAG_OPEN_REPARSE_POINT=0x200000
+    )
+    constants = SimpleNamespace(
+        WRITE_OWNER=0x80000,
+        READ_CONTROL=0x20000,
+        FILE_READ_ATTRIBUTES=0x80,
+        FILE_SHARE_READ=1,
+        FILE_SHARE_WRITE=2,
+        FILE_SHARE_DELETE=4,
+        OPEN_EXISTING=3,
+        FILE_FLAG_OPEN_REPARSE_POINT=0x200000,
+    )
+
+    def set_owner(actual_handle, object_type, information, owner, group, dacl, sacl):
+        assert actual_handle is handle
+        assert information == owner_information
+        assert group is dacl is sacl is None
+        state["owner"] = owner
+
+    protection = object.__new__(_Protection)
+    protection.sid = "actual-token-user"
+    protection.security = SimpleNamespace(
+        SE_FILE_OBJECT=1,
+        OWNER_SECURITY_INFORMATION=owner_information,
+        SetSecurityInfo=set_owner,
+        GetSecurityInfo=lambda *args: SimpleNamespace(GetSecurityDescriptorOwner=lambda: state["owner"]),
+    )
+    monkeypatch.setitem(sys.modules, "win32con", constants)
+    monkeypatch.setitem(sys.modules, "win32file", native)
+    monkeypatch.setitem(sys.modules, "ntsecuritycon", SimpleNamespace(FILE_READ_ATTRIBUTES=0x80))
+    if same_file:
+        protection._set_empty_windows_owner(tmp_path / "empty", expected_handle=77)
+        assert state["owner"] == "actual-token-user"
+    else:
+        with pytest.raises(StoreProtectionError, match="identity changed"):
+            protection._set_empty_windows_owner(tmp_path / "empty", expected_handle=77)
+        assert state["owner"] == "Administrators"
+    assert state["closed"]

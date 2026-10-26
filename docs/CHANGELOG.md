@@ -34,6 +34,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Protect and verify empty private atomic files and acquired append locks before
+  writing payloads. Assign the actual Windows token user when an elevated
+  process creates files owned by its Administrators group, preserving the
+  owner/SYSTEM-only permission requirement and legacy atomic-writer defaults.
+
 - Clarify brief and change-lens generation guidance for standing advice,
   forecast eligibility, same-claim falsifiers and source/history scope. Request
   orientation statements once and retain deterministic joining plus legacy

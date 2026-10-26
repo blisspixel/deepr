@@ -72,6 +72,12 @@ stay blocked.
 
 ### Next bounded sequence, reviewed 2026-10-22
 
+- [x] **2026-10-25 hosted Windows private-owner repair:** elevated runners
+  created atomic files with Administrators as owner. Empty open files now
+  receive and verify actual token-user ownership before their first payload
+  byte. Both hosted Windows platform jobs passed on PR #289; the strict
+  owner/SYSTEM-only requirement and legacy writer defaults remain unchanged.
+
 **2026-10-25 development semantic findings:** initial construction in the
 separately frozen production-derived capacity trial completed, but independent
 review found unsupported memory-scaling and universal-batch conclusions,
