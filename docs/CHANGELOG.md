@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Candidate: update only the locked virtualenv development dependency from
+  21.14.12 to 21.14.13 for GHSA-cx6f-vjhg-g3cc / CVE-2026-115586.
+  The [upstream repair](https://virtualenv.pypa.io/en/latest/changelog.html#v21-14-13-2026-10-22)
+  prevents delayed Bash prompt expansion of supplied prompt/environment names.
+  Add a lock-floor regression through the existing pre-commit dependency seam.
+  Existing environments and previously generated activators need an explicit
+  refresh/recreation; changing this lock does not remediate installed copies
+  or establish exploitation. Frozen S0 runtime inputs remain unchanged.
+
+
 - Update only the locked Brotli decoders selected by `ddgs -> httpx[brotli]`:
   Brotli 1.2.1 and brotlicffi 1.2.1.0 address GHSA-9v8h-qqgm-4m35.
   Keep the existing CPython/non-CPython selection and installer trust floors.

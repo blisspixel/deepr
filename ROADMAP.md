@@ -50,6 +50,16 @@ stay blocked.
 
 ### Next bounded sequence, reviewed 2026-10-22
 
+**2026-10-25 virtualenv maintenance candidate:** update only the transitive
+`pre-commit` development lock selection from virtualenv 21.14.12 to 21.14.13
+for [GHSA-cx6f-vjhg-g3cc](https://github.com/advisories/GHSA-cx6f-vjhg-g3cc).
+The upstream Bash prompt expansion regression affects attacker-controlled
+prompt/environment names; dependency presence is not evidence of exploitation.
+A locked-floor regression accompanies the candidate. Runtime refresh, focused
+checks and exact-head CI remain pending. Frozen S0 source, locks and receipts
+remain unchanged; its Windows execution does not exercise Bash activation.
+
+
 **2026-10-25 maintenance candidate:** the Brotli advisory in
 `security-tracking#68` affects the reviewed search/full lock selections.
 The candidate updates only Brotli to 1.2.1, brotlicffi to 1.2.1.0 and,
