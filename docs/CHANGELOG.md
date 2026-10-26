@@ -36,6 +36,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Keep optional preparation version-parsing imports out of core CLI/MCP schema
+  initialization. A genuinely locked core installation without packaging or
+  Windows ACL support passes conformance and stdio inventory; explicit
+  unsupported preparation refuses before profile, backend or private work.
+
 - Update only the locked virtualenv development dependency from
   21.14.12 to 21.14.13 for GHSA-cx6f-vjhg-g3cc / CVE-2026-115586.
   The [upstream repair](https://virtualenv.pypa.io/en/latest/changelog.html#v21-14-13-2026-10-22)

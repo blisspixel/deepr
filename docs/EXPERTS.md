@@ -47,7 +47,7 @@ state; their regeneration does not establish new learning.
 Default consultation uses stored expert state. Experimental Python preparation
 is explicit: `deepr expert consult -e NAME --prepare-python request.json`, or
 MCP `deepr_consult_experts` with a `preparation` object. It requires one named,
-formed expert, local synthesis and zero budget. It checks only caller-declared
+formed expert, local synthesis, zero budget and the existing full installation. It checks only caller-declared
 package/version coordinates through release-specific PyPI metadata and index
 data; it does not inspect an installed environment or establish comprehensive
 advisory, interpreter-support or API coverage. See the

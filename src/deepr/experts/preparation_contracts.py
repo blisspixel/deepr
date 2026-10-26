@@ -8,8 +8,6 @@ import re
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
-from packaging.utils import canonicalize_name
-from packaging.version import InvalidVersion, Version
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, field_validator, model_validator
 
 Digest = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
@@ -41,6 +39,8 @@ class PackageCoordinate(FrozenModel):
     @field_validator("name")
     @classmethod
     def normalize_name(cls, value: str) -> str:
+        from packaging.utils import canonicalize_name
+
         if re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?", value) is None:
             raise ValueError("package name must be a project coordinate")
         return canonicalize_name(value)
@@ -48,6 +48,8 @@ class PackageCoordinate(FrozenModel):
     @field_validator("version")
     @classmethod
     def normalize_version(cls, value: str) -> str:
+        from packaging.version import InvalidVersion, Version
+
         try:
             return str(Version(value))
         except InvalidVersion as error:

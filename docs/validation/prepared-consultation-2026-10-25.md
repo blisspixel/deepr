@@ -261,8 +261,21 @@ Default preparation remains off and the S1 acceptance gate remains open.
 
 The planned release evidence asset is
 [prepared-consultation-2026-10-25-repro.zip](https://github.com/blisspixel/deepr/releases/download/v2.51.0/prepared-consultation-2026-10-25-repro.zip).
-Archive creation, its published SHA-256 manifest and release availability are
-separate pending steps; no archive hash is claimed here. It must retain both
+The built and member-verified archive SHA-256 is
+`ce57912f7321894487ebd1afe03521c2a87f1be693b8c05c19c640357d2808fb`.
+Release availability remains a separate publication step. It retains both
 trial manifests, all original failure/operational receipts, exact source/context/
 answer bindings, both unchanged reviewer judgments and their freeze/audit records,
 with alignment only in explicitly unblinded reproducibility material.
+
+## Core installation compatibility
+
+The first candidate CI exposed an eager optional version-parser import during
+core MCP conformance. Coordinate validation now imports that existing optional
+parser only when explicit preparation is requested; no dependency was added.
+A genuinely isolated Python3.12.13 core environment with55 locked dependencies,
+without packaging or pywin32, passed CLI help, offline doctor, MCP conformance,
+legacy/modern stdio tools listing and typed CLI/MCP refusal before profile,
+backend, socket or configured private writes. The live trials retain their
+original frozen source identities; this later import-boundary repair does not
+retrospectively relabel those runs as execution of the final release head.
