@@ -55,6 +55,16 @@ stay blocked.
 
 ### Next bounded sequence, reviewed 2026-10-22
 
+**2026-10-25 virtualenv maintenance candidate:** update only the transitive
+`pre-commit` development lock selection from virtualenv 21.14.12 to 21.14.13
+for [GHSA-cx6f-vjhg-g3cc](https://github.com/advisories/GHSA-cx6f-vjhg-g3cc).
+The upstream Bash prompt expansion regression affects attacker-controlled
+prompt/environment names; dependency presence is not evidence of exploitation.
+A locked-floor regression accompanies the candidate. Runtime refresh, focused
+checks and exact-head CI remain pending. Frozen S0 source, locks and receipts
+remain unchanged; its Windows execution does not exercise Bash activation.
+
+
 **2026-10-25 hosted Windows finding, preparation support candidate:** elevated
 Windows runners created atomic files with Administrators as owner, so strict
 private-store admission refused them before preparation could run. The repair
