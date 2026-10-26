@@ -24,6 +24,47 @@ from deepr.observability.cost_ledger import CostLedger
 from .test_preparation_context import captured as captured
 
 
+@pytest.mark.parametrize("phase", ["assumptions", "interpretation"])
+def test_preparation_prompts_deliver_exact_response_contract(phase):
+    from deepr.experts.preparation_contracts import PreparationLimits
+    from deepr.experts.preparation_service import AssumptionPlan, PreparationAnalysis, _prompt
+
+    prompt = _prompt(phase, {"question": "fixture"}, PreparationLimits())
+    schema_text = prompt.split("===== RESPONSE JSON SCHEMA =====\n", 1)[1].split(
+        "\n===== END RESPONSE JSON SCHEMA =====", 1
+    )[0]
+    response_type = AssumptionPlan if phase == "assumptions" else PreparationAnalysis
+    assert json.loads(schema_text) == response_type.model_json_schema()
+    assert "admitted coordinate_ids" not in prompt
+    if phase == "assumptions":
+        assert json.loads(schema_text)["$defs"]["PlannedAssumption"]["properties"]["status"]["enum"] == [
+            "unchecked",
+            "not_needed",
+        ]
+
+
+def test_live_misnamed_plan_fields_remain_refused_without_alias_or_salvage():
+    from pydantic import ValidationError
+
+    from deepr.experts.preparation_service import AssumptionPlan
+
+    with pytest.raises(ValidationError):
+        AssumptionPlan.model_validate(
+            {
+                "assumptions": [
+                    {
+                        "assumption_id": "a1",
+                        "admitted_coordinate_ids": ["pkg_fixture"],
+                        "text": "Fixture assumption",
+                        "status": "unchecked",
+                        "reason": "Fixture reason",
+                    }
+                ],
+                "selected_coordinate_ids_to_check": ["pkg_fixture"],
+            }
+        )
+
+
 @pytest.fixture
 def service_fixture(tmp_path, monkeypatch, captured):
     capture, canonical_root = captured
