@@ -1,7 +1,8 @@
 # Deepr Threat Model
 
-Status: current with Deepr v2.50.46. Last reviewed: 2026-10-19.
+Status: current with Deepr v2.51.0. Last reviewed: 2026-10-19.
 Compatible patch surface checked: 2026-10-22.
+Experimental preparation boundary reviewed: 2026-10-25 (source and synthetic tests).
 
 This document is the repository-scoped threat model for Deepr. It is intended
 for security reviews, design reviews, and future bug discovery. It should stay
@@ -9,6 +10,17 @@ grounded in Deepr's actual product surface rather than generic model-security
 concerns.
 
 ## Overview
+
+Opt-in Python preparation admits only declared package/version coordinates to
+fixed public PyPI endpoints. Private questions, captured expert context, source
+bytes and delivered messages stay in an owner-scoped operation store; shared
+receipts carry only bounded status and identity hashes. HTTP preparation requires
+a scoped key even on loopback. Captured canonical inventory is checked before
+dispatch and after finalization; concurrent legitimate changes cause refusal,
+not rollback. These observational checks are not an atomic writer lock or an OS
+sandbox. Source instructions remain untrusted evidence, and model interpretation
+is not proof of support. Default consultation remains stored-context-only. See
+[the preparation contract](../design/prepared-consultation.md).
 
 Deepr is a local-first, multi-provider research and expert-memory system. It
 routes research and expert-maintenance work through local models, explicit

@@ -212,6 +212,7 @@ def _execute_cli_consult(
     report_started: Any,
     report_backend: Any,
     json_output: bool = False,
+    preparation: Any = None,
 ) -> dict[str, Any]:
     try:
         with (
@@ -240,11 +241,14 @@ def _execute_cli_consult(
                     run_consult_fn=run_consult,
                     on_started=started,
                     on_backend_ready=backend_ready,
+                    **({"preparation": preparation} if preparation is not None else {}),
                 )
             )
     except (click.UsageError, ConsultBackendError) as exc:
         _refuse(
-            str(exc),
+            "Prepared consultation capacity is unavailable; inspect the protected operation receipt."
+            if preparation is not None
+            else str(exc),
             json_output=json_output,
             code="CONSULT_CAPACITY_UNAVAILABLE",
             category="config",
@@ -274,13 +278,57 @@ def _execute_cli_consult(
         )
     except Exception as exc:
         _refuse(
-            f"Consultation failed: {exc}",
+            "Prepared consultation failed; inspect its protected receipt before retrying."
+            if preparation is not None
+            else f"Consultation failed: {exc}",
             json_output=json_output,
-            code=getattr(exc, "error_code", "CONSULT_FAILED"),
-            category=getattr(exc, "category", "internal"),
+            code="CONSULT_PREPARATION_FAILED"
+            if preparation is not None
+            else getattr(exc, "error_code", "CONSULT_FAILED"),
+            category="internal" if preparation is not None else getattr(exc, "category", "internal"),
             hint="Inspect the retained consultation trace before retrying.",
             exit_code=1,
-            retryable=bool(getattr(exc, "retryable", False)),
+            retryable=False if preparation is not None else bool(getattr(exc, "retryable", False)),
+        )
+
+
+def _cli_preparation(
+    path: Path | None, experts: tuple[str, ...], backend_mode: str, budget: float, *, json_output: bool
+):
+    """Read one bounded explicit request; caller identity and root stay internal."""
+    if path is None:
+        return experts, None
+    if backend_mode != "local" or budget != 0 or len(experts) != 1:
+        _refuse(
+            "Preparation requires one explicit expert, local synthesis and zero budget.",
+            json_output=json_output,
+            code="CONSULT_PREPARATION_INVALID",
+            category="config",
+            hint="deepr expert consult --help",
+        )
+    try:
+        from deepr.config import runtime_data_path
+        from deepr.experts.preparation_contracts import PreparationRequest
+        from deepr.experts.preparation_privacy import preparation_cli_scope
+        from deepr.experts.preparation_service import PreparationAdmission
+        from deepr.experts.profile_store import ExpertStore
+
+        with path.open("rb") as handle:
+            request = PreparationRequest.from_json(handle.read(16_385))
+        profile = ExpertStore(create=False).load(experts[0], persist_migration=False)
+        if profile is None:
+            raise ValueError("Prepared expert unavailable")
+        canonical = (profile.name,)
+        return canonical, PreparationAdmission(
+            request, preparation_cli_scope(), runtime_data_path("preparation").absolute()
+        )
+    except Exception:
+        _refuse(
+            "Preparation request or local ownership is unavailable; expected an enabled v1 Python request of at most 16 KiB.",
+            json_output=json_output,
+            code="CONSULT_PREPARATION_INVALID",
+            category="config",
+            hint="deepr expert consult --help",
         )
 
 
@@ -362,6 +410,12 @@ def _emit_consult_result(
 @click.option("--plan", "plan_backend", default=None, help="Use an explicit plan-quota CLI for synthesis.")
 @click.option("--plan-model", default=None, help="Model hint for the plan-quota CLI.")
 @click.option(
+    "--prepare-python",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    default=None,
+    help="Opt in to bounded PyPI metadata checks using a v1 Python preparation JSON request. Requires one -e expert and local synthesis.",
+)
+@click.option(
     "--max-elapsed-seconds",
     default=DEFAULT_CONSULT_MAX_ELAPSED_SECONDS,
     show_default=True,
@@ -399,6 +453,7 @@ def expert_consult(
     output,
     yes,
     confirm_metered_cost,
+    prepare_python=None,
 ):
     """Consult a team of experts and synthesize one calibrated answer.
 
@@ -439,6 +494,7 @@ def expert_consult(
         api_provider=api_provider,
         api_model=api_model,
     )
+    experts, preparation = _cli_preparation(prepare_python, experts, backend_mode, budget, json_output=json_output)
 
     backend_factory = _make_backend_factory(
         experts=experts,
@@ -463,5 +519,6 @@ def expert_consult(
         report_started=report_started,
         report_backend=report_backend,
         json_output=json_output,
+        **({"preparation": preparation} if preparation is not None else {}),
     )
     _emit_consult_result(payload, json_output=json_output, output=output)

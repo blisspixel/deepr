@@ -126,7 +126,11 @@ Report shifts in understanding, practice, versions, standards, or consensus. For
 was believed or done before, what is the case now, what evidence marks the change, and which
 previously reasonable conclusions no longer hold.
 
-Only report change the corpus dates or sequences. Do not infer recency from tone.""",
+Only report change the corpus dates or sequences. Do not infer recency from tone.
+Distinguish a source's earlier claim from an expert's recorded prior belief; do not invent
+either history when it is absent. Preserve exact versions, test conditions and qualifications.
+Two measurements do not establish a scaling law, and unqualified use does not establish a
+population of successful users. Keep hypothetical prior assumptions explicitly hypothetical.""",
     ),
     StudyLens(
         key="absence",

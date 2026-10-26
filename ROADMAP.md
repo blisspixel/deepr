@@ -4,6 +4,23 @@
 
 ## Next round
 
+**2026-10-25 brief clarification:** generation instructions now distinguish
+future-event forecasts from standing advice, require same-claim revision
+conditions, avoid invented history/scaling and request orientation statements
+once. Legacy loading and raw historical evidence remain unchanged. This is
+implemented prompt clarification; whole-output semantic repair is unproven.
+
+**2026-10-25 current checkpoint:** the
+[model-reviewed replacement S0 pilot](docs/validation/expert-baseline-2026-10-25.md)
+completed all 48 cells without establishing practical memory benefit. This
+finishes the scoped pilot measurement, not human-calibrated semantic acceptance
+or repeated-use expertise. Earlier failed trials remain retained. Experimental
+S1 preparation is implemented through the shared CLI/MCP transaction and
+fixture-backed privacy, accounting and delivery seams. Default consultation
+remains stored-only. Next S1 evidence is matched preparation-on/off whole-answer
+review and a bounded authorized live-source smoke; default-on and broader
+sources remain gated. No increased autonomy follows from the negative baseline.
+
 Completed reader, recovery, inspection, lifecycle, first-run, decision-review,
 local accounting, embedding and interface repairs are in
 [the changelog](docs/CHANGELOG.md). v2.50.43 repairs guarded absorption,
@@ -18,10 +35,10 @@ contrast-phrase contradiction label, and partially corrects consult length
 adherence. Exact-main CI and public installation are release acceptance
 checks. v2.50.44 records the completed bounded correction measurement and
 evaluated/rejected packing comparison with compatible repairs. Completed #258
-and #259 work is in the changelog; rejected candidates remain unshipped and S0
-remains open.
+and #259 work is in the changelog; rejected candidates remain unshipped.
+The scoped S0 pilot is complete; human-calibrated semantic acceptance remains open.
 
-- [ ] **v2.51 is S0.** Freeze prospectively reviewed replacement source worlds,
+- [x] **v2.51 S0 scoped pilot measurement.** Freeze prospectively reviewed replacement source worlds,
   policy, case inventory and rubric, then run the 48-cell local rehearsal.
   Preserve the earlier failed runs
   and do not silently substitute inputs or a model. Publish terminal results,
@@ -55,100 +72,57 @@ stay blocked.
 
 ### Next bounded sequence, reviewed 2026-10-22
 
-**2026-10-25 virtualenv maintenance candidate:** update only the transitive
-`pre-commit` development lock selection from virtualenv 21.14.12 to 21.14.13
-for [GHSA-cx6f-vjhg-g3cc](https://github.com/advisories/GHSA-cx6f-vjhg-g3cc).
-The upstream Bash prompt expansion regression affects attacker-controlled
-prompt/environment names; dependency presence is not evidence of exploitation.
-A locked-floor regression accompanies the candidate. Runtime refresh, focused
-checks and exact-head CI remain pending. Frozen S0 source, locks and receipts
-remain unchanged; its Windows execution does not exercise Bash activation.
+**2026-10-25 wave outcome:** the prospectively reviewed replacement S0 pilot is
+complete as a bounded measurement, without a practical memory-benefit claim.
+The shared CLI/MCP Python preparation slice is implemented and opt-in. Its
+[first live trial failed safely; the source-fix trial completed](docs/validation/prepared-consultation-2026-10-25.md).
+Both independent answer reviews retain material defects. Default-on preparation,
+human-calibrated semantic acceptance and S2-S4 remain unqualified.
 
+- [x] **Preparation schema communication (2026-10-25):** the first live model
+  followed ambiguous field-name prose and strict validation refused it before
+  fresh acquisition. Exact generated response schemas now consume the same
+  input allowance; the separately reviewed source-fix trial completed under
+  unchanged limits. No alias, salvage or automatic retry was introduced.
+- [ ] **Prepared-advice qualification (2026-10-25):** repair and review invented
+  release chronology, metadata versus runtime compatibility, artifact-specific
+  digest advice, bounded snapshot currentness and claim attribution. The
+  operational smoke is not semantic acceptance or default-on authority.
+- [ ] **Brief judgment quality (2026-10-25):** the
+  [three-call replay](docs/validation/brief-clarification-2026-10-25.md) retained
+  all five sources and removed forecast apparatus from six standing positions,
+  but source-history, platform, falsifier, batch, exit/update and omitted-check
+  defects remain. Prompt clarifications are implemented; broad semantic repair
+  is not established. Preserve the original and replayed whole outputs.
 
-**2026-10-25 hosted Windows finding, preparation support candidate:** elevated
-Windows runners created atomic files with Administrators as owner, so strict
-private-store admission refused them before preparation could run. The repair
-protects and verifies the empty open file before its first payload byte and
-keeps the actual token user as owner. The permission requirement is unchanged;
-hosted regression validation remains required before this finding is closed.
+Completed Brotli, filelock, frontend Zod, virtualenv, elevated Windows owner,
+study-budget communication, native-JSON and failure-diagnostic repairs are in
+[the v2.51.0 changelog](docs/CHANGELOG.md#2510---2026-10-25). The
+[baseline record](docs/validation/expert-baseline-2026-10-25.md) retains all
+failed development configurations and unknown usage. Installed environments
+and deployed images need their owners' explicit refresh; source repair alone
+does not update them or imply exploitation.
 
-**2026-10-25 development semantic findings:** initial construction in the
-separately frozen production-derived capacity trial completed, but independent
-review found unsupported memory-scaling and universal-batch conclusions,
-binary safety wording for unqualified platforms, invented prior assumptions,
-and lost practical validation caveats. A preliminary single-origin metadata concern was withdrawn after inspecting its documented multiple-document definition.
-Prompt hashes and unshortened synthesis delivery were verified; that does not
-prove backend context preservation or advice quality. Retain the run and
-review, inspect owning change/brief prompts and provenance assembly, and add
-source-grounded whole-output review before claiming repair. These are open
-findings, not reasons to change the active trial or its frozen limits.
-
-**2026-10-25 development finding, study budget repair candidate:** after the
-external GPU workload was closed, the original Qwen development synopsis hit
-its 4096-token ceiling and returned incomplete JSON. The study was rejected;
-no brief, maintenance or answer was produced. The candidate communicates the
-existing output ceiling through the shared study renderer, checkpoint identity
-and callers, and forwards pooled requests to members. Plan ceilings remain
-unknown because their transport does not enforce the request argument. The
-repair adds no retry, salvage or higher limit. Its separately frozen live
-validation also failed at the same synopsis ceiling; all three failed
-configurations remain retained. Offline delivery tests do not establish model
-compliance, S0 capacity or useful advice. A further source comparison found
-that rehearsal memory generation omitted the shipped native JSON request and
-length-stop refusal. The candidate adds those controls for memory only while
-retaining raw returned output and known usage. Answers remain prose-capable.
-No further generation follows without a new reviewed capacity proposal. See
-[the output-budget repair](docs/design/study-output-budget-communication.md).
-
-**2026-10-25 development finding, diagnostic repair candidate:** a separately
-bounded local development trial returned two study calls, then its brief call
-timed out. The fallback brief omitted the exception class when its message was
-empty; the lower-level call and attempt receipts retained `ReadTimeout` and
-unknown usage. Preserve that negative result. The candidate reports the
-bounded exception class without private exception details, retaining the
-failed brief and single-call behavior. This repairs diagnosis, not capacity,
-maintenance feasibility or S0 acceptance; held-out collection remains gated.
-
-**2026-10-25 maintenance candidate:** the Brotli advisory in
-`security-tracking#68` affects the reviewed search/full lock selections.
-The candidate updates only Brotli to 1.2.1, brotlicffi to 1.2.1.0 and,
-after the current audit found three separate advisories, filelock to 4.2.4.
-The hosted npm audit also required Zod 4.6.7 in the frontend development lock;
-only that transitive selection changes.
-The full Windows sweep also exposed test-fixture portability and credential
-isolation failures absent from the narrower hosted platform selection. Their
-repairs preserve production behavior and extend that platform gate; full local
-revalidation remains required before closeout.
-The [filelock decision](docs/design/filelock-security-floor.md) records the
-explicit compatibility review. Validation and publication remain separate;
-existing installations and deployed images require owner refresh. S0 and
-prepared consultation are unchanged by this maintenance.
-
-Subsequent issue #283 identified independent affected installer trust bundles.
-v2.50.46 repairs maintained uv/pip selections, advances the managed Python patch
-and rebuilds container trust. Existing environments and deployments still need
-explicit owner refresh; see [the record](docs/validation/toolchain-trust-repair-2026-10-22.md).
-
-The authenticated GitHub inventory has no open issues, PRs, CodeQL,
-Dependabot or secret-scanning alerts, or repository advisories. CodeQL has
-successful Python, JavaScript/TypeScript and Actions analyses on `660eaf61`.
-This is a dated inventory, not proof that the repository has no vulnerabilities.
-The README correctly describes stored-state consultation and planned default
-preparation. The next product outcome is advice checked against the caller's
-current environment; the next measurement gate remains S0.
+**Inventory refreshed 2026-10-25:** #285 owns session-start and safe closeout
+hygiene. PRs #286, #289 and #290 are merged; virtualenv alert65 is fixed on
+current main. Consult [live issues](https://github.com/blisspixel/deepr/issues)
+and [pull requests](https://github.com/blisspixel/deepr/pulls) rather than the
+October22 zero-open-items snapshot. Exact current-head CI and public installation
+remain release gates. Default consultation uses stored state; temporary PyPI
+preparation is explicit and preserves canonical expert state.
 
 | Order | Bounded work and why | Acceptance before proceeding |
 | --- | --- | --- |
 | Parallel maintenance | Reconcile dependency automation with the documented policy. Automatic security-update PRs are disabled, no tracked updater configuration exists, and dependency audits currently run on push/PR. | Reviewed security-update PRs; monthly grouped routine updates for native `uv`, frontend `npm` and pinned Actions; a small scheduled audit; unchanged lock authority and merge gates. No automatic merge or blanket upgrade. |
-| 1. Replacement protocol | Separate development capacity checks from new held-out source worlds and cases. The October answers cannot become a prospective baseline. | Reviewed rubric, reviewer calibration and disagreement policy, complete source/software/model identities, phase and total limits, publication and stop rules frozen before held-out collection. Actual human review is recorded honestly. |
-| 2. One S0 collection | Measure fresh reading, raw history, compiled state and maintained state with the existing four arms. | All 48 terminal cells, complete accounting, reviewed answer bindings before key reveal, case-level comparisons and explicit uncertainty. A negative result can finish measurement; it cannot establish better expertise. |
-| 3. S1 vertical slice | Give one Python expert temporary, dated preparation through the shared CLI/MCP consultation transaction. Start with one structured official source class. | Scoped packet, bounded and counted acquisition, offline/partial behavior, caller isolation and unchanged canonical expert state. Paired preparation-on/off review and a small live-source smoke precede default-on use. |
+| 1. Replacement protocol - complete | New development and held-out inputs were kept separate; protocol and bounded software/model identity were frozen before collection. | Independent model review under the explicit operator amendment; no human review claim. Frozen inputs and earlier negatives are retained. |
+| 2. One S0 collection - complete | All 48 cells answered; separate frozen reviewer matrices, case-level comparisons and full overhead are published. | No practical memory benefit established. Strict workbook metadata refusal and unresolved labels remain visible; no invented source-role classifications. |
+| 3. S1 vertical slice - opt-in prototype | Shared transaction, private packet and bounded PyPI release/index acquisition are implemented and fixture-backed; paired live outputs reviewed. | Default-on gate remains open: operational success did not remove material advice defects. No canonical learning, new source class or expanded authority follows. |
 
 The [delivery plan](docs/plans/living-expertise.md#next-execution-contract-reviewed-2026-10-22)
 defines these exit and stop conditions; the
 [dated research reassessment](docs/research/s0-s1-practice-2026-09-24.md#reassessment-2026-10-22)
-records current primary sources and source-level gaps. The remaining work above
-is planned. The completed integrity preflight is in the v2.50.45 changelog.
+records the earlier primary-source reassessment. Completed outcomes above have
+dated validation records; the unresolved semantic/default gates remain active.
 Brief metadata, concise-answer
 quality and default embedding promotion remain the separate gates below.
 Do not reopen rejected V6-V8 or placement trials to seek a favorable result.
@@ -335,9 +309,10 @@ That rank is not the time a claim stopped being true. A missing
   the limit omits them. Placeholder form values are not recorded dissent.
   `dissent_preserved` reports that delivery and does not judge the answer.
   S0 remains open. No spend authority changes.
-- [ ] **2. S0 baseline.** Run the frozen 48-cell local rehearsal on the
-  existing harness. Publish the dated record, including failures. Human
-  review is recorded before the arm key is revealed. A negative result
+- [x] **2. S0 scoped pilot baseline.** Run the frozen 48-cell local rehearsal on the
+  existing harness. Publish the dated record, including failures. Model
+  review was frozen before the arm key was revealed, under the explicit
+  operator amendment; no human review is claimed. A negative result
   finishes the measurement. It does not open autonomy, metered refresh, or
   automatic belief updates. The 2026-10-20 replacement diagnostic has no
   prospectively approved rubric and cannot satisfy this baseline gate.
@@ -346,6 +321,9 @@ That rank is not the time a claim stopped being true. A missing
   that were not done, and premises the question assumed. Canonical beliefs,
   positions, study, and the wiki do not change because a question arrived.
   `sync --local --fresh-context` stays a separate operator write.
+  **2026-10-25:** opt-in Python/PyPI integration is implemented with offline
+  fixtures; paired whole-answer review and bounded live-source acceptance are
+  still open. Default-on preparation is not qualified.
 - [ ] **4. S2 durable ends on the answer path.** A revision keeps the
   predecessor addressable. A point-in-time read uses closed, explicitly in
   force, or unknown. Position `superseded_at` stays record time. Do not
@@ -923,7 +901,7 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.46)
+## Current Status (v2.51.0)
 
 v2.50.45 completes the offline rehearsal identity preflight and verifies mixed
 terminal outcomes through existing artifacts. No new S0 run or semantic
@@ -4308,7 +4286,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.46. This roadmap keeps
+v2.51.0. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 

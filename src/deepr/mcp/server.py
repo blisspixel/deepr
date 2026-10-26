@@ -71,7 +71,7 @@ from deepr.experts.chat import ExpertChatSession
 from deepr.experts.claim_inventory import read_claim_inventory
 from deepr.experts.consult_transaction import DEFAULT_CONSULT_MAX_ELAPSED_SECONDS
 from deepr.experts.profile import ExpertStore
-from deepr.mcp.consult_tool import consult_experts_tool
+from deepr.mcp.consult_tool import PREPARATION_UNSET, consult_experts_tool, log_tool_execution_failure
 from deepr.mcp.cost_status import current_cost_status
 from deepr.mcp.expert_reads import get_expert_handoff, get_expert_loop_status, get_semantic_recall, get_temporal_edges
 from deepr.mcp.metered_contract import (
@@ -80,7 +80,7 @@ from deepr.mcp.metered_contract import (
     require_metered_api_contract,
 )
 from deepr.mcp.protocol_compat import LEGACY_METHOD_MAP
-from deepr.mcp.protocol_dispatch import dispatch_protocol_method, registered_method_names
+from deepr.mcp.protocol_dispatch import bind_stdio_method, registered_method_names
 from deepr.mcp.protocol_modern import (
     DISCOVER_INSTRUCTIONS,
     LEGACY_PROTOCOL_VERSIONS,
@@ -497,6 +497,7 @@ class DeeprMCPServer:
         allow_metered_api: bool = False,
         confirm_metered_cost: bool = False,
         max_elapsed_seconds: float = DEFAULT_CONSULT_MAX_ELAPSED_SECONDS,
+        preparation: Any = PREPARATION_UNSET,
     ) -> dict[str, Any]:
         """Consult a team of experts as one bounded knowledge transaction.
 
@@ -519,6 +520,7 @@ class DeeprMCPServer:
             allow_metered_api=allow_metered_api,
             confirm_metered_cost=confirm_metered_cost,
             max_elapsed_seconds=max_elapsed_seconds,
+            **({"preparation": preparation} if preparation is not PREPARATION_UNSET else {}),
         )
 
     # ------------------------------------------------------------------ #
@@ -1611,7 +1613,7 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
         verified_output = server.output_verifier.record_output(
             tool_name=name,
             content=result,
-            job_id=job_id,
+            job_id=None if name == "deepr_consult_experts" and "preparation" in arguments else job_id,
             metadata={
                 "instruction_nonce": signed.nonce,
                 "research_mode": server.tool_allowlist.mode.value,
@@ -1635,7 +1637,7 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
         }
         return response
     except Exception:
-        logger.exception("Tool %s failed", name)
+        log_tool_execution_failure(logger, name, arguments)
         err = _make_error("TOOL_EXECUTION_FAILED", "Tool execution failed safely.")
         return {
             "content": [{"type": "text", "text": json.dumps(err)}],
@@ -1735,14 +1737,8 @@ async def run_stdio_server() -> None:
     deepr_server = DeeprMCPServer()
     stdio = StdioServer()
 
-    def bind(method: str) -> Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]:
-        async def _handler(params: dict[str, Any]) -> dict[str, Any]:
-            return await dispatch_protocol_method(deepr_server, method, params)
-
-        return _handler
-
     for method_name in registered_method_names():
-        stdio.register_method(method_name, bind(method_name))
+        stdio.register_method(method_name, bind_stdio_method(deepr_server, method_name))
 
     from deepr.mcp.subscriptions_listen import make_listen_opener
 

@@ -754,8 +754,16 @@ class RemoteMCPAuditLog:
         outcome: str,
         error_code: str = "",
         cost_usd: float | None = None,
+        prepared_service_trace_id: str | None = None,
     ) -> None:
         trace_id = str(arguments.get("trace_id") or arguments.get("job_id") or "")
+        private_preparation = tool == "deepr_consult_experts" and "preparation" in arguments
+        if private_preparation:
+            from deepr.experts.preparation_privacy import prepared_audit_trace_id
+
+            trace_id = prepared_audit_trace_id(prepared_service_trace_id)
+            outcome = "success" if outcome == "success" else "error"
+            error_code = "PREPARATION_FAILED" if error_code else ""
         self.record(
             RemoteMCPAuditEvent(
                 key_id=context.key_id,
@@ -765,7 +773,7 @@ class RemoteMCPAuditLog:
                 trace_id=trace_id,
                 outcome=outcome,
                 error_code=error_code,
-                expert_names=_extract_requested_experts(arguments),
+                expert_names=() if private_preparation else _extract_requested_experts(arguments),
                 cost_usd=cost_usd,
             )
         )

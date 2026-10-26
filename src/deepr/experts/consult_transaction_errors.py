@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 
+class _ConsultDeadlineReached(Exception):
+    """Internal marker distinguishing the host ceiling from provider timeouts."""
+
+
 class ConsultElapsedLimitError(TimeoutError):
     """Raised when a consult reaches its elapsed-time ceiling."""
 

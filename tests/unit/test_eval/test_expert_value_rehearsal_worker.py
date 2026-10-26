@@ -66,11 +66,13 @@ class FakeBackend(ollama_backend.NativeOllamaInvestigationBackend):
             raise RuntimeError("fake local failure")
         if "Question:" in prompt:
             text = FakeBackend.answer_text
-        elif '"orientation"' in prompt:
+        elif '"orientation_statements"' in prompt:
             ids = sorted(set(re.findall(r"(?:synopsis|change)-[0-9a-f]{16}", prompt)))
             text = json.dumps(
                 {
-                    "orientation": "Two synthetic versions.",
+                    "orientation_statements": [
+                        {"text": "Two synthetic versions.", "origin": "studied", "supported_by": ids}
+                    ],
                     "positions": [
                         {"question": "Which version applies?", "stance": "The later one.", "supported_by": ids}
                     ],
@@ -180,6 +182,9 @@ def test_construct_then_maintain_then_answer_with_memory(phase) -> None:
     assert built["exit_code"] == 0
     checkpoint = built["out"] / "checkpoint"
     assert {p.name for p in checkpoint.iterdir()} == {"brief.json", "brief.md", "position_history.json"}
+    brief = json.loads((checkpoint / "brief.json").read_text(encoding="utf-8"))
+    assert brief["orientation"] == "Two synthetic versions."
+    assert brief["orientation_statements"][0]["text"] == brief["orientation"]
     assert not any("Question:" in prompt for prompt in FakeBackend.prompts)
     assert all(payload["format"] == "json" for payload in FakeBackend.payloads)
 

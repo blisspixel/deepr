@@ -216,10 +216,14 @@ Rules that make this honest rather than confident-sounding:
 - Every position must state an observation that would overturn it. Name something someone could
   actually go and check: a measurement, a document, a result. "If new evidence emerges" is not a
   falsifier, because nobody can check it. A position with no falsifier is an assertion.
+  The observation must overturn this exact stance under the same subject, scope and conditions.
+  A changed mechanism, extra safeguard or different question is not itself a falsifier. If no
+  honest overturning observation is identifiable, disclose that limit rather than invent one.
 - Preserve the source's version, platform, operating conditions, and exceptions in the stance
   itself. A conditional mechanism is not a universal recommendation. Source statements are not
   proof that a proposed workflow is safe or suitable for every caller.
-- Turn a falsifier into a prospective prediction when a responsible check can be named. Set
+- Register a prediction only for an explicit future event with an observable outcome and an
+  evidence-supported horizon. A routine recheck is not a forecast. For such a forecast only, set
   "falsifier_resolution_criterion" to the observable yes/no test and
   "falsifier_resolution_date" to the next date it should be checked in YYYY-MM-DD form. Today is
   {today}; never use an earlier date. If the evidence supports no responsible check date, leave
@@ -229,8 +233,9 @@ Rules that make this honest rather than confident-sounding:
   Leave likelihood, falsifier_resolution_criterion, and falsifier_resolution_date empty for
   these. A documentation revision can change advice without inventing a future deadline or
   pretending a routine check is a prediction. Do not invent benchmark thresholds or API names.
-- "likelihood" and "confidence" are different things and must not be mixed. "likelihood" is how
-  likely the stance is true. "confidence" is how sound your basis for saying so is. A claim can
+- "likelihood" and "confidence" are different things and must not be mixed. For an eligible
+  forecast, "likelihood" is the probability of that future event. "confidence" is how sound your
+  basis for saying so is. A claim can
   be a coin flip on excellent evidence, or near-certain on thin evidence.
 - Where the findings disagree, say what you did not resolve. Do not average disagreement into a
   middle position. Unresolved disagreement is a legitimate and useful output.
@@ -238,12 +243,16 @@ Rules that make this honest rather than confident-sounding:
   reader's time on resolved questions is most of the value here.
 - At least one anticipated question must attack this brief rather than support it: the strongest
   case that you are wrong, or what you did not look at. Mark it "weakens_thesis": true.
-- Split the orientation into individual statements in orientation_statements. Label each origin
+- Write the orientation once, as individual statements in orientation_statements. Label each origin
   as studied (cite the finding ids), broader_knowledge (outside this study), or reasoning (your
   interpretation). Preserve source qualifications. Do not present broader knowledge or reasoning
-  as a studied observation. Keep the orientation paragraph identical to those statements joined
-  with spaces. A label records your attribution; it is not verification of the claim.
+  as a studied observation. Code joins these statements for the orientation paragraph; do not
+  return a separate paragraph. A label records attribution, not verification of the claim.
 - Positions must stay supported by the findings below. Broader orientation is explicitly labelled.
+- Do not invent earlier expert beliefs, user populations, scaling laws or universal guarantees.
+  Prior question wording identifies a thread, not its previous stance. Distinguish source history
+  from an expert's recorded history; a hypothetical challenge must remain explicitly hypothetical.
+  Two measurements do not establish a scaling law. Preserve exact version and tested-scope limits.
 
 House style, which applies to every field you return: write plain ASCII punctuation. Use a
 regular hyphen, never an en dash or em dash. Use straight quotes, never curly ones. No emoji.
@@ -259,7 +268,6 @@ inventing agreement.
 Return JSON only, no prose outside it, with this shape:
 
 {{
-  "orientation": "the sixty-second version a newcomer needs before asking anything",
   "orientation_statements": [
     {{"text": "one statement", "origin": "studied", "supported_by": ["finding id"]}}
   ],

@@ -8,7 +8,7 @@ from typing import NotRequired, TypedDict
 
 _BOUNDS_REQUIRED_KEYS = frozenset({"dispatch_scope", "max_cost_usd", "max_dispatches"})
 _BOUNDS_OPTIONAL_KEYS = frozenset({"max_output_tokens", "max_context_bytes"})
-_DISPATCH_SCOPES = frozenset({"council_work_item", "provider_call"})
+_DISPATCH_SCOPES = frozenset({"council_work_item", "provider_call", "prepared_work_item"})
 _PROGRESS_REQUIRED_KEYS = frozenset({"cost_usd_observed", "dispatches_completed"})
 _PROGRESS_OPTIONAL_KEYS = frozenset({"output_tokens_observed", "context_bytes_observed"})
 _MAX_COST_USD = 1_000_000_000_000.0

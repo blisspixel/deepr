@@ -9,9 +9,14 @@ stdio calls intentionally receive a stable local-process authority instead.
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Iterator
+from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from dataclasses import dataclass
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    from deepr.experts.preparation_contracts import CallerScope
 
 MCPTransportName = Literal["stdio", "http"]
 MCPAuthenticationMethod = Literal["stdio", "scoped_key", "shared_token", "none"]
@@ -99,6 +104,16 @@ def reset_mcp_request_identity(token: Token[MCPRequestIdentity | None]) -> None:
     _CURRENT_IDENTITY.reset(token)
 
 
+@contextmanager
+def trusted_stdio_request() -> Iterator[None]:
+    """Bind real stdio transport authority for exactly one dispatch."""
+    token = bind_mcp_request_identity(MCPRequestIdentity.local_stdio())
+    try:
+        yield
+    finally:
+        reset_mcp_request_identity(token)
+
+
 def current_mcp_request_identity() -> MCPRequestIdentity | None:
     """Return the transport-bound identity, or ``None`` for direct/stdio calls."""
     return _CURRENT_IDENTITY.get()
@@ -118,3 +133,42 @@ def current_mcp_request_can_access_owner(owner_id: str | None) -> bool:
     if identity is None or identity.authentication != "scoped_key":
         return True
     return owner_id is not None and identity.owner_id == owner_id
+
+
+def prepared_request_scope(canonical_expert: str, *, allow_direct_stdio: bool = False) -> CallerScope:
+    """Require trusted scoped HTTP authority before private preparation work."""
+    from deepr.experts.preparation_privacy import (
+        PreparationIdentityError,
+        preparation_scoped_key_scope,
+        preparation_stdio_scope,
+    )
+
+    if not canonical_expert or not canonical_expert.strip():
+        raise PreparationIdentityError("Prepared consultation requires an explicit canonical expert")
+    identity = current_mcp_request_identity()
+    if identity is None:
+        if not allow_direct_stdio:
+            raise PreparationIdentityError("Prepared consultation requires a trusted transport identity")
+        return preparation_stdio_scope()
+    if identity.transport == "stdio":
+        if not identity.authenticated or identity.authentication != "stdio":
+            raise PreparationIdentityError("Prepared stdio identity is unavailable")
+        return preparation_stdio_scope()
+    if (
+        identity.transport != "http"
+        or not identity.authenticated
+        or identity.authentication != "scoped_key"
+        or not isinstance(identity.scoped_key_id, str)
+        or not identity.scoped_key_id.strip()
+    ):
+        raise PreparationIdentityError("Prepared HTTP consultation requires an authenticated scoped key")
+    expected = MCPRequestIdentity.http_scoped_key(
+        key_id=identity.scoped_key_id,
+        expert_allowlist=identity.expert_allowlist,
+        peer_is_loopback=identity.peer_is_loopback,
+    )
+    if identity.owner_id != expected.owner_id:
+        raise PreparationIdentityError("Prepared HTTP identity binding is unavailable")
+    if identity.expert_allowlist and canonical_expert not in identity.expert_allowlist:
+        raise PreparationIdentityError("Prepared consultation is outside the current expert scope")
+    return preparation_scoped_key_scope(identity.owner_id)

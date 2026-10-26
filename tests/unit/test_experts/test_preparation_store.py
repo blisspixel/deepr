@@ -451,6 +451,128 @@ def test_atomic_tempfile_is_private_before_first_payload_byte(setup_store, monke
     assert len(observed) >= 5
 
 
+def _cross_process_claim(root, request_json, result_queue):
+    try:
+        store = PreparationStore(Path(root))
+        owner = CallerScope(namespace_sha256="a" * 64)
+        request = PreparationRequest.model_validate_json(request_json)
+        receipt = claim(store, owner, request)
+        result_queue.put((receipt.operation_id, receipt.duplicate))
+    except Exception as error:
+        result_queue.put((type(error).__name__, str(error)))
+
+
+def test_cross_process_same_key_admits_exactly_once(setup_store):
+    import multiprocessing
+
+    store, _, request, _ = setup_store
+    context = multiprocessing.get_context("spawn")
+    results = context.Queue()
+    processes = [
+        context.Process(target=_cross_process_claim, args=(str(store.root), request.model_dump_json(), results))
+        for _ in range(2)
+    ]
+    try:
+        for process in processes:
+            process.start()
+        receipts = [results.get(timeout=30) for _ in processes]
+        for process in processes:
+            process.join(timeout=30)
+            assert process.exitcode == 0
+        assert len({receipt[0] for receipt in receipts}) == 1
+        assert sorted(receipt[1] for receipt in receipts) == [False, True]
+    finally:
+        for process in processes:
+            if process.is_alive():
+                process.kill()
+                process.join(timeout=10)
+        results.close()
+
+
+def test_private_corpus_and_model_intents_share_retention_scope(setup_store):
+    store, owner, request, now = setup_store
+    receipt = claim(store, owner, request)
+    call = store.reserve_model_call(
+        owner,
+        receipt.operation_id,
+        phase="assumptions",
+        prompt="synthetic private prompt",
+        model_digest="d" * 64,
+        options={"max_tokens": 1024},
+    )
+    store.settle_model_call(owner, receipt.operation_id, call=call, raw_response=None, status="unknown")
+    with pytest.raises(OperationConflict):
+        store.reserve_model_call(
+            owner,
+            receipt.operation_id,
+            phase="interpretation",
+            prompt="no new allowance",
+            model_digest="d" * 64,
+            options={"max_tokens": 1024},
+        )
+    now[0] += timedelta(days=8)
+    assert store.cleanup()[0]["deleted"]
+    assert not list(store.root.rglob("events.jsonl"))
+
+
+def test_operation_corpus_uses_verified_atomic_hook_and_expires(setup_store):
+    store, owner, request, now = setup_store
+    receipt = claim(store, owner, request)
+    body = b'{"info":{"name":"example","version":"1.0"}}'
+    coordinate = request.packages[0].coordinate_id
+    store.reserve_source(owner, receipt.operation_id, sequence=1, coordinate_id=coordinate, source_class="pypi_release")
+    store.retain_raw_source(owner, receipt.operation_id, digest=sha256(body), body=body)
+    corpus_hash = store.retain_corpus_source(
+        owner,
+        receipt.operation_id,
+        text=body.decode(),
+        coordinate_id=coordinate,
+        source_class="pypi_release",
+        observed_at=now[0].isoformat(),
+    )
+    observation = SourceObservation(
+        observation_id="source_1",
+        coordinate_id=coordinate,
+        source_class="pypi_release",
+        requested_at=now[0],
+        observed_at=now[0],
+        status="ok",
+        raw_sha256=sha256(body),
+        corpus_sha256=corpus_hash,
+        parsed_sha256=sha256(body),
+    )
+    frozen = freeze_packet(
+        PreparationPacket(envelope=receipt.envelope, observations=(observation,), attempts=1, stop_reason="complete")
+    )
+    store.complete(owner, receipt.operation_id, frozen, raw_sources={sha256(body): body})
+    assert store.load(owner, receipt.operation_id) == frozen
+    for path in (store.root / owner.namespace_sha256 / receipt.operation_id / "corpus").rglob("*"):
+        store.protection.verify(path, directory=path.is_dir(), protected=path.is_dir())
+    now[0] += timedelta(days=8)
+    assert store.cleanup()[0]["deleted"]
+    assert not list(store.root.rglob("*.md"))
+
+
+def test_delivery_receipts_do_not_refreeze_packet_and_bound_body_honestly(setup_store):
+    store, owner, request, _ = setup_store
+    receipt = claim(store, owner, request)
+    frozen = freeze_packet(PreparationPacket(envelope=receipt.envelope, stop_reason="offline"))
+    store.complete(owner, receipt.operation_id, frozen)
+    with pytest.raises(OperationConflict, match="body unavailable"):
+        store.record_delivery(
+            owner,
+            receipt.operation_id,
+            packet_sha256=frozen.manifest.content_sha256,
+            messages=b"x" * 131073,
+            status="dispatch_intent",
+        )
+    assert store.load(owner, receipt.operation_id) == frozen
+    events = (store.root / owner.namespace_sha256 / receipt.operation_id / "events.jsonl").read_text().splitlines()
+    event = json.loads(events[-1])
+    assert not event["body_available"] and event["messages"] is None
+    assert event["messages_sha256"] == sha256(b"x" * 131073)
+
+
 @pytest.mark.parametrize("same_file", [True, False], ids=["elevated-owner", "changed-file"])
 def test_windows_creation_owner_is_corrected_to_actual_token_user_before_bytes(monkeypatch, tmp_path, same_file):
     from deepr.experts.preparation_store import _Protection
@@ -509,41 +631,3 @@ def test_windows_creation_owner_is_corrected_to_actual_token_user_before_bytes(m
             protection._set_empty_windows_owner(tmp_path / "empty", expected_handle=77)
         assert state["owner"] == "Administrators"
     assert state["closed"]
-
-
-def _cross_process_claim(root, request_json, result_queue):
-    try:
-        store = PreparationStore(Path(root))
-        owner = CallerScope(namespace_sha256="a" * 64)
-        request = PreparationRequest.model_validate_json(request_json)
-        receipt = claim(store, owner, request)
-        result_queue.put((receipt.operation_id, receipt.duplicate))
-    except Exception as error:
-        result_queue.put((type(error).__name__, str(error)))
-
-
-def test_cross_process_same_key_admits_exactly_once(setup_store):
-    import multiprocessing
-
-    store, _, request, _ = setup_store
-    context = multiprocessing.get_context("spawn")
-    results = context.Queue()
-    processes = [
-        context.Process(target=_cross_process_claim, args=(str(store.root), request.model_dump_json(), results))
-        for _ in range(2)
-    ]
-    try:
-        for process in processes:
-            process.start()
-        receipts = [results.get(timeout=30) for _ in processes]
-        for process in processes:
-            process.join(timeout=30)
-            assert process.exitcode == 0
-        assert len({receipt[0] for receipt in receipts}) == 1
-        assert sorted(receipt[1] for receipt in receipts) == [False, True]
-    finally:
-        for process in processes:
-            if process.is_alive():
-                process.kill()
-                process.join(timeout=10)
-        results.close()

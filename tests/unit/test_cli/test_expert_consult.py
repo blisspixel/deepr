@@ -498,3 +498,98 @@ def test_unformed_perspective_is_not_a_success(monkeypatch, json_output):
         assert json.loads(result.output)["synthesis_status"] == "skipped_no_valid_perspectives"
     else:
         assert "expert build" in result.output
+
+
+def _preparation_file(tmp_path, **overrides):
+    request = {
+        "schema_version": "deepr-python-preparation-request-v1",
+        "enabled": True,
+        "request_id": "cli_request_fixture_001",
+        "environment": {"interpreter_version": "3.12.13", "platform": "Windows"},
+        "packages": [{"name": "filelock", "version": "4.2.4"}],
+    }
+    request.update(overrides)
+    path = tmp_path / "prepare.json"
+    path.write_text(json.dumps(request), encoding="utf-8")
+    return path
+
+
+def test_prepared_cli_reaches_shared_transaction_with_local_owner(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+    from deepr.experts.preparation_service import PreparationAdmission
+
+    monkeypatch.setattr(
+        "deepr.experts.profile_store.ExpertStore.load", lambda *args, **kwargs: SimpleNamespace(name="Python Expert")
+    )
+    captured = {}
+
+    async def transaction(**kwargs):
+        captured.update(kwargs)
+        return mod.build_consult_payload("q", _result(total_cost=0.0))
+
+    monkeypatch.setattr(mod, "execute_consult_transaction", transaction)
+    path = _preparation_file(tmp_path)
+    result = CliRunner().invoke(expert_consult, ["q", "-e", "alias", "--prepare-python", str(path), "--json"])
+    assert result.exit_code == 0, result.output
+    assert captured["requested_experts"] == ["Python Expert"]
+    admitted = captured["preparation"]
+    assert isinstance(admitted, PreparationAdmission)
+    assert admitted.request.packages[0].name == "filelock"
+    assert len(admitted.owner.namespace_sha256) == 64
+    assert admitted.root.name == "preparation" and admitted.root.is_absolute()
+    assert not admitted.root.exists()
+
+
+@pytest.mark.parametrize("extra", [["--plan", "claude"], ["--budget", "1"], ["-e", "Second"]])
+def test_prepared_cli_denies_capacity_or_roster_before_backend(monkeypatch, tmp_path, extra):
+    monkeypatch.setattr(mod, "_make_backend_factory", lambda **kwargs: pytest.fail("backend reached"))
+    path = _preparation_file(tmp_path)
+    result = CliRunner().invoke(expert_consult, ["q", "-e", "Python", "--prepare-python", str(path), "--json", *extra])
+    assert result.exit_code == 2
+    assert json.loads(result.output)["error"]["code"] == "CONSULT_PREPARATION_INVALID"
+
+
+@pytest.mark.parametrize("field", ["owner", "root", "url", "credentials"])
+def test_prepared_cli_rejects_authority_fields_without_disclosing_input(monkeypatch, tmp_path, field):
+    monkeypatch.setattr(mod, "_make_backend_factory", lambda **kwargs: pytest.fail("backend reached"))
+    path = _preparation_file(tmp_path, **{field: "PRIVATE_SENTINEL"})
+    result = CliRunner().invoke(expert_consult, ["q", "-e", "Python", "--prepare-python", str(path), "--json"])
+    assert result.exit_code == 2
+    assert "PRIVATE_SENTINEL" not in result.output
+    assert json.loads(result.output)["error"]["code"] == "CONSULT_PREPARATION_INVALID"
+
+
+def test_prepared_cli_bounds_request_read_before_profile_or_backend(monkeypatch, tmp_path):
+    path = tmp_path / "oversize.json"
+    path.write_bytes(b" " * 16385)
+    monkeypatch.setattr(
+        "deepr.experts.profile_store.ExpertStore.load", lambda *args, **kwargs: pytest.fail("profile reached")
+    )
+    monkeypatch.setattr(mod, "_make_backend_factory", lambda **kwargs: pytest.fail("backend reached"))
+    result = CliRunner().invoke(expert_consult, ["q", "-e", "Python", "--prepare-python", str(path), "--json"])
+    assert result.exit_code == 2
+    assert json.loads(result.output)["error"]["code"] == "CONSULT_PREPARATION_INVALID"
+
+
+def test_prepared_cli_failure_exposes_fixed_code_without_private_exception(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(
+        "deepr.experts.profile_store.ExpertStore.load", lambda *args, **kwargs: SimpleNamespace(name="Python")
+    )
+
+    async def fail(**kwargs):
+        error = RuntimeError("PRIVATE_SENTINEL")
+        error.error_code = "PRIVATE_SENTINEL"
+        error.category = "PRIVATE_SENTINEL"
+        error.retryable = True
+        raise error
+
+    monkeypatch.setattr(mod, "execute_consult_transaction", fail)
+    path = _preparation_file(tmp_path)
+    result = CliRunner().invoke(expert_consult, ["q", "-e", "Python", "--prepare-python", str(path), "--json"])
+    assert result.exit_code == 1
+    assert "PRIVATE_SENTINEL" not in result.output
+    payload = json.loads(result.output)
+    assert payload["error"]["code"] == "CONSULT_PREPARATION_FAILED"
+    assert payload["error"]["retryable"] is False

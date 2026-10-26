@@ -208,3 +208,20 @@ class TestStudyChunks:
         store.add("m" * 40000, origin_key="url:a.org")
         chunks = store.iter_study_chunks(chunk_chars=10000, max_chars=20000)
         assert sum(len(text) for chunk in chunks for _, text in chunk) <= 20000
+
+
+def test_optional_private_tempfile_hook_covers_source_and_index_before_bytes(tmp_path):
+    seen = []
+
+    def prepare(descriptor, path):
+        import os
+
+        assert os.fstat(descriptor).st_size == 0
+        assert path.stat().st_size == 0
+        seen.append(path)
+
+    store = CorpusStore("synthetic-private", storage_dir=tmp_path / "corpus", prepare_tempfile=prepare)
+    store.add("synthetic retained text", origin_key="fixture:private")
+    assert len(seen) == 2
+    assert any("index.jsonl" in path.name for path in seen)
+    assert any(".md" in path.name for path in seen)

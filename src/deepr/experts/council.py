@@ -13,10 +13,14 @@ import math
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from deepr.experts.preparation_context import PreparedConsultation
 
 from deepr.experts.briefed_perspective import briefed_perspective_without_beliefs, build_briefed_perspective
 from deepr.experts.constants import MAX_COUNCIL_CONCURRENCY, SYNTHESIS_BUDGET_FRACTION, UTILITY_MODEL
+from deepr.experts.consult import build_council_result
 from deepr.experts.consult_lifecycle import ConsultLifecycleError
 from deepr.experts.consult_prompt import build_synthesis_packet, synthesis_delivery
 from deepr.experts.consult_response import admit_response_form
@@ -210,7 +214,17 @@ class ExpertCouncil:
         synthesis_provider: str = "openai",
         allow_live_fallback: bool = False,
         finding_router: Any | None = None,
+        prepared: PreparedConsultation | None = None,
+        preparation_delivery_callback: Any = None,
     ) -> None:
+        self._prepared = prepared
+        self._preparation_delivery = prepared.delivery(preparation_delivery_callback) if prepared is not None else None
+        self._synthesis_packet_kwargs = {"prepared": prepared} if prepared is not None else {}
+        self._synthesis_failure_log = (
+            prepared.log_synthesis_failure
+            if prepared is not None
+            else lambda error: logger.warning("Council synthesis failed: %s", error)
+        )
         self._finding_router = finding_router
         self._synthesis_client = synthesis_client
         self._synthesis_model = synthesis_model
@@ -530,6 +544,8 @@ class ExpertCouncil:
         agent_identity: Any,
     ) -> ExpertPerspective:
         del per_expert_budget
+        if self._prepared is not None:
+            return await self._prepared.query_perspective(self, query, exp, progress_callback, agent_identity)
         from deepr.agents.contract import AgentRole
 
         name = exp["name"]
@@ -603,6 +619,8 @@ class ExpertCouncil:
         if not selected:
             return self._empty_consult_result(query, budget)
         validate_consult_roster(selected)
+        if self._prepared is not None:
+            progress_callback = self._prepared.admit_council(self, query, selected, progress_callback)
         task_ids = [expert_slug(exp["name"]) for exp in selected]
         per_expert_budget = (budget * (1 - SYNTHESIS_BUDGET_FRACTION)) / max(len(selected), 1)
 
@@ -889,40 +907,18 @@ class ExpertCouncil:
             "total_cost": 0.0,
         }
 
-    @staticmethod
-    def _consult_result(
-        query: str,
-        budget: float,
-        perspectives: list[ExpertPerspective],
-        synthesis: dict[str, Any],
-        synthesis_cost: float,
-    ) -> dict[str, Any]:
-        return {
-            "query": query,
-            "perspectives": [
-                {
-                    "expert_name": perspective.expert_name,
-                    "domain": perspective.domain,
-                    "response": perspective.response,
-                    "confidence": perspective.confidence,
-                    "cost": perspective.cost,
-                    "context": dict(perspective.context),
-                }
-                for perspective in perspectives
-            ],
-            "synthesis": synthesis.get("text", ""),
-            "agreements": synthesis.get("agreements", []),
-            "disagreements": synthesis.get("disagreements", []),
-            "synthesis_status": synthesis.get("synthesis_status", "completed"),
-            "synthesis_error_type": synthesis.get("synthesis_error_type", ""),
-            "synthesis_stop_reason": synthesis.get("stop_reason", ""),
-            "context_delivery": synthesis.get("context_delivery", {}),
-            "response_form": synthesis.get("response_form", {}),
-            "requested_budget_usd": budget,
-            "total_cost": sum(perspective.cost for perspective in perspectives) + synthesis_cost,
-        }
+    _consult_result = staticmethod(build_council_result)
 
     async def _synthesise(
+        self, query: str, perspectives: list[ExpertPerspective], budget: float, *, pre_dispatch_callback: Any = None
+    ) -> dict[str, Any]:
+        if self._preparation_delivery is not None:
+            return await self._preparation_delivery.run(
+                self._synthesise_core, query, perspectives, budget, pre_dispatch_callback
+            )
+        return await self._synthesise_core(query, perspectives, budget, pre_dispatch_callback=pre_dispatch_callback)
+
+    async def _synthesise_core(
         self,
         query: str,
         perspectives: list[ExpertPerspective],
@@ -931,7 +927,7 @@ class ExpertCouncil:
         pre_dispatch_callback: Any = None,
     ) -> dict[str, Any]:
         """Synthesise multiple expert perspectives into a unified view."""
-        if not perspectives or all(p.confidence == 0 for p in perspectives):
+        if self._prepared is None and (not perspectives or all(p.confidence == 0 for p in perspectives)):
             return {
                 "text": "No valid perspectives to synthesise.",
                 "agreements": [],
@@ -941,7 +937,9 @@ class ExpertCouncil:
             }
 
         try:
-            user_prompt, delivery_manifest = build_synthesis_packet(query, perspectives)
+            user_prompt, delivery_manifest = build_synthesis_packet(
+                query, perspectives, **self._synthesis_packet_kwargs
+            )
         except ValueError as error:
             return failed_synthesis(error, cost_bound=None, dispatched=False)
         system_prompt = _SYNTHESIS_SYSTEM_PROMPT
@@ -962,6 +960,8 @@ class ExpertCouncil:
 
             async def mark_dispatch_started() -> None:
                 nonlocal dispatched
+                if self._preparation_delivery is not None:
+                    await self._preparation_delivery.before_dispatch(system_prompt, user_prompt)
                 if pre_dispatch_callback is not None:
                     await pre_dispatch_callback()
                 dispatched = True
@@ -992,5 +992,5 @@ class ExpertCouncil:
                 )
             raise
         except Exception as error:
-            logger.warning("Council synthesis failed: %s", error)
+            self._synthesis_failure_log(error)
             return failed_synthesis(error, cost_bound=cost_bound, dispatched=dispatched)

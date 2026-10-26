@@ -7,18 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.51.0] - 2026-10-25
+
 ### Added
+
+- Add experimental opt-in Python preparation through CLI
+  `expert consult --prepare-python PATH` and MCP's strict `preparation` object.
+  One explicit formed expert uses bounded local model calls and release/index
+  PyPI metadata for declared coordinates. Capture, private evidence, packet and
+  final delivery are hash-bound; canonical expert state remains unchanged.
+  Scoped HTTP identity, owner-only storage and content-free shared receipts
+  protect private context. Default consultation remains stored-only. The
+  [live record](validation/prepared-consultation-2026-10-25.md) retains one
+  failed and one operationally complete trial; independent reviews retain
+  material advice defects, so semantic/default qualification remains open.
+- Record the model-reviewed October 25 S0 pilot: 48/48 cells answered, with
+  no established practical memory benefit, human-calibrated acceptance or
+  improved-expertise claim. Preserve reviewer disagreement, unresolved support,
+  preparation overhead and earlier negative development trials in the
+  [validation record](validation/expert-baseline-2026-10-25.md).
 
 - Add isolated offline preparation support: strict packet contracts, private
   owner-bound operation storage, immutable evidence/projection identities and
   cumulative PyPI acquisition controls with bounded child cleanup. Synthetic
   Windows fixtures exercise permissions and concurrent claims. These helpers
-  do not expose CLI, MCP or consultation preparation; live acquisition and
-  useful-advice qualification remain gated.
+  underpin the opt-in integration above; live-source and useful-advice
+  qualification remain gated.
 
 ### Fixed
 
-- Candidate: update only the locked virtualenv development dependency from
+- Keep optional preparation version-parsing imports out of core CLI/MCP schema
+  initialization. A genuinely locked core installation without packaging or
+  Windows ACL support passes conformance and stdio inventory; explicit
+  unsupported preparation refuses before profile, backend or private work.
+
+- Update only the locked virtualenv development dependency from
   21.14.12 to 21.14.13 for GHSA-cx6f-vjhg-g3cc / CVE-2026-115586.
   The [upstream repair](https://virtualenv.pypa.io/en/latest/changelog.html#v21-14-13-2026-10-22)
   prevents delayed Bash prompt expansion of supplied prompt/environment names.
@@ -32,6 +55,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   writing payloads. Assign the actual Windows token user when an elevated
   process creates files owned by its Administrators group, preserving the
   owner/SYSTEM-only permission requirement and legacy atomic-writer defaults.
+
+- Clarify brief and change-lens generation guidance for standing advice,
+  forecast eligibility, same-claim falsifiers and source/history scope. Request
+  orientation statements once and retain deterministic joining plus legacy
+  paragraph fallback. Historical raw outputs remain unchanged. The
+  [three-call replay](validation/brief-clarification-2026-10-25.md) has exact
+  source/context bindings and six standing positions without forecast apparatus,
+  while material semantic defects remain explicit.
 
 - Request native JSON output for rehearsal construction and maintenance while
   preserving prose-capable answers. Refuse length-stopped memory payloads,

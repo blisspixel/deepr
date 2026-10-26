@@ -15,7 +15,7 @@ import os
 import threading
 import time
 import uuid
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -28,6 +28,7 @@ from deepr.config import default_data_dir, runtime_data_path
 from deepr.core.contracts import Gap
 from deepr.experts import recall_case_candidates as _recall_cases
 from deepr.experts.gap_scorer import score_gap
+from deepr.experts.preparation_privacy import build_prepared_consult_trace, is_protected_preparation
 from deepr.utils.atomic_io import append_jsonl_durable
 
 CONSULT_TRACE_SCHEMA_VERSION = "deepr-consult-trace-v1"
@@ -393,7 +394,7 @@ def build_consult_trace(
 
 def public_trace_ref(record: dict[str, Any]) -> dict[str, Any]:
     """Return the safe reference embedded in CLI/MCP consult artifacts."""
-    return {
+    reference = {
         "schema_version": record["schema_version"],
         "kind": record["kind"],
         "trace_id": record["trace_id"],
@@ -401,16 +402,26 @@ def public_trace_ref(record: dict[str, Any]) -> dict[str, Any]:
         "recorded": True,
         "checks_ran": [check["name"] for check in record.get("checks", []) if isinstance(check, dict)],
     }
+    if is_protected_preparation(record):
+        reference["content_availability"] = record.get("content_availability", "unavailable")
+        reference["protected_preparation"] = True
+    return reference
 
 
 def record_consult_trace(
     *,
     path: Path | None = None,
     lock_timeout_seconds: float = _DEFAULT_TRACE_LOCK_TIMEOUT_SECONDS,
+    protected_preparation: bool = False,
+    preparation_reference: dict[str, object] | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Append a consult trace and return its safe public reference."""
-    record = build_consult_trace(**kwargs)
+    record = (
+        build_prepared_consult_trace(**kwargs, preparation_reference=preparation_reference)
+        if protected_preparation
+        else build_consult_trace(**kwargs)
+    )
     try:
         _append_consult_trace(_trace_path(path), record, lock_timeout_seconds=lock_timeout_seconds)
     except (ConsultTraceLockTimeoutError, ConsultTraceStorageError) as exc:
@@ -535,6 +546,8 @@ def _selected_context_candidate_belief_ids(trace: dict[str, Any]) -> list[str]:
 
 
 def _candidate_reason(trace: dict[str, Any], *, low_context_threshold: int) -> tuple[str, int] | None:
+    if is_protected_preparation(trace):
+        return None
     if trace.get("status") == "failed":
         return "failed_consult", 5
 
@@ -569,6 +582,8 @@ def _gap_for_trace(trace: dict[str, Any], reason: str, priority: int) -> Gap:
 
 
 def _eval_case_for_trace(trace: dict[str, Any], reason: str) -> dict[str, Any]:
+    if is_protected_preparation(trace):
+        raise ValueError("Protected preparation content is unavailable for evaluation")
     input_block = _dict_block(trace.get("input"))
     question = str(input_block.get("question", ""))
     return {
@@ -642,6 +657,8 @@ def _failure_labels_for_trace(trace: dict[str, Any]) -> list[str]:
 
 
 def _semantic_eval_case_for_trace(trace: dict[str, Any], reason: str) -> dict[str, Any]:
+    if is_protected_preparation(trace):
+        raise ValueError("Protected preparation content is unavailable for semantic evaluation")
     input_block = _dict_block(trace.get("input"))
     question = str(input_block.get("question", ""))
     middle_context_slot_count = _middle_context_slot_count(trace)
@@ -748,6 +765,8 @@ def _candidate_for_trace(
     reason: str,
     priority: int,
 ) -> dict[str, Any]:
+    if is_protected_preparation(trace):
+        raise ValueError("Protected preparation content is unavailable for trace candidates")
     gap = _gap_for_trace(trace, reason, priority)
     input_block = _dict_block(trace.get("input"))
     candidate = {
@@ -811,7 +830,7 @@ def build_consult_trace_candidates(
         key=lambda item: (int(item["severity"]), str(item["recorded_at"])),
         reverse=True,
     )[:max_candidates]
-    return {
+    output = {
         "schema_version": CONSULT_TRACE_CANDIDATES_SCHEMA_VERSION,
         "kind": CONSULT_TRACE_CANDIDATES_KIND,
         "contract": {
@@ -830,6 +849,10 @@ def build_consult_trace_candidates(
         "recall_case_candidate_count": sum(1 for candidate in candidates if "recall_case_candidate" in candidate),
         "candidates": candidates,
     }
+    protected_count = sum(1 for trace in traces if is_protected_preparation(trace))
+    if protected_count:
+        output["unavailable_trace_count"] = protected_count
+    return output
 
 
 def review_consult_traces(
@@ -845,3 +868,49 @@ def review_consult_traces(
         max_candidates=max_candidates,
         low_context_threshold=low_context_threshold,
     )
+
+
+def record_failed_consult_trace(
+    *,
+    writer: Any,
+    trace_id: str,
+    trace_path: Path | None,
+    question: str,
+    requested_experts: list[str],
+    max_experts: int,
+    budget: float,
+    capacity: Mapping[str, object],
+    stage: str,
+    error: BaseException,
+    lock_timeout_seconds: float,
+    protected_preparation: bool = False,
+    preparation_reference: Mapping[str, object] | None = None,
+) -> None:
+    writer(
+        path=trace_path,
+        question=question,
+        requested_experts=requested_experts,
+        max_experts=max_experts,
+        budget=budget,
+        capacity=dict(capacity),
+        failure={"stage": stage, "error_type": type(error).__name__, "message": str(error)},
+        trace_id=trace_id,
+        lock_timeout_seconds=lock_timeout_seconds,
+        **(
+            {"protected_preparation": True, "preparation_reference": preparation_reference}
+            if protected_preparation
+            else {}
+        ),
+    )
+
+
+def try_record_failed_consult_trace(*, writer: Any, logger: Any, **kwargs: Any) -> None:
+    """Keep lifecycle termination authoritative if final trace storage also fails."""
+    try:
+        writer(**kwargs)
+    except Exception as exc:
+        logger.warning(
+            "Could not finalize failed consult trace %s (%s)",
+            kwargs.get("trace_id", ""),
+            type(exc).__name__,
+        )

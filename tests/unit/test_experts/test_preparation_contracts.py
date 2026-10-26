@@ -218,6 +218,64 @@ def test_adverse_metadata_is_allowed_without_advisory_coverage_claim():
     assert result.interpretation.conflicts[0].note == conflict.note
 
 
+def test_adverse_metadata_and_identities_survive_all_frozen_projections():
+    value = packet().model_dump(mode="json")
+    projection = canonical_bytes({"info": {"yanked": True}, "vulnerabilities": [{"id": "TEST-ADVERSE"}]})
+    value["observations"][0].update(
+        metadata_projection_json=projection.decode(), metadata_projection_sha256=sha256(projection)
+    )
+    frozen = freeze_packet(PreparationPacket.model_validate_json(json.dumps(value)))
+    markdown = frozen.review_markdown.decode()
+    graph = json.loads(frozen.graph)
+    assert projection.decode() in markdown
+    assert sha256(projection) in markdown
+    assert "Comprehensive advisory coverage: not examined" in markdown
+    assert graph["packet_sha256"] == frozen.manifest.content_sha256
+    observation = graph["observations"][0]
+    assert observation["metadata_projection_json"] == projection.decode()
+    assert observation["raw_sha256"] == value["observations"][0]["raw_sha256"]
+
+
 def test_environment_is_declared_not_inspected():
     with pytest.raises(ValidationError):
         PythonEnvironment(interpreter_version="3.12", platform="fixture", declaration="inspected")
+
+
+def test_metadata_projection_identity_is_distinct_and_canonical():
+    from datetime import UTC, datetime
+
+    from deepr.experts.preparation_contracts import SourceObservation, canonical_bytes, sha256
+
+    now = datetime.now(UTC)
+    projection = canonical_bytes({"versions": ["1.0", "2.0"], "vulnerabilities": [{"id": "TEST-1"}]})
+    fields = dict(
+        observation_id="fixture_source",
+        coordinate_id="fixture_coordinate",
+        source_class="pypi_index",
+        requested_at=now,
+        observed_at=now,
+        status="ok",
+        raw_sha256="a" * 64,
+        parsed_sha256="b" * 64,
+    )
+    result = SourceObservation(
+        **fields, metadata_projection_json=projection.decode(), metadata_projection_sha256=sha256(projection)
+    )
+    assert result.raw_sha256 != result.parsed_sha256 != result.metadata_projection_sha256
+    import pytest
+
+    with pytest.raises(ValueError, match="canonical"):
+        SourceObservation(
+            **fields,
+            metadata_projection_json=projection.decode() + " ",
+            metadata_projection_sha256=sha256(projection + b" "),
+        )
+    with pytest.raises(ValueError, match="together"):
+        SourceObservation(**fields, metadata_projection_json=projection.decode())
+
+
+def test_comparison_status_does_not_default_to_no_change():
+    from deepr.experts.preparation_contracts import Interpretation
+
+    assert Interpretation().comparison_status == "unchecked"
+    assert Interpretation(comparison_status="no_change").comparison_status == "no_change"

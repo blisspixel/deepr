@@ -1,15 +1,23 @@
 # Prepared consultation (S1) contract
 
-Status: proposed design, 2026-09-24; boundary review 2026-10-22;
-first-slice contract refined 2026-10-25.
-The packet below is not implemented.
+Status: design proposed 2026-09-24; boundary review 2026-10-22;
+first-slice contract refined and opt-in integration implemented 2026-10-25.
+The strict packet, private store, bounded acquisition, capture/delivery binding
+and shared CLI/MCP transaction have fixture-backed implementations. This is
+experimental source capability, not default-on or semantically qualified. The
+[bounded live record](../validation/prepared-consultation-2026-10-25.md) retains
+a failed trial and a separately reviewed source-fix trial that completed.
+Independent whole-answer reviews retain material defects, keeping default-on
+promotion open. Release and deployment acceptance remain separate.
 `deepr expert currency` is the earlier read-only inspection. It does not
 fetch, judge, or replace stored-only consult. This note defines
 the additive contract the [delivery plan](../plans/living-expertise.md#s1-prepare-before-consultation-with-bounded-temporary-evidence)
 requires before S1 code. The dated [offline fixture amendment](prepared-consultation-offline-fixtures.md)
 permits support components and synthetic fixtures during capacity qualification.
-Exposed or live prototypes still wait for the frozen S0 protocol; the default-on
-switch waits for S1's own exit evidence.
+The S0 protocol was frozen before integration. The
+[reviewed October 25 pilot](../validation/expert-baseline-2026-10-25.md)
+completed without establishing practical memory benefit; this does not widen
+autonomy. Live qualification and the default-on switch retain S1's exit gates.
 The operator selected independent model review for the next protocol and
 answer review. Record that review and its calibration honestly, including
 disagreement and shared-model limitations; do not record human attestations
@@ -18,7 +26,7 @@ nor the evidence needed to claim useful advice or improved expertise.
 
 ## Problem
 
-Consultation today is stored-only. `consult_prompt.brief_synthesis_blocks`
+Default consultation is stored-only. `consult_prompt.brief_synthesis_blocks`
 opens with "Stored research only; no live check was performed" and
 `synthesis_delivery` reports `freshness: stored_context_only`. Fresh context
 exists only inside `expert sync --fresh-context`, which mutates the expert
@@ -87,25 +95,36 @@ explicit canonical inventory; it must not disable durable observability to
 make a whole-directory equality assertion pass. Retrieved prose is evidence,
 never permission to add tools, destinations, spend or canonical writes.
 
-## Packet (`deepr-prepared-context-v1`, proposed)
+## Packet (`deepr-prepared-context-v1`)
+
+The implemented packet nests caller/question/environment/revision identity in
+`envelope`, and conflicts/implications in `interpretation`. The table describes
+the logical inventory; exact field names and admitted statuses come from
+`preparation_contracts.py`. Markdown and graph hashes live in a separate
+projection manifest, never inside their own packet hash. Final-message and
+answer hashes belong to later append-only delivery receipts.
 
 | Field | Meaning |
 | --- | --- |
-| `operation_id`, `caller_scope` | Identity; packets with private task context bind to one caller |
-| `expert_revision` | Digest of the stored state the answer also uses |
-| `question_sha256`, `environment` | What was prepared for |
+| `envelope.operation_id`, `envelope.owner` | Identity; packets with private task context bind to one caller |
+| `envelope.expert_revision` | Digest of the stored state the answer also uses |
+| `envelope.question`, `envelope.request.environment` | Private question and declared environment |
 | `assumptions[]` | Text, `checked` / `unchecked` / `not_needed` with the model's reason |
-| `observations[]` | URL, request time, response `Date`, `Last-Modified`, ETag, SHA-256 of bytes, applicable version scope, status `ok` / `revalidated` / `failed` / `offline` |
-| `conflicts[]` | Stored position id, current observation id, dated note |
-| `implications[]` | Guidance affected, each linked to observations |
+| `observations[]` | Admitted coordinate/source class, request time, response `Date`, `Last-Modified`, ETag, SHA-256 of bytes, applicable version scope, status `ok` / `partial` / `failed` / `offline` |
+| `interpretation.conflicts[]` | Stored position id, current observation id, dated note |
+| `interpretation.implications[]` | Guidance affected, each linked to observations |
 | `stop_reason`, `limits`, `attempts` | Complete / partial / failed / cancelled and why |
-| `review_markdown_sha256`, `graph_sha256` | The dated Markdown review and graph projection, both rebuildable from this packet |
+| Projection manifest | Dated Markdown review and graph identities, both rebuildable from this packet |
 
 "No change found", "check failed" and "not examined" are distinct values.
 A timestamp, empty search result or unchanged hash alone never yields
 "current".
 
 ## Reuse
+
+This is a later reuse contract, not current caching behavior. The first slice
+refuses duplicate requests without another allowance or answer fallback; it
+does not implement conditional revalidation or cross-operation packet reuse.
 
 Reuse a packet only when caller scope, question assumption set, environment
 digest and source set all match and every observation is within its class's
@@ -122,6 +141,10 @@ count 304s, redirects and address attempts against the same operation policy;
 it cannot silently gain a fresh request or time allowance.
 
 ## Source-class sequence (Python exemplar)
+
+Only release-specific PyPI JSON and the JSON index are implemented in the first
+slice. The remaining source classes below are a proposed expansion sequence,
+not current advisory or interpreter-support coverage.
 
 Structured, keyless sources documented 2026-09-24 and rechecked against official
 documentation 2026-10-22, before any general web search: release-specific PyPI
@@ -146,10 +169,11 @@ advisory coverage, interpreter support, or version-dependent API behavior.
 
 ## First opt-in slice: one Python environment
 
-Everything in this section is an implementation contract, not shipped
-behavior. The [offline fixture exception](prepared-consultation-offline-fixtures.md)
-permits isolated support components first. Production integration and exposed
-or live preparation still wait for the replacement S0 protocol freeze.
+This section is the implementation contract for the experimental opt-in slice,
+not a statement of released or live-qualified behavior. The
+[offline fixture exception](prepared-consultation-offline-fixtures.md)
+permitted isolated support components first; the later S0 protocol freeze
+preceded shared transaction and interface integration.
 An unfavorable S0 result does not block this S1 prototype, and the prototype
 does not change S0's interpretation.
 
@@ -161,7 +185,7 @@ model, infer the caller's installed environment, or route preparation to a
 plan or metered backend. Existing stored-only consultation remains the
 default and retains its current request/output behavior.
 
-Proposed additive input is a `preparation` object containing:
+The additive input is a `preparation` object containing:
 
 - `enabled: true`, `schema_version: deepr-python-preparation-request-v1`;
 - `request_id`: a caller-chosen opaque idempotency key, 16-64 ASCII letters,
@@ -187,8 +211,8 @@ coordinate IDs. Retained header projections are at most 8 KiB; bounded IPC
 frames include their encoding overhead. Existing HTTP parser header limits
 must be checked against the locked runtime, not described as body allowance.
 
-CLI adds one `--prepare-environment PATH` option that reads this bounded JSON
-object locally and explicitly discloses the outgoing package/version
+CLI adds one `--prepare-python PATH` option that reads this bounded JSON
+object locally; its package/version coordinates are the admitted outgoing
 coordinates. MCP accepts the equivalent object on `deepr_consult_experts`.
 Both reach `execute_consult_transaction`; a supplied object with disabled,
 missing or malformed admission is refused rather than ignored. Packet reads
@@ -198,7 +222,7 @@ stdio checks together. Do not add a new tool or expose a network fallback.
 
 ### One cumulative allowance
 
-These proposed conservative ceilings apply to an entire preparation operation:
+These conservative ceilings apply to an entire preparation operation:
 
 | Resource | Initial ceiling and accounting |
 | --- | --- |
@@ -485,7 +509,8 @@ distinct identities, not fields to forge for byte equality. Run strict types,
 full unit/coverage, lint/format, ratchets, paid-boundary and docs checks. The
 MCP shape change also requires existing protocol conformance and clean-wheel
 stdio smoke evidence. Update `AGENTIC_BALANCE.md` when implementing the new
-surface; this proposed contract does not move the shipped boundary itself.
+surface. Implemented source, released artifacts and live-qualified behavior
+remain separate claims.
 
 Then conduct a matched preparation-on/off answer review from one fixed expert
 revision and a bounded authorized live-source smoke. Use independent model
@@ -535,3 +560,36 @@ coverage; they cannot pass by pretending the later source classes were used.
   status authoritatively.
 - **Confidence or recency as the trigger:** local text models expose no
   reliable internal signal, and file dates do not measure currency.
+
+
+### Result-shaping seam
+
+The council owns perspective dispatch and synthesis lifecycle. The existing
+consult module owns the shared council-result shape alongside the public
+consult artifact. Moving the complete result shaper there keeps preparation
+adapters in their owning context seam and avoids growing the council beyond
+its module bound; the council's static compatibility delegator preserves the
+existing output fields and ordering. This is a structural move, not a new
+judgment rule or an expansion of preparation authority.
+
+The offline transaction implementation inventories the complete selected
+expert directory conservatively, including legacy and derived namespaces,
+and records absent authority roots. Only verified empty lock files are
+excluded. The separate protected operation root and global consult receipts
+are outside that inventory. Capture retains each input's exact bytes once;
+the context identity also binds the relative-path inventory. Rechecks compare
+current hashes without replacing the captured context. Entry and retained
+byte ceilings refuse oversized inventories rather than silently narrowing them.
+
+Inventory verification runs before answer dispatch, after protected delivery,
+after final trace assembly before the lifecycle terminal, and after that
+terminal is durable. These are observations, not shared writer exclusion.
+If the last check detects concurrent drift, the caller receives a typed
+refusal with safe metadata explicitly naming the already recorded lifecycle
+terminal and protected operation reference. That completed event and the
+actual protected answer receipt remain unchanged; no second success or
+fictional failed lifecycle event is appended.
+
+Requested capacity metadata lives alongside the backend factory in consult;
+the transaction reexports its existing API. Deadline marker errors live in
+the existing transaction error seam. Neither move changes stored-only behavior.

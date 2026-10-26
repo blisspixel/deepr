@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -128,7 +129,14 @@ def content_hash(text: str) -> str:
 class CorpusStore:
     """Content-addressed source retention for one expert."""
 
-    def __init__(self, expert_name: str, *, storage_dir: Path | None = None) -> None:
+    def __init__(
+        self,
+        expert_name: str,
+        *,
+        storage_dir: Path | None = None,
+        prepare_tempfile: Callable[[int, Path], None] | None = None,
+    ) -> None:
+        self.prepare_tempfile = prepare_tempfile
         self.expert_name = expert_name
         base = Path(storage_dir) if storage_dir else canonical_expert_dir(expert_name) / "corpus"
         self.root = base
@@ -162,7 +170,10 @@ class CorpusStore:
         header = json.dumps({"schema_version": CORPUS_SCHEMA_VERSION, "expert": self.expert_name})
         lines = [header]
         lines.extend(json.dumps(entry.to_dict(), sort_keys=True) for _, entry in sorted(self.entries.items()))
-        atomic_write_text(self.index_path, "\n".join(lines) + "\n")
+        if self.prepare_tempfile is None:
+            atomic_write_text(self.index_path, "\n".join(lines) + "\n")
+        else:
+            atomic_write_text(self.index_path, "\n".join(lines) + "\n", prepare_tempfile=self.prepare_tempfile)
 
     def _source_path(self, sha: str) -> Path:
         # Two-level fan-out keeps directory listings usable at fleet scale.
@@ -203,7 +214,10 @@ class CorpusStore:
 
         path = self._source_path(sha)
         path.parent.mkdir(parents=True, exist_ok=True)
-        atomic_write_text(path, text)
+        if self.prepare_tempfile is None:
+            atomic_write_text(path, text)
+        else:
+            atomic_write_text(path, text, prepare_tempfile=self.prepare_tempfile)
 
         entry = CorpusEntry(
             sha256=sha,

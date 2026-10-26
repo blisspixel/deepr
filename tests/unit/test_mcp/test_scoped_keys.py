@@ -395,6 +395,37 @@ class TestScopedMCPAuthorization:
 
 
 class TestRemoteMCPAuditLog:
+    @pytest.mark.parametrize("preparation", [None, False, {}, {"enabled": False}])
+    def test_prepared_attempt_audit_never_retains_private_names_or_caller_ids(self, tmp_path, preparation):
+        path = tmp_path / "remote.jsonl"
+        log = RemoteMCPAuditLog(path)
+        context = ScopedMCPKeyContext("agent", ResearchMode.UNRESTRICTED, ("PRIVATE_EXPERT",))
+        log.record_tool_call(
+            context, tool="deepr_consult_experts",
+            arguments={"preparation": preparation, "question": "PRIVATE_QUESTION", "experts": ["PRIVATE_EXPERT"],
+                       "trace_id": "PRIVATE_TRACE", "job_id": "PRIVATE_JOB"},
+            outcome="error", error_code="PRIVATE_ERROR",
+        )
+        raw = path.read_text()
+        assert "PRIVATE_" not in raw
+        event = log.read_recent()[0]
+        assert event.trace_id == "" and event.expert_names == ()
+        assert event.error_code == "PREPARATION_FAILED"
+
+    def test_prepared_audit_accepts_only_separately_supplied_service_trace_id(self, tmp_path):
+        log = RemoteMCPAuditLog(tmp_path / "remote.jsonl")
+        context = ScopedMCPKeyContext("agent", ResearchMode.UNRESTRICTED)
+        log.record_tool_call(
+            context, tool="deepr_consult_experts", arguments={"preparation": {}, "trace_id": "consult_aaaaaaaaaaaa"},
+            outcome="success", prepared_service_trace_id="consult_bbbbbbbbbbbb",
+        )
+        assert log.read_recent()[0].trace_id == "consult_bbbbbbbbbbbb"
+        with pytest.raises(ValueError):
+            log.record_tool_call(
+                context, tool="deepr_consult_experts", arguments={"preparation": {}},
+                outcome="success", prepared_service_trace_id="private-trace-prose",
+            )
+
     def test_records_tool_call_without_storing_arguments(self, tmp_path):
         log = RemoteMCPAuditLog(tmp_path / "remote.jsonl")
         context = ScopedMCPKeyContext("agent", ResearchMode.UNRESTRICTED, ("alpha",))
