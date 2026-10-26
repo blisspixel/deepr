@@ -308,6 +308,15 @@ for tested behavior and the distinction from draft standards and host certificat
 
 ## Direction
 
+v2.51.0 records the reviewed 48-cell baseline and experimental opt-in Python
+preparation. The baseline did not establish a practical memory benefit. The
+[preparation smoke](docs/validation/prepared-consultation-2026-10-25.md) retains
+one failed trial and one operationally complete trial; independent whole-answer
+review still finds material advice defects. Defaults remain stored-context-only.
+The [brief replay](docs/validation/brief-clarification-2026-10-25.md) records
+prompt clarifications and unresolved semantic defects rather than claiming
+that more retained knowledge produces better judgment.
+
 v2.50.46 repairs installer trust with patched uv/pip selections and managed
 CPython 3.15.1. Existing environments and images need an explicit refresh; see
 [the repair record](docs/validation/toolchain-trust-repair-2026-10-22.md).
@@ -325,8 +334,8 @@ completed all 48 cells without establishing a practical memory benefit.
 Experimental prepared consultation is opt-in through
 `deepr expert consult -e NAME --prepare-python request.json` or MCP's
 `preparation` object. It checks declared Python package coordinates using PyPI
-metadata without changing canonical expert state. Default-on preparation,
-matched answer review and bounded live-source acceptance remain open.
+metadata without changing canonical expert state. A bounded live smoke and independent matched-answer review are recorded;
+material advice defects keep default-on and semantic qualification open.
 
 v2.50.44 repairs complete finding admission, consult form-failure reporting and
 source-complete diagnostic review. It publishes the completed negative packing
@@ -343,7 +352,8 @@ group-ordering/reservation and soft-target candidates are unshipped. Compatible
 committed repairs and the shipped dependency packer remain. v2.50.44
 records this closeout; release and issue acceptance records carry exact-main CI
 and public-install verification.
-Word adherence, brief judgment metadata and S0 remain active work.
+Word adherence and brief judgment quality remain active; the scoped October25
+S0 pilot measurement is complete without a memory-benefit claim.
 
 `deepr eval correction-survival-report` provides
 read-only inspection of completed diagnostics by an explicit recorded recipe

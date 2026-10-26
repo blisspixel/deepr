@@ -9,6 +9,17 @@ provider prepaid-no-overage or hard-stop evidence. Attended OpenRouter research
 is the exception: one pinned no-tool completion after wallet credits and
 `deepr budget authorize openrouter`.
 
+**v2.51.0 baseline and opt-in preparation:** the 48-cell model-reviewed pilot
+completed without establishing practical memory benefit. Explicit CLI/MCP Python
+preparation uses bounded PyPI release/index metadata and private operation state.
+One live trial failed safely; its schema-communication repair completed a separate
+trial with known usage and unchanged canonical bytes. Independent whole-answer
+reviews retain material advice defects. Default preparation stays off; neither
+operational success nor matching evidence hashes qualifies advice. See the
+[baseline](validation/expert-baseline-2026-10-25.md),
+[preparation record](validation/prepared-consultation-2026-10-25.md) and
+[brief replay](validation/brief-clarification-2026-10-25.md).
+
 **v2.50.46 installer trust repair:** maintained uv is 0.13.5 and the dev-only
 pip floor is 26.2.2. Managed installation requests CPython 3.15.1. Old or unknown
 uv is refused before managed acquisition; uninstall and manager ownership stay

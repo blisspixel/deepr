@@ -4,9 +4,11 @@ Status: design proposed 2026-09-24; boundary review 2026-10-22;
 first-slice contract refined and opt-in integration implemented 2026-10-25.
 The strict packet, private store, bounded acquisition, capture/delivery binding
 and shared CLI/MCP transaction have fixture-backed implementations. This is
-experimental source capability, not default-on, live-qualified or released
-acceptance. Matched preparation-on/off answer review and bounded authorized
-live-source smoke remain required before default-on promotion.
+experimental source capability, not default-on or semantically qualified. The
+[bounded live record](../validation/prepared-consultation-2026-10-25.md) retains
+a failed trial and a separately reviewed source-fix trial that completed.
+Independent whole-answer reviews retain material defects, keeping default-on
+promotion open. Release and deployment acceptance remain separate.
 `deepr expert currency` is the earlier read-only inspection. It does not
 fetch, judge, or replace stored-only consult. This note defines
 the additive contract the [delivery plan](../plans/living-expertise.md#s1-prepare-before-consultation-with-bounded-temporary-evidence)

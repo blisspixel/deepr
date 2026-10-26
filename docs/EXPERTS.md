@@ -55,7 +55,10 @@ advisory, interpreter-support or API coverage. See the
 Temporary evidence and final-delivery receipts remain in private operation
 storage; canonical expert state is unchanged. Failed or duplicate preparation
 does not silently fall back to stored-only advice. Default-on preparation and
-matched useful-answer/live-source qualification remain open. Explicit
+semantic useful-answer qualification remain open after the recorded bounded
+  [live smoke and answer review](validation/prepared-consultation-2026-10-25.md).
+  Windows preparation requires the existing full extra for private ACL support;
+  unsupported installations refuse private work. Explicit
 fresh-context maintenance remains a separate canonical update.
 
 The [October 25 baseline pilot](validation/expert-baseline-2026-10-25.md)

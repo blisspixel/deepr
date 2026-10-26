@@ -17,8 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   PyPI metadata for declared coordinates. Capture, private evidence, packet and
   final delivery are hash-bound; canonical expert state remains unchanged.
   Scoped HTTP identity, owner-only storage and content-free shared receipts
-  protect private context. Default consultation remains stored-only; useful
-  paired-answer review and authorized live-source qualification remain open.
+  protect private context. Default consultation remains stored-only. The
+  [live record](validation/prepared-consultation-2026-10-25.md) retains one
+  failed and one operationally complete trial; independent reviews retain
+  material advice defects, so semantic/default qualification remains open.
 - Record the model-reviewed October 25 S0 pilot: 48/48 cells answered, with
   no established practical memory benefit, human-calibrated acceptance or
   improved-expertise claim. Preserve reviewer disagreement, unresolved support,
@@ -52,8 +54,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Clarify brief and change-lens generation guidance for standing advice,
   forecast eligibility, same-claim falsifiers and source/history scope. Request
   orientation statements once and retain deterministic joining plus legacy
-  paragraph fallback. Historical raw outputs remain unchanged; semantic
-  compliance and repair of prior whole-answer defects remain unproven.
+  paragraph fallback. Historical raw outputs remain unchanged. The
+  [three-call replay](validation/brief-clarification-2026-10-25.md) has exact
+  source/context bindings and six standing positions without forecast apparatus,
+  while material semantic defects remain explicit.
 
 - Request native JSON output for rehearsal construction and maintenance while
   preserving prose-capable answers. Refuse length-stopped memory payloads,
