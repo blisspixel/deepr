@@ -112,6 +112,17 @@ def test_filelock_metadata_and_lock_exclude_known_vulnerable_releases() -> None:
     assert all(Version(package["version"]) >= Version("4.2.4") for package in packages)
 
 
+
+def test_dev_lock_excludes_virtualenv_bash_prompt_regression() -> None:
+    """GHSA-cx6f-vjhg-g3cc affects generated Bash activators in 21.14.9-12."""
+    lock = tomllib.loads((REPO_ROOT / "uv.lock").read_text(encoding="utf-8"))
+    pre_commit = next(package for package in lock["package"] if package["name"] == "pre-commit")
+    assert any(dependency["name"] == "virtualenv" for dependency in pre_commit["dependencies"])
+    packages = [package for package in lock["package"] if package["name"] == "virtualenv"]
+    assert packages
+    assert all(Version(package["version"]) >= Version("21.14.13") for package in packages)
+
+
 def test_container_rebuild_and_base_trust_are_verified_without_network() -> None:
     workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8"))
     steps = workflow["jobs"]["containers"]["steps"]

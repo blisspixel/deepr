@@ -78,6 +78,13 @@ stay blocked.
   byte. Both hosted Windows platform jobs passed on PR #289; the strict
   owner/SYSTEM-only requirement and legacy writer defaults remain unchanged.
 
+- [x] **2026-10-25 virtualenv source repair:** narrowly update the transitive
+  pre-commit lock from 21.14.12 to 21.14.13 for GHSA-cx6f-vjhg-g3cc.
+  All 25 exact-head checks passed on PR #290 before merge. Dependency presence
+  is not exploitation evidence; installed environments and old activators still
+  require refresh/recreation. Frozen S0 source, locks and receipts remain unchanged.
+
+
 **2026-10-25 development semantic findings:** initial construction in the
 separately frozen production-derived capacity trial completed, but independent
 review found unsupported memory-scaling and universal-batch conclusions,
