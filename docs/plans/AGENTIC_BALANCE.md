@@ -16,6 +16,15 @@ brittle rule - it encodes a boundary that no longer matches the code.
 
 ## The axis
 
+Offline preparation support guards caller namespaces, exact evidence and
+projection identities, admitted resource ceilings, duplicate claims, access
+expiry and child lifetime. These checks confer no caller authentication or
+semantic verdict. Model interpretation remains separate from source bytes;
+packet references and matching hashes cannot establish entailment, relevance,
+contradiction or useful advice. The helpers have no production entrypoint and
+the final-message receipt cannot feed back into frozen packet identity. See
+[offline preparation fixtures](../design/prepared-consultation-offline-fixtures.md).
+
 Report-absorption deduplication requires an explicit SAME model verdict for
 every routed merge. Lexical proximity, disabled verification and unknown
 verdicts cannot grant write authority. A staged target id/text binding is
@@ -71,6 +80,21 @@ integer counters are observations; other values remain unknown. Compatible
 token fields are reported worker subtotals, with warm-up recorded separately.
 Neither a complete cell denominator nor known counters certify phase success
 or semantic quality. See [the rehearsal contract](../design/local-four-arm-rehearsal.md).
+
+Rehearsal construction and maintenance request native JSON form and refuse a
+length-stopped payload while retaining the raw transport return and its known
+usage. Answers remain prose-capable. These controls establish requested form
+and output-bound refusal, not claim support or semantic completeness. See
+[memory generation](../design/rehearsal-memory-generation.md).
+
+Known study output ceilings now travel from actual backend metadata through
+the shared renderer, prompt hashes and checkpoint admission. Code validates
+the numerical form and retains complete-response refusal; model judgment
+chooses useful supported findings and preserves qualifications within that
+budget. An ignored plan request argument is not an enforced ceiling. Unknown
+ceilings remain unknown. This adds no finding quota, semantic
+keyword verdict, clipping, salvage or automatic retry. See
+[study output budgets](../design/study-output-budget-communication.md).
 
 Decision review projects exact outcome/trace identities and recorded input
 differences. It preserves answers, receipts and operator observations without

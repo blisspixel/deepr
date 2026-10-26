@@ -299,3 +299,18 @@ async def test_invalid_brief_leaves_candidate_and_no_consultable_knowledge(envir
     assert result["status"] == "incomplete"
     assert (directory / "formation/runs" / result["operation_id"] / "brief.json").is_file()
     assert not (directory / "hold/current.json").exists()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("metadata", ["known", "unknown", "legacy"])
+async def test_formation_passes_only_known_backend_output_budget(environment, monkeypatch, metadata):
+    _, profile, backend = environment
+    if metadata != "legacy":
+        backend.max_output_tokens = 5120 if metadata == "known" else None
+    study = AsyncMock(side_effect=formation.run_study)
+    monkeypatch.setattr(formation, "run_study", study)
+
+    result = await formation.form_expert(profile, backend)
+
+    assert result["status"] == "research_complete", result
+    assert study.call_args.kwargs["max_output_tokens"] == (5120 if metadata == "known" else None)

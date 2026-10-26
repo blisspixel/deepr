@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -24,6 +25,7 @@ class FakeBackend(ollama_backend.NativeOllamaInvestigationBackend):
     """Answers each prompt kind with the smallest contract-shaped payload."""
 
     prompts: list[str] = []
+    payloads: list[dict[str, Any]] = []
     digest = DIGEST
     fail_on: str | None = None
     answer_text = "Grounded answer citing [S-abc]."
@@ -46,6 +48,7 @@ class FakeBackend(ollama_backend.NativeOllamaInvestigationBackend):
             }
 
         async def post_json(_url: str, payload: dict[str, Any], _timeout: float) -> dict[str, Any]:
+            FakeBackend.payloads.append(payload)
             response = await self._respond(SimpleNamespace(messages=payload["messages"]))
             return {
                 **response.raw_response,
@@ -113,6 +116,7 @@ def phase(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("DEEPR_COST_DATA_DIR", str(tmp_path / "costs"))
     monkeypatch.setattr(ollama_backend, "NativeOllamaInvestigationBackend", FakeBackend)
     FakeBackend.prompts, FakeBackend.digest, FakeBackend.fail_on = [], DIGEST, None
+    FakeBackend.payloads = []
     FakeBackend.answer_text, FakeBackend.stop_reason = "Grounded answer citing [S-abc].", "stop"
     bundle = Bundle(tmp_path / "organizer")
 
@@ -151,6 +155,25 @@ def test_worker_identity_refuses_before_backend_or_ledger(phase, pin: str | None
     assert not (result["out"].parent / "costs/cost_ledger.jsonl").exists()
 
 
+def test_construct_passes_the_enforced_output_ceiling_to_shared_study(phase, monkeypatch) -> None:
+    from deepr.experts import study
+
+    observed_budgets = []
+    original = study.run_study
+
+    async def capture(**kwargs):
+        observed_budgets.append(kwargs.get("max_output_tokens"))
+        return await original(**kwargs)
+
+    monkeypatch.setattr(study, "run_study", capture)
+    built = phase("output-budget", "construct")
+    assert built["status"] == "completed", built
+    assert observed_budgets == [_policy()["max_output_tokens"]]
+    calls = [json.loads(line) for line in (built["out"] / "calls.jsonl").read_text().splitlines()]
+    assert calls
+    assert all(call["options"]["max_tokens"] == observed_budgets[0] for call in calls)
+
+
 def test_construct_then_maintain_then_answer_with_memory(phase) -> None:
     built = phase("construct", "construct")
     assert built["status"] == "completed", built
@@ -158,12 +181,14 @@ def test_construct_then_maintain_then_answer_with_memory(phase) -> None:
     checkpoint = built["out"] / "checkpoint"
     assert {p.name for p in checkpoint.iterdir()} == {"brief.json", "brief.md", "position_history.json"}
     assert not any("Question:" in prompt for prompt in FakeBackend.prompts)
+    assert all(payload["format"] == "json" for payload in FakeBackend.payloads)
 
     maintained = phase("maintain", "maintain", prior_checkpoint=str(checkpoint))
     assert maintained["status"] == "completed", maintained
     history = json.loads((maintained["out"] / "checkpoint" / "position_history.json").read_text(encoding="utf-8"))
     assert len(history) == 2
     assert "QUESTIONS YOU ALREADY TAKE A POSITION ON" in FakeBackend.prompts[-1]
+    assert all(payload["format"] == "json" for payload in FakeBackend.payloads)
 
     answered = phase(
         "answer", "answer", prior_checkpoint=str(maintained["out"] / "checkpoint"), question="Which version applies?"
@@ -179,6 +204,8 @@ def test_construct_then_maintain_then_answer_with_memory(phase) -> None:
     assert (answered["out"] / "answer.md").read_text(encoding="utf-8") == "Grounded answer citing [S-abc]."
     calls = [json.loads(line) for line in (answered["out"] / "calls.jsonl").read_text().splitlines()]
     assert calls[0]["options"]["seed"] == 1 and calls[0]["observed_digest"] == DIGEST
+    assert "format" not in FakeBackend.payloads[-1]
+    assert "response_format" not in calls[0]["options"]
     ledger = (Path(__import__("os").environ["DEEPR_COST_DATA_DIR"]) / "cost_ledger.jsonl").read_text()
     assert '"cost_usd": 0.0' in ledger and "r1:answer:1" in ledger
 
@@ -260,6 +287,74 @@ def test_empty_answer_fails_and_length_stop_is_flagged(phase) -> None:
     FakeBackend.answer_text, FakeBackend.stop_reason = "Partial answer", "length"
     cut = phase("cut", "answer", question="q")
     assert cut["status"] == "completed" and cut["answer_truncated"] is True and cut["stop_reason"] == "length"
+
+
+def test_length_stopped_memory_cannot_publish_a_checkpoint(phase) -> None:
+    FakeBackend.stop_reason = "length"
+    built = phase("length-checkpoint", "construct")
+    assert built["status"] == "failed", built
+    assert not (built["out"] / "checkpoint").exists()
+    calls = [json.loads(line) for line in (built["out"] / "calls.jsonl").read_text().splitlines()]
+    assert len(calls) == built["model_calls"] == 2
+    assert all(call["status"] == "returned" and call["payload_admission"] == "refused_length" for call in calls)
+    assert all(call["raw_response"]["prompt_eval_count"] == 10 for call in calls)
+    assert all(call["raw_response"]["eval_count"] == 3 for call in calls)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("phase_name", ["construct", "maintain"])
+async def test_memory_length_stop_refuses_valid_json_without_losing_returned_usage(phase, tmp_path, phase_name):
+    from deepr.evals.expert_value_rehearsal import _call_usage
+
+    FakeBackend.stop_reason = "length"
+    output = tmp_path / "direct-memory"
+    output.mkdir()
+    dispatcher = worker._Dispatcher(
+        {"run_id": "r1", "worker_id": "memory", "phase": phase_name, "policy": {**_policy(), "max_calls_per_phase": 1}},
+        output,
+    )
+
+    with pytest.raises(RuntimeError, match="memory generation reached its context or output bound"):
+        await dispatcher.complete("Read these sources")
+
+    assert dispatcher.count == len(FakeBackend.payloads) == 1
+    call = json.loads((output / "calls.jsonl").read_text())
+    assert call["status"] == "returned"
+    assert call["payload_admission"] == "refused_length"
+    assert call["stop_reason"] == "length" and call["observed_digest"] == DIGEST
+    assert call["prompt"] == "Read these sources"
+    raw = call["raw_response"]
+    assert json.loads(raw["message"]["content"])["notes"]
+    assert call["response_sha256"] == hashlib.sha256(raw["message"]["content"].encode()).hexdigest()
+    assert call["options"]["response_format"] == {"type": "json_object"}
+    assert FakeBackend.payloads[0]["format"] == "json"
+    usage = _call_usage(output / "calls.jsonl")
+    assert usage["calls"] == usage["returned"] == 1
+    assert usage["prompt_tokens"] == 10 and usage["output_tokens"] == 3
+    assert usage["unknown_usage_calls"] == 0
+    ledger = Path(__import__("os").environ["DEEPR_COST_DATA_DIR"]) / "cost_ledger.jsonl"
+    events = [json.loads(line) for line in ledger.read_text().splitlines()]
+    assert len(events) == 3
+    assert events[-1]["metadata"]["status"] == "returned"
+    assert events[-1]["tokens_input"] == 10 and events[-1]["tokens_output"] == 3
+    with pytest.raises(RuntimeError, match="phase call limit exhausted"):
+        await dispatcher.complete("Do not retry")
+    assert len(FakeBackend.payloads) == 1
+    assert len((output / "calls.jsonl").read_text().splitlines()) == 1
+
+
+@pytest.mark.asyncio
+async def test_native_study_adapter_refuses_same_valid_json_length_stop(phase):
+    from deepr.cli.commands.semantic.study_backend import StudyBackendError, _completion_from_native_ollama
+
+    FakeBackend.stop_reason = "length"
+    completion = _completion_from_native_ollama(
+        FakeBackend(model="fixture:14b"), "fixture:14b", max_tokens=512, context_tokens=8192
+    )
+    with pytest.raises(StudyBackendError, match="No complete result was accepted"):
+        await completion("Read these sources")
+    assert len(FakeBackend.payloads) == 1
+    assert FakeBackend.payloads[0]["format"] == "json"
 
 
 def test_worker_reports_its_module_hashes(phase) -> None:

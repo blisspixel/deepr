@@ -103,6 +103,74 @@ class TestAtomicWriteBytes:
         atomic_write_bytes(path, b"payload", fsync=True)
         assert path.read_bytes() == b"payload"
 
+    def test_trusted_preparation_runs_on_empty_open_tempfile_before_payload(self, tmp_path: Path):
+        target = tmp_path / "private.bin"
+        observed = []
+
+        def prepare(descriptor, temporary):
+            assert os.fstat(descriptor).st_size == 0
+            assert temporary.read_bytes() == b""
+            assert not target.exists()
+            observed.append(descriptor)
+
+        atomic_write_bytes(target, b"private payload", prepare_tempfile=prepare)
+        assert target.read_bytes() == b"private payload"
+        assert len(observed) == 1
+        with pytest.raises(OSError):
+            os.fstat(observed[0])
+
+    @pytest.mark.parametrize("failure", [RuntimeError, KeyboardInterrupt])
+    def test_preparation_failure_closes_empty_file_and_preserves_target(self, tmp_path: Path, failure):
+        target = tmp_path / "private.bin"
+        target.write_bytes(b"previous")
+        observed = []
+
+        def reject(descriptor, temporary):
+            assert os.fstat(descriptor).st_size == 0
+            observed.append(descriptor)
+            raise failure("protection failed")
+
+        with pytest.raises(failure, match="protection failed"):
+            atomic_write_bytes(target, b"never written", prepare_tempfile=reject)
+        assert target.read_bytes() == b"previous"
+        assert list(tmp_path.glob(".private.bin.*")) == []
+        with pytest.raises(OSError):
+            os.fstat(observed[0])
+
+    @pytest.mark.parametrize("kind", ["text", "json"])
+    def test_text_and_json_forward_preparation_before_bytes(self, tmp_path: Path, kind):
+        observed = []
+
+        def prepare(descriptor, temporary):
+            assert os.fstat(descriptor).st_size == 0
+            observed.append(temporary)
+
+        target = tmp_path / "wrapped"
+        if kind == "text":
+            atomic_write_text(target, "payload", prepare_tempfile=prepare)
+            assert target.read_text() == "payload"
+        else:
+            atomic_write_json(target, {"payload": True}, prepare_tempfile=prepare)
+            assert json.loads(target.read_text()) == {"payload": True}
+        assert len(observed) == 1
+
+    @pytest.mark.parametrize("kind", ["text", "json"])
+    def test_unknown_preparation_preserves_legacy_delegate_keywords(self, tmp_path: Path, monkeypatch, kind):
+        observed = []
+
+        def legacy_writer(path, data, *, fsync=False, fsync_parent=False, overwrite=True):
+            observed.append((path, data, fsync, fsync_parent, overwrite))
+
+        target = tmp_path / "legacy"
+        if kind == "text":
+            monkeypatch.setattr(atomic_io, "atomic_write_bytes", legacy_writer)
+            atomic_write_text(target, "payload", prepare_tempfile=None)
+        else:
+            monkeypatch.setattr(atomic_io, "atomic_write_text", legacy_writer)
+            atomic_write_json(target, {"payload": True}, prepare_tempfile=None)
+        assert len(observed) == 1
+        assert observed[0][2:] == (False, False, True)
+
     def test_directory_sync_is_opt_in(self, tmp_path: Path, monkeypatch):
         sync = patch.object(atomic_io, "_fsync_parent_chain")
         with sync as observed:
@@ -169,6 +237,30 @@ class TestAtomicWriteBytes:
 
 
 class TestAppendJsonlDurable:
+    def test_private_lock_preparation_precedes_append_file_open(self, tmp_path: Path):
+        target = tmp_path / "private.jsonl"
+        observed = []
+
+        def prepare(path):
+            assert path == target.with_name("private.jsonl.append.lock")
+            assert path.is_file()
+            assert not target.exists()
+            observed.append(path)
+
+        append_jsonl_durable(target, {"private": True}, lock_mode=0o600, prepare_lock=prepare)
+        assert len(observed) == 1
+        assert json.loads(target.read_text()) == {"private": True}
+
+    def test_lock_preparation_failure_writes_no_payload(self, tmp_path: Path):
+        target = tmp_path / "private.jsonl"
+
+        def reject(path):
+            raise RuntimeError("lock protection failed")
+
+        with pytest.raises(RuntimeError, match="lock protection failed"):
+            append_jsonl_durable(target, {"private": True}, prepare_lock=reject)
+        assert not target.exists()
+
     def test_appends_with_newline(self, tmp_path: Path):
         path = tmp_path / "log.jsonl"
         append_jsonl_durable(path, {"a": 1}, fsync=False)

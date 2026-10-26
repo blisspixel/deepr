@@ -104,6 +104,7 @@ class _Dispatcher:
         from deepr.experts.investigation.ollama_backend import NativeOllamaInvestigationBackend
 
         self.policy = spec["policy"]
+        self.memory_generation = spec["phase"] in {"construct", "maintain"}
         attempt = f":{spec['attempt_id']}" if spec.get("attempt_id") else ""
         self.worker_id = f"{spec['run_id']}:{spec['worker_id']}{attempt}"
         self.output = output
@@ -129,13 +130,15 @@ class _Dispatcher:
         if self.count >= int(self.policy["max_calls_per_phase"]):
             raise RuntimeError("rehearsal phase call limit exhausted")
         self.count += 1
-        options = {
+        options: dict[str, Any] = {
             "num_ctx": int(self.policy["num_ctx"]),
             "max_tokens": int(self.policy["max_output_tokens"]),
             "temperature": float(self.policy["temperature"]),
             "seed": int(self.policy["seed"]),
             "think": bool(self.policy["think"]),
         }
+        if self.memory_generation:
+            options["response_format"] = {"type": "json_object"}
         request_id = f"{self.worker_id}:{self.count}"
         record: dict[str, Any] = {
             "call": self.count,
@@ -169,6 +172,14 @@ class _Dispatcher:
                 raw_response=result.raw_response,
                 response_sha256=hashlib.sha256(text.encode("utf-8")).hexdigest(),
             )
+            if self.memory_generation:
+                record["payload_admission"] = (
+                    "refused_length" if result.stop_reason == "length" else "pending_stage_validation"
+                )
+                if result.stop_reason == "length":
+                    raise RuntimeError(
+                        "structured memory generation reached its context or output bound; no result was admitted"
+                    )
             return text
         finally:
             record.update(finished_at=_now(), elapsed_seconds=round(time.monotonic() - started, 3))
@@ -203,6 +214,7 @@ async def _build_memory(spec: dict[str, Any], output: Path, dispatcher: _Dispatc
         chunk_chars=int(policy["study_chunk_chars"]),
         capacity_source="local",
         model=policy["model"],
+        max_output_tokens=int(policy["max_output_tokens"]),
     )
     (output / "study.json").write_text(json.dumps(study.to_dict(), indent=2, sort_keys=True), encoding="utf-8")
     lenses_ok = len(study.outcomes) == len(policy["lenses"]) and all(o.status == "ok" for o in study.outcomes)

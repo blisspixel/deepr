@@ -20,6 +20,7 @@ import os
 import sys
 import tempfile
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -84,6 +85,7 @@ def atomic_write_bytes(
     fsync: bool = False,
     fsync_parent: bool = False,
     overwrite: bool = True,
+    prepare_tempfile: Callable[[int, Path], None] | None = None,
 ) -> None:
     """Atomically write ``data`` to ``path``.
 
@@ -96,6 +98,8 @@ def atomic_write_bytes(
     default; callers choose the guarantee their records need. If
     ``overwrite`` is false, atomically create the complete target or raise
     ``FileExistsError`` without changing the existing target.
+    A trusted ``prepare_tempfile`` callback may protect/verify the empty open
+    file before its first payload byte. Failure closes and removes that file.
     """
     if fsync_parent and not fsync:
         raise ValueError("fsync_parent requires file fsync")
@@ -108,6 +112,8 @@ def atomic_write_bytes(
     tmp_path = Path(tmp_name)
     try:
         with os.fdopen(fd, "wb") as f:
+            if prepare_tempfile is not None:
+                prepare_tempfile(f.fileno(), tmp_path)
             f.write(data)
             if fsync:
                 f.flush()
@@ -119,7 +125,7 @@ def atomic_write_bytes(
             _link_tempfile_without_replacement(tmp_path, target)
         if fsync_parent:
             _fsync_parent_chain(parent)
-    except Exception:
+    except BaseException:
         try:
             if tmp_path.exists():
                 tmp_path.unlink()
@@ -136,9 +142,20 @@ def atomic_write_text(
     fsync: bool = False,
     fsync_parent: bool = False,
     overwrite: bool = True,
+    prepare_tempfile: Callable[[int, Path], None] | None = None,
 ) -> None:
     """Atomically write a text string to ``path``."""
-    atomic_write_bytes(path, text.encode(encoding), fsync=fsync, fsync_parent=fsync_parent, overwrite=overwrite)
+    if prepare_tempfile is None:
+        atomic_write_bytes(path, text.encode(encoding), fsync=fsync, fsync_parent=fsync_parent, overwrite=overwrite)
+    else:
+        atomic_write_bytes(
+            path,
+            text.encode(encoding),
+            fsync=fsync,
+            fsync_parent=fsync_parent,
+            overwrite=overwrite,
+            prepare_tempfile=prepare_tempfile,
+        )
 
 
 def atomic_write_json(
@@ -151,6 +168,7 @@ def atomic_write_json(
     fsync: bool = False,
     fsync_parent: bool = False,
     overwrite: bool = True,
+    prepare_tempfile: Callable[[int, Path], None] | None = None,
 ) -> None:
     """Atomically write ``data`` as JSON to ``path``.
 
@@ -159,7 +177,17 @@ def atomic_write_json(
     the target is left untouched.
     """
     payload = json.dumps(data, indent=indent, sort_keys=sort_keys, default=default)
-    atomic_write_text(path, payload, fsync=fsync, fsync_parent=fsync_parent, overwrite=overwrite)
+    if prepare_tempfile is None:
+        atomic_write_text(path, payload, fsync=fsync, fsync_parent=fsync_parent, overwrite=overwrite)
+    else:
+        atomic_write_text(
+            path,
+            payload,
+            fsync=fsync,
+            fsync_parent=fsync_parent,
+            overwrite=overwrite,
+            prepare_tempfile=prepare_tempfile,
+        )
 
 
 def append_jsonl_durable(
@@ -169,6 +197,8 @@ def append_jsonl_durable(
     encoding: str = "utf-8",
     fsync: bool = True,
     default: Any = None,
+    lock_mode: int | None = None,
+    prepare_lock: Callable[[Path], None] | None = None,
 ) -> None:
     """Append one JSON record to a JSONL file, flushed and fsync'd.
 
@@ -179,6 +209,8 @@ def append_jsonl_durable(
 
     Concurrent callers are serialized with a sibling ``*.append.lock`` so
     two processes cannot interleave JSON lines.
+    Trusted private stores may select a lock creation mode and verify/protect
+    the acquired lock before the append file is opened. Defaults are unchanged.
     """
     from filelock import FileLock
 
@@ -189,7 +221,14 @@ def append_jsonl_durable(
 
     line = json.dumps(record, default=default) + "\n"
     lock_path = target.with_name(f"{target.name}.append.lock")
-    with FileLock(str(lock_path), timeout=30):
+    lock = (
+        FileLock(str(lock_path), timeout=30)
+        if lock_mode is None
+        else FileLock(str(lock_path), timeout=30, mode=lock_mode)
+    )
+    with lock:
+        if prepare_lock is not None:
+            prepare_lock(lock_path)
         with open(target, "a", encoding=encoding) as f:
             f.write(line)
             if fsync:

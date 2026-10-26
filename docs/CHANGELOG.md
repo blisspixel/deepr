@@ -7,7 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add isolated offline preparation support: strict packet contracts, private
+  owner-bound operation storage, immutable evidence/projection identities and
+  cumulative PyPI acquisition controls with bounded child cleanup. Synthetic
+  Windows fixtures exercise permissions and concurrent claims. These helpers
+  do not expose CLI, MCP or consultation preparation; live acquisition and
+  useful-advice qualification remain gated.
+
 ### Fixed
+
+- Protect and verify empty private atomic files and acquired append locks before
+  writing payloads. Assign the actual Windows token user when an elevated
+  process creates files owned by its Administrators group, preserving the
+  owner/SYSTEM-only permission requirement and legacy atomic-writer defaults.
+
+- Request native JSON output for rehearsal construction and maintenance while
+  preserving prose-capable answers. Refuse length-stopped memory payloads,
+  including valid JSON prefixes, while retaining raw returned output, stop
+  reasons and known token accounting separately from payload admission.
+
+- Communicate known output token ceilings through shared study prompts and
+  checkpoint identity, using actual backend metadata in CLI, formation and
+  rehearsal callers. Forward requested pooled limits to each member; retain
+  unknown budgets for plan transports and custom or heterogeneous pools. Keep
+  complete-response checks, limits, provider eligibility and one-call behavior unchanged.
+
+- Preserve the exception class when brief synthesis fails with an empty error
+  message, without copying private exception details into the retained brief.
+  Keep the failed brief, study selection and single-attempt behavior unchanged;
+  this diagnostic repair does not establish successful local capacity.
 
 - Update only the locked Brotli decoders selected by `ddgs -> httpx[brotli]`:
   Brotli 1.2.1 and brotlicffi 1.2.1.0 address GHSA-9v8h-qqgm-4m35.
