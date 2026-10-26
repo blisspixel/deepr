@@ -14,6 +14,7 @@ from deepr.experts.consult_support import recorded_statement
 if TYPE_CHECKING:
     from deepr.experts.brief_contracts import Position
     from deepr.experts.council import ExpertPerspective
+    from deepr.experts.preparation_context import PreparedConsultation
     from deepr.experts.study_contracts import StudyFinding
 
 MAX_SYNTHESIS_PROMPT_CHARS = 16000
@@ -164,7 +165,12 @@ def brief_synthesis_blocks(context: ConsultContext) -> list[PacketBlock]:
         finding.finding_id: _finding_block(finding, sources, context.finding_sources.get(finding.finding_id))
         for finding in context.findings
     }
-    blocks = [PacketBlock("Stored research only; no live check was performed for this answer.", key="notice")]
+    blocks = [
+        PacketBlock(
+            context.preparation_notice or "Stored research only; no live check was performed for this answer.",
+            key="notice",
+        )
+    ]
     blocks.extend(_caveat_blocks(context))
     blocks.extend(
         PacketBlock(
@@ -390,7 +396,9 @@ def build_synthesis_prompt(query: str, perspectives: list[ExpertPerspective]) ->
     return build_synthesis_packet(query, perspectives)[0]
 
 
-def build_synthesis_packet(query: str, perspectives: list[ExpertPerspective]) -> tuple[str, dict[str, object]]:
+def build_synthesis_packet(
+    query: str, perspectives: list[ExpertPerspective], *, prepared: PreparedConsultation | None = None
+) -> tuple[str, dict[str, object]]:
     """The bounded synthesis prompt and a manifest of what each expert delivered.
 
     Delivery coverage is reported separately from the packet's assembly
@@ -401,16 +409,20 @@ def build_synthesis_packet(query: str, perspectives: list[ExpertPerspective]) ->
     response_form = response_form_contract(query)
     prefix = _INSTRUCTIONS + response_form_instruction(response_form)
     prefix += f"Question: {query}\n\nContributors: {len(eligible)}\n\n"
+    if prepared is not None:
+        if prepared.capture.question != query:
+            raise ValueError("prepared synthesis question mismatch")
+        prefix += prepared.mandatory_text()
     # Restate a short question after the evidence; a long one is referenced so
     # it does not consume the bounded prompt twice.
     closing = _CLOSING.format(query=query if len(query) <= _RESTATE_MAX_CHARS else "the question stated above")
     headers = [f"Expert: {perspective.expert_name}\n" for perspective in eligible]
     available = MAX_SYNTHESIS_PROMPT_CHARS - len(prefix) - len(closing) - sum(map(len, headers)) - 2 * len(headers)
-    if not eligible or available < _OMISSION_RESERVE * len(eligible):
+    if (not eligible and prepared is None) or available < max(0, _OMISSION_RESERVE * len(eligible)):
         raise ValueError(
             "Question and contributor identities exceed the bounded synthesis prompt; shorten the request."
         )
-    budget = available // len(eligible)
+    budget = available // len(eligible) if eligible else 0
     parts = []
     experts: list[dict[str, object]] = []
     for header, perspective in zip(headers, eligible):
@@ -436,6 +448,8 @@ def build_synthesis_packet(query: str, perspectives: list[ExpertPerspective]) ->
         "response_form": response_form,
         "note": "Delivery records what reached the prompt; it does not establish entailment or answer quality.",
     }
+    if prepared is not None:
+        manifest_out["preparation"] = {**prepared.binding(), "delivery": "included_whole"}
     return prefix + "\n\n".join(parts) + closing, manifest_out
 
 
@@ -454,4 +468,6 @@ def synthesis_delivery(
     }
     if manifest is not None:
         receipt["delivery_manifest"] = manifest
+        if "preparation" in manifest:
+            receipt["freshness"] = "operation_local_preparation_not_currentness_proof"
     return receipt

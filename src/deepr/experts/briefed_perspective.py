@@ -13,7 +13,10 @@ becoming the place everything lands.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from deepr.experts.preparation_context import PreparedConsultation
 
 logger = logging.getLogger(__name__)
 
@@ -67,12 +70,28 @@ def build_briefed_perspective(
     perspective_cls: Any,
     semantic_ranking: list[str] | None = None,
     routing_note: str = "",
+    *,
+    prepared: PreparedConsultation | None = None,
 ) -> Any:
     """A perspective built from the study, or None to fall back to beliefs.
 
     Never raises. A malformed artifact on disk must degrade to the belief
     path rather than take the consult down with it.
     """
+    if prepared is not None:
+        from deepr.experts.consult_context import build_consult_context
+
+        context = build_consult_context(
+            expert_name=name, question=query, brief=None, result=None, corpus=None, prepared=prepared
+        )
+    else:
+        return _build_loaded_perspective(query, name, domain, perspective_cls, semantic_ranking, routing_note)
+    return _perspective_from_context(context, name, domain, perspective_cls)
+
+
+def _build_loaded_perspective(
+    query: str, name: str, domain: str, perspective_cls: Any, semantic_ranking: list[str] | None, routing_note: str
+) -> Any:
     try:
         context = load_consult_context(query, name, semantic_ranking, routing_note)
     except Exception:  # pragma: no cover - defensive around on-disk artifacts
@@ -81,6 +100,12 @@ def build_briefed_perspective(
     if context is None:
         return None
 
+    return _perspective_from_context(context, name, domain, perspective_cls, semantic_ranking)
+
+
+def _perspective_from_context(
+    context: Any, name: str, domain: str, perspective_cls: Any, semantic_ranking: list[str] | None = None
+) -> Any:
     from deepr.experts.consult_context import render_consult_packet
     from deepr.experts.consult_prompt import brief_synthesis_blocks
     from deepr.experts.consult_support import recorded_statement

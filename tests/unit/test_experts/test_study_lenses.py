@@ -43,6 +43,8 @@ class TestDomainAgnostic:
             assert lens.prompt.strip(), f"{key} has an empty prompt"
             assert lens.output_field.strip(), f"{key} has no output field"
             assert lens.axis in {"interrogation", "perspective"}
+        assert "recorded prior belief" in LENSES["change"].prompt
+        assert "Two measurements do not establish a scaling law" in LENSES["change"].prompt
 
 
 class TestResolve:

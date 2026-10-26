@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.50.46-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.50.46)
+[![Version](https://img.shields.io/badge/version-2.51.0-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.51.0)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -26,8 +26,10 @@ learning and longitudinal proof of better judgment remain roadmap work.
 
 The next user-facing milestone is **preparation before advice by default**:
 check developments relevant to the question and environment, reconsider the
-stored perspective, then answer from a dated context. Current consultation
-uses stored expert state; explicit fresh-context maintenance is available.
+stored perspective, then answer from a dated context. Default consultation
+uses stored expert state. An experimental opt-in Python preparation slice now
+checks declared package/version coordinates through bounded PyPI metadata;
+explicit fresh-context maintenance remains a separate canonical update.
 See the [active sequence](ROADMAP.md#active-release-plan) and
 [delivery plan](docs/plans/living-expertise.md) for the baseline, preparation,
 durable learning, and repeated-use evidence gates.
@@ -316,10 +318,15 @@ artifacts. Historical runs remain inspectable; this does not collect or accept
 a new S0 baseline. See [the changelog](docs/CHANGELOG.md#25045---2026-10-22).
 
 The [next bounded sequence](ROADMAP.md#next-bounded-sequence-reviewed-2026-10-22)
-continues with a prospectively reviewed replacement baseline after the shipped
-S0 integrity repair, alongside dependency-security maintenance. Prepared consultation is
-the next user-visible feature: check the caller's environment against dated
-evidence without changing canonical expert state. It remains planned.
+now follows the prospectively reviewed replacement pilot and the shipped
+S0 integrity repair, alongside dependency-security maintenance. The
+[October 25 reviewed pilot](docs/validation/expert-baseline-2026-10-25.md)
+completed all 48 cells without establishing a practical memory benefit.
+Experimental prepared consultation is opt-in through
+`deepr expert consult -e NAME --prepare-python request.json` or MCP's
+`preparation` object. It checks declared Python package coordinates using PyPI
+metadata without changing canonical expert state. Default-on preparation,
+matched answer review and bounded live-source acceptance remain open.
 
 v2.50.44 repairs complete finding admission, consult form-failure reporting and
 source-complete diagnostic review. It publishes the completed negative packing
@@ -489,7 +496,10 @@ corrected MCP and Agent Plugins compatibility and blocked Claude plan
 execution until managed-policy commands can be confined. It did not enable
 skill execution or a claim that expert memory helps.
 
-**Next is v2.51:** one blinded four-arm evaluation of whether a maintained
+**v2.51 measurement:** the [model-reviewed October 25 pilot](docs/validation/expert-baseline-2026-10-25.md)
+is complete and did not establish a practical memory benefit. It is neither
+human-calibrated acceptance nor evidence of improved expertise. The preserved
+comparison is one blinded four-arm evaluation of whether a maintained
 expert improves repeated decisions versus fresh research, static history, and
 compiled state. That measurement comes first because Deepr's product claim is
 durable judgment, not a larger agent runtime. Host wiring, expert-authored
@@ -498,7 +508,7 @@ skills, and broader paid APIs wait until that evidence exists.
 The comparison holds the local answering model and permitted source access
 fixed. It can measure maintained state under that setup, with preprocessing
 and maintenance resources reported separately; it cannot establish superiority
-over frontier web research. The next run needs new held-out replacement inputs,
+over frontier web research. Any further run needs new held-out replacement inputs,
 a prospectively reviewed rubric and phase limits, complete generation identity,
 and exact blinded review bindings. The October diagnostic cannot become S0
 through retrospective grading. The

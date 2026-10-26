@@ -44,11 +44,23 @@ history, and research pursuits. Explicit maintenance can acquire fresh context
 and submit verified changes. Generated notebooks and memory cards expose that
 state; their regeneration does not establish new learning.
 
-Normal consultation currently uses stored expert state. Default preparation
-before advice is planned: check what changed for the question and target
-environment, reconsider its implications, and answer from a dated context.
-Until that ships, use the documented explicit fresh-context maintenance flow
-when currency matters. An update still needs review for coverage and usefulness.
+Default consultation uses stored expert state. Experimental Python preparation
+is explicit: `deepr expert consult -e NAME --prepare-python request.json`, or
+MCP `deepr_consult_experts` with a `preparation` object. It requires one named,
+formed expert, local synthesis and zero budget. It checks only caller-declared
+package/version coordinates through release-specific PyPI metadata and index
+data; it does not inspect an installed environment or establish comprehensive
+advisory, interpreter-support or API coverage. See the
+[request contract](design/prepared-consultation.md#first-opt-in-slice-one-python-environment).
+Temporary evidence and final-delivery receipts remain in private operation
+storage; canonical expert state is unchanged. Failed or duplicate preparation
+does not silently fall back to stored-only advice. Default-on preparation and
+matched useful-answer/live-source qualification remain open. Explicit
+fresh-context maintenance remains a separate canonical update.
+
+The [October 25 baseline pilot](validation/expert-baseline-2026-10-25.md)
+completed all 48 answers with model review, without establishing a practical
+memory benefit or human-calibrated semantic acceptance.
 
 The [active roadmap](../ROADMAP.md#active-release-plan) sequences baseline
 measurement, prepared consultation, finding history and temporal retrieval,

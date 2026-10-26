@@ -80,6 +80,7 @@ class LifecyclePhase(StrEnum):
     """Bounded phases that can own a consult attempt."""
 
     PREFLIGHT = "preflight"
+    PREPARATION = "preparation"
     PERSPECTIVES = "perspectives"
     SYNTHESIS = "synthesis"
     TRACE_FINALIZE = "trace_finalize"

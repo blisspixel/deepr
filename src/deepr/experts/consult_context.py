@@ -39,6 +39,10 @@ import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from deepr.experts.preparation_context import PreparedConsultation
 
 from deepr.experts.brief_attribution import orientation_statements, render_orientation
 from deepr.experts.brief_contracts import ExpertBrief, Position
@@ -95,6 +99,7 @@ class ConsultContext:
     studied_at: str = ""
     study_fingerprint: str = ""
     """The brief's study identity; finding ids are only meaningful within it."""
+    preparation_notice: str = ""
     study_binding: str = ""
     """matched, unbound, mismatch, or no_study, as resolved for this turn."""
 
@@ -317,6 +322,7 @@ def build_consult_context(
     brief: ExpertBrief | None,
     result: StudyResult | None,
     corpus: CorpusStore | None,
+    prepared: PreparedConsultation | None = None,
     semantic_ranking: list[str] | None = None,
     routing_note: str = "",
 ) -> ConsultContext:
@@ -325,6 +331,12 @@ def build_consult_context(
     No model is called here. A caller that ran a local embedding router passes
     its finding order as ``semantic_ranking`` and says so in ``routing_note``.
     """
+    if prepared is not None:
+        if prepared.capture.expert_name != expert_name or prepared.capture.question != question:
+            raise ValueError("prepared context identity mismatch")
+        context = prepared.capture.restore()
+        context.preparation_notice = prepared.notice
+        return context
     context = ConsultContext(expert_name=expert_name)
     if brief is not None:
         context.orientation = render_orientation(

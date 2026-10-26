@@ -489,3 +489,87 @@ def test_cross_process_same_key_admits_exactly_once(setup_store):
                 process.kill()
                 process.join(timeout=10)
         results.close()
+
+
+def test_private_corpus_and_model_intents_share_retention_scope(setup_store):
+    store, owner, request, now = setup_store
+    receipt = claim(store, owner, request)
+    call = store.reserve_model_call(
+        owner,
+        receipt.operation_id,
+        phase="assumptions",
+        prompt="synthetic private prompt",
+        model_digest="d" * 64,
+        options={"max_tokens": 1024},
+    )
+    store.settle_model_call(owner, receipt.operation_id, call=call, raw_response=None, status="unknown")
+    with pytest.raises(OperationConflict):
+        store.reserve_model_call(
+            owner,
+            receipt.operation_id,
+            phase="interpretation",
+            prompt="no new allowance",
+            model_digest="d" * 64,
+            options={"max_tokens": 1024},
+        )
+    now[0] += timedelta(days=8)
+    assert store.cleanup()[0]["deleted"]
+    assert not list(store.root.rglob("events.jsonl"))
+
+
+def test_operation_corpus_uses_verified_atomic_hook_and_expires(setup_store):
+    store, owner, request, now = setup_store
+    receipt = claim(store, owner, request)
+    body = b'{"info":{"name":"example","version":"1.0"}}'
+    coordinate = request.packages[0].coordinate_id
+    store.reserve_source(owner, receipt.operation_id, sequence=1, coordinate_id=coordinate, source_class="pypi_release")
+    store.retain_raw_source(owner, receipt.operation_id, digest=sha256(body), body=body)
+    corpus_hash = store.retain_corpus_source(
+        owner,
+        receipt.operation_id,
+        text=body.decode(),
+        coordinate_id=coordinate,
+        source_class="pypi_release",
+        observed_at=now[0].isoformat(),
+    )
+    observation = SourceObservation(
+        observation_id="source_1",
+        coordinate_id=coordinate,
+        source_class="pypi_release",
+        requested_at=now[0],
+        observed_at=now[0],
+        status="ok",
+        raw_sha256=sha256(body),
+        corpus_sha256=corpus_hash,
+        parsed_sha256=sha256(body),
+    )
+    frozen = freeze_packet(
+        PreparationPacket(envelope=receipt.envelope, observations=(observation,), attempts=1, stop_reason="complete")
+    )
+    store.complete(owner, receipt.operation_id, frozen, raw_sources={sha256(body): body})
+    assert store.load(owner, receipt.operation_id) == frozen
+    for path in (store.root / owner.namespace_sha256 / receipt.operation_id / "corpus").rglob("*"):
+        store.protection.verify(path, directory=path.is_dir(), protected=path.is_dir())
+    now[0] += timedelta(days=8)
+    assert store.cleanup()[0]["deleted"]
+    assert not list(store.root.rglob("*.md"))
+
+
+def test_delivery_receipts_do_not_refreeze_packet_and_bound_body_honestly(setup_store):
+    store, owner, request, _ = setup_store
+    receipt = claim(store, owner, request)
+    frozen = freeze_packet(PreparationPacket(envelope=receipt.envelope, stop_reason="offline"))
+    store.complete(owner, receipt.operation_id, frozen)
+    with pytest.raises(OperationConflict, match="body unavailable"):
+        store.record_delivery(
+            owner,
+            receipt.operation_id,
+            packet_sha256=frozen.manifest.content_sha256,
+            messages=b"x" * 131073,
+            status="dispatch_intent",
+        )
+    assert store.load(owner, receipt.operation_id) == frozen
+    events = (store.root / owner.namespace_sha256 / receipt.operation_id / "events.jsonl").read_text().splitlines()
+    event = json.loads(events[-1])
+    assert not event["body_available"] and event["messages"] is None
+    assert event["messages_sha256"] == sha256(b"x" * 131073)

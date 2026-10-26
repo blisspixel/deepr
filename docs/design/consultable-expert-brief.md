@@ -1,5 +1,20 @@
 # The consultable expert brief
 
+## Prompt clarification, 2026-10-25
+
+Retained October 21 and exposed October 25 outputs contain forecast apparatus
+on standing advice, redundant raw orientation, weak falsifiers and invented
+history/generalizations. Generation now requests orientation statements once;
+assembly still joins them and preserves legacy paragraph-only fallback. Only
+an explicit future event with a supported horizon is eligible for optional
+prediction metadata. Routine checks do not create forecasts. Falsifiers must
+address the exact stance and scope, and source chronology cannot manufacture
+an expert's earlier belief, a successful user population or a scaling law.
+The change lens shares those scope/history instructions. These are model
+guidance and output-form clarifications, not semantic validation. Existing
+raw receipts, historical briefs and S0 outputs remain unchanged. Whole-output
+source-grounded review is still required; no lexical semantic gate is added.
+
 ## The problem
 
 A Deepr expert could report what it read. It could not be consulted.

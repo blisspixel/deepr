@@ -14,12 +14,23 @@ from typing import TYPE_CHECKING, Any
 
 from deepr.mcp import protocol_modern as pm
 from deepr.mcp.protocol_compat import LEGACY_METHOD_MAP
-from deepr.mcp.request_context import current_mcp_request_identity
+from deepr.mcp.request_context import current_mcp_request_identity, trusted_stdio_request
 
 if TYPE_CHECKING:
     from deepr.mcp.server import DeeprMCPServer
 
 MethodHandler = Callable[["DeeprMCPServer", dict[str, Any]], Awaitable[dict[str, Any]]]
+
+
+def bind_stdio_method(server: DeeprMCPServer, method: str) -> Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]:
+    """Bind one real stdio method with process-scoped request authority."""
+
+    async def handler(params: dict[str, Any]) -> dict[str, Any]:
+        with trusted_stdio_request():
+            return await dispatch_protocol_method(server, method, params)
+
+    return handler
+
 
 # Removed by the 2026-07-28 stateless core: modern requests to these return
 # method-not-found. initialize is replaced by per-request _meta plus

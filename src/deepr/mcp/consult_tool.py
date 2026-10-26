@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import logging
 from dataclasses import replace
 from math import isfinite
 from typing import Any
@@ -16,6 +18,7 @@ from deepr.experts.consult_transaction import (
     execute_consult_transaction,
     requested_consult_capacity,
 )
+from deepr.experts.preparation_contracts import PreparationRequest
 
 CONSULT_EXPERTS_OUTPUT_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -142,6 +145,38 @@ CONSULT_EXPERTS_INPUT_SCHEMA: dict[str, Any] = {
     "required": ["question"],
 }
 
+PREPARATION_UNSET = object()
+_PREPARATION_SCHEMA = PreparationRequest.model_json_schema()
+CONSULT_EXPERTS_INPUT_SCHEMA["$defs"] = _PREPARATION_SCHEMA.pop("$defs", {})
+_PREPARATION_SCHEMA["properties"]["enabled"]["const"] = True
+CONSULT_EXPERTS_INPUT_SCHEMA["properties"]["preparation"] = _PREPARATION_SCHEMA
+
+
+def _preparation_admission(value: object, experts: list[str], backend: str, budget: float) -> tuple[Any, list[str]]:
+    from deepr.config import runtime_data_path
+    from deepr.experts.preparation_service import PreparationAdmission
+    from deepr.experts.profile_store import ExpertStore
+    from deepr.mcp.request_context import current_mcp_request_identity, prepared_request_scope
+
+    if backend != "local" or budget != 0 or len(experts) != 1 or not experts[0].strip():
+        raise ValueError("Prepared consultation requires one explicit expert and zero-cost local capacity")
+    identity = current_mcp_request_identity()
+    # Validate actual transport authentication before profile lookup. Canonical
+    # expert admission follows the read-only alias lookup, before private work.
+    authority_probe = identity.expert_allowlist[0] if identity is not None and identity.expert_allowlist else experts[0]
+    prepared_request_scope(authority_probe)
+    if not isinstance(value, dict):
+        raise ValueError("Preparation must be an object")
+    request = PreparationRequest.from_json(json.dumps(value, allow_nan=False).encode("utf-8"))
+    profile = ExpertStore(create=False).load(experts[0], persist_migration=False)
+    if profile is None:
+        raise ValueError("Prepared expert unavailable")
+    canonical = profile.name
+    owner = prepared_request_scope(canonical)
+    return PreparationAdmission(request=request, owner=owner, root=runtime_data_path("preparation").absolute()), [
+        canonical
+    ]
+
 
 def _error(code: str, message: str, *, retryable: bool = False, trace_id: str = "") -> dict[str, Any]:
     payload = {
@@ -153,6 +188,30 @@ def _error(code: str, message: str, *, retryable: bool = False, trace_id: str = 
     if trace_id:
         payload["trace_id"] = trace_id
     return payload
+
+
+def log_tool_execution_failure(logger: logging.Logger, name: str, arguments: dict[str, Any]) -> None:
+    """Keep prepared exception bodies out of shared transport logs."""
+    if name == "deepr_consult_experts" and "preparation" in arguments:
+        logger.warning("Prepared consultation tool failed")
+    else:
+        logger.exception("Tool %s failed", name)
+
+
+def _consult_exception(error: Exception, *, prepared: bool) -> dict[str, Any]:
+    if prepared:
+        if isinstance(error, consult_core.ConsultBackendError):
+            return _error("PREPARATION_BACKEND_UNAVAILABLE", "Prepared local backend unavailable")
+        if isinstance(error, ConsultElapsedLimitError):
+            return _error("PREPARATION_ELAPSED_LIMIT", "Prepared consultation elapsed limit reached")
+        if isinstance(error, ConsultStorageError):
+            return _error("PREPARATION_STORAGE_FAILED", "Prepared consultation storage failed")
+        return _error("PREPARATION_FAILED", "Prepared consultation failed")
+    if isinstance(error, ConsultElapsedLimitError | ConsultStorageError):
+        code = "CONSULT_ELAPSED_LIMIT" if isinstance(error, ConsultElapsedLimitError) else error.error_code
+        return _error(code, str(error), retryable=error.retryable, trace_id=error.trace_id)
+    code = "CONSULT_BACKEND_UNAVAILABLE" if isinstance(error, consult_core.ConsultBackendError) else "CONSULT_FAILED"
+    return _error(code, str(error), trace_id=str(getattr(error, "consult_trace_id", "")))
 
 
 def _runtime_type_error(
@@ -284,6 +343,7 @@ async def consult_experts_tool(
     allow_metered_api: bool = False,
     confirm_metered_cost: bool = False,
     max_elapsed_seconds: float = DEFAULT_CONSULT_MAX_ELAPSED_SECONDS,
+    preparation: Any = PREPARATION_UNSET,
 ) -> dict[str, Any]:
     """Run the MCP expert council consult tool."""
     runtime_error = _runtime_type_error(
@@ -321,6 +381,15 @@ async def consult_experts_tool(
         return validation_error
 
     requested_experts = list(experts or [])
+    preparation_options: dict[str, Any] = {}
+    if preparation is not PREPARATION_UNSET:
+        try:
+            admission, requested_experts = _preparation_admission(
+                preparation, requested_experts, backend_mode, effective_budget
+            )
+        except Exception:
+            return _error("PREPARATION_REFUSED", "Prepared consultation admission refused")
+        preparation_options["preparation"] = admission
     capacity_request = _requested_capacity(
         backend_mode=backend_mode,
         provider=provider,
@@ -359,30 +428,7 @@ async def consult_experts_tool(
             requested_capacity=capacity_request,
             max_elapsed_seconds=max_elapsed_seconds,
             run_consult_fn=consult_core.run_consult,
-        )
-    except consult_core.ConsultBackendError as exc:
-        return _error(
-            "CONSULT_BACKEND_UNAVAILABLE",
-            str(exc),
-            trace_id=str(getattr(exc, "consult_trace_id", "")),
-        )
-    except ConsultElapsedLimitError as exc:
-        return _error(
-            "CONSULT_ELAPSED_LIMIT",
-            str(exc),
-            retryable=exc.retryable,
-            trace_id=exc.trace_id,
-        )
-    except ConsultStorageError as exc:
-        return _error(
-            exc.error_code,
-            str(exc),
-            retryable=exc.retryable,
-            trace_id=exc.trace_id,
+            **preparation_options,
         )
     except Exception as exc:
-        return _error(
-            "CONSULT_FAILED",
-            str(exc),
-            trace_id=str(getattr(exc, "consult_trace_id", "")),
-        )
+        return _consult_exception(exc, prepared=preparation is not PREPARATION_UNSET)

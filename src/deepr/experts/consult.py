@@ -25,7 +25,11 @@ import os
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from deepr.experts.council import ExpertPerspective
+    from deepr.experts.preparation_context import PreparedConsultation
 
 from deepr.experts.constants import SYNTHESIS_BUDGET_FRACTION
 
@@ -56,6 +60,26 @@ class ConsultSynthesisBackend:
     note: str = ""
     tos_note: str = ""
     model_selection: str = ""
+
+
+def requested_consult_capacity(
+    *,
+    backend_mode: str,
+    provider: str = "",
+    model: str = "",
+) -> dict[str, object]:
+    """Build pre-dispatch capacity metadata without constructing a backend."""
+    normalized_mode = backend_mode.strip().lower()
+    if normalized_mode not in {"api", "local", "plan"}:
+        raise ValueError("backend_mode must be api, local, or plan")
+    return {
+        "source": normalized_mode,
+        "backend": normalized_mode,
+        "provider": provider,
+        "model": model,
+        "admission": "unknown",
+        "live_metered_fallback": False,
+    }
 
 
 def _sha256(value: str) -> str:
@@ -225,6 +249,40 @@ async def resolve_consult_local_model(experts: list[str], explicit_model: str | 
     return model, source
 
 
+def build_council_result(
+    query: str,
+    budget: float,
+    perspectives: list[ExpertPerspective],
+    synthesis: dict[str, Any],
+    synthesis_cost: float,
+) -> dict[str, Any]:
+    return {
+        "query": query,
+        "perspectives": [
+            {
+                "expert_name": perspective.expert_name,
+                "domain": perspective.domain,
+                "response": perspective.response,
+                "confidence": perspective.confidence,
+                "cost": perspective.cost,
+                "context": dict(perspective.context),
+            }
+            for perspective in perspectives
+        ],
+        "synthesis": synthesis.get("text", ""),
+        "agreements": synthesis.get("agreements", []),
+        "disagreements": synthesis.get("disagreements", []),
+        "synthesis_status": synthesis.get("synthesis_status", "completed"),
+        "synthesis_error_type": synthesis.get("synthesis_error_type", ""),
+        "synthesis_stop_reason": synthesis.get("stop_reason", ""),
+        "context_delivery": synthesis.get("context_delivery", {}),
+        **({"preparation_delivery": synthesis["preparation_delivery"]} if "preparation_delivery" in synthesis else {}),
+        "response_form": synthesis.get("response_form", {}),
+        "requested_budget_usd": budget,
+        "total_cost": sum(perspective.cost for perspective in perspectives) + synthesis_cost,
+    }
+
+
 def build_consult_payload(question: str, result: dict[str, Any]) -> dict[str, Any]:
     """Shape a council result into the versioned consult artifact.
 
@@ -253,7 +311,9 @@ def build_consult_payload(question: str, result: dict[str, Any]) -> dict[str, An
         "contract": {
             "stability": "experimental",
             "cost_usd": cost,
-            "consultation_mode": "one_shot_stored_context_synthesis",
+            "consultation_mode": "one_shot_prepared_context_synthesis"
+            if "preparation_delivery" in result
+            else "one_shot_stored_context_synthesis",
             "expert_generation_calls": 0,
             "maximum_synthesis_calls": 1,
             "experts_exchange_turns": False,
@@ -268,6 +328,7 @@ def build_consult_payload(question: str, result: dict[str, Any]) -> dict[str, An
         "synthesis_error_type": result.get("synthesis_error_type", "") or "",
         "synthesis_stop_reason": result.get("synthesis_stop_reason", "") or "",
         "context_delivery": dict(result.get("context_delivery") or {}),
+        **({"preparation_delivery": dict(result["preparation_delivery"])} if "preparation_delivery" in result else {}),
         "response_form": dict(result.get("response_form") or {}),
         "experts_consulted": [p.get("expert_name", "") for p in perspectives],
         "perspectives": shaped_perspectives,
@@ -501,6 +562,8 @@ def record_consult_payload_trace(
     trace_id: str | None = None,
     path: Path | None = None,
     lock_timeout_seconds: float = 5.0,
+    protected_preparation: bool = False,
+    preparation_reference: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Enrich and append one consult trace before exposing its public reference.
 
@@ -525,6 +588,11 @@ def record_consult_payload_trace(
             )
         except Exception:
             routing = None
+    privacy_kwargs: dict[str, Any] = {}
+    if protected_preparation:
+        privacy_kwargs["protected_preparation"] = True
+    if preparation_reference is not None:
+        privacy_kwargs["preparation_reference"] = preparation_reference
     trace_ref = record_consult_trace(
         path=path,
         question=question,
@@ -537,6 +605,7 @@ def record_consult_payload_trace(
         routing=routing,
         trace_id=shared_trace_id,
         lock_timeout_seconds=lock_timeout_seconds,
+        **privacy_kwargs,
     )
     payload["trace"] = trace_ref
     return trace_ref
@@ -601,6 +670,8 @@ async def run_consult(
     synthesis_provider: str = "openai",
     allow_live_fallback: bool = False,
     progress_callback: Any = None,
+    prepared: PreparedConsultation | None = None,
+    preparation_delivery_callback: Any = None,
 ) -> dict[str, Any]:
     """Resolve experts (explicit or auto-selected) and run one bounded council."""
     from deepr.experts.constants import UTILITY_MODEL
@@ -611,7 +682,16 @@ async def run_consult(
     if isinstance(budget, bool) or not isinstance(budget, (int, float)) or not math.isfinite(budget) or budget < 0:
         raise ValueError("budget must be finite and non-negative.")
 
-    if experts:
+    if prepared is not None:
+        if (
+            experts != [prepared.capture.expert_name]
+            or question != prepared.capture.question
+            or synthesis_provider != "local"
+            or allow_live_fallback
+        ):
+            raise ValueError("prepared consultation requires its captured single expert and local synthesis")
+        chosen = [{"name": prepared.capture.expert_name, "domain": prepared.capture.domain}]
+    elif experts:
         if len(experts) > MAX_CONSULT_EXPERTS:
             raise ValueError(f"Consult roster cannot exceed {MAX_CONSULT_EXPERTS} experts.")
         chosen = resolve_explicit_expert_choices(experts)
@@ -620,12 +700,18 @@ async def run_consult(
 
     from deepr.experts.consult_routing import configured_finding_router
 
+    prepared_kwargs = (
+        {}
+        if prepared is None
+        else {"prepared": prepared, "preparation_delivery_callback": preparation_delivery_callback}
+    )
     council = ExpertCouncil(
         synthesis_client=synthesis_client,
         synthesis_model=synthesis_model or UTILITY_MODEL,
         synthesis_provider=synthesis_provider,
         allow_live_fallback=allow_live_fallback,
-        finding_router=configured_finding_router(),
+        finding_router=None if prepared is not None else configured_finding_router(),
+        **prepared_kwargs,
     )
     if chosen is None:
         chosen = await council.select_experts(question, max_experts=max_experts)

@@ -361,6 +361,15 @@ jobs:
           tests/unit/test_experts/test_preparation_contracts.py
           tests/unit/test_experts/test_preparation_store.py
           tests/unit/test_experts/test_preparation_acquisition.py
+          tests/unit/test_experts/test_preparation_context.py
+          tests/unit/test_experts/test_preparation_privacy.py
+          tests/unit/test_experts/test_preparation_service.py
+          tests/unit/test_experts/test_prepared_consult_transaction.py
+          tests/unit/test_experts/test_prepared_consult_integration.py
+          tests/unit/test_cli/test_expert_consult.py
+          tests/unit/test_mcp/test_prepared_consult_tool.py
+          tests/unit/test_mcp/test_request_context.py
+          tests/unit/test_mcp/test_scoped_keys.py
           tests/unit/test_services/test_batch_executor.py
       - name: Audit the platform dependency branch
         run: pip-audit --skip-editable

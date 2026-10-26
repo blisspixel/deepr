@@ -112,6 +112,9 @@ class TestPromptContract:
         assert "would_change_my_mind" in prompt
         assert "supported_by" in prompt
         assert "assertion" in prompt
+        assert "same subject, scope and conditions" in prompt
+        assert "Do not invent earlier expert beliefs" in prompt
+        assert '"orientation":' not in prompt
 
     def test_prompt_registers_predictions_prospectively(self):
         prompt = build_brief_prompt(
@@ -122,6 +125,8 @@ class TestPromptContract:
         assert "falsifier_resolution_criterion" in prompt
         assert "falsifier_resolution_date" in prompt
         assert "2026-08-30" in prompt
+        assert "explicit future event" in prompt
+        assert "routine recheck is not a forecast" in prompt
 
     def test_prompt_forbids_averaging_dissent(self):
         prompt = build_brief_prompt(_result([_finding("F1")]), expert_name="E")

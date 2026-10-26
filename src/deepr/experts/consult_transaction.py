@@ -12,8 +12,12 @@ from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
+if TYPE_CHECKING:
+    from deepr.experts.preparation_service import PreparationAdmission
+
+from deepr.experts.consult import requested_consult_capacity as requested_consult_capacity
 from deepr.experts.consult_lifecycle import (
     ConsultLifecycle,
     ConsultLifecycleElapsedLimitError,
@@ -28,12 +32,22 @@ from deepr.experts.consult_traces import (
     ConsultTraceStorageError,
     new_consult_trace_id,
     record_consult_trace,
+    record_failed_consult_trace,
+    try_record_failed_consult_trace,
 )
 from deepr.experts.consult_transaction_errors import (
     ConsultElapsedLimitError,
     ConsultStorageError,
     ConsultStorageIOError,
     ConsultStorageLockTimeoutError,
+    _ConsultDeadlineReached,
+)
+from deepr.experts.preparation_context import verify_finalized_canonical
+from deepr.experts.preparation_privacy import (
+    admit_preparation_capacity,
+    prepared_trace_kwargs,
+    safe_preparation_reference,
+    safe_prepared_capacity,
 )
 
 DEFAULT_CONSULT_MAX_ELAPSED_SECONDS = 600.0
@@ -46,10 +60,6 @@ _RunConsultFn = Callable[..., Awaitable[dict[str, Any]]]
 _BackendFactory = Callable[[], Any | Awaitable[Any]]
 
 
-class _ConsultDeadlineReached(Exception):
-    """Internal marker that distinguishes the host ceiling from provider timeouts."""
-
-
 @dataclass(frozen=True)
 class _ConsultRequest:
     question: str
@@ -60,6 +70,7 @@ class _ConsultRequest:
     trace_id: str
     trace_path: Path | None
     max_elapsed_seconds: float
+    preparation: PreparationAdmission | None = None
 
 
 @dataclass
@@ -67,12 +78,15 @@ class _TransactionState:
     lifecycle: ConsultLifecycle
     bounds: Mapping[str, int | float | str]
     final_capacity: Mapping[str, object]
+    protected_preparation: bool = False
+    preparation_reference: dict[str, str] = field(default_factory=dict)
     phase: LifecyclePhase = LifecyclePhase.PREFLIGHT
     final_trace_recorded: bool = False
     lifecycle_terminal_recorded: bool = False
     observed_cost_usd: float = 0.0
     completed_work_items: set[str] = field(default_factory=set)
     provider_work_started: bool = False
+    verify_canonical: Callable[[], None] = field(default=lambda: None, repr=False)
     progress_lock: asyncio.Lock = field(default_factory=asyncio.Lock, repr=False)
 
     def progress(self) -> dict[str, int | float]:
@@ -147,26 +161,6 @@ def one_shot_consult_bounds(
         "dispatch_scope": "council_work_item",
         "max_cost_usd": float(budget),
         "max_dispatches": work_items,
-    }
-
-
-def requested_consult_capacity(
-    *,
-    backend_mode: str,
-    provider: str = "",
-    model: str = "",
-) -> dict[str, object]:
-    """Build pre-dispatch capacity metadata without constructing a backend."""
-    normalized_mode = backend_mode.strip().lower()
-    if normalized_mode not in {"api", "local", "plan"}:
-        raise ValueError("backend_mode must be api, local, or plan")
-    return {
-        "source": normalized_mode,
-        "backend": normalized_mode,
-        "provider": provider,
-        "model": model,
-        "admission": "unknown",
-        "live_metered_fallback": False,
     }
 
 
@@ -333,42 +327,12 @@ async def _invoke_with_heartbeats(
     return result
 
 
-def _record_failed_trace(
-    *,
-    trace_id: str,
-    trace_path: Path | None,
-    question: str,
-    requested_experts: list[str],
-    max_experts: int,
-    budget: float,
-    capacity: Mapping[str, object],
-    stage: str,
-    error: BaseException,
-    lock_timeout_seconds: float,
-) -> None:
-    record_consult_trace(
-        path=trace_path,
-        question=question,
-        requested_experts=requested_experts,
-        max_experts=max_experts,
-        budget=budget,
-        capacity=dict(capacity),
-        failure={"stage": stage, "error_type": type(error).__name__, "message": str(error)},
-        trace_id=trace_id,
-        lock_timeout_seconds=lock_timeout_seconds,
-    )
+def _record_failed_trace(**kwargs: Any) -> None:
+    record_failed_consult_trace(writer=record_consult_trace, **kwargs)
 
 
 def _record_failed_trace_without_masking(**kwargs: Any) -> None:
-    """Keep lifecycle termination authoritative if final trace storage also fails."""
-    try:
-        _record_failed_trace(**kwargs)
-    except Exception as exc:
-        logger.warning(
-            "Could not finalize failed consult trace %s (%s)",
-            kwargs.get("trace_id", ""),
-            type(exc).__name__,
-        )
+    try_record_failed_consult_trace(writer=_record_failed_trace, logger=logger, **kwargs)
 
 
 def _attach_trace_id(error: BaseException, trace_id: str) -> None:
@@ -435,6 +399,8 @@ def _start_transaction_state(
         max_experts=request.max_experts,
         budget=request.budget,
     )
+    if request.preparation is not None:
+        bounds.update(dispatch_scope="prepared_work_item", max_dispatches=int(bounds["max_dispatches"]) + 2)
     lifecycle = ConsultLifecycle.start(
         trace_id=request.trace_id,
         path=lifecycle_path,
@@ -447,6 +413,7 @@ def _start_transaction_state(
         lifecycle=lifecycle,
         bounds=bounds,
         final_capacity=_final_trace_capacity(requested_capacity),
+        protected_preparation=request.preparation is not None,
     )
 
 
@@ -470,7 +437,9 @@ async def _construct_backend(
         partial(
             state.lifecycle.heartbeat,
             phase=LifecyclePhase.PREFLIGHT,
-            capacity=_resolved_lifecycle_capacity(requested_capacity, backend),
+            capacity=safe_prepared_capacity(_resolved_lifecycle_capacity(requested_capacity, backend))
+            if state.protected_preparation
+            else _resolved_lifecycle_capacity(requested_capacity, backend),
         )
     )
     if on_backend_ready is not None:
@@ -499,9 +468,37 @@ async def _run_generation(
     run_consult_fn: _RunConsultFn | None,
     heartbeat_interval_seconds: float,
 ) -> dict[str, Any]:
+    selected_run_consult = _selected_run_consult(run_consult_fn)
+    prepared_kwargs: dict[str, Any] = {}
+    if request.preparation is not None:
+        from deepr.experts.preparation_service import prepare_for_transaction
+
+        async def irreversible(name: str) -> None:
+            state.provider_work_started = True
+            await state.record_progress(name, "started")
+
+        state.phase = LifecyclePhase.PREPARATION
+        preparation_operation = prepare_for_transaction(
+            request.preparation,
+            question=request.question,
+            expert_name=request.requested_experts[0],
+            backend=backend,
+            deadline=asyncio.get_running_loop().time() + state.lifecycle.remaining_elapsed_seconds(),
+            trace_id=request.trace_id,
+            on_irreversible_work=irreversible,
+        )
+        preparation = await _run_with_heartbeats(
+            preparation_operation,
+            lifecycle=state.lifecycle,
+            phase=lambda: state.phase,
+            interval_seconds=heartbeat_interval_seconds,
+        )
+        state.preparation_reference = preparation.reference
+        prepared_kwargs = preparation.consult_kwargs
+        state.verify_canonical = prepared_kwargs["prepared"].capture.verify_canonical
+        state.completed_work_items.update({"__preparation_assumptions__", "__preparation_interpretation__"})
     state.phase = LifecyclePhase.PERSPECTIVES
     await _run_sync_durable(partial(state.lifecycle.heartbeat, phase=state.phase))
-    selected_run_consult = _selected_run_consult(run_consult_fn)
     state.provider_work_started = True
     operation = selected_run_consult(
         request.question,
@@ -513,6 +510,7 @@ async def _run_generation(
         synthesis_provider=backend.provider,
         allow_live_fallback=backend.allow_live_fallback,
         progress_callback=state.record_progress,
+        **prepared_kwargs,
     )
     return await _run_with_heartbeats(
         operation,
@@ -610,8 +608,10 @@ def _finalize_result(
         trace_id=request.trace_id,
         path=request.trace_path,
         lock_timeout_seconds=lock_timeout_seconds,
+        **prepared_trace_kwargs(state.protected_preparation, state.preparation_reference),
     )
     state.final_trace_recorded = True
+    state.verify_canonical()
     synthesis_status = str(payload.get("synthesis_status", "failed"))
     successful = synthesis_status in _SUCCESSFUL_SYNTHESIS_STATES and not cost_bound_exceeded
     terminal_state = LifecycleState.COMPLETED if successful else LifecycleState.FAILED
@@ -627,6 +627,7 @@ def _finalize_result(
         progress=state.progress(),
     )
     state.lifecycle_terminal_recorded = True
+    verify_finalized_canonical(state.verify_canonical, state.preparation_reference, terminal_state.value)
     return payload
 
 
@@ -675,6 +676,10 @@ def _record_transaction_failure(
 ) -> None:
     if state.lifecycle_terminal_recorded:
         return
+    if state.protected_preparation:
+        reference = error.__dict__.get("preparation_reference")
+        if isinstance(reference, Mapping):
+            state.preparation_reference.update(safe_preparation_reference(reference))
     _record_failed_trace_without_masking(
         trace_id=request.trace_id,
         trace_path=request.trace_path,
@@ -686,6 +691,7 @@ def _record_transaction_failure(
         stage=stage,
         error=error,
         lock_timeout_seconds=state.lifecycle.remaining_elapsed_seconds(),
+        **prepared_trace_kwargs(state.protected_preparation, state.preparation_reference),
     )
 
 
@@ -857,12 +863,21 @@ async def execute_consult_transaction(
     run_consult_fn: Callable[..., Awaitable[dict[str, Any]]] | None = None,
     on_started: Callable[[str], Any | Awaitable[Any]] | None = None,
     on_backend_ready: Callable[[Any], Any | Awaitable[Any]] | None = None,
+    preparation: PreparationAdmission | None = None,
 ) -> dict[str, Any]:
     """Execute one consult with pre-dispatch state, heartbeats, and one terminal event."""
     _validate_max_elapsed(max_elapsed_seconds)
     _validate_budget(budget)
     _validate_heartbeat_interval(heartbeat_interval_seconds)
     shared_trace_id = trace_id or new_consult_trace_id()
+    requested_capacity = admit_preparation_capacity(
+        preparation,
+        backend_mode=backend_mode,
+        budget=budget,
+        requested_experts=requested_experts,
+        trace_id=shared_trace_id,
+        requested_capacity=requested_capacity,
+    )
     request = _ConsultRequest(
         question=question,
         requested_experts=requested_experts,
@@ -872,6 +887,7 @@ async def execute_consult_transaction(
         trace_id=shared_trace_id,
         trace_path=trace_path,
         max_elapsed_seconds=max_elapsed_seconds,
+        preparation=preparation,
     )
     try:
         state = await _start_transaction_state_durable(

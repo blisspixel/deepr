@@ -4,6 +4,23 @@
 
 ## Next round
 
+**2026-10-25 brief clarification:** generation instructions now distinguish
+future-event forecasts from standing advice, require same-claim revision
+conditions, avoid invented history/scaling and request orientation statements
+once. Legacy loading and raw historical evidence remain unchanged. This is
+implemented prompt clarification; whole-output semantic repair is unproven.
+
+**2026-10-25 current checkpoint:** the
+[model-reviewed replacement S0 pilot](docs/validation/expert-baseline-2026-10-25.md)
+completed all 48 cells without establishing practical memory benefit. This
+finishes the scoped pilot measurement, not human-calibrated semantic acceptance
+or repeated-use expertise. Earlier failed trials remain retained. Experimental
+S1 preparation is implemented through the shared CLI/MCP transaction and
+fixture-backed privacy, accounting and delivery seams. Default consultation
+remains stored-only. Next S1 evidence is matched preparation-on/off whole-answer
+review and a bounded authorized live-source smoke; default-on and broader
+sources remain gated. No increased autonomy follows from the negative baseline.
+
 Completed reader, recovery, inspection, lifecycle, first-run, decision-review,
 local accounting, embedding and interface repairs are in
 [the changelog](docs/CHANGELOG.md). v2.50.43 repairs guarded absorption,
@@ -18,10 +35,10 @@ contrast-phrase contradiction label, and partially corrects consult length
 adherence. Exact-main CI and public installation are release acceptance
 checks. v2.50.44 records the completed bounded correction measurement and
 evaluated/rejected packing comparison with compatible repairs. Completed #258
-and #259 work is in the changelog; rejected candidates remain unshipped and S0
-remains open.
+and #259 work is in the changelog; rejected candidates remain unshipped.
+The scoped S0 pilot is complete; human-calibrated semantic acceptance remains open.
 
-- [ ] **v2.51 is S0.** Freeze prospectively reviewed replacement source worlds,
+- [x] **v2.51 S0 scoped pilot measurement.** Freeze prospectively reviewed replacement source worlds,
   policy, case inventory and rubric, then run the 48-cell local rehearsal.
   Preserve the earlier failed runs
   and do not silently substitute inputs or a model. Publish terminal results,
@@ -318,9 +335,10 @@ That rank is not the time a claim stopped being true. A missing
   the limit omits them. Placeholder form values are not recorded dissent.
   `dissent_preserved` reports that delivery and does not judge the answer.
   S0 remains open. No spend authority changes.
-- [ ] **2. S0 baseline.** Run the frozen 48-cell local rehearsal on the
-  existing harness. Publish the dated record, including failures. Human
-  review is recorded before the arm key is revealed. A negative result
+- [x] **2. S0 scoped pilot baseline.** Run the frozen 48-cell local rehearsal on the
+  existing harness. Publish the dated record, including failures. Model
+  review was frozen before the arm key was revealed, under the explicit
+  operator amendment; no human review is claimed. A negative result
   finishes the measurement. It does not open autonomy, metered refresh, or
   automatic belief updates. The 2026-10-20 replacement diagnostic has no
   prospectively approved rubric and cannot satisfy this baseline gate.
@@ -329,6 +347,9 @@ That rank is not the time a claim stopped being true. A missing
   that were not done, and premises the question assumed. Canonical beliefs,
   positions, study, and the wiki do not change because a question arrived.
   `sync --local --fresh-context` stays a separate operator write.
+  **2026-10-25:** opt-in Python/PyPI integration is implemented with offline
+  fixtures; paired whole-answer review and bounded live-source acceptance are
+  still open. Default-on preparation is not qualified.
 - [ ] **4. S2 durable ends on the answer path.** A revision keeps the
   predecessor addressable. A point-in-time read uses closed, explicitly in
   force, or unknown. Position `superseded_at` stays record time. Do not
@@ -906,7 +927,7 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.50.46)
+## Current Status (v2.51.0)
 
 v2.50.45 completes the offline rehearsal identity preflight and verifies mixed
 terminal outcomes through existing artifacts. No new S0 run or semantic
@@ -4291,7 +4312,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.50.46. This roadmap keeps
+v2.51.0. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 

@@ -156,6 +156,8 @@ class SourceObservation(FrozenModel):
     raw_sha256: Digest | None = None
     corpus_sha256: Digest | None = None
     parsed_sha256: Digest | None = None
+    metadata_projection_json: Annotated[str, Field(max_length=32768)] | None = None
+    metadata_projection_sha256: Digest | None = None
     response_date: Annotated[str, Field(max_length=256)] | None = None
     last_modified: Annotated[str, Field(max_length=256)] | None = None
     etag: Annotated[str, Field(max_length=512)] | None = None
@@ -174,6 +176,17 @@ class SourceObservation(FrozenModel):
     def returned_bytes_identity(self) -> SourceObservation:
         if self.status == "ok" and (self.raw_sha256 is None or self.parsed_sha256 is None):
             raise ValueError("successful observations require raw and parsed identities")
+        if (self.metadata_projection_json is None) != (self.metadata_projection_sha256 is None):
+            raise ValueError("metadata projection requires bytes and identity together")
+        if self.metadata_projection_json is not None:
+            projection = json.loads(self.metadata_projection_json)
+            encoded = self.metadata_projection_json.encode("utf-8")
+            if (
+                not isinstance(projection, dict)
+                or canonical_bytes(projection) != encoded
+                or sha256(encoded) != self.metadata_projection_sha256
+            ):
+                raise ValueError("metadata projection must be canonical and hash-bound")
         if self.observed_at < self.requested_at:
             raise ValueError("observation precedes request")
         return self
@@ -198,6 +211,7 @@ class Omission(FrozenModel):
 class Interpretation(FrozenModel):
     """Bounded model output form; code does not judge entailment or disagreement."""
 
+    comparison_status: Literal["changed", "no_change", "unchecked"] = "unchecked"
     conflicts: Annotated[tuple[Conflict, ...], Field(max_length=24)] = ()
     implications: Annotated[tuple[Implication, ...], Field(max_length=24)] = ()
     limitations: Annotated[tuple[Reason, ...], Field(max_length=24)] = ()
@@ -270,7 +284,14 @@ def freeze_packet(packet: PreparationPacket) -> FrozenPreparation:
     """Derive a minimal review and graph from the same validated frozen bytes."""
     content = canonical_bytes(packet)
     restored = PreparationPacket.model_validate_json(content)
-    lines = ["# Temporary preparation", "", f"Status: {restored.stop_reason}", "", "Advisory coverage: not examined."]
+    lines = [
+        "# Temporary preparation",
+        "",
+        f"Status: {restored.stop_reason}",
+        f"Packet SHA256: {sha256(content)}",
+        "",
+        "Comprehensive advisory coverage: not examined. Returned adverse metadata remains evidence.",
+    ]
     nodes = []
     for assumption in restored.assumptions:
         lines += [
@@ -286,7 +307,16 @@ def freeze_packet(packet: PreparationPacket) -> FrozenPreparation:
         ]
         lines += [f"Check: {check}" for check in observation.checks]
         lines += [f"Limit: {limit}" for limit in observation.limitations]
-        nodes.append({"id": observation.observation_id, "coordinate_id": observation.coordinate_id})
+        lines += [
+            f"Raw SHA256: {observation.raw_sha256}",
+            f"Parsed SHA256: {observation.parsed_sha256}",
+            f"Metadata projection SHA256: {observation.metadata_projection_sha256}",
+            "Metadata projection (untrusted evidence):",
+            "```json",
+            observation.metadata_projection_json or "null",
+            "```",
+        ]
+        nodes.append({"id": observation.observation_id, **observation.model_dump(mode="json")})
     for conflict in restored.interpretation.conflicts:
         lines += [
             "",
@@ -301,6 +331,7 @@ def freeze_packet(packet: PreparationPacket) -> FrozenPreparation:
     markdown = ("\n".join(lines) + "\n").encode("utf-8")
     graph = canonical_bytes(
         {
+            "packet_sha256": sha256(content),
             "observations": nodes,
             "conflicts": [item.model_dump() for item in restored.interpretation.conflicts],
             "implications": [item.model_dump() for item in restored.interpretation.implications],

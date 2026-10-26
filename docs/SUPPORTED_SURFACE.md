@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.50.46 current main, 2026-10-22. This document defines what users and host
+Status: v2.51.0 current main, 2026-10-25. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -178,11 +178,30 @@ Briefing supports historical cutoffs.
 The next product gate is v2.51 value evidence, not paid dispatch or a
 generic agent runtime. See [what's next and why](../ROADMAP.md#active-release-plan).
 
-**Planned consultation preparation:** normal consultation currently uses stored
-expert state. Explicit fresh-context maintenance exists; automatic preparation
-for each question does not. The next user-facing increment checks relevant
-current sources before answering, without automatically applying expert-state
-changes. See [S1 and its acceptance gate](plans/living-expertise.md#s1-prepare-before-consultation-with-bounded-temporary-evidence).
+**Experimental opt-in Python preparation:** default consultation remains
+`stored_context_only`. CLI `expert consult -e NAME --prepare-python PATH` and
+MCP `deepr_consult_experts(preparation=...)` admit the strict
+`deepr-python-preparation-request-v1` object with enabled true, request identity,
+declared interpreter/platform and one to three package/version coordinates.
+One explicit formed expert, local synthesis and zero budget are required.
+Release-specific PyPI JSON and project-index metadata are the only source
+classes; coordinates alone leave the machine. Model assumption/interpretation
+calls and acquisition have cumulative bounded allowances, retained evidence
+and explicit omissions. This is not installed-environment discovery, complete
+advisory coverage or proof of API compatibility. HTTP requires an authenticated
+scoped key even on loopback, with canonical expert allowlist admission; stdio
+uses process-scoped OS authority. Private packets, sources, captured context
+and final-message/answer receipts are owner-bound; shared traces contain hashes
+and fixed operational fields. Failed, cancelled, partial, unchecked and duplicate
+work remain distinguishable, without automatic stored-only fallback or canonical
+profile/belief/corpus/history writes. Fixture-backed integration is implemented;
+paired answer review, bounded authorized live-source smoke and default-on
+promotion remain open. See the [contract](design/prepared-consultation.md) and
+[S1 exit gate](plans/living-expertise.md#s1-prepare-before-consultation-with-bounded-temporary-evidence).
+
+The [October 25 model-reviewed S0 pilot](validation/expert-baseline-2026-10-25.md)
+completed 48/48 cells but did not establish practical memory benefit,
+human-calibrated acceptance or improved expertise.
 
 **v2.50.15: Claude plan execution is blocked.** Managed-policy
 hooks can survive safe mode and execute independently of the model tool list.

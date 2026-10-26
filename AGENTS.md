@@ -151,3 +151,29 @@ Develop and review expert behavior against these requirements:
   bounded task's objective, changed files, decisions, commands/results, and next
   step there across sessions; promote durable conclusions into their existing
   docs, tests, or tracked issue. Do not create a second backlog or instruction tree.
+
+### Start tidy, stop tidy
+
+Sessions may stop partway through work, and several tools may share this repository.
+
+- Before new work, run `git fetch --prune`; inspect `git status`, diffs,
+  `git worktree list`, local and remote branches, and open PRs. Finish or
+  explicitly park existing work before starting another attempt. Check PR
+  state as well as ancestry because squash merges hide completed work.
+- Commit and push meaningful, verified checkpoints. Keep a short `.agent/`
+  handoff with the objective, changed files, evidence, uncertainties and next
+  step; update the owning PR when its scope or validation changes.
+- Put fixtures in designated test/temp locations and scratch, logs and derived
+  indexes in gitignored `.agent/`. Remove disposable scratch when safe; retain
+  required negative evidence and continuity records. Never store credentials.
+- Keep GitHub current: merge verified work promptly, delete completed branches,
+  and close superseded PRs or satisfied issues with their acceptance evidence.
+  The intended state is one `main` with CI passing and an accurate release.
+- Remove a worktree or branch only after inspecting its dirty/unpushed state
+  and proving its commits and uncommitted work are retained elsewhere. Confirm
+  squash-merged PR state and actual content before removal. Never force-remove
+  a worktree or force-delete uncertain work. Prune only stale worktree entries
+  whose directories are already gone.
+- Preserve and report uncertain work rather than guessing or overwriting it.
+  Ask only when the remaining decision requires the operator's intent; keep
+  independent authorized work moving while clarification is pending.
