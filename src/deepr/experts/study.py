@@ -168,12 +168,32 @@ def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().lower()
 
 
-def build_study_prompt(lens: StudyLens, material: list[tuple[CorpusEntry, str]]) -> str:
+def _validated_output_budget_contract(max_output_tokens: int | None) -> dict[str, int]:
+    """Admit the numeric ceiling and bind only known budgets into study identity."""
+    if max_output_tokens is None:
+        return {}
+    if type(max_output_tokens) is not int or max_output_tokens <= 0:
+        raise ValueError("max_output_tokens must be a positive integer when known")
+    return {"max_output_tokens": max_output_tokens}
+
+
+def build_study_prompt(
+    lens: StudyLens, material: list[tuple[CorpusEntry, str]], *, max_output_tokens: int | None = None
+) -> str:
     """Assemble one lens prompt over the corpus.
 
     Source text is sanitized: a corpus is untrusted input and may contain
     instructions aimed at the reader.
     """
+    _validated_output_budget_contract(max_output_tokens)
+    budget_guidance = ""
+    if max_output_tokens is not None:
+        budget_guidance = (
+            f"The admitted response budget is at most {max_output_tokens} output tokens for the entire response. "
+            "Plan concise, complete JSON within that ceiling, including structure and anchors. "
+            "Choose useful source-supported findings and preserve their qualifications; prefer fewer complete "
+            "findings to an unfinished response. Close the JSON object within the budget.\n\n"
+        )
     blocks: list[str] = []
     for entry, text in material:
         header = f"===== SOURCE {entry.sha256[:12]} | origin={entry.origin_key}"
@@ -186,6 +206,7 @@ def build_study_prompt(lens: StudyLens, material: list[tuple[CorpusEntry, str]])
 
     return (
         f"{lens.prompt}\n\n"
+        f"{budget_guidance}"
         "Every item you report must include an `anchors` array holding exact phrases "
         "copied verbatim from the corpus. Do not paraphrase an anchor. An item you "
         "cannot anchor should not be reported.\n\n"
@@ -458,6 +479,7 @@ async def _run_lenses(
     fingerprints: dict[str, str],
     chunk_checkpoint: StudyCheckpoint | None,
     on_chunk_progress: Callable[[dict[str, Any]], None] | None,
+    max_output_tokens: int | None,
 ) -> None:
     """Run each lens, reusing any an earlier pass already completed.
 
@@ -496,6 +518,7 @@ async def _run_lenses(
                 chunks,
                 material,
                 completion,
+                max_output_tokens=max_output_tokens,
                 on_progress=_lens_progress(on_progress, lens.key, index, len(lenses)),
                 chunk_checkpoint=chunk_checkpoint,
                 on_chunk_progress=on_chunk_progress,
@@ -526,6 +549,7 @@ async def run_study(
     chunk_chars: int = _DEFAULT_CHUNK_CHARS,
     capacity_source: str = "",
     model: str = "",
+    max_output_tokens: int | None = None,
     on_progress: ProgressCallback | None = None,
     checkpoint: CheckpointCallback | None = None,
     resume_from: list[LensOutcome] | None = None,
@@ -547,6 +571,7 @@ async def run_study(
     real corpus is tens of calls and runs for many minutes; without it the run
     is silent, and a silent run is indistinguishable from a hung one.
     """
+    output_budget_contract = _validated_output_budget_contract(max_output_tokens)
     lenses = resolve_lenses(lens_keys)
     material = corpus.load_study_material(max_chars=max_corpus_chars)
     stats = corpus.stats()
@@ -587,7 +612,9 @@ async def run_study(
     # same model - so the corpus is sliced and findings are merged.
     chunks = corpus.iter_study_chunks(chunk_chars=chunk_chars, max_chars=max_corpus_chars) or [material]
     prompts = {
-        f"{lens.key}-{index:04d}": hashlib.sha256(build_study_prompt(lens, chunk).encode()).hexdigest()
+        f"{lens.key}-{index:04d}": hashlib.sha256(
+            build_study_prompt(lens, chunk, max_output_tokens=max_output_tokens).encode()
+        ).hexdigest()
         for lens in lenses
         for index, chunk in enumerate(chunks, 1)
     }
@@ -606,6 +633,7 @@ async def run_study(
         ],
         "prompts": prompts,
     }
+    contract.update(output_budget_contract)
     fingerprints = {
         lens.key: identity(
             {
@@ -641,6 +669,7 @@ async def run_study(
         on_progress=on_progress,
         checkpoint=checkpoint,
         fingerprints=fingerprints,
+        max_output_tokens=max_output_tokens,
         chunk_checkpoint=chunk_checkpoint,
         on_chunk_progress=on_chunk_progress,
     )
@@ -689,6 +718,7 @@ async def _run_lens_over_chunks(
     on_progress: ProgressCallback | None = None,
     chunk_checkpoint: StudyCheckpoint | None = None,
     on_chunk_progress: Callable[[dict[str, Any]], None] | None = None,
+    max_output_tokens: int | None = None,
 ) -> LensOutcome:
     """Run one lens across every chunk, merging findings.
 
@@ -708,7 +738,7 @@ async def _run_lens_over_chunks(
             continue
         if on_progress:
             on_progress(f"chunk {index}/{len(chunks)}")
-        prompt = build_study_prompt(lens, chunk)
+        prompt = build_study_prompt(lens, chunk, max_output_tokens=max_output_tokens)
         started = time.monotonic()
         try:
             parsed, error = await _read_study_chunk(completion, prompt, lens)

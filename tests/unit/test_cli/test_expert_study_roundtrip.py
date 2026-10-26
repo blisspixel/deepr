@@ -62,6 +62,37 @@ def _study() -> StudyResult:
     return result
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("metadata", ["known", "unknown", "legacy"])
+async def test_study_command_passes_only_known_backend_output_budget(profile, monkeypatch, metadata):
+    from contextlib import nullcontext
+    from unittest.mock import AsyncMock
+
+    from deepr.cli.commands.semantic import expert_study
+
+    backend = SimpleNamespace(completion=AsyncMock(), model="fixture", capacity_source="plan:fixture", chunk_chars=100)
+    if metadata != "legacy":
+        backend.max_output_tokens = 3072 if metadata == "known" else None
+    run = AsyncMock(return_value=_study())
+    monkeypatch.setattr(expert_study, "run_study", run)
+    monkeypatch.setattr(expert_study, "expert_verb_lock", lambda *args: nullcontext(True))
+    monkeypatch.setattr(expert_study, "_resume_source", lambda *args, **kwargs: None)
+
+    await expert_study._run_study_with_capacity(
+        profile,
+        [SimpleNamespace(key="synopsis")],
+        object(),
+        backend,
+        max_corpus_chars=100,
+        as_json=True,
+        rebuild=False,
+        keep_warm=True,
+    )
+
+    assert run.call_args.kwargs["max_output_tokens"] == (3072 if metadata == "known" else None)
+    backend.completion.assert_not_awaited()
+
+
 class TestStudyRoundTrip:
     def test_a_study_written_to_the_canonical_path_is_the_one_brief_loads(self, profile):
         path = canonical_study_path(profile.name)

@@ -25,7 +25,12 @@ remains open.
   policy, case inventory and rubric, then run the 48-cell local rehearsal.
   Preserve the earlier failed runs
   and do not silently substitute inputs or a model. Publish terminal results,
-  including failures, and record human review before revealing the arm key.
+  including failures, and freeze review labels before revealing the arm key.
+  **2026-10-25 operator amendment:** use independent agent review for the
+  replacement pilot without waiting for human reviewers. Disclose model-authored
+  calibration, disagreement, exposure and shared-model limits; no human review
+  or human-calibrated acceptance is implied. See the
+  [scoped review amendment](docs/plans/living-expertise.md#next-execution-contract-reviewed-2026-10-22).
   Only S4 can support a claim that the expert got better.
   **2026-10-19:** the original S0 cannot be reproduced. A full-disk search
   found none of the September source worlds or cases, and `qwen3.6:27b` now
@@ -59,6 +64,50 @@ A locked-floor regression accompanies the candidate. Runtime refresh, focused
 checks and exact-head CI remain pending. Frozen S0 source, locks and receipts
 remain unchanged; its Windows execution does not exercise Bash activation.
 
+
+**2026-10-25 hosted Windows finding, preparation support candidate:** elevated
+Windows runners created atomic files with Administrators as owner, so strict
+private-store admission refused them before preparation could run. The repair
+protects and verifies the empty open file before its first payload byte and
+keeps the actual token user as owner. The permission requirement is unchanged;
+hosted regression validation remains required before this finding is closed.
+
+**2026-10-25 development semantic findings:** initial construction in the
+separately frozen production-derived capacity trial completed, but independent
+review found unsupported memory-scaling and universal-batch conclusions,
+binary safety wording for unqualified platforms, invented prior assumptions,
+and lost practical validation caveats. A preliminary single-origin metadata concern was withdrawn after inspecting its documented multiple-document definition.
+Prompt hashes and unshortened synthesis delivery were verified; that does not
+prove backend context preservation or advice quality. Retain the run and
+review, inspect owning change/brief prompts and provenance assembly, and add
+source-grounded whole-output review before claiming repair. These are open
+findings, not reasons to change the active trial or its frozen limits.
+
+**2026-10-25 development finding, study budget repair candidate:** after the
+external GPU workload was closed, the original Qwen development synopsis hit
+its 4096-token ceiling and returned incomplete JSON. The study was rejected;
+no brief, maintenance or answer was produced. The candidate communicates the
+existing output ceiling through the shared study renderer, checkpoint identity
+and callers, and forwards pooled requests to members. Plan ceilings remain
+unknown because their transport does not enforce the request argument. The
+repair adds no retry, salvage or higher limit. Its separately frozen live
+validation also failed at the same synopsis ceiling; all three failed
+configurations remain retained. Offline delivery tests do not establish model
+compliance, S0 capacity or useful advice. A further source comparison found
+that rehearsal memory generation omitted the shipped native JSON request and
+length-stop refusal. The candidate adds those controls for memory only while
+retaining raw returned output and known usage. Answers remain prose-capable.
+No further generation follows without a new reviewed capacity proposal. See
+[the output-budget repair](docs/design/study-output-budget-communication.md).
+
+**2026-10-25 development finding, diagnostic repair candidate:** a separately
+bounded local development trial returned two study calls, then its brief call
+timed out. The fallback brief omitted the exception class when its message was
+empty; the lower-level call and attempt receipts retained `ReadTimeout` and
+unknown usage. Preserve that negative result. The candidate reports the
+bounded exception class without private exception details, retaining the
+failed brief and single-call behavior. This repairs diagnosis, not capacity,
+maintenance feasibility or S0 acceptance; held-out collection remains gated.
 
 **2026-10-25 maintenance candidate:** the Brotli advisory in
 `security-tracking#68` affects the reviewed search/full lock selections.
@@ -443,6 +492,12 @@ is useful and does not block a targeted preparation repair. S1 prototypes can
 start after the S0 protocol is frozen; comparative claims require the preserved
 baseline. Promotion of unattended learning requires positive held-out evidence.
 Each release target below is provisional until its exit gate passes.
+
+The [2026-10-25 offline fixture amendment](docs/design/prepared-consultation-offline-fixtures.md)
+allows separate S1 support code and synthetic fixtures during capacity
+qualification. Exposed or live preparation still waits for the frozen S0
+protocol. This exception grants no collection, default-on, canonical-write or
+comparative-quality acceptance and does not relabel the failed development.
 
 | Target / stage | User-visible outcome | Prerequisite and exit gate |
 | --- | --- | --- |
