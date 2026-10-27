@@ -336,3 +336,58 @@ async def test_form_compliance_and_failure_propagate_through_consult_artifact_an
         assert task["response_form"] == payload["response_form"]
         assert task["status"] == ("completed" if limit == 3 else "incomplete")
     assert len(calls) == 2
+
+
+def test_synthesis_blocks_carry_recorded_and_unrecorded_source_observations():
+    """Dates and publishers come from the corpus index or are marked unrecorded, never inferred."""
+    finding = StudyFinding(
+        lens="mechanism",
+        axis="interrogation",
+        kind="concepts",
+        title="Coordination",
+        finding_id="f1",
+        grounded_anchor_count=1,
+        corpus_shas=["sha-dated"],
+        anchors=["separate operations require coordination"],
+    )
+    other = StudyFinding(
+        lens="failure",
+        axis="interrogation",
+        kind="fail_patterns",
+        title="Other",
+        finding_id="f2",
+        grounded_anchor_count=1,
+        corpus_shas=["sha-blank"],
+    )
+    context = ConsultContext(
+        expert_name="E",
+        findings=[finding, other],
+        sources=[
+            ("sha-dated", "url:a.org", "separate operations require coordination."),
+            ("sha-blank", "url:b.org", "another passage"),
+        ],
+        reference_passages=[("sha-blank", "url:b.org", "another passage")],
+        source_observed={
+            "sha-dated": {"fetched_at": "2026-08-01T00:00:00+00:00", "publisher": "a.org"},
+            "sha-blank": {"fetched_at": "", "publisher": ""},
+        },
+    )
+    blocks = {block.key: block.text for block in brief_synthesis_blocks(context)}
+    assert blocks["notice"] == (
+        "Stored research only; no live check was performed for this answer.\n"
+        "Retained sources in this context were fetched on 2026-08-01; fetch time unrecorded for 1 of 2; "
+        "nothing newer was checked."
+    )
+    assert "[sha-dated] (url:a.org; a.org; fetched 2026-08-01T00:00:00+00:00)" in blocks["finding:f1"]
+    assert "[sha-blank] (url:b.org; publisher unrecorded; fetch time unrecorded)" in blocks["finding:f2"]
+    assert "publisher unrecorded; fetch time unrecorded" in blocks["reference:sha-blank"]
+
+
+def test_legacy_context_without_observations_keeps_the_original_notice_and_labels():
+    finding = StudyFinding(
+        lens="mechanism", axis="interrogation", kind="concepts", title="T", finding_id="f1", corpus_shas=["sha"]
+    )
+    context = ConsultContext(expert_name="E", findings=[finding], sources=[("sha", "origin", "text")])
+    blocks = {block.key: block.text for block in brief_synthesis_blocks(context)}
+    assert blocks["notice"] == "Stored research only; no live check was performed for this answer."
+    assert "Retained passage [sha] (origin):" in blocks["finding:f1"]

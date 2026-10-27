@@ -11,6 +11,7 @@ from rich.text import Text
 from deepr.cli.colors import ROLE_STYLES
 from deepr.cli.companion import CompanionState, companion_allowed, render_companion
 from deepr.experts.consult_support import recorded_statement
+from deepr.experts.corpus_store import observation_text
 
 
 def _text(console: Console, value: object) -> None:
@@ -36,7 +37,10 @@ def _grounds(console: Console, perspectives: list[dict[str, Any]]) -> None:
                 console.print(
                     Text("\n".join("│ " + line for line in passage["text"].splitlines()), style=ROLE_STYLES["quote"])
                 )
-                _text(console, f"Source: {passage['origin']} ({passage['sha256']})")
+                observed = ""
+                if "fetched_at" in passage:
+                    observed = "; " + observation_text(passage.get("publisher", ""), passage.get("fetched_at", ""))
+                _text(console, f"Source: {passage['origin']}{observed} ({passage['sha256']})")
         if context.get("orientation"):
             _text(console, context["orientation"])
         if not passages and not context.get("orientation"):

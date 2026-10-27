@@ -137,3 +137,16 @@ def test_word_form_failure_shows_typed_error_and_count_without_clipping():
     assert "235 words" in rendered and "180" in rendered
     assert "FINAL SENTENCE." in rendered
     assert payload == before
+
+
+def test_grounds_show_recorded_or_unrecorded_source_observations():
+    payload = packet()
+    payload["perspectives"][0]["context"]["passages"] = [
+        {"sha256": "dated", "origin": "bread.notes", "text": "A.", "fetched_at": "2026-05-01", "publisher": "bakery"},
+        {"sha256": "blank", "origin": "other.notes", "text": "B.", "fetched_at": "", "publisher": ""},
+    ]
+    output = StringIO()
+    render_consult(payload, Console(file=output, width=200, force_terminal=False))
+    text = output.getvalue()
+    assert "Source: bread.notes; bakery; fetched 2026-05-01 (dated)" in text
+    assert "Source: other.notes; publisher unrecorded; fetch time unrecorded (blank)" in text
