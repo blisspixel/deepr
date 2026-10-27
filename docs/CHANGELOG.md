@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Stop automatic routing from selecting shut-down or retiring models (#292).
+  With only an OpenAI key, auto mode and `get_cheapest_model()` returned
+  `gpt-4.1-nano`, shut down on 2026-10-23. Retired and retiring direct OpenAI
+  rows are now deprecated with dated notices and GPT-5.6 successors; dated
+  deprecation entries keep explicit choices unchanged; auto routing, registry
+  selectors, saved benchmark rankings and the expert router skip any id with a
+  retirement record for its provider (Azure follows Azure's dates) and fail
+  closed when nothing current remains. Historical
+  prices remain for settlement. See the
+  [decision record](design/model-lifecycle-2026-10-27.md).
+- Move executable defaults off retired ids: planning, review and research
+  fallbacks use `gpt-5.6-sol`, balanced roles `gpt-5.6-terra`, cheap utility
+  calls `gpt-5.6-luna`, and the Gemini environment default `gemini-3.8-flash`.
+  `prep` and `docs` planner choices add the GPT-5.6 family so they stay
+  non-empty after 2026-12-11. Stored configuration values are not migrated.
+- The OpenAI and Azure adapters no longer expand bare `o3`/`o4-mini` to a
+  shut-down deep-research id with a different price. The Anthropic adapter
+  refuses retired `claude-opus-4`, `claude-opus-4-1` and `claude-sonnet-4`,
+  their dated snapshots and the `claude-4-opus-legacy` alias instead of
+  substituting its default. They have no registry pricing contract, so they
+  could not be reserved or settled before this change either. The HTTP API
+  refuses allowlisted ids past their recorded shutdown date for the requested
+  provider; Azure uses the Azure schedule.
+- Learning budgets: focus topics use one focus model in every learner path,
+  and the focus-topic estimate and minimum viable learning budget derive from
+  its registry cost. GPT-5 family utility, planner and summary calls no longer
+  send a non-default temperature or the legacy `max_tokens` parameter.
+
 ## [2.51.0] - 2026-10-25
 
 ### Added

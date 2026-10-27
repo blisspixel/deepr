@@ -455,10 +455,10 @@ async def test_follow_up_generation_uses_chat_backend(monkeypatch):
 
     assert follow_ups == ["What evidence matters next?", "How should we validate this?"]
     assert len(backend.requests) == 1
-    assert backend.requests[0].model == "gpt-4o-mini"
+    assert backend.requests[0].model == "gpt-5.6-luna"
+    # GPT-5 family utility calls send no temperature and use max_completion_tokens.
     assert backend.requests[0].extra == {
-        "temperature": 0.7,
-        "max_tokens": 200,
+        "max_completion_tokens": 200,
         "max_cost_per_job": 0.05,
     }
     reserve.assert_not_called()
@@ -519,10 +519,9 @@ async def test_compact_conversation_uses_chat_backend(monkeypatch):
     assert result["status"] == "compacted"
     assert result["original_messages"] == 8
     assert len(backend.requests) == 1
-    assert backend.requests[0].model == "gpt-4o-mini"
+    assert backend.requests[0].model == "gpt-5.6-luna"
     assert backend.requests[0].extra == {
-        "temperature": 0.3,
-        "max_tokens": 500,
+        "max_completion_tokens": 500,
         "max_cost_per_job": 0.10,
     }
     assert session.messages[0]["role"] == "system"

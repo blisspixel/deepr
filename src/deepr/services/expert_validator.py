@@ -45,7 +45,7 @@ _ALLOWED_VERDICTS: frozenset[str] = frozenset({"pass", "warn", "fail"})
 # fit: the task is bounded to JSON-shaped assessment over <=2 KB of evidence
 # context, so a flagship is wasteful. Callers can override, but only within
 # the cheap-model allowlist below.
-DEFAULT_VALIDATION_MODEL = "gpt-5-mini"
+DEFAULT_VALIDATION_MODEL = "gpt-5.6-luna"
 
 # Validation is a single small JSON-shaped call. Restrict any caller-supplied
 # model override to a known set of cheap models so an untrusted caller (e.g.
@@ -54,6 +54,7 @@ DEFAULT_VALIDATION_MODEL = "gpt-5-mini"
 # default rather than being trusted verbatim.
 ALLOWED_VALIDATION_MODELS: frozenset[str] = frozenset(
     {
+        "gpt-5.6-luna",
         "gpt-5-mini",
         "gpt-5-nano",
         "gpt-4.1-mini",

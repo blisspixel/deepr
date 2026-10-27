@@ -48,10 +48,10 @@ def _choose_absorb_backend(local: bool, api: bool, model: str | None) -> tuple[b
 
 
 def _make_absorber_or_exit(profile, *, use_local: bool, model: str | None):
-    from deepr.experts.report_absorber import ESTIMATED_EXTRACTION_COST, ReportAbsorber
+    from deepr.experts.report_absorber import DEFAULT_EXTRACTION_MODEL, ESTIMATED_EXTRACTION_COST, ReportAbsorber
 
     if not use_local:
-        return ReportAbsorber(profile, model=model or "gpt-5-mini"), f"~${ESTIMATED_EXTRACTION_COST:.2f}"
+        return ReportAbsorber(profile, model=model or DEFAULT_EXTRACTION_MODEL), f"~${ESTIMATED_EXTRACTION_COST:.2f}"
 
     from deepr.backends.local import ollama_chat_client, resolve_local_maintenance_model
 

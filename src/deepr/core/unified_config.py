@@ -72,7 +72,7 @@ class UnifiedConfig:
 
     # Core settings
     default_provider: str = "openai"
-    default_model: str = "gpt-4o"
+    default_model: str = "gpt-5.6-sol"
     data_dir: str = "data"
     log_level: str = "INFO"
 
@@ -153,14 +153,14 @@ class UnifiedConfig:
         if hasattr(app_config, "provider"):
             provider = app_config.provider
             config.default_provider = getattr(provider, "default_provider", "openai")
-            config.default_model = getattr(provider, "default_model", "gpt-4o")
+            config.default_model = getattr(provider, "default_model", "gpt-5.6-sol")
 
             # Map provider API keys
             if getattr(provider, "openai_api_key", None):
                 config.providers["openai"] = ProviderConfig(
                     name="openai",
                     api_key=provider.openai_api_key,
-                    default_model=getattr(provider, "default_model", "gpt-4o"),
+                    default_model=getattr(provider, "default_model", "gpt-5.6-sol"),
                     enabled=True,
                 )
 
@@ -168,7 +168,7 @@ class UnifiedConfig:
                 config.providers["azure"] = ProviderConfig(
                     name="azure",
                     api_key=provider.azure_api_key,
-                    default_model=getattr(provider, "default_model", "gpt-4o"),
+                    default_model=getattr(provider, "default_model", "gpt-5.6-sol"),
                     enabled=True,
                 )
 

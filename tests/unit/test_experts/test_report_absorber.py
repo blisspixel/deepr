@@ -390,7 +390,7 @@ async def test_metered_absorb_reserves_and_ledgers_each_semantic_call(tmp_path):
         "expert_absorb.contradiction_confirmation",
         "expert_absorb.dedup",
     ]
-    assert all(event.provider == "openai" and event.model == "gpt-5-mini" for event in events)
+    assert all(event.provider == "openai" and event.model == "gpt-5.6-luna" for event in events)
     assert all(event.idempotency_key.startswith("job:expert-absorb-") for event in events)
     assert result.actual_cost == pytest.approx(sum(event.cost_usd for event in events))
     assert result.to_dict()["actual_cost"] == pytest.approx(result.actual_cost)
@@ -426,7 +426,7 @@ async def test_metered_request_derives_provider_output_cap_inside_call_ceiling(t
     store = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
     absorber = ReportAbsorber(_expert(), client=client, belief_store=store)
 
-    result = await absorber.absorb("rep-bounded", "x" * 90_000, budget=0.03)
+    result = await absorber.absorb("rep-bounded", "x" * 110_000, budget=0.03)
 
     output_cap = client.calls[0]["max_completion_tokens"]
     assert 0 < output_cap < 8192

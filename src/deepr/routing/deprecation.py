@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import UTC, date, datetime
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +27,14 @@ class DeprecationEntry:
 
 # Canonical deprecation registry.
 # Add entries here when providers announce model removal.
-# Sunset dates below were checked against
-# https://developers.openai.com/api/docs/deprecations on 2026-10-12.
+# OpenAI sunset dates below were checked against
+# https://developers.openai.com/api/docs/deprecations on 2026-10-27.
+# OpenAI entries describe the direct OpenAI API. Azure Foundry deployments
+# follow their own retirement schedule (for example gpt-5 on 2027-02-09 and
+# gpt-4o/gpt-4.1 on 2027-04-14); see the Azure model-retirement page and
+# docs/design/model-lifecycle-2026-10-27.md. OpenAI entries keep
+# auto_migrate=False so an explicit choice is never silently replaced by a
+# differently priced model; automatic routing excludes them as candidates.
 DEPRECATION_REGISTRY: dict[str, DeprecationEntry] = {
     "gpt-5": DeprecationEntry(
         old_model="gpt-5",
@@ -81,13 +88,65 @@ DEPRECATION_REGISTRY: dict[str, DeprecationEntry] = {
             "Successor: gpt-5.6-sol."
         ),
     ),
-    # Still served until 2026-10-23. A sunset date is required or run.py
-    # will not warn. Substitute named on the deprecations page: gpt-5.6-terra.
+    # Shut down on 2026-10-23. Substitute named on the deprecations page:
+    # gpt-5.6-terra. Prefix matching covers o4-mini-2025-04-16.
     "o4-mini": DeprecationEntry(
         old_model="o4-mini",
         new_model="gpt-5.6-terra",
         sunset_date="2026-10-23",
         warning="o4-mini and o4-mini-2025-04-16 shut down on 2026-10-23. Successor: gpt-5.6-terra.",
+        auto_migrate=False,
+    ),
+    "gpt-4.1-nano": DeprecationEntry(
+        old_model="gpt-4.1-nano",
+        new_model="gpt-5.6-luna",
+        sunset_date="2026-10-23",
+        warning="gpt-4.1-nano shut down on 2026-10-23. Successor: gpt-5.6-luna.",
+        auto_migrate=False,
+    ),
+    "o3": DeprecationEntry(
+        old_model="o3",
+        new_model="gpt-5.6-sol",
+        sunset_date="2026-12-11",
+        warning=(
+            "o3 and o3-2025-04-16 shut down on 2026-12-11. Recommended successor: gpt-5.6-sol. "
+            "Explicit selection is unchanged."
+        ),
+        auto_migrate=False,
+        # Exact ids only, so o3-mini (shut down earlier) and any other o3-*
+        # family member never inherit this date.
+        match_prefix=False,
+    ),
+    "o3-mini": DeprecationEntry(
+        old_model="o3-mini",
+        new_model="gpt-5.6-terra",
+        sunset_date="2026-10-23",
+        warning="o3-mini shut down on 2026-10-23. Deepr successor: gpt-5.6-terra.",
+        auto_migrate=False,
+    ),
+    # OpenAI announced on 2026-10-14 that the GPT-4o and GPT-4.1 families shut
+    # down on 2027-01-14 and recommends gpt-6-luna. Deepr holds gpt-6-luna as a
+    # preview-only candidate pending adapter validation, so the Deepr successor
+    # is the validated GPT-5.6 tier for the role.
+    "gpt-4.1": DeprecationEntry(
+        old_model="gpt-4.1",
+        new_model="gpt-5.6-terra",
+        sunset_date="2027-01-14",
+        warning=(
+            "gpt-4.1 shuts down on 2027-01-14. Deepr successor: gpt-5.6-terra. "
+            "OpenAI recommends gpt-6-luna, which Deepr lists as preview-only. Explicit selection is unchanged."
+        ),
+        auto_migrate=False,
+    ),
+    "gpt-4.1-mini": DeprecationEntry(
+        old_model="gpt-4.1-mini",
+        new_model="gpt-5.6-luna",
+        sunset_date="2027-01-14",
+        warning=(
+            "gpt-4.1-mini shuts down on 2027-01-14. Deepr successor: gpt-5.6-luna. "
+            "OpenAI recommends gpt-6-luna, which Deepr lists as preview-only. Explicit selection is unchanged."
+        ),
+        auto_migrate=False,
     ),
     # Grok retirement wave (May 15, 2026)
     "grok-4-1-fast-reasoning": DeprecationEntry(
@@ -186,20 +245,36 @@ DEPRECATION_REGISTRY: dict[str, DeprecationEntry] = {
         warning=("deep-research-pro-preview-12-2025 shuts down on 2026-10-23. Use deep-research-max-preview-04-2026."),
         auto_migrate=True,
     ),
-    # Legacy GPT-4o
+    # GPT-4o family: see the 2027-01-14 note above.
     "gpt-4o": DeprecationEntry(
         old_model="gpt-4o",
-        new_model="gpt-4.1",
-        sunset_date="",
-        warning="GPT-4o is superseded by GPT-4.1 (1M context, same price). Auto-migrating.",
-        auto_migrate=True,
+        new_model="gpt-5.6-terra",
+        sunset_date="2027-01-14",
+        warning=(
+            "gpt-4o shuts down on 2027-01-14. Deepr successor: gpt-5.6-terra. "
+            "OpenAI recommends gpt-6-luna, which Deepr lists as preview-only. Explicit selection is unchanged."
+        ),
+        auto_migrate=False,
+    ),
+    # The original snapshot shut down earlier; prefix matching on gpt-4o
+    # would otherwise report the 2027 date.
+    "gpt-4o-2024-05-13": DeprecationEntry(
+        old_model="gpt-4o-2024-05-13",
+        new_model="gpt-5.6-terra",
+        sunset_date="2026-10-23",
+        warning="gpt-4o-2024-05-13 shut down on 2026-10-23. Deepr successor: gpt-5.6-terra.",
+        auto_migrate=False,
+        match_prefix=False,
     ),
     "gpt-4o-mini": DeprecationEntry(
         old_model="gpt-4o-mini",
-        new_model="gpt-4.1-mini",
-        sunset_date="",
-        warning="GPT-4o-mini is superseded by GPT-4.1-mini. Auto-migrating.",
-        auto_migrate=True,
+        new_model="gpt-5.6-luna",
+        sunset_date="2027-01-14",
+        warning=(
+            "gpt-4o-mini shuts down on 2027-01-14. Deepr successor: gpt-5.6-luna. "
+            "OpenAI recommends gpt-6-luna, which Deepr lists as preview-only. Explicit selection is unchanged."
+        ),
+        auto_migrate=False,
     ),
 }
 
@@ -207,30 +282,80 @@ DEPRECATION_REGISTRY: dict[str, DeprecationEntry] = {
 DEPRECATION_REGISTRY.update(
     {f"{model}-2025-08-07": DEPRECATION_REGISTRY[model] for model in ("gpt-5", "gpt-5-mini", "gpt-5-nano")}
 )
+DEPRECATION_REGISTRY["o3-2025-04-16"] = DEPRECATION_REGISTRY["o3"]
 
 
-def check_deprecation(model: str) -> DeprecationEntry | None:
-    """Check if a model is deprecated.
+def _azure_entry(model: str, new_model: str, sunset: str, *, match_prefix: bool = True) -> DeprecationEntry:
+    return DeprecationEntry(
+        old_model=model,
+        new_model=new_model,
+        sunset_date=sunset,
+        warning=f"Azure Foundry retires {model} on {sunset} (Azure schedule). Deepr successor: {new_model}.",
+        auto_migrate=False,
+        match_prefix=match_prefix,
+    )
 
-    Returns the DeprecationEntry if found, None otherwise.
-    Performs exact match then falls back to prefix matching.
-    """
+
+# Azure Foundry follows its own retirement schedule, checked 2026-10-27 at
+# https://learn.microsoft.com/en-us/azure/foundry/openai/concepts/model-retirement-schedule
+# (page date 2026-09-21). Lookups for the azure and azure-foundry providers use
+# only this table, never the direct OpenAI API dates above.
+AZURE_DEPRECATION_REGISTRY: dict[str, DeprecationEntry] = {
+    "o1": _azure_entry("o1", "gpt-5.6-sol", "2026-11-19"),
+    "o3": _azure_entry("o3", "gpt-5.6-sol", "2026-11-19", match_prefix=False),
+    "o3-deep-research": _azure_entry("o3-deep-research", "gpt-5.6-sol", "2026-11-19"),
+    "o3-mini": _azure_entry("o3-mini", "gpt-5.6-terra", "2026-11-19"),
+    "o4-mini": _azure_entry("o4-mini", "gpt-5.6-terra", "2026-11-19"),
+    "gpt-4o-2024-05-13": _azure_entry("gpt-4o-2024-05-13", "gpt-5.6-terra", "2026-12-09", match_prefix=False),
+    "gpt-5": _azure_entry("gpt-5", "gpt-5.6-sol", "2027-02-09", match_prefix=False),
+    "gpt-5-mini": _azure_entry("gpt-5-mini", "gpt-5.6-terra", "2027-02-09", match_prefix=False),
+    "gpt-5-nano": _azure_entry("gpt-5-nano", "gpt-5.6-luna", "2027-02-09", match_prefix=False),
+    "gpt-4o": _azure_entry("gpt-4o", "gpt-5.6-terra", "2027-04-14"),
+    "gpt-4o-mini": _azure_entry("gpt-4o-mini", "gpt-5.6-luna", "2027-04-14"),
+    "gpt-4.1": _azure_entry("gpt-4.1", "gpt-5.6-terra", "2027-04-14"),
+    "gpt-4.1-mini": _azure_entry("gpt-4.1-mini", "gpt-5.6-luna", "2027-04-14"),
+    "gpt-4.1-nano": _azure_entry("gpt-4.1-nano", "gpt-5.6-luna", "2027-04-14"),
+}
+
+AZURE_PROVIDERS = frozenset({"azure", "azure-foundry"})
+
+
+def _lookup(registry: dict[str, DeprecationEntry], model: str) -> DeprecationEntry | None:
     # Exact match
-    if model in DEPRECATION_REGISTRY:
-        return DEPRECATION_REGISTRY[model]
+    if model in registry:
+        return registry[model]
 
     # Prefix match for versioned variants (e.g. "gpt-4o-2024-08-06")
     # Sort by key length descending so "gpt-4o-mini" matches before "gpt-4o"
-    for key in sorted(DEPRECATION_REGISTRY, key=len, reverse=True):
-        if not DEPRECATION_REGISTRY[key].match_prefix:
+    for key in sorted(registry, key=len, reverse=True):
+        if not registry[key].match_prefix:
             continue
         if model.startswith(key + "-") or model.startswith(key + "/"):
-            return DEPRECATION_REGISTRY[key]
+            return registry[key]
 
     return None
 
 
-def migrate_model(model: str, confidence: float = 1.0) -> tuple[str, float, str | None]:
+def check_deprecation(model: str, provider: str | None = None) -> DeprecationEntry | None:
+    """Check if a model is deprecated for ``provider``.
+
+    Returns the DeprecationEntry if found, None otherwise. Performs exact match
+    then falls back to prefix matching. Azure providers use the Azure schedule;
+    every other provider (or None) uses the direct provider-API table.
+    """
+    registry = AZURE_DEPRECATION_REGISTRY if provider in AZURE_PROVIDERS else DEPRECATION_REGISTRY
+    return _lookup(registry, model)
+
+
+def is_shutdown(model: str, *, provider: str | None = None, today: date | None = None) -> bool:
+    """Compare a provider's recorded deadline, never infer it from a model name."""
+    entry = check_deprecation(model, provider)
+    return bool(
+        entry and entry.sunset_date and date.fromisoformat(entry.sunset_date) <= (today or datetime.now(UTC).date())
+    )
+
+
+def migrate_model(model: str, confidence: float = 1.0, provider: str | None = None) -> tuple[str, float, str | None]:
     """Resolve a model, auto-migrating if deprecated.
 
     Returns:
@@ -240,7 +365,7 @@ def migrate_model(model: str, confidence: float = 1.0) -> tuple[str, float, str 
         If deprecated but auto_migrate is False, returns (model, confidence, warning).
         Confidence is preserved through migration (passed through unchanged).
     """
-    entry = check_deprecation(model)
+    entry = check_deprecation(model, provider)
     if entry is None:
         return model, confidence, None
 

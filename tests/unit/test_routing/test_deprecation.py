@@ -22,12 +22,18 @@ class TestCheckDeprecation:
     def test_gpt4o_deprecated(self):
         entry = check_deprecation("gpt-4o")
         assert entry is not None
-        assert entry.new_model == "gpt-4.1"
+        assert entry.new_model == "gpt-5.6-terra"
+        assert entry.sunset_date == "2027-01-14"
+        assert entry.auto_migrate is False
+        assert "gpt-6-luna" in entry.warning
+        assert "preview-only" in entry.warning
 
     def test_gpt4o_mini_deprecated(self):
         entry = check_deprecation("gpt-4o-mini")
         assert entry is not None
-        assert entry.new_model == "gpt-4.1-mini"
+        assert entry.new_model == "gpt-5.6-luna"
+        assert entry.sunset_date == "2027-01-14"
+        assert entry.auto_migrate is False
 
     def test_current_model_not_deprecated(self):
         assert check_deprecation("gpt-5.4") is None
@@ -56,13 +62,15 @@ class TestCheckDeprecation:
         """gpt-4o-mini-2024-08-06 should match gpt-4o-mini, NOT gpt-4o."""
         entry = check_deprecation("gpt-4o-mini-2024-08-06")
         assert entry is not None
-        assert entry.new_model == "gpt-4.1-mini"  # NOT gpt-4.1
+        assert entry.old_model == "gpt-4o-mini"
+        assert entry.new_model == "gpt-5.6-luna"  # NOT the gpt-4o successor
 
     def test_versioned_gpt4o_matches_correctly(self):
         """gpt-4o-2024-08-06 should match gpt-4o."""
         entry = check_deprecation("gpt-4o-2024-08-06")
         assert entry is not None
-        assert entry.new_model == "gpt-4.1"
+        assert entry.new_model == "gpt-5.6-terra"
+        assert entry.sunset_date == "2027-01-14"
 
     def test_unknown_model(self):
         assert check_deprecation("totally-fake-model") is None
@@ -93,11 +101,13 @@ class TestMigrateModel:
         assert confidence == 1.0
         assert warning is None
 
-    def test_gpt4o_migrates_to_gpt41(self):
+    def test_gpt4o_keeps_explicit_identity_with_warning(self):
+        """Retiring OpenAI ids warn but never silently become another priced model."""
         model, confidence, warning = migrate_model("gpt-4o")
-        assert model == "gpt-4.1"
+        assert model == "gpt-4o"
         assert confidence == 1.0
         assert warning is not None
+        assert "2027-01-14" in warning
 
     def test_unknown_model_passes_through(self):
         model, confidence, warning = migrate_model("custom-model-v7")
@@ -143,6 +153,9 @@ class TestRetiredOpenAIDefaults:
             assert entry is not None, model_id
             assert entry.sunset_date == "2026-07-23", model_id
             assert entry.new_model == "gpt-5.6-sol", model_id
+
+    def test_o4_mini_shutdown_keeps_explicit_identity(self):
+        assert migrate_model("o4-mini")[0] == "o4-mini"
 
     def test_o4_mini_carries_sunset_and_successor(self):
         for model_id in self.O4_MINI_IDS:
@@ -207,3 +220,65 @@ class TestRetiredOpenAIDefaults:
         assert builtin_web_search_reservable("o4-mini-deep-research") is True
         assert bounded_tool_disable_flags("openai", False, False, "gpt-5.6-sol") == (True, True)
         assert bounded_tool_disable_flags("openai", False, False, "o3-deep-research") == (False, True)
+
+
+class TestOpenAILifecycle20261027:
+    """OpenAI deprecations page checked 2026-10-27 (docs/design/model-lifecycle-2026-10-27.md)."""
+
+    EXPECTED = {
+        "gpt-4.1-nano": ("2026-10-23", "gpt-5.6-luna"),
+        "o4-mini": ("2026-10-23", "gpt-5.6-terra"),
+        "o3-mini": ("2026-10-23", "gpt-5.6-terra"),
+        "gpt-4o-2024-05-13": ("2026-10-23", "gpt-5.6-terra"),
+        "o3": ("2026-12-11", "gpt-5.6-sol"),
+        "o3-2025-04-16": ("2026-12-11", "gpt-5.6-sol"),
+        "gpt-5": ("2026-12-11", "gpt-5.6-sol"),
+        "gpt-5-mini": ("2026-12-11", "gpt-5.6-terra"),
+        "gpt-5-nano": ("2026-12-11", "gpt-5.6-luna"),
+        "gpt-4o": ("2027-01-14", "gpt-5.6-terra"),
+        "gpt-4o-2024-08-06": ("2027-01-14", "gpt-5.6-terra"),
+        "gpt-4o-2024-11-20": ("2027-01-14", "gpt-5.6-terra"),
+        "gpt-4o-mini": ("2027-01-14", "gpt-5.6-luna"),
+        "gpt-4o-mini-2024-07-18": ("2027-01-14", "gpt-5.6-luna"),
+        "gpt-4.1": ("2027-01-14", "gpt-5.6-terra"),
+        "gpt-4.1-2025-04-14": ("2027-01-14", "gpt-5.6-terra"),
+        "gpt-4.1-mini": ("2027-01-14", "gpt-5.6-luna"),
+        "gpt-4.1-mini-2025-04-14": ("2027-01-14", "gpt-5.6-luna"),
+    }
+
+    def test_dates_and_successors(self):
+        for model_id, (sunset, successor) in self.EXPECTED.items():
+            entry = check_deprecation(model_id)
+            assert entry is not None, model_id
+            assert (entry.sunset_date, entry.new_model) == (sunset, successor), model_id
+
+    def test_longer_keys_win_over_family_prefix(self):
+        assert check_deprecation("gpt-4.1-nano-2025-04-14").old_model == "gpt-4.1-nano"
+        assert check_deprecation("gpt-4.1-mini-2025-04-14").old_model == "gpt-4.1-mini"
+        assert check_deprecation("o3-mini-2025-01-31").old_model == "o3-mini"
+
+    def test_o3_date_does_not_leak_to_other_o3_family_ids(self):
+        assert check_deprecation("o3-pro") is None
+
+    def test_openai_entries_never_auto_migrate(self):
+        for model_id in self.EXPECTED:
+            model, _, warning = migrate_model(model_id)
+            assert model == model_id
+            assert warning
+
+    def test_validated_successors_and_preview_candidates_are_not_retired(self):
+        for model_id in ("gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-6-luna", "gpt-5.2", "gpt-5.4-nano"):
+            assert check_deprecation(model_id) is None, model_id
+
+    def test_shutdown_follows_recorded_dates(self):
+        from datetime import date
+
+        from deepr.routing.deprecation import is_shutdown
+
+        assert is_shutdown("gpt-4.1-nano", today=date(2026, 10, 23))
+        assert is_shutdown("gpt-4o-2024-05-13", today=date(2026, 10, 27))
+        assert not is_shutdown("gpt-4o-2024-08-06", today=date(2026, 10, 27))
+        assert not is_shutdown("o3", today=date(2026, 12, 10))
+        assert is_shutdown("o3", today=date(2026, 12, 11))
+        assert not is_shutdown("gpt-4.1-mini", today=date(2027, 1, 13))
+        assert is_shutdown("gpt-4.1-mini", today=date(2027, 1, 14))

@@ -113,10 +113,10 @@ class AzureProvider(DeepResearchProvider):
             "gpt-5.6-terra": os.getenv("AZURE_DEPLOYMENT_GPT56_TERRA", "gpt-5.6-terra"),
             # Explicit retired ids stay on their own deployment names. Rewriting
             # them onto gpt-5.6-sol would break the reserved priced contract.
+            # Bare "o3"/"o4-mini" are not expanded to a deep-research
+            # deployment: that silently swapped the model and its price.
             "o3-deep-research": os.getenv("AZURE_DEPLOYMENT_O3", "o3-deep-research"),
             "o4-mini-deep-research": os.getenv("AZURE_DEPLOYMENT_O4_MINI", "o4-mini-deep-research"),
-            "o3": os.getenv("AZURE_DEPLOYMENT_O3", "o3-deep-research"),
-            "o4-mini": os.getenv("AZURE_DEPLOYMENT_O4_MINI", "o4-mini-deep-research"),
         }
 
     def get_model_name(self, model_key: str) -> str:

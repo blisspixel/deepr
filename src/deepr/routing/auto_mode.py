@@ -33,7 +33,7 @@ from typing import Any, Literal, TypedDict
 from deepr.config import runtime_data_path
 from deepr.experts.router import ModelRouter
 from deepr.observability.provider_router import AutonomousProviderRouter
-from deepr.providers.registry import MODEL_CAPABILITIES, ModelCapability
+from deepr.providers.registry import MODEL_CAPABILITIES, ModelCapability, is_auto_selectable
 
 
 class AutoRoutingUnavailable(RuntimeError):
@@ -649,8 +649,14 @@ class AutoModeRouter:
 
         # Check for deprecated model and auto-migrate
         metadata: dict[str, Any] = {}
-        resolved_model, confidence, migration_warning = migrate_model(model, confidence=model_config.confidence)
-        if migration_warning is not None:
+        resolved_model, confidence, migration_warning = migrate_model(model, model_config.confidence, provider)
+        if migration_warning is not None and resolved_model == model:  # never return a retiring id
+            if not is_auto_selectable(provider, model):
+                raise AutoRoutingUnavailable(
+                    f"Auto route {provider}/{model} has a retirement record: {migration_warning}"
+                )
+            metadata["lifecycle_warning"] = migration_warning
+        elif migration_warning is not None:
             metadata["migrated_from"] = model
             model = resolved_model
             # Update provider if successor includes provider prefix
@@ -771,8 +777,6 @@ class AutoModeRouter:
             # Re-sort by cost-per-quality ascending (best value first)
             ranked = sorted(ranked, key=lambda r: r[3] / max(r[2], 0.001))
 
-        from deepr.routing.deprecation import check_deprecation
-
         for provider, model, quality, cost in ranked:
             if not self._is_provider_usable(provider):
                 continue
@@ -781,9 +785,7 @@ class AutoModeRouter:
             cap = MODEL_CAPABILITIES.get(f"{provider}/{model}")
             if cap is not None and (cap.preview_only or cap.selection_blocked):
                 continue
-            # Skip deprecated models - route to successor if available
-            dep = check_deprecation(model)
-            if dep is not None:
+            if not is_auto_selectable(provider, model):  # retired or retiring for this provider
                 continue
             return (provider, model, cost, quality)
 
@@ -798,15 +800,13 @@ class AutoModeRouter:
         Returns:
             Tuple of (provider, model, cost_estimate, reasoning)
         """
-        from deepr.routing.deprecation import check_deprecation
-
         candidates: list[tuple[str, str, float]] = []
         for cap in MODEL_CAPABILITIES.values():
             if cap.preview_only:
                 continue
             if self._is_provider_usable(cap.provider):
                 if budget is None or cap.cost_per_query <= budget:
-                    if not cap.selection_blocked and check_deprecation(cap.model) is None:
+                    if is_auto_selectable(cap.provider, cap.model):
                         candidates.append((cap.provider, cap.model, cap.cost_per_query))
 
         if candidates:
@@ -820,8 +820,7 @@ class AutoModeRouter:
             if (
                 not cap.preview_only
                 and self._is_provider_usable(cap.provider)
-                and not cap.selection_blocked
-                and check_deprecation(cap.model) is None
+                and is_auto_selectable(cap.provider, cap.model)
             ):
                 return (
                     cap.provider,
@@ -830,9 +829,12 @@ class AutoModeRouter:
                     f"Last resort (no candidates under budget) -> {cap.provider}/{cap.model}",
                 )
 
-        # If we reach here, no provider is usable at all. Surface that
-        # honestly rather than handing back a model that will fail at
-        # provider creation.
+        # Fail closed: never hand back a retired model or one that fails at creation.
+        if self._available_providers:
+            raise AutoRoutingUnavailable(
+                "No current selectable model for the configured providers; retired, retiring, "
+                "preview-only and access-restricted models are never auto-selected."
+            )
         raise AutoRoutingUnavailable(
             "No provider with credentials is configured; cannot auto-route research. "
             "Use an explicit --provider and --model with --preview to inspect a keyless route, "
@@ -908,14 +910,14 @@ class AutoModeRouter:
                     "Fallback to gemini-4-argon (primary provider unavailable)",
                 )
 
-        # Try o4-mini as lighter OpenAI fallback for complex queries
+        # Retained OpenAI research default (o4-mini-deep-research shut down 2026-07-23).
         if complexity in ("complex", "moderate") and self._is_provider_usable("openai"):
-            if self._provider_router.is_circuit_available("openai", "o4-mini-deep-research"):
+            if self._provider_router.is_circuit_available("openai", "gpt-5.6-sol"):
                 return (
                     "openai",
-                    "o4-mini-deep-research",
-                    0.10,
-                    "Fallback to o4-mini-deep-research (primary circuit open)",
+                    "gpt-5.6-sol",
+                    MODEL_CAPABILITIES["openai/gpt-5.6-sol"].cost_per_query,
+                    "Fallback to gpt-5.6-sol (primary circuit open)",
                 )
 
         # Try grok as universal fallback
@@ -928,12 +930,9 @@ class AutoModeRouter:
                     "Fallback to grok-4-3 (primary provider unavailable)",
                 )
 
-        # Last resort: ask ``_cheapest_available`` which iterates the
-        # usable providers and raises ``RuntimeError`` if none have keys.
-        # Round-3 fixed this exact pattern in ``_cheapest_available`` but
-        # missed this sibling path - handing back ``openai/gpt-4.1-mini``
-        # when no OpenAI key is configured produced a fail-at-provider-
-        # creation downstream and a confusing error.
+        # Last resort: ``_cheapest_available`` only returns a current model of a
+        # usable provider and raises ``AutoRoutingUnavailable`` otherwise; a
+        # fixed keyless fallback here once failed later at provider creation.
         return self._cheapest_available(budget=budget)
 
     def _build_summary(self, decisions: list[AutoModeDecision]) -> dict[str, _SummaryStats]:

@@ -40,12 +40,12 @@ class TestPromptRefiner:
             yield PromptRefiner()
 
     def test_init_default_model(self, mock_openai_env):
-        """Default model is gpt-5-mini."""
+        """Default model is gpt-5.6-luna."""
         with patch("deepr.services.prompt_refiner.OpenAI"):
             from deepr.services.prompt_refiner import PromptRefiner
 
             r = PromptRefiner()
-            assert r.model == "gpt-5-mini"
+            assert r.model == "gpt-5.6-luna"
 
     def test_init_custom_model(self, mock_openai_env):
         """Custom model accepted."""

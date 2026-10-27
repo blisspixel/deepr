@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from deepr.core.documents import DocumentManager
 from deepr.core.reports import ReportGenerator
 from deepr.core.research import ResearchOrchestrator
+from deepr.experts.constants import LEARN_CAMPAIGN_MODEL, LEARN_FOCUS_MODEL
 from deepr.experts.curriculum import CurriculumGenerator, LearningCurriculum, LearningTopic
 from deepr.experts.knowledge_freshness import advance_knowledge_freshness
 from deepr.experts.metered_mutation_gate import require_api_autonomous_learning
@@ -411,7 +412,7 @@ class AutonomousLearner:
             job = ResearchJob(
                 id=local_id,
                 prompt=topic.research_prompt,
-                model="o4-mini-deep-research" if topic.research_mode == "campaign" else "gpt-4.1",
+                model=LEARN_CAMPAIGN_MODEL if topic.research_mode == "campaign" else LEARN_FOCUS_MODEL,
                 metadata={
                     "source": "expert_learn",
                     "expert_name": expert.name,
@@ -753,12 +754,9 @@ class AutonomousLearner:
         try:
             # Use appropriate model based on research mode
             if topic.research_mode == "campaign":
-                # Campaign mode: Deep research (10-45 min per topic)
-                model = "o4-mini-deep-research"
+                model = LEARN_CAMPAIGN_MODEL  # o4-mini-deep-research shut down 2026-07-23
             else:
-                # Focus mode: Quick research with GPT-4.1 (1-5 min, $0.04/query)
-                # GPT-4.1 has 1M+ context, widely available, much cheaper than GPT-5
-                model = "gpt-4.1"
+                model = LEARN_FOCUS_MODEL  # balanced successor of gpt-4.1
 
             response_id = await self.research.submit_research(
                 prompt=topic.research_prompt,
@@ -805,11 +803,9 @@ class AutonomousLearner:
                 # Submit research job directly (synchronous execution)
                 # Use appropriate model based on research mode
                 if topic.research_mode == "campaign":
-                    # Campaign mode: Deep research (10-45 min per topic)
-                    model = "o4-mini-deep-research"
+                    model = LEARN_CAMPAIGN_MODEL
                 else:
-                    # Focus mode: Quick research with GPT-5.2 (1-5 min per topic)
-                    model = "gpt-5.2"
+                    model = LEARN_FOCUS_MODEL
 
                 response_id = await self.research.submit_research(
                     prompt=topic.research_prompt,

@@ -31,9 +31,9 @@ def prep():
 @click.option(
     "--planner",
     "-p",
-    default="gpt-5",
-    type=ModelChoice(["gpt-5", "gpt-5-mini", "gpt-5-nano"]),
-    help=model_help("Reasoning model for planning (default: gpt-5)", "gpt-5"),
+    default="gpt-5.6-sol",
+    type=ModelChoice(["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5", "gpt-5-mini", "gpt-5-nano"]),
+    help=model_help("Reasoning model for planning (default: gpt-5.6-sol)", "gpt-5.6-sol"),
 )
 @click.option(
     "--model",
@@ -798,7 +798,7 @@ def continue_research(topics: int, yes: bool):
         click.echo(f"Found {len(completed_results)} completed research tasks")
 
         # Review with GPT-5
-        reviewer = ResearchReviewer(model="gpt-5")
+        reviewer = ResearchReviewer(model="gpt-5.6-sol")
         review_result = reviewer.review_and_plan_next(
             scenario=scenario, completed_results=completed_results, current_phase=current_phase, max_tasks=topics
         )
@@ -908,7 +908,7 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
 
         # Generate initial plan
         console.print(f"Using GPT-5 to generate {topics_per_round} research topics...")
-        planner_service = ResearchPlanner(model="gpt-5")
+        planner_service = ResearchPlanner(model="gpt-5.6-sol")
         tasks = planner_service.plan_research(scenario=scenario, max_tasks=topics_per_round, context=None)
 
         # Add IDs and phases to tasks
@@ -920,7 +920,7 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
             "scenario": scenario,
             "created_at": datetime.now().isoformat(),
             "tasks": tasks,
-            "metadata": {"model": "gpt-5", "total_tasks": len(tasks), "planner_type": "openai"},
+            "metadata": {"model": "gpt-5.6-sol", "total_tasks": len(tasks), "planner_type": "openai"},
         }
 
         # Save plan
@@ -944,7 +944,7 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
 
             # Review and plan next phase
             console.print("GPT-5 reviewing completed research...")
-            reviewer = ResearchReviewer(model="gpt-5")
+            reviewer = ResearchReviewer(model="gpt-5.6-sol")
 
             # Load completed results
             completed_results = _load_completed_results()

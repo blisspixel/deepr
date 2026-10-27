@@ -64,7 +64,7 @@ def _make_output_context(mode=OutputMode.QUIET):
 def _make_mock_router(fallback_result=("xai", "grok-4-1-fast-non-reasoning")):
     """Create a mock AutonomousProviderRouter."""
     router = MagicMock()
-    router.select_provider.return_value = ("openai", "o4-mini-deep-research")
+    router.select_provider.return_value = ("openai", "gpt-5.6-terra")
     router.get_fallback.return_value = fallback_result
     router.record_result.return_value = None
     return router
@@ -183,7 +183,7 @@ class TestFallbackOnRateLimit:
 
             await _run_single(
                 "test query",
-                "gpt-4o-mini",
+                "gpt-5.6-luna",
                 "openai",
                 True,
                 True,
@@ -198,7 +198,7 @@ class TestFallbackOnRateLimit:
             # Router should have recorded failure for openai
             router.record_result.assert_any_call(
                 "openai",
-                "gpt-4o-mini",
+                "gpt-5.6-luna",
                 success=False,
                 error=pytest.approx(str(ProviderRateLimitError("openai")), abs=100),
             )
@@ -239,7 +239,7 @@ class TestFallbackOnTimeout:
             with pytest.raises(SystemExit) as exc:
                 await _run_single(
                     "test query",
-                    "o4-mini-deep-research",
+                    "gpt-5.6-terra",
                     "openai",
                     False,
                     False,
@@ -251,7 +251,7 @@ class TestFallbackOnTimeout:
 
             assert exc.value.code == 1
             assert len(calls) == 1
-            assert calls[0] == ("openai", "o4-mini-deep-research")
+            assert calls[0] == ("openai", "gpt-5.6-terra")
             router.get_fallback.assert_not_called()
 
 
@@ -288,7 +288,7 @@ class TestFallbackOnAuth:
 
             await _run_single(
                 "test query",
-                "o4-mini-deep-research",
+                "gpt-5.6-terra",
                 "openai",
                 False,
                 False,
@@ -334,7 +334,7 @@ class TestNoFallbackFlag:
             with pytest.raises(SystemExit) as exc:
                 await _run_single(
                     "test query",
-                    "o4-mini-deep-research",
+                    "gpt-5.6-terra",
                     "openai",
                     False,
                     False,
@@ -376,7 +376,7 @@ class TestRouterSelection:
 
             await _run_single(
                 "test query",
-                "o4-mini-deep-research",
+                "gpt-5.6-terra",
                 "openai",
                 False,
                 False,
@@ -417,7 +417,7 @@ class TestRouterSelection:
 
             await _run_single(
                 "test query",
-                "o4-mini-deep-research",
+                "gpt-5.6-terra",
                 "openai",
                 True,
                 True,
@@ -482,7 +482,7 @@ class TestVectorStoreDegradation:
                 with patch("deepr.config.load_config", return_value={}):
                     await _run_single(
                         "test query",
-                        "o4-mini-deep-research",
+                        "gpt-5.6-terra",
                         "openai",
                         False,
                         False,
@@ -518,7 +518,7 @@ class TestMaxFallbackAttempts:
             ("xai", "grok-4-1-fast-non-reasoning"),
             ("gemini", "gemini-2.5-flash"),
             ("anthropic", "claude-3-5-sonnet"),
-            ("openai", "gpt-4o-mini"),  # Should not reach this
+            ("openai", "gpt-5.6-luna"),  # Should not reach this
         ]
         call_idx = [0]
 
@@ -530,7 +530,7 @@ class TestMaxFallbackAttempts:
             return None
 
         router = MagicMock()
-        router.select_provider.return_value = ("openai", "o4-mini-deep-research")
+        router.select_provider.return_value = ("openai", "gpt-5.6-terra")
         router.get_fallback.side_effect = get_fallback
         router.record_result.return_value = None
 
@@ -551,7 +551,7 @@ class TestMaxFallbackAttempts:
             with pytest.raises(SystemExit) as exc:
                 await _run_single(
                     "test query",
-                    "o4-mini-deep-research",
+                    "gpt-5.6-terra",
                     "openai",
                     False,
                     False,
@@ -590,7 +590,7 @@ class TestSuccessRecording:
 
             await _run_single(
                 "test query",
-                "o4-mini-deep-research",
+                "gpt-5.6-terra",
                 "openai",
                 False,
                 False,
@@ -604,7 +604,7 @@ class TestSuccessRecording:
             router.record_result.assert_called_once()
             call_kwargs = router.record_result.call_args
             assert call_kwargs[1]["success"] is True
-            assert call_kwargs[0] == ("openai", "o4-mini-deep-research")
+            assert call_kwargs[0] == ("openai", "gpt-5.6-terra")
 
 
 class TestFallbackTraceEvents:
@@ -640,7 +640,7 @@ class TestFallbackTraceEvents:
 
             await _run_single(
                 "test query",
-                "o4-mini-deep-research",
+                "gpt-5.6-terra",
                 "openai",
                 False,
                 False,

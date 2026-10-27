@@ -192,7 +192,7 @@ def test_invalid_batch_input_is_a_terminal_refusal(monkeypatch, tmp_path, flags,
 
 
 @pytest.mark.parametrize(
-    "provider,model,key", [("openai", "o3-deep-research", "OPENAI_API_KEY"), ("xai", "grok-4.6", "XAI_API_KEY")]
+    "provider,model,key", [("openai", "gpt-5.6-terra", "OPENAI_API_KEY"), ("xai", "grok-4.6", "XAI_API_KEY")]
 )
 def test_preview_and_execution_keep_the_same_environment_route(monkeypatch, provider, model, key):
     from deepr.observability.provider_router import AutonomousProviderRouter

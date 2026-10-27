@@ -56,14 +56,14 @@ class DocReviewer:
     """
 
     def __init__(
-        self, api_key: str | None = None, model: str = "gpt-5", docs_path: str = "docs/research and documentation"
+        self, api_key: str | None = None, model: str = "gpt-5.6-sol", docs_path: str = "docs/research and documentation"
     ):
         """
         Initialize doc reviewer.
 
         Args:
             api_key: OpenAI API key (defaults to OPENAI_API_KEY env)
-            model: Model for evaluation (default: gpt-5)
+            model: Model for evaluation (default: gpt-5.6-sol)
             docs_path: Path to docs directory
         """
         if OpenAI is None:

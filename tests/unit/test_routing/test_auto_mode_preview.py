@@ -65,11 +65,11 @@ class TestDeprecationInRouting:
         assert "grok-3" in DEPRECATION_REGISTRY
 
     def test_current_models_not_deprecated(self):
-        """Current frontier models should pass deprecation check cleanly."""
+        """Current frontier models pass cleanly; retiring and shut-down ids do not."""
         from deepr.routing.deprecation import check_deprecation
 
         assert check_deprecation("gpt-5.4") is None
-        assert check_deprecation("gpt-4.1") is None
+        assert check_deprecation("gpt-4.1") is not None
         assert check_deprecation("grok-4.20-0309-reasoning") is None
         assert check_deprecation("gemini-3.1-pro-preview") is None
         assert check_deprecation("gpt-5.6-sol") is None

@@ -306,14 +306,14 @@ class TestCostOptimizer:
 
     def test_suggest_cheaper_model(self, optimizer):
         """suggest_cheaper_model should find cheaper alternative."""
-        # o4-mini costs $3/M tokens, grok-4-1-fast-non-reasoning costs $0.60/M
+        # gpt-5.6-terra tops out at $12/M tokens, gpt-5.6-luna at $1.20/M
         cheaper = optimizer.suggest_cheaper_model(
-            current_model="o4-mini", target_budget=1.00, estimated_tokens=1_000_000
+            current_model="gpt-5.6-terra", target_budget=2.00, estimated_tokens=1_000_000
         )
 
-        # Should suggest a model that costs <= $1 for 1M tokens
+        # Should suggest a model that costs <= $2 for 1M tokens
         assert cheaper is not None
-        assert optimizer.MODEL_COSTS[cheaper] <= 1.00
+        assert optimizer.MODEL_COSTS[cheaper] <= 2.00
 
     def test_suggest_cheaper_model_no_option(self, optimizer):
         """suggest_cheaper_model should return None if no option fits."""
@@ -327,17 +327,20 @@ class TestCostOptimizer:
     def test_calculate_optimized_config_model_switch(self, optimizer):
         """calculate_optimized_config should prefer model switch."""
         config = optimizer.calculate_optimized_config(
-            current_model="o4-mini", current_iterations=5, target_budget=1.00, estimated_tokens_per_iteration=200_000
+            current_model="gpt-5.6-terra",
+            current_iterations=5,
+            target_budget=1.50,
+            estimated_tokens_per_iteration=200_000,
         )
 
         # Should switch to cheaper model rather than reduce iterations
         assert config["strategy"] in ["model_switch", "reduce_iterations"]
-        assert config["estimated_cost"] <= 1.00
+        assert config["estimated_cost"] <= 1.50
 
     def test_calculate_optimized_config_reduce_iterations(self, optimizer):
         """calculate_optimized_config should reduce iterations if needed."""
         config = optimizer.calculate_optimized_config(
-            current_model="grok-3-mini",
+            current_model="gpt-5.6-luna",
             current_iterations=10,
             target_budget=0.2,
             estimated_tokens_per_iteration=100_000,
@@ -354,11 +357,20 @@ class TestCostOptimizer:
 
     def test_get_model_info(self, optimizer):
         """get_model_info should return model details."""
-        info = optimizer.get_model_info("o4-mini")
+        info = optimizer.get_model_info("gpt-5.6-luna")
 
-        assert info["name"] == "o4-mini"
-        assert info["cost_per_million_tokens"] == 3.00
+        assert info["name"] == "gpt-5.6-luna"
+        assert info["cost_per_million_tokens"] == 1.20
         assert "reasoning" in info["capabilities"]
+
+    def test_suggestions_never_name_retired_models(self, optimizer):
+        """o3, o4-mini and grok-3-mini are retired or retiring (#292)."""
+        from deepr.routing.deprecation import check_deprecation
+
+        assert {"o3", "o4-mini", "grok-3-mini"}.isdisjoint(optimizer.MODEL_COSTS)
+        for model in optimizer.MODEL_COSTS:
+            assert check_deprecation(model) is None, model
+        assert set(optimizer.MODEL_CAPABILITIES) == set(optimizer.MODEL_COSTS)
 
     def test_get_model_info_unknown(self, optimizer):
         """get_model_info for unknown model should return defaults."""
@@ -406,7 +418,7 @@ class TestPropertyBased:
         assert decision.value == decision_str
 
     @given(
-        current_model=st.sampled_from(["o3", "o4-mini", "grok-4-1-fast-non-reasoning"]),
+        current_model=st.sampled_from(["gpt-5.6-terra", "gpt-5.6-luna", "grok-4-1-fast-non-reasoning"]),
         target_budget=st.floats(min_value=0.1, max_value=10.0),
         tokens=st.integers(min_value=100_000, max_value=5_000_000),
     )

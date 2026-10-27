@@ -3,7 +3,7 @@ from typing import Any
 """
 Research Planner Service
 
-Uses GPT-5 models (gpt-5, gpt-5-mini, gpt-5-nano) to decompose high-level scenarios
+Uses GPT-5.6 models (gpt-5.6-sol, gpt-5.6-terra, gpt-5.6-luna) to decompose high-level scenarios
 into multiple targeted research tasks. This is the "Prep" feature.
 
 Example:
@@ -24,17 +24,20 @@ from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
+# Current planning family (docs/design/model-lifecycle-2026-10-27.md).
+PLANNER_MODELS: tuple[str, ...] = ("gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna")
+
 
 class ResearchPlanner:
     """
-    Uses GPT-5 models to plan multi-angle research strategies.
+    Uses GPT-5.6 models to plan multi-angle research strategies.
 
-    NO OLD MODELS - ONLY gpt-5, gpt-5-mini, gpt-5-nano allowed.
+    Only the GPT-5.6 family and the retiring GPT-5 ids are accepted.
     """
 
     def __init__(
         self,
-        model: str = "gpt-5",
+        model: str = "gpt-5.6-sol",
         use_azure: bool = False,
         azure_endpoint: str | None = None,
     ):
@@ -42,14 +45,16 @@ class ResearchPlanner:
         Initialize the research planner.
 
         Args:
-            model: GPT-5 model to use (gpt-5, gpt-5-mini, gpt-5-nano)
+            model: GPT-5.6 model to use (gpt-5.6-sol, gpt-5.6-terra, gpt-5.6-luna)
             use_azure: Whether to use Azure OpenAI
             azure_endpoint: Azure OpenAI endpoint (if using Azure)
         """
-        # Validate model is GPT-5 family only
-        valid_models = ["gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-5-chat"]
+        # GPT-5.6 is the default family. The original GPT-5 ids remain
+        # accepted for explicit callers until OpenAI shuts them down on
+        # 2026-12-11; registry pricing and dispatch gates still apply.
+        valid_models = [*PLANNER_MODELS, "gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-5-chat"]
         if model not in valid_models:
-            raise ValueError(f"Invalid model: {model}. Must be one of {valid_models}. NO OLD MODELS ALLOWED.")
+            raise ValueError(f"Invalid model: {model}. Must be one of {valid_models}.")
 
         self.model = model
         self.use_azure = use_azure
@@ -324,7 +329,7 @@ Please analyze this scenario and generate {max_tasks} distinct research tasks th
 
 
 def create_planner(
-    model: str = "gpt-5-mini",
+    model: str = "gpt-5.6-terra",
     provider: str = "openai",
     azure_endpoint: str | None = None,
 ) -> ResearchPlanner:
@@ -332,7 +337,7 @@ def create_planner(
     Factory function to create a research planner.
 
     Args:
-        model: GPT-5 model (gpt-5, gpt-5-mini, gpt-5-nano)
+        model: GPT-5.6 model (gpt-5.6-sol, gpt-5.6-terra, gpt-5.6-luna)
         provider: 'openai' or 'azure'
         azure_endpoint: Azure endpoint if using Azure
 

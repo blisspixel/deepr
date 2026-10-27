@@ -12,9 +12,12 @@ from deepr.routing.auto_mode import AutoModeDecision, AutoModeRouter, BatchRouti
 
 # Controlled benchmark rankings for deterministic tests.
 # Structure: task_type -> [(provider, model, quality, cost), ...]
+# gpt-4.1-nano stays in the rankings (as in a saved pre-shutdown benchmark file)
+# to prove routing skips it; gpt-5.6-luna is the next current candidate.
 _MOCK_RANKINGS = {
     "quick_lookup": [
         ("openai", "gpt-4.1-nano", 1.0, 0.003),
+        ("openai", "gpt-5.6-luna", 1.0, 0.004),
         ("openai", "gpt-5.2", 1.0, 0.25),
         ("xai", "grok-4-1-fast-non-reasoning", 0.85, 0.01),
         ("gemini", "gemini-3.8-flash", 0.80, 0.02),
@@ -22,15 +25,18 @@ _MOCK_RANKINGS = {
     "knowledge_base": [
         ("openai", "gpt-5.2", 0.90, 0.25),
         ("openai", "gpt-4.1-nano", 0.80, 0.003),
+        ("openai", "gpt-5.6-luna", 0.80, 0.004),
         ("gemini", "gemini-4-argon", 0.75, 0.12),
     ],
     "reasoning": [
         ("openai", "gpt-4.1-nano", 1.0, 0.003),
+        ("openai", "gpt-5.6-luna", 1.0, 0.004),
         ("openai", "gpt-5.2", 1.0, 0.25),
         ("xai", "grok-4-1-fast-non-reasoning", 0.82, 0.01),
     ],
     "synthesis": [
         ("openai", "gpt-4.1-nano", 1.0, 0.003),
+        ("openai", "gpt-5.6-luna", 1.0, 0.004),
         ("openai", "gpt-5.2", 1.0, 0.25),
     ],
     "comprehensive_research": [
@@ -39,14 +45,17 @@ _MOCK_RANKINGS = {
     ],
     "technical_docs": [
         ("openai", "gpt-4.1-nano", 1.0, 0.003),
+        ("openai", "gpt-5.6-luna", 1.0, 0.004),
         ("openai", "gpt-5.2", 0.50, 0.25),
     ],
     "document_analysis": [
         ("openai", "gpt-5.2", 1.0, 0.25),
         ("openai", "gpt-4.1-nano", 0.875, 0.003),
+        ("openai", "gpt-5.6-luna", 0.875, 0.004),
     ],
     "_overall": [
         ("openai", "gpt-4.1-nano", 0.95, 0.003),
+        ("openai", "gpt-5.6-luna", 0.95, 0.004),
         ("openai", "gpt-5.2", 0.90, 0.25),
         ("xai", "grok-4-1-fast-reasoning", 0.88, 0.01),
         ("gemini", "gemini-4-argon", 0.85, 0.12),
@@ -138,10 +147,11 @@ class TestAutoModeRouter:
 
         assert decision.complexity == "simple"
         assert decision.task_type == "factual"
-        # Benchmark says gpt-4.1-nano is best for quick_lookup (quality 1.0, cheapest)
+        # gpt-4.1-nano tops quick_lookup but shut down on 2026-10-23, so the
+        # next current benchmark winner is selected.
         assert decision.provider == "openai"
-        assert decision.model == "gpt-4.1-nano"
-        assert decision.cost_estimate == 0.003
+        assert decision.model == "gpt-5.6-luna"
+        assert decision.cost_estimate == 0.004
 
     def test_simple_question_is_cheap(self, router):
         """Simple WH questions should route to a cheap model."""
@@ -526,3 +536,81 @@ class TestLoadBenchmarkRankings:
         overall = rankings["_overall"]
         assert overall[0][1] == "gpt-5.4-mini" or overall[0][1] == "gpt-5.4"
         assert {r[1] for r in overall} == {"gpt-5.4", "gpt-5.4-mini"}
+
+
+class TestRetiredModelsNeverAutoSelected:
+    """Issue #292: an OpenAI key routed to openai/gpt-4.1-nano after its 2026-10-23 shutdown."""
+
+    @pytest.fixture
+    def openai_only(self, monkeypatch):
+        for name in (
+            "XAI_API_KEY",
+            "GEMINI_API_KEY",
+            "ANTHROPIC_API_KEY",
+            "AZURE_PROJECT_ENDPOINT",
+            "AZURE_OPENAI_KEY",
+        ):
+            monkeypatch.delenv(name, raising=False)
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test-123")
+        monkeypatch.setattr(auto_mode_module, "_rankings_cache", {})
+        monkeypatch.setattr(auto_mode_module, "_rankings_check_ts", float("inf"))
+        monkeypatch.setattr(auto_mode_module, "_auto_eval_started", True)
+        router = AutoModeRouter()
+        router._available_providers = {"openai"}
+        return router
+
+    @staticmethod
+    def _assert_current(provider: str, model: str) -> None:
+        from deepr.providers.registry import MODEL_CAPABILITIES
+        from deepr.routing.deprecation import check_deprecation
+
+        cap = MODEL_CAPABILITIES[f"{provider}/{model}"]
+        assert check_deprecation(model) is None, model
+        assert not cap.selection_blocked and not cap.preview_only, model
+
+    def test_cheapest_available_skips_shut_down_and_retiring_openai_ids(self, openai_only):
+        provider, model, _cost, reasoning = openai_only._cheapest_available(budget=None)
+
+        assert provider == "openai"
+        assert model not in {"gpt-4.1-nano", "gpt-5-nano", "gpt-4o-mini", "gpt-4.1-mini", "o4-mini"}
+        self._assert_current(provider, model)
+        assert "Cheapest available" in reasoning
+
+    def test_tiny_budget_last_resort_still_skips_retired_ids(self, openai_only):
+        provider, model, _cost, reasoning = openai_only._cheapest_available(budget=0.0001)
+
+        assert "Last resort" in reasoning
+        self._assert_current(provider, model)
+
+    def test_fails_closed_when_only_retired_models_remain(self, openai_only, monkeypatch):
+        from deepr.providers.registry import MODEL_CAPABILITIES
+
+        retired_only = {
+            key: cap
+            for key, cap in MODEL_CAPABILITIES.items()
+            if key in {"openai/gpt-4.1-nano", "openai/o4-mini", "openai/gpt-5-mini", "openai/gpt-4o-mini"}
+        }
+        assert len(retired_only) == 4
+        monkeypatch.setattr(auto_mode_module, "MODEL_CAPABILITIES", retired_only)
+
+        with pytest.raises(auto_mode_module.AutoRoutingUnavailable, match="No current selectable model"):
+            openai_only._cheapest_available(budget=None)
+        with pytest.raises(auto_mode_module.AutoRoutingUnavailable):
+            openai_only.route("What is Python?")
+
+    def test_route_refuses_a_retiring_fixed_route_instead_of_returning_it(self, openai_only, monkeypatch):
+        monkeypatch.setattr(
+            openai_only,
+            "_apply_auto_rules",
+            lambda **_: ("openai", "gpt-4o", 0.01, "forced"),
+        )
+
+        with pytest.raises(auto_mode_module.AutoRoutingUnavailable, match="retirement record"):
+            openai_only.route("What is Python?")
+
+    def test_open_circuit_fallback_uses_current_research_default(self, openai_only):
+        provider, model, cost, _ = openai_only._get_fallback("complex", "research", budget=None)
+
+        assert (provider, model) == ("openai", "gpt-5.6-sol")
+        assert cost > 0
+        self._assert_current(provider, model)

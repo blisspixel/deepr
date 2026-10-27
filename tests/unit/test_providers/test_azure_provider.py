@@ -94,9 +94,9 @@ class TestInit:
             assert p._credential is not None
 
     def test_default_deployment_mappings(self, provider):
-        # The defaults route the four canonical keys to deployment names.
-        assert provider.get_model_name("o3") == "o3-deep-research"
-        assert provider.get_model_name("o4-mini") == "o4-mini-deep-research"
+        # Bare o-series ids are not expanded to a shut-down deep-research deployment.
+        assert provider.get_model_name("o3") == "o3"
+        assert provider.get_model_name("o4-mini") == "o4-mini"
         assert provider.get_model_name("o3-deep-research") == "o3-deep-research"
         assert provider.get_model_name("o4-mini-deep-research") == "o4-mini-deep-research"
 

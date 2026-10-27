@@ -69,7 +69,7 @@ class ContextBuilder:
         """
         Summarize a research report for use as context.
 
-        Uses GPT-5-mini (fast, cheap reasoning model) to extract key findings.
+        Uses GPT-5.6 Luna (fast, cheap model) to extract key findings.
 
         Args:
             report_content: Full research report (could be 10+ pages)
@@ -106,37 +106,37 @@ Summary (bullet list, ~{target_words} words):"""
         from deepr.services.metered_call import execute_reserved_sync_call
         from deepr.services.metered_envelope import bounded_chat_envelope
 
+        model = "gpt-5.6-luna"
         envelope = bounded_chat_envelope(
             provider="openai",
-            model="gpt-5-mini",
+            model=model,
             prompt_parts=(prompt,),
             budget_usd=0.25,
             maximum_output_tokens=max_tokens + 100,
         )
 
         from deepr.providers.dispatch_authority import require_official_paid_client
+        from deepr.providers.openai_params import compatible_chat_kwargs
 
+        request = compatible_chat_kwargs(
+            model,
+            {
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.3,
+                "max_completion_tokens": envelope.output_tokens,
+            },
+        )
         require_official_paid_client(self.client, "openai")
         response = await asyncio.to_thread(
             execute_reserved_sync_call,
             operation_prefix="context-summary",
             provider="openai",
-            model="gpt-5-mini",
+            model=model,
             source="services.context_builder.summarize_research",
             max_cost_per_job=envelope.cost_usd,
-            request_envelope={
-                "model": "gpt-5-mini",
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.3,
-                "max_completion_tokens": envelope.output_tokens,
-            },
-            call=partial(
-                self.client.chat.completions.create,
-                model="gpt-5-mini",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.3,
-                max_completion_tokens=envelope.output_tokens,
-            ),
+            request_envelope=request,
+            call=partial(self.client.chat.completions.create, **request),
         )
 
         return (response.choices[0].message.content or "").strip()

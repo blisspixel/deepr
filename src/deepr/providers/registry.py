@@ -4,6 +4,8 @@ Defines capabilities, costs, and specializations for all supported models across
 Used by ModelRouter to make intelligent routing decisions.
 """
 
+from datetime import date
+
 from .model_capability import ModelCapability as ModelCapability
 from .openrouter_catalog import OPENROUTER_CAPABILITIES
 from .reviewed_catalog import REVIEWED_CAPABILITIES
@@ -193,16 +195,15 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         latency_ms=2500,
         context_window=400_000,
         specializations=["reasoning", "planning", "analysis", "synthesis"],
-        strengths=[
-            "Frontier-scale reasoning",
-            "400K context window",
-            "Deep multi-step analysis",
-            "Code generation",
+        strengths=["Retained so historical usage can still be priced and settled"],
+        weaknesses=[
+            "Retiring: OpenAI shuts down gpt-5 on 2026-12-11. Not selected. Use gpt-5.6-sol.",
         ],
-        weaknesses=["Registration required", "Higher cost than gpt-5-mini"],
         input_cost_per_1m=1.25,
         output_cost_per_1m=10.00,
         cached_input_cost_per_1m=0.125,
+        deprecated=True,
+        successor="openai/gpt-5.6-sol",
     ),
     "openai/gpt-5-mini": ModelCapability(
         provider="openai",
@@ -211,16 +212,15 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         latency_ms=1500,
         context_window=400_000,
         specializations=["reasoning", "speed", "balanced"],
-        strengths=[
-            "Good reasoning at low cost",
-            "Fast responses",
-            "400K context window",
-            "No registration required",
+        strengths=["Retained so historical usage can still be priced and settled"],
+        weaknesses=[
+            "Retiring: OpenAI shuts down gpt-5-mini on 2026-12-11. Not selected. Use gpt-5.6-terra.",
         ],
-        weaknesses=["Less capable than gpt-5 for complex tasks"],
         input_cost_per_1m=0.25,
         output_cost_per_1m=2.00,
         cached_input_cost_per_1m=0.025,
+        deprecated=True,
+        successor="openai/gpt-5.6-terra",
     ),
     "openai/gpt-4o-mini": ModelCapability(
         provider="openai",
@@ -229,11 +229,16 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         latency_ms=1500,
         context_window=128_000,
         specializations=["speed", "cost", "general", "synthesis"],
-        strengths=["Fast and inexpensive", "Good for bounded utility calls and synthesis"],
-        weaknesses=["Older and less capable than GPT-5 mini", "Limited for complex reasoning"],
+        strengths=["Retained so historical usage can still be priced and settled"],
+        weaknesses=[
+            "Retiring: OpenAI shuts down gpt-4o-mini on 2027-01-14. Not selected. Use gpt-5.6-luna.",
+            "OpenAI recommends gpt-6-luna; Deepr lists it as preview-only pending adapter validation.",
+        ],
         input_cost_per_1m=0.15,
         output_cost_per_1m=0.60,
         cached_input_cost_per_1m=0.075,
+        deprecated=True,
+        successor="openai/gpt-5.6-luna",
     ),
     "openai/gpt-4.1": ModelCapability(
         provider="openai",
@@ -242,16 +247,16 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         latency_ms=2000,
         context_window=1_047_576,
         specializations=["reasoning", "planning", "synthesis", "large_context"],
-        strengths=[
-            "1M+ token context window",
-            "Strong general-purpose reasoning",
-            "No registration required",
-            "Cost-effective for large documents",
+        strengths=["Retained so historical usage can still be priced and settled"],
+        weaknesses=[
+            "Retiring: OpenAI shuts down gpt-4.1 on 2027-01-14. Not selected. Use gpt-5.6-terra.",
+            "OpenAI recommends gpt-6-luna; Deepr lists it as preview-only pending adapter validation.",
         ],
-        weaknesses=["Slower than mini/nano variants", "Not frontier-scale reasoning"],
         input_cost_per_1m=2.00,
         output_cost_per_1m=8.00,
         cached_input_cost_per_1m=0.50,
+        deprecated=True,
+        successor="openai/gpt-5.6-terra",
     ),
     "openai/gpt-4.1-mini": ModelCapability(
         provider="openai",
@@ -260,16 +265,16 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         latency_ms=1200,
         context_window=1_047_576,
         specializations=["speed", "cost", "general", "large_context"],
-        strengths=[
-            "1M+ token context window",
-            "Very affordable ($0.40/$1.60 per MTok)",
-            "Fast responses",
-            "No registration required",
+        strengths=["Retained so historical usage can still be priced and settled"],
+        weaknesses=[
+            "Retiring: OpenAI shuts down gpt-4.1-mini on 2027-01-14. Not selected. Use gpt-5.6-luna.",
+            "OpenAI recommends gpt-6-luna; Deepr lists it as preview-only pending adapter validation.",
         ],
-        weaknesses=["Less capable reasoning than gpt-4.1"],
         input_cost_per_1m=0.40,
         output_cost_per_1m=1.60,
         cached_input_cost_per_1m=0.10,
+        deprecated=True,
+        successor="openai/gpt-5.6-luna",
     ),
     "openai/gpt-4.1-nano": ModelCapability(
         provider="openai",
@@ -278,15 +283,15 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         latency_ms=800,
         context_window=1_047_576,
         specializations=["speed", "cost", "general", "large_context"],
-        strengths=[
-            "1M+ token context window",
-            "Cheapest GPT-4.1 variant ($0.10/$0.40 per MTok)",
-            "Very fast responses",
+        strengths=["Retained so historical usage can still be priced and settled"],
+        weaknesses=[
+            "Shut down by OpenAI on 2026-10-23. Not selected. Use gpt-5.6-luna.",
         ],
-        weaknesses=["Least capable 4.1 variant", "Not ideal for complex reasoning"],
         input_cost_per_1m=0.10,
         output_cost_per_1m=0.40,
         cached_input_cost_per_1m=0.025,
+        deprecated=True,
+        successor="openai/gpt-5.6-luna",
     ),
     "openai/gpt-5-nano": ModelCapability(
         provider="openai",
@@ -295,16 +300,15 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         latency_ms=800,
         context_window=400_000,
         specializations=["speed", "cost", "general", "summarization"],
-        strengths=[
-            "Cheapest GPT-5 variant ($0.05/$0.40 per MTok)",
-            "Very fast responses",
-            "400K context window",
-            "Good for summarization and classification",
+        strengths=["Retained so historical usage can still be priced and settled"],
+        weaknesses=[
+            "Retiring: OpenAI shuts down gpt-5-nano on 2026-12-11. Not selected. Use gpt-5.6-luna.",
         ],
-        weaknesses=["Lowest reasoning capability in GPT-5 family"],
         input_cost_per_1m=0.05,
         output_cost_per_1m=0.40,
         cached_input_cost_per_1m=0.005,
+        deprecated=True,
+        successor="openai/gpt-5.6-luna",
     ),
     # OpenAI Reasoning Models (o-series, non-deep-research)
     "openai/o3": ModelCapability(
@@ -314,14 +318,14 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         latency_ms=5000,
         context_window=200_000,
         specializations=["reasoning", "math", "science", "coding"],
-        strengths=[
-            "Strong reasoning chains",
-            "Excellent at math, science, and coding",
-            "200K context window",
+        strengths=["Retained so historical usage can still be priced and settled"],
+        weaknesses=[
+            "Retiring: OpenAI shuts down o3 on 2026-12-11. Not selected. Use gpt-5.6-sol.",
         ],
-        weaknesses=["Succeeded by GPT-5 for most tasks", "Slower than GPT models"],
         input_cost_per_1m=2.00,
         output_cost_per_1m=8.00,
+        deprecated=True,
+        successor="openai/gpt-5.6-sol",
     ),
     "openai/o4-mini": ModelCapability(
         provider="openai",
@@ -330,14 +334,14 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         latency_ms=3000,
         context_window=200_000,
         specializations=["reasoning", "speed", "cost", "math", "science"],
-        strengths=[
-            "Fast, cost-efficient reasoning",
-            "Good at math and science",
-            "200K context window",
+        strengths=["Retained so historical usage can still be priced and settled"],
+        weaknesses=[
+            "Shut down by OpenAI on 2026-10-23. Not selected. Use gpt-5.6-terra.",
         ],
-        weaknesses=["Succeeded by GPT-5 mini for most tasks", "Smaller context than GPT models"],
         input_cost_per_1m=1.10,
         output_cost_per_1m=4.40,
+        deprecated=True,
+        successor="openai/gpt-5.6-terra",
     ),
     # OpenAI Deep Research Models
     "openai/o3-deep-research": ModelCapability(
@@ -347,19 +351,17 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         latency_ms=120_000,
         context_window=128_000,
         specializations=["research", "analysis", "strategic_planning"],
-        strengths=[
-            "Extended reasoning chains",
-            "Deep multi-step analysis",
-            "High quality comprehensive research",
-        ],
+        strengths=["Retained so historical usage can still be priced and settled"],
         weaknesses=[
-            "Expensive",
-            "Slow (2-5 minutes)",
+            "Shut down by OpenAI on 2026-07-23. Not selected. Use gpt-5.6-sol.",
+            "No direct OpenAI deep-research successor model.",
         ],
         # $5/$20 standard. Source checked 2026-07-12:
         # https://developers.openai.com/api/docs/pricing
         input_cost_per_1m=5.0,
         output_cost_per_1m=20.0,
+        deprecated=True,
+        successor="openai/gpt-5.6-sol",
     ),
     "openai/o4-mini-deep-research": ModelCapability(
         provider="openai",
@@ -368,17 +370,17 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         latency_ms=60_000,  # 60 seconds average
         context_window=128_000,
         specializations=["research", "analysis", "strategic_planning"],
-        strengths=[
-            "Extended reasoning chains",
-            "Deep multi-step analysis",
-            "High quality comprehensive research",
-            "Excellent for strategic decisions",
+        strengths=["Retained so historical usage can still be priced and settled"],
+        weaknesses=[
+            "Shut down by OpenAI on 2026-07-23. Not selected. Use gpt-5.6-sol.",
+            "No direct OpenAI deep-research successor model.",
         ],
-        weaknesses=["Expensive ($2 per query)", "Slow (30-60 seconds minimum)", "Overkill for simple queries"],
         # $1/$4 standard. Source checked 2026-07-12:
         # https://developers.openai.com/api/docs/pricing
         input_cost_per_1m=1.00,
         output_cost_per_1m=4.00,
+        deprecated=True,
+        successor="openai/gpt-5.6-sol",
     ),
     # xAI Models (Grok)
     # Grok 4.20 - Flagship (March 2026)
@@ -1019,12 +1021,15 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
             "Agent/Thread/Run pattern for async jobs",
         ],
         weaknesses=[
+            "Retiring: Azure Foundry retires o3-deep-research on 2026-11-19. Not selected.",
+            "Azure names gpt-5.6-sol as the replacement; Deepr has no Azure GPT-5.6 contract.",
             "Deep research limited to West US, Norway East, South Central US",
             "Requires Azure AI Foundry project setup",
             "No standalone file upload (thread attachments only)",
         ],
         input_cost_per_1m=11.0,
         output_cost_per_1m=44.0,
+        deprecated=True,
     ),
     "azure-foundry/gpt-5": ModelCapability(
         provider="azure-foundry",
@@ -1040,6 +1045,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
             "Available in 10+ regions (Global Standard)",
         ],
         weaknesses=[
+            "Azure Foundry retires gpt-5 on 2027-02-09 (Azure schedule, not the OpenAI API date).",
             "Registration required",
             "Only code interpreter + file search tools (no deep research tool)",
             "Requires Azure AI Foundry project setup",
@@ -1062,6 +1068,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
             "No registration required",
         ],
         weaknesses=[
+            "Azure Foundry retires gpt-5-mini on 2027-02-09 (Azure schedule, not the OpenAI API date).",
             "Less capable than gpt-5 for complex tasks",
             "Requires Azure AI Foundry project setup",
         ],
@@ -1083,6 +1090,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
             "No registration required",
         ],
         weaknesses=[
+            "Azure Foundry retires gpt-4.1 on 2027-04-14 (Azure schedule, not the OpenAI API date).",
             "Not frontier-scale reasoning (use gpt-5 for that)",
             "Requires Azure AI Foundry project setup",
         ],
@@ -1104,6 +1112,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
             "No registration required",
         ],
         weaknesses=[
+            "Azure Foundry retires gpt-4.1-mini on 2027-04-14 (Azure schedule, not the OpenAI API date).",
             "Less capable reasoning than gpt-4.1",
             "Requires Azure AI Foundry project setup",
         ],
@@ -1125,6 +1134,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
             "128K context window",
         ],
         weaknesses=[
+            "Azure Foundry retires gpt-4o 2024-08-06 and 2024-11-20 on 2027-04-14; 2024-05-13 on 2026-12-09.",
             "Superseded by gpt-4.1 (1M context, same price)",
             "Requires Azure AI Foundry project setup",
         ],
@@ -1145,6 +1155,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
             "Good for quick lookups and simple tasks",
         ],
         weaknesses=[
+            "Azure Foundry retires gpt-4o-mini on 2027-04-14 (Azure schedule, not the OpenAI API date).",
             "Superseded by gpt-4.1-mini (1M context, similar price)",
             "Less capable at complex reasoning",
             "Requires Azure AI Foundry project setup",
@@ -1210,6 +1221,34 @@ def get_model_capability(provider: str, model: str) -> ModelCapability | None:
     return MODEL_CAPABILITIES.get(key)
 
 
+def _auto_selectable(cap: ModelCapability, today: date | None = None) -> bool:
+    """Automatic selection skips previews, blocked contracts, and provider retirements.
+
+    Direct provider rows are skipped once a retirement is recorded. Azure rows
+    follow the Azure schedule and stay selectable until their Azure date.
+    Explicit identity and pricing are unaffected.
+    """
+    from deepr.routing.deprecation import AZURE_PROVIDERS, check_deprecation, is_shutdown
+
+    if cap.preview_only or cap.selection_blocked:
+        return False
+    if cap.provider in AZURE_PROVIDERS:
+        return not is_shutdown(cap.model, provider=cap.provider, today=today)
+    return check_deprecation(cap.model, cap.provider) is None
+
+
+def is_auto_selectable(provider: str, model: str, *, today: date | None = None) -> bool:
+    """Whether automatic routing may pick ``provider/model``.
+
+    Unregistered ids stay eligible unless a provider retirement record names them;
+    dispatch gates still decide whether they can run.
+    """
+    from deepr.routing.deprecation import check_deprecation
+
+    cap = MODEL_CAPABILITIES.get(f"{provider}/{model}")
+    return _auto_selectable(cap, today) if cap is not None else check_deprecation(model, provider) is None
+
+
 def get_models_by_specialization(specialization: str) -> list[ModelCapability]:
     """Get all models that specialize in a given area.
 
@@ -1217,35 +1256,24 @@ def get_models_by_specialization(specialization: str) -> list[ModelCapability]:
         specialization: Specialization to filter by
 
     Returns:
-        List of models with that specialization, sorted by cost
+        List of automatically selectable models with that specialization, sorted by cost
     """
     matching = [
-        cap
-        for cap in MODEL_CAPABILITIES.values()
-        if not cap.preview_only and not cap.selection_blocked and specialization in cap.specializations
+        cap for cap in MODEL_CAPABILITIES.values() if _auto_selectable(cap) and specialization in cap.specializations
     ]
     return sorted(matching, key=lambda x: x.cost_per_query)
 
 
 def get_cheapest_model() -> ModelCapability:
-    """Select the cheapest non-preview, non-deprecated model."""
-    return min(
-        (cap for cap in MODEL_CAPABILITIES.values() if not cap.preview_only and not cap.selection_blocked),
-        key=lambda x: x.cost_per_query,
-    )
+    """Select the cheapest automatically selectable model."""
+    return min((cap for cap in MODEL_CAPABILITIES.values() if _auto_selectable(cap)), key=lambda x: x.cost_per_query)
 
 
 def get_fastest_model() -> ModelCapability:
-    """Select the fastest non-preview, non-deprecated model."""
-    return min(
-        (cap for cap in MODEL_CAPABILITIES.values() if not cap.preview_only and not cap.selection_blocked),
-        key=lambda x: x.latency_ms,
-    )
+    """Select the fastest automatically selectable model."""
+    return min((cap for cap in MODEL_CAPABILITIES.values() if _auto_selectable(cap)), key=lambda x: x.latency_ms)
 
 
 def get_largest_context_model() -> ModelCapability:
-    """Select the largest context among non-preview, non-deprecated models."""
-    return max(
-        (cap for cap in MODEL_CAPABILITIES.values() if not cap.preview_only and not cap.selection_blocked),
-        key=lambda x: x.context_window,
-    )
+    """Select the largest context among automatically selectable models."""
+    return max((cap for cap in MODEL_CAPABILITIES.values() if _auto_selectable(cap)), key=lambda x: x.context_window)

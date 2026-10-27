@@ -1,6 +1,6 @@
 # Model Selection Guide
 
-Status: Deepr v2.50.38. Lifecycle notices reviewed 2026-10-18. Gemini lineup reviewed 2026-10-14. Broader currency review 2026-10-06.
+Status: Deepr v2.50.38. Lifecycle notices reviewed 2026-10-27. Gemini lineup reviewed 2026-10-14. Broader currency review 2026-10-06.
 
 The source of truth for model IDs, pricing estimates, context windows, and
 routing metadata is [src/deepr/providers/registry.py](../src/deepr/providers/registry.py),
@@ -25,6 +25,21 @@ Stable Gemini 2.5 models are `legacy_access_only`, not provider-deprecated.
 Their exact IDs and historical prices remain inspectable, but Deepr still
 refuses dispatch without account eligibility proof. New-project guidance names
 Gemini 3.5 Flash-Lite or 3.8 Flash. No new-project credential was exercised.
+
+The [2026-10-27 lifecycle repair](design/model-lifecycle-2026-10-27.md)
+(#292) marks every retired or retiring direct OpenAI row deprecated with a
+validated GPT-5.6 successor: `gpt-4.1-nano`, `o4-mini` and `gpt-4o-2024-05-13`
+shut down 2026-10-23; `gpt-5`, `gpt-5-mini`, `gpt-5-nano` and `o3` shut down
+2026-12-11; `gpt-4o`, `gpt-4o-mini`, `gpt-4.1` and `gpt-4.1-mini` shut down
+2027-01-14. Automatic routing and registry selectors never return an id with a
+direct-API retirement record (Azure rows follow Azure's dates) and fail closed
+when nothing current remains. Executable
+defaults use `gpt-5.6-sol` for planning and research, `gpt-5.6-terra` for
+balanced reasoning, `gpt-5.6-luna` for cheap utility calls, and
+`gemini-3.8-flash` as the Gemini environment default. OpenAI recommends the
+preview-only `gpt-6-luna` for the GPT-4 families; Deepr does not promote it
+without adapter and settlement proof. Retired rows keep their prices so
+historical usage still settles.
 
 Latest public text-model listings and relevant prices were reviewed on
 2026-10-06. This does not establish every historical model's currency. The
@@ -198,9 +213,9 @@ are the remaining October reviewed candidates, also excluded from automatic
 routing. `gemini-3.8-flash` left that candidate set and is now selectable.
 The lists below describe the established entries; run the
 offline command above for exact pricing and context values. The web
-Models page counts registry rows that are not deprecated, not Azure AI Foundry
-deployments, and not image-generation entries. That count is 55, and it still
-includes preview-only rows.
+Models page counts registry rows that are not deprecated or otherwise
+selection-blocked, not Azure AI Foundry deployments, and not image-generation
+entries. That count is 44, and it still includes preview-only rows.
 
 ### OpenAI
 
@@ -235,10 +250,13 @@ Default posture:
 - Use GPT mainline models for synthesis, planning, and general research when
   OpenAI is the selected provider.
 - OpenAI shut down `o3-deep-research` and `o4-mini-deep-research` on 2026-07-23.
-  Use `gpt-5.6-sol` for those workloads. `o4-mini` shuts down 2026-10-23;
-  its substitute is `gpt-5.6-terra`.
-- Use mini or nano variants for cheap classification, summaries, and routing
-  only when quality risk is acceptable.
+  Use `gpt-5.6-sol` for those workloads. `o4-mini` and `gpt-4.1-nano` shut
+  down 2026-10-23; `gpt-5`, `gpt-5-mini`, `gpt-5-nano` and `o3` shut down
+  2026-12-11; `gpt-4o-mini`, `gpt-4.1` and `gpt-4.1-mini` shut down
+  2027-01-14. Those rows are deprecated, priced for settlement, and never
+  auto-selected.
+- Use `gpt-5.6-luna` for cheap classification, summaries, and routing only
+  when quality risk is acceptable.
 - GPT-5.6 Sol is the OpenAI task default. Terra is the balanced tier and Luna
   is the cost-sensitive tier. The `gpt-5.6` provider alias is priced as Sol.
 - A 272K-token prompt is still base price. At 272,001 input tokens, Deepr
@@ -519,8 +537,13 @@ Default posture:
 - Azure model availability is deployment and region dependent. The registry
   names Deepr-tested deployment targets, not every model Microsoft may expose
   in a given subscription.
-- The registered `azure-foundry/o3-deep-research` id is shut down. New Azure
-  deep-research deployments should target `gpt-5.6-sol`. Foundry dispatch stays
+- Azure Foundry retires `azure-foundry/o3-deep-research` on 2026-11-19; the row
+  is deprecated. New Azure deep-research deployments should target
+  `gpt-5.6-sol`. Azure keeps its own schedule for the other rows: the GPT-5
+  family retires 2027-02-09 and `gpt-4o`/`gpt-4o-mini`/GPT-4.1 on 2027-04-14,
+  later than the direct OpenAI API dates. Lifecycle lookups are
+  provider-scoped, so automatic selection keeps Azure rows until their Azure
+  date. Foundry dispatch stays
   gated until the agent run exposes the complete output and tool ceiling.
 - Refresh Azure registry entries only after adapter behavior and deployment
   names are tested locally or in CI-like validation.

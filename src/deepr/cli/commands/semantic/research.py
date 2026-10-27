@@ -471,7 +471,7 @@ def research(
 @click.option(
     "--provider", default="openai", type=click.Choice(["openai", "azure", "gemini", "xai"]), help="Research provider"
 )
-@click.option("--lead", default="gpt-5", help=model_help("Lead planner model", "gpt-5"))
+@click.option("--lead", default="gpt-5.6-sol", help=model_help("Lead planner model", "gpt-5.6-sol"))
 @click.option("--phases", "-p", type=int, default=3, help="Number of learning phases")
 @click.option("--yes", "-y", is_flag=True, help="Run noninteractively; never bypasses a budget gate")
 def learn(

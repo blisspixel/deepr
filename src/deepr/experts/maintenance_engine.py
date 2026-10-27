@@ -118,10 +118,11 @@ def _metered_claim_services(
         return None, None
     from deepr.experts.claim_extraction import SemanticClaimExtractor
     from deepr.experts.claim_verification import SemanticClaimVerifier
+    from deepr.experts.report_absorber import DEFAULT_EXTRACTION_MODEL
 
     service_kwargs = {
         "provider": "openai",
-        "model": "gpt-5-mini",
+        "model": DEFAULT_EXTRACTION_MODEL,
         "capacity_source": "api_metered",
         "allow_metered": True,
     }

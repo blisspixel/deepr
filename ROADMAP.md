@@ -84,6 +84,14 @@ human-calibrated semantic acceptance and S2-S4 remain unqualified.
   fresh acquisition. Exact generated response schemas now consume the same
   input allowance; the separately reviewed source-fix trial completed under
   unchanged limits. No alias, salvage or automatic retry was introduced.
+- [x] **Model lifecycle repair (2026-10-27, #292):** auto routing returned
+  shut-down `gpt-4.1-nano` with only an OpenAI key. Retired and retiring
+  OpenAI rows are deprecated with dated GPT-5.6 successors, selectors fail
+  closed, and executable defaults moved to validated GPT-5.6 tiers and
+  `gemini-3.8-flash`; see the
+  [decision record](docs/design/model-lifecycle-2026-10-27.md). Account access
+  and GPT-5.6 request compatibility were not live-verified; preview-only
+  `gpt-6-luna` stays unpromoted.
 - [ ] **Prepared-advice qualification (2026-10-25):** repair and review invented
   release chronology, metadata versus runtime compatibility, artifact-specific
   digest advice, bounded snapshot currentness and claim attribution. The

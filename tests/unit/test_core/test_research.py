@@ -148,7 +148,7 @@ class TestBudgetValidation:
         with pytest.raises(ValueError) as exc_info:
             await orchestrator.submit_research(
                 prompt="Test research",
-                model="o3-deep-research",
+                model="gpt-5.6-sol",
                 budget_limit=0.01,  # Very low - should fail
             )
 
@@ -171,7 +171,7 @@ class TestBudgetValidation:
 
             result = await orchestrator.submit_research(
                 prompt="Test research",
-                model="o3-deep-research",
+                model="gpt-5.6-sol",
                 budget_limit=10.0,  # High enough
             )
 
@@ -186,7 +186,7 @@ class TestBudgetValidation:
         with pytest.raises(RuntimeError, match="provider down"):
             await orchestrator.submit_research(
                 prompt="Test research",
-                model="o3-deep-research",
+                model="gpt-5.6-sol",
             )
 
         assert ResearchReservationStore().active_cost() == 0
@@ -204,7 +204,7 @@ class TestBudgetValidation:
         with pytest.raises(ResearchRequestBoundsError) as exc_info:
             await orchestrator.submit_research(
                 prompt="Test research",
-                model="o4-mini-deep-research",
+                model="gpt-5.6-terra",
                 documents=["evidence.txt"],
             )
 
@@ -225,7 +225,7 @@ class TestBudgetValidation:
         ) as reserve:
             result = await orchestrator.submit_research(
                 prompt="Hi",
-                model="o4-mini-deep-research",
+                model="gpt-5.6-terra",
             )
 
         request = orchestrator.provider.submit_research.await_args.args[0]
@@ -247,7 +247,7 @@ class TestBudgetValidation:
 
         result = await orchestrator.submit_research(
             prompt="Test research",
-            model="o3-deep-research",
+            model="gpt-5.6-sol",
         )
 
         assert result == "job-actual"
@@ -256,7 +256,7 @@ class TestBudgetValidation:
         response = ResearchResponse(
             id="job-actual",
             status="completed",
-            model="o3-deep-research",
+            model="gpt-5.6-sol",
             output=[{"type": "message", "content": [{"type": "text", "text": "done"}]}],
             metadata={},
             usage=UsageStats(
@@ -285,7 +285,7 @@ class TestBudgetValidation:
         with pytest.raises(ValueError, match="Daily limit"):
             await orchestrator.submit_research(
                 prompt="Test research",
-                model="o3-deep-research",
+                model="gpt-5.6-sol",
             )
 
         orchestrator.provider.submit_research.assert_not_called()
@@ -327,7 +327,7 @@ class TestPromptValidation:
 
             result = await orchestrator.submit_research(
                 prompt=long_prompt,
-                model="o4-mini-deep-research",
+                model="gpt-5.6-terra",
             )
 
             assert result == "job-123"
@@ -348,7 +348,7 @@ class TestPromptValidation:
 
             result = await orchestrator.submit_research(
                 prompt=short_prompt,
-                model="o3-deep-research",
+                model="gpt-5.6-sol",
             )
 
             assert result == "job-123"
@@ -497,7 +497,7 @@ class TestErrorHandling:
             "reservation": ResearchCostReservation(
                 job_id="job-123",
                 provider="openai",
-                model="o3-deep-research",
+                model="gpt-5.6-sol",
                 estimated_cost=0.5,
                 reservation_id="reservation-123",
                 manager=MagicMock(),
@@ -521,7 +521,7 @@ class TestErrorHandling:
             "reservation": ResearchCostReservation(
                 job_id="internal-job",
                 provider="openai",
-                model="o3-deep-research",
+                model="gpt-5.6-sol",
                 estimated_cost=0.5,
                 reservation_id="reservation-123",
                 manager=MagicMock(),
@@ -543,7 +543,7 @@ class TestErrorHandling:
         reservation = ResearchCostReservation(
             job_id="internal-job",
             provider="openai",
-            model="o3-deep-research",
+            model="gpt-5.6-sol",
             estimated_cost=0.5,
             reservation_id="reservation-123",
             manager=MagicMock(),
@@ -576,7 +576,7 @@ class TestErrorHandling:
             "reservation": ResearchCostReservation(
                 job_id="internal-job",
                 provider="openai",
-                model="o3-deep-research",
+                model="gpt-5.6-sol",
                 estimated_cost=0.5,
                 reservation_id="reservation",
                 manager=MagicMock(),
@@ -606,7 +606,7 @@ class TestErrorHandling:
             "reservation": ResearchCostReservation(
                 job_id="internal-job",
                 provider="openai",
-                model="o3-deep-research",
+                model="gpt-5.6-sol",
                 estimated_cost=0.5,
                 reservation_id="reservation",
                 manager=MagicMock(),
@@ -812,7 +812,7 @@ class TestPropertyBasedValidation:
 
             import asyncio
 
-            result = asyncio.run(orchestrator.submit_research(prompt=prompt, model="o4-mini-deep-research"))
+            result = asyncio.run(orchestrator.submit_research(prompt=prompt, model="gpt-5.6-terra"))
             assert result == "job-123"
             tracking = orchestrator._cost_tracking.pop(result)
             settle_research_cost(

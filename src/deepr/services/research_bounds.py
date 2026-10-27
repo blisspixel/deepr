@@ -324,7 +324,8 @@ def bounded_research_cost_estimate(
             f"{capability.access_note} Dispatch blocked until account eligibility is proven.",
             code="research_model_access_unverified",
         )
-    if capability.deprecated:
+    if capability.deprecated and not allow_preview_only:
+        # An explicit write-free preview may still price a retired id.
         successor = f"; use successor {capability.successor!r}" if capability.successor else ""
         raise ResearchRequestBoundsError(
             f"Research model {request.model!r} is deprecated{successor}",

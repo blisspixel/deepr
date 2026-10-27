@@ -71,10 +71,10 @@ class TestOpenAIProvider:
         assert provider.get_model_name("o4-mini-deep-research") == "o4-mini-deep-research"
         assert provider.get_model_name("unknown-model") == "unknown-model"
 
-    def test_model_name_mapping_all_aliases(self, provider):
-        """Test all model aliases are mapped correctly."""
-        assert provider.get_model_name("o3") == "o3-deep-research-2025-06-26"
-        assert provider.get_model_name("o4-mini") == "o4-mini-deep-research"
+    def test_bare_o_series_ids_are_not_expanded_to_shut_down_deep_research(self, provider):
+        """o3/o4-mini are their own priced ids; expansion swapped model and price."""
+        assert provider.get_model_name("o3") == "o3"
+        assert provider.get_model_name("o4-mini") == "o4-mini"
 
 
 # =============================================================================

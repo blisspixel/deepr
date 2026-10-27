@@ -29,7 +29,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 
-from deepr.config import environment_variable_source, load_configuration_environment
+from deepr.config import environment_variable_source, learn_focus_topic_cost, load_configuration_environment
 from deepr.core.cost_caps import clamp_spend_authority
 
 logger = logging.getLogger(__name__)
@@ -263,8 +263,8 @@ class ExpertSettings:
     quick_research_topics: int = 10
 
     # Costs
-    deep_research_cost: float = 2.50  # per topic (Gemini 3.1 Pro deep research)
-    quick_research_cost: float = 0.002  # per topic
+    deep_research_cost: float = 2.50  # conservative per campaign topic (>= campaign model registry cost)
+    quick_research_cost: float = field(default_factory=learn_focus_topic_cost)  # focus model registry cost
 
     # Synthesis
     auto_synthesis: bool = True
@@ -535,7 +535,7 @@ class Settings:
         # Provider API keys
         self._load_provider_from_env("openai", "OPENAI_API_KEY", "OPENAI_BASE_URL", "gpt-5.6-sol")
         self._load_provider_from_env("anthropic", "ANTHROPIC_API_KEY", None, "claude-opus-5")
-        self._load_provider_from_env("gemini", "GEMINI_API_KEY", None, "gemini-2.0-flash")
+        self._load_provider_from_env("gemini", "GEMINI_API_KEY", None, "gemini-3.8-flash")
         self._load_provider_from_env("grok", "XAI_API_KEY", None, "grok-4.3")
         self._load_provider_from_env("xai", "XAI_API_KEY", None, "grok-4.3")
 

@@ -221,8 +221,8 @@ class TestModelSelection:
     def test_research_uses_deep_research_model(self, router):
         """Test that research queries use deep research model."""
         config = router.select_model("Research the latest AI trends comprehensively")
-        # Should use deep research model when budget allows (o3-deep-research is BEST)
-        assert config.model == "o3-deep-research" or config.cost_estimate >= 0.5
+        # Research uses the retained gpt-5.6-sol default when budget allows.
+        assert config.model == "gpt-5.6-sol" or config.cost_estimate >= 0.5
 
     def test_complex_uses_high_reasoning(self, router):
         """Test that complex queries use high reasoning effort."""
@@ -249,12 +249,12 @@ class TestModelSelection:
         assert config.provider == "openai"
 
     def test_openai_constraint_research_uses_deep_research(self, router):
-        """Test that OpenAI constraint with research uses o3-deep-research (BEST model)."""
+        """OpenAI research uses the retained gpt-5.6-sol default (o3-deep-research shut down 2026-07-23)."""
         config = router.select_model(
             "Research the latest AI trends comprehensively", provider_constraint="openai", budget_remaining=5.0
         )
         assert config.provider == "openai"
-        assert config.model == "o3-deep-research"
+        assert config.model == "gpt-5.6-sol"
 
     def test_large_context_uses_gemini(self, router):
         """Test that large context uses Gemini."""
@@ -283,6 +283,7 @@ class TestModelSelection:
             allow_research_model=False,
         )
         assert config.model != "o3-deep-research"
+        assert config.cost_estimate < 2.0
 
     def test_research_allowed_by_default_preserves_deep_research(self, router):
         """Default (allow_research_model=True) keeps the existing agentic path."""
@@ -291,7 +292,7 @@ class TestModelSelection:
             provider_constraint="openai",
             budget_remaining=5.0,
         )
-        assert config.model == "o3-deep-research"
+        assert config.model == "gpt-5.6-sol"
 
 
 class TestFallbackModel:
@@ -472,6 +473,23 @@ class TestOpenAIBenchmarkRouting:
         assert cfg.model == "gpt-5.4-mini"
         assert cfg.reasoning_effort == "medium"
         assert cfg.confidence <= 0.95
+
+    def test_select_skips_retired_models_in_saved_benchmarks(self, tmp_path, monkeypatch):
+        """A pre-shutdown benchmark file must not route to a shut-down id (#292)."""
+        router = self._router_with(
+            tmp_path,
+            monkeypatch,
+            {
+                "rankings": [
+                    {"model_key": "openai/gpt-4.1-nano", "scores_by_type": {"reasoning": 0.99}},
+                    {"model_key": "openai/gpt-5-mini", "scores_by_type": {"reasoning": 0.98}},
+                    {"model_key": "openai/gpt-5.4-mini", "scores_by_type": {"reasoning": 0.8}},
+                ]
+            },
+        )
+        cfg = router._select_openai_from_benchmarks("moderate", "reasoning", budget_remaining=None)
+        assert cfg is not None
+        assert cfg.model == "gpt-5.4-mini"
 
     def test_select_returns_none_without_data_or_task(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)

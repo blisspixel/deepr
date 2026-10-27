@@ -4,21 +4,14 @@ Historical identities remain accepted without becoming advertised defaults.
 This module grants no dispatch or migration authority.
 """
 
-from datetime import UTC, date, datetime
 from typing import Any
 
 import click
 
 from deepr.providers.registry_pricing import get_resolved_model_capability
-from deepr.routing.deprecation import check_deprecation
+from deepr.routing.deprecation import check_deprecation, is_shutdown
 
-
-def is_shutdown(model: str, *, today: date | None = None) -> bool:
-    """Compare a provider's recorded deadline, never infer it from a model name."""
-    entry = check_deprecation(model)
-    return bool(
-        entry and entry.sunset_date and date.fromisoformat(entry.sunset_date) <= (today or datetime.now(UTC).date())
-    )
+__all__ = ["ModelChoice", "is_shutdown", "model_help", "model_note"]
 
 
 def model_note(model: str) -> str:
