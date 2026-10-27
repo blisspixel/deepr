@@ -33,6 +33,7 @@ from deepr.experts.preparation_acquisition import (
 )
 from deepr.experts.preparation_context import CapturedFormedContext, PreparedConsultation, capture_formed_context
 from deepr.experts.preparation_contracts import (
+    FIELD_SEMANTICS_VERSION,
     Assumption,
     CallerScope,
     FrozenModel,
@@ -119,37 +120,14 @@ def _file_version(filename: str) -> Version | None:
 _RELEASE_SOURCE = "PyPI JSON API release response (/pypi/<project>/<version>/json) as returned at observed_at"
 _INDEX_SOURCE = "PyPI Simple API project response (PEP 691 JSON, /simple/<project>/) as returned at observed_at"
 _LISTING_LABEL = "listing at observation time only; not completeness, future currentness, or safety"
-_DECLARED = "uploader-declared metadata; not an install, import or runtime test"
-_ARCHIVE_DIGEST = "digest of the archive bytes named by filename; not installed files or other archives"
-_PUBLISHED = "as published at observed_at; may change later"
-# Fixed meaning of retained fields. A path is listed only when that field is
-# present in the projection; these strings describe form, never a verdict.
-_FIELD_SEMANTICS: tuple[tuple[str, str], ...] = (
-    ("requires_python", _DECLARED),
-    ("yanked", _PUBLISHED),
-    ("vulnerabilities", "PyPI's own list as returned; not an advisory database check"),
-    ("versions", "listed at observed_at"),
-    ("listing_at_observation", _LISTING_LABEL),
-    ("files[].filename", "wheel tags in the name are " + _DECLARED),
-    ("files[].python_version", _DECLARED),
-    ("files[].requires_python", _DECLARED),
-    ("files[].requires-python", _DECLARED),
-    ("files[].digests", _ARCHIVE_DIGEST),
-    ("files[].md5_digest", _ARCHIVE_DIGEST),
-    ("files[].hashes", _ARCHIVE_DIGEST),
-    ("files[].core-metadata", "sha256 of the separate core metadata file, not the archive"),
-    ("files[].data-dist-info-metadata", "legacy name of core-metadata"),
-    ("files[].yanked", _PUBLISHED),
-)
 
 
-def _semantics(result: dict[str, Any]) -> dict[str, str]:
-    file_keys = {key for file in result.get("files", ()) for key in file}
-    present = set(result) | {f"files[].{key}" for key in file_keys}
-    return {path: meaning for path, meaning in _FIELD_SEMANTICS if path in present}
+def _omitted_keys(info: list[str], response: list[str], files: list[str]) -> dict[str, list[str]]:
+    groups = {"info": info, "response": response, "files[]": files}
+    return {name: keys for name, keys in groups.items() if keys}
 
 
-def _release_projection(data: dict[str, Any]) -> tuple[dict[str, Any], list[str], list[str]]:
+def _release_projection(data: dict[str, Any]) -> tuple[dict[str, Any], list[str], list[str], list[str]]:
     info = data["info"]
     result: dict[str, Any] = {"source": _RELEASE_SOURCE, "name": info["name"], "version": info["version"]}
     absent: list[str] = []
@@ -167,21 +145,23 @@ def _release_projection(data: dict[str, Any]) -> tuple[dict[str, Any], list[str]
             result[target] = data[key]
         else:
             absent.append(key)
-    omitted = [
-        f"info.{key}" for key in sorted(set(info) - {"name", "version", "requires_python", "yanked", "yanked_reason"})
-    ]
-    omitted += sorted(set(data) - {"info", "urls", "vulnerabilities", "project-status"})
-    return result, absent, omitted
+    omitted_info = sorted(set(info) - {"name", "version", "requires_python", "yanked", "yanked_reason"})
+    omitted = sorted(set(data) - {"info", "urls", "vulnerabilities", "project-status"})
+    return result, absent, omitted_info, omitted
 
 
 def _listing(
     data: dict[str, Any],
     coordinate: PackageCoordinate,
     observed_at: str,
-    selected: list[dict[str, Any]],
+    target_files: int,
     file_versions: list[Version],
+    unyanked: set[Version],
 ) -> dict[str, Any]:
-    """Highest listed identity by PEP 440 ordering; a listing fact, never currentness."""
+    """Listing facts by PEP 440 ordering at observation time, never currentness or safety.
+
+    Target files are referenced, not repeated: they are the projection's ``files``.
+    """
     target = Version(coordinate.version)
     listed: list[tuple[Version, str]] = []
     unparsed = 0
@@ -191,18 +171,18 @@ def _listing(
             listed.append((Version(str(value)), str(value)))
         except InvalidVersion:
             unparsed += 1
-    highest = max(listed)[1] if listed else None
+    final = [entry for entry in listed if not entry[0].is_prerelease and entry[0] in unyanked]
     return {
         "label": _LISTING_LABEL,
         "observed_at": observed_at,
         "basis": basis,
         "listed_version_count": len({version for version, _ in listed}),
         "unparsed_listed_versions": unparsed,
-        "highest_listed_version": highest,
+        "highest_listed_version": max(listed)[1] if listed else None,
+        "highest_listed_final_unyanked_version": max(final)[1] if final else None,
         "target_listed": any(version == target for version, _ in listed),
-        "target_files": [
-            {key: file[key] for key in ("filename", "upload-time", "yanked") if key in file} for file in selected
-        ],
+        "target_files": "files",
+        "target_file_count": target_files,
     }
 
 
@@ -210,12 +190,15 @@ def _index_projection(
     data: dict[str, Any], coordinate: PackageCoordinate, observed_at: str
 ) -> tuple[dict[str, Any], list[str], list[str], list[str]]:
     selected, file_versions, unmatched, other = [], [], 0, 0
+    unyanked: set[Version] = set()
     for file in data["files"]:
         version = _file_version(str(file.get("filename", "")))
         if version is None:
             unmatched += 1
             continue
         file_versions.append(version)
+        if file.get("yanked", False) is False:
+            unyanked.add(version)
         if version == Version(coordinate.version):
             selected.append(file)
         else:
@@ -235,7 +218,7 @@ def _index_projection(
             absent.append(key)
     if "vulnerabilities" in data:
         result["vulnerabilities"] = data["vulnerabilities"]
-    result["listing_at_observation"] = _listing(data, coordinate, observed_at, selected, file_versions)
+    result["listing_at_observation"] = _listing(data, coordinate, observed_at, len(selected), file_versions, unyanked)
     omitted = sorted(set(data) - {"name", "meta", "files", "versions", "project-status", "vulnerabilities"})
     notes = [
         f"Index excludes {other} other-version files and {unmatched} unparsed filenames; absence is not proof.",
@@ -254,21 +237,24 @@ def _projection(source: AcquiredSource, coordinate: PackageCoordinate) -> _Sourc
     """
     data = json.loads(source.raw)
     notes: list[str] = []
+    omitted_info: list[str] = []
     if source.intent.source_class == "pypi_release":
-        result, absent, omitted_keys = _release_projection(data)
+        result, absent, omitted_info, omitted_response = _release_projection(data)
     else:
-        result, absent, omitted_keys, notes = _index_projection(data, coordinate, source.observed_at)
+        result, absent, omitted_response, notes = _index_projection(data, coordinate, source.observed_at)
     # Keep all selected file metadata, including every yank/qualification, except
     # download destinations. They are evidence data, never fetch authority.
+    omitted_files: list[str] = []
     if "files" in result:
         if any("url" in file for file in result["files"]):
-            omitted_keys.append("files[].url")
+            omitted_files.append("url")
         result["files"] = [{key: value for key, value in file.items() if key != "url"} for file in result["files"]]
     result["fields_absent_in_source"] = absent
-    result["omitted_source_keys"] = omitted_keys
-    result["field_semantics"] = _semantics(result)
+    result["omitted_source_keys"] = _omitted_keys(omitted_info, omitted_response, omitted_files)
+    result["field_semantics"] = FIELD_SEMANTICS_VERSION
+    count = len(omitted_info) + len(omitted_response) + len(omitted_files)
     omitted = [
-        f"{len(omitted_keys)} source keys not projected (listed exactly in omitted_source_keys); "
+        f"{count} source keys not projected (listed exactly in omitted_source_keys); "
         "their content was not delivered or interpreted.",
         "No artifact, metadata file or project URL was fetched.",
         *notes,

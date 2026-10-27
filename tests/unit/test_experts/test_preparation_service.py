@@ -11,10 +11,12 @@ import pytest
 from deepr.experts.investigation.ollama_backend import NativeOllamaInvestigationBackend
 from deepr.experts.preparation_acquisition import AcquiredSource, AcquisitionCancelled, AcquisitionResult, RequestIntent
 from deepr.experts.preparation_contracts import (
+    FIELD_SEMANTICS_VERSION,
     CallerScope,
     PreparationPacket,
     PreparationRequest,
     canonical_bytes,
+    field_semantics_for,
     sha256,
 )
 from deepr.experts.preparation_service import prepare_consultation
@@ -222,7 +224,7 @@ async def test_two_calls_private_evidence_and_canonical_invariance(service_fixtu
     # The simple index carries no vulnerability list; none is invented beside the release's own list.
     assert projections[0]["vulnerabilities"] == [] and "vulnerabilities" not in projections[1]
     assert all("vulnerability_metadata_provided" not in item for item in projections)
-    assert projections[0]["omitted_source_keys"] == ["info.description", "files[].url"]
+    assert projections[0]["omitted_source_keys"] == {"info": ["description"], "files[]": ["url"]}
     assert projections[1]["listing_at_observation"]["highest_listed_version"] == "2.0"
     release_limits = packet.observations[0].limitations
     assert "2 source keys not projected (listed exactly in omitted_source_keys)" in release_limits[0]
@@ -639,11 +641,12 @@ def test_index_projection_records_listing_at_observation_without_inventing_field
         "listed_version_count": 4,
         "unparsed_listed_versions": 1,
         "highest_listed_version": "2.0rc1",
+        # 2.0rc1 is a pre-release; 1.0 has no listed file, so 1.10 is the highest final unyanked listing.
+        "highest_listed_final_unyanked_version": "1.10",
         "target_listed": True,
-        "target_files": [
-            {"filename": "fixture-1.9-py3-none-any.whl", "upload-time": "2026-01-02T03:04:05.000000Z", "yanked": False},
-            {"filename": "fixture-1.9.tar.gz", "upload-time": "2026-01-02T03:04:05.000000Z", "yanked": "broken sdist"},
-        ],
+        # Target files are referenced, not repeated: upload time and yank status stay in ``files``.
+        "target_files": "files",
+        "target_file_count": 2,
     }
     assert [item["filename"] for item in projection["files"]] == [
         "fixture-1.9-py3-none-any.whl",
@@ -651,9 +654,10 @@ def test_index_projection_records_listing_at_observation_without_inventing_field
     ]
     assert "vulnerabilities" not in projection and "project-status" not in projection
     assert projection["fields_absent_in_source"] == ["project-status"]
-    assert projection["omitted_source_keys"] == ["alternate-locations", "files[].url"]
+    assert projection["omitted_source_keys"] == {"response": ["alternate-locations"], "files[]": ["url"]}
     assert "unfetched.invalid" not in projection_result.text
-    semantics = projection["field_semantics"]
+    assert projection["field_semantics"] == FIELD_SEMANTICS_VERSION
+    semantics = field_semantics_for(projection["field_semantics"], projection)
     assert "archive bytes named by filename" in semantics["files[].hashes"]
     assert "separate core metadata file" in semantics["files[].core-metadata"]
     assert "not an install, import or runtime test" in semantics["files[].requires-python"]
@@ -671,13 +675,13 @@ def test_index_projection_without_versions_lists_from_file_names_and_target_abse
     projection = json.loads(result.text)
     listing = projection["listing_at_observation"]
     assert listing["basis"] == "file_names" and listing["highest_listed_version"] == "2.0"
-    assert listing["target_listed"] is False and listing["target_files"] == []
+    assert listing["target_listed"] is False and listing["target_file_count"] == 0
     assert projection["fields_absent_in_source"] == ["versions", "project-status"]
     assert any("versions inventory absent" in item for item in result.omitted)
 
 
 def test_projection_fixed_semantics_stay_inside_no_clipping_limit():
-    from deepr.experts.preparation_service import _FIELD_SEMANTICS, _MAX_PROJECTION_CHARS, _projection
+    from deepr.experts.preparation_service import _MAX_PROJECTION_CHARS, _projection
 
     coordinate = _coordinate()
     release_file = {
@@ -704,17 +708,12 @@ def test_projection_fixed_semantics_stay_inside_no_clipping_limit():
         "last_serial": 1,
     }
     projection = json.loads(_projection(_source("pypi_release", release, coordinate), coordinate).text)
-    assert {"files[].digests", "files[].python_version", "files[].md5_digest"} <= set(projection["field_semantics"])
-    assert projection["omitted_source_keys"] == ["info.summary", "last_serial", "files[].url"]
-    fixed = canonical_bytes(
-        {
-            "field_semantics": dict(_FIELD_SEMANTICS),
-            "source": "x" * 120,
-            "fields_absent_in_source": ["info.requires_python", "info.yanked", "info.yanked_reason", "urls"],
-        }
-    )
-    # The fixed representation overhead is small beside the unchanged no-clipping bound.
-    assert len(fixed) < 4096 < _MAX_PROJECTION_CHARS == 32768
+    meanings = field_semantics_for(projection["field_semantics"], projection)
+    assert {"files[].digests", "files[].python_version", "files[].md5_digest"} <= set(meanings)
+    assert projection["omitted_source_keys"] == {"info": ["summary"], "response": ["last_serial"], "files[]": ["url"]}
+    # Only the semantics identifier is frozen per projection; the text is a versioned constant.
+    assert len(canonical_bytes({"field_semantics": FIELD_SEMANTICS_VERSION})) < 64
+    assert _MAX_PROJECTION_CHARS == 32768
 
 
 def test_long_omitted_key_list_stays_exact_without_clipping():
@@ -724,7 +723,7 @@ def test_long_omitted_key_list_stays_exact_without_clipping():
     info = {"name": "fixture", "version": "1.0", **{f"descriptive_key_{index:03}": "x" * 40 for index in range(40)}}
     result = _projection(_source("pypi_release", {"info": info, "urls": []}, coordinate), coordinate)
     projection = json.loads(result.text)
-    assert projection["omitted_source_keys"] == [f"info.descriptive_key_{index:03}" for index in range(40)]
+    assert projection["omitted_source_keys"] == {"info": [f"descriptive_key_{index:03}" for index in range(40)]}
     assert result.omitted[0].startswith("40 source keys not projected (listed exactly in omitted_source_keys)")
     assert all(len(item) <= 512 for item in result.omitted)
 
@@ -755,3 +754,81 @@ async def test_interpretation_with_unknown_reference_retains_terminal_failed_pac
     assert len(packet.observations) == 2
     assert common["store"].load(common["owner"], outcome.claim.operation_id) == outcome.frozen
     assert tree(root) == before
+
+
+def _wheel_heavy_index(target_files):
+    """Shape of the independent review probe: many target wheels plus other-version files."""
+    tags = [
+        "cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64",
+        "cp311-cp311-musllinux_1_2_aarch64",
+        "cp312-cp312-win_amd64",
+        "cp313-cp313-macosx_14_0_arm64",
+        "cp313t-cp313t-manylinux_2_27_aarch64",
+    ]
+
+    def files(version, count):
+        return [
+            {
+                "filename": f"numpy-{version}-{tags[index % 5]}{index}.whl",
+                "url": "https://files.pythonhosted.org/packages/xx/yy/" + "a" * 64,
+                "hashes": {"sha256": "b" * 64},
+                "requires-python": ">=3.11",
+                "core-metadata": {"sha256": "c" * 64},
+                "data-dist-info-metadata": {"sha256": "c" * 64},
+                "size": 16000000,
+                "upload-time": "2026-06-01T12:00:00.000000Z",
+                "yanked": False,
+            }
+            for index in range(count)
+        ]
+
+    return {
+        "meta": {"api-version": "1.4", "_last-serial": 1},
+        "name": "numpy",
+        "versions": [f"2.{minor}.{patch}" for minor in range(4) for patch in range(5)],
+        "files": files("2.3.0", target_files) + files("2.2.0", 5),
+    }
+
+
+@pytest.mark.parametrize(("target_files", "main_chars"), [(50, 23116), (56, 25869), (60, 27672)])
+def test_wheel_heavy_index_projection_stays_admitted_like_main(target_files, main_chars):
+    """Regression: the representation repair must not refuse projections main accepted.
+
+    ``main_chars`` are the sizes at 60c6754b for the review probe; the first repair
+    refused 56 and 60 files by repeating target files and semantics text.
+    """
+    from deepr.experts.preparation_contracts import PackageCoordinate
+    from deepr.experts.preparation_service import _projection
+
+    coordinate = PackageCoordinate(name="numpy", version="2.3.0")
+    text = _projection(_source("pypi_index", _wheel_heavy_index(target_files), coordinate), coordinate).text
+    # Fixed overhead only: labels, listing facts and the semantics identifier; no per-file growth.
+    assert 0 < len(text) - main_chars < 700
+    projection = json.loads(text)
+    assert projection["listing_at_observation"]["target_file_count"] == target_files
+    assert len(projection["files"]) == target_files
+
+
+def test_highest_final_unyanked_listing_excludes_prereleases_and_fully_yanked_versions():
+    from deepr.experts.preparation_service import _projection
+
+    coordinate = _coordinate("1.0")
+    data = {
+        "name": "fixture",
+        "meta": {"api-version": "1.4"},
+        "versions": ["1.0", "1.1", "1.2.dev1", "2.0rc1"],
+        "files": [
+            _index_file("fixture-1.0.tar.gz"),
+            _index_file("fixture-1.1.tar.gz", yanked=True),
+            _index_file("fixture-1.1-py3-none-any.whl", yanked="bad wheel"),
+            _index_file("fixture-1.2.dev1.tar.gz"),
+            _index_file("fixture-2.0rc1.tar.gz"),
+        ],
+    }
+    listing = json.loads(_projection(_source("pypi_index", data, coordinate), coordinate).text)[
+        "listing_at_observation"
+    ]
+    assert listing["highest_listed_version"] == "2.0rc1"
+    assert listing["highest_listed_final_unyanked_version"] == "1.0"
+    meaning = field_semantics_for(FIELD_SEMANTICS_VERSION, {"listing_at_observation": listing})
+    assert "excludes PEP 440 pre-releases, dev releases" in meaning["listing_at_observation"]

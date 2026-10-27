@@ -481,15 +481,21 @@ scope, network bounds and spend unchanged.
   the simple index never carries vulnerabilities, so its empty list read as a
   clean result. Absent keys are now
   named in `fields_absent_in_source`, and omitted source keys are listed
-  exactly. A constant `source` label and fixed `field_semantics` state what
-  retained fields mean. Requires-Python, `python_version` and wheel tags are
+  exactly, grouped by `info`, response and file record. A constant `source`
+  label states the endpoint. The projection freezes only a `field_semantics`
+  version identifier (`pypi-field-semantics-v1`). The delivered view renders
+  that versioned constant's fixed text for the fields present. Requires-Python, `python_version` and wheel tags are
   uploader-declared packaging metadata, not an install, import or runtime test.
   Archive digests cover only the bytes named by `filename`, and the
   `core-metadata` digest covers the separate metadata file. Yank status is as
   published. This addresses metadata-as-runtime and digest-attachment defects.
 - Index projections add `listing_at_observation`: observed time, highest
-  listed version by PEP 440 ordering, whether the target is listed and the
-  target files' upload time and yank status. It is labelled as a listing at
+  listed version by PEP 440 ordering, and the highest listed final release
+  that has a non-yanked file. That excludes PEP 440 pre-releases and dev
+  releases, because the plain highest can be either, or yanked. It also
+  records whether the target is listed and a count of target files that
+  points to the projection's `files` records, which already hold upload time
+  and yank status. It is labelled as a listing at
   observation time only; not completeness, future currentness, or safety.
   This addresses snapshot currentness. `applicable_versions` still names only
   the target: the contract allows at most 32 entries, and changing packet
@@ -517,16 +523,22 @@ meanings render once per packet. A long index `versions` list shows the newest
 are omitted and that the complete list stays in the frozen packet under the
 named projection hash. Release file records hide the MD5 and BLAKE2b digest
 families, the duplicate non-ISO upload time, `downloads`, `has_sig` and
-`comment_text`, and name them on a "not shown in this view" line. A listing's
-`target_files` that repeats the index file records is shown as a reference.
-Index file records already hold only the target version's files; other
+`comment_text`, and name them on a "not shown in this view" line. Index file records already hold only the target version's files; other
 versions' files appear in NOT CHECKED and in a counted limitation.
 
+An independent review found that the first repair also grew frozen
+projections by about a third, by repeating target-file facts and semantics
+text in each projection. A wheel-heavy index of the reviewed shape then hit
+the unchanged 32,768-character no-clipping refusal at 56 target files,
+although main accepted it. Without that duplication, the review probe
+measures 23,648, 26,401 and 28,204 characters for 50, 56 and 60 target files.
+Main measured 23,116, 25,869 and 27,672, and all are admitted again.
+
 On the existing service fixture, the mandatory delivered layer grew from 4,404
-to 5,633 characters and the full synthesis prompt from 7,372 to 8,701 of
+to 5,772 characters and the full synthesis prompt from 7,372 to 8,840 of
 16,000. An offline re-projection of the retained October 25 filelock trial
-bytes moves that layer from 10,517 to 10,704 characters. The stored-context
-budget for that question is 2,989 characters, against 3,176 before. The
+bytes moves that layer from 10,517 to 10,868 characters. The stored-context
+budget for that question is 2,825 characters, against 3,176 before. The
 remainder is the fixed NOT CHECKED, caution and citation text that carries this
 repair. Stored-side source dates, brief anchor delivery and falsifier wording
 remain separate work.

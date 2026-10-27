@@ -29,6 +29,7 @@ from deepr.experts.preparation_contracts import (
     PreparationPacket,
     SourceObservation,
     canonical_bytes,
+    field_semantics_for,
     freeze_packet,
     sha256,
 )
@@ -637,7 +638,6 @@ def _versions_view(values: list[Any], target: str, projection_sha256: str) -> li
 # and legacy file fields are hidden from the view and always named; the frozen
 # packet keeps every retained value.
 _VIEW_HIDDEN_FILE_KEYS = ("md5_digest", "upload_time", "downloads", "has_sig", "comment_text")
-_LISTING_FILE_KEYS = ("filename", "upload-time", "yanked")
 
 
 def _view_projection(projection: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
@@ -658,14 +658,6 @@ def _view_projection(projection: dict[str, Any]) -> tuple[dict[str, Any], list[s
                 hidden.update(dict.fromkeys(f"files[].digests.{key}" for key in digests if key != "sha256"))
             records.append(record)
         view["files"] = records
-        listing = projection.get("listing_at_observation")
-        if isinstance(listing, dict) and all(isinstance(file, dict) for file in files):
-            same = [{key: file[key] for key in _LISTING_FILE_KEYS if key in file} for file in files]
-            if listing.get("target_files") == same:
-                view["listing_at_observation"] = {
-                    **listing,
-                    "target_files": "same archives as files above (filename, upload-time, yanked)",
-                }
     return view, list(hidden)
 
 
@@ -680,13 +672,15 @@ def _projection_lines(projection: dict[str, Any], target: str | None = None, pro
     lines = []
     for key in keys:
         value = projection[key]
-        if key == "field_semantics" and isinstance(value, dict):
+        if key == "field_semantics":
             continue
-        if key == "omitted_source_keys" and isinstance(value, list) and all(isinstance(item, str) for item in value):
-            info = [item.removeprefix("info.") for item in value if item.startswith("info.")]
-            rest = [item for item in value if not item.startswith("info.")]
-            grouped = ([f"info.{{{', '.join(info)}}}"] if info else []) + rest
-            lines.append(f"    omitted_source_keys: {_line(', '.join(grouped)) or 'none'}")
+        if key == "omitted_source_keys" and isinstance(value, dict):
+            groups = [
+                ", ".join(map(str, names)) if group == "response" else f"{group}.{{{', '.join(map(str, names))}}}"
+                for group, names in value.items()
+                if isinstance(names, list)
+            ]
+            lines.append(f"    omitted_source_keys: {_line('; '.join(groups)) or 'none'}")
         elif key == "versions" and target is not None and isinstance(value, list):
             lines += _versions_view(value, target, projection_sha256)
         elif isinstance(value, dict) and value:
@@ -727,6 +721,8 @@ def _observation_lines(
     if item.metadata_projection_json is not None:
         projection = json.loads(item.metadata_projection_json)
         semantics = projection.get("field_semantics")
+        if isinstance(semantics, str):
+            semantics = field_semantics_for(semantics, projection)
         for path, text in semantics.items() if isinstance(semantics, dict) else ():
             paths = meanings.setdefault(str(text), [])
             paths += [] if str(path) in paths else [str(path)]

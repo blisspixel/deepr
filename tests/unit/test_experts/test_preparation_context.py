@@ -630,14 +630,13 @@ def test_legacy_packet_shape_still_verifies_and_renders(captured):
 
 
 def _index_view(capture, versions, files):
-    listing = [{key: file[key] for key in ("filename", "upload-time", "yanked") if key in file} for file in files]
     data = {
         "name": "fixture",
         "version": "1.0",
         "versions": versions,
         "files": files,
-        "listing_at_observation": {"highest_listed_version": versions[-1], "target_files": listing},
-        "omitted_source_keys": ["files[].url"],
+        "listing_at_observation": {"highest_listed_version": versions[-1], "target_files": "files"},
+        "omitted_source_keys": {"files[]": ["url"]},
     }
     prepared = _observed_packet(capture, projection_data=data, source_class="pypi_index")
     observation = PreparationPacket.model_validate_json(prepared.frozen.content).observations[0]
@@ -658,7 +657,8 @@ def test_delivered_view_compacts_long_version_listing_and_discloses_omission(cap
     )
     # The frozen packet keeps the complete list.
     assert json.loads(observation.metadata_projection_json)["versions"] == versions
-    assert 'target_files: "same archives as files above (filename, upload-time, yanked)"' in text
+    assert '      target_files: "files"' in text
+    assert "    omitted_source_keys: files[].{url}" in text
 
 
 def test_delivered_view_shows_short_listing_whole(captured):
@@ -678,7 +678,12 @@ def test_delivered_view_hides_duplicate_file_fields_with_disclosure(captured):
         "has_sig": False,
         "yanked": False,
     }
-    data = {"name": "fixture", "files": [file], "omitted_source_keys": ["info.author", "info.summary", "files[].url"]}
+    data = {
+        "name": "fixture",
+        "files": [file],
+        "omitted_source_keys": {"info": ["author", "summary"], "response": ["last_serial"], "files[]": ["url"]},
+        "field_semantics": "pypi-field-semantics-v1",
+    }
     prepared = _observed_packet(capture, projection_data=data)
     text = prepared.mandatory_text()
     observation = PreparationPacket.model_validate_json(prepared.frozen.content).observations[0]
@@ -690,5 +695,8 @@ def test_delivered_view_hides_duplicate_file_fields_with_disclosure(captured):
         f"{observation.metadata_projection_sha256[:12]}): files[].has_sig, files[].md5_digest, "
         "files[].upload_time, files[].digests.blake2b_256, files[].digests.md5"
     ) in text
-    assert "    omitted_source_keys: info.{author, summary}, files[].url" in text
+    assert "    omitted_source_keys: files[].{url}; info.{author, summary}; last_serial" in text
+    # The frozen projection stores only the semantics version; the view renders the fixed text once.
+    assert "\nfiles[].digests, files[].md5_digest: digest of the archive bytes named by filename" in text
+    assert "    field_semantics" not in text
     assert json.loads(observation.metadata_projection_json)["files"] == [file]

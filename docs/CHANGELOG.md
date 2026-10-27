@@ -73,6 +73,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the failure previously raised again and errored the transaction. CLI and MCP
   now report preparation failure without dispatching an answer; the bad
   reference is refused, never aliased.
+- Freeze only a field-semantics version and reference target files instead of
+  repeating them, so wheel-heavy indexes that earlier code accepted stay under
+  the no-clipping limit. Index listings also record the highest final,
+  non-yanked listed version.
 
 ## [2.51.0] - 2026-10-25
 
