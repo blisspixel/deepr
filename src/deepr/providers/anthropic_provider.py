@@ -23,12 +23,16 @@ import asyncio
 import json
 import logging
 import os
+import re
 from datetime import UTC, datetime
 from typing import Any
 
 import httpx2
 
 logger = logging.getLogger(__name__)
+
+# A base id optionally followed by an 8-digit snapshot date (claude-opus-4-1-20250805).
+_RETIRED_SNAPSHOT = re.compile(r"(.+?)(?:-\d{8})?")
 
 try:
     from anthropic import Anthropic, AnthropicError
@@ -71,13 +75,19 @@ class AnthropicProvider(DeepResearchProvider):
         "claude-haiku-4-5",  # Fast/cheap - $1/$5 per MTok (no Extended Thinking)
     ]
 
-    # Retired by Anthropic (model-deprecations page checked 2026-10-27). Their
-    # ANTHROPIC_PRICING rows stay so historical usage still settles, but they
-    # are never selected, validated, or silently swapped for the default.
+    # Retired by Anthropic (model-deprecations page checked 2026-10-27). They
+    # have no registry pricing contract, so they cannot be reserved or settled;
+    # the reference rows in ANTHROPIC_PRICING are not a settlement path. They
+    # are refused rather than silently swapped for the default. Dated snapshot
+    # ids (for example claude-opus-4-1-20250805) and the old
+    # claude-4-opus-legacy alias are refused too.
     RETIRED_MODELS = {
         "claude-opus-4": "2026-06-15",
+        "claude-opus-4-0": "2026-06-15",
         "claude-sonnet-4": "2026-06-15",
+        "claude-sonnet-4-0": "2026-06-15",
         "claude-opus-4-1": "2026-08-05",
+        "claude-4-opus-legacy": "2026-08-05",
     }
 
     # Recommended models by use case
@@ -508,9 +518,11 @@ class AnthropicProvider(DeepResearchProvider):
         """
         if model_key in self.SUPPORTED_MODELS:
             return model_key
-        if model_key in self.RETIRED_MODELS:
+        retired = _RETIRED_SNAPSHOT.fullmatch(model_key)
+        if retired and retired.group(1) in self.RETIRED_MODELS:
             raise ProviderError(
-                f"Anthropic retired {model_key} on {self.RETIRED_MODELS[model_key]}; choose a current Claude model.",
+                f"Anthropic retired {model_key} on {self.RETIRED_MODELS[retired.group(1)]}; "
+                "choose a current Claude model.",
                 provider="anthropic",
             )
 
@@ -605,7 +617,7 @@ Always show your work. Transparency builds trust."""
 # Source: https://platform.claude.com/docs/en/about-claude/pricing
 # INFORMATIONAL ONLY: actual billing/estimates use deepr/providers/registry.py
 # (get_token_pricing). When adding a model, update the registry first - an
-# unregistered model silently bills at the o4-mini default rate.
+# unregistered model has no pricing contract and is refused before dispatch.
 ANTHROPIC_PRICING = {
     # Claude 5 family
     "claude-fable-5": {

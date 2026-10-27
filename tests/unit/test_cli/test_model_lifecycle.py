@@ -269,14 +269,49 @@ def test_gemini_env_default_is_current(monkeypatch, tmp_path):
 
 
 def test_anthropic_retired_ids_are_refused_not_swapped():
-    from deepr.providers.anthropic_provider import ANTHROPIC_PRICING, AnthropicProvider
+    from deepr.providers.anthropic_provider import AnthropicProvider
     from deepr.providers.base import ProviderError
+    from deepr.providers.registry import get_token_pricing
 
     provider = AnthropicProvider.__new__(AnthropicProvider)
     provider.model = "claude-opus-5"
-    for retired in ("claude-opus-4", "claude-opus-4-1", "claude-sonnet-4"):
+    for retired in (
+        "claude-opus-4",
+        "claude-opus-4-1",
+        "claude-sonnet-4",
+        "claude-opus-4-1-20250805",
+        "claude-sonnet-4-20250514",
+        "claude-opus-4-20250514",
+        "claude-4-opus-legacy",
+    ):
         assert retired not in AnthropicProvider.SUPPORTED_MODELS
-        assert retired in ANTHROPIC_PRICING
         with pytest.raises(ProviderError, match="retired"):
             provider.get_model_name(retired)
+    # No registry contract exists, so retired Claude ids cannot be priced or reserved.
+    for retired in ("claude-opus-4", "claude-opus-4-1", "claude-sonnet-4"):
+        with pytest.raises(ValueError):
+            get_token_pricing(retired)
+    # Current ids that share the family prefix are unaffected.
     assert provider.get_model_name("claude-sonnet-4-5") == "claude-sonnet-4-5"
+    assert provider.get_model_name("claude-opus-4-5") == "claude-opus-4-5"
+    assert provider.get_model_name("claude-sonnet-4-6") == "claude-sonnet-4-6"
+
+
+def test_learning_budget_floor_funds_one_focus_topic_at_registry_cost():
+    """Review of #292: the floor must cover generation plus one topic of the actual focus model."""
+    from deepr.config import ExpertConfig
+    from deepr.core.settings import ExpertSettings
+    from deepr.experts.constants import LEARN_CAMPAIGN_MODEL, LEARN_FOCUS_MODEL
+    from deepr.experts.curriculum import ESTIMATED_GENERATION_COST, MIN_VIABLE_LEARN_BUDGET
+    from deepr.providers.registry import MODEL_CAPABILITIES
+    from deepr.routing.deprecation import check_deprecation
+
+    focus = MODEL_CAPABILITIES[f"openai/{LEARN_FOCUS_MODEL}"].cost_per_query
+    campaign = MODEL_CAPABILITIES[f"openai/{LEARN_CAMPAIGN_MODEL}"].cost_per_query
+    assert MIN_VIABLE_LEARN_BUDGET >= ESTIMATED_GENERATION_COST + focus
+    assert ExpertConfig().quick_research_cost == focus
+    assert ExpertSettings().quick_research_cost == focus
+    assert ExpertConfig().deep_research_cost >= campaign
+    assert ExpertSettings().deep_research_cost >= campaign
+    for model in (LEARN_FOCUS_MODEL, LEARN_CAMPAIGN_MODEL):
+        assert check_deprecation(model) is None
