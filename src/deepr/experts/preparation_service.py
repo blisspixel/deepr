@@ -544,6 +544,22 @@ class _Operation:
             raise PreparationRefused("interpretation_invalid_references") from None
         self.assumptions, self.interpretation = analysis.assumptions, analysis.interpretation
 
+    def admit_view(self, captured: CapturedFormedContext, stop: Literal["complete", "partial"]) -> None:
+        """Refuse a delivered view the bounded synthesis prompt cannot hold, before any answer call.
+
+        The probe uses the real synthesis packet builder with one empty contributor,
+        so it measures the same instructions, question, closing and omission reserve.
+        """
+        from deepr.experts.consult_prompt import build_synthesis_packet
+        from deepr.experts.council import ExpertPerspective
+
+        candidate = freeze_packet(self._packet(stop, self.assumptions, self.interpretation))
+        probe = ExpertPerspective(expert_name=captured.expert_name, domain=captured.domain, response="", confidence=1.0)
+        try:
+            build_synthesis_packet(captured.question, [probe], prepared=PreparedConsultation(captured, candidate))
+        except ValueError:
+            raise PreparationRefused("prepared_view_exceeds_synthesis_prompt") from None
+
     def freeze(self, stop: Literal["complete", "partial", "failed", "cancelled", "offline"]) -> FrozenPreparation:
         frozen = freeze_packet(self._packet(stop, self.assumptions, self.interpretation))
         self.store.complete(self.owner, self.claim.operation_id, frozen, raw_sources=self.raw_sources)
@@ -766,6 +782,7 @@ async def _run_preparation(
         _validate_analysis(analysis, operation.assumptions)
         operation.adopt(analysis)
         stop: Literal["partial", "complete"] = "partial" if operation.partial else "complete"
+        operation.admit_view(captured, stop)
         return PreparationOutcome(
             claim, operation.freeze(stop), stop, True, owner.namespace_sha256, captured.context_sha256, capture_sha
         )

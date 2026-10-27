@@ -534,6 +534,14 @@ although main accepted it. Without that duplication, the review probe
 measures 23,648, 26,401 and 28,204 characters for 50, 56 and 60 target files.
 Main measured 23,116, 25,869 and 27,672, and all are admitted again.
 
+Projections may be up to 32,768 characters each, but the synthesis prompt is
+capped at 16,000. Before a packet is finalized for answering, its delivered
+view is admitted through the real synthesis packet builder with one empty
+contributor. A view that cannot fit retains a terminal `failed` packet with
+`prepared_view_exceeds_synthesis_prompt`. CLI and MCP report preparation
+failure before any answer model call, instead of a misleading
+question-length error.
+
 On the existing service fixture, the mandatory delivered layer grew from 4,404
 to 5,772 characters and the full synthesis prompt from 7,372 to 8,840 of
 16,000. An offline re-projection of the retained October 25 filelock trial

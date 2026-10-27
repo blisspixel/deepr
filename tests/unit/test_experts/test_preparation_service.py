@@ -832,3 +832,51 @@ def test_highest_final_unyanked_listing_excludes_prereleases_and_fully_yanked_ve
     assert listing["highest_listed_final_unyanked_version"] == "1.0"
     meaning = field_semantics_for(FIELD_SEMANTICS_VERSION, {"listing_at_observation": listing})
     assert "excludes PEP 440 pre-releases, dev releases" in meaning["listing_at_observation"]
+
+
+@pytest.mark.asyncio
+async def test_delivered_view_over_synthesis_cap_fails_before_answer_dispatch(service_fixture, monkeypatch):
+    """A projection admitted under 32,768 chars can still render past the 16,000-char synthesis prompt."""
+    from types import SimpleNamespace
+
+    from deepr.experts.preparation_service import PreparationAdmission, PreparationRefused, prepare_for_transaction
+
+    common, _, payloads, _, root = service_fixture
+    before = tree(root)
+
+    async def wheel_heavy(coordinates, *, limits, reserve_intent):
+        acquired = await acquisition_fixture(coordinates, limits=limits, reserve_intent=reserve_intent)
+        first = acquired.sources[0]
+        data = json.loads(first.raw)
+        record = {**data["urls"][0], "digests": {"sha256": "5" * 64}, "requires_python": ">=3.10"}
+        data["urls"] = [{**record, "filename": f"fixture-1.0-py3-none-any{index}.whl"} for index in range(90)]
+        raw = canonical_bytes(data)
+        replacement = AcquiredSource(
+            first.intent, raw, sha256(raw), first.headers, first.requested_at, first.observed_at, 200, "ok", sha256(raw)
+        )
+        sources = (replacement, *acquired.sources[1:])
+        return AcquisitionResult(sources, 2, sum(len(item.raw) for item in sources), "complete", True, None, 0)
+
+    monkeypatch.setattr("deepr.experts.preparation_service.capture_formed_context", lambda *args: common["captured"])
+    backend = SimpleNamespace(provider="local", model=common["backend"].model, client=common["backend"])
+    transaction = await prepare_for_transaction(
+        PreparationAdmission(common["request"], common["owner"], common["store"].root),
+        question=common["question"],
+        expert_name=common["captured"].expert_name,
+        backend=backend,
+        deadline=common["deadline"],
+        trace_id=common["trace_id"],
+        on_irreversible_work=common["on_irreversible_work"],
+        acquirer=wheel_heavy,
+    )
+    assert transaction.prepared is None and transaction.failure_code == "preparation_failed"
+    with pytest.raises(PreparationRefused, match="preparation_failed"):
+        _ = transaction.consult_kwargs
+    # Only the two preparation calls ran; no answer model call was made.
+    assert len(payloads) == 2
+    packet = PreparationPacket.model_validate_json(transaction.outcome.frozen.content)
+    assert packet.stop_reason == "failed"
+    assert packet.omissions[-1].reason.startswith("Preparation stopped: prepared_view_exceeds_synthesis_prompt")
+    projection = packet.observations[0].metadata_projection_json
+    assert projection is not None and len(projection) <= 32768
+    assert tree(root) == before
