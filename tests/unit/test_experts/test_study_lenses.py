@@ -46,6 +46,12 @@ class TestDomainAgnostic:
         assert "recorded prior belief" in LENSES["change"].prompt
         assert "Two measurements do not establish a scaling law" in LENSES["change"].prompt
 
+    def test_change_lens_states_an_earlier_state_only_when_a_source_does(self):
+        prompt = " ".join(LENSES["change"].prompt.split())
+        assert "only when a source itself states or dates that earlier state" in prompt
+        assert "otherwise write that the earlier state is not stated" in prompt
+        assert "tested configurations, platforms" in prompt
+
 
 class TestResolve:
     def test_default_spans_both_axes(self):

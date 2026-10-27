@@ -634,8 +634,13 @@ class TestHouseStyle:
 class TestRepresentationRepairs:
     """Structure only: the right fields reach synthesis and the reader, labelled honestly."""
 
-    def test_prompt_explains_excerpt_keys_and_fetch_times(self):
+    def test_falsifier_and_qualifier_wording_is_scope_bound(self):
         prompt = build_brief_prompt(_result([_finding("F1")]), expert_name="E")
+        assert "same mechanism the stance describes" in prompt
+        assert "asserting or disclaiming a guarantee is not itself such an observation" in prompt
+        assert "some tested configurations cannot by itself overturn a stance scoped to all of them" in prompt
+        assert "a measurement, a document, a result" not in prompt
+        assert "value used in a test is not a default unless the source calls it one" in prompt
         assert "A fetch time is when the source was retained" in prompt
 
     def test_depth_names_origin_records_and_recorded_publishers(self, corpus):

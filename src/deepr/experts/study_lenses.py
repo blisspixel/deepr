@@ -123,12 +123,16 @@ consistent on a point, do not invent a tension for it.""",
         prompt="""Read the corpus for WHAT HAS CHANGED over time and what that change invalidates.
 
 Report shifts in understanding, practice, versions, standards, or consensus. For each, state what
-was believed or done before, what is the case now, what evidence marks the change, and which
-previously reasonable conclusions no longer hold.
+is the case now, what evidence marks the change, and which previously reasonable conclusions no
+longer hold. State what was believed or done before only when a source itself states or dates
+that earlier state; otherwise write that the earlier state is not stated. A missing record of an
+earlier state does not show that nothing existed before, and an unchanged scope is continuity,
+not change.
 
 Only report change the corpus dates or sequences. Do not infer recency from tone.
 Distinguish a source's earlier claim from an expert's recorded prior belief; do not invent
-either history when it is absent. Preserve exact versions, test conditions and qualifications.
+either history when it is absent. Preserve exact versions, tested configurations, platforms,
+test conditions and qualifications as the source states them rather than generalizing them.
 Two measurements do not establish a scaling law, and unqualified use does not establish a
 population of successful users. Keep hypothetical prior assumptions explicitly hypothetical.""",
     ),

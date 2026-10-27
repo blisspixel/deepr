@@ -231,14 +231,20 @@ Rules that make this honest rather than confident-sounding:
   Cite by the id at the start of each finding line, for example "contention-4". Ids only; a
   citation that is not an id from the list below will be dropped.
 - Every position must state an observation that would overturn it. Name something someone could
-  actually go and check: a measurement, a document, a result. "If new evidence emerges" is not a
-  falsifier, because nobody can check it. A position with no falsifier is an assertion.
+  actually go and check: an observation or result about the same mechanism the stance describes.
+  "If new evidence emerges" is not a falsifier, because nobody can check it. A position with no
+  falsifier is an assertion.
   The observation must overturn this exact stance under the same subject, scope and conditions.
-  A changed mechanism, extra safeguard or different question is not itself a falsifier. If no
-  honest overturning observation is identifiable, disclose that limit rather than invent one.
-- Preserve the source's version, platform, operating conditions, and exceptions in the stance
-  itself. A conditional mechanism is not a universal recommendation. Source statements are not
-  proof that a proposed workflow is safe or suitable for every caller.
+  A document asserting or disclaiming a guarantee is not itself such an observation. A result over
+  some tested configurations cannot by itself overturn a stance scoped to all of them; name the
+  scope the result would need. A changed mechanism, extra safeguard or different question is not
+  itself a falsifier. If no honest overturning observation is identifiable, disclose that limit
+  rather than invent one.
+- Preserve the source's version, platform, operating conditions, tested configurations and
+  exceptions in the stance itself. A conditional mechanism is not a universal recommendation. A
+  value used in a test is not a default unless the source calls it one. Absence of demonstrated
+  failure is neither demonstrated safety nor demonstrated failure.
+  Source statements are not proof that a proposed workflow is safe or suitable for every caller.
 - Some findings list retained excerpts: literal text located in a source the finding cites, keyed
   to that source's origin, recorded publisher and recorded fetch time. The lens lines above them are
   an interpretation. Where the excerpts carry a narrower scope, condition or qualifier, keep theirs.
