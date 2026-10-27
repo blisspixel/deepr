@@ -32,7 +32,8 @@ validated GPT-5.6 successor: `gpt-4.1-nano`, `o4-mini` and `gpt-4o-2024-05-13`
 shut down 2026-10-23; `gpt-5`, `gpt-5-mini`, `gpt-5-nano` and `o3` shut down
 2026-12-11; `gpt-4o`, `gpt-4o-mini`, `gpt-4.1` and `gpt-4.1-mini` shut down
 2027-01-14. Automatic routing and registry selectors never return an id with a
-retirement record and fail closed when nothing current remains. Executable
+direct-API retirement record (Azure rows follow Azure's dates) and fail closed
+when nothing current remains. Executable
 defaults use `gpt-5.6-sol` for planning and research, `gpt-5.6-terra` for
 balanced reasoning, `gpt-5.6-luna` for cheap utility calls, and
 `gemini-3.8-flash` as the Gemini environment default. OpenAI recommends the
@@ -540,8 +541,9 @@ Default posture:
   is deprecated. New Azure deep-research deployments should target
   `gpt-5.6-sol`. Azure keeps its own schedule for the other rows: the GPT-5
   family retires 2027-02-09 and `gpt-4o`/`gpt-4o-mini`/GPT-4.1 on 2027-04-14,
-  later than the direct OpenAI API dates. Automatic selection still skips them
-  because retirement records are keyed by model id. Foundry dispatch stays
+  later than the direct OpenAI API dates. Lifecycle lookups are
+  provider-scoped, so automatic selection keeps Azure rows until their Azure
+  date. Foundry dispatch stays
   gated until the agent run exposes the complete output and tool ceiling.
 - Refresh Azure registry entries only after adapter behavior and deployment
   names are tested locally or in CI-like validation.
