@@ -102,6 +102,13 @@ human-calibrated semantic acceptance and S2-S4 remain unqualified.
   but source-history, platform, falsifier, batch, exit/update and omitted-check
   defects remain. Prompt clarifications are implemented; broad semantic repair
   is not established. Preserve the original and replayed whole outputs.
+  - 2026-10-27: representation repairs from the
+    [defect trace](docs/design/evidence-selection-and-delivery.md#source-observation-and-excerpt-representation-repair-2026-10-27)
+    deliver recorded source fetch times and publishers (or "unrecorded") with
+    consult passages, show brief synthesis located excerpts after complete
+    findings, label provenance as origin records, and tighten falsifier and
+    change-lens wording. No replay or review has run; the semantic defects
+    above stay open until a frozen source-grounded review compares outputs.
 
 Completed Brotli, filelock, frontend Zod, virtualenv, elevated Windows owner,
 study-budget communication, native-JSON and failure-diagnostic repairs are in

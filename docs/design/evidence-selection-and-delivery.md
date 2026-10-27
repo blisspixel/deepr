@@ -466,3 +466,85 @@ large synthetic string matrix without inference. The prior failed scan is
 retained; exact revised-head CodeQL must pass. Historical semantic recipes
 remain immutable; the final release recipe binds the hardened parser
 separately and does not promote the rejected consult candidate.
+
+### Source observation and excerpt representation repair, 2026-10-27
+
+This is a representation repair from a read-only trace of the reviewed
+[2026-10-25 brief replay](../validation/brief-clarification-2026-10-25.md)
+and the prepared-consultation trials. It changes what reaches the model and
+the reader. It is not semantic acceptance: no replay was run, nothing here
+shows that answers or briefs improved, and the residual defects stay open in
+ROADMAP until a prospectively frozen review says otherwise.
+
+The trace classified several defects as representation faults that left the
+model to fill gaps:
+
+- **Undated stored passages (B1, P1).** `CorpusEntry` records `fetched_at`
+  and `publisher`, but consult passages were labelled only by origin and sha.
+  The formed context now carries a defaulted `source_observed` mapping (sha to
+  recorded fetch time and publisher). Packet passages, synthesis finding and
+  reference blocks, the CLI grounds view and the shared perspective payload
+  render `origin; publisher; fetched <time>`. Blank values render as
+  `publisher unrecorded` and `fetch time unrecorded`; nothing is inferred from
+  source text or origin keys. The stored-only notice gains one line:
+  "Retained sources in this context were fetched between <first> and <last>;
+  nothing newer was checked", with unrecorded counts stated. A fetch time is
+  when bytes were retained, not when their subject was last true. Contexts
+  captured before the field existed restore with an empty mapping and keep
+  their original rendering, so the capture rendering check in
+  `preparation_context.py` still holds; that module is unchanged.
+- **Publisher counts from origin identifiers (B7).** Brief provenance counted
+  distinct origin keys and called them publishers, including over blank
+  publisher metadata. Positions now render `N source(s) from M origin
+  record(s); publisher recorded for K`, with a defaulted
+  `publisher_recorded_sources` count. Legacy positions read it as `None` and
+  render "publisher not counted in this record". The single-origin flag, the
+  consult line, the integrity warning and the credibility note now say origin
+  record. The flag's arithmetic is unchanged.
+- **Qualifiers only in anchors (B2, B4, B5).** Brief synthesis saw each
+  finding's lens paraphrase but not the literal excerpts it was grounded on.
+  Each finding's recorded anchors that study grounding's literal containment
+  rule locates in a retained source the finding cites are now shown whole,
+  in recorded order, within 900 characters per finding, keyed to an
+  `EXCERPT SOURCES` legend carrying origin, recorded publisher and recorded
+  fetch time. Locating bytes is provenance; it does not decide that an excerpt
+  supports the finding. Unlocated anchors are counted, not shown.
+- **Falsifiers that ask for documents (B3) and overfilled history (B1).** The
+  brief prompt now asks for an observation or result about the same mechanism
+  under the same scope; a document asserting or disclaiming a guarantee is not
+  such an observation, and a result over tested configurations cannot by
+  itself overturn a stance scoped to all of them. It asks that tested
+  configurations, platforms and conditions stay in the stance and that a test
+  value is not called a default unless the source does. The change lens now
+  states the earlier state only when a source states or dates it, and
+  otherwise says it is not stated. The 2026-10-25 clarifications (forecast
+  versus standing advice, same-claim revision conditions, no invented history)
+  are kept. Wording is guidance to the model; no code checks the meaning of
+  the returned falsifier or history.
+
+**Admission order.** Complete findings are admitted exactly as before
+(lens-balanced, whole units, exact envelope). Excerpts are then added finding
+by finding, in the same lens-balanced order, only while the whole prompt fits.
+An excerpt never displaces a finding. The receipt records the excerpt bound
+and, per presented finding, how many located excerpts were withheld and why
+(`excerpt_chars` for the per-finding bound, `prompt_chars` for the prompt
+limit); `limitations()` reports them. Older receipts read with empty defaults.
+An excerpt-inclusive unit admitted in the original single pass was measured
+and rejected: on the retained 45-finding replay study it pushed eight findings
+out at the 60,000-character ceiling.
+
+**Measured on the retained replay study** (45 findings, five sources with
+blank publisher and fetch metadata; offline, no model call). The previous
+prompt was 33,034 characters with all 45 findings. The revised wording adds
+890 characters (33,924 without excerpts). With excerpts the prompt is 57,499
+characters: all 45 findings presented, 188 of 190 anchors located, 1 excerpt
+withheld by the per-finding bound and 1 anchor unlocated. Under a smaller
+declared allowance the added wording alone admits fewer findings (36 rather
+than 39 at 30,000; 14 rather than 16 at 20,000), each recorded as before, and
+excerpts are withheld first.
+
+Consult and MCP share these builders, so their delivery stays identical. No
+consult path writes canonical state, and transaction, capture and conflict
+protections are unchanged. Structural tests assert presence of dates,
+publishers, unrecorded markers, legends, receipts and legacy reads; they make
+no claim about answer quality.
