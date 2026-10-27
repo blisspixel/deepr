@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.51.1] - 2026-10-27
+
+Patch release: model lifecycle and evidence representation repairs. No spend,
+dispatch, mutation or default-on authority is added. A frozen local
+before/after diagnostic is recorded in
+[advice-representation-2026-10-27](validation/advice-representation-2026-10-27.md);
+it establishes no improvement claim.
+
 ### Fixed
 
 - Stop automatic routing from selecting shut-down or retiring models (#292).
@@ -54,6 +62,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   earlier state is stated only when a source states or dates it. These are
   representation repairs for reviewed brief defects, not semantic acceptance;
   see the [2026-10-27 design note](design/evidence-selection-and-delivery.md#source-observation-and-excerpt-representation-repair-2026-10-27).
+- Repair how opt-in prepared consultation represents PyPI metadata to the
+  answering model. Projections no longer default absent vulnerability or
+  project-status fields; they name absent and omitted source keys and state
+  fixed field meanings, for example that Requires-Python and wheel tags are
+  declared metadata, not runtime tests. Index observations record the listing
+  at observation time, including the highest listed version by PEP 440
+  ordering. The delivered text says all planned requests returned rather than
+  "complete". It adds per-observation provenance headers, readable projections
+  and a fixed NOT CHECKED list, and labels preparation model output as
+  unreviewed interpretation. Long version listings and duplicate file fields
+  are compacted in the delivered view only, with each omission named; the
+  frozen packet keeps every value. Earlier packets still verify. This is a
+  representation repair for reviewed defects, not semantic acceptance; see the
+  [contract note](design/prepared-consultation.md#2026-10-27-representation-repair).
+- Retain a terminal failed preparation packet when the preparation model's
+  interpretation cites an unknown stored position or observation id. Freezing
+  the failure previously raised again and errored the transaction. CLI and MCP
+  now report preparation failure without dispatching an answer; the bad
+  reference is refused, never aliased.
+- Refuse a prepared packet whose delivered view cannot fit the 16,000-character
+  synthesis prompt with `prepared_view_exceeds_synthesis_prompt`, retaining a
+  failed packet before any answer call instead of reporting a misleading
+  question-length error. Projections freeze only a field-semantics version
+  and reference target files instead of repeating them, so wheel-heavy
+  indexes that earlier code accepted stay under the no-clipping limit. Index
+  listings also record the highest final, non-yanked listed version.
 
 ## [2.51.0] - 2026-10-25
 

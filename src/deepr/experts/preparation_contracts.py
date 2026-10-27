@@ -28,6 +28,46 @@ def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+_DECLARED = "uploader-declared metadata; not an install, import or runtime test"
+_ARCHIVE_DIGEST = "digest of the archive bytes named by filename; not installed files or other archives"
+_PUBLISHED = "as published at observed_at; may change later"
+FIELD_SEMANTICS_VERSION = "pypi-field-semantics-v1"
+# Fixed meaning of retained projection fields, versioned so frozen projections
+# store only the identifier. Text describes form, never a verdict.
+FIELD_SEMANTICS: dict[str, tuple[tuple[str, str], ...]] = {
+    FIELD_SEMANTICS_VERSION: (
+        ("requires_python", _DECLARED),
+        ("yanked", _PUBLISHED),
+        ("vulnerabilities", "PyPI's own list as returned; not an advisory database check"),
+        ("versions", "listed at observed_at"),
+        (
+            "listing_at_observation",
+            "listing at observation time only; not completeness, future currentness, or safety. "
+            "highest_listed_final_unyanked_version excludes PEP 440 pre-releases, dev releases and versions "
+            "with no listed file that is not yanked",
+        ),
+        ("files[].filename", "wheel tags in the name are " + _DECLARED),
+        ("files[].python_version", _DECLARED),
+        ("files[].requires_python", _DECLARED),
+        ("files[].requires-python", _DECLARED),
+        ("files[].digests", _ARCHIVE_DIGEST),
+        ("files[].md5_digest", _ARCHIVE_DIGEST),
+        ("files[].hashes", _ARCHIVE_DIGEST),
+        ("files[].core-metadata", "sha256 of the separate core metadata file, not the archive"),
+        ("files[].data-dist-info-metadata", "legacy name of core-metadata"),
+        ("files[].yanked", _PUBLISHED),
+    )
+}
+
+
+def field_semantics_for(version: str, projection: dict[str, Any]) -> dict[str, str]:
+    """Fixed meanings for the fields present in one projection; unknown versions have none."""
+    files = projection.get("files")
+    file_keys = {key for file in files if isinstance(file, dict) for key in file} if isinstance(files, list) else set()
+    present = set(projection) | {f"files[].{key}" for key in file_keys}
+    return {path: meaning for path, meaning in FIELD_SEMANTICS.get(version, ()) if path in present}
+
+
 class FrozenModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 

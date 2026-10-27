@@ -25,8 +25,10 @@ necessary admitted checks and their interpretation; code does not conclude
 relevance, contradiction, entailment or useful advice from lexical rules or
 matching hashes. Final-message receipts remain outside frozen packet identity.
 Default consultation remains stored-only; fixture-backed integration does not
-establish live-source or semantic acceptance. See the
-[preparation contract](../design/prepared-consultation.md).
+establish live-source or semantic acceptance. Fixed field meanings, the NOT
+CHECKED list, absent-field records and PEP 440 listing order are form
+disclosures in the delivered view; they judge no relevance, support or answer
+use. See the [preparation contract](../design/prepared-consultation.md).
 
 Report-absorption deduplication requires an explicit SAME model verdict for
 every routed merge. Lexical proximity, disabled verification and unknown

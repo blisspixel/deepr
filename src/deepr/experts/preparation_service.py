@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Annotated, Any, Literal
 
 from packaging.utils import parse_sdist_filename, parse_wheel_filename
-from packaging.version import Version
+from packaging.version import InvalidVersion, Version
 from pydantic import Field
 
 from deepr.experts.chat_backends import ExpertChatRequest
@@ -33,6 +33,7 @@ from deepr.experts.preparation_acquisition import (
 )
 from deepr.experts.preparation_context import CapturedFormedContext, PreparedConsultation, capture_formed_context
 from deepr.experts.preparation_contracts import (
+    FIELD_SEMANTICS_VERSION,
     Assumption,
     CallerScope,
     FrozenModel,
@@ -98,6 +99,9 @@ class PreparationRefused(RuntimeError):
     """Typed bounded failure; no automatic retry or stored-only fallback."""
 
 
+_MAX_PROJECTION_CHARS = 32768
+
+
 @dataclass(frozen=True)
 class _SourceProjection:
     text: str
@@ -113,52 +117,150 @@ def _file_version(filename: str) -> Version | None:
         return None
 
 
+_RELEASE_SOURCE = "PyPI JSON API release response (/pypi/<project>/<version>/json) as returned at observed_at"
+_INDEX_SOURCE = "PyPI Simple API project response (PEP 691 JSON, /simple/<project>/) as returned at observed_at"
+_LISTING_LABEL = "listing at observation time only; not completeness, future currentness, or safety"
+
+
+def _omitted_keys(info: list[str], response: list[str], files: list[str]) -> dict[str, list[str]]:
+    groups = {"info": info, "response": response, "files[]": files}
+    return {name: keys for name, keys in groups.items() if keys}
+
+
+def _release_projection(data: dict[str, Any]) -> tuple[dict[str, Any], list[str], list[str], list[str]]:
+    info = data["info"]
+    result: dict[str, Any] = {"source": _RELEASE_SOURCE, "name": info["name"], "version": info["version"]}
+    absent: list[str] = []
+    for key in ("requires_python", "yanked", "yanked_reason"):
+        if key in info:
+            result[key] = info[key]
+        else:
+            absent.append(f"info.{key}")
+    for key, target in (
+        ("urls", "files"),
+        ("vulnerabilities", "vulnerabilities"),
+        ("project-status", "project-status"),
+    ):
+        if key in data:
+            result[target] = data[key]
+        else:
+            absent.append(key)
+    omitted_info = sorted(set(info) - {"name", "version", "requires_python", "yanked", "yanked_reason"})
+    omitted = sorted(set(data) - {"info", "urls", "vulnerabilities", "project-status"})
+    return result, absent, omitted_info, omitted
+
+
+def _listing(
+    data: dict[str, Any],
+    coordinate: PackageCoordinate,
+    observed_at: str,
+    target_files: int,
+    file_versions: list[Version],
+    unyanked: set[Version],
+) -> dict[str, Any]:
+    """Listing facts by PEP 440 ordering at observation time, never currentness or safety.
+
+    Target files are referenced, not repeated: they are the projection's ``files``.
+    """
+    target = Version(coordinate.version)
+    listed: list[tuple[Version, str]] = []
+    unparsed = 0
+    basis = "versions" if isinstance(data.get("versions"), list) else "file_names"
+    for value in data["versions"] if basis == "versions" else [str(item) for item in file_versions]:
+        try:
+            listed.append((Version(str(value)), str(value)))
+        except InvalidVersion:
+            unparsed += 1
+    final = [entry for entry in listed if not entry[0].is_prerelease and entry[0] in unyanked]
+    return {
+        "label": _LISTING_LABEL,
+        "observed_at": observed_at,
+        "basis": basis,
+        "listed_version_count": len({version for version, _ in listed}),
+        "unparsed_listed_versions": unparsed,
+        "highest_listed_version": max(listed)[1] if listed else None,
+        "highest_listed_final_unyanked_version": max(final)[1] if final else None,
+        "target_listed": any(version == target for version, _ in listed),
+        "target_files": "files",
+        "target_file_count": target_files,
+    }
+
+
+def _index_projection(
+    data: dict[str, Any], coordinate: PackageCoordinate, observed_at: str
+) -> tuple[dict[str, Any], list[str], list[str], list[str]]:
+    selected, file_versions, unmatched, other = [], [], 0, 0
+    unyanked: set[Version] = set()
+    for file in data["files"]:
+        version = _file_version(str(file.get("filename", "")))
+        if version is None:
+            unmatched += 1
+            continue
+        file_versions.append(version)
+        if file.get("yanked", False) is False:
+            unyanked.add(version)
+        if version == Version(coordinate.version):
+            selected.append(file)
+        else:
+            other += 1
+    result: dict[str, Any] = {
+        "source": _INDEX_SOURCE,
+        "name": data["name"],
+        "version": coordinate.version,
+        "meta": data["meta"],
+        "files": selected,
+    }
+    absent: list[str] = []
+    for key in ("versions", "project-status"):
+        if key in data:
+            result[key] = data[key]
+        else:
+            absent.append(key)
+    if "vulnerabilities" in data:
+        result["vulnerabilities"] = data["vulnerabilities"]
+    result["listing_at_observation"] = _listing(data, coordinate, observed_at, len(selected), file_versions, unyanked)
+    omitted = sorted(set(data) - {"name", "meta", "files", "versions", "project-status", "vulnerabilities"})
+    notes = [
+        f"Index excludes {other} other-version files and {unmatched} unparsed filenames; absence is not proof.",
+        "applicable_versions names only the target whose files are projected; listing_at_observation covers "
+        "the listing, not other versions' files.",
+    ]
+    if "versions" not in data:
+        notes.insert(0, "Index versions inventory absent; no inference that newer versions do not exist.")
+    return result, absent, omitted, notes
+
+
 def _projection(source: AcquiredSource, coordinate: PackageCoordinate) -> _SourceProjection:
-    """Project documented metadata shape, never a relevance/safety verdict."""
+    """Project documented metadata shape, never a relevance/safety verdict.
+
+    Absent source fields stay absent and are named; nothing is defaulted.
+    """
     data = json.loads(source.raw)
-    omitted = ["Descriptive metadata omitted; artifact and project URLs are not fetched."]
+    notes: list[str] = []
+    omitted_info: list[str] = []
     if source.intent.source_class == "pypi_release":
-        info = data["info"]
-        result = {
-            "name": info["name"],
-            "version": info["version"],
-            "requires_python": info.get("requires_python"),
-            **{key: info[key] for key in ("yanked", "yanked_reason") if key in info},
-            "files": data.get("urls", []),
-            "vulnerabilities": data.get("vulnerabilities", []),
-            "vulnerability_metadata_provided": "vulnerabilities" in data,
-            "project-status": data.get("project-status"),
-        }
+        result, absent, omitted_info, omitted_response = _release_projection(data)
     else:
-        selected, unmatched, other = [], 0, 0
-        for file in data["files"]:
-            version = _file_version(str(file.get("filename", "")))
-            if version is None:
-                unmatched += 1
-            elif version == Version(coordinate.version):
-                selected.append(file)
-            else:
-                other += 1
-        result = {
-            "name": data["name"],
-            "version": coordinate.version,
-            "meta": data["meta"],
-            "versions": data.get("versions"),
-            "files": selected,
-            "vulnerabilities": data.get("vulnerabilities", []),
-            "project-status": data.get("project-status"),
-            "vulnerability_metadata_provided": "vulnerabilities" in data,
-        }
-        if "versions" not in data:
-            omitted.append("Index versions inventory absent; no inference that newer versions do not exist.")
-        omitted.append(
-            f"Index excludes {other} other-version files and {unmatched} unparsed filenames; absence is not proof."
-        )
+        result, absent, omitted_response, notes = _index_projection(data, coordinate, source.observed_at)
     # Keep all selected file metadata, including every yank/qualification, except
     # download destinations. They are evidence data, never fetch authority.
-    result["files"] = [{key: value for key, value in file.items() if key != "url"} for file in result["files"]]
+    omitted_files: list[str] = []
+    if "files" in result:
+        if any("url" in file for file in result["files"]):
+            omitted_files.append("url")
+        result["files"] = [{key: value for key, value in file.items() if key != "url"} for file in result["files"]]
+    result["fields_absent_in_source"] = absent
+    result["omitted_source_keys"] = _omitted_keys(omitted_info, omitted_response, omitted_files)
+    result["field_semantics"] = FIELD_SEMANTICS_VERSION
+    count = len(omitted_info) + len(omitted_response) + len(omitted_files)
+    omitted = [
+        f"{count} source keys not projected (listed exactly in omitted_source_keys); "
+        "their content was not delivered or interpreted.",
+        "No artifact, metadata file or project URL was fetched.",
+        *notes,
+    ]
     text = canonical_bytes(result).decode("utf-8")
-    if len(text) > 32768:
+    if len(text) > _MAX_PROJECTION_CHARS:
         raise PreparationRefused("metadata_projection_too_large_no_clipping")
     return _SourceProjection(text, tuple(omitted))
 
@@ -413,18 +515,53 @@ class _Operation:
             limitations=("Metadata projection has not yet been admitted or interpreted.", *omitted_headers),
         )
 
-    def freeze(self, stop: Literal["complete", "partial", "failed", "cancelled", "offline"]) -> FrozenPreparation:
-        packet = PreparationPacket(
+    def _packet(
+        self,
+        stop: Literal["complete", "partial", "failed", "cancelled", "offline"],
+        assumptions: tuple[Assumption, ...],
+        interpretation: Interpretation,
+    ) -> PreparationPacket:
+        return PreparationPacket(
             envelope=self.envelope,
-            assumptions=self.assumptions,
+            assumptions=assumptions,
             observations=tuple(self.observations),
-            interpretation=self.interpretation,
+            interpretation=interpretation,
             omissions=tuple(self.omissions),
             limits=self.limits,
             attempts=self.store.source_attempt_count(self.owner, self.claim.operation_id),
             stop_reason=stop,
         )
-        frozen = freeze_packet(packet)
+
+    def adopt(self, analysis: PreparationAnalysis) -> None:
+        """Admit model references against the packet contract before adopting them.
+
+        An unknown stored position or observation id is refused whole: no alias,
+        salvage or partial adoption, so the failure packet stays freezable.
+        """
+        try:
+            self._packet("failed", analysis.assumptions, analysis.interpretation)
+        except ValueError:
+            raise PreparationRefused("interpretation_invalid_references") from None
+        self.assumptions, self.interpretation = analysis.assumptions, analysis.interpretation
+
+    def admit_view(self, captured: CapturedFormedContext, stop: Literal["complete", "partial"]) -> None:
+        """Refuse a delivered view the bounded synthesis prompt cannot hold, before any answer call.
+
+        The probe uses the real synthesis packet builder with one empty contributor,
+        so it measures the same instructions, question, closing and omission reserve.
+        """
+        from deepr.experts.consult_prompt import build_synthesis_packet
+        from deepr.experts.council import ExpertPerspective
+
+        candidate = freeze_packet(self._packet(stop, self.assumptions, self.interpretation))
+        probe = ExpertPerspective(expert_name=captured.expert_name, domain=captured.domain, response="", confidence=1.0)
+        try:
+            build_synthesis_packet(captured.question, [probe], prepared=PreparedConsultation(captured, candidate))
+        except ValueError:
+            raise PreparationRefused("prepared_view_exceeds_synthesis_prompt") from None
+
+    def freeze(self, stop: Literal["complete", "partial", "failed", "cancelled", "offline"]) -> FrozenPreparation:
+        frozen = freeze_packet(self._packet(stop, self.assumptions, self.interpretation))
         self.store.complete(self.owner, self.claim.operation_id, frozen, raw_sources=self.raw_sources)
         return frozen
 
@@ -643,8 +780,9 @@ async def _run_preparation(
             )
         )
         _validate_analysis(analysis, operation.assumptions)
-        operation.assumptions, operation.interpretation = analysis.assumptions, analysis.interpretation
+        operation.adopt(analysis)
         stop: Literal["partial", "complete"] = "partial" if operation.partial else "complete"
+        operation.admit_view(captured, stop)
         return PreparationOutcome(
             claim, operation.freeze(stop), stop, True, owner.namespace_sha256, captured.context_sha256, capture_sha
         )

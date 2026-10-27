@@ -466,6 +466,101 @@ Do not replace the notice with a generic claim that the expert is current.
 No cache read, packet rendering, graph projection or final answer grants
 canonical mutation authority. A proposed learning item remains a proposal.
 
+### 2026-10-27 representation repair
+
+Independent reviews of the October 25 prepared answers found metadata presented
+as runtime compatibility, digest advice detached from its artifact, overstated
+snapshot currentness, and omitted checks or misattribution. A read-only trace
+classified these mainly as misleading representation in the delivered packet.
+This repair changes only that representation. It is not semantic acceptance,
+does not show that answers improve, and leaves default-off status, acquisition
+scope, network bounds and spend unchanged.
+
+- Projections no longer invent absent fields. Both projections defaulted an
+  absent `vulnerabilities` key to an empty list and `project-status` to null;
+  the simple index never carries vulnerabilities, so its empty list read as a
+  clean result. Absent keys are now
+  named in `fields_absent_in_source`, and omitted source keys are listed
+  exactly, grouped by `info`, response and file record. A constant `source`
+  label states the endpoint. The projection freezes only a `field_semantics`
+  version identifier (`pypi-field-semantics-v1`). The delivered view renders
+  that versioned constant's fixed text for the fields present. Requires-Python, `python_version` and wheel tags are
+  uploader-declared packaging metadata, not an install, import or runtime test.
+  Archive digests cover only the bytes named by `filename`, and the
+  `core-metadata` digest covers the separate metadata file. Yank status is as
+  published. This addresses metadata-as-runtime and digest-attachment defects.
+- Index projections add `listing_at_observation`: observed time, highest
+  listed version by PEP 440 ordering, and the highest listed final release
+  that has a non-yanked file. That excludes PEP 440 pre-releases and dev
+  releases, because the plain highest can be either, or yanked. It also
+  records whether the target is listed and a count of target files that
+  points to the projection's `files` records, which already hold upload time
+  and yank status. It is labelled as a listing at
+  observation time only; not completeness, future currentness, or safety.
+  This addresses snapshot currentness. `applicable_versions` still names only
+  the target: the contract allows at most 32 entries, and changing packet
+  fields would break re-freezing of old packets, so a limitation states the
+  distinction instead.
+- The delivered text is a derived view of the frozen packet. "Complete" now
+  says that all planned requests returned, which is not check completeness.
+  Each observation has a header with its class, coordinate, request and
+  observation times, raw SHA256 and projection SHA256. Projections render as
+  fields instead of escaped JSON. A fixed NOT CHECKED list and the
+  interpretation prompt's metadata-versus-runtime caution are always
+  delivered. The preparation model's output is labelled unreviewed model
+  interpretation, not a source observation, and answers are asked to cite
+  observation IDs and raw-hash prefixes. CLI and MCP render through the same
+  `PreparedConsultation` object. This addresses omitted checks and
+  misattribution.
+
+Frozen packet bytes, packet hashes and review projections are unchanged in
+form. A retained packet with the earlier projection shape still validates,
+re-freezes to its original hash and renders. The first version of this view
+left too little room for the expert's own stored context, so the view is
+compacted by fixed rules, and every rule names what it hides. Fixed field
+meanings render once per packet. A long index `versions` list shows the newest
+10 by PEP 440 plus the target. It then states how many other listed versions
+are omitted and that the complete list stays in the frozen packet under the
+named projection hash. Release file records hide the MD5 and BLAKE2b digest
+families, the duplicate non-ISO upload time, `downloads`, `has_sig` and
+`comment_text`, and name them on a "not shown in this view" line. Index file records already hold only the target version's files; other
+versions' files appear in NOT CHECKED and in a counted limitation.
+
+An independent review found that the first repair also grew frozen
+projections by about a third, by repeating target-file facts and semantics
+text in each projection. A wheel-heavy index of the reviewed shape then hit
+the unchanged 32,768-character no-clipping refusal at 56 target files,
+although main accepted it. Without that duplication, the review probe
+measures 23,648, 26,401 and 28,204 characters for 50, 56 and 60 target files.
+Main measured 23,116, 25,869 and 27,672, and all are admitted again.
+
+Projections may be up to 32,768 characters each, but the synthesis prompt is
+capped at 16,000. Before a packet is finalized for answering, its delivered
+view is admitted through the real synthesis packet builder with one empty
+contributor. A view that cannot fit retains a terminal `failed` packet with
+`prepared_view_exceeds_synthesis_prompt`. CLI and MCP report preparation
+failure before any answer model call, instead of a misleading
+question-length error.
+
+On the existing service fixture, the mandatory delivered layer grew from 4,404
+to 5,772 characters and the full synthesis prompt from 7,372 to 8,840 of
+16,000. An offline re-projection of the retained October 25 filelock trial
+bytes moves that layer from 10,517 to 10,868 characters. The stored-context
+budget for that question is 2,825 characters, against 3,176 before. The
+remainder is the fixed NOT CHECKED, caution and citation text that carries this
+repair. Stored-side source dates, brief anchor delivery and falsifier wording
+remain separate work.
+
+The same change fixes a reliability defect found by an evaluation dry run. A
+preparation-model interpretation that cited a stored position or observation
+id absent from the packet was adopted. Freezing the failure packet then raised
+again, so the transaction errored instead of retaining a terminal packet. Model
+references are now admitted against the packet contract before adoption. An
+unknown id refuses the whole interpretation, with no aliasing or salvage. The
+operation retains a terminal `failed` packet with
+`interpretation_invalid_references`, and CLI and MCP report preparation
+failure without dispatching an answer. Canonical expert state is unchanged.
+
 ### Canonical invariance and acceptance
 
 Before preparation, freeze the explicit canonical inventory for the selected

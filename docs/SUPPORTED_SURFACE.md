@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.51.0 current main, 2026-10-25. This document defines what users and host
+Status: v2.51.1 current main, 2026-10-27. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -8,6 +8,16 @@ path is structurally complete but remains execution-blocked without verified
 provider prepaid-no-overage or hard-stop evidence. Attended OpenRouter research
 is the exception: one pinned no-tool completion after wallet credits and
 `deepr budget authorize openrouter`.
+
+**v2.51.1 lifecycle and evidence representation repairs:** automatic
+routing and registry selectors no longer select shut-down or retiring models,
+and executable defaults use current registered models (GPT-5.6 tiers, Gemini
+3.8 Flash); newer provider releases stay preview-only. Consult evidence names
+retained-copy fetch times and publishers, brief synthesis sees source-verified
+excerpts, and opt-in preparation delivers PyPI metadata with provenance,
+fixed meanings and a NOT CHECKED list. A small model-reviewed local diagnostic
+established no improvement claim; see the
+[2026-10-27 record](validation/advice-representation-2026-10-27.md).
 
 **v2.51.0 baseline and opt-in preparation:** the 48-cell model-reviewed pilot
 completed without establishing practical memory benefit. Explicit CLI/MCP Python
