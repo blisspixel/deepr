@@ -22,7 +22,8 @@ This module makes the choice explicit and recorded:
   shortened field, and the exact prompt hash travel with the brief, so nobody
   can later claim the whole study reached synthesis when it did not.
 - **Excerpts travel with their finding (2026-10-27).** A finding's recorded
-  anchors that are located literally in a retained source it cites are shown
+  anchors wholly contained in a retained source it cites are shown as that
+  source's matched text, JSON-quoted inside the untrusted-content boundary,
   whole, within a fixed per-finding bound, keyed to a source legend carrying
   origin, recorded publisher and recorded fetch time. Complete findings are
   admitted first; excerpts only use room left after that, so they never
@@ -43,6 +44,7 @@ from typing import Any
 
 from deepr.experts.corpus_store import CorpusStore, observation_text
 from deepr.experts.study_contracts import StudyFinding, StudyResult
+from deepr.utils.prompt_security import sanitize_untrusted_content
 
 SELECTION_POLICY = "lens-balanced-complete-findings-v2"
 MAX_FINDINGS_IN_PROMPT = 120
@@ -334,34 +336,51 @@ class FindingExcerpts:
     """Recorded anchors not found in any retained source the finding cites."""
 
 
+def _source_span(anchor: str, text: str) -> str | None:
+    """The source's own text for a whole anchor, whitespace-tolerant and case-insensitive.
+
+    Unlike grounding's bounded probe, every word of the anchor must match, so
+    an invented continuation of a real prefix is never shown as source text.
+    """
+    words = anchor.split()
+    if not words:
+        return None
+    match = re.search(r"\s+".join(re.escape(word) for word in words), text, flags=re.IGNORECASE)
+    return " ".join(match.group(0).split()) if match else None
+
+
 def located_excerpts(
     finding: StudyFinding,
     sources: dict[str, str],
     limit: int = MAX_EXCERPT_CHARS_PER_FINDING,
 ) -> FindingExcerpts:
-    """The finding's anchors located in a source it cites, whole, within ``limit``.
+    """The finding's anchors wholly present in a source it cites, within ``limit``.
 
-    ``sources`` maps sha to normalized retained text. The match reuses study
-    grounding's literal containment rule, so it locates bytes and never
-    decides whether an excerpt supports the finding. Anchors are taken in
-    recorded order; one that does not fit whole is withheld and counted
-    rather than cut.
+    ``sources`` maps sha to retained text. The displayed excerpt is the matched
+    source span in the source's casing, never the model's recorded anchor. An
+    anchor shorter than grounding's minimum, or not wholly contained in a
+    cited source, is unlocated. Locating bytes never decides whether an
+    excerpt supports the finding. Anchors are taken in recorded order; one
+    that does not fit whole is withheld and counted rather than cut.
     """
-    from deepr.experts.study import _anchor_matches
+    from deepr.experts.study import _MIN_ANCHOR_LEN
 
-    haystacks = [(sha, sources[sha]) for sha in finding.corpus_shas if sha in sources]
+    cited = [sha for sha in finding.corpus_shas if sha in sources]
     located: list[tuple[str, str]] = []
     used = withheld = unlocated = 0
     for anchor in finding.anchors:
-        text = " ".join(str(anchor).split())
-        sha = _anchor_matches(text, haystacks) if haystacks else None
-        if sha is None:
+        found = None
+        if len(" ".join(str(anchor).split())) >= _MIN_ANCHOR_LEN:
+            found = next(
+                ((sha, span) for sha in cited if (span := _source_span(str(anchor), sources[sha])) is not None), None
+            )
+        if found is None:
             unlocated += 1
-        elif used + len(text) > limit:
+        elif used + len(found[1]) > limit:
             withheld += 1
         else:
-            used += len(text)
-            located.append((sha, text))
+            used += len(found[1])
+            located.append(found)
     return FindingExcerpts(tuple(located), withheld, unlocated)
 
 
@@ -375,15 +394,13 @@ class ExcerptPlan:
     """
 
     def __init__(self, result: StudyResult, corpus: CorpusStore) -> None:
-        from deepr.experts.study import _normalize
-
         texts: dict[str, str] = {}
         self.labels: dict[str, str] = {}
         for sha in dict.fromkeys(sha for finding in result.findings for sha in finding.corpus_shas):
             entry = corpus.entries.get(sha)
             text = corpus.read(sha) if entry is not None else None
             if entry is not None and text:
-                texts[sha] = _normalize(text)
+                texts[sha] = text
                 self.labels[sha] = f"{entry.origin_key}; {observation_text(entry.publisher, entry.fetched_at)}"
         self.keys = {sha: f"S{index}" for index, sha in enumerate(self.labels, 1)}
         self.by_id = {finding.finding_id: located_excerpts(finding, texts) for finding in result.findings}
@@ -394,8 +411,12 @@ class ExcerptPlan:
         excerpts = self.by_id.get(finding.finding_id)
         if finding.finding_id not in self.shown or excerpts is None:
             return base
-        lines = [base, "  retained excerpts (literal text located in a cited source; keys in EXCERPT SOURCES):"]
-        lines.extend(f'    - {self.keys[sha]}: "{text}"' for sha, text in excerpts.located)
+        quoted = "\n".join(
+            f"- {self.keys[sha]}: {json.dumps(text, ensure_ascii=False)}" for sha, text in excerpts.located
+        )
+        fenced = sanitize_untrusted_content(quoted, source_label="retained excerpts").delimited
+        lines = [base, "  retained excerpts (keys in EXCERPT SOURCES):"]
+        lines.extend(f"    {line}" for line in fenced.splitlines())
         if excerpts.withheld:
             lines.append(
                 f"  ({excerpts.withheld} further located excerpt(s) withheld by the per-finding bound; kept in the study)"

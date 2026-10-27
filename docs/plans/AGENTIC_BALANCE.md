@@ -126,9 +126,9 @@ See [first-run output parity](../design/first-run-output-parity.md).
 
 Source observation delivery (2026-10-27) copies recorded fetch times and
 publishers from the corpus index and marks blanks unrecorded; it never infers
-a date or publisher. Brief excerpts are literal anchors located by the existing
-grounding containment rule and admitted only into room left after complete
-findings, with withheld counts in the receipt. These guard provenance and
+a date or publisher. Brief excerpts are the matched source text of anchors
+wholly contained in a cited source, fenced as untrusted data, and admitted only
+into room left after complete findings, with withheld counts in the receipt. These guard provenance and
 form. Whether an excerpt supports a finding, or a falsifier observes the same
 mechanism, stays with the model and calibrated review. See
 [evidence delivery](../design/evidence-selection-and-delivery.md#source-observation-and-excerpt-representation-repair-2026-10-27).

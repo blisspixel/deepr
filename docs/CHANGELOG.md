@@ -41,9 +41,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   publisher and fetch time, or mark them unrecorded, and the stored-only notice
   states the recorded fetch window and that nothing newer was checked. Contexts
   captured earlier restore unchanged.
-- Show brief synthesis each finding's literal excerpts located in its cited
-  retained sources, keyed to a legend of origin, recorded publisher and fetch
-  time. Complete findings are admitted first; excerpts only use remaining room
+- Show brief synthesis each finding's excerpts that are wholly contained in
+  its cited retained sources, as the source's own matched text inside the
+  untrusted-content boundary, keyed to a legend of origin, recorded publisher
+  and fetch time. Complete findings are admitted first; excerpts only use remaining room
   and every withheld excerpt is recorded in the selection receipt.
 - Label brief and consult provenance as origin records rather than publishers,
   with the count of sources that actually record a publisher.
