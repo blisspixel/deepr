@@ -298,13 +298,13 @@ class TestIntegrityWarnings:
         assert any("Probability scoring is unavailable" in w for w in restored.integrity_warnings())
         assert "never a judgment" not in render_brief(restored)
 
-    def test_several_sources_from_one_publisher_is_not_corroboration(self):
+    def test_several_sources_from_one_origin_record_is_not_corroboration(self):
         brief = ExpertBrief(expert_name="E")
         position = _sound_position()
         position.supporting_documents, position.distinct_roots = 5, 1
         brief.positions = [position]
         assert position.is_single_origin
-        assert any("single publisher" in w for w in brief.integrity_warnings())
+        assert any("single origin record" in w for w in brief.integrity_warnings())
 
     def test_irreducible_without_dissent_is_a_contradiction(self):
         brief = ExpertBrief(expert_name="E")
@@ -629,3 +629,72 @@ class TestHouseStyle:
             payload, expert_name="E", result=_result([_finding("Silent restore failure")]), corpus=corpus
         )
         assert not (set(render_brief(brief)) & set("\u2013\u2014‘’“”…"))
+
+
+class TestRepresentationRepairs:
+    """Structure only: the right fields reach synthesis and the reader, labelled honestly."""
+
+    def test_prompt_explains_excerpt_keys_and_fetch_times(self):
+        prompt = build_brief_prompt(_result([_finding("F1")]), expert_name="E")
+        assert "A fetch time is when the source was retained" in prompt
+
+    def test_depth_names_origin_records_and_recorded_publishers(self, corpus):
+        findings = [_finding("Silent restore failure", shas=[_SHA_A, _SHA_A2, _SHA_B])]
+        brief = assemble_brief(_GOOD, expert_name="E", result=_result(findings), corpus=corpus)
+        position = brief.positions[0]
+        assert (position.supporting_documents, position.distinct_roots, position.publisher_recorded_sources) == (
+            3,
+            2,
+            3,
+        )
+        rendered = render_brief(brief)
+        assert "3 source(s) from 2 origin record(s); publisher recorded for 3" in rendered
+        assert "publisher(s)" not in rendered
+
+    def test_blank_publisher_metadata_is_counted_as_unrecorded(self, tmp_path):
+        store = CorpusStore("Blank", storage_dir=tmp_path / "blank")
+        store.add("first source body", origin_key="source:one")
+        store.add("third source body", origin_key="source:two")
+        findings = [_finding("Silent restore failure", shas=[_SHA_A, _SHA_B])]
+        brief = assemble_brief(_GOOD, expert_name="E", result=_result(findings), corpus=store)
+        assert "2 source(s) from 2 origin record(s); publisher recorded for 0" in render_brief(brief)
+
+    def test_legacy_position_without_publisher_count_reads_and_renders(self):
+        legacy = _sound_position(supporting_documents=2, distinct_roots=1).to_dict()
+        legacy.pop("publisher_recorded_sources")
+        restored = ExpertBrief.from_dict({"expert_name": "E", "positions": [legacy]})
+        assert restored.positions[0].publisher_recorded_sources is None
+        rendered = render_brief(restored)
+        assert "2 source(s) from 1 origin record(s); publisher not counted in this record" in rendered
+        assert "one origin record, so this is not corroboration" in rendered
+
+    @pytest.mark.parametrize("value", [-1, True, "3", 2.0])
+    def test_malformed_publisher_count_reads_as_not_counted(self, value):
+        data = _sound_position().to_dict()
+        data["publisher_recorded_sources"] = value
+        assert (
+            ExpertBrief.from_dict({"expert_name": "E", "positions": [data]}).positions[0].publisher_recorded_sources
+            is None
+        )
+
+    @pytest.mark.asyncio
+    async def test_build_brief_delivers_located_excerpts_with_source_legend(self, tmp_path):
+        store = CorpusStore("Excerpt", storage_dir=tmp_path / "excerpt")
+        text = "The tested profile used batches of 500 records on Linux only. Other text follows here."
+        entry, _ = store.add(text, origin_key="url:a.org", publisher="a.org", fetched_at="2026-05-01T00:00:00+00:00")
+        finding = _finding("Batch size", shas=[entry.sha256])
+        finding.anchors = ["batches of 500 records on Linux only", "an anchor that is nowhere in the source"]
+        seen = {}
+
+        async def completion(prompt):
+            seen["prompt"] = prompt
+            return json.dumps(_GOOD)
+
+        brief = await build_brief(expert_name="E", result=_result([finding]), corpus=store, completion=completion)
+        prompt = seen["prompt"]
+        assert "S1: url:a.org; a.org; fetched 2026-05-01T00:00:00+00:00" in prompt
+        assert '    - S1: "batches of 500 records on Linux only"' in prompt
+        assert "1 recorded excerpt(s) not located in the cited retained sources; not shown" in prompt
+        assert "nowhere in the source" not in prompt
+        assert brief.synthesis_input["excerpt_chars_per_finding"] > 0
+        assert brief.synthesis_input["excerpts_withheld"] == {}

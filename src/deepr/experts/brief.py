@@ -48,6 +48,7 @@ from deepr.experts.brief_selection import (
     MAX_BRIEF_PROMPT_CHARS,
     BriefPromptAdmissionError,
     BriefSelection,
+    ExcerptPlan,
     admit_complete_findings,
     render_payload_fields,
 )
@@ -123,6 +124,7 @@ def build_brief_prompt(
     domain: str = "",
     prior_positions: list[Any] | None = None,
     as_of_date: date | None = None,
+    corpus: CorpusStore | None = None,
 ) -> str:
     """Assemble the synthesis prompt from independent findings."""
     prompt, _ = brief_prompt_with_selection(
@@ -131,6 +133,7 @@ def build_brief_prompt(
         domain=domain,
         prior_positions=prior_positions,
         as_of_date=as_of_date,
+        corpus=corpus,
     )
     return prompt
 
@@ -169,22 +172,35 @@ def brief_prompt_with_selection(
     prior_positions: list[Any] | None = None,
     as_of_date: date | None = None,
     max_prompt_chars: int = MAX_BRIEF_PROMPT_CHARS,
+    corpus: CorpusStore | None = None,
 ) -> tuple[str, BriefSelection]:
-    """The synthesis prompt and the receipt of which findings it carries."""
+    """The synthesis prompt and the receipt of which findings it carries.
+
+    With ``corpus``, complete findings are admitted first exactly as before;
+    located excerpts and their recorded provenance then fill remaining room.
+    The receipt records the per-finding excerpt bound and every excerpt it
+    withheld. Without ``corpus``, findings render as before.
+    """
     rendered_units = {id(finding): _render_finding(finding) for finding in result.findings}
     effective_date = as_of_date or _utc_today()
+    plan = ExcerptPlan(result, corpus) if corpus is not None else None
 
     def render(findings: list[StudyFinding], selection: BriefSelection) -> str:
+        units = [plan.unit(f, rendered_units[id(f)]) if plan else rendered_units[id(f)] for f in findings]
         return _render_brief_prompt(
             expert_name=expert_name,
             domain=domain,
             prior_positions=prior_positions,
             as_of_date=effective_date,
-            rendered="\n".join(rendered_units[id(finding)] for finding in findings),
+            rendered="\n".join(units),
             selection=selection,
+            excerpt_legend=plan.legend(findings) if plan else "",
         )
 
-    return admit_complete_findings(result, study_fingerprint(result), render, max_prompt_chars)
+    prompt, selection = admit_complete_findings(result, study_fingerprint(result), render, max_prompt_chars)
+    if plan is None:
+        return prompt, selection
+    return plan.admit(result, selection, render, prompt, max_prompt_chars)
 
 
 def _render_brief_prompt(
@@ -195,6 +211,7 @@ def _render_brief_prompt(
     as_of_date: date,
     rendered: str,
     selection: BriefSelection,
+    excerpt_legend: str = "",
 ) -> str:
     """Render the entire envelope so admission counts instructions and notices."""
     prior_block = _prior_positions_block(list(prior_positions or []))
@@ -222,6 +239,11 @@ Rules that make this honest rather than confident-sounding:
 - Preserve the source's version, platform, operating conditions, and exceptions in the stance
   itself. A conditional mechanism is not a universal recommendation. Source statements are not
   proof that a proposed workflow is safe or suitable for every caller.
+- Some findings list retained excerpts: literal text located in a source the finding cites, keyed
+  to that source's origin, recorded publisher and recorded fetch time. The lens lines above them are
+  an interpretation. Where the excerpts carry a narrower scope, condition or qualifier, keep theirs.
+  A fetch time is when the source was retained, not when its subject was last true, and an
+  unrecorded one is not evidence of currentness.
 - Register a prediction only for an explicit future event with an observable outcome and an
   evidence-supported horizon. A routine recheck is not a forecast. For such a forecast only, set
   "falsifier_resolution_criterion" to the observable yes/no test and
@@ -287,7 +309,7 @@ Return JSON only, no prose outside it, with this shape:
   "common_failures": ["what people try first that does not work, and why"]
 }}
 
-===== FINDINGS BEGIN =====
+{excerpt_legend}===== FINDINGS BEGIN =====
 {rendered}
 ===== FINDINGS END =====
 """
@@ -342,8 +364,8 @@ def _iso_date(value: Any, *, not_before: date) -> str:
 def build_credibility(corpus: CorpusStore) -> list[SourceCredibility]:
     """Report evidential depth per origin, not citation count.
 
-    Several sources from one publisher are one publisher's authority, however
-    many pages they came from.
+    Several sources from one origin record are that origin's authority,
+    however many pages they came from.
     """
     rows: list[SourceCredibility] = []
     for origin in sorted(corpus.distinct_origins()):
@@ -357,7 +379,7 @@ def build_credibility(corpus: CorpusStore) -> list[SourceCredibility]:
                 trust_class=entries[0].trust_class,
                 is_sole_root=len(entries) > 1,
                 note=(
-                    f"{len(entries)} sources from one publisher; repetition here is not independent corroboration."
+                    f"{len(entries)} sources from one origin record; repetition here is not independent corroboration."
                     if len(entries) > 1
                     else ""
                 ),
@@ -376,17 +398,31 @@ def _from_vocabulary(value: Any, allowed: Any) -> str:
     return term if term in allowed else ""
 
 
-def provenance_for(finding_ids: list[str], result: StudyResult, corpus: CorpusStore) -> tuple[int, int]:
-    """Sources and distinct publishers behind a set of cited findings.
-
-    The second number is the one that means anything. Five sources restating
-    one publisher is one publisher's authority, and a position resting on that
-    shape needs to say so rather than present five citations.
-    """
+def _cited_shas(finding_ids: list[str], result: StudyResult) -> set[str]:
     wanted = set(finding_ids)
-    shas = {sha for f in result.findings if f.finding_id in wanted for sha in f.corpus_shas}
+    return {sha for f in result.findings if f.finding_id in wanted for sha in f.corpus_shas}
+
+
+def provenance_for(finding_ids: list[str], result: StudyResult, corpus: CorpusStore) -> tuple[int, int]:
+    """Sources and distinct origin records behind a set of cited findings.
+
+    The second number bounds corroboration. Five sources under one origin
+    record are that origin's authority, and a position resting on that shape
+    needs to say so rather than present five citations. Distinct origin
+    records are not proof of independent publishers.
+    """
+    shas = _cited_shas(finding_ids, result)
     origins = {entry.origin_key for sha in shas if (entry := corpus.entries.get(sha)) is not None}
     return len(shas), len(origins)
+
+
+def recorded_publisher_sources(finding_ids: list[str], result: StudyResult, corpus: CorpusStore) -> int:
+    """How many cited sources carry a recorded publisher; blank metadata counts as unrecorded."""
+    return sum(
+        1
+        for sha in _cited_shas(finding_ids, result)
+        if (entry := corpus.entries.get(sha)) is not None and entry.publisher.strip()
+    )
 
 
 def _positions_from(
@@ -427,6 +463,7 @@ def _positions_from(
                 resolution=_from_vocabulary(raw.get("resolution"), RESOLUTIONS) or "single",
                 supporting_documents=documents,
                 distinct_roots=roots,
+                publisher_recorded_sources=recorded_publisher_sources(cited, result, corpus),
             )
         )
     return positions
@@ -551,6 +588,7 @@ async def build_brief(
             prior_positions=prior_positions,
             as_of_date=effective_date,
             max_prompt_chars=max_prompt_chars,
+            corpus=corpus,
         )
     except BriefPromptAdmissionError as exc:
         brief = ExpertBrief(expert_name=expert_name, generated_from_findings=len(result.findings))
@@ -644,8 +682,12 @@ def _render_position(index: int, position: Position, titles: dict[str, str]) -> 
     if position.supported_by:
         lines.append(f"   - Rests on: {_cited_labels(position, titles)}")
     if position.supporting_documents:
-        depth = f"{position.supporting_documents} source(s), {position.distinct_roots} publisher(s)"
-        flag = " - **one publisher, so this is not corroboration**" if position.is_single_origin else ""
+        depth = f"{position.supporting_documents} source(s) from {position.distinct_roots} origin record(s); " + (
+            "publisher not counted in this record"
+            if position.publisher_recorded_sources is None
+            else f"publisher recorded for {position.publisher_recorded_sources}"
+        )
+        flag = " - **one origin record, so this is not corroboration**" if position.is_single_origin else ""
         lines.append(f"   - Evidential depth: {depth}{flag}")
     lines.append("")
     return lines

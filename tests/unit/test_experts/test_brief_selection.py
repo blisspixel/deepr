@@ -356,3 +356,116 @@ def test_shrinking_notices_cannot_hide_a_fitting_complete_unit(with_retry):
     assert prompt == expected
     assert selection.presented_ids == [finding.finding_id for finding in desired]
     assert selection.omission_reasons == {"synopsis-2" if with_retry else "synopsis-1": "prompt_chars"}
+
+
+def _excerpt_study(tmp_path, count: int = 6) -> tuple[StudyResult, CorpusStore]:
+    """Findings whose anchors are located in retained sources with mixed metadata."""
+    store = CorpusStore("Excerpt Expert", storage_dir=tmp_path / "excerpt-corpus")
+    findings = []
+    for ordinal in range(1, count + 1):
+        sentence = f"Observation number {ordinal} held only for the tested profile on platform {ordinal}."
+        dated = {"publisher": "pub.example", "fetched_at": f"2026-04-0{ordinal % 9 + 1}T00:00:00+00:00"}
+        entry, _ = store.add(
+            sentence + " " + "Filler text. " * 20, origin_key=f"url:{ordinal}", **(dated if ordinal % 2 else {})
+        )
+        finding = _finding("synopsis" if ordinal % 2 else "contention", ordinal)
+        finding.corpus_shas = [entry.sha256]
+        finding.anchors = [sentence]
+        findings.append(finding)
+    study = StudyResult(
+        expert_name="E",
+        outcomes=[LensOutcome(lens="synopsis", axis="interrogation", status="ok", findings=findings)],
+    )
+    return study, store
+
+
+def test_excerpts_never_displace_a_complete_finding(tmp_path):
+    """Admission of findings is identical with and without excerpts; excerpts fill what is left."""
+    study, store = _excerpt_study(tmp_path)
+    plain_prompt, _ = brief_prompt_with_selection(study, expert_name="E")
+    for cap, shown in ((len(plain_prompt) + 600, 2), (len(plain_prompt), 0), (len(plain_prompt) - 40, 0)):
+        _, without = brief_prompt_with_selection(study, expert_name="E", max_prompt_chars=cap)
+        prompt, selection = brief_prompt_with_selection(study, expert_name="E", max_prompt_chars=cap, corpus=store)
+        assert selection.presented_ids == without.presented_ids
+        assert len(prompt) <= cap
+        assert selection.prompt_sha256 == hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+        assert prompt.count("    - S") == shown
+        assert all(selection.excerpt_omission_reasons[fid] == "prompt_chars" for fid in selection.excerpts_withheld)
+        assert len(selection.excerpts_withheld) == len(selection.presented_ids) - shown
+    assert len(without.presented_ids) < len(study.findings)
+
+
+def test_full_room_shows_every_located_excerpt_with_its_source_key(tmp_path):
+    study, store = _excerpt_study(tmp_path, count=3)
+    prompt, selection = brief_prompt_with_selection(study, expert_name="E", corpus=store)
+    assert selection.excerpts_withheld == {}
+    assert selection.excerpt_chars_per_finding > 0
+    assert prompt.index("===== EXCERPT SOURCES") < prompt.index("===== FINDINGS BEGIN =====")
+    assert "S1: url:1; pub.example; fetched 2026-04-02T00:00:00+00:00" in prompt
+    assert "S2: url:2; publisher unrecorded; fetch time unrecorded" in prompt
+    assert '    - S2: "Observation number 2 held only for the tested profile on platform 2."' in prompt
+
+
+def test_per_finding_bound_withholds_whole_excerpts_and_records_them(tmp_path):
+    from deepr.experts.brief_selection import MAX_EXCERPT_CHARS_PER_FINDING
+
+    store = CorpusStore("Bound", storage_dir=tmp_path / "bound")
+    words = [f"distinctword{index:04d}" for index in range(400)]
+    entry, _ = store.add(" ".join(words), origin_key="url:a")
+    finding = _finding("synopsis", 1)
+    finding.corpus_shas = [entry.sha256]
+    first = " ".join(words[:40])
+    second = " ".join(words[40:80])
+    assert len(first) + len(second) > MAX_EXCERPT_CHARS_PER_FINDING >= len(first)
+    finding.anchors = [first, second]
+    study = StudyResult(
+        expert_name="E", outcomes=[LensOutcome(lens="synopsis", axis="interrogation", status="ok", findings=[finding])]
+    )
+    prompt, selection = brief_prompt_with_selection(study, expert_name="E", corpus=store)
+    assert first in prompt and second not in prompt
+    assert "1 further located excerpt(s) withheld by the per-finding bound" in prompt
+    assert selection.excerpts_withheld == {"synopsis-1": 1}
+    assert selection.excerpt_omission_reasons == {"synopsis-1": "excerpt_chars"}
+    assert any("located source excerpt(s)" in note for note in selection.limitations())
+
+
+def test_excerpt_receipt_round_trips_and_legacy_receipts_default(tmp_path):
+    study, store = _excerpt_study(tmp_path)
+    plain_prompt, _ = brief_prompt_with_selection(study, expert_name="E")
+    _, selection = brief_prompt_with_selection(study, expert_name="E", max_prompt_chars=len(plain_prompt), corpus=store)
+    restored = BriefSelection.from_dict(selection.to_dict())
+    assert restored is not None
+    assert restored.excerpts_withheld == selection.excerpts_withheld
+    assert restored.excerpt_omission_reasons == selection.excerpt_omission_reasons
+    assert restored.excerpt_chars_per_finding == selection.excerpt_chars_per_finding
+    legacy = selection.to_dict()
+    for key in ("excerpt_chars_per_finding", "excerpts_withheld", "excerpt_omission_reasons"):
+        legacy.pop(key)
+    old = BriefSelection.from_dict(legacy)
+    assert old is not None and old.excerpts_withheld == {} and old.excerpt_chars_per_finding == 0
+
+
+def test_brief_prompt_without_corpus_carries_no_excerpt_legend():
+    study = _study(("synopsis", 2))
+    prompt, selection = brief_prompt_with_selection(study, expert_name="E")
+    assert "EXCERPT SOURCES" not in prompt
+    assert selection.excerpt_chars_per_finding == 0
+
+
+def test_a_single_overlong_excerpt_is_withheld_by_the_bound_not_the_prompt(tmp_path):
+    from deepr.experts.brief_selection import MAX_EXCERPT_CHARS_PER_FINDING
+
+    store = CorpusStore("Long", storage_dir=tmp_path / "long")
+    words = [f"token{index:04d}" for index in range(300)]
+    entry, _ = store.add(" ".join(words), origin_key="url:a")
+    anchor = " ".join(words[:120])
+    assert len(anchor) > MAX_EXCERPT_CHARS_PER_FINDING
+    finding = _finding("synopsis", 1)
+    finding.corpus_shas, finding.anchors = [entry.sha256], [anchor]
+    study = StudyResult(
+        expert_name="E", outcomes=[LensOutcome(lens="synopsis", axis="interrogation", status="ok", findings=[finding])]
+    )
+    prompt, selection = brief_prompt_with_selection(study, expert_name="E", corpus=store)
+    assert anchor not in prompt and "EXCERPT SOURCES" not in prompt
+    assert selection.excerpts_withheld == {"synopsis-1": 1}
+    assert selection.excerpt_omission_reasons == {"synopsis-1": "excerpt_chars"}
