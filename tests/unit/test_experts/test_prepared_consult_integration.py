@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import re
 from types import SimpleNamespace
 
 import pytest
@@ -123,12 +124,16 @@ def test_cli_and_trusted_mcp_share_real_preparation_and_private_delivery(service
     assert len(payloads) == 6 and len(operations) == 2
     assert operations[0][0].owner != operations[1][0].owner
     assert tree(root) == before
+    rendered = []
     for index, (admission, transaction) in enumerate(operations):
         prepared = transaction.prepared
         assert prepared is not None
         final = payloads[index * 3 + 2]["messages"]
         final_user = final[-1]["content"]
-        assert prepared.frozen.content.decode() in final_user
+        delivered = prepared.mandatory_text()
+        assert delivered in final_user
+        assert "Packet SHA256: " + prepared.frozen.manifest.content_sha256 in final_user
+        rendered.append(delivered)
         assert "Release summary fixture reason" in final_user
         assert "Unknown outside measured partition." in final_user
         assert "POST_CAPTURE_CANONICAL_MUTATION" not in final_user
@@ -150,6 +155,16 @@ def test_cli_and_trusted_mcp_share_real_preparation_and_private_delivery(service
                 sha256(canonical_bytes(json.loads(observation.metadata_projection_json)))
                 == observation.metadata_projection_sha256
             )
+
+    # CLI and MCP render through the same PreparedConsultation object: after removing
+    # per-operation identities (hashes, operation ids, timestamps) the texts are identical.
+    def identity_free(text):
+        text = re.sub(r"[0-9a-f]{64}", "<sha256>", text)
+        text = re.sub(r"op_[0-9a-f]{32}", "<operation>", text)
+        return re.sub(r"\d{4}-\d{2}-\d{2}T[0-9:.+]+", "<time>", text)
+
+    assert identity_free(rendered[0]) == identity_free(rendered[1])
+    assert "unreviewed model interpretation, not a source observation" in rendered[0]
     private_events = [
         json.loads(line)
         for file in operations[0][0].root.rglob("*.jsonl")
