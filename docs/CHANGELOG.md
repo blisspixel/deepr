@@ -36,6 +36,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the focus-topic estimate and minimum viable learning budget derive from
   its registry cost. GPT-5 family utility, planner and summary calls no longer
   send a non-default temperature or the legacy `max_tokens` parameter.
+- Deliver recorded source observation metadata with stored consult evidence.
+  Passages, synthesis blocks and CLI/MCP grounds name each source's recorded
+  publisher and retained-copy fetch time, or mark them unrecorded, and the
+  notice states the stored sources' recorded fetch window and that stored
+  research was not re-checked, scoped so it cannot be read as describing
+  prepared observations. Contexts captured earlier restore unchanged.
+- Show brief synthesis each finding's excerpts that are wholly contained in
+  its cited retained sources, as the source's own matched text inside the
+  untrusted-content boundary, keyed to a legend of origin, recorded publisher
+  and fetch time. Complete findings are admitted first; excerpts only use remaining room
+  and every withheld excerpt is recorded in the selection receipt.
+- Label brief and consult provenance as origin records rather than publishers,
+  with the count of sources that actually record a publisher.
+- Clarify brief falsifier and change-lens wording: falsifiers must observe the
+  same mechanism under the same scope, tested qualifiers stay attached, and an
+  earlier state is stated only when a source states or dates it. These are
+  representation repairs for reviewed brief defects, not semantic acceptance;
+  see the [2026-10-27 design note](design/evidence-selection-and-delivery.md#source-observation-and-excerpt-representation-repair-2026-10-27).
 
 ## [2.51.0] - 2026-10-25
 

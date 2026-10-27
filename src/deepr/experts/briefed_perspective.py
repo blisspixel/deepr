@@ -125,7 +125,10 @@ def _perspective_from_context(
             "studied_at": context.studied_at,
             "orientation": context.orientation,
             "positions": [position.to_dict() for position in context.positions],
-            "passages": [{"sha256": sha, "origin": origin, "text": text} for sha, origin, text in context.sources],
+            "passages": [
+                {"sha256": sha, "origin": origin, "text": text, **context.source_observed.get(sha, {})}
+                for sha, origin, text in context.sources
+            ],
             "findings_anchored": sum(finding.is_grounded for finding in context.findings),
             "positions_included": len(context.positions),
             "findings_included": len(context.findings),

@@ -7,7 +7,7 @@ import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from deepr.experts.consult_context import ConsultContext, _source_passage
+from deepr.experts.consult_context import ConsultContext, _source_passage, observation_window, passage_heading
 from deepr.experts.consult_response import response_form_contract, response_form_instruction
 from deepr.experts.consult_support import recorded_statement
 
@@ -133,7 +133,10 @@ def _caveat_blocks(context: ConsultContext) -> list[PacketBlock]:
 
 
 def _finding_block(
-    finding: StudyFinding, sources: dict[str, tuple[str, str]], own_source: tuple[str, str, str] | None = None
+    context: ConsultContext,
+    finding: StudyFinding,
+    sources: dict[str, tuple[str, str]],
+    own_source: tuple[str, str, str] | None = None,
 ) -> PacketBlock:
     lines = [f"Finding [{finding.finding_id}]: {finding.title}", f"Interpretation: {json.dumps(finding.payload)}"]
     if not finding.is_grounded:
@@ -143,14 +146,29 @@ def _finding_block(
     key = f"finding:{finding.finding_id}"
     if own_source:
         sha, origin, passage = own_source
-        lines.append(f"Retained passage [{sha}] ({origin}):\n{passage}")
+        lines.append(f"Retained passage [{sha}] ({passage_heading(context, sha, origin)}):\n{passage}")
         return PacketBlock("\n".join(lines), key=key, passages=(sha,))
     for sha in finding.corpus_shas:
         if sha in sources:
             origin, passage = sources[sha]
-            lines.append(f"Retained passage [{sha}] ({origin}):\n{_source_passage(passage, finding.anchors, 600)}")
+            excerpt = _source_passage(passage, finding.anchors, 600)
+            lines.append(f"Retained passage [{sha}] ({passage_heading(context, sha, origin)}):\n{excerpt}")
             return PacketBlock("\n".join(lines), key=key, passages=(sha,))
     return PacketBlock("\n".join(lines), key=key)
+
+
+def _notice(context: ConsultContext) -> str:
+    """Freshness notice: the stored-only statement plus recorded fetch dates, never inferred ones.
+
+    With a prepared layer, the stored line is explicitly scoped so it cannot
+    read as a claim about the operation-local observations.
+    """
+    window = observation_window(context)
+    if context.preparation_notice:
+        scope = " This line covers stored sources only; prepared observations state their own times."
+        return f"{context.preparation_notice}\n{window}{scope}" if window else context.preparation_notice
+    notice = "Stored research only; no live check was performed for this answer."
+    return f"{notice}\n{window}" if window else notice
 
 
 def brief_synthesis_blocks(context: ConsultContext) -> list[PacketBlock]:
@@ -162,19 +180,14 @@ def brief_synthesis_blocks(context: ConsultContext) -> list[PacketBlock]:
     """
     sources = {sha: (origin, passage) for sha, origin, passage in context.sources}
     findings = {
-        finding.finding_id: _finding_block(finding, sources, context.finding_sources.get(finding.finding_id))
+        finding.finding_id: _finding_block(context, finding, sources, context.finding_sources.get(finding.finding_id))
         for finding in context.findings
     }
-    blocks = [
-        PacketBlock(
-            context.preparation_notice or "Stored research only; no live check was performed for this answer.",
-            key="notice",
-        )
-    ]
+    blocks = [PacketBlock(_notice(context), key="notice")]
     blocks.extend(_caveat_blocks(context))
     blocks.extend(
         PacketBlock(
-            f"Reference library passage (bounded excerpt) [{sha}] ({origin}):\n{passage}",
+            f"Reference library passage (bounded excerpt) [{sha}] ({passage_heading(context, sha, origin)}):\n{passage}",
             key=f"reference:{sha}",
             passages=(sha,),
         )

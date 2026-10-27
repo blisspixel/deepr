@@ -45,6 +45,19 @@ def _utc_now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 
+def observation_text(publisher: str, fetched_at: str) -> str:
+    """Recorded publisher and retained-copy fetch time, never inferred.
+
+    A blank field renders as unrecorded. The time belongs to this stored copy
+    only: when its bytes were retained, not when the subject was last true and
+    not the time of any other observation of the same source.
+    """
+    fetched = (fetched_at or "").strip()
+    return f"{(publisher or '').strip() or 'publisher unrecorded'}; " + (
+        f"retained copy fetched {fetched}" if fetched else "retained copy fetch time unrecorded"
+    )
+
+
 @dataclass
 class CorpusEntry:
     """One retained source. Metadata only; text lives beside it by hash."""

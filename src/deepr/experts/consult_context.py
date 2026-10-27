@@ -38,6 +38,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -47,7 +48,7 @@ if TYPE_CHECKING:
 from deepr.experts.brief_attribution import orientation_statements, render_orientation
 from deepr.experts.brief_contracts import ExpertBrief, Position
 from deepr.experts.consult_support import bind_study, recorded_statement, support_for_positions
-from deepr.experts.corpus_store import CorpusStore
+from deepr.experts.corpus_store import CorpusStore, observation_text
 from deepr.experts.study_contracts import StudyFinding, StudyResult
 
 _WORD_RE = re.compile(r"[a-z0-9]+")
@@ -95,6 +96,13 @@ class ConsultContext:
     limitations: list[str] = field(default_factory=list)
     support: list[dict[str, object]] = field(default_factory=list)
     """Per-position citation resolution. Empty until build_consult_context runs."""
+    source_observed: dict[str, dict[str, str]] = field(default_factory=dict)
+    """sha -> {"fetched_at", "publisher"} copied from the corpus index.
+
+    Empty strings mean the index recorded nothing; they are never filled in.
+    Contexts captured before this field existed restore with an empty mapping
+    and keep their original rendering.
+    """
 
     studied_at: str = ""
     study_fingerprint: str = ""
@@ -315,6 +323,65 @@ def gather_reference_passages(question: str, corpus: CorpusStore) -> list[tuple[
     return [(sha, origin, passage) for _, sha, origin, passage in candidates[:4]]
 
 
+def gather_source_observations(context: ConsultContext, corpus: CorpusStore) -> dict[str, dict[str, str]]:
+    """Recorded fetch time and publisher for every delivered passage, verbatim.
+
+    This copies index metadata. It does not infer a date from source text or
+    a publisher from an origin key, and it says nothing about currentness.
+    """
+    shas = [sha for sha, _, _ in (*context.sources, *context.reference_passages, *context.finding_sources.values())]
+    observed: dict[str, dict[str, str]] = {}
+    for sha in shas:
+        entry = corpus.entries.get(sha)
+        observed[sha] = {
+            "fetched_at": str(getattr(entry, "fetched_at", "") or "").strip(),
+            "publisher": str(getattr(entry, "publisher", "") or "").strip(),
+        }
+    return observed
+
+
+def observation_label(context: ConsultContext, sha: str) -> str:
+    """Publisher and fetch time for one passage, or an explicit unrecorded marker."""
+    if not context.source_observed:
+        return ""
+    observed = context.source_observed.get(sha) or {}
+    return observation_text(observed.get("publisher", ""), observed.get("fetched_at", ""))
+
+
+def passage_heading(context: ConsultContext, sha: str, origin: str) -> str:
+    """``origin; publisher; fetched ...`` once observations were captured, else ``origin``."""
+    label = observation_label(context, sha)
+    return f"{origin}; {label}" if label else origin
+
+
+def _fetch_day(value: str) -> str:
+    try:
+        return date.fromisoformat(value[:10]).isoformat()
+    except ValueError:
+        return ""
+
+
+def observation_window(context: ConsultContext) -> str:
+    """The span of recorded fetch dates of the stored expert sources delivered.
+
+    Scoped to stored copies: a recorded fetch time is when bytes were
+    retained, not when the subject was last true, and it says nothing about
+    observations made elsewhere in the same operation. Unrecorded or
+    unparseable times are counted, never guessed.
+    """
+    if not context.source_observed:
+        return ""
+    days = sorted(day for item in context.source_observed.values() if (day := _fetch_day(item.get("fetched_at", ""))))
+    total = len(context.source_observed)
+    missing = total - len(days)
+    if not days:
+        span = f"retained-copy fetch time unrecorded for all {total}"
+    else:
+        span = f"retained copies fetched {days[0]}" + (f" to {days[-1]}" if days[-1] != days[0] else "")
+        span += f" (unrecorded for {missing} of {total})" if missing else ""
+    return f"Stored expert sources: {span}; stored research was not re-checked."
+
+
 def build_consult_context(
     *,
     expert_name: str,
@@ -375,6 +442,7 @@ def build_consult_context(
             context.finding_sources = gather_finding_sources(context, corpus)
     if corpus is not None:
         context.reference_passages = gather_reference_passages(question, corpus)
+        context.source_observed = gather_source_observations(context, corpus)
         context.limitations.append(
             "Local reference lookup searched at most 240,000 retained characters and selected at most four passages by text overlap; this is not a relevance or currentness verdict."
         )
@@ -415,7 +483,7 @@ def _render_position_block(index: int, position: Position) -> list[str]:
         lines.append("   No falsifier stated: treat as assertion, not judgment.")
     if position.is_single_origin:
         lines.append(
-            f"   Rests on {position.supporting_documents} source(s) from one publisher, "
+            f"   Rests on {position.supporting_documents} source(s) from one origin record, "
             "which reads as corroboration and is not."
         )
     return lines
@@ -432,7 +500,10 @@ def render_consult_packet(context: ConsultContext) -> str:
     if context.reference_passages:
         blocks.append(
             "Reference library lookup (bounded original excerpts, not newly verified):\n\n"
-            + "\n\n".join(f"--- {origin} ({sha}) ---\n{passage}" for sha, origin, passage in context.reference_passages)
+            + "\n\n".join(
+                f"--- {passage_heading(context, sha, origin)} ({sha}) ---\n{passage}"
+                for sha, origin, passage in context.reference_passages
+            )
         )
 
     if context.positions:
@@ -456,12 +527,13 @@ def render_consult_packet(context: ConsultContext) -> str:
         blocks.append("\n".join(lines))
 
     if context.sources:
-        lines = ["Passages, so you can check rather than take my word:", ""]
+        window = observation_window(context)
+        lines = ["Passages, so you can check rather than take my word:", *([window] if window else []), ""]
         for sha, origin, passage in context.sources[:4]:
             anchors = [
                 anchor for finding in context.findings if sha in finding.corpus_shas for anchor in finding.anchors
             ]
-            lines.append(f"--- {origin} ({sha[:12]}) ---")
+            lines.append(f"--- {passage_heading(context, sha, origin)} ({sha[:12]}) ---")
             lines.append(_source_passage(passage, anchors, 1200))
             lines.append("")
         blocks.append("\n".join(lines).strip())

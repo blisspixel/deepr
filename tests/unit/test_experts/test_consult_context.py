@@ -545,3 +545,93 @@ def test_reference_lookup_reaches_details_not_present_in_study_notes(tmp_path):
     assert passage in corpus.read(sha)
     assert len(passage) <= 1400
     assert gather_reference_passages("", corpus) == []
+
+
+class TestSourceObservations:
+    """Recorded fetch times and publishers travel with passages; absences stay visible."""
+
+    @pytest.fixture
+    def dated(self, tmp_path):
+        store = CorpusStore("Dated Expert", storage_dir=tmp_path / "dated")
+        store.add(
+            "Reconciliation latency rises sharply above fifty clusters in the measured deployments.",
+            origin_key="url:a.org",
+            publisher="a.org",
+            fetched_at="2026-09-01T10:00:00+00:00",
+        )
+        store.add("A second publisher reports the opposite under different load.", origin_key="url:b.org")
+        return store
+
+    def _context(self, brief, study, corpus):
+        # The dated store retains the same bytes as the study fixture, so its shas match.
+        return build_consult_context(
+            expert_name="E",
+            question="does latency degrade as clusters grow?",
+            brief=brief,
+            result=study,
+            corpus=corpus,
+        )
+
+    def test_each_delivered_passage_has_recorded_or_unrecorded_metadata(self, brief, study, dated):
+        context = self._context(brief, study, dated)
+        delivered = {sha for sha, _, _ in (*context.sources, *context.reference_passages)}
+        assert delivered and delivered <= set(context.source_observed)
+        observed = sorted((item["publisher"], item["fetched_at"]) for item in context.source_observed.values())
+        assert observed == [("", ""), ("a.org", "2026-09-01T10:00:00+00:00")]
+
+    def test_packet_names_publisher_fetch_time_and_unrecorded_values(self, brief, study, dated):
+        packet = render_consult_packet(self._context(brief, study, dated))
+        assert "url:a.org; a.org; retained copy fetched 2026-09-01T10:00:00+00:00" in packet
+        assert "url:b.org; publisher unrecorded; retained copy fetch time unrecorded" in packet
+        assert (
+            "Stored expert sources: retained copies fetched 2026-09-01 (unrecorded for 1 of 2); "
+            "stored research was not re-checked." in packet
+        )
+
+    def test_fully_unrecorded_fetch_times_are_not_invented(self, brief, study, corpus):
+        context = self._context(brief, study, corpus)
+        packet = render_consult_packet(context)
+        assert "retained copy fetch time unrecorded" in packet
+        assert "retained copies fetched" not in packet
+        assert "Stored expert sources: retained-copy fetch time unrecorded for all 2" in packet
+        assert "in this context" not in packet
+
+    def test_legacy_capture_without_observations_restores_and_renders_unchanged(self, brief, study, dated):
+        """Captures made before the mapping existed restore with their original rendering."""
+        from dataclasses import asdict
+
+        context = self._context(brief, study, dated)
+        legacy = json.loads(json.dumps(asdict(context)))
+        legacy.pop("source_observed")
+        legacy["positions"] = context.positions
+        legacy["findings"] = context.findings
+        legacy["sources"] = [tuple(item) for item in legacy["sources"]]
+        legacy["reference_passages"] = [tuple(item) for item in legacy["reference_passages"]]
+        legacy["finding_sources"] = {key: tuple(item) for key, item in legacy["finding_sources"].items()}
+        restored = ConsultContext(**legacy)
+        packet = render_consult_packet(restored)
+        assert restored.source_observed == {}
+        assert "fetch time unrecorded" not in packet and "stored research was not re-checked" not in packet
+        sha, origin, _ = restored.sources[0]
+        assert f"--- {origin} ({sha[:12]}) ---" in packet
+
+    def test_new_capture_round_trips_through_json(self, brief, study, dated):
+        """The capture envelope is asdict + JSON; restoring must reproduce the rendering exactly."""
+        from dataclasses import asdict
+
+        context = self._context(brief, study, dated)
+        value = json.loads(json.dumps(asdict(context)))
+        value["positions"] = context.positions
+        value["findings"] = context.findings
+        value["sources"] = [tuple(item) for item in value["sources"]]
+        value["reference_passages"] = [tuple(item) for item in value["reference_passages"]]
+        value["finding_sources"] = {key: tuple(item) for key, item in value["finding_sources"].items()}
+        assert render_consult_packet(ConsultContext(**value)) == render_consult_packet(context)
+
+    def test_single_origin_line_names_origin_records_not_publishers(self):
+        position = Position(
+            question="q", stance="s", reasoning="r", would_change_my_mind="w", supporting_documents=3, distinct_roots=1
+        )
+        packet = render_consult_packet(ConsultContext(expert_name="E", positions=[position]))
+        assert "Rests on 3 source(s) from one origin record" in packet
+        assert "publisher" not in packet

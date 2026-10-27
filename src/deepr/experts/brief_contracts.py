@@ -119,7 +119,13 @@ class Position:
     supporting_documents: int = 0
     """Retained sources behind the cited findings."""
     distinct_roots: int = 0
-    """Distinct publishers behind those sources. This is the number that counts."""
+    """Distinct origin records behind those sources.
+
+    An origin record is the corpus origin key, not a verified publisher. Several
+    origin records can still share one publisher, so this bounds corroboration
+    from above rather than proving independence."""
+    publisher_recorded_sources: int | None = None
+    """How many of those sources carry a recorded publisher; None when not counted (legacy)."""
     falsifier_resolution_criterion: str = ""
     """The observable test used later to decide whether the falsifier fired."""
     falsifier_resolution_date: str = ""
@@ -148,7 +154,7 @@ class Position:
 
     @property
     def is_single_origin(self) -> bool:
-        """Several sources, one publisher: apparent corroboration that is not.
+        """Several sources, one origin record: apparent corroboration that is not.
 
         The documented shape behind more than one intelligence failure, where a
         judgment read as multiply-sourced and traced back to a single origin.
@@ -197,7 +203,15 @@ def _position_from(data: dict[str, Any]) -> Position:
         resolution=data.get("resolution", "single"),
         supporting_documents=int(data.get("supporting_documents", 0) or 0),
         distinct_roots=int(data.get("distinct_roots", 0) or 0),
+        publisher_recorded_sources=_optional_count(data.get("publisher_recorded_sources")),
     )
+
+
+def _optional_count(value: Any) -> int | None:
+    """A persisted non-negative count, or None when it was never recorded."""
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        return None
+    return value
 
 
 @dataclass
@@ -258,7 +272,7 @@ class SourceCredibility:
     note: str = ""
     """What this origin is reliable for, or what interest it may have."""
     is_sole_root: bool = False
-    """True when several sources here trace to one publisher."""
+    """True when several sources here trace to one origin record."""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -331,7 +345,7 @@ class ExpertBrief:
             ),
             (
                 [p for p in self.positions if p.is_single_origin],
-                "rest on several sources that trace to a single publisher. That reads as corroboration and is not.",
+                "rest on several sources that trace to a single origin record. That reads as corroboration and is not.",
             ),
             (
                 [
@@ -357,7 +371,7 @@ class ExpertBrief:
         if sole_roots:
             warnings.append(
                 f"{len(sole_roots)} origin(s) supply several sources each. Repetition within one "
-                "publisher is not independent corroboration."
+                "origin record is not independent corroboration."
             )
         if self.positions and not any(p.unresolved_dissent for p in self.positions):
             warnings.append(
