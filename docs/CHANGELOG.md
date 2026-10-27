@@ -38,9 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   send a non-default temperature or the legacy `max_tokens` parameter.
 - Deliver recorded source observation metadata with stored consult evidence.
   Passages, synthesis blocks and CLI/MCP grounds name each source's recorded
-  publisher and fetch time, or mark them unrecorded, and the stored-only notice
-  states the recorded fetch window and that nothing newer was checked. Contexts
-  captured earlier restore unchanged.
+  publisher and retained-copy fetch time, or mark them unrecorded, and the
+  notice states the stored sources' recorded fetch window and that stored
+  research was not re-checked, scoped so it cannot be read as describing
+  prepared observations. Contexts captured earlier restore unchanged.
 - Show brief synthesis each finding's excerpts that are wholly contained in
   its cited retained sources, as the source's own matched text inside the
   untrusted-content boundary, keyed to a legend of origin, recorded publisher

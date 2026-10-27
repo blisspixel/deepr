@@ -697,7 +697,7 @@ class TestRepresentationRepairs:
 
         brief = await build_brief(expert_name="E", result=_result([finding]), corpus=store, completion=completion)
         prompt = seen["prompt"]
-        assert "S1: url:a.org; a.org; fetched 2026-05-01T00:00:00+00:00" in prompt
+        assert "S1: url:a.org; a.org; retained copy fetched 2026-05-01T00:00:00+00:00" in prompt
         assert '    - S1: "batches of 500 records on Linux only"' in prompt
         assert "1 recorded excerpt(s) not located in the cited retained sources; not shown" in prompt
         assert "nowhere in the source" not in prompt

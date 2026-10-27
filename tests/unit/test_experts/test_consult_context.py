@@ -581,19 +581,20 @@ class TestSourceObservations:
 
     def test_packet_names_publisher_fetch_time_and_unrecorded_values(self, brief, study, dated):
         packet = render_consult_packet(self._context(brief, study, dated))
-        assert "url:a.org; a.org; fetched 2026-09-01T10:00:00+00:00" in packet
-        assert "url:b.org; publisher unrecorded; fetch time unrecorded" in packet
+        assert "url:a.org; a.org; retained copy fetched 2026-09-01T10:00:00+00:00" in packet
+        assert "url:b.org; publisher unrecorded; retained copy fetch time unrecorded" in packet
         assert (
-            "Retained sources in this context were fetched on 2026-09-01; fetch time unrecorded for 1 of 2; "
-            "nothing newer was checked." in packet
+            "Stored expert sources: retained copies fetched 2026-09-01 (unrecorded for 1 of 2); "
+            "stored research was not re-checked." in packet
         )
 
     def test_fully_unrecorded_fetch_times_are_not_invented(self, brief, study, corpus):
         context = self._context(brief, study, corpus)
         packet = render_consult_packet(context)
-        assert "fetch time unrecorded" in packet
-        assert "fetched between" not in packet
-        assert "Fetch time is unrecorded for all" in packet
+        assert "retained copy fetch time unrecorded" in packet
+        assert "retained copies fetched" not in packet
+        assert "Stored expert sources: retained-copy fetch time unrecorded for all 2" in packet
+        assert "in this context" not in packet
 
     def test_legacy_capture_without_observations_restores_and_renders_unchanged(self, brief, study, dated):
         """Captures made before the mapping existed restore with their original rendering."""
@@ -610,7 +611,7 @@ class TestSourceObservations:
         restored = ConsultContext(**legacy)
         packet = render_consult_packet(restored)
         assert restored.source_observed == {}
-        assert "fetch time unrecorded" not in packet and "nothing newer was checked" not in packet
+        assert "fetch time unrecorded" not in packet and "stored research was not re-checked" not in packet
         sha, origin, _ = restored.sources[0]
         assert f"--- {origin} ({sha[:12]}) ---" in packet
 

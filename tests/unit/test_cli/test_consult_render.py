@@ -148,5 +148,5 @@ def test_grounds_show_recorded_or_unrecorded_source_observations():
     output = StringIO()
     render_consult(payload, Console(file=output, width=200, force_terminal=False))
     text = output.getvalue()
-    assert "Source: bread.notes; bakery; fetched 2026-05-01 (dated)" in text
-    assert "Source: other.notes; publisher unrecorded; fetch time unrecorded (blank)" in text
+    assert "Source: bread.notes; bakery; retained copy fetched 2026-05-01 (dated)" in text
+    assert "Source: other.notes; publisher unrecorded; retained copy fetch time unrecorded (blank)" in text

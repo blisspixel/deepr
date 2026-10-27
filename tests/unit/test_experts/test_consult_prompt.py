@@ -375,12 +375,12 @@ def test_synthesis_blocks_carry_recorded_and_unrecorded_source_observations():
     blocks = {block.key: block.text for block in brief_synthesis_blocks(context)}
     assert blocks["notice"] == (
         "Stored research only; no live check was performed for this answer.\n"
-        "Retained sources in this context were fetched on 2026-08-01; fetch time unrecorded for 1 of 2; "
-        "nothing newer was checked."
+        "Stored expert sources: retained copies fetched 2026-08-01 (unrecorded for 1 of 2); "
+        "stored research was not re-checked."
     )
-    assert "[sha-dated] (url:a.org; a.org; fetched 2026-08-01T00:00:00+00:00)" in blocks["finding:f1"]
-    assert "[sha-blank] (url:b.org; publisher unrecorded; fetch time unrecorded)" in blocks["finding:f2"]
-    assert "publisher unrecorded; fetch time unrecorded" in blocks["reference:sha-blank"]
+    assert "[sha-dated] (url:a.org; a.org; retained copy fetched 2026-08-01T00:00:00+00:00)" in blocks["finding:f1"]
+    assert "[sha-blank] (url:b.org; publisher unrecorded; retained copy fetch time unrecorded)" in blocks["finding:f2"]
+    assert "publisher unrecorded; retained copy fetch time unrecorded" in blocks["reference:sha-blank"]
 
 
 def test_legacy_context_without_observations_keeps_the_original_notice_and_labels():
@@ -391,3 +391,24 @@ def test_legacy_context_without_observations_keeps_the_original_notice_and_label
     blocks = {block.key: block.text for block in brief_synthesis_blocks(context)}
     assert blocks["notice"] == "Stored research only; no live check was performed for this answer."
     assert "Retained passage [sha] (origin):" in blocks["finding:f1"]
+
+
+def test_prepared_notice_scopes_the_stored_fetch_line_to_stored_sources():
+    """A stored-source fetch line must not read as a claim about operation-local observations."""
+    finding = StudyFinding(
+        lens="mechanism", axis="interrogation", kind="concepts", title="T", finding_id="f1", corpus_shas=["sha"]
+    )
+    context = ConsultContext(
+        expert_name="E",
+        findings=[finding],
+        sources=[("sha", "origin", "text")],
+        source_observed={"sha": {"fetched_at": "", "publisher": ""}},
+        preparation_notice="Operation-local preparation: complete.",
+    )
+    notice = brief_synthesis_blocks(context)[0].text
+    first, stored = notice.split("\n")
+    assert first == "Operation-local preparation: complete."
+    assert stored.startswith("Stored expert sources: retained-copy fetch time unrecorded for all 1;")
+    assert "stored sources only; prepared observations state their own times" in stored
+    assert "in this context" not in notice and "nothing newer was checked" not in notice
+    assert "Stored research only" not in notice

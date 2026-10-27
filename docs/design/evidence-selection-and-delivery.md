@@ -484,12 +484,22 @@ model to fill gaps:
   The formed context now carries a defaulted `source_observed` mapping (sha to
   recorded fetch time and publisher). Packet passages, synthesis finding and
   reference blocks, the CLI grounds view and the shared perspective payload
-  render `origin; publisher; fetched <time>`. Blank values render as
-  `publisher unrecorded` and `fetch time unrecorded`; nothing is inferred from
-  source text or origin keys. The stored-only notice gains one line:
-  "Retained sources in this context were fetched between <first> and <last>;
-  nothing newer was checked", with unrecorded counts stated. A fetch time is
-  when bytes were retained, not when their subject was last true. Contexts
+  render `origin; publisher; retained copy fetched <time>`. Blank values
+  render as `publisher unrecorded` and `retained copy fetch time unrecorded`;
+  nothing is inferred from source text or origin keys. The notice gains one
+  line scoped to stored copies: "Stored expert sources: retained copies
+  fetched <first> to <last> (unrecorded for K of N); stored research was not
+  re-checked". A fetch time is when bytes were retained, not when their
+  subject was last true. With a prepared layer the line follows the
+  preparation notice and adds "This line covers stored sources only; prepared
+  observations state their own times." An earlier draft said "fetch time
+  unrecorded for all N retained source(s) in this context; nothing newer was
+  checked"; in a local prepared trial the preparation model read that as
+  covering the whole context, recorded an unrecorded-fetch-time assumption,
+  and the answer repeated it although the prepared observations carried
+  their own times. The rewording fixes scope only. The scoped labels cost 120
+  packet characters and 302 synthesis-block characters on the replay study
+  with five undated sources. Contexts
   captured before the field existed restore with an empty mapping and keep
   their original rendering, so the capture rendering check in
   `preparation_context.py` still holds; that module is unchanged.
@@ -543,7 +553,7 @@ out at the 60,000-character ceiling.
 **Measured on the retained replay study** (45 findings, five sources with
 blank publisher and fetch metadata; offline, no model call). The previous
 prompt was 33,034 characters with all 45 findings. The revised wording adds
-977 characters (34,011 without excerpts). With excerpts the prompt is 59,891
+977 characters (34,011 without excerpts). With excerpts the prompt is 59,961
 characters: all 45 findings presented, 188 of 190 anchors located and 1
 unlocated. The untrusted-content fencing costs room, so excerpts for 7
 findings (27 excerpts) are withheld: 6 findings by the prompt limit and 1

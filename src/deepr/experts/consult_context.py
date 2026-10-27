@@ -362,10 +362,12 @@ def _fetch_day(value: str) -> str:
 
 
 def observation_window(context: ConsultContext) -> str:
-    """The span of recorded fetch dates across delivered passages.
+    """The span of recorded fetch dates of the stored expert sources delivered.
 
-    A recorded fetch time is when bytes were retained, not when the subject
-    was last true. Unrecorded or unparseable times are counted, never guessed.
+    Scoped to stored copies: a recorded fetch time is when bytes were
+    retained, not when the subject was last true, and it says nothing about
+    observations made elsewhere in the same operation. Unrecorded or
+    unparseable times are counted, never guessed.
     """
     if not context.source_observed:
         return ""
@@ -373,16 +375,11 @@ def observation_window(context: ConsultContext) -> str:
     total = len(context.source_observed)
     missing = total - len(days)
     if not days:
-        return (
-            f"Fetch time is unrecorded for all {total} retained source(s) in this context; nothing newer was checked."
-        )
-    window = (
-        f"Retained sources in this context were fetched on {days[0]}"
-        if days[0] == days[-1]
-        else f"Retained sources in this context were fetched between {days[0]} and {days[-1]}"
-    )
-    gap = f"; fetch time unrecorded for {missing} of {total}" if missing else ""
-    return f"{window}{gap}; nothing newer was checked."
+        span = f"retained-copy fetch time unrecorded for all {total}"
+    else:
+        span = f"retained copies fetched {days[0]}" + (f" to {days[-1]}" if days[-1] != days[0] else "")
+        span += f" (unrecorded for {missing} of {total})" if missing else ""
+    return f"Stored expert sources: {span}; stored research was not re-checked."
 
 
 def build_consult_context(

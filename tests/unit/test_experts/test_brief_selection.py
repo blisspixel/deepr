@@ -401,8 +401,8 @@ def test_full_room_shows_every_located_excerpt_with_its_source_key(tmp_path):
     assert selection.excerpts_withheld == {}
     assert selection.excerpt_chars_per_finding > 0
     assert prompt.index("===== EXCERPT SOURCES") < prompt.index("===== FINDINGS BEGIN =====")
-    assert "S1: url:1; pub.example; fetched 2026-04-02T00:00:00+00:00" in prompt
-    assert "S2: url:2; publisher unrecorded; fetch time unrecorded" in prompt
+    assert "S1: url:1; pub.example; retained copy fetched 2026-04-02T00:00:00+00:00" in prompt
+    assert "S2: url:2; publisher unrecorded; retained copy fetch time unrecorded" in prompt
     assert '    - S2: "Observation number 2 held only for the tested profile on platform 2."' in prompt
 
 

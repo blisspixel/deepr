@@ -158,9 +158,16 @@ def _finding_block(
 
 
 def _notice(context: ConsultContext) -> str:
-    """Freshness notice: the stored-only statement plus recorded fetch dates, never inferred ones."""
-    notice = context.preparation_notice or "Stored research only; no live check was performed for this answer."
+    """Freshness notice: the stored-only statement plus recorded fetch dates, never inferred ones.
+
+    With a prepared layer, the stored line is explicitly scoped so it cannot
+    read as a claim about the operation-local observations.
+    """
     window = observation_window(context)
+    if context.preparation_notice:
+        scope = " This line covers stored sources only; prepared observations state their own times."
+        return f"{context.preparation_notice}\n{window}{scope}" if window else context.preparation_notice
+    notice = "Stored research only; no live check was performed for this answer."
     return f"{notice}\n{window}" if window else notice
 
 
