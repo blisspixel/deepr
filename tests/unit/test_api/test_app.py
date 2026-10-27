@@ -288,13 +288,26 @@ class TestJobSubmission:
         """Test that POST /api/jobs accepts custom model."""
         response = client.post(
             "/api/jobs",
-            json=_paid_request(prompt="Research AI", model="o3-deep-research"),
+            json=_paid_request(prompt="Research AI", model="gpt-5.6-terra"),
             content_type="application/json",
         )
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert data["job"]["model"] == "o3-deep-research"
+        assert data["job"]["model"] == "gpt-5.6-terra"
+
+    @pytest.mark.parametrize("model", ["o3-deep-research", "o4-mini-deep-research"])
+    def test_submit_job_refuses_shut_down_allowlisted_models(self, client, model):
+        """The historical allowlist keeps its ids, but dated shutdowns are refused (#292)."""
+        response = client.post(
+            "/api/jobs",
+            json=_paid_request(prompt="Research AI", model=model),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        assert response.get_json()["error_code"] == "model_shut_down"
+        client.mock_provider.submit_research.assert_not_awaited()
 
     @pytest.mark.parametrize(
         "model",

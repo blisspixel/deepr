@@ -187,7 +187,7 @@ class TestRunSingleAsync:
                         with pytest.raises(SystemExit) as exc:
                             await _run_single(
                                 query="Test query",
-                                model="o4-mini-deep-research",
+                                model="gpt-5.6-terra",
                                 provider="openai",
                                 no_web=False,
                                 no_code=False,
@@ -211,9 +211,9 @@ class TestRunSingleAsync:
 
         job_id, job, reservation = await run_submission.create_and_enqueue_job(
             "Research safely",
-            "o4-mini-deep-research",
+            "gpt-5.6-terra",
             "openai",
-            False,
+            True,
             True,
             [],
             None,
@@ -243,9 +243,9 @@ class TestRunSingleAsync:
         _set_test_spend_caps(monkeypatch, 5.0)
         job_id, _, reservation = await run_submission.create_and_enqueue_job(
             "Research safely",
-            "o4-mini-deep-research",
+            "gpt-5.6-terra",
             "openai",
-            False,
+            True,
             True,
             [],
             None,
@@ -287,15 +287,17 @@ class TestRunSingleAsync:
         refund.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_missing_deep_research_tools_fail_before_queue_or_reservation(self):
+    async def test_retired_deep_research_model_fails_before_queue_or_reservation(self):
+        """o4-mini-deep-research shut down on 2026-07-23; it is refused before any side effect."""
         from deepr.cli.commands.run import _run_single
         from deepr.cli.output import OutputContext, OutputMode
+        from deepr.services.research_bounds import ResearchRequestBoundsError
 
         with (
             patch("deepr.cli.commands.run._check_budget", return_value=True),
             patch("deepr.cli.commands.run._reserve_job_submission", new_callable=AsyncMock) as reserve,
         ):
-            with pytest.raises(SystemExit) as exc:
+            with pytest.raises(ResearchRequestBoundsError) as exc:
                 await _run_single(
                     query="Test query",
                     model="o4-mini-deep-research",
@@ -308,7 +310,7 @@ class TestRunSingleAsync:
                     output_context=OutputContext(mode=OutputMode.QUIET),
                 )
 
-        assert exc.value.code == 1
+        assert exc.value.code == "research_model_deprecated"
         reserve.assert_not_awaited()
 
     @pytest.mark.asyncio
@@ -327,7 +329,7 @@ class TestRunSingleAsync:
         ):
             await _run_single(
                 query="Test query",
-                model="o4-mini-deep-research",
+                model="gpt-5.6-terra",
                 provider="openai",
                 no_web=False,
                 no_code=False,
@@ -365,7 +367,7 @@ class TestRunSingleAsync:
             await _submit_to_provider(
                 job_id="research-job",
                 query="Bounded research",
-                model="o4-mini-deep-research",
+                model="gpt-5.6-terra",
                 provider="openai",
                 no_web=False,
                 no_code=False,
@@ -420,7 +422,7 @@ class TestRunSingleAsync:
         ):
             await _run_single(
                 query="Test query",
-                model="o4-mini-deep-research",
+                model="gpt-5.6-terra",
                 provider="openai",
                 no_web=False,
                 no_code=False,
@@ -477,7 +479,7 @@ class TestRunSingleAsync:
         ):
             await _run_single(
                 query="Test query",
-                model="o4-mini-deep-research",
+                model="gpt-5.6-terra",
                 provider="openai",
                 no_web=False,
                 no_code=False,
@@ -510,7 +512,7 @@ class TestRunSingleAsync:
         ):
             await _run_single(
                 query="Test query",
-                model="o4-mini-deep-research",
+                model="gpt-5.6-terra",
                 provider="openai",
                 no_web=False,
                 no_code=False,
@@ -539,7 +541,7 @@ class TestRunSingleAsync:
             ):
                 await _run_single(
                     query="Test query",
-                    model="o4-mini-deep-research",
+                    model="gpt-5.6-terra",
                     provider="openai",
                     no_web=False,
                     no_code=False,

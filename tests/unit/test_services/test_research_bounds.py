@@ -35,7 +35,10 @@ def test_openai_envelope_includes_exact_token_and_web_ceilings() -> None:
         max_provider_requests=1,
     )
 
-    estimate = bounded_research_cost_estimate(request=request, provider="openai")
+    # o4-mini-deep-research shut down on 2026-07-23 and is refused at dispatch.
+    # Its retained small-context price contract still exercises the envelope
+    # arithmetic through an explicit write-free preview.
+    estimate = bounded_research_cost_estimate(request=request, provider="openai", allow_preview_only=True)
 
     # $1/$4 per MTok + $0.025 per web call.
     assert estimate.max_cost == pytest.approx(0.442)
@@ -45,7 +48,7 @@ def test_openai_envelope_includes_exact_token_and_web_ceilings() -> None:
 def test_code_interpreter_fails_closed_without_memory_and_session_envelope() -> None:
     request = ResearchRequest(
         prompt="Research",
-        model="o4-mini-deep-research",
+        model="gpt-5.6-terra",
         system_message="Test",
         tools=[ToolConfig(type="code_interpreter", container={"type": "auto", "memory_limit": "4g"})],
         max_input_tokens=128_000,
@@ -72,7 +75,8 @@ def test_multiple_provider_requests_multiply_model_and_tool_ceiling() -> None:
         max_provider_requests=2,
     )
 
-    estimate = bounded_research_cost_estimate(request=request, provider="OpenAIProvider")
+    # Retired small-context contract, priced through an explicit preview (see above).
+    estimate = bounded_research_cost_estimate(request=request, provider="OpenAIProvider", allow_preview_only=True)
 
     # Each request: $0.64 input + $0.32 output + $0.40 maximum web calls.
     assert estimate.max_cost == pytest.approx(2.72)
@@ -109,7 +113,7 @@ def test_invalid_boolean_bound_is_rejected() -> None:
 def test_file_search_fails_before_spend_until_storage_is_bounded() -> None:
     request = ResearchRequest(
         prompt="Research",
-        model="o4-mini-deep-research",
+        model="gpt-5.6-terra",
         system_message="Test",
         tools=[ToolConfig(type="file_search", vector_store_ids=["vs-1"])],
     )
@@ -267,7 +271,7 @@ def test_provider_model_mismatch_fails_before_cost_admission() -> None:
 def test_azure_accepts_openai_model_contracts() -> None:
     request = ResearchRequest(
         prompt="Research",
-        model="o4-mini-deep-research",
+        model="gpt-5.6-terra",
         system_message="Test",
         tools=[],
         max_input_tokens=8_192,
@@ -387,6 +391,27 @@ def test_deprecated_gemini_model_fails_before_cost_admission(model: str) -> None
 
     assert raised.value.code == "research_model_deprecated"
     assert "successor" in str(raised.value)
+
+
+@pytest.mark.parametrize("model", ["gpt-4.1-nano", "o3-deep-research", "gpt-5-mini"])
+def test_retired_openai_model_is_previewable_but_never_admitted(model: str) -> None:
+    """#292: explicit write-free previews keep historical pricing; dispatch refuses."""
+    request = ResearchRequest(
+        prompt="Research",
+        model=model,
+        system_message="Test",
+        max_input_tokens=8_192,
+        max_output_tokens=1_000,
+        max_provider_requests=1,
+    )
+
+    with pytest.raises(ResearchRequestBoundsError) as raised:
+        bounded_research_cost_estimate(request=request, provider="openai")
+    assert raised.value.code == "research_model_deprecated"
+    assert "gpt-5.6-" in str(raised.value)
+
+    preview = bounded_research_cost_estimate(request=request, provider="openai", allow_preview_only=True)
+    assert preview.max_cost > 0
 
 
 def test_persisted_request_bounds_must_match_exactly() -> None:

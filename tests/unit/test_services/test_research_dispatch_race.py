@@ -75,8 +75,8 @@ async def test_inflight_submit_cannot_be_cancelled_or_resurrected(tmp_path) -> N
     reservation = reserve_research_cost(
         job_id="racing-job",
         provider="openai",
-        model="gpt-4o-mini",
-        estimate=CostEstimate(0.1, 0.3, 0.2, "gpt-4o-mini", "test"),
+        model="gpt-5.6-luna",
+        estimate=CostEstimate(0.1, 0.3, 0.2, "gpt-5.6-luna", "test"),
         max_cost_per_job=1.0,
         max_daily_cost=2.0,
         max_monthly_cost=5.0,
@@ -85,7 +85,7 @@ async def test_inflight_submit_cannot_be_cancelled_or_resurrected(tmp_path) -> N
     job = ResearchJob(
         id=reservation.job_id,
         prompt="test",
-        model="gpt-4o-mini",
+        model="gpt-5.6-luna",
         status=JobStatus.QUEUED,
         metadata=reservation.metadata(),
     )
@@ -98,7 +98,7 @@ async def test_inflight_submit_cannot_be_cancelled_or_resurrected(tmp_path) -> N
             queue=queue,
             provider=provider,
             job=job,
-            request=ResearchRequest(prompt="test", model="gpt-4o-mini", system_message="test"),
+            request=ResearchRequest(prompt="test", model="gpt-5.6-luna", system_message="test"),
             reservation=reservation,
         )
     )

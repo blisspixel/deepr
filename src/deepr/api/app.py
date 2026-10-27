@@ -310,14 +310,12 @@ import uuid
 from deepr.api.job_cancellation import cancellation_response
 from deepr.api.research_cost import admitted_web_search, build_api_cost_summary, reserve_api_research_cost
 from deepr.config import load_config
-from deepr.experts.research_cost_gate import (
-    ResearchCostBlocked,
-    refund_research_cost,
-)
+from deepr.experts.research_cost_gate import ResearchCostBlocked, refund_research_cost
 from deepr.providers.base import DeepResearchProvider, ResearchRequest, ToolConfig
 from deepr.providers.lazy import LazyProviderResolver, config_api_key
 from deepr.queue.base import JobStatus, ResearchJob, client_job_metadata, public_job_metadata
 from deepr.queue.local_queue import SQLiteQueue
+from deepr.routing.deprecation import is_shutdown
 from deepr.services.job_provider import create_job_provider
 from deepr.services.research_cancellation import cancel_reserved_research
 from deepr.services.research_cost_reconciliation import reconcile_research_cost_reservations
@@ -641,6 +639,8 @@ def submit_job():
         return jsonify({"error": f"Prompt exceeds {_MAX_PROMPT_LENGTH} character limit"}), 400
     if not isinstance(model, str) or model not in _ALLOWED_MODELS:
         return jsonify({"error": "Invalid model"}), 400
+    if is_shutdown(model):  # dated provider shutdowns leave the accepted set
+        return jsonify({"error": f"Model {model} is shut down by its provider", "error_code": "model_shut_down"}), 400
     if not isinstance(priority, int) or isinstance(priority, bool) or not (1 <= priority <= 10):
         return jsonify({"error": "priority must be an integer from 1 to 10"}), 400
 

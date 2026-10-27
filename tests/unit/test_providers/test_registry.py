@@ -12,6 +12,7 @@ from deepr.providers.registry import (
     get_largest_context_model,
     get_model_capability,
     get_models_by_specialization,
+    is_auto_selectable,
 )
 
 
@@ -77,7 +78,7 @@ class TestModelCapabilities:
 
         # Should be cheaper than all other models
         for cap in MODEL_CAPABILITIES.values():
-            if not cap.preview_only and not cap.deprecated:
+            if is_auto_selectable(cap.provider, cap.model):
                 assert cheapest.cost_per_query <= cap.cost_per_query
 
     def test_get_fastest_model(self):
@@ -87,7 +88,7 @@ class TestModelCapabilities:
 
         # Should be faster than all other models
         for cap in MODEL_CAPABILITIES.values():
-            if not cap.preview_only and not cap.deprecated:
+            if is_auto_selectable(cap.provider, cap.model):
                 assert fastest.latency_ms <= cap.latency_ms
 
     def test_get_largest_context_model(self):
@@ -97,7 +98,7 @@ class TestModelCapabilities:
 
         # Should have largest context window
         for cap in MODEL_CAPABILITIES.values():
-            if not cap.preview_only and not cap.deprecated:
+            if is_auto_selectable(cap.provider, cap.model):
                 assert largest.context_window >= cap.context_window
 
         # Retired 2M Grok entries remain inventory, not selectable capacity.
@@ -271,6 +272,92 @@ class TestModelCapabilities:
 
         assert deep_research.cost_per_query > cheapest.cost_per_query
         assert deep_research.latency_ms > fastest.latency_ms
+
+
+class TestRetiredModelsNeverAutoSelected:
+    """Issue #292: registry selectors returned openai/gpt-4.1-nano after its shutdown."""
+
+    RETIRED_OPENAI = {
+        "gpt-4.1-nano": "openai/gpt-5.6-luna",
+        "o4-mini": "openai/gpt-5.6-terra",
+        "o3": "openai/gpt-5.6-sol",
+        "gpt-5": "openai/gpt-5.6-sol",
+        "gpt-5-mini": "openai/gpt-5.6-terra",
+        "gpt-5-nano": "openai/gpt-5.6-luna",
+        "gpt-4o-mini": "openai/gpt-5.6-luna",
+        "gpt-4.1": "openai/gpt-5.6-terra",
+        "gpt-4.1-mini": "openai/gpt-5.6-luna",
+        "o3-deep-research": "openai/gpt-5.6-sol",
+        "o4-mini-deep-research": "openai/gpt-5.6-sol",
+    }
+
+    def test_retired_openai_rows_are_deprecated_with_validated_successor(self):
+        for model, successor in self.RETIRED_OPENAI.items():
+            cap = MODEL_CAPABILITIES[f"openai/{model}"]
+            assert cap.deprecated and cap.selection_blocked, model
+            assert cap.successor == successor, model
+            target = MODEL_CAPABILITIES[successor]
+            assert not target.deprecated and not target.preview_only, successor
+            assert any(("2026-" in w or "2027-" in w) for w in cap.weaknesses), model
+
+    def test_gpt4_family_rows_disclose_preview_only_openai_recommendation(self):
+        for model in ("gpt-4o-mini", "gpt-4.1", "gpt-4.1-mini"):
+            text = " ".join(MODEL_CAPABILITIES[f"openai/{model}"].weaknesses)
+            assert "gpt-6-luna" in text and "preview-only" in text, model
+        assert MODEL_CAPABILITIES["openai/gpt-6-luna"].preview_only
+
+    def test_selectors_never_return_retired_or_retiring_ids(self):
+        from deepr.routing.deprecation import check_deprecation
+
+        chosen = [get_cheapest_model(), get_fastest_model(), get_largest_context_model()]
+        for specialization in ("reasoning", "curriculum", "speed", "cost", "research", "general"):
+            chosen.extend(get_models_by_specialization(specialization))
+        for cap in chosen:
+            assert check_deprecation(cap.model) is None, cap.model
+            assert not cap.selection_blocked and not cap.preview_only, cap.model
+        assert get_cheapest_model().model != "gpt-4.1-nano"
+
+    def test_openai_curriculum_selection_is_current(self):
+        openai = [cap for cap in get_models_by_specialization("reasoning") if cap.provider == "openai"]
+        assert openai
+        assert "gpt-5-mini" not in {cap.model for cap in openai}
+
+    def test_azure_rows_state_azure_schedule(self):
+        expected = {
+            "gpt-5": "2027-02-09",
+            "gpt-5-mini": "2027-02-09",
+            "gpt-4.1": "2027-04-14",
+            "gpt-4.1-mini": "2027-04-14",
+            "gpt-4o": "2027-04-14",
+            "gpt-4o-mini": "2027-04-14",
+        }
+        for model, date in expected.items():
+            cap = MODEL_CAPABILITIES[f"azure-foundry/{model}"]
+            assert not cap.deprecated, model
+            assert any(date in w for w in cap.weaknesses), model
+        dr = MODEL_CAPABILITIES["azure-foundry/o3-deep-research"]
+        assert dr.deprecated
+        assert any("2026-11-19" in w for w in dr.weaknesses)
+
+    def test_retired_ids_still_price_for_historical_settlement(self):
+        from deepr.providers.anthropic_provider import ANTHROPIC_PRICING
+        from deepr.providers.registry import get_token_pricing
+
+        for model in self.RETIRED_OPENAI:
+            cap = MODEL_CAPABILITIES[f"openai/{model}"]
+            assert get_token_pricing(model) == {
+                "input": cap.input_cost_per_1m,
+                "output": cap.output_cost_per_1m,
+            }, model
+            assert get_cost_estimate(model) == cap.cost_per_query, model
+        for model in ("claude-opus-4", "claude-opus-4-1", "claude-sonnet-4"):
+            assert ANTHROPIC_PRICING[model]["input"] > 0, model
+
+    def test_unregistered_ids_follow_retirement_records(self):
+        assert is_auto_selectable("openai", "gpt-5.6-luna")
+        assert not is_auto_selectable("openai", "gpt-4.1-nano")
+        assert not is_auto_selectable("openai", "gpt-4o-2024-08-06")
+        assert is_auto_selectable("openai", "some-unregistered-model")
 
 
 class TestCostEstimateMatching:

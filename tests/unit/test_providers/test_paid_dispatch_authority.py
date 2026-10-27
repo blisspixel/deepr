@@ -360,7 +360,7 @@ async def test_reserved_service_freezes_request_before_mark_and_mints_after_mark
     provider = _RecordingProvider()
     request = ResearchRequest(
         prompt="original",
-        model="o4-mini-deep-research",
+        model="gpt-5.6-terra",
         system_message="system",
         metadata={"nested": {"value": "original"}},
     )

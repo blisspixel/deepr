@@ -44,7 +44,7 @@ def _durable_reservation_is_active(monkeypatch):
     monkeypatch.setattr("deepr.services.research_submission.mark_research_provider_work", mark)
 
 
-_MODEL = "o4-mini-deep-research"
+_MODEL = "gpt-5.6-luna"
 _BINDING_ID = "a" * 64
 
 
