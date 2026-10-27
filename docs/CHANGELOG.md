@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.51.1] - 2026-10-27
+
+Patch release: model lifecycle and evidence representation repairs. No spend,
+dispatch, mutation or default-on authority is added. A frozen local
+before/after diagnostic is recorded in
+[advice-representation-2026-10-27](validation/advice-representation-2026-10-27.md);
+it establishes no improvement claim.
+
 ### Fixed
 
 - Stop automatic routing from selecting shut-down or retiring models (#292).

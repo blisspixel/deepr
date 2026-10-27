@@ -98,8 +98,13 @@ human-calibrated semantic acceptance and S2-S4 remain unqualified.
   operational smoke is not semantic acceptance or default-on authority.
   2026-10-27: the preparation-side representation repair is implemented with
   fixture tests ([note](docs/design/prepared-consultation.md#2026-10-27-representation-repair)).
-  Stored-side dates, brief anchors and reviewed answers on installed models
-  remain open.
+  Stored-side dates and brief anchors also shipped in v2.51.1. The frozen
+  [2026-10-27 diagnostic](docs/validation/advice-representation-2026-10-27.md)
+  met its rule on one exposed case only; both arms still called a release with
+  newer pre-releases "not current", omitted yank status and digest scope, and
+  the first stored-label wording leaked "fetch time unrecorded" into an answer
+  (now scoped). Next: rerun the unexecuted negative control and held-out brief
+  replay on the shipped code, then review held-out prepared answers again.
 - [ ] **Brief judgment quality (2026-10-25):** the
   [three-call replay](docs/validation/brief-clarification-2026-10-25.md) retained
   all five sources and removed forecast apparatus from six standing positions,
@@ -920,7 +925,13 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.51.0)
+## Current Status (v2.51.1)
+
+v2.51.1 retires shut-down and retiring model defaults (#292) and repairs
+evidence representation for consult, brief synthesis and opt-in preparation.
+The [2026-10-27 diagnostic](docs/validation/advice-representation-2026-10-27.md)
+met its frozen improvement rule on one exposed case only; prepared-advice
+qualification, brief judgment quality and default-on gates remain open.
 
 v2.50.45 completes the offline rehearsal identity preflight and verifies mixed
 terminal outcomes through existing artifacts. No new S0 run or semantic
@@ -4305,7 +4316,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.51.0. This roadmap keeps
+v2.51.1. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 
