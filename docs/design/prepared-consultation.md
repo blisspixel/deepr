@@ -466,6 +466,59 @@ Do not replace the notice with a generic claim that the expert is current.
 No cache read, packet rendering, graph projection or final answer grants
 canonical mutation authority. A proposed learning item remains a proposal.
 
+### 2026-10-27 representation repair
+
+Independent reviews of the October 25 prepared answers found metadata presented
+as runtime compatibility, digest advice detached from its artifact, overstated
+snapshot currentness, and omitted checks or misattribution. A read-only trace
+classified these mainly as misleading representation in the delivered packet.
+This repair changes only that representation. It is not semantic acceptance,
+does not show that answers improve, and leaves default-off status, acquisition
+scope, network bounds and spend unchanged.
+
+- Projections no longer invent absent fields. Both projections defaulted an
+  absent `vulnerabilities` key to an empty list and `project-status` to null;
+  the simple index never carries vulnerabilities, so its empty list read as a
+  clean result. Absent keys are now
+  named in `fields_absent_in_source`, and omitted source keys are listed
+  exactly. A constant `source` label and fixed `field_semantics` state what
+  retained fields mean. Requires-Python, `python_version` and wheel tags are
+  uploader-declared packaging metadata, not an install, import or runtime test.
+  Archive digests cover only the bytes named by `filename`, and the
+  `core-metadata` digest covers the separate metadata file. Yank status is as
+  published. This addresses metadata-as-runtime and digest-attachment defects.
+- Index projections add `listing_at_observation`: observed time, highest
+  listed version by PEP 440 ordering, whether the target is listed and the
+  target files' upload time and yank status. It is labelled as a listing at
+  observation time only; not completeness, future currentness, or safety.
+  This addresses snapshot currentness. `applicable_versions` still names only
+  the target: the contract allows at most 32 entries, and changing packet
+  fields would break re-freezing of old packets, so a limitation states the
+  distinction instead.
+- The delivered text is a derived view of the frozen packet. "Complete" now
+  says that all planned requests returned, which is not check completeness.
+  Each observation has a header with its class, coordinate, request and
+  observation times, raw SHA256 and projection SHA256. Projections render as
+  fields instead of escaped JSON. A fixed NOT CHECKED list and the
+  interpretation prompt's metadata-versus-runtime caution are always
+  delivered. The preparation model's output is labelled unreviewed model
+  interpretation, not a source observation, and answers are asked to cite
+  observation IDs and raw-hash prefixes. CLI and MCP render through the same
+  `PreparedConsultation` object. This addresses omitted checks and
+  misattribution.
+
+Frozen packet bytes, packet hashes and review projections are unchanged in
+form. A retained packet with the earlier projection shape still validates,
+re-freezes to its original hash and renders. Fixed field meanings render once
+per delivered packet. On the existing service fixture, the mandatory delivered
+layer grew from 4,404 to 5,643 characters, and the full synthesis prompt from
+7,372 to 8,711 of 16,000. Offline re-projection of the retained October 25
+filelock trial bytes grows that layer from 10,517 to 12,383 characters. This
+cuts the stored-context budget for that question from 3,176 to 1,310
+characters, a real cost to weigh before any default or wider source class.
+Stored-side source dates, brief anchor delivery and falsifier wording remain
+separate work.
+
 ### Canonical invariance and acceptance
 
 Before preparation, freeze the explicit canonical inventory for the selected

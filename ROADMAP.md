@@ -96,6 +96,10 @@ human-calibrated semantic acceptance and S2-S4 remain unqualified.
   release chronology, metadata versus runtime compatibility, artifact-specific
   digest advice, bounded snapshot currentness and claim attribution. The
   operational smoke is not semantic acceptance or default-on authority.
+  2026-10-27: the preparation-side representation repair is implemented with
+  fixture tests ([note](docs/design/prepared-consultation.md#2026-10-27-representation-repair)).
+  Stored-side dates, brief anchors and reviewed answers on installed models
+  remain open.
 - [ ] **Brief judgment quality (2026-10-25):** the
   [three-call replay](docs/validation/brief-clarification-2026-10-25.md) retained
   all five sources and removed forecast apparatus from six standing positions,

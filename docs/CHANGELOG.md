@@ -54,6 +54,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   earlier state is stated only when a source states or dates it. These are
   representation repairs for reviewed brief defects, not semantic acceptance;
   see the [2026-10-27 design note](design/evidence-selection-and-delivery.md#source-observation-and-excerpt-representation-repair-2026-10-27).
+- Repair how opt-in prepared consultation represents PyPI metadata to the
+  answering model. Projections no longer default absent vulnerability or
+  project-status fields; they name absent and omitted source keys and state
+  fixed field meanings, for example that Requires-Python and wheel tags are
+  declared metadata, not runtime tests. Index observations record the listing
+  at observation time, including the highest listed version by PEP 440
+  ordering. The delivered text says all planned requests returned rather than
+  "complete". It adds per-observation provenance headers, readable projections
+  and a fixed NOT CHECKED list, and labels preparation model output as
+  unreviewed interpretation. Earlier packets still verify. This is a
+  representation repair for reviewed defects, not semantic acceptance; see the
+  [contract note](design/prepared-consultation.md#2026-10-27-representation-repair).
 
 ## [2.51.0] - 2026-10-25
 
