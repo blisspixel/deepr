@@ -529,18 +529,37 @@ class _Operation:
             limitations=("Metadata projection has not yet been admitted or interpreted.", *omitted_headers),
         )
 
-    def freeze(self, stop: Literal["complete", "partial", "failed", "cancelled", "offline"]) -> FrozenPreparation:
-        packet = PreparationPacket(
+    def _packet(
+        self,
+        stop: Literal["complete", "partial", "failed", "cancelled", "offline"],
+        assumptions: tuple[Assumption, ...],
+        interpretation: Interpretation,
+    ) -> PreparationPacket:
+        return PreparationPacket(
             envelope=self.envelope,
-            assumptions=self.assumptions,
+            assumptions=assumptions,
             observations=tuple(self.observations),
-            interpretation=self.interpretation,
+            interpretation=interpretation,
             omissions=tuple(self.omissions),
             limits=self.limits,
             attempts=self.store.source_attempt_count(self.owner, self.claim.operation_id),
             stop_reason=stop,
         )
-        frozen = freeze_packet(packet)
+
+    def adopt(self, analysis: PreparationAnalysis) -> None:
+        """Admit model references against the packet contract before adopting them.
+
+        An unknown stored position or observation id is refused whole: no alias,
+        salvage or partial adoption, so the failure packet stays freezable.
+        """
+        try:
+            self._packet("failed", analysis.assumptions, analysis.interpretation)
+        except ValueError:
+            raise PreparationRefused("interpretation_invalid_references") from None
+        self.assumptions, self.interpretation = analysis.assumptions, analysis.interpretation
+
+    def freeze(self, stop: Literal["complete", "partial", "failed", "cancelled", "offline"]) -> FrozenPreparation:
+        frozen = freeze_packet(self._packet(stop, self.assumptions, self.interpretation))
         self.store.complete(self.owner, self.claim.operation_id, frozen, raw_sources=self.raw_sources)
         return frozen
 
@@ -759,7 +778,7 @@ async def _run_preparation(
             )
         )
         _validate_analysis(analysis, operation.assumptions)
-        operation.assumptions, operation.interpretation = analysis.assumptions, analysis.interpretation
+        operation.adopt(analysis)
         stop: Literal["partial", "complete"] = "partial" if operation.partial else "complete"
         return PreparationOutcome(
             claim, operation.freeze(stop), stop, True, owner.namespace_sha256, captured.context_sha256, capture_sha

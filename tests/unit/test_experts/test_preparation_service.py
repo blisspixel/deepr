@@ -727,3 +727,31 @@ def test_long_omitted_key_list_stays_exact_without_clipping():
     assert projection["omitted_source_keys"] == [f"info.descriptive_key_{index:03}" for index in range(40)]
     assert result.omitted[0].startswith("40 source keys not projected (listed exactly in omitted_source_keys)")
     assert all(len(item) <= 512 for item in result.omitted)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("field", ["stored_position", "observation"])
+async def test_interpretation_with_unknown_reference_retains_terminal_failed_packet(service_fixture, field):
+    """Eval dry-run defect: an unknown model reference raised again while freezing the failure."""
+    common, replies, payloads, _, root = service_fixture
+    before = tree(root)
+    if field == "stored_position":
+        replies[1]["interpretation"]["conflicts"] = [
+            {"stored_position_id": "f" * 64, "observation_ids": ["observation_1"], "note": "Model-cited id."}
+        ]
+    else:
+        replies[1]["interpretation"]["implications"] = [
+            {"observation_ids": ["observation_9"], "guidance": "Model-cited missing observation."}
+        ]
+    outcome = await prepare_consultation(**common, acquirer=acquisition_fixture)
+    assert outcome.status == "failed" and not outcome.answer_allowed and len(payloads) == 2
+    packet = PreparationPacket.model_validate_json(outcome.frozen.content)
+    assert packet.stop_reason == "failed"
+    # The refused interpretation is not adopted; no alias or salvage of the bad id.
+    assert packet.interpretation.conflicts == () and packet.interpretation.implications == ()
+    assert packet.interpretation.comparison_status == "unchecked"
+    assert all(item.status == "unchecked" for item in packet.assumptions)
+    assert packet.omissions[-1].reason.startswith("Preparation stopped: interpretation_invalid_references")
+    assert len(packet.observations) == 2
+    assert common["store"].load(common["owner"], outcome.claim.operation_id) == outcome.frozen
+    assert tree(root) == before

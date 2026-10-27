@@ -183,3 +183,80 @@ def test_cli_and_trusted_mcp_share_real_preparation_and_private_delivery(service
     assert sum(event["operation"] == "native_local_requested" for event in ledger_events) == 6
     assert sum(event.get("kind") == "source_intent" for event in private_events) == 4
     assert sum(event.get("kind") == "source_terminal" for event in private_events) == 4
+
+
+def test_cli_and_mcp_report_refused_interpretation_reference_without_answer(service_fixture, monkeypatch, tmp_path):
+    """A model-cited unknown stored position fails closed with a retained terminal packet."""
+    common, replies, _, _, root = service_fixture
+    replies[1]["interpretation"]["conflicts"] = [
+        {"stored_position_id": "f" * 64, "observation_ids": ["observation_1"], "note": "Model-cited id."}
+    ]
+    before = tree(root)
+    payloads, operations, calls = [], [], [0]
+    original_adapter = preparation_service.prepare_for_transaction
+
+    async def post(url, payload, timeout):
+        index = calls[0]
+        calls[0] += 1
+        payloads.append(payload)
+        return {
+            "message": {"content": json.dumps(replies[index]) if index < 2 else "Must not be dispatched."},
+            "done_reason": "stop",
+            "prompt_eval_count": 100,
+            "eval_count": 30,
+        }
+
+    monkeypatch.setattr("deepr.experts.investigation.ollama_backend._get_json", common["backend"]._get_json)
+    monkeypatch.setattr("deepr.experts.investigation.ollama_backend._post_json", post)
+
+    async def select(*args, **kwargs):
+        return "fixture:local", "explicit fixture selection"
+
+    monkeypatch.setattr("deepr.experts.consult.resolve_consult_local_model", select)
+    monkeypatch.setattr(
+        "deepr.experts.profile_store.ExpertStore.load", lambda *args, **kwargs: SimpleNamespace(name="E")
+    )
+    monkeypatch.setenv("DEEPR_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("DEEPR_CONSULT_TRACE_PATH", str(tmp_path / "trace.jsonl"))
+    monkeypatch.setenv("DEEPR_CONSULT_LIFECYCLE_PATH", str(tmp_path / "lifecycle.jsonl"))
+
+    async def adapter(admission, **kwargs):
+        calls[0] = 0
+        result = await original_adapter(admission, **kwargs, acquirer=acquisition_fixture)
+        operations.append((admission, result))
+        return result
+
+    monkeypatch.setattr(preparation_service, "prepare_for_transaction", adapter)
+    request = common["request"].model_dump(mode="json")
+    request["request_id"] = "refused_cli_request_001"
+    path = tmp_path / "request.json"
+    path.write_text(json.dumps(request), encoding="utf-8")
+    cli = CliRunner().invoke(
+        expert_consult,
+        [common["question"], "-e", "E", "--prepare-python", str(path), "--local-model", "fixture:local", "--json"],
+    )
+    assert cli.exit_code == 1, cli.output
+    assert json.loads(cli.output)["error"]["code"] == "CONSULT_PREPARATION_FAILED"
+    request["request_id"] = "refused_mcp_request_002"
+
+    async def mcp():
+        token = bind_mcp_request_identity(MCPRequestIdentity.local_stdio())
+        try:
+            return await consult_experts_tool(
+                question=common["question"], experts=["E"], preparation=request, local_model="fixture:local"
+            )
+        finally:
+            reset_mcp_request_identity(token)
+
+    mcp_result = asyncio.run(mcp())
+    assert mcp_result["error_code"] == "PREPARATION_FAILED"
+    # Two preparation calls per transport; no final synthesis was dispatched.
+    assert len(payloads) == 4 and len(operations) == 2
+    assert all("Must not be dispatched." not in json.dumps(payload) for payload in payloads)
+    for admission, transaction in operations:
+        assert transaction.prepared is None and transaction.failure_code == "preparation_failed"
+        frozen = PreparationStore(admission.root).load(admission.owner, transaction.outcome.claim.operation_id)
+        packet = PreparationPacket.model_validate_json(frozen.content)
+        assert packet.stop_reason == "failed" and packet.interpretation.conflicts == ()
+        assert "interpretation_invalid_references" in packet.omissions[-1].reason
+    assert tree(root) == before
