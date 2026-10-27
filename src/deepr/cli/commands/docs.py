@@ -20,9 +20,9 @@ def docs():
 @click.option(
     "--planner",
     "-p",
-    default="gpt-5-mini",
-    type=ModelChoice(["gpt-5", "gpt-5-mini", "gpt-5-nano"]),
-    help=model_help("GPT-5 model for analysis and planning", "gpt-5-mini"),
+    default="gpt-5.6-terra",
+    type=ModelChoice(["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5", "gpt-5-mini", "gpt-5-nano"]),
+    help=model_help("GPT-5.6 model for analysis and planning", "gpt-5.6-terra"),
 )
 @click.option(
     "--model",
@@ -237,8 +237,7 @@ async def _analyze_and_queue(
             )
 
             job_ids.append(job_id)
-            model_label = "o3" if "o3" in task_model else "o4-mini"
-            console.print(f"  [{i}/{len(tasks)}] {task['title']} ({model_label}, {task_type})")
+            console.print(f"  [{i}/{len(tasks)}] {task['title']} ({task_model}, {task_type})")
 
         print_success(f"Submitted {len(job_ids)} research jobs!")
         console.print("\nMonitor with:")

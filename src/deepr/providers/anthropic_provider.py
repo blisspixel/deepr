@@ -66,13 +66,19 @@ class AnthropicProvider(DeepResearchProvider):
         "claude-opus-4-7",  # Previous flagship - $5/$25 per MTok (adaptive thinking only)
         "claude-opus-4-6",  # $5/$25 per MTok (adaptive thinking recommended)
         "claude-opus-4-5",  # $5/$25 per MTok
-        "claude-opus-4-1",  # Deprecated (retires 2026-08-05) - $15/$75 per MTok
-        "claude-opus-4",  # Deprecated (retires 2026-06-15) - $15/$75 per MTok
         "claude-sonnet-4-6",  # Best value - $3/$15 per MTok (adaptive thinking recommended)
-        "claude-sonnet-4-5",  # Previous gen - $3/$15 per MTok
-        "claude-sonnet-4",  # Deprecated (retires 2026-06-15) - $3/$15 per MTok
+        "claude-sonnet-4-5",  # Deprecated, retires 2026-11-30 - $3/$15 per MTok
         "claude-haiku-4-5",  # Fast/cheap - $1/$5 per MTok (no Extended Thinking)
     ]
+
+    # Retired by Anthropic (model-deprecations page checked 2026-10-27). Their
+    # ANTHROPIC_PRICING rows stay so historical usage still settles, but they
+    # are never selected, validated, or silently swapped for the default.
+    RETIRED_MODELS = {
+        "claude-opus-4": "2026-06-15",
+        "claude-sonnet-4": "2026-06-15",
+        "claude-opus-4-1": "2026-08-05",
+    }
 
     # Recommended models by use case
     RECOMMENDED_MODELS = {
@@ -502,6 +508,11 @@ class AnthropicProvider(DeepResearchProvider):
         """
         if model_key in self.SUPPORTED_MODELS:
             return model_key
+        if model_key in self.RETIRED_MODELS:
+            raise ProviderError(
+                f"Anthropic retired {model_key} on {self.RETIRED_MODELS[model_key]}; choose a current Claude model.",
+                provider="anthropic",
+            )
 
         model_mapping = {
             # Current generation
@@ -512,8 +523,6 @@ class AnthropicProvider(DeepResearchProvider):
             "claude-sonnet": "claude-sonnet-5",
             "claude-5-sonnet": "claude-sonnet-5",
             "claude-haiku": "claude-haiku-4-5",
-            # Legacy mappings
-            "claude-4-opus-legacy": "claude-opus-4-1",
         }
 
         return model_mapping.get(model_key, self.model)

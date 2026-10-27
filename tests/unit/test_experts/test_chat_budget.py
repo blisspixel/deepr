@@ -455,7 +455,7 @@ async def test_follow_up_generation_uses_chat_backend(monkeypatch):
 
     assert follow_ups == ["What evidence matters next?", "How should we validate this?"]
     assert len(backend.requests) == 1
-    assert backend.requests[0].model == "gpt-4o-mini"
+    assert backend.requests[0].model == "gpt-5.6-luna"
     assert backend.requests[0].extra == {
         "temperature": 0.7,
         "max_tokens": 200,
@@ -519,7 +519,7 @@ async def test_compact_conversation_uses_chat_backend(monkeypatch):
     assert result["status"] == "compacted"
     assert result["original_messages"] == 8
     assert len(backend.requests) == 1
-    assert backend.requests[0].model == "gpt-4o-mini"
+    assert backend.requests[0].model == "gpt-5.6-luna"
     assert backend.requests[0].extra == {
         "temperature": 0.3,
         "max_tokens": 500,

@@ -101,7 +101,7 @@ async def run_dream_team(question: str, model: str = "gpt-5.6-sol", perspectives
         provider = "openai"
 
     # Phase 1: Design team
-    architect = TeamArchitect(model="gpt-5")
+    architect = TeamArchitect(model="gpt-5.6-sol")
     team = architect.design_team(
         question=question,
         context=None,
@@ -427,7 +427,7 @@ def analyze(
 
         click.echo("[Phase 1] GPT-5 assembling dream team for this question...\n")
 
-        architect = TeamArchitect(model="gpt-5")
+        architect = TeamArchitect(model="gpt-5.6-sol")
         team = architect.design_team(
             question=question,
             context=context,
@@ -544,7 +544,7 @@ Provide analysis and insights from your unique perspective. Don't try to cover e
         # Phase 4: Synthesize with attribution
         click.echo("\n[Phase 4] Lead Researcher synthesizing team perspectives...\n")
 
-        synthesizer = TeamSynthesizer(model="gpt-5")
+        synthesizer = TeamSynthesizer(model="gpt-5.6-sol")
         report = synthesizer.synthesize_with_conflict_analysis(question=question, team_results=results)
 
         # Save report

@@ -32,12 +32,12 @@ class TestResearchReviewer:
             return ResearchReviewer()
 
     def test_init_default_model(self, mock_openai_env):
-        """Default model is gpt-5."""
+        """Default model is gpt-5.6-sol."""
         with patch("deepr.services.research_reviewer.OpenAI"):
             from deepr.services.research_reviewer import ResearchReviewer
 
             r = ResearchReviewer()
-            assert r.model == "gpt-5"
+            assert r.model == "gpt-5.6-sol"
 
     def test_init_valid_models(self, mock_openai_env):
         """All valid models accepted."""

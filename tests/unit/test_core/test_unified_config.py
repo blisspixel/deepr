@@ -42,7 +42,7 @@ class TestUnifiedConfig:
     def test_defaults(self):
         config = UnifiedConfig()
         assert config.default_provider == "openai"
-        assert config.default_model == "gpt-4o"
+        assert config.default_model == "gpt-5.6-sol"
         assert config.data_dir == "data"
         assert config.log_level == "INFO"
         assert config.providers == {}
@@ -162,7 +162,7 @@ class TestUnifiedConfigApplyCli:
     def test_apply_cli_none_ignored(self):
         config = UnifiedConfig()
         config._apply_cli({"default_model": None, "log_level": "DEBUG"})
-        assert config.default_model == "gpt-4o"  # Unchanged
+        assert config.default_model == "gpt-5.6-sol"  # Unchanged
         assert config.log_level == "DEBUG"
 
 
@@ -194,6 +194,8 @@ class TestUnifiedConfigApplyDict:
         )
         assert "openai" in config.providers
         assert config.providers["openai"].api_key == "sk-test"
+        # A stored retiring model is kept as written; only the default moved.
+        assert config.providers["openai"].default_model == "gpt-4o"
 
     def test_expert_defaults_merge(self):
         config = UnifiedConfig()

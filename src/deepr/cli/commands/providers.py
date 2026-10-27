@@ -330,7 +330,7 @@ def benchmark(quick: bool, target_provider: str | None, iterations: int, history
 
     # Define test providers and a simple prompt
     test_providers = [
-        ("openai", "gpt-5-mini"),
+        ("openai", "gpt-5.6-luna"),
         ("gemini", "gemini-3.5-flash-lite"),
         ("xai", "grok-4.3"),
     ]

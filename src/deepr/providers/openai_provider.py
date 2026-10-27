@@ -78,12 +78,13 @@ class OpenAIProvider(DeepResearchProvider):
             # Live defaults. Retired ids keep their historical wire names so a
             # reserved priced contract still matches the outbound model.
             # Deprecation entries warn and migrate those ids before selection.
+            # The bare "o3" and "o4-mini" ids are their own (retiring) models
+            # and are never expanded to a shut-down deep-research id; that
+            # expansion also mismatched the reserved price.
             "gpt-5.6-sol": "gpt-5.6-sol",
             "gpt-5.6-terra": "gpt-5.6-terra",
             "o3-deep-research": "o3-deep-research-2025-06-26",
             "o4-mini-deep-research": "o4-mini-deep-research",
-            "o3": "o3-deep-research-2025-06-26",
-            "o4-mini": "o4-mini-deep-research",
         }
 
     def get_model_name(self, model_key: str) -> str:

@@ -413,22 +413,22 @@ class CostOptimizer:
     reservation and settlement gates at provider dispatch.
     """
 
-    # Model cost tiers (cost per 1M tokens, approximate)
+    # Model cost tiers (cost per 1M tokens, conservative maximum token rate).
+    # Suggestions name only current models: o3, o4-mini and grok-3-mini are
+    # retired or retiring (docs/design/model-lifecycle-2026-10-27.md).
     MODEL_COSTS = {
-        "o3": 15.00,
-        "o4-mini": 3.00,
+        "gpt-5.6-terra": max(get_token_pricing("gpt-5.6-terra").values()),
+        "gpt-5.6-luna": max(get_token_pricing("gpt-5.6-luna").values()),
         "grok-4.3": 2.50,
         "gemini-flash": _GEMINI_FLASH_MAX_TOKEN_RATE,
-        "grok-3-mini": 0.30,
     }
 
     # Model capability tiers
     MODEL_CAPABILITIES = {
-        "o3": {"reasoning": "excellent", "speed": "slow", "depth": "maximum"},
-        "o4-mini": {"reasoning": "good", "speed": "medium", "depth": "high"},
+        "gpt-5.6-terra": {"reasoning": "excellent", "speed": "medium", "depth": "high"},
+        "gpt-5.6-luna": {"reasoning": "good", "speed": "fast", "depth": "medium"},
         "grok-4.3": {"reasoning": "good", "speed": "fast", "depth": "medium"},
         "gemini-flash": {"reasoning": "good", "speed": "very_fast", "depth": "high"},
-        "grok-3-mini": {"reasoning": "basic", "speed": "fast", "depth": "low"},
     }
 
     def suggest_cheaper_model(self, current_model: str, target_budget: float, estimated_tokens: int) -> str | None:

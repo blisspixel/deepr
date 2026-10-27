@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from deepr.experts.chat_backends import ExpertChatRequest
+from deepr.experts.constants import UTILITY_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 async def generate_follow_ups(session: Any, user_message: str, response: str) -> list[str]:
     """Generate suggestions only on explicit owned-capacity backends."""
     session.require_provider_dispatch_allowed("expert_chat_follow_ups")
-    model_name = session._provider_model_or("gpt-4o-mini")
+    model_name = session._provider_model_or(UTILITY_MODEL)
     try:
         result = await session.chat_backend.complete(
             ExpertChatRequest(
@@ -111,7 +112,7 @@ async def compact_conversation(session: Any) -> dict[str, Any]:
     conversation_text = "\n".join(text_parts)
 
     try:
-        model_name = session._provider_model_or("gpt-4o-mini")
+        model_name = session._provider_model_or(UTILITY_MODEL)
         result = await session.chat_backend.complete(
             ExpertChatRequest(
                 model=model_name,

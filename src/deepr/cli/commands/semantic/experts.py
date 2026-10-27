@@ -662,7 +662,7 @@ def expert_info(name: str):
 @click.option(
     "--model",
     default=None,
-    help=model_help("Override the validation model (default: gpt-5-mini, cheap+fast)", "gpt-5-mini"),
+    help=model_help("Override the validation model (default: gpt-5.6-luna, cheap+fast)", "gpt-5.6-luna"),
 )
 @click.option(
     "--json",

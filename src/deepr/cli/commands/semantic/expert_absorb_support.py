@@ -263,6 +263,7 @@ def _build_plan_absorber(
 def _build_metered_absorber(*, profile: Any, model: str | None, grounding: GroundingFlags) -> AbsorbBackend:
     from deepr.core.cost_caps import read_operator_budget
     from deepr.experts.report_absorber import (
+        DEFAULT_EXTRACTION_MODEL,
         ESTIMATED_EXTRACTION_COST,
         ReportAbsorber,
         build_attended_openai_client,
@@ -279,7 +280,7 @@ def _build_metered_absorber(*, profile: Any, model: str | None, grounding: Groun
         raise AbsorbBackendError(
             "Metered absorb requires current provider prepaid or hard-stop evidence with paid overage disabled."
         )
-    selected_model = model or "gpt-5-mini"
+    selected_model = model or DEFAULT_EXTRACTION_MODEL
     with temporarily_released_metered_keys(key_names=("OPENAI_API_KEY",)):
         client = build_attended_openai_client(model=selected_model)
         absorber = ReportAbsorber(

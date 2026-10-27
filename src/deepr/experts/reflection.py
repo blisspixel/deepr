@@ -26,7 +26,7 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_REFLECTION_MODEL = "gpt-5-mini"
+DEFAULT_REFLECTION_MODEL = "gpt-5.6-luna"
 _REFLECTION_CALL_CEILING_USD = 0.02
 _REFLECTION_OUTPUT_TOKENS = 900
 

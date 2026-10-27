@@ -127,12 +127,12 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_EXTRACTION_MODEL = "gpt-5-mini"
+DEFAULT_EXTRACTION_MODEL = "gpt-5.6-luna"
 
 # Cap claims extracted per report so a single absorb stays bounded.
 _MAX_CLAIMS = 25
 
-# Rough, conservative estimate for the single extraction call (gpt-5-mini class).
+# Rough, conservative estimate for the single extraction call (gpt-5.6-luna class).
 ESTIMATED_EXTRACTION_COST = 0.03
 
 # Advisory adjudication asks for a longer structured explanation than the
@@ -192,7 +192,7 @@ class ReportAbsorber:
             expert: The loaded expert profile to absorb into.
             client: Optional pre-built AsyncOpenAI client (tests inject a mock).
                 If omitted, one is built lazily from OPENAI_API_KEY at call time.
-            model: Extraction model (default gpt-5-mini, cheap + structured).
+            model: Extraction model (default gpt-5.6-luna, cheap + structured).
             belief_store: Optional BeliefStore (tests inject one on a tmp dir);
                 defaults to the expert's canonical store.
             grounding_checker: Optional cross-vendor checker (maker_checker.py).

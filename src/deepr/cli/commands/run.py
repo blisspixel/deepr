@@ -1137,7 +1137,7 @@ async def _handle_background_job(
 @run.command()
 @click.argument("scenario")
 @click.option("--model", "-m", default="gpt-5.6-sol", help="Research model")
-@click.option("--lead", default="gpt-5", help=model_help("Lead planner model", "gpt-5"))
+@click.option("--lead", default="gpt-5.6-sol", help=model_help("Lead planner model", "gpt-5.6-sol"))
 @click.option("--phases", "-p", type=click.IntRange(1, 10), default=3, help="Number of phases (1-10)")
 @click.option("--yes", "-y", is_flag=True, help="Skip budget confirmation")
 def project(

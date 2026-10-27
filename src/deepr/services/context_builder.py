@@ -69,7 +69,7 @@ class ContextBuilder:
         """
         Summarize a research report for use as context.
 
-        Uses GPT-5-mini (fast, cheap reasoning model) to extract key findings.
+        Uses GPT-5.6 Luna (fast, cheap model) to extract key findings.
 
         Args:
             report_content: Full research report (could be 10+ pages)
@@ -108,7 +108,7 @@ Summary (bullet list, ~{target_words} words):"""
 
         envelope = bounded_chat_envelope(
             provider="openai",
-            model="gpt-5-mini",
+            model="gpt-5.6-luna",
             prompt_parts=(prompt,),
             budget_usd=0.25,
             maximum_output_tokens=max_tokens + 100,
@@ -121,18 +121,18 @@ Summary (bullet list, ~{target_words} words):"""
             execute_reserved_sync_call,
             operation_prefix="context-summary",
             provider="openai",
-            model="gpt-5-mini",
+            model="gpt-5.6-luna",
             source="services.context_builder.summarize_research",
             max_cost_per_job=envelope.cost_usd,
             request_envelope={
-                "model": "gpt-5-mini",
+                "model": "gpt-5.6-luna",
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0.3,
                 "max_completion_tokens": envelope.output_tokens,
             },
             call=partial(
                 self.client.chat.completions.create,
-                model="gpt-5-mini",
+                model="gpt-5.6-luna",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
                 max_completion_tokens=envelope.output_tokens,

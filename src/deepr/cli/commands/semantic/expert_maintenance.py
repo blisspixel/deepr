@@ -128,7 +128,7 @@ def _with_absorb_overlap_guard(command):
     ),
 )
 @click.option(
-    "--model", default=None, help=model_help("Override the extraction model (default: gpt-5-mini)", "gpt-5-mini")
+    "--model", default=None, help=model_help("Override the extraction model (default: gpt-5.6-luna)", "gpt-5.6-luna")
 )
 @click.option(
     "--budget",

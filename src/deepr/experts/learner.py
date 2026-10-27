@@ -411,7 +411,7 @@ class AutonomousLearner:
             job = ResearchJob(
                 id=local_id,
                 prompt=topic.research_prompt,
-                model="o4-mini-deep-research" if topic.research_mode == "campaign" else "gpt-4.1",
+                model="gpt-5.6-sol" if topic.research_mode == "campaign" else "gpt-5.6-terra",
                 metadata={
                     "source": "expert_learn",
                     "expert_name": expert.name,
@@ -753,12 +753,11 @@ class AutonomousLearner:
         try:
             # Use appropriate model based on research mode
             if topic.research_mode == "campaign":
-                # Campaign mode: Deep research (10-45 min per topic)
-                model = "o4-mini-deep-research"
+                # Campaign mode: retained default (o4-mini-deep-research shut down 2026-07-23)
+                model = "gpt-5.6-sol"
             else:
-                # Focus mode: Quick research with GPT-4.1 (1-5 min, $0.04/query)
-                # GPT-4.1 has 1M+ context, widely available, much cheaper than GPT-5
-                model = "gpt-4.1"
+                # Focus mode: balanced successor of gpt-4.1 (shuts down 2027-01-14)
+                model = "gpt-5.6-terra"
 
             response_id = await self.research.submit_research(
                 prompt=topic.research_prompt,
@@ -805,8 +804,8 @@ class AutonomousLearner:
                 # Submit research job directly (synchronous execution)
                 # Use appropriate model based on research mode
                 if topic.research_mode == "campaign":
-                    # Campaign mode: Deep research (10-45 min per topic)
-                    model = "o4-mini-deep-research"
+                    # Campaign mode: retained default (o4-mini-deep-research shut down 2026-07-23)
+                    model = "gpt-5.6-sol"
                 else:
                     # Focus mode: Quick research with GPT-5.2 (1-5 min per topic)
                     model = "gpt-5.2"

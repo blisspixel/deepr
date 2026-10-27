@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 # Model used for cheap utility calls (plan decomposition, synthesis, follow-ups)
-UTILITY_MODEL = "gpt-4o-mini"
+UTILITY_MODEL = "gpt-5.6-luna"
 
 # Tool names
 TOOL_SEARCH_KB = "search_knowledge_base"
