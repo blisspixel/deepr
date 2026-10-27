@@ -33,7 +33,7 @@ from typing import Any, Literal, TypedDict
 from deepr.config import runtime_data_path
 from deepr.experts.router import ModelRouter
 from deepr.observability.provider_router import AutonomousProviderRouter
-from deepr.providers.registry import MODEL_CAPABILITIES, ModelCapability
+from deepr.providers.registry import MODEL_CAPABILITIES, ModelCapability, is_auto_selectable
 
 
 class AutoRoutingUnavailable(RuntimeError):
@@ -649,10 +649,14 @@ class AutoModeRouter:
 
         # Check for deprecated model and auto-migrate
         metadata: dict[str, Any] = {}
-        resolved_model, confidence, migration_warning = migrate_model(model, confidence=model_config.confidence)
+        resolved_model, confidence, migration_warning = migrate_model(model, model_config.confidence, provider)
         if migration_warning is not None and resolved_model == model:  # never return a retiring id
-            raise AutoRoutingUnavailable(f"Auto route {provider}/{model} has a retirement record: {migration_warning}")
-        if migration_warning is not None:
+            if not is_auto_selectable(provider, model):
+                raise AutoRoutingUnavailable(
+                    f"Auto route {provider}/{model} has a retirement record: {migration_warning}"
+                )
+            metadata["lifecycle_warning"] = migration_warning
+        elif migration_warning is not None:
             metadata["migrated_from"] = model
             model = resolved_model
             # Update provider if successor includes provider prefix
@@ -773,8 +777,6 @@ class AutoModeRouter:
             # Re-sort by cost-per-quality ascending (best value first)
             ranked = sorted(ranked, key=lambda r: r[3] / max(r[2], 0.001))
 
-        from deepr.routing.deprecation import check_deprecation
-
         for provider, model, quality, cost in ranked:
             if not self._is_provider_usable(provider):
                 continue
@@ -783,9 +785,7 @@ class AutoModeRouter:
             cap = MODEL_CAPABILITIES.get(f"{provider}/{model}")
             if cap is not None and (cap.preview_only or cap.selection_blocked):
                 continue
-            # Skip deprecated models - route to successor if available
-            dep = check_deprecation(model)
-            if dep is not None:
+            if not is_auto_selectable(provider, model):  # retired or retiring for this provider
                 continue
             return (provider, model, cost, quality)
 
@@ -800,15 +800,13 @@ class AutoModeRouter:
         Returns:
             Tuple of (provider, model, cost_estimate, reasoning)
         """
-        from deepr.routing.deprecation import check_deprecation
-
         candidates: list[tuple[str, str, float]] = []
         for cap in MODEL_CAPABILITIES.values():
             if cap.preview_only:
                 continue
             if self._is_provider_usable(cap.provider):
                 if budget is None or cap.cost_per_query <= budget:
-                    if not cap.selection_blocked and check_deprecation(cap.model) is None:
+                    if is_auto_selectable(cap.provider, cap.model):
                         candidates.append((cap.provider, cap.model, cap.cost_per_query))
 
         if candidates:
@@ -822,8 +820,7 @@ class AutoModeRouter:
             if (
                 not cap.preview_only
                 and self._is_provider_usable(cap.provider)
-                and not cap.selection_blocked
-                and check_deprecation(cap.model) is None
+                and is_auto_selectable(cap.provider, cap.model)
             ):
                 return (
                     cap.provider,

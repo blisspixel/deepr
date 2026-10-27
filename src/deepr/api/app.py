@@ -639,7 +639,7 @@ def submit_job():
         return jsonify({"error": f"Prompt exceeds {_MAX_PROMPT_LENGTH} character limit"}), 400
     if not isinstance(model, str) or model not in _ALLOWED_MODELS:
         return jsonify({"error": "Invalid model"}), 400
-    if is_shutdown(model):  # dated provider shutdowns leave the accepted set
+    if is_shutdown(model, provider=provider if isinstance(provider, str) else None):  # provider-scoped date
         return jsonify({"error": f"Model {model} is shut down by its provider", "error_code": "model_shut_down"}), 400
     if not isinstance(priority, int) or isinstance(priority, bool) or not (1 <= priority <= 10):
         return jsonify({"error": "priority must be an integer from 1 to 10"}), 400

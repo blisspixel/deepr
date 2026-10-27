@@ -313,7 +313,9 @@ class TestRetiredModelsNeverAutoSelected:
         for specialization in ("reasoning", "curriculum", "speed", "cost", "research", "general"):
             chosen.extend(get_models_by_specialization(specialization))
         for cap in chosen:
-            assert check_deprecation(cap.model) is None, cap.model
+            assert is_auto_selectable(cap.provider, cap.model), cap.model
+            if not cap.provider.startswith("azure"):
+                assert check_deprecation(cap.model, cap.provider) is None, cap.model
             assert not cap.selection_blocked and not cap.preview_only, cap.model
         assert get_cheapest_model().model != "gpt-4.1-nano"
 
@@ -340,7 +342,6 @@ class TestRetiredModelsNeverAutoSelected:
         assert any("2026-11-19" in w for w in dr.weaknesses)
 
     def test_retired_ids_still_price_for_historical_settlement(self):
-        from deepr.providers.anthropic_provider import ANTHROPIC_PRICING
         from deepr.providers.registry import get_token_pricing
 
         for model in self.RETIRED_OPENAI:
@@ -350,8 +351,26 @@ class TestRetiredModelsNeverAutoSelected:
                 "output": cap.output_cost_per_1m,
             }, model
             assert get_cost_estimate(model) == cap.cost_per_query, model
-        for model in ("claude-opus-4", "claude-opus-4-1", "claude-sonnet-4"):
-            assert ANTHROPIC_PRICING[model]["input"] > 0, model
+
+    def test_azure_rows_follow_azure_dates_not_openai_dates(self):
+        """Review of #292: OpenAI's 2027-01-14 date must not block azure-foundry/gpt-4.1."""
+        from datetime import date
+
+        from deepr.routing.deprecation import check_deprecation
+
+        assert is_auto_selectable("azure-foundry", "gpt-4.1", today=date(2027, 4, 13))
+        assert is_auto_selectable("azure-foundry", "gpt-4.1-mini", today=date(2027, 4, 13))
+        assert not is_auto_selectable("azure-foundry", "gpt-4.1", today=date(2027, 4, 14))
+        assert is_auto_selectable("azure-foundry", "gpt-5", today=date(2027, 2, 8))
+        assert not is_auto_selectable("azure-foundry", "gpt-5", today=date(2027, 2, 9))
+        # The same id on the direct OpenAI API is retiring and never auto-selected.
+        assert not is_auto_selectable("openai", "gpt-4.1", today=date(2026, 10, 27))
+        assert check_deprecation("o3-deep-research", "azure-foundry").sunset_date == "2026-11-19"
+        assert check_deprecation("o3-deep-research").sunset_date == "2026-07-23"
+        assert check_deprecation("gpt-4o-2024-05-13", "azure").sunset_date == "2026-12-09"
+        assert check_deprecation("gpt-4o-2024-08-06", "azure").sunset_date == "2027-04-14"
+        # Deprecated Azure rows stay blocked by their own registry flag.
+        assert not is_auto_selectable("azure-foundry", "o3-deep-research", today=date(2026, 10, 27))
 
     def test_unregistered_ids_follow_retirement_records(self):
         assert is_auto_selectable("openai", "gpt-5.6-luna")

@@ -285,36 +285,77 @@ DEPRECATION_REGISTRY.update(
 DEPRECATION_REGISTRY["o3-2025-04-16"] = DEPRECATION_REGISTRY["o3"]
 
 
-def check_deprecation(model: str) -> DeprecationEntry | None:
-    """Check if a model is deprecated.
+def _azure_entry(model: str, new_model: str, sunset: str, *, match_prefix: bool = True) -> DeprecationEntry:
+    return DeprecationEntry(
+        old_model=model,
+        new_model=new_model,
+        sunset_date=sunset,
+        warning=f"Azure Foundry retires {model} on {sunset} (Azure schedule). Deepr successor: {new_model}.",
+        auto_migrate=False,
+        match_prefix=match_prefix,
+    )
 
-    Returns the DeprecationEntry if found, None otherwise.
-    Performs exact match then falls back to prefix matching.
-    """
+
+# Azure Foundry follows its own retirement schedule, checked 2026-10-27 at
+# https://learn.microsoft.com/en-us/azure/foundry/openai/concepts/model-retirement-schedule
+# (page date 2026-09-21). Lookups for the azure and azure-foundry providers use
+# only this table, never the direct OpenAI API dates above.
+AZURE_DEPRECATION_REGISTRY: dict[str, DeprecationEntry] = {
+    "o1": _azure_entry("o1", "gpt-5.6-sol", "2026-11-19"),
+    "o3": _azure_entry("o3", "gpt-5.6-sol", "2026-11-19", match_prefix=False),
+    "o3-deep-research": _azure_entry("o3-deep-research", "gpt-5.6-sol", "2026-11-19"),
+    "o3-mini": _azure_entry("o3-mini", "gpt-5.6-terra", "2026-11-19"),
+    "o4-mini": _azure_entry("o4-mini", "gpt-5.6-terra", "2026-11-19"),
+    "gpt-4o-2024-05-13": _azure_entry("gpt-4o-2024-05-13", "gpt-5.6-terra", "2026-12-09", match_prefix=False),
+    "gpt-5": _azure_entry("gpt-5", "gpt-5.6-sol", "2027-02-09", match_prefix=False),
+    "gpt-5-mini": _azure_entry("gpt-5-mini", "gpt-5.6-terra", "2027-02-09", match_prefix=False),
+    "gpt-5-nano": _azure_entry("gpt-5-nano", "gpt-5.6-luna", "2027-02-09", match_prefix=False),
+    "gpt-4o": _azure_entry("gpt-4o", "gpt-5.6-terra", "2027-04-14"),
+    "gpt-4o-mini": _azure_entry("gpt-4o-mini", "gpt-5.6-luna", "2027-04-14"),
+    "gpt-4.1": _azure_entry("gpt-4.1", "gpt-5.6-terra", "2027-04-14"),
+    "gpt-4.1-mini": _azure_entry("gpt-4.1-mini", "gpt-5.6-luna", "2027-04-14"),
+    "gpt-4.1-nano": _azure_entry("gpt-4.1-nano", "gpt-5.6-luna", "2027-04-14"),
+}
+
+AZURE_PROVIDERS = frozenset({"azure", "azure-foundry"})
+
+
+def _lookup(registry: dict[str, DeprecationEntry], model: str) -> DeprecationEntry | None:
     # Exact match
-    if model in DEPRECATION_REGISTRY:
-        return DEPRECATION_REGISTRY[model]
+    if model in registry:
+        return registry[model]
 
     # Prefix match for versioned variants (e.g. "gpt-4o-2024-08-06")
     # Sort by key length descending so "gpt-4o-mini" matches before "gpt-4o"
-    for key in sorted(DEPRECATION_REGISTRY, key=len, reverse=True):
-        if not DEPRECATION_REGISTRY[key].match_prefix:
+    for key in sorted(registry, key=len, reverse=True):
+        if not registry[key].match_prefix:
             continue
         if model.startswith(key + "-") or model.startswith(key + "/"):
-            return DEPRECATION_REGISTRY[key]
+            return registry[key]
 
     return None
 
 
-def is_shutdown(model: str, *, today: date | None = None) -> bool:
+def check_deprecation(model: str, provider: str | None = None) -> DeprecationEntry | None:
+    """Check if a model is deprecated for ``provider``.
+
+    Returns the DeprecationEntry if found, None otherwise. Performs exact match
+    then falls back to prefix matching. Azure providers use the Azure schedule;
+    every other provider (or None) uses the direct provider-API table.
+    """
+    registry = AZURE_DEPRECATION_REGISTRY if provider in AZURE_PROVIDERS else DEPRECATION_REGISTRY
+    return _lookup(registry, model)
+
+
+def is_shutdown(model: str, *, provider: str | None = None, today: date | None = None) -> bool:
     """Compare a provider's recorded deadline, never infer it from a model name."""
-    entry = check_deprecation(model)
+    entry = check_deprecation(model, provider)
     return bool(
         entry and entry.sunset_date and date.fromisoformat(entry.sunset_date) <= (today or datetime.now(UTC).date())
     )
 
 
-def migrate_model(model: str, confidence: float = 1.0) -> tuple[str, float, str | None]:
+def migrate_model(model: str, confidence: float = 1.0, provider: str | None = None) -> tuple[str, float, str | None]:
     """Resolve a model, auto-migrating if deprecated.
 
     Returns:
@@ -324,7 +365,7 @@ def migrate_model(model: str, confidence: float = 1.0) -> tuple[str, float, str 
         If deprecated but auto_migrate is False, returns (model, confidence, warning).
         Confidence is preserved through migration (passed through unchanged).
     """
-    entry = check_deprecation(model)
+    entry = check_deprecation(model, provider)
     if entry is None:
         return model, confidence, None
 

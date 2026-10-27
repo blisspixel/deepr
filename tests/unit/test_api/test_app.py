@@ -309,6 +309,30 @@ class TestJobSubmission:
         assert response.get_json()["error_code"] == "model_shut_down"
         client.mock_provider.submit_research.assert_not_awaited()
 
+    def test_azure_shutdown_check_uses_the_azure_schedule(self, client, monkeypatch):
+        """Azure retires o3-deep-research on 2026-11-19, not OpenAI's 2026-07-23."""
+        from datetime import UTC, datetime
+
+        from deepr.routing import deprecation
+
+        class _Clock:
+            current = datetime(2026, 11, 18, tzinfo=UTC)
+
+            @classmethod
+            def now(cls, tz=None):
+                return cls.current
+
+        monkeypatch.setattr(deprecation, "datetime", _Clock)
+        payload = _paid_request(prompt="Research AI", model="o3-deep-research", provider="azure")
+
+        before = client.post("/api/jobs", json=payload, content_type="application/json")
+        assert (before.get_json() or {}).get("error_code") != "model_shut_down"
+
+        _Clock.current = datetime(2026, 11, 19, tzinfo=UTC)
+        after = client.post("/api/jobs", json=payload, content_type="application/json")
+        assert after.status_code == 400
+        assert after.get_json()["error_code"] == "model_shut_down"
+
     @pytest.mark.parametrize(
         "model",
         ["gemini-4-argon", "gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-flash", "gemini-flash-lite"],

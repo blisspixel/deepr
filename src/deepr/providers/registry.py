@@ -4,6 +4,8 @@ Defines capabilities, costs, and specializations for all supported models across
 Used by ModelRouter to make intelligent routing decisions.
 """
 
+from datetime import date
+
 from .model_capability import ModelCapability as ModelCapability
 from .openrouter_catalog import OPENROUTER_CAPABILITIES
 from .reviewed_catalog import REVIEWED_CAPABILITIES
@@ -1219,18 +1221,23 @@ def get_model_capability(provider: str, model: str) -> ModelCapability | None:
     return MODEL_CAPABILITIES.get(key)
 
 
-def _auto_selectable(cap: ModelCapability) -> bool:
-    """Automatic selection skips previews, blocked contracts, and dated provider retirements.
+def _auto_selectable(cap: ModelCapability, today: date | None = None) -> bool:
+    """Automatic selection skips previews, blocked contracts, and provider retirements.
 
-    ``check_deprecation`` records describe the direct provider API, so a same-named
-    Azure deployment is also skipped. Explicit identity and pricing are unaffected.
+    Direct provider rows are skipped once a retirement is recorded. Azure rows
+    follow the Azure schedule and stay selectable until their Azure date.
+    Explicit identity and pricing are unaffected.
     """
-    from deepr.routing.deprecation import check_deprecation
+    from deepr.routing.deprecation import AZURE_PROVIDERS, check_deprecation, is_shutdown
 
-    return not cap.preview_only and not cap.selection_blocked and check_deprecation(cap.model) is None
+    if cap.preview_only or cap.selection_blocked:
+        return False
+    if cap.provider in AZURE_PROVIDERS:
+        return not is_shutdown(cap.model, provider=cap.provider, today=today)
+    return check_deprecation(cap.model, cap.provider) is None
 
 
-def is_auto_selectable(provider: str, model: str) -> bool:
+def is_auto_selectable(provider: str, model: str, *, today: date | None = None) -> bool:
     """Whether automatic routing may pick ``provider/model``.
 
     Unregistered ids stay eligible unless a provider retirement record names them;
@@ -1239,7 +1246,7 @@ def is_auto_selectable(provider: str, model: str) -> bool:
     from deepr.routing.deprecation import check_deprecation
 
     cap = MODEL_CAPABILITIES.get(f"{provider}/{model}")
-    return _auto_selectable(cap) if cap is not None else check_deprecation(model) is None
+    return _auto_selectable(cap, today) if cap is not None else check_deprecation(model, provider) is None
 
 
 def get_models_by_specialization(specialization: str) -> list[ModelCapability]:
