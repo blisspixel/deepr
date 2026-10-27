@@ -490,14 +490,22 @@ _LEGACY_PACKET = Path(__file__).parents[2] / "fixtures" / "preparation" / "packe
 _LEGACY_SHA256 = "a6b83cf39c573a1703540c4c2b20547860d6006deb92cb4cfefac128365caedc"
 
 
-def _observed_packet(capture, *, conflicts=(), assumption_text="Does the declared version remain available?"):
+def _observed_packet(
+    capture,
+    *,
+    conflicts=(),
+    assumption_text="Does the declared version remain available?",
+    projection_data=None,
+    source_class="pypi_release",
+):
     from deepr.experts.preparation_contracts import Conflict, Implication, Interpretation, SourceObservation
 
     base = prepared_from(capture)
     packet = PreparationPacket.model_validate_json(base.frozen.content)
     coordinate = packet.envelope.request.packages[0].coordinate_id
     projection = json.dumps(
-        {
+        projection_data
+        or {
             "name": "fixture",
             "requires_python": ">=3.10",
             "files": [{"filename": "fixture-1.0.tar.gz", "requires_python": ">=3.10"}],
@@ -509,7 +517,7 @@ def _observed_packet(capture, *, conflicts=(), assumption_text="Does the declare
     observation = SourceObservation(
         observation_id="observation_1",
         coordinate_id=coordinate,
-        source_class="pypi_release",
+        source_class=source_class,
         requested_at=datetime(2026, 10, 27, 12, 0, 0, tzinfo=UTC),
         observed_at=datetime(2026, 10, 27, 12, 0, 1, tzinfo=UTC),
         status="ok",
@@ -619,3 +627,68 @@ def test_legacy_packet_shape_still_verifies_and_renders(captured):
     prepared = PreparedConsultation(capture, freeze_packet(rebound))
     assert "Descriptive metadata omitted" in prepared.mandatory_text()
     assert "all planned source requests returned" in prepared.mandatory_text()
+
+
+def _index_view(capture, versions, files):
+    listing = [{key: file[key] for key in ("filename", "upload-time", "yanked") if key in file} for file in files]
+    data = {
+        "name": "fixture",
+        "version": "1.0",
+        "versions": versions,
+        "files": files,
+        "listing_at_observation": {"highest_listed_version": versions[-1], "target_files": listing},
+        "omitted_source_keys": ["files[].url"],
+    }
+    prepared = _observed_packet(capture, projection_data=data, source_class="pypi_index")
+    observation = PreparationPacket.model_validate_json(prepared.frozen.content).observations[0]
+    return prepared.mandatory_text(), observation
+
+
+def test_delivered_view_compacts_long_version_listing_and_discloses_omission(captured):
+    capture, _ = captured
+    versions = ["0.1", "1.0", *[f"2.{index}" for index in range(15)], "not a version"]
+    files = [{"filename": "fixture-1.0.tar.gz", "upload-time": "2026-01-01T00:00:00Z", "yanked": False}]
+    text, observation = _index_view(capture, versions, files)
+    newest = [f"2.{index}" for index in range(14, 4, -1)]
+    # Newest ten by PEP 440 (2.14 above 2.9), then the older target; never lexical order.
+    assert "versions (newest 10 by PEP 440, plus target 1.0 if listed): " + json.dumps([*newest, "1.0"]) in text
+    assert (
+        "    7 other listed versions omitted from this view; complete list retained in the frozen packet "
+        f"(projection sha256 {observation.metadata_projection_sha256[:12]})." in text
+    )
+    # The frozen packet keeps the complete list.
+    assert json.loads(observation.metadata_projection_json)["versions"] == versions
+    assert 'target_files: "same archives as files above (filename, upload-time, yanked)"' in text
+
+
+def test_delivered_view_shows_short_listing_whole(captured):
+    capture, _ = captured
+    text, _ = _index_view(capture, ["1.0", "2.0"], [{"filename": "fixture-1.0.tar.gz", "yanked": False}])
+    assert '    versions: ["1.0", "2.0"]' in text and "omitted from this view" not in text
+
+
+def test_delivered_view_hides_duplicate_file_fields_with_disclosure(captured):
+    capture, _ = captured
+    file = {
+        "filename": "fixture-1.0.tar.gz",
+        "digests": {"sha256": "5" * 64, "md5": "4" * 32, "blake2b_256": "3" * 64},
+        "md5_digest": "4" * 32,
+        "upload_time": "2026-01-01T00:00:00",
+        "upload_time_iso_8601": "2026-01-01T00:00:00Z",
+        "has_sig": False,
+        "yanked": False,
+    }
+    data = {"name": "fixture", "files": [file], "omitted_source_keys": ["info.author", "info.summary", "files[].url"]}
+    prepared = _observed_packet(capture, projection_data=data)
+    text = prepared.mandatory_text()
+    observation = PreparationPacket.model_validate_json(prepared.frozen.content).observations[0]
+    shown = '{"digests": {"sha256": "' + "5" * 64 + '"}, "filename": "fixture-1.0.tar.gz", '
+    assert shown + '"upload_time_iso_8601": "2026-01-01T00:00:00Z", "yanked": false}' in text
+    assert "4" * 32 not in text
+    assert (
+        f"not shown in this view (retained in the frozen packet, projection sha256 "
+        f"{observation.metadata_projection_sha256[:12]}): files[].has_sig, files[].md5_digest, "
+        "files[].upload_time, files[].digests.blake2b_256, files[].digests.md5"
+    ) in text
+    assert "    omitted_source_keys: info.{author, summary}, files[].url" in text
+    assert json.loads(observation.metadata_projection_json)["files"] == [file]

@@ -509,15 +509,37 @@ scope, network bounds and spend unchanged.
 
 Frozen packet bytes, packet hashes and review projections are unchanged in
 form. A retained packet with the earlier projection shape still validates,
-re-freezes to its original hash and renders. Fixed field meanings render once
-per delivered packet. On the existing service fixture, the mandatory delivered
-layer grew from 4,404 to 5,643 characters, and the full synthesis prompt from
-7,372 to 8,711 of 16,000. Offline re-projection of the retained October 25
-filelock trial bytes grows that layer from 10,517 to 12,383 characters. This
-cuts the stored-context budget for that question from 3,176 to 1,310
-characters, a real cost to weigh before any default or wider source class.
-Stored-side source dates, brief anchor delivery and falsifier wording remain
-separate work.
+re-freezes to its original hash and renders. The first version of this view
+left too little room for the expert's own stored context, so the view is
+compacted by fixed rules, and every rule names what it hides. Fixed field
+meanings render once per packet. A long index `versions` list shows the newest
+10 by PEP 440 plus the target. It then states how many other listed versions
+are omitted and that the complete list stays in the frozen packet under the
+named projection hash. Release file records hide the MD5 and BLAKE2b digest
+families, the duplicate non-ISO upload time, `downloads`, `has_sig` and
+`comment_text`, and name them on a "not shown in this view" line. A listing's
+`target_files` that repeats the index file records is shown as a reference.
+Index file records already hold only the target version's files; other
+versions' files appear in NOT CHECKED and in a counted limitation.
+
+On the existing service fixture, the mandatory delivered layer grew from 4,404
+to 5,633 characters and the full synthesis prompt from 7,372 to 8,701 of
+16,000. An offline re-projection of the retained October 25 filelock trial
+bytes moves that layer from 10,517 to 10,704 characters. The stored-context
+budget for that question is 2,989 characters, against 3,176 before. The
+remainder is the fixed NOT CHECKED, caution and citation text that carries this
+repair. Stored-side source dates, brief anchor delivery and falsifier wording
+remain separate work.
+
+The same change fixes a reliability defect found by an evaluation dry run. A
+preparation-model interpretation that cited a stored position or observation
+id absent from the packet was adopted. Freezing the failure packet then raised
+again, so the transaction errored instead of retaining a terminal packet. Model
+references are now admitted against the packet contract before adoption. An
+unknown id refuses the whole interpretation, with no aliasing or salvage. The
+operation retains a terminal `failed` packet with
+`interpretation_invalid_references`, and CLI and MCP report preparation
+failure without dispatching an answer. Canonical expert state is unchanged.
 
 ### Canonical invariance and acceptance
 

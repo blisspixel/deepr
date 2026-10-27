@@ -25,6 +25,7 @@ from deepr.experts.consult_context import ConsultContext, build_consult_context,
 from deepr.experts.corpus_store import CORPUS_SCHEMA_VERSION, CorpusEntry, CorpusStore, content_hash
 from deepr.experts.preparation_contracts import (
     FrozenPreparation,
+    PackageCoordinate,
     PreparationPacket,
     SourceObservation,
     canonical_bytes,
@@ -602,11 +603,78 @@ def _compact(value: Any) -> str:
 _TRAILING_PROJECTION_KEYS = ("fields_absent_in_source", "omitted_source_keys", "field_semantics")
 
 
-def _projection_lines(projection: dict[str, Any]) -> list[str]:
+_VERSIONS_SHOWN = 10
+
+
+def _versions_view(values: list[Any], target: str, projection_sha256: str) -> list[str]:
+    """Delivered-view form only: newest listed versions by PEP 440 plus the target.
+
+    The complete list stays in the frozen packet; the omission is always stated.
+    """
+    from packaging.version import InvalidVersion, Version
+
+    parsed = []
+    for value in values:
+        try:
+            parsed.append((Version(str(value)), str(value)))
+        except InvalidVersion:
+            continue
+    ordered = sorted(parsed, reverse=True)
+    shown = ordered[:_VERSIONS_SHOWN]
+    shown += [entry for entry in ordered[_VERSIONS_SHOWN:] if entry[0] == Version(target)]
+    omitted = len(values) - len(shown)
+    if omitted <= 0:
+        return [f"    versions: {_compact(values)}"]
+    return [
+        f"    versions (newest {_VERSIONS_SHOWN} by PEP 440, plus target {_line(target)} if listed): "
+        + _compact([text for _, text in shown]),
+        f"    {omitted} other listed versions omitted from this view; complete list retained in the frozen packet "
+        f"(projection sha256 {projection_sha256[:12]}).",
+    ]
+
+
+# Delivered-view form only. Duplicate digest families, a duplicate upload time
+# and legacy file fields are hidden from the view and always named; the frozen
+# packet keeps every retained value.
+_VIEW_HIDDEN_FILE_KEYS = ("md5_digest", "upload_time", "downloads", "has_sig", "comment_text")
+_LISTING_FILE_KEYS = ("filename", "upload-time", "yanked")
+
+
+def _view_projection(projection: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    view = dict(projection)
+    hidden: dict[str, None] = {}
+    files = projection.get("files")
+    if isinstance(files, list):
+        records = []
+        for file in files:
+            if not isinstance(file, dict):
+                records.append(file)
+                continue
+            record = {key: value for key, value in file.items() if key not in _VIEW_HIDDEN_FILE_KEYS}
+            hidden.update(dict.fromkeys(f"files[].{key}" for key in file if key in _VIEW_HIDDEN_FILE_KEYS))
+            digests = file.get("digests")
+            if isinstance(digests, dict) and set(digests) - {"sha256"}:
+                record["digests"] = {key: value for key, value in digests.items() if key == "sha256"}
+                hidden.update(dict.fromkeys(f"files[].digests.{key}" for key in digests if key != "sha256"))
+            records.append(record)
+        view["files"] = records
+        listing = projection.get("listing_at_observation")
+        if isinstance(listing, dict) and all(isinstance(file, dict) for file in files):
+            same = [{key: file[key] for key in _LISTING_FILE_KEYS if key in file} for file in files]
+            if listing.get("target_files") == same:
+                view["listing_at_observation"] = {
+                    **listing,
+                    "target_files": "same archives as files above (filename, upload-time, yanked)",
+                }
+    return view, list(hidden)
+
+
+def _projection_lines(projection: dict[str, Any], target: str | None = None, projection_sha256: str = "") -> list[str]:
     """One line per retained field; map members and record lists get their own lines.
 
     Fixed ``field_semantics`` render once per packet in a shared glossary instead.
     """
+    projection, hidden = _view_projection(projection)
     keys = [key for key in projection if key not in _TRAILING_PROJECTION_KEYS]
     keys += [key for key in _TRAILING_PROJECTION_KEYS if key in projection]
     lines = []
@@ -614,23 +682,39 @@ def _projection_lines(projection: dict[str, Any]) -> list[str]:
         value = projection[key]
         if key == "field_semantics" and isinstance(value, dict):
             continue
-        if isinstance(value, dict) and value:
+        if key == "omitted_source_keys" and isinstance(value, list) and all(isinstance(item, str) for item in value):
+            info = [item.removeprefix("info.") for item in value if item.startswith("info.")]
+            rest = [item for item in value if not item.startswith("info.")]
+            grouped = ([f"info.{{{', '.join(info)}}}"] if info else []) + rest
+            lines.append(f"    omitted_source_keys: {_line(', '.join(grouped)) or 'none'}")
+        elif key == "versions" and target is not None and isinstance(value, list):
+            lines += _versions_view(value, target, projection_sha256)
+        elif isinstance(value, dict) and value:
             lines += [f"    {_line(key)}:", *(f"      {_line(name)}: {_compact(item)}" for name, item in value.items())]
         elif isinstance(value, list) and any(isinstance(item, dict | list) for item in value):
             lines += [f"    {_line(key)}:", *(f"      - {_compact(item)}" for item in value)]
         else:
             lines.append(f"    {_line(key)}: {_compact(value)}")
+    if hidden:
+        lines.append(
+            "    not shown in this view (retained in the frozen packet, projection sha256 "
+            f"{projection_sha256[:12]}): {_line(', '.join(hidden))}"
+        )
     return lines
 
 
-def _observation_lines(item: SourceObservation, coordinate: str, meanings: dict[str, list[str]]) -> list[str]:
+def _observation_lines(
+    item: SourceObservation, coordinate: PackageCoordinate | None, meanings: dict[str, list[str]]
+) -> list[str]:
     headers = [
         f"{name}={_line(value)}"
         for name, value in (("Date", item.response_date), ("Last-Modified", item.last_modified), ("ETag", item.etag))
         if value
     ]
     lines = [
-        f"[{item.observation_id}] class={item.source_class} coordinate={coordinate} ({item.coordinate_id}) "
+        f"[{item.observation_id}] class={item.source_class} "
+        f"coordinate={f'{coordinate.name}=={coordinate.version}' if coordinate else item.coordinate_id} "
+        f"({item.coordinate_id}) "
         f"status={item.status}",
         f"  requested_at={item.requested_at.isoformat()} observed_at={item.observed_at.isoformat()}",
         f"  raw_sha256={item.raw_sha256 or 'none'} projection_sha256={item.metadata_projection_sha256 or 'none'}",
@@ -646,7 +730,8 @@ def _observation_lines(item: SourceObservation, coordinate: str, meanings: dict[
         for path, text in semantics.items() if isinstance(semantics, dict) else ():
             paths = meanings.setdefault(str(text), [])
             paths += [] if str(path) in paths else [str(path)]
-        lines += ["  projection:", *_projection_lines(projection)]
+        target = coordinate.version if coordinate is not None and item.source_class == "pypi_index" else None
+        lines += ["  projection:", *_projection_lines(projection, target, item.metadata_projection_sha256 or "")]
     return lines
 
 
@@ -679,7 +764,8 @@ def render_prepared_packet(packet: PreparationPacket) -> str:
     Rendering is form only. It does not decide relevance, grounding or quality.
     """
     request = packet.envelope.request
-    coordinates = {item.coordinate_id: f"{item.name}=={item.version}" for item in request.packages}
+    packages = {item.coordinate_id: item for item in request.packages}
+    coordinates = {key: f"{item.name}=={item.version}" for key, item in packages.items()}
     environment = request.environment
     lines = [
         f"Operation: {packet.envelope.operation_id}; source attempts: {packet.attempts}.",
@@ -700,7 +786,7 @@ def render_prepared_packet(packet: PreparationPacket) -> str:
     lines += ["", "--- SOURCE OBSERVATIONS (retrieved metadata, projected) ---"]
     meanings: dict[str, list[str]] = {}
     for item in packet.observations:
-        lines += _observation_lines(item, coordinates.get(item.coordinate_id, item.coordinate_id), meanings)
+        lines += _observation_lines(item, packages.get(item.coordinate_id), meanings)
     if meanings:
         lines += ["", "--- FIELD MEANINGS (fixed field_semantics from the projections above) ---"]
         lines += [f"{_line(', '.join(paths))}: {_line(text)}" for text, paths in meanings.items()]

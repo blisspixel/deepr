@@ -63,9 +63,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ordering. The delivered text says all planned requests returned rather than
   "complete". It adds per-observation provenance headers, readable projections
   and a fixed NOT CHECKED list, and labels preparation model output as
-  unreviewed interpretation. Earlier packets still verify. This is a
+  unreviewed interpretation. Long version listings and duplicate file fields
+  are compacted in the delivered view only, with each omission named; the
+  frozen packet keeps every value. Earlier packets still verify. This is a
   representation repair for reviewed defects, not semantic acceptance; see the
   [contract note](design/prepared-consultation.md#2026-10-27-representation-repair).
+- Retain a terminal failed preparation packet when the preparation model's
+  interpretation cites an unknown stored position or observation id. Freezing
+  the failure previously raised again and errored the transaction. CLI and MCP
+  now report preparation failure without dispatching an answer; the bad
+  reference is refused, never aliased.
 
 ## [2.51.0] - 2026-10-25
 
