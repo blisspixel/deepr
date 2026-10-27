@@ -11,6 +11,7 @@ from typing import Any
 
 from deepr.experts.chat_backends import ExpertChatRequest
 from deepr.experts.constants import UTILITY_MODEL
+from deepr.providers.openai_params import compatible_chat_kwargs
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,9 @@ async def generate_follow_ups(session: Any, user_message: str, response: str) ->
                         "content": f"User asked: {user_message[:300]}\n\nExpert replied: {response[:500]}",
                     },
                 ],
-                extra={"temperature": 0.7, "max_tokens": 200, "max_cost_per_job": 0.05},
+                extra=compatible_chat_kwargs(
+                    model_name, {"temperature": 0.7, "max_tokens": 200, "max_cost_per_job": 0.05}
+                ),
             )
         )
     except asyncio.CancelledError:
@@ -131,7 +134,9 @@ async def compact_conversation(session: Any) -> dict[str, Any]:
                     },
                     {"role": "user", "content": conversation_text[:8000]},
                 ],
-                extra={"temperature": 0.3, "max_tokens": 500, "max_cost_per_job": 0.10},
+                extra=compatible_chat_kwargs(
+                    model_name, {"temperature": 0.3, "max_tokens": 500, "max_cost_per_job": 0.10}
+                ),
             )
         )
         summary = result.text or "Summary unavailable."

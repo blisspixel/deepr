@@ -432,6 +432,12 @@ class ResearchConfig(BaseModel):
     batch_pause_duration: int = Field(default=180, description="Batch pause duration (seconds)")
 
 
+def learn_focus_topic_cost() -> float:
+    from deepr.experts.constants import LEARN_FOCUS_MODEL, learn_topic_cost
+
+    return learn_topic_cost(LEARN_FOCUS_MODEL)
+
+
 class ExpertConfig(BaseModel):
     """Configuration for expert system."""
 
@@ -445,10 +451,11 @@ class ExpertConfig(BaseModel):
     # Cost Estimates (averages based on actual model costs)
     deep_research_cost: float = Field(
         default=2.50,
-        description="Average cost per deep research topic (CAMPAIGN mode: o4-mini-deep-research / Gemini deep research)",
+        description="Conservative cost per deep research topic (CAMPAIGN mode; at least the campaign model's registry cost)",
     )
     quick_research_cost: float = Field(
-        default=0.002, description="Average cost per quick research topic (FOCUS mode: grok-4.3)"
+        default_factory=learn_focus_topic_cost,
+        description="Cost per quick research topic (FOCUS mode: the focus model's registry cost)",
     )
 
     # Synthesis

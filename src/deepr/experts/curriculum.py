@@ -15,6 +15,7 @@ import httpx
 from openai import AsyncOpenAI
 
 from deepr.config import AppConfig
+from deepr.experts.constants import LEARN_FOCUS_MODEL, learn_topic_cost
 from deepr.experts.metered_mutation_gate import require_api_curriculum_generation
 
 logger = logging.getLogger(__name__)
@@ -23,11 +24,10 @@ logger = logging.getLogger(__name__)
 # gpt-5.2 class; observed ~$0.05-0.10 per run).
 ESTIMATED_GENERATION_COST = 0.10
 
-# Smallest budget that can produce any learning value: generation overhead
-# plus one focus-mode research topic (~$0.04-0.05). Below this, generation
-# would spend money and then every topic would be skipped at the per-topic
-# budget gate - so we refuse BEFORE the first paid call.
-MIN_VIABLE_LEARN_BUDGET = 0.15
+# Smallest budget with any learning value: generation overhead plus one focus
+# topic at the focus model's registry cost. Below this every topic would be
+# skipped after paid generation, so we refuse BEFORE the first paid call.
+MIN_VIABLE_LEARN_BUDGET = ESTIMATED_GENERATION_COST + learn_topic_cost(LEARN_FOCUS_MODEL)
 
 # Every provider dispatch is bounded and durably reserved before the client is
 # constructed. The manual retry loop receives a fresh reservation per attempt.
@@ -491,7 +491,7 @@ class CurriculumGenerator:
                             },
                             {"role": "user", "content": prompt},
                         ],
-                        "temperature": 0.7,
+                        # GPT-5 family models (the only curriculum candidates) take default temperature.
                         "response_format": {"type": "json_object"},
                         "max_completion_tokens": _CURRICULUM_OUTPUT_TOKENS,
                     },
@@ -761,7 +761,7 @@ Generate the source list now for: {domain}"""
 
         # Get actual cost values from config
         if isinstance(self.config, dict):
-            quick_cost = self.config.get("expert", {}).get("quick_research_cost", 0.002)
+            quick_cost = self.config.get("expert", {}).get("quick_research_cost", learn_topic_cost(LEARN_FOCUS_MODEL))
             deep_cost = self.config.get("expert", {}).get("deep_research_cost", 2.50)
         else:
             quick_cost = self.config.expert.quick_research_cost

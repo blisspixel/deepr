@@ -91,18 +91,22 @@ class TaskPlanner:
         """Run one planner utility call under a durable exact-price hold."""
         from deepr.experts.report_absorber_costs import bounded_metered_completion_kwargs
         from deepr.providers.dispatch_authority import require_official_paid_client
+        from deepr.providers.openai_params import compatible_chat_kwargs
         from deepr.services.metered_call import execute_reserved_async_call
 
         kwargs, worst_case_cost = bounded_metered_completion_kwargs(
             operation=operation,
             model=UTILITY_MODEL,
             call_ceiling=_PLANNER_CALL_CEILING_USD,
-            kwargs={
-                "model": UTILITY_MODEL,
-                "messages": messages,
-                "temperature": 0.3,
-                "max_completion_tokens": output_tokens,
-            },
+            kwargs=compatible_chat_kwargs(
+                UTILITY_MODEL,
+                {
+                    "model": UTILITY_MODEL,
+                    "messages": messages,
+                    "temperature": 0.3,
+                    "max_completion_tokens": output_tokens,
+                },
+            ),
         )
         require_official_paid_client(self.client, "openai")
         return await execute_reserved_async_call(

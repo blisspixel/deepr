@@ -25,6 +25,7 @@ from .base import (
     get_usage_int,
 )
 from .dispatch_authority import default_paid_endpoint, require_official_paid_endpoint
+from .openai_params import accepts_sampling_params
 
 
 class OpenAIProvider(DeepResearchProvider):
@@ -166,7 +167,7 @@ class OpenAIProvider(DeepResearchProvider):
                     payload["extra_headers"] = extra_headers
 
                 # Add temperature if specified (but NOT for GPT-5 models - they don't support it)
-                if request.temperature is not None and not model.startswith("gpt-5"):
+                if request.temperature is not None and accepts_sampling_params(model):
                     payload["temperature"] = request.temperature
 
                 # Submit request

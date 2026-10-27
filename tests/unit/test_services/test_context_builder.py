@@ -98,6 +98,10 @@ class TestContextBuilder:
         await builder.summarize_research("report", max_tokens=200)
         call_kwargs = mock_client.chat.completions.create.call_args[1]
         assert call_kwargs["max_completion_tokens"] == 300  # 200 + 100 buffer
+        # gpt-5.6-luna accepts only the default temperature.
+        assert call_kwargs["model"] == "gpt-5.6-luna"
+        assert "temperature" not in call_kwargs
+        assert "max_tokens" not in call_kwargs
 
     @pytest.mark.asyncio
     async def test_build_phase_context_no_deps(self, builder):
