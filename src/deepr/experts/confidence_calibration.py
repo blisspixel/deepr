@@ -85,7 +85,7 @@ class IsotonicCalibrator:
             return
 
         # Sort by confidence
-        pairs = sorted(zip(confidences, outcomes), key=lambda x: x[0])
+        pairs = sorted(zip(confidences, outcomes, strict=True), key=lambda x: x[0])
 
         # Pool Adjacent Violators Algorithm (PAVA)
         # Simplified implementation
@@ -195,7 +195,7 @@ class PlattCalibrator:
             grad_a = 0.0
             grad_b = 0.0
 
-            for conf, target in zip(confidences, targets):
+            for conf, target in zip(confidences, targets, strict=True):
                 # Sigmoid: p = 1 / (1 + exp(-(a*conf + b)))
                 z = self._a * conf + self._b
                 p = 1.0 / (1.0 + math.exp(-z)) if z > -700 else 0.0
@@ -325,7 +325,7 @@ class ConfidenceCalibrator:
         """
         bins: dict[int, list[tuple[float, bool]]] = defaultdict(list)
 
-        for conf, outcome in zip(confidences, outcomes):
+        for conf, outcome in zip(confidences, outcomes, strict=True):
             bin_idx = min(int(conf * n_bins), n_bins - 1)
             bins[bin_idx].append((conf, outcome))
 

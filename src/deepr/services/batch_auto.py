@@ -303,7 +303,7 @@ class AutoBatchExecutor:
                     query=item.query,
                     decision=decision,
                 )
-                for item, decision in zip(items, routing.decisions)
+                for item, decision in zip(items, routing.decisions, strict=True)
             ]
 
             return BatchResult(
@@ -412,7 +412,7 @@ class AutoBatchExecutor:
                 )
 
         # Create tasks
-        tasks = [execute_one(item, decision) for item, decision in zip(items, routing.decisions)]
+        tasks = [execute_one(item, decision) for item, decision in zip(items, routing.decisions, strict=True)]
 
         # Execute all
         gather_results = await asyncio.gather(*tasks, return_exceptions=True)

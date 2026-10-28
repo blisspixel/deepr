@@ -451,7 +451,7 @@ def build_synthesis_packet(
         raise ValueError("Prepared view leaves the stored expert context below its floor.")
     parts = []
     experts: list[dict[str, object]] = []
-    for header, perspective in zip(headers, eligible):
+    for header, perspective in zip(headers, eligible, strict=True):
         blocks = perspective.synthesis_blocks or [block for block in perspective.response.split("\n\n") if block]
         text, manifest = pack_blocks(list(blocks), budget)
         parts.append(header + text)

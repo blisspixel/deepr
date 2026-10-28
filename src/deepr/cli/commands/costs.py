@@ -479,7 +479,7 @@ def timeline(days: int, weekly: bool):
     table.add_column("Cost", justify="right", width=10)
     table.add_column("Chart", no_wrap=True)
 
-    for label, val in zip(labels, values):
+    for label, val in zip(labels, values, strict=True):
         bar_len = int((val / max_val) * bar_width) if max_val > 0 else 0
         is_anomaly = avg_val > 0 and val > 2 * avg_val
 

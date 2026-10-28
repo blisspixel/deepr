@@ -200,7 +200,7 @@ JSON array of scores:"""
         """
         # Add scores to links
         scored = []
-        for link, score in zip(links, scores):
+        for link, score in zip(links, scores, strict=True):
             link_copy = link.copy()
             link_copy["relevance_score"] = score
             scored.append(link_copy)

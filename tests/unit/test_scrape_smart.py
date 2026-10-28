@@ -69,6 +69,17 @@ def test_link_filter_heuristic():
         assert "relevance_score" in link
 
 
+def test_link_filter_short_score_list_falls_back_instead_of_dropping_links():
+    """A model score list shorter than the links must not silently drop the unscored links."""
+    links = [{"url": f"https://example.com/page{index}", "text": f"Page {index}"} for index in range(4)]
+    link_filter = LinkFilter(llm_client=lambda prompt: "[9, 8]")
+    heuristic = link_filter._heuristic_filter(links=links, purpose="company research", max_links=3)
+
+    filtered = link_filter.filter_links(links, "company research", max_links=3)
+
+    assert filtered == heuristic
+
+
 def test_scrape_for_company_research_sanitizes_path(tmp_path, monkeypatch):
     from deepr.utils.scrape.scraper import scrape_for_company_research
 

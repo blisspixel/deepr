@@ -200,7 +200,7 @@ def select_findings(result: StudyResult, limit: int = MAX_FINDINGS_IN_PROMPT) ->
     Returned in study order, so the prompt still reads lens by lens. Only the
     choice of which findings make the cut is balanced.
     """
-    chosen = {id(finding) for _, finding in zip(range(limit), balanced_findings(result))}
+    chosen = {id(finding) for _, finding in zip(range(limit), balanced_findings(result), strict=False)}
     return [finding for finding in result.findings if id(finding) in chosen]
 
 
