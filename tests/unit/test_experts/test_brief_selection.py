@@ -389,7 +389,7 @@ def test_excerpts_never_displace_a_complete_finding(tmp_path):
         assert selection.presented_ids == without.presented_ids
         assert len(prompt) <= cap
         assert selection.prompt_sha256 == hashlib.sha256(prompt.encode("utf-8")).hexdigest()
-        assert prompt.count("    - S") == shown
+        assert prompt.count("    - corpus:") == shown
         assert all(selection.excerpt_omission_reasons[fid] == "prompt_chars" for fid in selection.excerpts_withheld)
         assert len(selection.excerpts_withheld) == len(selection.presented_ids) - shown
     assert len(without.presented_ids) < len(study.findings)
@@ -401,9 +401,13 @@ def test_full_room_shows_every_located_excerpt_with_its_source_key(tmp_path):
     assert selection.excerpts_withheld == {}
     assert selection.excerpt_chars_per_finding > 0
     assert prompt.index("===== EXCERPT SOURCES") < prompt.index("===== FINDINGS BEGIN =====")
-    assert "S1: url:1; pub.example; retained copy fetched 2026-04-02T00:00:00+00:00" in prompt
-    assert "S2: url:2; publisher unrecorded; retained copy fetch time unrecorded" in prompt
-    assert '    - S2: "Observation number 2 held only for the tested profile on platform 2."' in prompt
+    first, second = (f"corpus:{finding.corpus_shas[0][:12]}" for finding in study.findings[:2])
+    assert f"{first}: url:1; pub.example; retained copy fetched 2026-04-02T00:00:00+00:00" in prompt
+    assert f"{second}: url:2; publisher unrecorded; retained copy fetch time unrecorded" in prompt
+    assert f'    - {second}: "Observation number 2 held only for the tested profile on platform 2."' in prompt
+    # The key resolves against the retained corpus without the prompt's legend (a brief has none).
+    assert store.entries[study.findings[1].corpus_shas[0]].origin_key == "url:2"
+    assert "    - S1:" not in prompt and "    - S2:" not in prompt
 
 
 def test_per_finding_bound_withholds_whole_excerpts_and_records_them(tmp_path):
@@ -486,7 +490,7 @@ def test_long_anchor_with_an_invented_suffix_is_not_shown_as_source_text(tmp_pat
     )
     prompt, _ = brief_prompt_with_selection(study, expert_name="E", corpus=store)
     assert "always safe on every platform" not in prompt
-    assert '- S1: "The Cache Is Only Safe When Writes Are Serialized"' in prompt
+    assert f'- corpus:{entry.sha256[:12]}: "The Cache Is Only Safe When Writes Are Serialized"' in prompt
     assert real not in prompt
     assert "1 recorded excerpt(s) not located in the cited retained sources" in prompt
 

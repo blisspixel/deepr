@@ -387,9 +387,9 @@ def located_excerpts(
 class ExcerptPlan:
     """Located excerpts for one study, admitted only into room complete findings left.
 
-    Source keys are assigned in study order so a prompt names each retained
-    source once, in a legend carrying its origin, recorded publisher and
-    recorded fetch time. Nothing here reads meaning: it locates bytes, bounds
+    Source keys are retained-corpus sha prefixes, listed in study order so a
+    prompt names each retained source once, in a legend carrying its origin,
+    recorded publisher and recorded fetch time. Nothing here reads meaning: it locates bytes, bounds
     lengths and records what was not shown.
     """
 
@@ -402,7 +402,9 @@ class ExcerptPlan:
             if entry is not None and text:
                 texts[sha] = text
                 self.labels[sha] = f"{entry.origin_key}; {observation_text(entry.publisher, entry.fetched_at)}"
-        self.keys = {sha: f"S{index}" for index, sha in enumerate(self.labels, 1)}
+        # Models copy these keys into the brief, which has no legend; a corpus sha prefix
+        # stays resolvable there, where a prompt-local "S2" does not.
+        self.keys = {sha: f"corpus:{sha[:12]}" for sha in self.labels}
         self.by_id = {finding.finding_id: located_excerpts(finding, texts) for finding in result.findings}
         self.shown: set[str] = set()
 
