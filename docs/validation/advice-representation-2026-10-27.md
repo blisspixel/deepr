@@ -115,6 +115,60 @@ usage. The brief cells never started. No retry was made, so there is still
 no evidence for the negative control comparison or the brief rendering
 repair.
 
+## Collection 003 (2026-10-28, shipped v2.51.2)
+
+The operator asked for the open evaluation work to be finished, so a third
+collection was frozen before any generation. It compared `60c6754b` with
+shipped v2.51.2 (`bf5d1943`) and used the same fixtures, options, bounds,
+rubric and decision rule. The manifest SHA-256 is `ec66ec40...`. No attempted
+cell from an earlier collection was reused. Before the run, the dry run
+confirmed that v2.51.2 now delivers the expert's stored position (the
+collection-002 finding). The parent ran no heavy jobs during the run, and the
+other sessions on the host agreed to reduce load.
+
+**Cells.** Three cells completed with known usage, normal stops, unchanged
+fixtures and no canonical writes: negative control BEFORE, negative control
+AFTER, and brief AFTER. The host's low-memory safeguard then stopped the
+brief BEFORE cell mid-generation. It is retained with unknown usage and was
+not retried, so the brief case still has no comparison.
+
+**Negative-control review.** Two fresh Claude reviewers on different model
+versions reviewed the pair blind. Neither had seen earlier packets. The arm
+alignment was sealed by hash, and review inputs and outputs were hash-frozen
+before unsealing. The parent read the alignment file while preparing packets;
+the parent is not a reviewer and passed no arm information.
+
+| Reviewer | Support | Omissions | Harmful claims | Usefulness |
+| --- | --- | --- | --- | --- |
+| 1 | same | BEFORE better | AFTER better | AFTER better |
+| 2 | BEFORE better | BEFORE better | AFTER better | AFTER better |
+
+The frozen rule is **not met**. Both reviewers preferred AFTER on harmful
+claims, but both rated it worse on omissions. AFTER kept the filelock
+evidence apart from the httpx question and recommended real checks on 3.14,
+yet never used the retained httpx lockfile hashes.
+
+**Cause (mechanical record, never shown to reviewers).** The AFTER final
+prompt delivered the stored position but omitted the stored `uv.lock`
+passage, the finding and the study limitations. The prepared view used most
+of the 16,000-character prompt. BEFORE delivered the passage and omitted the
+position. So each arm lost a different piece of the expert's own context to
+the shared budget, and a reviewer cannot attribute the answer differences to
+representation alone. Filed as #299. After unblinding, the parent noted that
+the "Origin not recorded" text both reviewers could not trace was in
+BEFORE's delivered prompt. AFTER's statement that the httpx data was omitted
+from its prompt was accurate. Ratings were not changed.
+
+**Conclusion.** No improvement claim. The negative control shows that
+preparation can still displace stored evidence (#299). The brief rendering
+repair is still unmeasured. The prepared-advice qualification, brief judgment
+and default-on gates remain open.
+
+Evidence asset: `advice-representation-2026-10-27-collection-003.zip`
+(unblinded: protocol, harness, manifests, run receipts with delivered prompts
+and raw responses, mechanical record, packets, sealed alignment, both reviews),
+attached to the v2.51.2 release with its SHA-256.
+
 Reproduction asset: `advice-representation-2026-10-27-repro.zip` on the
 v2.51.1 release. It is unblinded and contains the protocol, harness, frozen
 manifests, fixtures, the held-out capture, every run receipt with its

@@ -4,6 +4,35 @@
 
 ## Next round
 
+**What is next and why (2026-10-28).** The 2026-10-27 evidence-representation
+work is finished and recorded; the
+[diagnostic record](docs/validation/advice-representation-2026-10-27.md) covers
+collections 001 to 003. Collection 003 completed the negative-control pair on
+shipped v2.51.2. Model reviewers preferred v2.51.2 on harmful claims, but both
+rated it worse on omissions, so the frozen improvement rule was not met. The
+cause was mechanical: the prepared view took most of the 16,000-character
+synthesis prompt and the expert's own lockfile passage was omitted. The brief
+replay again produced no comparison, because the host's low-memory safeguard
+stopped its BEFORE cell. In order:
+
+1. **#299, prepared view versus stored evidence budget.** Write a short
+   design note, then give the prepared layer and the stored context separate
+   bounds (or refuse preparation with a reason). Preparation must not displace
+   the evidence it sits beside, and every later answer comparison depends on
+   both reaching the model. Verify with the negative-control fixture through
+   the existing harness (dry run only, no generation needed).
+2. **Brief replay (B-HO) pair.** Three collections have failed to compare the
+   brief rendering repair. Run it alone, on a host with room for the 17 GB
+   local model and no concurrent builds, so the safeguard cannot stop it. It
+   is the only remaining unmeasured repair from 2026-10-27.
+3. **Prepared-advice qualification and S1 evidence.** After 1 and 2, a matched
+   preparation-on/off whole-answer review on a fresh held-out case. Default-on
+   preparation, brief judgment quality and S4 stay gated; no increased autonomy
+   follows from these model-reviewed diagnostics.
+
+Not next: widening sources, promoting preview-only models, or any paid path.
+Those stay behind their existing gates.
+
 **2026-10-25 brief clarification:** generation instructions now distinguish
 future-event forecasts from standing advice, require same-claim revision
 conditions, avoid invented history/scaling and request orientation statements
@@ -930,9 +959,9 @@ reliable product, not a four-language architecture diagram.
 v2.51.2 keeps an expert's positions ahead of uncited reference passages under a
 tight synthesis prompt (found when a prepared layer crowded out the stored
 stance) and serializes concurrent first-use initialization of the reservation
-store (#296). Collection 002 of the 2026-10-27 diagnostic was stopped by a
-host low-memory safeguard after one cell; the negative control and brief replay
-remain unrun.
+store (#296). Collection 003 (2026-10-28) completed the negative-control
+pair without meeting the frozen improvement rule and filed #299; the brief
+replay pair is still incomplete after the host low-memory safeguard stopped it.
 
 v2.51.1 retires shut-down and retiring model defaults (#292) and repairs
 evidence representation for consult, brief synthesis and opt-in preparation.

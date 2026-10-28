@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- Recorded collection 003 of the 2026-10-27 advice-representation diagnostic
+  (negative control and brief replay on shipped v2.51.2). The negative-control
+  pair did not meet the frozen improvement rule, and the brief BEFORE cell was
+  stopped by a host low-memory safeguard. Filed #299 (prepared view crowding
+  stored evidence out of the synthesis prompt). ROADMAP "Next round" now states
+  what is next and why.
+
 ## [2.51.2] - 2026-10-27
 
 Patch release: delivery priority and reservation-store robustness. No spend,

@@ -11,7 +11,9 @@ is the exception: one pinned no-tool completion after wallet credits and
 
 **v2.51.2 delivery priority:** under a tight synthesis prompt, room for the
 expert's positions is reserved before uncited reference passages; concurrent
-first use of the reservation store no longer refuses spuriously.
+first use of the reservation store no longer refuses spuriously. With opt-in
+preparation on, the prepared view can still crowd stored reference passages
+out of the prompt; the omission is disclosed in the prompt and tracked in #299.
 
 **v2.51.1 lifecycle and evidence representation repairs:** automatic
 routing and registry selectors no longer select shut-down or retiring models,
