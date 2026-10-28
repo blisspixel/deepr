@@ -95,7 +95,11 @@ def service_fixture(tmp_path, monkeypatch, captured):
         {"assumptions": [assumption], "selected_coordinate_ids": [coordinate.coordinate_id]},
         {
             "assumptions": [
-                {**assumption, "status": "checked", "reason": "The supplied fixture returned matching metadata."}
+                {
+                    "assumption_id": "a1",
+                    "status": "checked",
+                    "reason": "The supplied fixture returned matching metadata.",
+                }
             ],
             "interpretation": {
                 "comparison_status": "no_change",
@@ -240,6 +244,66 @@ async def test_two_calls_private_evidence_and_canonical_invariance(service_fixtu
     )
     assert duplicate.status == "duplicate" and duplicate.frozen is None and not duplicate.answer_allowed
     assert len(payloads) == 2
+
+
+def test_interpretation_schema_judges_assumptions_by_id_without_restating_them():
+    # #304: restating plan text and bindings spent about half of a live 1,024-token allowance.
+    from deepr.experts.preparation_contracts import PreparationLimits
+    from deepr.experts.preparation_service import _prompt
+
+    prompt = _prompt("interpretation", {"question": "fixture"}, PreparationLimits())
+    schema = json.loads(
+        prompt.split("===== RESPONSE JSON SCHEMA =====\n", 1)[1].split("\n===== END RESPONSE JSON SCHEMA =====", 1)[0]
+    )
+    judged = schema["$defs"]["AssessedAssumption"]["properties"]
+    assert set(judged) == {"assumption_id", "status", "reason"}
+    assert "Return the same assumption IDs, texts and coordinate bindings" not in prompt
+    assert "one short sentence" in prompt
+
+
+@pytest.mark.asyncio
+async def test_judged_assumptions_keep_the_plan_text_and_bindings(service_fixture):
+    common, replies, _payloads, _, _ = service_fixture
+    outcome = await prepare_consultation(**common, acquirer=acquisition_fixture)
+    packet = PreparationPacket.model_validate_json(outcome.frozen.content)
+    planned = replies[0]["assumptions"][0]
+    adopted = packet.assumptions[0]
+    assert (adopted.text, list(adopted.coordinate_ids)) == (planned["text"], planned["coordinate_ids"])
+    assert (adopted.status, adopted.reason) == ("checked", "The supplied fixture returned matching metadata.")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "judged",
+    [
+        [],
+        [{"assumption_id": "a2", "status": "checked", "reason": "Unknown id."}],
+        [
+            {"assumption_id": "a1", "status": "checked", "reason": "Once."},
+            {"assumption_id": "a1", "status": "unchecked", "reason": "Twice."},
+        ],
+    ],
+    ids=["missing", "unknown", "duplicate"],
+)
+async def test_interpretation_must_judge_each_planned_assumption_exactly_once(service_fixture, judged):
+    common, replies, payloads, _, _ = service_fixture
+    replies[1]["assumptions"] = judged
+    outcome = await prepare_consultation(**common, acquirer=acquisition_fixture)
+    assert outcome.status == "failed" and not outcome.answer_allowed and len(payloads) == 2
+    packet = PreparationPacket.model_validate_json(outcome.frozen.content)
+    assert packet.omissions[-1].reason.startswith("Preparation stopped: interpretation_changed_assumption_bindings")
+    assert packet.assumptions[0].text == replies[0]["assumptions"][0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_restated_assumption_text_is_refused_not_salvaged(service_fixture):
+    common, replies, payloads, _, _ = service_fixture
+    replies[1]["assumptions"][0]["text"] = "Restated text"
+    outcome = await prepare_consultation(**common, acquirer=acquisition_fixture)
+    assert outcome.status == "failed" and not outcome.answer_allowed and len(payloads) == 2
+    packet = PreparationPacket.model_validate_json(outcome.frozen.content)
+    assert "Restated text" not in outcome.frozen.content.decode("utf-8")
+    assert packet.assumptions[0].status == "unchecked"
 
 
 @pytest.mark.asyncio
