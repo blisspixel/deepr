@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.51.4 current main, 2026-10-28. This document defines what users and host
+Status: v2.51.5 current main, 2026-10-28. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -18,6 +18,10 @@ local synthesis prompt is 20,000 characters and the expert's stored context
 keeps at least 4,000 of them; a prepared view that would breach that floor is
 refused before any answer call (#299). Brief excerpts are keyed by a corpus
 sha prefix that resolves without the prompt.
+
+**v2.51.5 declared runtime imports:** opt-in preparation imports `packaging`,
+now a declared dependency; before v2.51.5, `--prepare` failed with
+`ModuleNotFoundError` on a clean public install (#309).
 
 **v2.51.4 preparation completion and view repairs:** opt-in preparation
 judges planned assumptions by id, so its interpretation fits the 1,024-token

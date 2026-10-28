@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "deepr-research"
-version = "2.51.4"
+version = "2.51.5"
 description = "Research automation platform that replicates human research team workflows using AI"
 readme = "README.md"
 license = "Apache-2.0"
@@ -65,6 +65,10 @@ dependencies = [
     # surfaces loaded; `[full]`/dev installs masked it. A core-install smoke
     # test in CI guards this class now.
     "numpy>=1.24.0,<3.0.0",
+    # Imported directly (preparation coordinates, pinned HTTP); declared rather than
+    # inherited, because a clean install may not pull them transitively (#309).
+    "packaging>=24.0,<28.0",
+    "urllib3>=2.0.0,<3.0.0",
 ]
 
 [project.optional-dependencies]
@@ -77,6 +81,7 @@ web = [
     "flasgger>=0.9.7,<1.0.0",
     "mistune>=3.3.0,<4.0.0",  # >=3.3.0 clears CVE-2026-49851 from Flasgger's transitive floor
     "flask-limiter>=3.5.0,<5.0.0",
+    "werkzeug>=3.0.0,<4.0.0",
 ]
 
 # Azure cloud deployment
