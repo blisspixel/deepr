@@ -211,12 +211,14 @@ def test_oversized_finding_is_omitted_whole_and_cannot_be_cited(corpus):
     study = _study(("synopsis", 1), ("contention", 1))
     long = study.findings[0]
     long.payload = {"note": "Visible prefix. " + "x" * 60000, "condition": "Only after origin validation."}
-    prompt, selection = brief_prompt_with_selection(study, expert_name="E", max_prompt_chars=8000)
+    # A small allowance that still holds the fixed framing (about 8,000 characters
+    # after the falsifier instructions) but never the 60,000-character finding.
+    prompt, selection = brief_prompt_with_selection(study, expert_name="E", max_prompt_chars=9000)
     assert "Visible prefix." not in prompt
     assert "Only after origin validation." not in prompt
     assert selection.presented_ids == ["contention-1"]
     assert selection.omission_reasons == {"synopsis-1": "prompt_chars"}
-    assert selection.prompt_chars <= selection.max_prompt_chars == 8000
+    assert selection.prompt_chars <= selection.max_prompt_chars == 9000
     brief = assemble_brief(
         {"positions": [{"stance": "unsafe", "supported_by": [long.finding_id]}]},
         expert_name="E",
