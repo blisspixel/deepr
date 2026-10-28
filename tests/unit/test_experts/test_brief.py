@@ -648,6 +648,8 @@ class TestRepresentationRepairs:
         prompt = build_brief_prompt(_result([_finding("F1")]), expert_name="E")
         assert "For a stance about documented behavior, the overturning observation is that behavior" in prompt
         assert "can prompt a recheck; it is not the falsifier" in prompt
+        # Collection 006: AFTER briefs kept a document as an "or" alternative, so a document still sufficed.
+        assert 'do not add "or documentation stating ..." beside the observation' in prompt
         assert "A guarantee class or general property that no finding states" in prompt
         assert "Mark it in the\n  stance as inference and name what it rests on" in prompt
 

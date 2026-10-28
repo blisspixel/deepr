@@ -243,7 +243,8 @@ Rules that make this honest rather than confident-sounding:
   For a stance about documented behavior, the overturning observation is that behavior seen
   failing under the stated conditions: a reproducible test or recorded incident in which the
   operation does what the stance says it does not. A revised document, or a document stating the
-  opposite, can prompt a recheck; it is not the falsifier.
+  opposite, can prompt a recheck; it is not the falsifier, and it is not an acceptable alternative
+  to one: do not add "or documentation stating ..." beside the observation.
 - Preserve the source's version, platform, operating conditions, tested configurations and
   exceptions in the stance itself. A conditional mechanism is not a universal recommendation. A
   value used in a test is not a default unless the source calls it one. Absence of demonstrated
