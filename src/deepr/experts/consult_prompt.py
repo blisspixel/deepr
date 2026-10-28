@@ -18,6 +18,12 @@ if TYPE_CHECKING:
     from deepr.experts.study_contracts import StudyFinding
 
 MAX_SYNTHESIS_PROMPT_CHARS = 16000
+# Prepared synthesis is local-only: a 16384-token window less 8000 output tokens. At the
+# densest measured ratio (about 2.6 characters per token, hash-heavy lockfile text) this
+# cap plus the system prompt stays inside the remaining input room (#299).
+MAX_PREPARED_SYNTHESIS_PROMPT_CHARS = 20000
+# The prepared view must leave the expert's own stored context at least this much room.
+STORED_CONTEXT_FLOOR_CHARS = 4000
 _OMISSION_RESERVE = 240
 _NOTICE_NAME_CHARS = 60
 _MAX_NAMED_MISSING = 6
@@ -433,12 +439,16 @@ def build_synthesis_packet(
     # it does not consume the bounded prompt twice.
     closing = _CLOSING.format(query=query if len(query) <= _RESTATE_MAX_CHARS else "the question stated above")
     headers = [f"Expert: {perspective.expert_name}\n" for perspective in eligible]
-    available = MAX_SYNTHESIS_PROMPT_CHARS - len(prefix) - len(closing) - sum(map(len, headers)) - 2 * len(headers)
+    limit = MAX_SYNTHESIS_PROMPT_CHARS if prepared is None else MAX_PREPARED_SYNTHESIS_PROMPT_CHARS
+    available = limit - len(prefix) - len(closing) - sum(map(len, headers)) - 2 * len(headers)
     if (not eligible and prepared is None) or available < max(0, _OMISSION_RESERVE * len(eligible)):
         raise ValueError(
             "Question and contributor identities exceed the bounded synthesis prompt; shorten the request."
         )
     budget = available // len(eligible) if eligible else 0
+    if prepared is not None and eligible and budget < STORED_CONTEXT_FLOOR_CHARS:
+        # The prepared layer sits beside the stored evidence; it must not displace it (#299).
+        raise ValueError("Prepared view leaves the stored expert context below its floor.")
     parts = []
     experts: list[dict[str, object]] = []
     for header, perspective in zip(headers, eligible):
@@ -462,6 +472,7 @@ def build_synthesis_packet(
         "kind": "deepr.synthesis-delivery-manifest.v1",
         "experts": experts,
         "response_form": response_form,
+        "user_prompt_limit_chars": limit,
         "note": "Delivery records what reached the prompt; it does not establish entailment or answer quality.",
     }
     if prepared is not None:
@@ -479,7 +490,7 @@ def synthesis_delivery(
         "user_prompt": user_prompt,
         "user_prompt_sha256": hashlib.sha256(user_prompt.encode("utf-8")).hexdigest(),
         "user_prompt_chars": len(user_prompt),
-        "user_prompt_limit_chars": MAX_SYNTHESIS_PROMPT_CHARS,
+        "user_prompt_limit_chars": (manifest or {}).get("user_prompt_limit_chars", MAX_SYNTHESIS_PROMPT_CHARS),
         "freshness": "stored_context_only",
     }
     if manifest is not None:
