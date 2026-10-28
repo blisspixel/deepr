@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Serialize first-use initialization of the durable research reservation
+  store across processes (#296). Concurrent first use could fail SQLite's WAL
+  switch with "database is locked" before the busy timeout applied, refusing a
+  reservation spuriously (fail-closed; nothing was overcommitted). A local
+  repro failed 254 of 300 four-way rounds before the fix and 0 after.
+
 ## [2.51.1] - 2026-10-27
 
 Patch release: model lifecycle and evidence representation repairs. No spend,

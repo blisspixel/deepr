@@ -12,6 +12,8 @@ from math import isfinite
 from pathlib import Path
 from typing import Any
 
+from filelock import FileLock
+
 from deepr.experts import cost_safety_windows
 from deepr.observability.cost_ledger import (
     CostLedger,
@@ -142,10 +144,7 @@ def _validated_optional_dispatch_binding(
     if request_envelope_sha256 is not None:
         if dispatch_binding_id is None:
             raise ValueError("request_envelope_sha256 requires a dispatch binding")
-        request_envelope_sha256 = _validated_hex_token(
-            request_envelope_sha256,
-            field_name="request_envelope_sha256",
-        )
+        request_envelope_sha256 = _validated_hex_token(request_envelope_sha256, field_name="request_envelope_sha256")
     return provider, model, dispatch_binding_id, request_envelope_sha256
 
 
@@ -170,7 +169,9 @@ class ResearchReservationStore:
         self._lock_timeout_seconds = float(lock_timeout_seconds)
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            self._initialize()
+            # Concurrent first use can fail the WAL switch with SQLITE_BUSY before busy_timeout applies (#296).
+            with FileLock(f"{self.path}.init.lock", timeout=self._lock_timeout_seconds, thread_local=False):
+                self._initialize()
         except (OSError, sqlite3.Error) as error:
             raise ResearchReservationStoreError("durable reservation storage initialization failed") from error
 
