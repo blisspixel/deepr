@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.51.2 current main, 2026-10-27. This document defines what users and host
+Status: v2.51.3 current main, 2026-10-28. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -11,9 +11,13 @@ is the exception: one pinned no-tool completion after wallet credits and
 
 **v2.51.2 delivery priority:** under a tight synthesis prompt, room for the
 expert's positions is reserved before uncited reference passages; concurrent
-first use of the reservation store no longer refuses spuriously. With opt-in
-preparation on, the prepared view can still crowd stored reference passages
-out of the prompt; the omission is disclosed in the prompt and tracked in #299.
+first use of the reservation store no longer refuses spuriously.
+
+**v2.51.3 stored context beside preparation:** with opt-in preparation, the
+local synthesis prompt is 20,000 characters and the expert's stored context
+keeps at least 4,000 of them; a prepared view that would breach that floor is
+refused before any answer call (#299). Brief excerpts are keyed by a corpus
+sha prefix that resolves without the prompt.
 
 **v2.51.1 lifecycle and evidence representation repairs:** automatic
 routing and registry selectors no longer select shut-down or retiring models,

@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.51.3] - 2026-10-28
+
+Patch release: stored context beside preparation, resolvable brief excerpt
+keys and stricter lint. No spend, gate or provider changes.
+
 ### Fixed
 
 - A prepared view no longer crowds the expert's stored context out of the
@@ -14,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   gets a 20,000-character prompt with a 4,000-character floor for stored
   context; a view that would breach the floor is refused before any answer
   call. Prompts without preparation keep the 16,000-character limit.
+- Brief synthesis now keys retained excerpts by a corpus sha prefix
+  (`corpus:<12 hex>`) instead of prompt-local `S1`, `S2` labels. The model
+  copied those labels into saved briefs, where no legend resolves them; found
+  by collection 004 of the 2026-10-27 diagnostic.
 - A model score list shorter than the candidate links in the scrape link
   filter now falls back to the heuristic filter instead of silently dropping
   the unscored links.
