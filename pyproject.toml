@@ -300,8 +300,6 @@ ignore = [
     # behavioral, not mechanical, so they are handled deliberately rather than
     # by blanket autofix.
     "UP042",   # replace-str-enum (str, Enum -> StrEnum changes mixin semantics)
-    "UP047",   # non-pep695-generic-function (PEP 695 generics: semantic migration)
-    "B905",    # zip-without-explicit-strict (strict= needs per-call judgement)
 ]
 
 # S* rules are not in `select` but are used as noqa anchors throughout the

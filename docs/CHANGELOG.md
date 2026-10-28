@@ -14,6 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   gets a 20,000-character prompt with a 4,000-character floor for stored
   context; a view that would breach the floor is refused before any answer
   call. Prompts without preparation keep the 16,000-character limit.
+- A model score list shorter than the candidate links in the scrape link
+  filter now falls back to the heuristic filter instead of silently dropping
+  the unscored links.
+
+### Changed
+
+- Ruff B905 (explicit `zip` strictness) and UP047 (PEP 695 generics) are now
+  enforced for `src/`; each `zip` call was decided individually.
 
 ### Documentation
 
