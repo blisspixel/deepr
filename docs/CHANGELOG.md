@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.51.2] - 2026-10-27
+
+Patch release: delivery priority and reservation-store robustness. No spend,
+dispatch, mutation or default-on authority is added.
+
 ### Fixed
 
 - Serialize first-use initialization of the durable research reservation

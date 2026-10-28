@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.51.1-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.51.1)
+[![Version](https://img.shields.io/badge/version-2.51.2-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.51.2)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -307,6 +307,11 @@ eras and published Agent Plugins `1.0.0`. See the
 for tested behavior and the distinction from draft standards and host certification.
 
 ## Direction
+
+v2.51.2 keeps an expert's own positions in the synthesis prompt ahead of
+uncited reference passages when a prepared layer leaves little room, and fixes
+a reservation-store initialization race (#296) that could refuse a reservation
+spuriously under concurrent first use.
 
 v2.51.1 stops automatic routing from selecting shut-down or retiring models
 and moves executable defaults to current registered models (#292). It also

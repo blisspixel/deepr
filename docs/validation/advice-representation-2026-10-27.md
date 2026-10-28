@@ -96,6 +96,25 @@ materially defective advice. The prepared-advice qualification, brief
 judgment and default-on gates remain open. The repairs ship as repairs to
 representation and reliability.
 
+## Collection 002 (same day, shipped v2.51.1)
+
+A separately frozen collection 002 was set up to finish the cells that never
+ran: the negative control and the held-out brief replay, comparing
+`60c6754b` with shipped v2.51.1 (`4a0508e1`). Collection 002 used the same
+fixtures, options, bounds and rubric, fresh reviewers were planned, and no
+attempted cell was rerun. Its dry run found that, with a prepared layer
+present, v2.51.1 dropped the expert's only stored position from the final
+prompt while delivering an uncited reference passage. That is a delivery
+priority defect; v2.51.2 fixes it.
+
+The live run completed one cell (negative control, BEFORE). The host's
+low-memory safeguard then stopped the run while the AFTER negative-control
+cell was generating. The local model was resident alongside a concurrent
+full test suite and other sessions' work. That cell is retained with unknown
+usage. The brief cells never started. No retry was made, so there is still
+no evidence for the negative control comparison or the brief rendering
+repair.
+
 Reproduction asset: `advice-representation-2026-10-27-repro.zip` on the
 v2.51.1 release. It is unblinded and contains the protocol, harness, frozen
 manifests, fixtures, the held-out capture, every run receipt with its
