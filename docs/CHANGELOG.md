@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A prepared view no longer crowds the expert's stored context out of the
+  consult synthesis prompt (#299). Prepared synthesis, which is local-only,
+  gets a 20,000-character prompt with a 4,000-character floor for stored
+  context; a view that would breach the floor is refused before any answer
+  call. Prompts without preparation keep the 16,000-character limit.
+
 ### Documentation
 
 - Recorded collection 003 of the 2026-10-27 advice-representation diagnostic

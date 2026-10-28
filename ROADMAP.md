@@ -15,12 +15,12 @@ synthesis prompt and the expert's own lockfile passage was omitted. The brief
 replay again produced no comparison, because the host's low-memory safeguard
 stopped its BEFORE cell. In order:
 
-1. **#299, prepared view versus stored evidence budget.** Write a short
-   design note, then give the prepared layer and the stored context separate
-   bounds (or refuse preparation with a reason). Preparation must not displace
-   the evidence it sits beside, and every later answer comparison depends on
-   both reaching the model. Verify with the negative-control fixture through
-   the existing harness (dry run only, no generation needed).
+1. [x] **#299, prepared view versus stored evidence budget.** Done
+   2026-10-28: the prepared synthesis prompt is 20,000 characters with a
+   4,000-character stored-context floor, refused before the answer call if
+   breached ([design note](docs/design/prepared-consultation.md)). A harness
+   dry run on the negative-control fixture delivers the stored position and
+   source. That is delivery only; answer comparison is still item 3.
 2. **Brief replay (B-HO) pair.** Three collections have failed to compare the
    brief rendering repair. Run it alone, on a host with room for the 17 GB
    local model and no concurrent builds, so the safeguard cannot stop it. It

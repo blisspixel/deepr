@@ -535,12 +535,39 @@ measures 23,648, 26,401 and 28,204 characters for 50, 56 and 60 target files.
 Main measured 23,116, 25,869 and 27,672, and all are admitted again.
 
 Projections may be up to 32,768 characters each, but the synthesis prompt is
-capped at 16,000. Before a packet is finalized for answering, its delivered
+capped at 16,000 characters, or 20,000 with a prepared view (see below). Before a packet is finalized for answering, its delivered
 view is admitted through the real synthesis packet builder with one empty
 contributor. A view that cannot fit retains a terminal `failed` packet with
 `prepared_view_exceeds_synthesis_prompt`. CLI and MCP report preparation
 failure before any answer model call, instead of a misleading
 question-length error.
+
+**Stored-context floor (2026-10-28, #299).** In collection 003 of the
+2026-10-27 diagnostic, an 11,401-character prepared view left 2,300
+characters of the 16,000 cap for the expert's stored context, and the
+expert's own lockfile passage was omitted. A prepared synthesis is
+local-only: a 16,384-token window less 8,000 output tokens. The densest
+measured final prompt ran 2.66 characters per token (16,658 characters to
+6,272 tokens, hash-heavy lockfile text). The prepared path therefore gets a
+20,000-character user prompt, about 7,500 tokens at that ratio. Within it,
+the expert's stored context keeps a floor of 4,000 characters.
+
+- A view that would leave the stored context below the floor fails the same
+  pre-answer admission as before and retains a terminal `failed` packet with
+  `prepared_view_exceeds_synthesis_prompt`.
+- Prompts without preparation keep the 16,000-character limit.
+- The delivery receipt records the limit that applied.
+
+Rejected alternatives:
+
+- **Compacting the view further:** it is already projected, and choosing
+  which facts to drop would be a semantic judgment.
+- **Refusing at the old cap:** every measured live view would have been
+  refused.
+
+A harness dry run on the negative-control fixture now delivers the stored
+position, both lockfile hashes and no omission notice, in an 18,875-character
+prompt. That shows delivery only, not answer quality.
 
 On the existing service fixture, the mandatory delivered layer grew from 4,404
 to 5,772 characters and the full synthesis prompt from 7,372 to 8,840 of
