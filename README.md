@@ -311,7 +311,9 @@ for tested behavior and the distinction from draft standards and host certificat
 v2.51.2 keeps an expert's own positions in the synthesis prompt ahead of
 uncited reference passages when a prepared layer leaves little room, and fixes
 a reservation-store initialization race (#296) that could refuse a reservation
-spuriously under concurrent first use.
+spuriously under concurrent first use. A follow-up negative control
+(2026-10-28) found that a prepared layer can still crowd the expert's stored
+source out of the prompt (#299); fixing that is next.
 
 v2.51.1 stops automatic routing from selecting shut-down or retiring models
 and moves executable defaults to current registered models (#292). It also
