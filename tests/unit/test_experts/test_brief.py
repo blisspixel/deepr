@@ -697,8 +697,9 @@ class TestRepresentationRepairs:
 
         brief = await build_brief(expert_name="E", result=_result([finding]), corpus=store, completion=completion)
         prompt = seen["prompt"]
-        assert "S1: url:a.org; a.org; retained copy fetched 2026-05-01T00:00:00+00:00" in prompt
-        assert '    - S1: "batches of 500 records on Linux only"' in prompt
+        key = f"corpus:{entry.sha256[:12]}"
+        assert f"{key}: url:a.org; a.org; retained copy fetched 2026-05-01T00:00:00+00:00" in prompt
+        assert f'    - {key}: "batches of 500 records on Linux only"' in prompt
         assert "1 recorded excerpt(s) not located in the cited retained sources; not shown" in prompt
         assert "nowhere in the source" not in prompt
         assert brief.synthesis_input["excerpt_chars_per_finding"] > 0

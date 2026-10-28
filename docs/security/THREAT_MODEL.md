@@ -1,6 +1,6 @@
 # Deepr Threat Model
 
-Status: current with Deepr v2.51.2. Last reviewed: 2026-10-19.
+Status: current with Deepr v2.51.3. Last reviewed: 2026-10-19.
 Compatible patch surface checked: 2026-10-22.
 Experimental preparation boundary reviewed: 2026-10-25 (source and synthetic tests).
 

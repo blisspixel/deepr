@@ -4,16 +4,19 @@
 
 ## Next round
 
-**What is next and why (2026-10-28).** The 2026-10-27 evidence-representation
-work is finished and recorded; the
-[diagnostic record](docs/validation/advice-representation-2026-10-27.md) covers
-collections 001 to 003. Collection 003 completed the negative-control pair on
-shipped v2.51.2. Model reviewers preferred v2.51.2 on harmful claims, but both
-rated it worse on omissions, so the frozen improvement rule was not met. The
-cause was mechanical: the prepared view took most of the 16,000-character
-synthesis prompt and the expert's own lockfile passage was omitted. The brief
-replay again produced no comparison, because the host's low-memory safeguard
-stopped its BEFORE cell. In order:
+**What is next and why (2026-10-28, v2.51.3).** Every planned cell of the
+2026-10-27 diagnostic now has a result, recorded in collections 001 to 004 of
+the [diagnostic record](docs/validation/advice-representation-2026-10-27.md).
+No case met the frozen improvement rule except one exposed repeat.
+
+The diagnostic did find three delivery defects, all fixed:
+
+- stored positions crowded out of the prompt (v2.51.2);
+- stored evidence crowded out by the prepared view (#299, v2.51.3);
+- prompt-local excerpt keys leaking into saved briefs (v2.51.3).
+
+Delivery is now sound enough to make the next answer comparison meaningful,
+and that comparison is the remaining work. In order:
 
 1. [x] **#299, prepared view versus stored evidence budget.** Done
    2026-10-28: the prepared synthesis prompt is 20,000 characters with a
@@ -21,14 +24,21 @@ stopped its BEFORE cell. In order:
    breached ([design note](docs/design/prepared-consultation.md)). A harness
    dry run on the negative-control fixture delivers the stored position and
    source. That is delivery only; answer comparison is still item 3.
-2. **Brief replay (B-HO) pair.** Three collections have failed to compare the
-   brief rendering repair. Run it alone, on a host with room for the 17 GB
-   local model and no concurrent builds, so the safeguard cannot stop it. It
-   is the only remaining unmeasured repair from 2026-10-27.
-3. **Prepared-advice qualification and S1 evidence.** After 1 and 2, a matched
-   preparation-on/off whole-answer review on a fresh held-out case. Default-on
-   preparation, brief judgment quality and S4 stay gated; no increased autonomy
-   follows from these model-reviewed diagnostics.
+2. [x] **Brief replay (B-HO) pair.** Done 2026-10-28 (collection 004): the
+   frozen rule was not met. Reviewers judged the AFTER brief more complete
+   but not better supported. They found prompt-local excerpt keys leaking
+   into saved briefs, now fixed with corpus sha prefix keys.
+3. **Prepared-advice qualification and S1 evidence.** Next. A matched
+   preparation-on/off whole-answer review on a fresh held-out case, on code
+   that includes the #299 stored-context floor. This is the first comparison
+   where both the prepared observations and the expert's own evidence reach
+   the answer. Default-on preparation, brief judgment quality and S4 stay
+   gated; no increased autonomy follows from these model-reviewed
+   diagnostics.
+4. **Brief judgment defects shared by both arms.** Unlabelled inference
+   ("at-least-once") and document-only falsifiers persist across every brief
+   replay. These are semantic: they need a prompt or contract change plus a
+   frozen source-grounded review, not a keyword check.
 
 Not next: widening sources, promoting preview-only models, or any paid path.
 Those stay behind their existing gates.
@@ -134,8 +144,9 @@ human-calibrated semantic acceptance and S2-S4 remain unqualified.
   the first stored-label wording leaked "fetch time unrecorded" into an answer
   (now scoped). 2026-10-28: collection 003 completed the negative control
   without meeting the frozen rule; the prepared view had crowded out the
-  stored source, now fixed by a stored-context floor (#299). Next: the brief
-  replay pair, then a fresh held-out prepared-answer review.
+  stored source, now fixed by a stored-context floor (#299). Collection 004
+  compared the brief pair without meeting the rule. Next: a fresh held-out
+  prepared-answer review.
 - [ ] **Brief judgment quality (2026-10-25):** the
   [three-call replay](docs/validation/brief-clarification-2026-10-25.md) retained
   all five sources and removed forecast apparatus from six standing positions,
@@ -956,7 +967,15 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.51.2)
+## Current Status (v2.51.3)
+
+v2.51.3 keeps the expert's stored context beside an opt-in prepared view
+(#299): prepared synthesis gets a 20,000-character prompt with a
+4,000-character stored-context floor, refused before the answer call if
+breached. It also keys brief excerpts by a resolvable corpus sha prefix, and
+enforces explicit `zip` strictness. Collections 003 and 004 of the 2026-10-27
+diagnostic completed the negative control and brief replay. Neither met the
+frozen improvement rule.
 
 v2.51.2 keeps an expert's positions ahead of uncited reference passages under a
 tight synthesis prompt (found when a prepared layer crowded out the stored
@@ -4354,7 +4373,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.51.2. This roadmap keeps
+v2.51.3. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 

@@ -169,6 +169,44 @@ Evidence asset: `advice-representation-2026-10-27-collection-003.zip`
 and raw responses, mechanical record, packets, sealed alignment, both reviews),
 attached to the v2.51.2 release with its SHA-256.
 
+## Collection 004 (2026-10-28, brief replay pair)
+
+A fourth collection, frozen before generation, ran only the held-out brief
+replay pair: `60c6754b` versus v2.51.2 (`bf5d1943`). The brief path is
+unchanged since. The manifest SHA-256 is `d269e8e6...`. It ran with no
+concurrent heavy work on the host. Both cells completed with known usage and
+normal stops. Two fresh Claude reviewers on different model versions reviewed
+the pair blind, under the same sealing and freezing steps.
+
+| Reviewer | Support | Omissions | Harmful claims | Usefulness |
+| --- | --- | --- | --- | --- |
+| 1 | BEFORE better | AFTER better | same | AFTER better |
+| 2 | same | AFTER better | same | AFTER better |
+
+The frozen rule is **not met**: neither reviewer preferred AFTER on support or
+harmful claims, although both preferred it on omissions and usefulness. Both
+arms stated "at-least-once" delivery without labelling it as inference, and
+both used falsifiers that only ask for a document.
+
+**Defect found in AFTER.** Both reviewers flagged citations such as "S2" that
+match no source. After unblinding, the parent traced them to the prompt-local
+excerpt keys added in v2.51.1. The model copied the keys into the brief, and
+a saved brief has no legend to resolve them. v2.51.3 keys excerpts by a
+retained-corpus sha prefix (`corpus:<12 hex>`), which resolves without the
+prompt. A harness dry run delivers all 40 keyed excerpt lines, none withheld.
+That shows delivery only.
+
+Mechanically, AFTER delivered 11 of 11 first anchors and BEFORE 3 of 11.
+Neither delivered source dates, because the retained corpus records none.
+
+**Conclusion.** No improvement claim. The brief representation repair
+delivers more source text, and model reviewers judged the resulting brief
+more complete, but not better supported. Brief judgment quality remains
+open.
+
+Evidence asset: `advice-representation-2026-10-27-collection-004.zip` on
+the v2.51.3 release.
+
 Reproduction asset: `advice-representation-2026-10-27-repro.zip` on the
 v2.51.1 release. It is unblinded and contains the protocol, harness, frozen
 manifests, fixtures, the held-out capture, every run receipt with its
