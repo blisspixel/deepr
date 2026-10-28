@@ -253,8 +253,8 @@ def _omission_notice(omitted: list[PacketBlock]) -> str:
 class _Packer:
     """Greedy fit of whole blocks, keeping a position with its cited evidence.
 
-    When the first position is reached, room is reserved for every stance that
-    fits, together with its worst-case partial-support line. Evidence then fills
+    Before the first reference passage or position is placed, room is reserved
+    for every stance that fits, together with its worst-case partial-support line. Evidence then fills
     what is left, group by group. Without the reservation the first position's
     evidence could crowd every later stance out of a tight prompt.
     """
@@ -371,6 +371,9 @@ class _Packer:
         for block in self.blocks:
             if block.key in self.delivered or block.key in self.considered:
                 continue
+            if block.key.startswith("reference:") and self.reserved is None:
+                # Uncited library passages come before positions; they must not starve a stance.
+                self.reserved = self._reserve_positions()
             if block.key.startswith("position:"):
                 self._position(block)
             elif not self._place(block):

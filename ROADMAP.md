@@ -925,7 +925,14 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.51.1)
+## Current Status (v2.51.2)
+
+v2.51.2 keeps an expert's positions ahead of uncited reference passages under a
+tight synthesis prompt (found when a prepared layer crowded out the stored
+stance) and serializes concurrent first-use initialization of the reservation
+store (#296). Collection 002 of the 2026-10-27 diagnostic was stopped by a
+host low-memory safeguard after one cell; the negative control and brief replay
+remain unrun.
 
 v2.51.1 retires shut-down and retiring model defaults (#292) and repairs
 evidence representation for consult, brief synthesis and opt-in preparation.
@@ -4316,7 +4323,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.51.1. This roadmap keeps
+v2.51.2. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 

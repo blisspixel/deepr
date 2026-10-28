@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.51.2] - 2026-10-27
+
+Patch release: delivery priority and reservation-store robustness. No spend,
+dispatch, mutation or default-on authority is added.
+
 ### Fixed
 
 - Serialize first-use initialization of the durable research reservation
@@ -14,6 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   switch with "database is locked" before the busy timeout applied, refusing a
   reservation spuriously (fail-closed; nothing was overcommitted). A local
   repro failed 254 of 300 four-way rounds before the fix and 0 after.
+- Keep an expert's positions ahead of uncited reference-library passages when
+  the synthesis prompt is tight. Room for every stance that fits is now
+  reserved before the first reference passage is placed, not only when the
+  first position is reached. Found in the 2026-10-27 diagnostic's collection
+  002 dry run: with a prepared layer present, the expert's only position was
+  omitted while an uncited passage was delivered. The stored-only notice and
+  caveats still come first.
 
 ## [2.51.1] - 2026-10-27
 

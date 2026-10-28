@@ -412,3 +412,20 @@ def test_prepared_notice_scopes_the_stored_fetch_line_to_stored_sources():
     assert "stored sources only; prepared observations state their own times" in stored
     assert "in this context" not in notice and "nothing newer was checked" not in notice
     assert "Stored research only" not in notice
+
+
+def test_uncited_reference_passage_cannot_crowd_out_a_position():
+    from deepr.experts.consult_prompt import PacketBlock, pack_blocks
+
+    position = PacketBlock("POSITION: keep the pin and verify the wheel digest.", key="position:1", label="q")
+    reference = PacketBlock("Reference library passage: " + "x" * 600, key="reference:abc", passages=("abc",))
+    notice = PacketBlock("Stored research only.", key="notice")
+    from deepr.experts.consult_prompt import _OMISSION_RESERVE
+
+    # The reference alone fits; the reference and the position together do not.
+    budget = _OMISSION_RESERVE + len(notice.text) + 2 + len(reference.text) + 2 + len(position.text) // 2
+    text, manifest = pack_blocks([notice, reference, position], budget)
+    assert "POSITION: keep the pin" in text
+    assert "Stored research only." in text
+    assert manifest["omitted_keys"] == ["reference:abc"]
+    assert manifest["positions"][0]["status"] == "no_cited_support"
