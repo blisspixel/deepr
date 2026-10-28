@@ -643,6 +643,14 @@ class TestRepresentationRepairs:
         assert "value used in a test is not a default unless the source calls it one" in prompt
         assert "A fetch time is when the source was retained" in prompt
 
+    def test_documented_behavior_falsifier_and_inferred_guarantee_wording(self):
+        # Instruction delivery only; whether briefs follow it is a frozen-review question.
+        prompt = build_brief_prompt(_result([_finding("F1")]), expert_name="E")
+        assert "For a stance about documented behavior, the overturning observation is that behavior" in prompt
+        assert "can prompt a recheck; it is not the falsifier" in prompt
+        assert "A guarantee class or general property that no finding states" in prompt
+        assert "Mark it in the\n  stance as inference and name what it rests on" in prompt
+
     def test_depth_names_origin_records_and_recorded_publishers(self, corpus):
         findings = [_finding("Silent restore failure", shas=[_SHA_A, _SHA_A2, _SHA_B])]
         brief = assemble_brief(_GOOD, expert_name="E", result=_result(findings), corpus=corpus)
