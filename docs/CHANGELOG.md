@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.51.4] - 2026-10-28
+
+Patch release: prepared consultation completes within its output budget, the
+prepared view delivers the interpreter evidence it was missing, every
+synthesis prompt states the answer date, and brief falsifier instructions are
+clarified. No spend, gate or provider changes. Preparation stays opt-in.
+
+### Fixed
+
+- Preparation interpretation no longer restates every planned assumption's
+  text and coordinates (#304). It judges assumptions by id (status and
+  reason); the service rebinds text and coordinates from the plan and refuses
+  missing, unknown, duplicated or restated assumptions. On a held-out case the
+  restatement had used about half of the 1,024-token allowance and preparation
+  failed closed; the ceiling and fail-closed behavior are unchanged.
+- The prepared release projection now carries the release's own
+  `Programming Language :: Python` classifiers (field semantics v2; frozen v1
+  packets keep their meanings), so an interpreter-support question sees the
+  uploader's classifiers, not only `requires_python` (#306).
+- `advisory_coverage` renders as a Deepr label outside the source fields, so
+  answers do not cite it as part of the PyPI response (#306).
+- Stored-only and prepared synthesis prompts state the answer date (UTC), so
+  the model does not treat observation and upload dates after its training
+  data as future or synthetic (#306).
+
+### Changed
+
+- Brief synthesis instructions ask for a falsifier that observes the documented
+  behavior failing (not a revised or contrary document, and not a document as
+  an alternative), and for an inferred guarantee class to be marked as
+  inference. Prompt clarification only: two held-out model-reviewed replays
+  (collections 006 and 008) did not meet their frozen improvement rule and
+  showed no regression.
+
+### Validation
+
+- Collections 005 to 008 of the 2026-10-27 diagnostic are recorded in the
+  [diagnostic record](validation/advice-representation-2026-10-27.md).
+  Collection 007, the first matched preparation OFF/ON pair to complete, was
+  judged a regression for preparation by both blind model reviewers; its
+  traced delivery causes are the #306 fixes above. No improvement claim is
+  made, and default-on preparation remains gated.
+
 ## [2.51.3] - 2026-10-28
 
 Patch release: stored context beside preparation, resolvable brief excerpt

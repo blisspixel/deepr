@@ -4,41 +4,40 @@
 
 ## Next round
 
-**What is next and why (2026-10-28, v2.51.3).** Every planned cell of the
-2026-10-27 diagnostic now has a result, recorded in collections 001 to 004 of
-the [diagnostic record](docs/validation/advice-representation-2026-10-27.md).
-No case met the frozen improvement rule except one exposed repeat.
-
-The diagnostic did find three delivery defects, all fixed:
+**What is next and why (2026-10-28, v2.51.4).** Collections 001 to 008 of
+the [diagnostic record](docs/validation/advice-representation-2026-10-27.md)
+are complete. None met its frozen improvement rule except one exposed repeat,
+and the first completed matched preparation OFF/ON comparison (collection 007)
+found preparation a **regression**. The work found six delivery defects, all
+fixed:
 
 - stored positions crowded out of the prompt (v2.51.2);
 - stored evidence crowded out by the prepared view (#299, v2.51.3);
-- prompt-local excerpt keys leaking into saved briefs (v2.51.3).
+- prompt-local excerpt keys leaking into saved briefs (v2.51.3);
+- preparation interpretation overrunning its output budget (#304, v2.51.4);
+- prepared view missing Python classifiers and printing a Deepr label inside
+  source fields, and no answer date in any synthesis prompt (#306, v2.51.4).
 
-Delivery is now sound enough to make the next answer comparison meaningful,
-and that comparison is the remaining work. In order:
+Each fix was found by a frozen comparison, not assumed, and each one changes
+what the next comparison measures. In order:
 
-1. [x] **#299, prepared view versus stored evidence budget.** Done
-   2026-10-28: the prepared synthesis prompt is 20,000 characters with a
-   4,000-character stored-context floor, refused before the answer call if
-   breached ([design note](docs/design/prepared-consultation.md)). A harness
-   dry run on the negative-control fixture delivers the stored position and
-   source. That is delivery only; answer comparison is still item 3.
-2. [x] **Brief replay (B-HO) pair.** Done 2026-10-28 (collection 004): the
-   frozen rule was not met. Reviewers judged the AFTER brief more complete
-   but not better supported. They found prompt-local excerpt keys leaking
-   into saved briefs, now fixed with corpus sha prefix keys.
-3. **Prepared-advice qualification and S1 evidence.** Next. A matched
-   preparation-on/off whole-answer review on a fresh held-out case, on code
-   that includes the #299 stored-context floor. This is the first comparison
-   where both the prepared observations and the expert's own evidence reach
-   the answer. Default-on preparation, brief judgment quality and S4 stay
-   gated; no increased autonomy follows from these model-reviewed
-   diagnostics.
-4. **Brief judgment defects shared by both arms.** Unlabelled inference
-   ("at-least-once") and document-only falsifiers persist across every brief
-   replay. These are semantic: they need a prompt or contract change plus a
-   frozen source-grounded review, not a keyword check.
+1. [x] **#299, prepared view versus stored evidence budget.** Done in v2.51.3.
+2. [x] **Brief replay (B-HO) pair.** Done (collection 004); the S-key leak it
+   found is fixed.
+3. **Prepared-advice qualification and S1 evidence.** Still open. Collection
+   005 halted on #304; collection 007 (tenacity 9.1.4, on the #304 fix)
+   completed and both blind model reviewers judged preparation ON worse on
+   support and omissions. The traced causes are fixed in v2.51.4 (#306). Next
+   is collection 009: a fresh held-out matched OFF/ON case on v2.51.4, with
+   P-H2 and P-H3 retired as exposed. Default-on preparation, S1 exit and S4
+   stay gated; a regression here is retained as evidence, not rerun until it
+   passes.
+4. [x] **Brief judgment defects shared by both arms.** Shipped in v2.51.4 as a
+   prompt clarification with no improvement claim: collections 006 (world 2)
+   and 008 (world 3) did not meet their frozen rule and did not regress.
+   Document-only falsifiers fell, but some briefs still offer "a documented
+   procedure or test result". That residue is semantic work for a later round,
+   needing a new held-out world (worlds 1 to 3 are exposed).
 
 Not next: widening sources, promoting preview-only models, or any paid path.
 Those stay behind their existing gates.
@@ -967,7 +966,16 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.51.3)
+## Current Status (v2.51.4)
+
+v2.51.4 lets opt-in preparation finish within its 1,024-token interpretation
+allowance by judging assumptions by id (#304), delivers the release's Python
+classifiers, labels Deepr fields apart from source fields and states the
+answer date in every synthesis prompt (#306), and clarifies brief falsifier
+instructions. Collection 007, the first completed matched preparation OFF/ON
+comparison, found preparation a regression under blind model review; #306
+repairs the traced delivery causes. Collections 006 and 008 (held-out brief
+replays) did not meet their frozen rule and did not regress.
 
 v2.51.3 keeps the expert's stored context beside an opt-in prepared view
 (#299): prepared synthesis gets a 20,000-character prompt with a
@@ -4373,7 +4381,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.51.3. This roadmap keeps
+v2.51.4. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 
