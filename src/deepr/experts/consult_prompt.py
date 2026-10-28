@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
+from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING
 
 from deepr.experts.consult_context import ConsultContext, _source_passage, observation_window, passage_heading
@@ -418,8 +419,21 @@ def build_synthesis_prompt(query: str, perspectives: list[ExpertPerspective]) ->
     return build_synthesis_packet(query, perspectives)[0]
 
 
+def answer_date_line(today: date | None = None) -> str:
+    """The answer date, so a model does not read dates after its training data as future (#306)."""
+    value = (today or datetime.now(UTC).date()).isoformat()
+    return (
+        f"Answer date (UTC): {value}. Dates up to it, including source observation and upload times, "
+        "are past or present, not future or synthetic.\n\n"
+    )
+
+
 def build_synthesis_packet(
-    query: str, perspectives: list[ExpertPerspective], *, prepared: PreparedConsultation | None = None
+    query: str,
+    perspectives: list[ExpertPerspective],
+    *,
+    prepared: PreparedConsultation | None = None,
+    today: date | None = None,
 ) -> tuple[str, dict[str, object]]:
     """The bounded synthesis prompt and a manifest of what each expert delivered.
 
@@ -429,7 +443,7 @@ def build_synthesis_packet(
     """
     eligible = [perspective for perspective in perspectives if perspective.confidence > 0]
     response_form = response_form_contract(query)
-    prefix = _INSTRUCTIONS + response_form_instruction(response_form)
+    prefix = _INSTRUCTIONS + response_form_instruction(response_form) + answer_date_line(today)
     prefix += f"Question: {query}\n\nContributors: {len(eligible)}\n\n"
     if prepared is not None:
         if prepared.capture.question != query:

@@ -221,6 +221,22 @@ def test_prepared_view_leaving_stored_context_below_floor_is_refused(captured):
         build_synthesis_packet(capture.question, [perspective], prepared=prepared)
 
 
+def test_stored_only_and_prepared_prompts_state_the_answer_date(captured):
+    # #306: without a date both arms judged 2026 timestamps as future or synthetic.
+    from datetime import date
+
+    capture, _ = captured
+    perspective = ExpertPerspective(expert_name="E", domain="fixture", response="", confidence=1.0)
+    perspective.synthesis_blocks = [PacketBlock("Stored note.", key="notice")]
+    stored, _ = build_synthesis_packet(capture.question, [perspective], today=date(2026, 10, 28))
+    prepared, _ = build_synthesis_packet(
+        capture.question, [perspective], prepared=prepared_from(capture), today=date(2026, 10, 28)
+    )
+    for prompt in (stored, prepared):
+        line = "Answer date (UTC): 2026-10-28. Dates up to it, including source observation and upload times"
+        assert line in prompt and prompt.index(line) < prompt.index("Question: ")
+
+
 def test_unprepared_prompt_keeps_the_standard_limit(captured):
     capture, _ = captured
     perspective = ExpertPerspective(expert_name="E", domain="fixture", response="", confidence=1.0)
@@ -637,6 +653,9 @@ def test_delivered_view_separates_observations_fixed_limits_and_model_interpreta
     coordinate = PreparationPacket.model_validate_json(prepared.frozen.content).observations[0].coordinate_id
     header = f"[observation_1] class=pypi_release coordinate=fixture==1.0 ({coordinate}) status=ok"
     assert header in text
+    # #306: the advisory label is Deepr's, not a field of the source response.
+    assert "  Deepr label, not in the source response: advisory_coverage=not_examined" in text
+    assert "\n  advisory_coverage:" not in text
     assert "requested_at=2026-10-27T12:00:00+00:00 observed_at=2026-10-27T12:00:01+00:00" in text
     assert "raw_sha256=" + "1" * 64 in text
     # The projection is rendered as fields, not as an escaped JSON string.

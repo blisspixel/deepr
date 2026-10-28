@@ -713,7 +713,8 @@ def _observation_lines(
         f"  requested_at={item.requested_at.isoformat()} observed_at={item.observed_at.isoformat()}",
         f"  raw_sha256={item.raw_sha256 or 'none'} projection_sha256={item.metadata_projection_sha256 or 'none'}",
         "  applicable_versions: " + (_line(", ".join(item.applicable_versions)) or "none"),
-        f"  advisory_coverage: {item.advisory_coverage}",
+        # A Deepr label, not a field of the source response (#306: it was cited as one).
+        f"  Deepr label, not in the source response: advisory_coverage={item.advisory_coverage}",
         *(["  response headers: " + "; ".join(headers)] if headers else []),
         *(f"  check: {_line(text)}" for text in item.checks),
         *(f"  limitation: {_line(text)}" for text in item.limitations),

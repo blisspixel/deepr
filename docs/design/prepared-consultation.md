@@ -612,6 +612,30 @@ ceiling (it moves the time bounds and leaves the redundant restatement), and
 clipping or repairing truncated output (forbidden above). Whether output now
 fits on held-out cases is measured by a fresh matched collection, not assumed.
 
+### Prepared view representation (#306, 2026-10-28)
+
+The first matched OFF/ON collection to complete (collection 007: tenacity
+9.1.4, CPython 3.14 Windows, on the #304 fix) was judged a regression for
+preparation by both blind model reviewers. Three delivery and labelling causes
+were traced in the delivered prompt; the repairs are form only:
+
+- The release projection omitted `info.classifiers`, so a 3.14 question saw only
+  `requires_python` and the answer called 3.14 unreleased while the release JSON
+  listed a 3.14 classifier. The projection now carries the release's own
+  `Programming Language :: Python` classifiers as `python_classifiers`, meaning
+  uploader-declared metadata, under field semantics v2 (v1 plus that entry, so
+  frozen v1 packets keep their exact meanings). Other classifiers stay omitted
+  and the source key stays listed when only part of it is projected.
+- `advisory_coverage: not_examined` sat inside each source observation block and
+  was cited as a field of the release JSON. It now renders as
+  `Deepr label, not in the source response: advisory_coverage=not_examined`.
+- Neither the stored-only nor the prepared synthesis prompt stated a date, so
+  both arms judged 2026 timestamps against a training-era date. Every synthesis
+  prompt now states the answer date (UTC) before the question.
+
+No semantic rule was added. Whether prepared answers now beat stored-only ones
+is measured by a fresh held-out matched collection; P-H3 is exposed.
+
 ### Canonical invariance and acceptance
 
 Before preparation, freeze the explicit canonical inventory for the selected

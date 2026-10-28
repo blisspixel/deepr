@@ -31,11 +31,13 @@ def sha256(data: bytes) -> str:
 _DECLARED = "uploader-declared metadata; not an install, import or runtime test"
 _ARCHIVE_DIGEST = "digest of the archive bytes named by filename; not installed files or other archives"
 _PUBLISHED = "as published at observed_at; may change later"
-FIELD_SEMANTICS_VERSION = "pypi-field-semantics-v1"
+_V1 = "pypi-field-semantics-v1"
+FIELD_SEMANTICS_VERSION = "pypi-field-semantics-v2"
 # Fixed meaning of retained projection fields, versioned so frozen projections
-# store only the identifier. Text describes form, never a verdict.
+# store only the identifier. Text describes form, never a verdict. A new field
+# gets a new version; frozen v1 projections keep exactly their v1 meanings.
 FIELD_SEMANTICS: dict[str, tuple[tuple[str, str], ...]] = {
-    FIELD_SEMANTICS_VERSION: (
+    _V1: (
         ("requires_python", _DECLARED),
         ("yanked", _PUBLISHED),
         ("vulnerabilities", "PyPI's own list as returned; not an advisory database check"),
@@ -58,6 +60,11 @@ FIELD_SEMANTICS: dict[str, tuple[tuple[str, str], ...]] = {
         ("files[].yanked", _PUBLISHED),
     )
 }
+# v2 (#306): the release's own "Programming Language :: Python" classifiers.
+FIELD_SEMANTICS[FIELD_SEMANTICS_VERSION] = (
+    *FIELD_SEMANTICS[_V1],
+    ("python_classifiers", "uploader-declared 'Programming Language :: Python' classifiers; " + _DECLARED),
+)
 
 
 def field_semantics_for(version: str, projection: dict[str, Any]) -> dict[str, str]:

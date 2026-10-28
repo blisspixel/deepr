@@ -594,6 +594,59 @@ def test_release_projection_preserves_absent_and_null_summary_fields(summary):
     assert projection["files"] == []
 
 
+@pytest.mark.parametrize(
+    ("classifiers", "still_omitted"),
+    [
+        (["Programming Language :: Python :: 3.14", "License :: OSI Approved"], True),
+        (["Programming Language :: Python :: 3", "Programming Language :: Python :: 3.14"], False),
+    ],
+)
+def test_release_projection_carries_the_uploaders_python_classifiers(classifiers, still_omitted):
+    # #306: with classifiers omitted, a 3.14 question saw only requires_python and the answer
+    # called 3.14 unreleased although the release JSON listed a 3.14 classifier.
+    from deepr.experts.preparation_service import _projection
+
+    coordinate = PreparationRequest.from_json(
+        json.dumps(
+            {
+                "schema_version": "deepr-python-preparation-request-v1",
+                "enabled": True,
+                "request_id": "classifier_fixture_001",
+                "environment": {"interpreter_version": "3.14", "platform": "synthetic"},
+                "packages": [{"name": "fixture", "version": "1.0"}],
+            }
+        ).encode()
+    ).packages[0]
+    raw = canonical_bytes({"info": {"name": "fixture", "version": "1.0", "classifiers": classifiers}, "urls": []})
+    now = datetime.now(UTC).isoformat()
+    source = AcquiredSource(
+        RequestIntent(1, coordinate.coordinate_id, "pypi_release"),
+        raw,
+        sha256(raw),
+        b"{}",
+        now,
+        now,
+        200,
+        "ok",
+        sha256(raw),
+    )
+    projection = json.loads(_projection(source, coordinate).text)
+    assert projection["python_classifiers"] == [item for item in classifiers if item.startswith("Programming Language")]
+    # A partial projection still names the source key as not projected.
+    assert ("classifiers" in projection["omitted_source_keys"].get("info", [])) is still_omitted
+    assert projection["field_semantics"] == "pypi-field-semantics-v2"
+    meaning = field_semantics_for(FIELD_SEMANTICS_VERSION, projection)["python_classifiers"]
+    assert meaning.startswith("uploader-declared") and "not an install, import or runtime test" in meaning
+
+
+def test_frozen_v1_projections_keep_their_exact_field_meanings():
+    projection = {"requires_python": ">=3.10", "python_classifiers": ["Programming Language :: Python :: 3"]}
+    assert set(field_semantics_for("pypi-field-semantics-v1", projection)) == {"requires_python"}
+    v1 = dict(field_semantics_for("pypi-field-semantics-v1", {"requires_python": "x", "yanked": False}))
+    v2 = dict(field_semantics_for("pypi-field-semantics-v2", {"requires_python": "x", "yanked": False}))
+    assert v1 == v2
+
+
 @pytest.mark.asyncio
 async def test_adapter_creates_missing_configured_parent_after_capture(service_fixture, monkeypatch):
     from types import SimpleNamespace

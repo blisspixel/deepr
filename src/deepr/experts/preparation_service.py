@@ -134,6 +134,7 @@ def _file_version(filename: str) -> Version | None:
 _RELEASE_SOURCE = "PyPI JSON API release response (/pypi/<project>/<version>/json) as returned at observed_at"
 _INDEX_SOURCE = "PyPI Simple API project response (PEP 691 JSON, /simple/<project>/) as returned at observed_at"
 _LISTING_LABEL = "listing at observation time only; not completeness, future currentness, or safety"
+_PYTHON_CLASSIFIER = "Programming Language :: Python"
 
 
 def _omitted_keys(info: list[str], response: list[str], files: list[str]) -> dict[str, list[str]]:
@@ -159,7 +160,17 @@ def _release_projection(data: dict[str, Any]) -> tuple[dict[str, Any], list[str]
             result[target] = data[key]
         else:
             absent.append(key)
-    omitted_info = sorted(set(info) - {"name", "version", "requires_python", "yanked", "yanked_reason"})
+    # Interpreter-support questions need the uploader's own Python classifiers (#306);
+    # the remaining classifiers stay omitted and are listed as such.
+    classifiers = info.get("classifiers")
+    projected_info = {"name", "version", "requires_python", "yanked", "yanked_reason"}
+    if isinstance(classifiers, list):
+        result["python_classifiers"] = [
+            item for item in classifiers if isinstance(item, str) and item.startswith(_PYTHON_CLASSIFIER)
+        ]
+        if len(result["python_classifiers"]) == len(classifiers):
+            projected_info.add("classifiers")
+    omitted_info = sorted(set(info) - projected_info)
     omitted = sorted(set(data) - {"info", "urls", "vulnerabilities", "project-status"})
     return result, absent, omitted_info, omitted
 

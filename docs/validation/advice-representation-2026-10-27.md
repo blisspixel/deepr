@@ -213,3 +213,61 @@ manifests, fixtures, the held-out capture, every run receipt with its
 delivered prompt and raw response, mechanical receipts, packets, sealed
 alignment and both reviewers' outputs. SHA-256 is recorded in the release
 `SHA256SUMS`.
+
+## Collections 005 to 008 (2026-10-28, preparation OFF/ON and brief instructions)
+
+Model-authored review under the 2026-10-25 operator amendment: two blind
+reviewer agents per collection (claude-opus-5-5 and claude-sonnet-5-5), frozen
+JSON before unblinding, sealed alignment verified. Not human review. Every
+protocol, manifest hash, receipt and review is in the collection 005 to 008
+evidence asset on the v2.51.4 release.
+
+**Collection 005: matched preparation OFF vs ON, held-out P-H2** (jinja2 3.1.6,
+CPython 3.13 Linux, v2.51.3 in both arms). The harness was first corrected
+before freezing: `corpus_store` binds `canonical_expert_dir` at import, so the
+inherited patch left the stored-only arm without its lockfile passage. The OFF
+cell then completed. The first ON cell **halted**: the interpretation call
+reached its 1,024-token allowance and shipped preparation failed closed. No
+retry was made, there was no pair to review, and the result is terminal. The
+cause was the prompt requiring the model to restate every planned assumption
+(1,718 of 3,670 characters). Fixed by #304 in v2.51.4. An exposed development
+check on the same input then completed with a 332-token interpretation.
+
+**Collection 006: brief replay, held-out world 2.** v2.51.3 against the brief
+instruction branch, on the S0 siltqueue world 2 maintenance brief. The frozen
+rule was not met: only one reviewer scored AFTER higher on harmful claims.
+There was no regression. AFTER falsifiers led with an observation but kept
+"or documentation stating ...". The branch was amended to refuse a document
+alternative, so world 2 is now exposed.
+
+**Collection 007: matched preparation OFF vs ON, held-out P-H3** (tenacity
+9.1.4, CPython 3.14 Windows x64, on the #304 fix). All four cells completed.
+The interpretation calls returned 476 and 531 tokens.
+
+| Pair | Reviewer | ON b/c/d/e | OFF b/c/d/e |
+| --- | --- | --- | --- |
+| r1 | opus | 1/2/2/3 | 2/3/3/3 |
+| r1 | sonnet | 1/2/2/3 | 3/3/3/3 |
+| r2 | opus | 1/1/2/3 | 1/3/1/3 |
+| r2 | sonnet | 1/1/2/2 | 1/3/1/2 |
+
+Frozen rule: preparation ON **regressed** on both pairs. Both reviewers
+suspected the arm mapping, the weak blinding the protocol anticipated. The ON
+answers made two errors, both traced to the delivered prompt after unblinding.
+They called 3.14 "future/unreleased", because the projection omitted the
+release's classifiers, including a 3.14 one. They also cited a Deepr
+`advisory_coverage` label as a field of the release JSON. Both arms invented
+chronology because no synthesis prompt stated the date. All three are fixed by
+#306 in v2.51.4.
+
+**Collection 008: brief replay, held-out world 3** (amended branch). The
+frozen rule was not met: only one reviewer scored AFTER higher on harmful
+claims. There was no regression. Document-only falsifiers fell from five to
+none, but two AFTER falsifiers still offer "a documented procedure or test
+result". Neither world 2 nor world 3 exercised the inferred-guarantee
+instruction.
+
+**Conclusion.** No improvement claim. The prepared-advice comparison is still
+open: its only completed pair was negative and has been repaired. The brief
+instructions shipped as a clarification. Next is a fresh held-out matched
+preparation comparison on v2.51.4; P-H2, P-H3 and S0 worlds 1 to 3 are exposed.
