@@ -132,8 +132,10 @@ human-calibrated semantic acceptance and S2-S4 remain unqualified.
   met its rule on one exposed case only; both arms still called a release with
   newer pre-releases "not current", omitted yank status and digest scope, and
   the first stored-label wording leaked "fetch time unrecorded" into an answer
-  (now scoped). Next: rerun the unexecuted negative control and held-out brief
-  replay on the shipped code, then review held-out prepared answers again.
+  (now scoped). 2026-10-28: collection 003 completed the negative control
+  without meeting the frozen rule; the prepared view had crowded out the
+  stored source, now fixed by a stored-context floor (#299). Next: the brief
+  replay pair, then a fresh held-out prepared-answer review.
 - [ ] **Brief judgment quality (2026-10-25):** the
   [three-call replay](docs/validation/brief-clarification-2026-10-25.md) retained
   all five sources and removed forecast apparatus from six standing positions,
