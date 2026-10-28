@@ -406,7 +406,10 @@ coordinates and relevant retained perspective. It names assumptions, marks
 which admitted checks could matter, and explains unavailable or unnecessary
 checks. The interpretation call receives those assumptions plus retained
 observations and distinguishes observations, hypotheses, recommendations,
-conflicts, implications and omissions. Model outputs cannot widen the
+conflicts, implications and omissions. It judges each planned assumption by
+id only (status and reason); the service rebinds the plan's text and
+coordinates and refuses a missing, unknown, duplicated or restated assumption
+(#304). Model outputs cannot widen the
 admitted coordinates, destinations, limits, spend or writes. Source text is
 untrusted evidence, not an instruction to change those permissions.
 
@@ -587,6 +590,27 @@ unknown id refuses the whole interpretation, with no aliasing or salvage. The
 operation retains a terminal `failed` packet with
 `interpretation_invalid_references`, and CLI and MCP report preparation
 failure without dispatching an answer. Canonical expert state is unchanged.
+
+### Interpretation output budget (#304, 2026-10-28)
+
+A held-out matched preparation evaluation (collection 005: jinja2 3.1.6,
+CPython 3.13 Linux, v2.51.3) halted when the interpretation call reached the
+1,024-token output allowance with valid but truncated JSON. Preparation failed
+closed as designed, so the routine question received no prepared answer. The
+prompt required the model to restate every planned assumption's id, text and
+coordinate bindings, which the service already held and only compared for
+equality; the restated block was 1,718 of the 3,670 returned characters.
+
+The interpretation response now carries `assumption_id`, `status` and `reason`
+per assumption. The service rebinds text and coordinates from the validated
+plan by id and refuses a missing, unknown, duplicated or restated assumption
+with `interpretation_changed_assumption_bindings` (a restated field is a
+schema refusal). The prompt asks for one short sentence per reason,
+implication and limitation. The frozen packet's assumption shape, the 1,024
+token ceiling and fail-closed truncation are unchanged. Rejected: raising the
+ceiling (it moves the time bounds and leaves the redundant restatement), and
+clipping or repairing truncated output (forbidden above). Whether output now
+fits on held-out cases is measured by a fresh matched collection, not assumed.
 
 ### Canonical invariance and acceptance
 
