@@ -15,12 +15,12 @@ synthesis prompt and the expert's own lockfile passage was omitted. The brief
 replay again produced no comparison, because the host's low-memory safeguard
 stopped its BEFORE cell. In order:
 
-1. **#299, prepared view versus stored evidence budget.** Write a short
-   design note, then give the prepared layer and the stored context separate
-   bounds (or refuse preparation with a reason). Preparation must not displace
-   the evidence it sits beside, and every later answer comparison depends on
-   both reaching the model. Verify with the negative-control fixture through
-   the existing harness (dry run only, no generation needed).
+1. [x] **#299, prepared view versus stored evidence budget.** Done
+   2026-10-28: the prepared synthesis prompt is 20,000 characters with a
+   4,000-character stored-context floor, refused before the answer call if
+   breached ([design note](docs/design/prepared-consultation.md)). A harness
+   dry run on the negative-control fixture delivers the stored position and
+   source. That is delivery only; answer comparison is still item 3.
 2. **Brief replay (B-HO) pair.** Three collections have failed to compare the
    brief rendering repair. Run it alone, on a host with room for the 17 GB
    local model and no concurrent builds, so the safeguard cannot stop it. It
@@ -132,8 +132,10 @@ human-calibrated semantic acceptance and S2-S4 remain unqualified.
   met its rule on one exposed case only; both arms still called a release with
   newer pre-releases "not current", omitted yank status and digest scope, and
   the first stored-label wording leaked "fetch time unrecorded" into an answer
-  (now scoped). Next: rerun the unexecuted negative control and held-out brief
-  replay on the shipped code, then review held-out prepared answers again.
+  (now scoped). 2026-10-28: collection 003 completed the negative control
+  without meeting the frozen rule; the prepared view had crowded out the
+  stored source, now fixed by a stored-context floor (#299). Next: the brief
+  replay pair, then a fresh held-out prepared-answer review.
 - [ ] **Brief judgment quality (2026-10-25):** the
   [three-call replay](docs/validation/brief-clarification-2026-10-25.md) retained
   all five sources and removed forecast apparatus from six standing positions,

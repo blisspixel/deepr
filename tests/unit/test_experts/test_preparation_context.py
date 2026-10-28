@@ -13,7 +13,13 @@ import pytest
 from deepr.experts.brief_contracts import ExpertBrief, Position
 from deepr.experts.briefed_perspective import build_briefed_perspective
 from deepr.experts.consult_context import build_consult_context
-from deepr.experts.consult_prompt import MAX_SYNTHESIS_PROMPT_CHARS, build_synthesis_packet
+from deepr.experts.consult_prompt import (
+    MAX_PREPARED_SYNTHESIS_PROMPT_CHARS,
+    MAX_SYNTHESIS_PROMPT_CHARS,
+    STORED_CONTEXT_FLOOR_CHARS,
+    PacketBlock,
+    build_synthesis_packet,
+)
 from deepr.experts.consult_support import study_fingerprint
 from deepr.experts.corpus_store import CorpusStore
 from deepr.experts.council import ExpertCouncil, ExpertPerspective
@@ -78,7 +84,7 @@ def captured(tmp_path, monkeypatch):
     return capture_formed_context("What is fixture latency?", "E"), root
 
 
-def prepared_from(capture, *, large=False):
+def prepared_from(capture, *, large=False, filler=0):
     request = PreparationRequest.from_json(
         json.dumps(
             {
@@ -101,6 +107,17 @@ def prepared_from(capture, *, large=False):
                 reason="Synthetic context bound.",
             )
             for index in range(6)
+        )
+    elif filler:
+        assumptions = tuple(
+            Assumption(
+                assumption_id=f"a{index}",
+                coordinate_ids=(request.packages[0].coordinate_id,),
+                text="x" * min(4000, filler - 4000 * index),
+                status="unchecked",
+                reason="Synthetic view size.",
+            )
+            for index in range(-(-filler // 4000))
         )
     packet = PreparationPacket(
         envelope=PreparationEnvelope(
@@ -165,6 +182,52 @@ def test_mandatory_whole_packet_survives_zero_eligible_contributors(captured):
     assert "Contributors: 0" in prompt
     assert manifest["preparation"]["delivery"] == "included_whole"
     assert len(prompt) <= MAX_SYNTHESIS_PROMPT_CHARS
+
+
+def _stored_blocks():
+    """A stance and the expert's own source passage, as the negative control in #299 had."""
+    return [
+        PacketBlock("Stored research only; no live check was performed for this answer.", key="notice"),
+        PacketBlock("Reference library passage (bounded excerpt) [r1] (lock):\n" + "h" * 4200, key="reference:r1"),
+        PacketBlock(
+            "Position: What is fixture latency?\nStance: Unknown outside measured partition.", key="position:1"
+        ),
+    ]
+
+
+def test_prepared_view_does_not_crowd_out_stored_position_or_source(captured):
+    capture, _ = captured
+    # A view of the measured negative-control size (about 11k characters) under the old 16,000 cap
+    # left about 2,300 for stored context, so the source passage was omitted (#299).
+    prepared = prepared_from(capture, filler=9500)
+    assert 10000 < len(prepared.mandatory_text()) < 12000
+    perspective = ExpertPerspective(expert_name="E", domain="fixture", response="", confidence=1.0)
+    perspective.synthesis_blocks = _stored_blocks()
+    prompt, manifest = build_synthesis_packet(capture.question, [perspective], prepared=prepared)
+    expert = manifest["experts"][0]
+    assert expert["omitted_keys"] == []
+    assert expert["budget_chars"] >= STORED_CONTEXT_FLOOR_CHARS
+    assert "h" * 4200 in prompt and "Stance: Unknown outside measured partition." in prompt
+    assert MAX_SYNTHESIS_PROMPT_CHARS < len(prompt) <= MAX_PREPARED_SYNTHESIS_PROMPT_CHARS
+    assert manifest["user_prompt_limit_chars"] == MAX_PREPARED_SYNTHESIS_PROMPT_CHARS
+
+
+def test_prepared_view_leaving_stored_context_below_floor_is_refused(captured):
+    capture, _ = captured
+    prepared = prepared_from(capture, filler=14000)
+    assert len(prepared.mandatory_text()) < MAX_PREPARED_SYNTHESIS_PROMPT_CHARS - STORED_CONTEXT_FLOOR_CHARS + 2000
+    perspective = ExpertPerspective(expert_name="E", domain="fixture", response="", confidence=1.0)
+    with pytest.raises(ValueError, match="floor"):
+        build_synthesis_packet(capture.question, [perspective], prepared=prepared)
+
+
+def test_unprepared_prompt_keeps_the_standard_limit(captured):
+    capture, _ = captured
+    perspective = ExpertPerspective(expert_name="E", domain="fixture", response="", confidence=1.0)
+    perspective.synthesis_blocks = [PacketBlock("y" * 30000, key="reference:big")]
+    prompt, manifest = build_synthesis_packet(capture.question, [perspective])
+    assert len(prompt) <= MAX_SYNTHESIS_PROMPT_CHARS
+    assert manifest["user_prompt_limit_chars"] == MAX_SYNTHESIS_PROMPT_CHARS
 
 
 @pytest.mark.asyncio
