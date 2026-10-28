@@ -966,7 +966,12 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.51.4)
+## Current Status (v2.51.5)
+
+v2.51.5 declares `packaging` (and `urllib3`, and `werkzeug` for the web extra)
+so opt-in preparation imports on a clean public install (#309); from v2.51.0
+to v2.51.4 `--prepare` crashed there. A new unit test keeps every third-party
+import declared.
 
 v2.51.4 lets opt-in preparation finish within its 1,024-token interpretation
 allowance by judging assumptions by id (#304), delivers the release's Python
@@ -4381,7 +4386,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.51.4. This roadmap keeps
+v2.51.5. This roadmap keeps
 only active work and future criteria; completed
 items move to the changelog at release.
 

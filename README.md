@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.51.4-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.51.4)
+[![Version](https://img.shields.io/badge/version-2.51.5-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.51.5)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -307,6 +307,9 @@ eras and published Agent Plugins `1.0.0`. See the
 for tested behavior and the distinction from draft standards and host certification.
 
 ## Direction
+
+v2.51.5 makes opt-in preparation importable on a clean public install by
+declaring `packaging`, which it imported without declaring (#309).
 
 v2.51.4 lets opt-in preparation complete within its output budget (#304) and
 fixes three prepared-view delivery defects found by the first completed

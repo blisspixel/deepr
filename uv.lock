@@ -1021,7 +1021,7 @@ wheels = [
 
 [[package]]
 name = "deepr-research"
-version = "2.51.4"
+version = "2.51.5"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
@@ -1037,11 +1037,13 @@ dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "openai" },
+    { name = "packaging" },
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
     { name = "requests" },
     { name = "rich" },
+    { name = "urllib3" },
 ]
 
 [package.optional-dependencies]
@@ -1099,6 +1101,7 @@ full = [
     { name = "playwright" },
     { name = "python-docx" },
     { name = "python-socketio" },
+    { name = "werkzeug" },
 ]
 scrape = [
     { name = "playwright" },
@@ -1114,6 +1117,7 @@ web = [
     { name = "flask-socketio" },
     { name = "mistune" },
     { name = "python-socketio" },
+    { name = "werkzeug" },
 ]
 
 [package.metadata]
@@ -1152,6 +1156,7 @@ requires-dist = [
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=2.3.0" },
     { name = "numpy", specifier = ">=1.24.0,<3.0.0" },
     { name = "openai", specifier = ">=3.26.0,<4.0.0" },
+    { name = "packaging", specifier = ">=24.0,<28.0" },
     { name = "pip", marker = "extra == 'dev'", specifier = ">=26.2.2" },
     { name = "pip-audit", marker = "extra == 'dev'", specifier = ">=2.10.1" },
     { name = "playwright", marker = "extra == 'scrape'", specifier = ">=1.61.0,<2.0.0" },
@@ -1172,6 +1177,8 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.16.0" },
     { name = "twine", marker = "extra == 'dev'", specifier = ">=7.0.0,<8.0.0" },
     { name = "types-pyyaml", marker = "extra == 'dev'", specifier = ">=6.0.12.20260724" },
+    { name = "urllib3", specifier = ">=2.0.0,<3.0.0" },
+    { name = "werkzeug", marker = "extra == 'web'", specifier = ">=3.0.0,<4.0.0" },
 ]
 provides-extras = ["web", "azure", "azure-foundry", "docs", "search", "scrape", "aws", "full", "dev"]
 

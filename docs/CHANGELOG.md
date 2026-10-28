@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.51.5] - 2026-10-28
+
+Patch release: declare the runtime imports a clean install was missing. No
+spend, gate, provider or behavior changes beyond making opt-in preparation
+importable.
+
+### Fixed
+
+- `packaging` is now a declared runtime dependency (#309). Opt-in preparation
+  imports it, but it was never declared, so `deepr expert consult --prepare`
+  and the MCP prepared consult tool crashed with `ModuleNotFoundError` on a
+  clean public install. This affected v2.51.0 to v2.51.4; the dev environment
+  carried it transitively, so the unit suite did not notice. Found by the
+  v2.51.4 public install verification.
+- `urllib3` (imported directly by pinned HTTP) is declared instead of
+  inherited through `requests`, and `werkzeug` is declared in the `web` extra.
+  No locked version changes.
+
+### Added
+
+- A unit test that resolves every third-party import in `src/deepr` to its
+  installed distribution and requires it to be declared in the core
+  dependencies or an extra.
+
 ## [2.51.4] - 2026-10-28
 
 Patch release: prepared consultation completes within its output budget, the
