@@ -1,5 +1,21 @@
 # What a Deepr expert knows, learns, and does
 
+Status: product definition, clarified 2026-10-29. The integrated behavior below
+is a target; [Supported Surface](../SUPPORTED_SURFACE.md) distinguishes current
+capabilities. [Persistent expert agents](persistent-expert-agent.md) specifies
+the memory, harness, and learning contracts.
+
+An expert is a persistent domain-specialized agent whose knowledge, experience,
+methods, perspective, and working relationship continue across sessions. A
+temporal graph preserves relationships and revisions; a wiki explains them;
+a bounded agent loop makes them usable in research and practical work.
+
+Identity includes purpose, communication style, and intellectual habits. A
+patient teacher or skeptical engineer can retain that character while revising
+a conclusion. Personality cannot manufacture expertise, lived experience,
+source authority, or permission. Learning initially changes external memory
+and methods, without requiring model-weight updates.
+
 ## Understanding and judgment
 
 An expert knows its field well enough to explain it and apply it. It connects

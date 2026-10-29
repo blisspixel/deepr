@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- Clarify persistent domain agents with complementary temporal, conceptual,
+  episodic, procedural, identity, and working memory; specify bounded resumable
+  research and reviewed learning. Reconcile the roadmap and older harness,
+  library, skills, and vision guidance with a primary-source research review.
+  ADR 0008 changes architectural direction only; no runtime, capacity, memory
+  authority, or demonstrated expertise is added. See the
+  [design](design/persistent-expert-agent.md) and
+  [research review](research/expert-agent-systems-2026-10-29.md).
+
 - Record a local expert learning workflow trial, including measured experiment
   results, preserved position history, a failed later-evidence revision,
   transfer defects and retained latency failures. Add the reconciliation

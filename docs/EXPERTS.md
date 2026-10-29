@@ -37,6 +37,13 @@ self-model state, and metacognitive perspective state such as original ideas.
 It is useful for humans and host agents, but it is never canonical memory and
 should not be hand-edited as authority.
 
+The planned [expert agent session](design/persistent-expert-agent.md) connects
+these stores to model-directed evidence inspection, investigation, experience,
+and reviewed procedure reuse. Identity and personality can persist while
+conclusions change. Conversation history, working episode state, and admitted
+knowledge have separate authority. This is not a claim that a new session
+command or unrestricted skill execution is available.
+
 ## Current capabilities and the next milestone
 
 Experts retain sources, studied findings, positions, reasoning, perspective

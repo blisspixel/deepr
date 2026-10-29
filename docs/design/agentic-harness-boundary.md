@@ -1,76 +1,66 @@
-# The agentic-harness boundary: agentic within a knowledge transaction, not across the task lifecycle
+# The agentic harness boundary: bounded domain work with continuity
 
-Status: design note, 2026-06-21. Dogfood-sourced - this framing came from
-consulting Deepr's own experts (AI Agent Harnesses, Model Context Protocol,
-Distributed Systems Reliability), which converged independently. Sharpens the
-ROADMAP "not the orchestrator" non-goal. Read with
-[AGENTIC_BALANCE.md](../plans/AGENTIC_BALANCE.md) and
-[expert-library.md](expert-library.md).
+Status: architecture direction updated 2026-10-29 by
+[ADR 0008](../decisions/0008-persistent-domain-agent-boundary.md). Replaces the
+June 21 synchronous-only restriction. This document grants no new runtime,
+spend, external-action, or memory-write authority.
 
-## The tension
+## The boundary
 
-Deepr is a callable knowledge role (experts consulted via MCP/A2A), with an
-explicit non-goal: it is **not** a workflow orchestrator. Yet internally it runs
-real agentic loops - tree-of-thoughts reasoning, bounded expert councils,
-verification-gated absorb, autonomous sync. So *is* Deepr an "agentic harness"?
-The honest answer is **yes, but only within a bounded scope** - and naming that
-scope precisely is what keeps Deepr adaptive and "just works" without drifting
-into the orchestrator role it rejects.
+Deepr owns persistent domain expertise and bounded research episodes. An expert
+can have a continuing identity, knowledge, perspective, research agenda,
+experience, and reviewed methods. It should explain, investigate, learn, and
+resume useful work. The [persistent expert design](persistent-expert-agent.md)
+specifies the target; [Supported Surface](../SUPPORTED_SURFACE.md) says what runs.
 
-## The line: the "knowledge transaction"
+An invocation remains bounded by explicit authority and resource ceilings.
+An episode may span invocations and retain working state. Resumption revalidates
+authority, uses durable observations, and retains cumulative usage. It does not
+reset the budget, repeat uncertain side effects, or silently replace the
+evidence snapshot. A checkpoint records work, not admitted truth.
 
-Deepr may be fully agentic **inside a single, synchronous knowledge transaction**
-(a "knowledge RPC"): one invocation that
+The earlier single knowledge transaction remains a useful fast path for simple
+questions. It is no longer the definition of every expert interaction. Keeping
+an episode across calls is compatible with acting as a specialist role.
 
-- autonomously decomposes the query, consults/coordinates its own experts,
-  reasons, and verifies/critiques - "micro-orchestration that is strictly
-  epistemic";
-- runs under **hard budgets** (time / tokens / iterations / council fan-out) with
-  an auditable trace;
-- has a **single commit point** - it either absorbs the result into its own
-  knowledge store (through the verification gate) or it does not; and
-- is **idempotent from the caller's perspective** - safe to retry, no partial
-  external side effects.
+## Who owns what
 
-It returns **one calibrated artifact**: `{answer, confidence, citations,
-contradictions/dissent, missing_info, suggested_next_actions, verification_status}`.
+| Concern | Owner and boundary |
+| --- | --- |
+| Research intent, subquestions, evidence inspection, hypothesis comparison | Deepr's bounded domain session; model judgment chooses useful admitted steps. |
+| Episode state, observations, progress and recovery | Existing investigation/runtime owners, with compatibility work before extension. |
+| Canonical knowledge, perspective, history, reviewed procedures | Deepr's owning stores and admission service. Consultation stages; admission applies. |
+| Personality and relationship preferences | Scoped profile/identity authority, separate from factual conclusions and permissions. |
+| General business workflow, organization, cross-project task graph | External host, such as a human workflow or qualified team orchestrator. |
+| Scheduling and unattended wakeups | Host triggers; Deepr validates each operation. Broader autonomy remains S5-gated. |
+| Arbitrary code execution, computer/browser work, external writes | Separately authorized host/adapter. Proposing an experiment is not execution permission. |
+| Capability and spending enforcement | Existing shared boundaries, irrespective of the calling host. |
 
-## What stays outside the line (the external harness owns it)
+Research teams inside a bounded investigation remain in scope when they inherit
+parent limits, cancellation, evidence contracts, and separate write admission.
+This does not require a supervisor for every query or make a fleet the first
+delivery unit. Correlated agreement is not independent support.
 
-Deepr must **not**:
+## Recovery and composition
 
-- own multi-step **workflow state** or execute "do X then Y" plans across calls;
-- run **durable cross-call** retries, scheduling, or task progression over
-  minutes/hours on behalf of a user/business workflow;
-- make **side-effecting** external tool calls beyond read-only retrieval and
-  writing its **own** knowledge store (no repo edits, ticket creation, UI driving,
-  arbitrary downstream services);
-- coordinate **other vendors' agents** or own the outer task graph.
+Expose partial, waiting, failed, and completed outcomes; do not disguise missing
+evidence as a complete answer. A caller can inspect a checkpoint or continue
+under current authority. Portable expert identity is independent of a host's
+conversation handle. CLI and MCP share the service.
 
-Those belong to the calling harness (Claude Code, Cursor, an autopilot). Deepr
-produces the calibrated knowledge and *recommends* next actions; the harness
-*decides and enacts*.
+Host messages, tool outputs, edited wikis, and saved skills cannot bypass
+admission. Imported observations retain executor/source identity and limits.
+Failed and cancelled attempts remain visible. Existing skill execution and
+production plan adapters remain blocked as documented.
 
-## Reconciling the roadmap
+## Delivery rule
 
-- **Internal loops (council, ToT, absorb, reflection)** are in-bounds: they are
-  epistemic micro-orchestration inside one transaction. Adaptive/defensive
-  behavior (degrade honestly, fall through to a working path) is *required*, not
-  orchestration.
-- **The fleet autopilot / campaigns** are the edge case: they run over time. They
-  stay in-bounds only because they coordinate Deepr's **own knowledge
-  maintenance** (sync/absorb of its own experts), are host-triggered ("hosts own
-  the schedule, Deepr owns the verbs"), idempotent, and budget-bounded - never
-  driving external tools or other agents. If a campaign ever reached outside
-  Deepr's own knowledge store, it would cross the line.
-- **Native consultation** (`deepr expert consult` + an MCP `consult_experts`
-  tool, planned) is the canonical knowledge transaction: it should expose exactly
-  the calibrated artifact above so any harness can call it.
+A behavior can belong in Deepr across calls when it serves a named domain
+episode, has finite cumulative bounds, owns recoverable state, and respects
+side-effect and memory gates. Managing unrelated business tasks or external
+resources belongs to the host. Domain responsibility and authority define the
+boundary; persistence alone does not.
 
-## The test
-
-For any proposed agentic behavior, ask: *does it complete within one bounded,
-idempotent, single-commit knowledge transaction, with no external side effects
-beyond Deepr's own knowledge store?* If yes, it is in-bounds agentic. If it owns
-workflow state, schedules/retries across calls, or enacts external side effects,
-it belongs to the harness - Deepr recommends, the harness enacts.
+[ROADMAP](../../ROADMAP.md#persistent-expert-agent-delivery) sequences delivery
+through S1-S4. [AGENTIC_BALANCE](../plans/AGENTIC_BALANCE.md) keeps semantic
+judgment with models/reviewers and enforcement with code.

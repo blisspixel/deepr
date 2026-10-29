@@ -1,5 +1,11 @@
 # Evidence-first expert investigations
 
+> October 29 integration direction: this implemented fixed-phase investigation
+> is a reusable owner for the planned [persistent expert session](persistent-expert-agent.md).
+> Adaptive single-expert inquiry and episode continuity do not require this
+> entire team protocol for every question. Existing stage, provider, and
+> separate learning-admission gates remain unchanged.
+
 Status: accepted design with an experimental local implementation, 2026-07-18.
 Research cutoff: 2026-07-16. Stages 0 through 4 are implemented for explicit
 local Ollama execution at `$0` provider cost. Semantic quality is still

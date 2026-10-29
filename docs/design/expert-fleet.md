@@ -1,5 +1,11 @@
 # The expert fleet: always-fresh experts on a monthly reserve, mostly at $0
 
+> October 29 sequencing: [persistent expert delivery](../../ROADMAP.md#persistent-expert-agent-delivery)
+> prioritizes one useful supervised domain workflow. This fleet design does
+> not override S4/S5 promotion, current blocked plan adapters, or the absence
+> of automatic metered fallback. Historical operating claims below are not
+> current eligibility or demonstrated-expertise claims.
+
 Status: design note, 2026-06-21. Builds directly on
 [expert-library.md](expert-library.md) (the roster vision),
 [capacity-waterfall.md](capacity-waterfall.md) (local -> plan -> metered),

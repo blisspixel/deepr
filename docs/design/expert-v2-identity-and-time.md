@@ -1,5 +1,11 @@
 # Expert V2: identity and a clock, not a new subsystem
 
+> October 29 clarification: record-time position history exists, but complete
+> justification fields and finding history remain S2 work. "Every version"
+> below does not mean faithful reconstruction of every field. See
+> [Position V2](position-justification-and-explanation.md) and the
+> [temporal query contract](persistent-expert-agent.md#temporal-knowledge-graph-contract).
+
 Status: partly built, 2026-08-10. Completes prerequisites #2 and #4 of
 [expert-v2-architecture.md](expert-v2-architecture.md), which are the two of
 seven that were never built.

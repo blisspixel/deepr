@@ -1,5 +1,11 @@
 # Expert v2: from fact ledger to research organism
 
+> Historical architecture diagnosis. The flat-claim/source-discarding model
+> below predates retained corpus, study, brief, history, and linked wiki work.
+> It is not the current missing-feature list. The
+> [persistent expert design](persistent-expert-agent.md) connects current seams;
+> [Supported Surface](../SUPPORTED_SURFACE.md) governs what runs.
+
 Status: proposed architecture, 2026-08-05.
 Supersedes the implicit v1 model in which an expert *is* its belief store.
 Companion: [expert-insight-layer.md](expert-insight-layer.md) (why the reasoning
