@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- Record a local expert learning workflow trial, including measured experiment
+  results, preserved position history, a failed later-evidence revision,
+  transfer defects and retained latency failures. Add the reconciliation
+  follow-up to the roadmap. No runtime or authority changes; the trial does not
+  establish improved expertise. See [the validation record](validation/local-expert-learning-workflow-2026-10-28.md).
+
 ## [2.51.5] - 2026-10-28
 
 Patch release: declare the runtime imports a clean install was missing. No
