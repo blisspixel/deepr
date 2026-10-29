@@ -221,6 +221,19 @@ Do not reopen rejected V6-V8 or placement trials to seek a favorable result.
 
 ## First-run consistency
 
+- [ ] **Local learning workflow reconciliation (2026-10-28):** a supervised
+  local trial completed formation, experiment selection, deterministic test
+  execution, outcome recording, source retention, study, brief revision and
+  later consultation. History preserved all three prior positions, but the
+  revised answer denied that the retained experiment had run. Full-evidence
+  delivery recovered the measured duplicate count but introduced an untested
+  concurrency result and a false verification label. Reconcile historical
+  status with later observations through study, perspective and advice; retain
+  the failure and compare repairs on fresh cases. The [validation record](docs/validation/local-expert-learning-workflow-2026-10-28.md)
+  also retains the dense-model timeout, successful checkpoint reuse, substituted
+  local-model trial and flawed transfer answers. Operational completion is not
+  S2-S4 acceptance, memory benefit or new autonomy authority.
+
 - [ ] **Brief judgment metadata and revision checks (2026-10-21):** the
   retained V5 brief review found forecast likelihoods and check dates attached
   to standing guidance, raw orientation text inconsistent with its statement
