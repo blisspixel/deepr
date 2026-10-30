@@ -370,6 +370,18 @@ writes to the belief store, so nothing here can alter an expert's beliefs withou
 a separate, explicit absorb. Perspective lenses are provisional pending a
 matched-spend evaluation (see [expert-evidence-base.md](design/expert-evidence-base.md)).
 
+## Persistent expert agent direction, 2026-10-29
+
+The [persistent expert design](design/persistent-expert-agent.md) and
+[ADR 0008](decisions/0008-persistent-domain-agent-boundary.md) define a target
+connecting identity, temporal/conceptual knowledge, readable wiki, experience,
+procedures, and bounded research sessions. No integrated adaptive expert
+session, automatic outcome-driven learning, new procedure authority, or general
+TKG historical-query guarantee is added by that documentation. Current local
+formation/maintenance, stored consult, scoped experimental preparation, history
+views, and bounded investigation behavior remain as documented below. Skill
+execution and production plan adapters remain blocked.
+
 ## Support Levels
 
 **Stable** means the surface is part of the supported contract. Changes should

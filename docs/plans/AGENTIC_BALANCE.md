@@ -14,6 +14,23 @@ about what does or does not belong in a rule, update the surfaces table and the
 invariants below in the same change. A stale agentic-balance doc is itself a
 brittle rule - it encodes a boundary that no longer matches the code.
 
+## Persistent expert session boundary, 2026-10-29
+
+[ADR 0008](../decisions/0008-persistent-domain-agent-boundary.md) permits bounded
+domain work to persist across invocations in the target architecture. The
+[persistent expert design](../design/persistent-expert-agent.md) is not shipped
+execution authority. Models choose relevant memory, inquiries, tool proposals,
+hypotheses, and candidate knowledge/procedure revisions. Code enforces admitted
+tools, cumulative limits, ownership, exact observations, version checks, and
+writes. Review judges useful work, source meaning, scope, revision, and transfer.
+
+An episode checkpoint is not memory admission. Temporal filters enforce which
+records are eligible; they do not decide which conflicting source is right.
+Graph or embedding similarity routes attention; it cannot conclude causation,
+contradiction, quality, or correct procedural transfer. Personality and user
+preferences do not change truth or permissions. No background learner, host,
+or imported skill may bypass the shared authority.
+
 ## The axis
 
 Experimental opt-in Python preparation now reaches the shared CLI/MCP

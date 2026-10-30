@@ -4,6 +4,14 @@
 
 Deepr is an agentic research platform that uses AI models to conduct deep research, build domain experts, and synthesize knowledge.
 
+The [persistent expert design](design/persistent-expert-agent.md) extends the
+existing Python expert and investigation seams with a planned bounded domain
+session. It separates identity, semantic/perspective memory, temporal history,
+episodes, procedures, and working context. The graph links canonical records;
+the wiki and retrieval indexes remain derived. External hosts own general
+workflow control. No new runtime, database, or host dependency ships through
+this design; [Supported Surface](SUPPORTED_SURFACE.md) governs current behavior.
+
 ## System Diagram
 
 ```mermaid

@@ -35,6 +35,16 @@ understand why it works the way it does.
 - **[CALIBRATION.md](CALIBRATION.md)** - Measured extraction-confidence calibration (reliability curve, ECE, threshold)
 - **[CHANGELOG.md](CHANGELOG.md)** - Version history
 
+## Persistent expert planning
+
+Read [what an expert is](design/what-an-expert-is.md), then the
+[connected memory and harness design](design/persistent-expert-agent.md),
+[primary-source research review](research/expert-agent-systems-2026-10-29.md), and
+[active delivery sequence](../ROADMAP.md#persistent-expert-agent-delivery).
+The [living-expertise plan](plans/living-expertise.md) retains promotion gates;
+[ADR 0008](decisions/0008-persistent-domain-agent-boundary.md) records the
+resumable domain-work boundary.
+
 ## Design notes and decisions (understanding why)
 
 The reasoning behind contract-spanning choices, kept versioned with the code.

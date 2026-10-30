@@ -83,6 +83,37 @@ Preserve failures and unreviewed cases. A passing fixture or a coherent change
 summary does not establish longitudinal benefit. Report negative or inconclusive
 comparisons with a fresh baseline without promoting a confidence or autonomy claim.
 
+## Connected expert workflow, 2026-10-29
+
+The expert is a persistent domain agent with identity, knowledge, temporal
+history, a readable wiki, episodic experience, reusable methods, and an agent
+loop. These components serve explanation, investigation, practical work,
+revision, and later reuse. [Persistent expert agents](../design/persistent-expert-agent.md)
+defines the contracts; [ROADMAP](../../ROADMAP.md#persistent-expert-agent-delivery)
+contains the only active implementation checklist.
+
+The release sequence below remains intact. Development should connect one
+supervised workflow across its seams rather than perfect isolated fact-checking
+steps before making an expert useful. S1 can expose read-only inquiry and
+candidate methods; S2 supplies durable reconciliation; S3 supplies reviewed
+method reuse and richer inquiry. A prototype spanning these concerns does not
+promote any stage early. Frozen S0 cases, old failed trials, and S4 held-out
+histories remain distinct. The existing offline-fixture exception still limits
+what can run before live collection is admitted.
+
+[ADR 0008](../decisions/0008-persistent-domain-agent-boundary.md) allows domain
+episodes to persist across bounded invocations. Continuity is not additional
+spend, tool, canonical-write, or external-action authority. General workflow
+scheduling and arbitrary actions stay in a host. Personality expresses style
+and working habits; it cannot overrule evidence or become a quality score.
+
+An additional development comparison separates stored/pipeline behavior,
+adaptive evidence use, and a fresh source-supplied model. Match model and
+admitted tools, freeze resource ceilings and review before collection, and
+report construction/maintenance overhead. This diagnoses a mechanism, not a
+replacement S0 protocol or proof of S4 benefit. Use new cases to avoid tuning
+only to the exposed local retry failure.
+
 ## Dependency order
 
 The immediate creation repair connects the existing research, study, brief and
@@ -503,6 +534,13 @@ late-arriving evidence, unknown validity, pinned environments, and obsolete
 near-matches. Rebuilding the current view and wiki preserves history and
 citations. A rejected admission leaves the previously committed state usable.
 
+Procedural candidates also require durable version identity, exact episode and
+observation references, target-state checks, and rollback before admission.
+This does not add skill execution authority. The temporal graph must distinguish
+known-at reads from retrospective world-time reads and carry eligibility through
+all dependencies and derived context; see the
+[temporal query contract](../design/persistent-expert-agent.md#temporal-knowledge-graph-contract).
+
 ### S3: develop a perspective and choose useful inquiry
 
 **Depends on:** S2 lineage and source-only study. Add a distinct synthesis step
@@ -531,6 +569,14 @@ and an outcome record does not establish that advice caused the result.
 propagates to applicable guidance; sound older understanding remains; a caller
 can trace why a perspective changed and what remains unresolved. Resolving a
 prediction cannot itself change confidence, prompts, routing, or policy.
+
+Review reusable methods alongside perspective: applicability, inputs, steps,
+expected observations, counterexamples, known failures, and originating episode
+references. Scoped reuse should improve the expert's actual investigation or
+work product. A method can be read as guidance without executing arbitrary
+code. Preserve method versions and retired variants through the owning
+research-practice/skill seam; exported instructions remain derived. See
+[procedural memory](../design/skills-as-learning-systems.md).
 
 ### S4: demonstrate repeated use and supervised renewal
 

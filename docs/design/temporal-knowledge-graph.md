@@ -1,5 +1,12 @@
 # Design: Temporal Knowledge Graph (graph-structured expert memory)
 
+> Historical implementation design: the original flat-store diagnosis below
+> predates current typed edges, event/history records, and read contracts. It is
+> not the current missing-feature inventory. The
+> [2026-10-29 temporal query contract](persistent-expert-agent.md#temporal-knowledge-graph-contract)
+> and S2 define remaining historical fidelity and evidence-use work. Keep the
+> existing stores; Event Memory V2 is not a prerequisite migration.
+
 Target: v2.14. Roadmap: Phase 4 "Graph-structured expert memory".
 Status: design. The query contracts shipped first (`what_changed`,
 `contested` in v2.13.1) deliberately, to fix the external surface before the

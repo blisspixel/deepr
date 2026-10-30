@@ -4,6 +4,21 @@
 
 ## Next round
 
+**Product direction, 2026-10-29:** build a persistent domain agent whose
+knowledge, temporal history, readable wiki, experience, methods, and perspective
+work together in a bounded research session. The next complete development
+slice is supervised explanation -> inquiry -> observation -> reviewed revision
+-> later reuse. A fact inventory or another isolated answer-quality repair is
+not the whole milestone. The [delivery sequence](#persistent-expert-agent-delivery)
+connects this work to S1-S4 without altering frozen trials or promoting autonomy.
+The [research review](docs/research/expert-agent-systems-2026-10-29.md) compares
+Paperclip, Pi, Hermes, Grok, Graphiti, and research/memory systems.
+
+The diagnostic work below remains necessary evidence, not the definition of
+an expert. Implement its repairs within that larger workflow. The retained
+local learning trial failed one subsequent-evidence-use obligation; it did not
+disprove persistent experts. Runtime changes require their own tests and gates.
+
 **What is next and why (2026-10-28, v2.51.4).** Collections 001 to 008 of
 the [diagnostic record](docs/validation/advice-representation-2026-10-27.md)
 are complete. None met its frozen improvement rule except one exposed repeat,
@@ -559,12 +574,92 @@ comparative-quality acceptance and does not relabel the failed development.
 | --- | --- | --- |
 | **v2.51 / S0: baseline evidence** | One reviewed four-arm comparison of fresh research, static history, compiled state, and maintained state. | Reuse completed source preflight and operational evidence. Finish isolated inventories and exact blinded answer bindings, retain all 48 terminal cells, and publish separate quality, stale-reuse, transfer, effort, and cost results. A negative result can complete measurement; it cannot justify more autonomy. |
 | **v2.52 / S1: prepared consultation** | Normal CLI/MCP consultation checks relevant current developments before answering, with scoped reuse and explicit offline behavior. | Frozen S0 protocol; one shared preparation service; bounded current-source acquisition; dated context; partial/failure disclosure; no canonical expert mutation. Reviewed preparation-on/off cases and a bounded live-source smoke pass before default-on promotion. |
-| **v2.53 / S2: durable temporal learning** | Learning survives repeated study and answers use the applicable evidence and version. | Finding revision history, separate source study and reviewed reconciliation, consistent historical snapshots, citation lineage, replay and crash recovery. Later observations cannot leak into strict historical reads. Existing position history and prediction registration are reused. |
-| **v2.54 / S3: perspective and inquiry** | The expert explains connections, revises guidance, preserves dissent, and proposes useful next investigations. | S2 lineage; distinct synthesis over admitted evidence and prior perspective; navigable derived wiki; explicit change summaries; reviewed prediction resolutions and exact experience links. Resolution alone changes no policy or confidence. |
+| **v2.53 / S2: durable temporal learning** | Episode evidence becomes reviewed learning that survives repeated study and answers use the applicable evidence and version. | Finding revision history, separate source study and reviewed reconciliation, consistent historical snapshots, citation lineage, replay and crash recovery. Later observations cannot leak into strict historical reads. Existing position history and prediction registration are reused. |
+| **v2.54 / S3: perspective and inquiry** | The expert explains connections, revises guidance, preserves dissent, reuses reviewed methods, and chooses useful next investigations. | S2 lineage; distinct synthesis over admitted evidence and prior perspective; navigable derived wiki; explicit change summaries; reviewed prediction resolutions and exact experience links. Resolution alone changes no policy or confidence. |
 | **v2.55 / S4: repeated-use proof** | One maintained expert demonstrates useful, current guidance through supervised renewal on a new held-out history. | S1-S3 and the preserved baseline. Separate memory and preparation effects, report total resources and harms, calibrate semantic review, and preserve null results. Unreviewed or inconclusive trials keep the value gate open. |
 | **Later 2.x / S5: earned expansion** | Bounded currency maintenance, then research-strategy improvement where evidence supports it. | S4 benefit plus recovery, capacity, shadow comparison, retained-capability checks, and rollback. New models and policies require revalidation. |
 | **Deferred, no release assigned** | Remaining paid parent transactions, host observation, remote controls, external workspace evidence, larger councils, and additional adapters. | Each must remove a demonstrated limitation and pass its own authority gate. These are not dependencies of S1-S4. Existing attended one-shot research remains a separate bounded surface. |
 | **v3.0** | Freeze the proven portable expert contract. | Stable Approach and Supported Surface, migration guarantees, validated continuity, and only the maturity gates actually demonstrated. A major version does not imply all experimental authority is enabled. |
+
+### Persistent expert agent delivery
+
+The [design](docs/design/persistent-expert-agent.md) specifies the target and
+[ADR 0008](docs/decisions/0008-persistent-domain-agent-boundary.md) replaces the
+synchronous-only architecture restriction. Deepr may own resumable domain
+research; external hosts own general workflow coordination and external
+execution. This is a planning decision, not a newly executable session.
+
+The increments below connect existing S1-S3 development to S4 evidence, not new
+release versions or a second maturity ladder. Start with contract and offline
+fixtures; keep development cases separate from frozen S0 and S4 evaluation.
+Existing live-collection, canonical-write, default-on, and autonomy gates still
+apply. Completing a prototype does not complete a release gate.
+
+- [ ] **Contract and failure map (S1-S2 foundation).** Specify the additive
+  episode schema and map it onto existing investigation storage, run states,
+  CLI/MCP callers, and profile/trace/outcome identities. Specify exact
+  observation delivery, full position justification and finding revisions,
+  and query semantics for current, known-at, and retrospective views. Reuse
+  [Position V2](docs/design/position-justification-and-explanation.md), rather
+  than adding a second argument or event store. Exit: reviewed schemas,
+  migration/rollback plan, mock tools, and fixtures for the retained retry
+  failure, late evidence, interrupted writes, and changed canonical versions.
+- [ ] **Read-only adaptive expert session (S1 development).** Connect compact
+  identity, relevant memory, original-source reads, temporal inspection,
+  research-practice pointers, and admitted preparation under one cumulative
+  envelope. The model chooses useful steps; CLI/MCP share one service. Initial
+  fixtures are local and synthetic; no wider source or tool authority is
+  implied. Exit: useful explanations and investigation proposals, exact
+  per-turn context, bounded continuation, cold restart, and visible partial,
+  blocked, cancelled, and failed outcomes. Staged learning remains unapplied.
+- [ ] **Experience and temporal revision (S2).** Join a question and answer to
+  attributed experiment/outcome evidence and candidate revisions. Preserve
+  original and revised findings, complete rationale, scope, dissent, dates,
+  and downstream guidance needing reconsideration. Explicit review/apply
+  rechecks target revisions and rebuilds derived views. Exit: fresh-process
+  use of the admitted change, no future leakage, repeat-apply integrity,
+  conflict/recovery evidence, and retention of still-valid understanding.
+- [ ] **Procedural memory and inquiry (S3, designed with the first slice).**
+  Stage methods from episodes with applicability, inputs, observations,
+  counterexamples, evidence, and rollback. Review before admission and scoped
+  reuse; reading a method does not unblock code or skill execution. Let the
+  expert choose a useful next inquiry and produce a work artifact. Exit:
+  reasoned procedure selection, appropriate transfer and non-transfer, useful
+  dissent, identity/style continuity, and no invented experience or authority.
+- [ ] **One supervised local workflow (development evidence).** Freeze a new
+  bounded protocol comparing existing behavior, adaptive episode, and a fresh
+  source-supplied model with equivalent tools and declared resource ceilings.
+  Use the old retry failure as exposed regression evidence, then separate new
+  cases. Include explanation/design tasks, weak contrary evidence, unrelated
+  memory, and method misuse. Review model capability separately from retrieval
+  and persistence. Exit: retained observations, answers, accountable semantic
+  reviews, resource totals, and a named next repair or supported narrow result.
+  This is not a replacement for S0 or S4, and cannot qualify its own exposed cases.
+- [ ] **Repeated-use and expansion decision (S4).** On a new held-out history,
+  test useful work, correction, retained understanding, procedural transfer,
+  effort and cost against the preserved baseline. Add retrieval/method
+  ablations only to identify a mechanism. Calibrate review, predeclare harm
+  tolerances, and retain null results. Only demonstrated benefit can motivate
+  S5 maintenance expansion or autonomous strategy changes.
+
+**First engineering checkpoint:** the contract/failure-map row, including
+justification/history fidelity and exact observation context. It should yield
+small owner-specific implementation PRs, not a new generic agent platform.
+No new model trial is needed to write the contract; live trials follow their
+existing explicit admission and frozen-protocol requirements.
+
+**Remaining-roadmap triage:** keep S0 baseline evidence, S1 preparation, S2
+history/reconciliation, S3 perspective/inquiry, and S4 repeated-use proof.
+Bring episode continuity and procedural candidates into the connected
+supervised development flow. Keep retrieval/embedding and TKG work tied to
+actual evidence-use queries; keep personality separate from capability grades.
+Defer larger councils, fleet-wide schedules, hosted companions, additional
+adapters, multi-device mutation, universal event-store migration, and graph
+service adoption until a measured need and their authority gates are met.
+Do not build organizational charts, arbitrary tool runtimes, or a self-modifying
+agent OS as prerequisites. Earlier phase lists below are retained context;
+they do not outrank this active sequence or make historical capability claims
+current. No roadmap item is complete merely because it now has a design.
 
 ### Living expertise and evolving perspective
 
@@ -2526,7 +2621,7 @@ The gate targets below are firm commitments, not a soft "raise it when convenien
   - 2026-07-08: the importable `deepr.skills` package is now the twelfth blocking strict island. It was already strict-clean; the local no-incremental strict probe passed for `src/deepr/skills`, focused skill packager, per-expert export, and property tests passed, and bundled hyphenated skill tool resource scripts remain outside this scoped island until their duplicate-module/import shape is normalized.
 - [ ] Deferred semantic migrations currently ignored in Ruff: `UP042` (str-enum -> `StrEnum`) - applied deliberately, not by blanket autofix. 2026-10-28: `B905` (each `zip` decided individually) and `UP047` (no findings) are now enforced.
 - [x] Enable `--cov-branch` (branch baseline 78%, raised to 80% gate); `fail_under = 80`, ratcheting 80 -> 85 -> 90 -> 95 as branch tests land
-- [x] `C901` complexity cap (max-complexity 10) and the security `S` rules surfaced as advisory CI signals, then put under a **blocking no-growth ratchet** in Phase Q0 (2026-06-12): the current counts (C901 134, S 53) are baselined and CI fails if either grows. Full promotion to blocking `select` (cap to 10, `S` clean) is Phase Q4 as the backlog is refactored down. See [Phase Q](#phase-q-code-health-hardening-foundational-continuous).
+- [x] `C901` complexity cap (max-complexity 10) and the security `S` rules surfaced as advisory CI signals, then put under a **blocking no-growth ratchet** in Phase Q0 (2026-06-12): the current counts (C901 134, S 53) are baselined and CI fails if either grows. Full promotion to blocking `select` (cap to 10, `S` clean) is Phase Q4 as the backlog is refactored down. See [Phase Q](#phase-q-code-health-hardening-deprioritized---this-is-the-churn-track).
 - [ ] "Parse, don't validate" pass: strict Pydantic (`strict=True, extra='forbid'`) at boundaries + targeted kernel invariant assertions (budget, append-only ledger, citation provenance, generated-artifact regenerability)
 - [x] Mutation testing (mutmut) wired as a scheduled/on-demand non-blocking job over kernel modules (`[tool.mutmut]` scope: core/, cost ledger, cost safety); establish + raise the mutation score next
 - [ ] Expand Hypothesis to property-based + stateful tests on kernel lifecycles (budget ledger, expert/belief state, queue)
@@ -2894,12 +2989,16 @@ checkpointing; a new always-on engine violates the heavy-infra non-goal (see
 Phase 4b). (3) *Neo4j/GraphRAG community summarization* - re-derives structure
 Deepr already has, loses on factual lookup in independent benchmarks, and breaks
 the $0 read path; revisit only past tens-of-thousands of beliefs per expert.
-(4) *Internal supervisor graph* - violates the not-the-orchestrator non-goal;
-the bounded council synthesizer is the only "supervisor" Deepr should own.
-(5) *Letta-style self-editing memory* - puts the model in the write loop, which
-defeats trust ceilings. Sharpest honest positioning that came out of it:
-**"experts, not memories"** - keep "epistemic," drop "operating system" (an
-over-reach for a solo project; Letta/MemOS already own the "OS" label).
+(4) *Internal supervisor graph* - the June review rejected this broadly.
+**2026-10-29 correction:** bounded model-directed domain work and research teams
+are in scope under [ADR 0008](docs/decisions/0008-persistent-domain-agent-boundary.md);
+general organizational orchestration remains host-owned. A council synthesizer
+is not the only permissible domain controller.
+(5) *Unrestricted self-editing memory* remains rejected. Model-proposed knowledge,
+perspective, and procedural changes with separate admission are in scope.
+External memory is part of expertise, not its opposite. The earlier claim that
+semantic recall was the only gap is superseded by the
+[persistent expert design](docs/design/persistent-expert-agent.md).
 
 - [x] Verified expert-loop control substrate (shipped v2.17): loop admission,
       schema-versioned `ExpertLoopRun` records, typed stop reasons,
@@ -4365,9 +4464,9 @@ A mock panel (business buyer, indie hacker, enterprise AI architect, research sc
 Explicitly out of scope:
 
 - **General-purpose chat** - Expert chat is domain-focused; for open-ended conversation, use ChatGPT, Claude, Gemini, etc.
-- **Workflow orchestration** - Deepr experts are roles that participate in multi-agent teams, but Deepr is not the orchestrator. It handles its domain (research, knowledge, gap detection) and hands off cleanly. Workflow coordination belongs to a separate orchestration layer. Sharpened boundary (dogfood-derived, [agentic-harness-boundary.md](docs/design/agentic-harness-boundary.md)): Deepr *is* agentic, but only **within a single bounded, idempotent knowledge transaction** (decompose -> consult its own experts -> reason -> verify -> one commit point, under hard budgets, returning one calibrated artifact). It must not own workflow state, cross-call retries/scheduling, or side effects beyond its own knowledge store - it recommends next actions; the calling harness decides and enacts.
-- **Real-time responses** - Deep research takes minutes by design; this is a feature, not a bug
-- **Sub-$1 comprehensive research** - Deep research requires substantial compute (use `--auto` for simple queries at $0.01)
+- **General workflow orchestration** - Deepr is a specialist role, not a company or cross-project task orchestrator. It may own bounded resumable domain episodes with cumulative limits, durable observations, and separately admitted memory revisions. External hosts own general scheduling and external actions. [ADR 0008](docs/decisions/0008-persistent-domain-agent-boundary.md) and the [harness boundary](docs/design/agentic-harness-boundary.md) supersede the former synchronous-only restriction without widening current runtime authority.
+- **Guaranteed instant deep research** - Bound effort to the question. Simple expert reads should be responsive; investigations may take longer and must expose progress, limits, and resumable outcomes.
+- **Universal cost or quality promises** - No fixed price guarantees comprehensive expertise. Owned-local provider cost, hardware use, latency, and review effort are distinct. There is no automatic metered fallback.
 - **Mobile apps** - CLI and web dashboard cover the use cases
 - **Unreliable features** - Nothing ships until it works consistently
 
@@ -4399,13 +4498,14 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.51.5. This roadmap keeps
-only active work and future criteria; completed
-items move to the changelog at release.
+v2.51.5. The active release plan governs work and future criteria; older
+phase notes retained below it are historical context, not a competing sequence.
+Completed items move to the changelog at release.
 
 The active dependency ladder is [Active Release Plan](#active-release-plan).
 Completed release history and superseded planning live in the changelog and
-published Git references, not in a competing roadmap section.
+published Git references; retained older notes do not establish current
+capability or override the active sequence.
 
 ---
 

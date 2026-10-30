@@ -5,9 +5,20 @@ shipped merely because it is described here.
 
 The current Deepr-specific integration decision is
 [external-harness-investigation-bridge.md](external-harness-investigation-bridge.md).
-It keeps persistent chat, cross-project orchestration, and computer workspaces
-in the external host while exposing Deepr's bounded investigation lifecycle
+It keeps general chat gateways, cross-project orchestration, and computer
+workspaces in the external host while exposing Deepr's bounded investigation lifecycle
 through a narrow, projection-first MCP profile.
+
+## October 29 direction update
+
+The [new research assessment](../research/expert-agent-systems-2026-10-29.md)
+compares pinned Paperclip, Pi, Hermes, and Graphiti sources with research-team
+and memory papers. [Persistent expert agents](persistent-expert-agent.md) now
+defines the connected domain session. Persistent expert interaction and
+resumable domain work may be owned by Deepr; general chat gateways, business
+workflow orchestration, and external workspaces remain host concerns. The
+September versions below are historical research pins, not current-version
+claims or newly qualified adapters.
 
 ## Goal
 

@@ -16,10 +16,13 @@ it does not establish that Deepr has reached either target.
 
 ## Product Frame
 
-Deepr is a deep research and understanding loop. A research run is not complete
-when a document is written. It is complete when evidence has been compiled into
-beliefs, gaps, contradictions, confidence, provenance, temporal context, and a
-next learning plan that can be reused by humans or agents.
+Deepr develops persistent domain agents through research, useful work, and
+reviewed learning. A run must report its actual outcome, evidence, limitations,
+and proposed next work. It can complete without admitting any memory change;
+a generated artifact or compiled state alone does not establish learning.
+The [persistent expert design](persistent-expert-agent.md) connects knowledge,
+experience, methods, identity, and bounded episodes. Its S-stage delivery does
+not imply that either maturity level has been reached.
 
 The direction is persistent, self-auditing understanding. Deepr experts should
 be able to answer "what do I know?", "why do I believe it?", "what changed my

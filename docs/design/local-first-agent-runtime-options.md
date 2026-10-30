@@ -4,6 +4,14 @@ Status: researched proposal, 2026-09-04. Default execution and authoritative
 expert state remain local. No cloud runtime, provisioning command, new
 authority contract, or automatic skill execution is introduced by this note.
 
+## Expert-first sequencing, 2026-10-29
+
+The [persistent expert design](persistent-expert-agent.md) is the immediate
+local interaction target: one domain episode connecting evidence inspection,
+research, outcomes, and reviewed methods. An integrated creator, Pi/Hermes
+adapter, Paperclip control plane, hosted companion, or new graph database is not
+a dependency. Existing S-stage promotion and execution gates remain unchanged.
+
 ## Decision
 
 Make a maintained Deepr expert easy to use as a durable role inside a local

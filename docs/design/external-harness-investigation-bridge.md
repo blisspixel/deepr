@@ -9,6 +9,18 @@ Read [AGENTIC_BALANCE.md](../plans/AGENTIC_BALANCE.md),
 [evidence-first-expert-investigations.md](evidence-first-expert-investigations.md)
 first.
 
+## Domain session amendment, 2026-10-29
+
+[ADR 0008](../decisions/0008-persistent-domain-agent-boundary.md) and the
+[persistent expert design](persistent-expert-agent.md) clarify that Deepr may
+own resumable domain episodes and expert interaction. This bridge still owns
+external-host integration, not the first local expert workflow. Paperclip is a
+control-plane reference, Pi a tool-loop reference, and Hermes a continuity and
+procedural-memory reference; see the [current research review](../research/expert-agent-systems-2026-10-29.md).
+No adapter is installed or qualified. The dated upstream versions below remain
+historical pins. General scheduling, workspaces, and external actions stay
+with the host; knowledge and procedure admission stay with Deepr.
+
 ## Decision
 
 Deepr should make its existing evidence-first investigation lifecycle easy for

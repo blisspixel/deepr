@@ -3,6 +3,16 @@
 Status: researched architecture proposal, updated 2026-07-22. No authority
 migration or multi-device merge is shipped.
 
+## Relationship to current delivery, 2026-10-29
+
+[Persistent expert agents](persistent-expert-agent.md) require explicit temporal
+query semantics and full justification/history fidelity through existing owners
+first. This proposal remains a later authority migration, not an S1-S4
+prerequisite. Do not make episode continuity depend on a universal event store,
+a graph database, or multi-device merge. Its eventual adoption requires shadow
+replay, migration/rollback evidence, and a demonstrated limitation of the
+incremental approach.
+
 ## Decision direction
 
 Durable expert memory should become a versioned bitemporal event system, not a

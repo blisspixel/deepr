@@ -24,6 +24,15 @@ is an expert that develops through study, judgment, experience, and reviewed
 revision, then performs better on future problems. Automatic outcome-driven
 learning and longitudinal proof of better judgment remain roadmap work.
 
+**The product target is a persistent domain agent.** An expert should be a
+continuing research partner with a recognizable style, evolving perspective,
+temporal knowledge, readable linked notes, experience, and reusable methods.
+It should choose useful inquiries and produce practical work, then carry
+reviewed learning into the next problem. The
+[persistent expert design](docs/design/persistent-expert-agent.md) connects these
+pieces through a bounded agent loop. That integrated session is planned; it
+does not yet replace the separate working commands below.
+
 The next user-facing milestone is **preparation before advice by default**:
 check developments relevant to the question and environment, reconsider the
 stored perspective, then answer from a dated context. Default consultation

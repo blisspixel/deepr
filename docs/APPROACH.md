@@ -1,6 +1,6 @@
 # Deepr approach contract
 
-Status: normative approach document for the open-source tool, updated 2026-09-20.
+Status: normative approach document for the open-source tool, updated 2026-10-29.
 
 | Question | Document |
 | --- | --- |
@@ -147,8 +147,12 @@ reconciliation does not, by itself, unfreeze paid capacity.
 
 ## 6. Epistemic state (what "expert" means here)
 
-An expert is **durable epistemic state plus bounded knowledge verbs**, not a
-chat persona and not a static FAQ.
+A Deepr expert is a **persistent domain-specialized agent** with retained
+knowledge, experience, reviewed methods, and a revisable perspective, acting
+through bounded capabilities. Identity and communication style provide
+continuity; they do not establish expertise. The target includes explanation,
+investigation, useful work, and learning across sessions. Current runtime
+support remains governed by Supported Surface.
 
 Its expertise includes accumulated research, conceptual understanding,
 reasoning, investigations, experience, and an evolving perspective. It should
@@ -164,7 +168,11 @@ it. Evidence-based retention of an older explanation is also a valid result.
 | Hypothesis | Predicted observations or disconfirming signals |
 | Gap / learning agenda | Why it is worth exploring |
 | Contradiction | Model-judged under calibrated checks, not keyword theater |
-| Temporal edge | When something was learned or changed, not only what |
+| Temporal edge | World-valid, observed, and recorded time remain distinguishable; historical reads cannot use later evidence. |
+| Experience | Attributed actions and observations linked to exact context and outcomes; success is not automatic causal proof. |
+| Procedure | Versioned, scoped method with examples, limits, evidence, review, and rollback; instructions do not grant execution. |
+| Identity and relationship | Purpose, style, preferences, and intellectual habits, separate from factual truth and capability authority. |
+| Working episode | Recoverable task state and remaining cumulative limits, separate from admitted expert memory. |
 
 Self-report from a model is evidence to interpret, never sole proof of
 correctness, maturity, or consciousness.
@@ -197,6 +205,14 @@ Deepr is designed to be **one specialist role**:
 - Default is shared process and shared contracts, not one OS process and
   recursive subagent stack per expert.
 
+A bounded domain episode may persist across invocations. Each continuation
+revalidates authority and retains cumulative resources; checkpoints do not
+admit knowledge. External hosts own general business workflows, scheduling
+triggers, and external actions. This refines the former synchronous-only
+boundary without widening runtime permissions. See
+[ADR 0008](decisions/0008-persistent-domain-agent-boundary.md) and
+[the expert design](design/persistent-expert-agent.md).
+
 ---
 
 ## 9. Surface classes (how to read the tree)
@@ -221,9 +237,11 @@ The method, independent of any single UI:
 1. **Define** an expert with purpose and scope.
 2. **Ingest** evidence (research, absorb, sync) under explicit capacity.
 3. **Compile** into canonical state (beliefs, gaps, edges, stance, ...).
-4. **Consult** with frozen or bounded context; preserve uncertainty and
-   dissent where relevant.
-5. **Revise** when new evidence or contradiction warrants it.
+4. **Work** on a question with bounded context and admitted tools: inspect,
+   explain, inquire, propose experiments, and produce useful artifacts.
+   Preserve observations, uncertainty, dissent, and resumable episode state.
+5. **Learn** from evidence and outcomes: propose scoped revisions to knowledge,
+   perspective, or methods, then apply through their separate admission gates.
 6. **Refresh** against unknown-wrongness (staleness, watchlists, re-checks).
 7. **Evaluate** with held-out or process measures where available; do not
    substitute graph size for proof.

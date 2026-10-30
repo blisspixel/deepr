@@ -1,184 +1,77 @@
 # Deepr Vision
 
-> **Note**: This document describes aspirational goals, not current capabilities. See [ROADMAP.md](../ROADMAP.md) for what's actually implemented.
+Status: aspirational direction, clarified 2026-10-29. Current behavior is in
+[Supported Surface](SUPPORTED_SURFACE.md); active work is in
+[ROADMAP](../ROADMAP.md#persistent-expert-agent-delivery). This page is not a
+versioned capability inventory or permission to run a planned operation.
 
-## The Goal
+## The goal
 
-Transform research from isolated queries into cumulative understanding. Build systems that learn and improve over time.
+Build a continuing domain colleague whose research, experience, methods, and
+perspective accumulate across work with people and other agents. It should
+teach a subject, investigate an unfamiliar problem, propose useful tests,
+produce practical work, and explain what it learned and reconsidered.
 
-## Current State (v2.50.0)
+The expert has a recognizable identity and communication style. It develops
+judgment without pretending to possess human lived experience. Sound older
+understanding can survive new research; an opinion can change without losing
+continuity. Helpfulness includes reasoned disagreement and creative hypotheses
+with clear distinctions between evidence, interpretation, and analogy.
 
-What works today:
-- Write-free bounded provider-research preview and offline billing
-  reconciliation. Production metered dispatch remains blocked until provider-
-  authenticated account controls can be bound to the exact active credential.
-- Local Ollama and explicit non-metered plan-quota expert maintenance.
-- Persistent expert beliefs, gaps, provenance, temporal state, generated views,
-  and portable handoff artifacts.
-- One-shot local and explicit plan expert councils with dissent preservation
-  and proposal-only authority. API synthesis remains contract-only and blocked.
-- An eval-only structured local consult graph with frozen expert snapshots,
-  independent positions, exact completion accounting, and one require-all
-  synthesis. It does not replace the public consult or MCP contracts.
-- Experimental `$0` local expert investigations with independent research,
-  bounded blinded discussion, checking, synthesis, and separately staged
-  factual and non-factual learning.
-- MCP, A2A, web, CLI, cost-ledger, evaluation, and capacity-control substrates.
-- An enforced no-key test and coverage gate.
+## Connected memory and action
 
-Automatic paid fallback, hosted file/vector context, metered multi-call
-campaigns, standalone metered expert chat, and every production metered
-dispatch fail closed in the current release. [Supported Surface](SUPPORTED_SURFACE.md) is the
-current capability contract; the sections below describe direction and existing
-substrate, not permission to use a gated runtime path.
+A temporal knowledge graph connects concepts, evidence, relationships, and
+revisions. A readable wiki explains those connections and points to originals.
+Experience records preserve what was attempted and observed. Procedural memory
+preserves useful methods and their limits. Working memory preserves the current
+investigation. A bounded agent harness lets the model inspect and apply them.
 
-## Near-Term Vision (v2.9-3.0)
+The [persistent expert design](design/persistent-expert-agent.md) describes how
+these responsibilities connect through existing stores and runtime seams.
+Neither a graph database nor an external bot platform is required to establish
+that connection. Each should be adopted only for a demonstrated need.
 
-### Visible Thinking (Implemented substrate; metered chat gated)
+## The next complete experience
 
-Expert reasoning shown in real-time via ThinkingPanel:
-- Planning thoughts, tool calls, evidence found, decisions
-- Confidence levels per step
-- Collapsible panel auto-expands during streaming, summarizes after completion
-- `/thinking on/off` toggle, `/trace` for full reasoning chain, `/why` for last decision
+One local expert should carry a supervised workflow through explanation,
+inquiry, observation, reviewed revision, and later reuse. It should open source
+detail when needed, retain counterevidence, propose a scoped reusable method,
+and resume after interruption. Human or calibrated review must assess whether
+its work is useful, whether revision is warranted, and whether transfer holds.
 
-### Persistent Memory (Implemented)
+The local trial established operational persistence but failed later evidence
+use. It is a repair target, not a verdict against the product. The next plan
+separates model limitations, context delivery, reconciliation, and harness
+behavior rather than assuming a larger model or memory store solves them all.
 
-Experts remember across sessions:
-- Hierarchical memory with conversation episodes
-- `/remember` to pin facts, `/forget` to remove, `/memories` to list
-- Conversation history browsable and resumable via Conversations API
-- Learning history tracked permanently
+## Teams and broader autonomy
 
-### Context Compaction (Implemented substrate; metered chat gated)
+Useful research teams can divide independent questions and compare competing
+explanations under shared limits. General business orchestration, scheduling,
+and external workspaces belong to optional hosts. Deepr owns its domain work,
+knowledge, identity, and learning admission. Paperclip, Pi, Hermes, Grok, and
+memory/research systems provide complementary references in the
+[research assessment](research/expert-agent-systems-2026-10-29.md).
 
-Long sessions stay usable:
-- `/compact` summarizes earlier messages while keeping recent context
-- Auto-suggest after 30+ messages or 80K+ estimated tokens
-- Structured summary preserves key facts, decisions, and open questions
+Fleet maintenance, remote availability, automatic strategy improvement, and
+new execution capabilities follow demonstrated benefit and their own authority
+gates. A successful supervised workflow does not automatically permit
+unattended learning, arbitrary tools, or paid fallback.
 
-### Graph-Based Knowledge
+## Further exploration
 
-Replace flat vector search with relationship-aware retrieval:
-- Understand connections between concepts
-- Traverse knowledge graphs
-- Answer "how" and "why" questions better
-- Temporal dimension: track *when* findings were discovered, not just what (implemented via `TemporalKnowledgeTracker`)
-- Context chaining: output of phase N becomes structured input for phase N+1 (implemented via `ContextChainer`)
+Epistemic simulations and historically grounded method lenses can support
+labeled hypothetical reasoning. They must preserve branch boundaries,
+source qualifications, and the difference between simulated and observed
+experience. See [simulation experts](design/epistemic-simulation-experts.md)
+and [historical perspectives](design/historically-grounded-perspectives.md).
+These do not displace the first persistent-expert workflow.
 
-### Self-Correction
+## What would make this exceptional
 
-Detect and fix errors automatically:
-- Contradiction detection
-- Claim verification
-- Confidence decay for outdated info
-- Entropy-based stopping (implemented via `EntropyStoppingCriteria`)
-- Meta-cognitive evaluation (implemented via `InformationGainTracker`)
-
-## Long-Term Vision (v3.0+)
-
-### Self-Improving Experts
-
-Experts that genuinely evolve:
-- Update beliefs when evidence contradicts them
-- Track belief provenance over time
-- Express honest uncertainty
-
-### Epistemic Simulation Experts
-
-Planned experts that can explore perspectives and worlds not fully recoverable
-from public web evidence:
-
-- Historically grounded method lenses without impersonation
-- Future-facing scenarios with explicit assumptions, predictions, and backcasts
-- Nonhuman or higher-dimensional method lenses without origin or consciousness
-  claims
-- Separate factual, perspective, simulation, episodic, and governance memory
-- Branch-scoped TKG reasoning that cannot silently become factual authority
-- Anonymous method, counterfactual-transfer, belief-revision, and outcome tests
-  before any lens is described as exceptional
-
-The goal is evidence-governed imagination, not a personality catalog. See
-[epistemic-simulation-experts.md](design/epistemic-simulation-experts.md) and
-[epistemic-simulation-evaluation.md](design/epistemic-simulation-evaluation.md).
-
-### Autonomous Research Agent
-
-Systems that identify research needs without prompting:
-- Monitor domains for changes
-- Prioritize learning based on usage patterns
-- Self-assess quality
-
-### Cross-Expert Collaboration (Partial)
-
-Experts that consult each other:
-- Expert council implemented: `/council` queries multiple experts in parallel and synthesizes perspectives
-- Knowledge transfer between domains via council synthesis
-- Collaborative synthesis with agreement/disagreement analysis
-- Remaining: persistent cross-expert knowledge sharing, automatic expert-to-expert delegation
-
-## Design Principles
-
-### Quality Over Automation
-
-- Notify, don't auto-inject
-- Bias toward over-research
-- Transparent by default
-- Human judgment for quality, machine execution for scale
-
-### Incremental Autonomy
-
-Build trust before adding autonomy:
-1. First: Make reasoning visible
-2. Then: Enable self-improvement
-3. Never: Sacrifice quality for automation
-
-### Local-First
-
-- User controls their data
-- No vendor lock-in
-- Best tool for each task
-
-### Secure Autonomy
-
-As agents gain more autonomy (agentic mode, MCP tool access), security becomes critical:
-- Defense in depth (sandboxing, verification, permission boundaries)
-- Read-only by default, write requires explicit consent
-- Cryptographic verification of tool outputs
-- Budget enforcement to prevent runaway costs
-
-## What We're Not Building
-
-- General-purpose chat (expert chat is domain-focused; for open-ended conversation, use ChatGPT etc.)
-- Real-time responses (deep research takes time)
-- Sub-$1 research (comprehensive research costs money)
-- Mobile apps
-- Complex export formats
-- Features that might not work reliably
-
-## The Core Idea
-
-Research is more useful when it builds on itself. Deepr tries to connect research across sessions so each query benefits from prior work.
-
-- Isolated queries produce isolated answers
-- Connecting queries produces broader context
-- Context chaining links multiple research phases
-- Agentic planning sequences research automatically
-
-This is an ongoing effort. Results vary depending on query complexity and document quality.
-
-## Contributing
-
-High-value areas for the vision:
-- Context chaining logic
-- Synthesis prompts
-- Cost optimization
-- Knowledge graph integration
-
-Most impactful work is on the intelligence layer, not infrastructure.
-
-## See Also
-
-- [ROADMAP.md](../ROADMAP.md) - What's being built now
-- [ARCHITECTURE.md](ARCHITECTURE.md) - Technical details
-- [EXPERTS.md](EXPERTS.md) - Expert system guide
+Useful explanations and work, warranted discoveries, transparent revision,
+reliable continuity, scoped procedural transfer, and less repeated effort.
+Temporal correctness and readable memory serve these outcomes. Claims of
+improvement require held-out repeated-use evidence with cost, latency, and
+harms reported separately. The [living-expertise gates](plans/living-expertise.md)
+make that ambition testable without reducing expertise to a fact-check score.

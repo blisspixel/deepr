@@ -36,3 +36,4 @@ gate; it is a memory aid.
 | [0005](0005-protocol-neutral-expert-conversation-handles.md) | Protocol-neutral handles for expert conversations | Accepted |
 | [0006](0006-epistemic-simulation-memory-authority.md) | Epistemic simulation memory authority | Proposed |
 | [0007](0007-wallet-and-job-ceilings.md) | Separate cumulative wallet credits from per-job ceilings | Accepted |
+| [0008](0008-persistent-domain-agent-boundary.md) | Persistent domain agents with bounded research episodes | Accepted direction; runtime gated |
