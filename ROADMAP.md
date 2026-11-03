@@ -1074,7 +1074,13 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.51.5)
+## Current Status (v2.51.6)
+
+v2.51.6 upgrades locked transitive `pyasn1` from 0.6.4 to 0.6.5. Four
+high-severity denial-of-service advisories in BER/CER/DER decoding
+(CVE-2026-119194, CVE-2026-119195, CVE-2026-119196, CVE-2026-119197) are
+fixed in 0.6.5. `rsa` 4.7.2 and `pyasn1-modules` 0.4.2 stay put. No spend,
+provider, or consultation behavior changes.
 
 v2.51.5 declares `packaging` (and `urllib3`, and `werkzeug` for the web extra)
 so opt-in preparation imports on a clean public install (#309); from v2.51.0
@@ -4498,7 +4504,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.51.5. The active release plan governs work and future criteria; older
+v2.51.6. The active release plan governs work and future criteria; older
 phase notes retained below it are historical context, not a competing sequence.
 Completed items move to the changelog at release.
 

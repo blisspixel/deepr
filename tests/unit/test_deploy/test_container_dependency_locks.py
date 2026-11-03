@@ -112,6 +112,16 @@ def test_filelock_metadata_and_lock_exclude_known_vulnerable_releases() -> None:
     assert all(Version(package["version"]) >= Version("4.2.4") for package in packages)
 
 
+def test_lock_excludes_vulnerable_pyasn1_decoder() -> None:
+    """CVE-2026-119194 through CVE-2026-119197 affect pyasn1 before 0.6.5."""
+    from importlib.metadata import version
+
+    lock = tomllib.loads((REPO_ROOT / "uv.lock").read_text(encoding="utf-8"))
+    packages = [package for package in lock["package"] if package["name"] == "pyasn1"]
+    assert packages
+    assert all(Version(package["version"]) >= Version("0.6.5") for package in packages)
+    assert Version(version("pyasn1")) >= Version("0.6.5")
+
 
 def test_dev_lock_excludes_virtualenv_bash_prompt_regression() -> None:
     """GHSA-cx6f-vjhg-g3cc affects generated Bash activators in 21.14.9-12."""
