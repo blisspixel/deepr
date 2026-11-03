@@ -1074,7 +1074,13 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.51.6)
+## Current Status (v2.51.7)
+
+v2.51.7 records `claude-sonnet-4-5` sunset 2026-11-30. Prefix matching covers
+`claude-sonnet-4-5-20250929`, and the API returns `model_shut_down` from that
+date. The successor is `anthropic/claude-sonnet-5-5`. Explicit requests keep
+the requested id. Opus 4.5 and Haiku 4.5 stay undated. The reference deploy
+allowlists name `gpt-5.6-sol` and `gpt-5.6-terra`.
 
 v2.51.6 upgrades locked transitive `pyasn1` from 0.6.4 to 0.6.5. Four
 high-severity denial-of-service advisories in BER/CER/DER decoding
@@ -4505,7 +4511,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.51.6. The active release plan governs work and future criteria; older
+v2.51.7. The active release plan governs work and future criteria; older
 phase notes retained below it are historical context, not a competing sequence.
 Completed items move to the changelog at release.
 

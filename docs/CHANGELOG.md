@@ -24,6 +24,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   follow-up to the roadmap. No runtime or authority changes; the trial does not
   establish improved expertise. See [the validation record](validation/local-expert-learning-workflow-2026-10-28.md).
 
+## [2.51.7] - 2026-11-03
+
+Patch release: record the Claude Sonnet 4.5 retirement and drop shut-down
+models from the reference deploy allowlists.
+
+### Fixed
+
+- Record `claude-sonnet-4-5` sunset 2026-11-30, checked on the Anthropic
+  deprecations page on 2026-11-03. Prefix matching covers
+  `claude-sonnet-4-5-20250929`. From that date the API returns
+  `model_shut_down` for the allowlisted snapshot. The successor is
+  `anthropic/claude-sonnet-5-5`. Explicit requests stay on the requested id
+  because Sonnet 5.5 is priced at $2/$10 and Sonnet 4.5 at $3/$15. Opus 4.5
+  and Haiku 4.5 stay undated: Anthropic lists both as active, with "not
+  sooner than" floors.
+- The shared deploy allowlist and the AWS, Azure, and GCP reference copies
+  now name `gpt-5.6-sol` and `gpt-5.6-terra`. A request that names a recorded
+  shut-down id receives `model_shut_down`. A test fails when any allowlist
+  entry is already past its recorded sunset. The reference handlers still
+  block metered execution before parsing. Their bundles do not install Deepr,
+  so the sunset import runs only on the path after that gate.
+
 ## [2.51.6] - 2026-11-03
 
 Patch release: upgrade transitive `pyasn1` to 0.6.5. No spend, gate, provider,

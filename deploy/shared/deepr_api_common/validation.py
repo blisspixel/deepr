@@ -7,15 +7,12 @@ from typing import Any
 # Constants
 MAX_PROMPT_LENGTH = 10000
 MAX_METADATA_SIZE = 4096
+# Current direct-API ids. The AWS, Azure, and GCP handlers copy this literal
+# because those reference bundles do not install this package. A test rejects
+# any drift and any entry whose recorded sunset is already past.
 VALID_MODELS = [
     "gpt-5.6-sol",
     "gpt-5.6-terra",
-    "o4-mini-deep-research",
-    "o3-deep-research",
-    "gemini-2.0-flash-thinking-exp",
-    "gemini-2.5-pro-exp-03-25",
-    "grok-3-mini-fast",
-    "grok-3-fast",
 ]
 VALID_STATUSES = ["queued", "running", "completed", "failed", "cancelled"]
 UUID_PATTERN = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
@@ -60,8 +57,11 @@ def validate_model(model: str | None) -> tuple[bool, str, str | None]:
     """
     if model is None:
         return True, "gpt-5.6-sol", None
-    if model not in VALID_MODELS:
-        return False, "", f"Invalid model. Valid options: {', '.join(VALID_MODELS)}"
+    from deepr.routing.deprecation import model_submission_error
+
+    error = model_submission_error(model, VALID_MODELS)
+    if error is not None:
+        return False, "", error["error"]
     return True, model, None
 
 

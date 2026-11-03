@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.51.6-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.51.6)
+[![Version](https://img.shields.io/badge/version-2.51.7-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.51.7)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -316,6 +316,12 @@ eras and published Agent Plugins `1.0.0`. See the
 for tested behavior and the distinction from draft standards and host certification.
 
 ## Direction
+
+v2.51.7 records the Claude Sonnet 4.5 retirement on 2026-11-30, including
+`claude-sonnet-4-5-20250929`. From that date the API returns
+`model_shut_down`. Explicit requests stay on the requested id. Opus 4.5 and
+Haiku 4.5 stay undated. The reference deploy allowlists name `gpt-5.6-sol`
+and `gpt-5.6-terra`.
 
 v2.51.6 upgrades the locked transitive `pyasn1` from 0.6.4 to 0.6.5. The
 0.6.4 decoder has four high-severity denial-of-service advisories

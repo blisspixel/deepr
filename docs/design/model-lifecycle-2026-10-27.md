@@ -156,6 +156,20 @@ pinned `anthropic/claude-sonnet-5` route. Whether OpenRouter's Anthropic
 endpoint accepts a non-default temperature for a Claude 4.7+ class model was
 not verified; the likely failure is a refused route, not an unexpected bill.
 
+## Sonnet 4.5 sunset, recorded 2026-11-03
+
+The Anthropic deprecations page, fetched 2026-11-03, lists
+`claude-sonnet-4-5-20250929` as deprecated on 2026-09-30 with retirement date
+2026-11-30 and replacement `claude-sonnet-5-5`. `DEPRECATION_REGISTRY` records
+`claude-sonnet-4-5` with that sunset, prefix matching, and
+`auto_migrate=False`. Opus 4.5 (`claude-opus-4-5-20251101`) and Haiku 4.5
+(`claude-haiku-4-5-20251001`) are active on that page. Their tentative dates
+are "not sooner than" floors, so those ids still have no Deepr sunset.
+
+The reference deploy allowlists name `gpt-5.6-sol` and `gpt-5.6-terra`.
+Recorded shut-down ids receive `model_shut_down` from this registry. The
+handlers remain reference-only and refuse metered execution before parsing.
+
 ## Unknowns and limits
 
 - Account access to the GPT-5.6 tiers and `gemini-3.8-flash` was not checked.

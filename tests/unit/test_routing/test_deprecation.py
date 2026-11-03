@@ -282,3 +282,39 @@ class TestOpenAILifecycle20261027:
         assert is_shutdown("o3", today=date(2026, 12, 11))
         assert not is_shutdown("gpt-4.1-mini", today=date(2027, 1, 13))
         assert is_shutdown("gpt-4.1-mini", today=date(2027, 1, 14))
+
+
+def test_claude_sonnet_4_5_sunset_covers_the_dated_snapshot():
+    """Anthropic retires claude-sonnet-4-5-20250929 on 2026-11-30."""
+    from datetime import date
+
+    from deepr.routing.deprecation import is_shutdown, model_submission_error
+
+    entry = check_deprecation("claude-sonnet-4-5-20250929")
+    assert entry is not None
+    assert entry.old_model == "claude-sonnet-4-5"
+    assert entry.sunset_date == "2026-11-30"
+    assert entry.new_model == "anthropic/claude-sonnet-5-5"
+    assert entry.auto_migrate is False
+    assert not is_shutdown("claude-sonnet-4-5", today=date(2026, 11, 29))
+    assert not is_shutdown("claude-sonnet-4-5-20250929", today=date(2026, 11, 29))
+    assert is_shutdown("claude-sonnet-4-5", today=date(2026, 11, 30))
+    assert is_shutdown("claude-sonnet-4-5-20250929", today=date(2026, 11, 30))
+    kept, _, warning = migrate_model("claude-sonnet-4-5-20250929")
+    assert kept == "claude-sonnet-4-5-20250929"
+    assert warning
+    for untouched in (
+        "claude-sonnet-4-6",
+        "claude-opus-4-5",
+        "claude-opus-4-5-20251101",
+        "claude-haiku-4-5",
+        "claude-haiku-4-5-20251001",
+    ):
+        assert check_deprecation(untouched) is None, untouched
+    refusal = model_submission_error(
+        "claude-sonnet-4-5-20250929",
+        ("gpt-5.6-sol",),
+        today=date(2026, 11, 30),
+    )
+    assert refusal is not None
+    assert refusal["error_code"] == "model_shut_down"
