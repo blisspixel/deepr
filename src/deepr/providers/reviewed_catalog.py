@@ -1,4 +1,4 @@
-"""Public releases reviewed 2026-10-06, pending Deepr adapter validation.
+"""Public releases reviewed 2026-10-06 and rechecked 2026-11-03.
 
 Owning sources and promotion limits: docs/design/provider-currency-2026-10.md.
 Metadata does not prove account access, request compatibility, or answer quality.
@@ -17,6 +17,8 @@ def _candidate(
     output_rate: float,
     cache_write_rate: float | None,
     qualification: str,
+    *,
+    reviewed_on: str = "2026-10-06",
 ) -> ModelCapability:
     return ModelCapability(
         provider=provider,
@@ -25,7 +27,7 @@ def _candidate(
         latency_ms=2500,
         context_window=context,
         specializations=["reasoning", "coding", "large_context"],
-        strengths=["Public API model listed by its provider on 2026-10-06"],
+        strengths=[f"Public API model listed by its provider on {reviewed_on}"],
         weaknesses=[
             "Preview only: request and settlement compatibility pending",
             "Latency placeholder (2500 ms), not benchmarked",
@@ -75,6 +77,30 @@ REVIEWED_CAPABILITIES: dict[str, ModelCapability] = {
         0.125,
         "922K max input; long-context rates above 272K; Chat tools require reasoning none",
     ),
+    "openai/gpt-6.1-terra": _candidate(
+        "openai",
+        "gpt-6.1-terra",
+        1_050_000,
+        128_000,
+        1.0,
+        0.05,
+        5.0,
+        1.25,
+        "922K max input; long-context rates above 272K; tools require Responses; 30-minute cache write",
+        reviewed_on="2026-11-03",
+    ),
+    "openai/gpt-6-sol": _candidate(
+        "openai",
+        "gpt-6-sol",
+        1_050_000,
+        128_000,
+        2.0,
+        0.20,
+        10.0,
+        2.5,
+        "922K max input; long-context rates above 272K; cache hit is $0.20; Chat tools require reasoning none",
+        reviewed_on="2026-11-03",
+    ),
     "anthropic/claude-fable-5-1": _candidate(
         "anthropic",
         "claude-fable-5-1",
@@ -103,10 +129,22 @@ REVIEWED_CAPABILITIES: dict[str, ModelCapability] = {
         1_000_000,
         128_000,
         2.0,
-        0.2,
+        0.10,
         10.0,
         2.5,
-        "Adaptive thinking; cache write is 5-minute price; 1-hour writes cost more",
+        "Adaptive thinking; cache hit is $0.10; cache write is the 5-minute price; 1-hour writes cost more",
+    ),
+    "anthropic/claude-haiku-5-5": _candidate(
+        "anthropic",
+        "claude-haiku-5-5",
+        1_000_000,
+        128_000,
+        0.50,
+        0.05,
+        2.50,
+        0.625,
+        "Over-100000-token tier is $0.50/$0.05/$2.50 with a $0.625 five-minute write. At or below 100000 tokens: $0.10/$0.01/$0.50 and a $0.125 write",
+        reviewed_on="2026-11-03",
     ),
     "xai/grok-4-7": _candidate(
         "xai",

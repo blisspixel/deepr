@@ -22,9 +22,12 @@ from deepr.routing.auto_mode import _enrich_with_provisional
         ("gpt-6-astra", 10.0, 1.0, 50.0),
         ("gpt-6.1-sol", 2.0, 0.1, 10.0),
         ("gpt-6-luna", 0.1, 0.01, 0.5),
+        ("gpt-6.1-terra", 1.0, 0.05, 5.0),
+        ("gpt-6-sol", 2.0, 0.2, 10.0),
         ("claude-fable-5-1", 10.0, 0.25, 50.0),
         ("claude-opus-5-5", 4.0, 0.2, 20.0),
-        ("claude-sonnet-5-5", 2.0, 0.2, 10.0),
+        ("claude-sonnet-5-5", 2.0, 0.1, 10.0),
+        ("claude-haiku-5-5", 0.5, 0.05, 2.5),
         ("grok-4.7", 2.0, 0.5, 6.0),
     ],
 )
@@ -36,7 +39,7 @@ def test_reviewed_releases_resolve_exact_prices(model, input_rate, cached_rate, 
     assert "/".join(identity) in REVIEWED_CAPABILITIES
 
 
-@pytest.mark.parametrize("model", ["gpt-6-astra", "gpt-6.1-sol", "gpt-6-luna"])
+@pytest.mark.parametrize("model", ["gpt-6-astra", "gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-sol", "gpt-6-luna"])
 def test_reviewed_openai_long_context_boundary(model):
     base = get_token_pricing(model)
     cached = get_cached_input_pricing(model)
@@ -48,6 +51,21 @@ def test_reviewed_openai_long_context_boundary(model):
         "output": base["output"] * 1.5,
     }
     assert get_cached_input_pricing(model, input_tokens=272_001) == pytest.approx(cached * 2)
+
+
+def test_haiku_5_5_keeps_the_over_100k_cap_for_short_prompts():
+    assert get_token_pricing("claude-haiku-5-5", input_tokens=100_000) == {"input": 0.5, "output": 2.5}
+    assert get_cached_input_pricing("claude-haiku-5-5", input_tokens=100_000) == pytest.approx(0.05)
+    capability = REVIEWED_CAPABILITIES["anthropic/claude-haiku-5-5"]
+    assert capability.cache_write_cost_per_1m == pytest.approx(0.625)
+    assert capability.context_window == 1_000_000
+    assert capability.max_output_tokens == 128_000
+    assert capability.preview_only
+
+
+def test_gpt_6_sol_cache_stays_distinct_from_gpt_6_1_sol():
+    assert get_cached_input_pricing("gpt-6-sol") == pytest.approx(0.2)
+    assert get_cached_input_pricing("gpt-6.1-sol") == pytest.approx(0.1)
 
 
 def test_reviewed_grok_uses_conservative_long_context_cap():
