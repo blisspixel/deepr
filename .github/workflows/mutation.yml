@@ -13,10 +13,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: mutation-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   mutmut:
     runs-on: ubuntu-latest
