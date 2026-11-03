@@ -1,7 +1,9 @@
 # Deepr Threat Model
 
-Status: current with Deepr v2.51.5. Last reviewed: 2026-10-19.
+Status: current with Deepr v2.51.6. Last reviewed: 2026-10-19.
 Compatible patch surface checked: 2026-10-22.
+Transitive `pyasn1` decoder advisories patched in the lock on 2026-11-03
+(0.6.5; CVE-2026-119194, CVE-2026-119195, CVE-2026-119196, CVE-2026-119197).
 Experimental preparation boundary reviewed: 2026-10-25 (source and synthetic tests).
 
 This document is the repository-scoped threat model for Deepr. It is intended

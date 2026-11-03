@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.51.5 current main, 2026-10-28. This document defines what users and host
+Status: v2.51.6 current main, 2026-11-03. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -18,6 +18,13 @@ local synthesis prompt is 20,000 characters and the expert's stored context
 keeps at least 4,000 of them; a prepared view that would breach that floor is
 refused before any answer call (#299). Brief excerpts are keyed by a corpus
 sha prefix that resolves without the prompt.
+
+**v2.51.6 locked decoder dependency:** transitive `pyasn1` is 0.6.5. Version
+0.6.4 is affected by CVE-2026-119194, CVE-2026-119195, CVE-2026-119196, and
+CVE-2026-119197 (high-severity denial of service while decoding BER, CER, or
+DER). `rsa` 4.7.2 and `pyasn1-modules` 0.4.2 are unchanged. The dashboard
+lock uses `follow-redirects` 1.16.2 (CVE-2026-116689). This does not
+change spend, provider, or consultation behavior.
 
 **v2.51.5 declared runtime imports:** opt-in preparation imports `packaging`,
 now a declared dependency; before v2.51.5, `--prepare` failed with

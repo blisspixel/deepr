@@ -24,6 +24,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   follow-up to the roadmap. No runtime or authority changes; the trial does not
   establish improved expertise. See [the validation record](validation/local-expert-learning-workflow-2026-10-28.md).
 
+## [2.51.6] - 2026-11-03
+
+Patch release: upgrade transitive `pyasn1` to 0.6.5. No spend, gate, provider,
+or consultation behavior changes.
+
+### Security
+
+- Upgraded locked transitive `pyasn1` from 0.6.4 to 0.6.5. `pip-audit` reports
+  four high-severity denial-of-service findings in 0.6.4 BER/CER/DER decoding,
+  all fixed in 0.6.5: CVE-2026-119194 (schemaless container tag tracking),
+  CVE-2026-119195 (constructed string and indefinite-length ANY),
+  CVE-2026-119196 (constructed BIT STRING reassembly), and CVE-2026-119197
+  (binary REAL mantissa).
+  Callers in this lock are `rsa` 4.7.2 and `pyasn1-modules` 0.4.2; neither
+  package version changed. No other third-party locked package changed
+  version. The 2026-10-30 `main` CI run audited this lock as clean. On
+  2026-11-03 the same 0.6.4 pin fails `pip-audit`. A lock test rejects
+  `pyasn1` older than 0.6.5.
+- Upgraded locked frontend `follow-redirects` from 1.16.1 to 1.16.2.
+  `axios` 1.20.0 requires `^1.16.0`. GHSA-mrwp-f3q8-3g9p (CVE-2026-116689)
+  affects 1.16.0 and 1.16.1: a cross-realm `sensitiveHeaders` array is
+  discarded, so a custom credential header can follow an attacker-controlled
+  cross-origin redirect. The advisory says Axios 1.20.0 normalizes that
+  array and the reported case did not reproduce through Axios. The npm
+  high audit still fails on 1.16.1, and 1.16.2 is the recorded fix. No
+  other frontend package changed version. Moderate `minimatch` findings
+  have no published fix and remain below the high audit gate.
+
 ## [2.51.5] - 2026-10-28
 
 Patch release: declare the runtime imports a clean install was missing. No

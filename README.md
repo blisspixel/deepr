@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.51.5-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.51.5)
+[![Version](https://img.shields.io/badge/version-2.51.6-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.51.6)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -316,6 +316,12 @@ eras and published Agent Plugins `1.0.0`. See the
 for tested behavior and the distinction from draft standards and host certification.
 
 ## Direction
+
+v2.51.6 upgrades the locked transitive `pyasn1` from 0.6.4 to 0.6.5. The
+0.6.4 decoder has four high-severity denial-of-service advisories
+(CVE-2026-119194, CVE-2026-119195, CVE-2026-119196, CVE-2026-119197). The
+dashboard lock moves `follow-redirects` from 1.16.1 to 1.16.2
+(CVE-2026-116689). No spend, provider, or consultation behavior changes.
 
 v2.51.5 makes opt-in preparation importable on a clean public install by
 declaring `packaging`, which it imported without declaring (#309).
