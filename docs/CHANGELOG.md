@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Rechecked Anthropic, OpenAI, xAI, Google, and the pinned OpenRouter routes
+  on 2026-11-03. Preview-only candidates now include `gpt-6.1-terra`,
+  `gpt-6-sol`, and `claude-haiku-5-5`. Claude Sonnet 5.5 cache hits are
+  `$0.10` per million tokens. The OpenRouter `openai/gpt-5.6-sol` cap is the
+  observed `$4/$0.40/$20` route, with a `$5` cache-write cap. Retired Grok
+  redirects follow the provider pages: non-reasoning fast ids go to
+  `grok-4.3`, `grok-code-fast-1` goes to `grok-build-0.1`, and
+  `grok-imagine-image-pro` goes to `grok-imagine-image-2.0`. No default,
+  spend gate, or deploy allowlist changed. See
+  [the currency review](design/provider-currency-2026-10.md).
+
 ### Documentation
 
 - Clarify persistent domain agents with complementary temporal, conceptual,

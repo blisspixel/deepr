@@ -1,6 +1,6 @@
 # Model Selection Guide
 
-Status: Deepr v2.50.38. Lifecycle notices reviewed 2026-10-27. Gemini lineup reviewed 2026-10-14. Broader currency review 2026-10-06.
+Status: Deepr v2.50.38. Lifecycle notices reviewed 2026-10-27. Gemini lineup reviewed 2026-10-14. Broader currency review 2026-10-06. Provider prices rechecked 2026-11-03.
 
 The source of truth for model IDs, pricing estimates, context windows, and
 routing metadata is [src/deepr/providers/registry.py](../src/deepr/providers/registry.py),
@@ -86,12 +86,12 @@ documentation; account access and Deepr compatibility still need proof.
 
 | Provider | Newest reviewed public candidates | Remaining compatibility work |
 |----------|----------------------------------|------------------------------|
-| OpenAI | `gpt-6-astra`, `gpt-6.1-sol`, `gpt-6-luna` | Reasoning settings, Responses versus Chat tool constraints, 922K input limit, cache writes, and settlement. |
-| Anthropic | `claude-fable-5-1`, `claude-opus-5-5`, `claude-sonnet-5-5` | Adaptive thinking, refusal accounting, and cache duration prices. Haiku 4.5 remains current. Mythos 5.1 is limited-access and absent. |
+| OpenAI | `gpt-6-astra`, `gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6-sol`, `gpt-6-luna` | Reasoning settings, Responses versus Chat tool constraints, 922K input limit, cache writes, and settlement. |
+| Anthropic | `claude-fable-5-1`, `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5` | Adaptive thinking, refusal accounting, and cache duration prices. Haiku 5.5 uses the over-100,000-token rates as its stored cap. Mythos 5.1 stays absent while access is limited. |
 | Google | `gemini-3.8-flash` | On 2026-10-06 this was still a preview candidate. It is now the selectable Gemini default. |
 | xAI | `grok-4-7` | Encrypted reasoning and long-context accounting. Product-only Grok 4.7 Fast is absent. |
 | Azure | Deployment-specific inventory | Published GPT-6 entries do not create verified deployments or globally selectable routes. |
-| OpenRouter | Six of seven existing route proposals pass the no-key check | The pinned DeepSeek endpoint is absent; that proposal is refused. No replacement upstream or new dispatch authority is introduced. |
+| OpenRouter | Four pinned routes passed the 2026-11-03 no-key check | Sol's cap now matches the observed OpenAI route. Qwen matches two Alibaba endpoints, Kimi's `mxfp4` tag is absent, and DeepSeek's pinned tag is absent. Those three stay refused. No replacement upstream or new dispatch authority is introduced. |
 
 See [the dated decision and sources](design/provider-currency-2026-10.md).
 The lock now uses OpenAI 3.26.0, Anthropic 1.11.0, Google GenAI 2.28.0,
@@ -162,7 +162,8 @@ Pricing notes:
   both preflight and settlement pricing.
 - Anthropic made Sonnet 5's $2 input and $10 output per MTok launch rates
   permanent. Deepr uses those current rates plus $0.20 cache hits and $2.50
-  five-minute cache writes.
+  five-minute cache writes. Sonnet 5.5 cache hits are $0.10 per MTok.
+  Haiku 5.5 is preview-only at the over-100,000-token rates.
 - Gemini free-tier and quota-inclusive entries are useful for setup guidance,
   but automatic routing still depends on the local Deepr capacity profile,
   provider keys, quota posture, and budget gates.
@@ -206,16 +207,16 @@ Pricing notes:
 
 ## Current Deepr Registry Snapshot
 
-The registry currently contains 82 models: 75 direct-provider entries across
+The registry currently contains 85 models: 78 direct-provider entries across
 OpenAI, Gemini, xAI, Anthropic, and Azure AI Foundry, plus seven OpenRouter
-routes that stay excluded from automatic routing. Seven direct-provider entries
-are the remaining October reviewed candidates, also excluded from automatic
-routing. `gemini-3.8-flash` left that candidate set and is now selectable.
+routes that stay excluded from automatic routing. Ten direct-provider entries
+are reviewed preview-only candidates, also excluded from automatic routing.
+`gemini-3.8-flash` left that candidate set and is now selectable.
 The lists below describe the established entries; run the
 offline command above for exact pricing and context values. The web
 Models page counts registry rows that are not deprecated or otherwise
 selection-blocked, not Azure AI Foundry deployments, and not image-generation
-entries. That count is 44, and it still includes preview-only rows.
+entries. That count is 47, and it still includes preview-only rows.
 
 ### OpenAI
 
@@ -426,12 +427,16 @@ preferred future long-lived source.
 Registered provider-route proposals checked on 2026-09-01:
 
 Rechecked 2026-10-06: the DeepSeek proposal no longer resolves to its pinned
-endpoint and is refused. The other six proposals pass the public metadata
-check. Public metadata eligibility does not authorize inference.
+endpoint and is refused. Rechecked 2026-11-03 without a key: Sol, Sonnet 5,
+Gemini 3.6 Flash, and Grok 4.6 pass. Sol's observed OpenAI route is
+`$4/$0.40/$20` with a `$5` cache write, and the cap now matches it. Qwen
+matches two Alibaba endpoints, and Kimi's pinned `mxfp4` tag is absent, so
+both stay refused with DeepSeek. Public metadata eligibility does not
+authorize inference.
 
 | Model slug | Current endpoint metadata tag | Input / output cap per 1M | Cached input cap per 1M | Cache-write cap per 1M |
 |---|---|---:|---:|---:|
-| `openai/gpt-5.6-sol` | `openai` | `$2.00 / $10.00` | `$0.20` | `$2.50` |
+| `openai/gpt-5.6-sol` | `openai` | `$4.00 / $20.00` | `$0.40` | `$5.00` |
 | `anthropic/claude-sonnet-5` | `anthropic` | `$2.00 / $10.00` | `$0.20` | `$4.00` |
 | `google/gemini-3.6-flash` | `google-ai-studio` | `$0.75 / $3.75` | `$0.075` | `$0.041667` |
 | `x-ai/grok-4.6` | `xai/zdr` | `$2.00 / $6.00` | `$0.50` | `$0.00` |

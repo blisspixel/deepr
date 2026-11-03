@@ -150,3 +150,66 @@ full offline unit suite and combined coverage gate on the updated lock, lint,
 format, strict types, ratchets, docs consistency, and paid-boundary checks.
 No paid provider request is part of this review. Passing these checks does not
 qualify the new models' advice or establish hosted CI success.
+
+## Rechecked 2026-11-03
+
+Primary pages read that day:
+
+- [OpenAI pricing](https://developers.openai.com/api/docs/pricing),
+  [GPT-6.1 Terra](https://developers.openai.com/api/docs/models/gpt-6.1-terra),
+  and [GPT-6 Sol](https://developers.openai.com/api/docs/models/gpt-6-sol).
+- [Claude pricing](https://platform.claude.com/docs/en/about-claude/pricing)
+  and [models overview](https://platform.claude.com/docs/en/about-claude/models/overview).
+- [Gemini pricing](https://aistudio.google.com/docs/pricing). The older
+  `ai.google.dev` pricing URL redirects here.
+- [xAI models](https://docs.x.ai/developers/models),
+  [May 15 retirement](https://docs.x.ai/developers/migration/may-15-retirement),
+  and [November 2 image retirement](https://docs.x.ai/developers/migration/imagine-image-quality-nov-2).
+- OpenRouter public endpoint metadata for the seven pinned slugs, with no API
+  key and no inference request.
+
+Standard short-context rates already in the selectable registry matched those
+pages for GPT-5.6 Sol, Terra, and Luna, GPT-5.5, GPT-5.4 and its mini and nano
+tiers, GPT-5.2, GPT-5, GPT-5 mini and nano, GPT-4.1, GPT-4.1 mini, GPT-4o,
+GPT-4o mini, and o3. Gemini 4 Argon and Gemini 3.8 Flash stay on the published
+post-discount caps (`$4/$20/$0.20` from 2026-12-01, and `$1.50/$7.50/$0.15`
+from 2027-01-01). Gemini 3.5 Flash-Lite matches `$0.30/$2.50/$0.03`. Grok 4.7,
+4.6, 4.5, 4.3, 4.20, and Build 0.1 match the below-200K rates, and the existing
+200K tier still doubles them.
+
+Corrections:
+
+- `claude-sonnet-5-5` cache hits are 5 percent of input, `$0.10`, and the
+  5-minute write stays `$2.50`. The reviewed row had kept the older 10 percent
+  cache hit.
+- `gpt-6.1-terra` (`$1/$0.05/$5`, 30-minute write `$1.25`) and `gpt-6-sol`
+  (`$2/$0.20/$10`, 30-minute write `$2.50`) are preview-only. Both use the
+  existing 272K long-context multipliers. `gpt-6-sol` cache hits stay `$0.20`.
+- `claude-haiku-5-5` is preview-only at the over-100,000-token rates,
+  `$0.50/$0.05/$2.50`, with a `$0.625` five-minute write. Prompts at or below
+  100,000 tokens are published at `$0.10/$0.01/$0.50` and a `$0.125` write.
+  The unscoped estimate keeps the higher tier.
+- The pinned OpenRouter `openai` route for `openai/gpt-5.6-sol` observed
+  `$4/$0.40/$20` and a `$5` cache write. The registered cap moves to those
+  observed rates. `anthropic/claude-sonnet-5`, `google/gemini-3.6-flash`, and
+  `x-ai/grok-4.6` still fit their caps. `qwen/qwen3.8-flash` now matches both
+  `alibaba` and `alibaba/us-east-1`, so it stays refused. `moonshotai/kimi-k3`
+  no longer has `moonshotai/mxfp4`; the first-party `moonshotai` tag is a
+  different route and is not substituted. `deepseek/deepseek-v4-flash-0731`
+  still has no `deepseek` tag.
+- May 15 Grok redirects: non-reasoning fast ids name `grok-4.3`, and
+  `grok-code-fast-1` names `grok-build-0.1`. `grok-imagine-image-pro` follows
+  the November 2 page to `grok-imagine-image-2.0`.
+
+Left unchanged on purpose:
+
+- Mythos 5.1, GPT cyber and Rosalind models, GPT-6 Astra for Law, Gemini Omni,
+  Gemini transcribe, and Gemini 3.5 Flash Cyber stay out. They are limited
+  access or a different product surface.
+- `registry.py` is at its grandfather cap, so missing cache fields on older
+  rows such as Sonnet 4.6 and Haiku 4.5 are not filled by growing that file.
+  Lookup returns no cache discount for those rows.
+- Selectable defaults, paid dispatch gates, and the reference deploy allowlist
+  stay as they were. New rows are `preview_only`.
+- The periodic model-discovery command remains planned. This recheck is a
+  sourced catalog correction, not that loop.

@@ -159,9 +159,9 @@ DEPRECATION_REGISTRY: dict[str, DeprecationEntry] = {
     ),
     "grok-4-1-fast-non-reasoning": DeprecationEntry(
         old_model="grok-4-1-fast-non-reasoning",
-        new_model="xai/grok-4-20-non-reasoning",
+        new_model="xai/grok-4-3",
         sunset_date="2026-05-15",
-        warning="Grok 4.1 Fast Non-Reasoning retires May 15, 2026. Successor: Grok 4.20 Non-Reasoning.",
+        warning="Grok 4.1 Fast Non-Reasoning retires May 15, 2026. Successor: Grok 4.3 with none reasoning effort.",
         auto_migrate=True,
     ),
     "grok-4-fast-reasoning": DeprecationEntry(
@@ -173,9 +173,9 @@ DEPRECATION_REGISTRY: dict[str, DeprecationEntry] = {
     ),
     "grok-4-fast-non-reasoning": DeprecationEntry(
         old_model="grok-4-fast-non-reasoning",
-        new_model="xai/grok-4-20-non-reasoning",
+        new_model="xai/grok-4-3",
         sunset_date="2026-05-15",
-        warning="Grok 4 Fast Non-Reasoning retires May 15, 2026. Successor: Grok 4.20 Non-Reasoning.",
+        warning="Grok 4 Fast Non-Reasoning retires May 15, 2026. Successor: Grok 4.3 with none reasoning effort.",
         auto_migrate=True,
     ),
     "grok-4-0709": DeprecationEntry(
@@ -187,9 +187,9 @@ DEPRECATION_REGISTRY: dict[str, DeprecationEntry] = {
     ),
     "grok-code-fast-1": DeprecationEntry(
         old_model="grok-code-fast-1",
-        new_model="xai/grok-4-3",
+        new_model="xai/grok-build-0.1",
         sunset_date="2026-05-15",
-        warning="Grok Code Fast 1 retires May 15, 2026. Successor: Grok 4.3.",
+        warning="Grok Code Fast 1 retires May 15, 2026. Successor: Grok Build 0.1.",
         auto_migrate=True,
     ),
     "grok-3": DeprecationEntry(
@@ -201,9 +201,12 @@ DEPRECATION_REGISTRY: dict[str, DeprecationEntry] = {
     ),
     "grok-imagine-image-pro": DeprecationEntry(
         old_model="grok-imagine-image-pro",
-        new_model="xai/grok-imagine-image",
+        new_model="xai/grok-imagine-image-2.0",
         sunset_date="2026-05-15",
-        warning="Grok Imagine Image Pro retires May 15, 2026. Successor: Grok Imagine Image.",
+        warning=(
+            "Grok Imagine Image Pro retires May 15, 2026. "
+            "On 2026-11-02 the redirect target is grok-imagine-image-2.0 at low quality."
+        ),
         auto_migrate=True,
     ),
     # Legacy Grok models (older deprecations)

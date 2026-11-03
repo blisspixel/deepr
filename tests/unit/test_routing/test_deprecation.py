@@ -95,6 +95,12 @@ class TestMigrateModel:
         assert confidence == 1.0
         assert warning is not None
 
+    def test_may_15_grok_successors_follow_the_provider_redirect(self):
+        assert migrate_model("grok-4-1-fast-non-reasoning")[0] == "grok-4-3"
+        assert migrate_model("grok-4-fast-non-reasoning")[0] == "grok-4-3"
+        assert migrate_model("grok-code-fast-1")[0] == "grok-build-0.1"
+        assert migrate_model("grok-imagine-image-pro")[0] == "grok-imagine-image-2.0"
+
     def test_current_model_unchanged(self):
         model, confidence, warning = migrate_model("gpt-5.4")
         assert model == "gpt-5.4"

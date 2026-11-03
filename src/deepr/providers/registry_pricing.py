@@ -34,6 +34,8 @@ _TIERED_PRICING: dict[str, _TokenPricingTier] = {
     "gpt-6-astra": _TokenPricingTier(272_000, 2.0, 1.5, inclusive=False),
     "gpt-6.1-sol": _TokenPricingTier(272_000, 2.0, 1.5, inclusive=False),
     "gpt-6-luna": _TokenPricingTier(272_000, 2.0, 1.5, inclusive=False),
+    "gpt-6.1-terra": _TokenPricingTier(272_000, 2.0, 1.5, inclusive=False),
+    "gpt-6-sol": _TokenPricingTier(272_000, 2.0, 1.5, inclusive=False),
     # GPT-5.6 applies the long-context rate only above 272K input tokens.
     "gpt-5.6-sol": _TokenPricingTier(272_000, 2.0, 1.5, inclusive=False),
     "gpt-5.6-terra": _TokenPricingTier(272_000, 2.0, 1.5, inclusive=False),

@@ -1,7 +1,8 @@
 """Dated, preview-only OpenRouter model and provider-route catalog.
 
 Prices are proposed request caps for one pinned provider route tag per model,
-checked against OpenRouter's public endpoint metadata on 2026-09-01.
+checked against OpenRouter's public endpoint metadata on 2026-09-01 and
+rechecked without a key on 2026-11-03.
 Only the separately authorized attended one-shot path can dispatch.
 """
 
@@ -11,16 +12,16 @@ OPENROUTER_CAPABILITIES: dict[str, ModelCapability] = {
     "openrouter/openai/gpt-5.6-sol": ModelCapability(
         provider="openrouter",
         model="openai/gpt-5.6-sol",
-        cost_per_query=0.20,
+        cost_per_query=0.40,
         latency_ms=2500,
         context_window=1_050_000,
         specializations=["reasoning", "coding", "agentic", "synthesis", "large_context"],
         strengths=["Exact OpenRouter slug", "OpenAI frontier model through one gateway"],
         weaknesses=["Preview only", "Catalog price and upstream availability can change"],
-        input_cost_per_1m=2.00,
-        output_cost_per_1m=10.00,
-        cached_input_cost_per_1m=0.20,
-        cache_write_cost_per_1m=2.50,
+        input_cost_per_1m=4.00,
+        output_cost_per_1m=20.00,
+        cached_input_cost_per_1m=0.40,
+        cache_write_cost_per_1m=5.00,
         max_output_tokens=128_000,
         preview_only=True,
     ),

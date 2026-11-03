@@ -207,7 +207,11 @@ def test_route_fails_when_cache_write_price_exceeds_registered_cap() -> None:
 
 def test_route_fails_when_cache_read_price_exceeds_registered_cache_cap() -> None:
     model = "openai/gpt-5.6-sol"
-    proof = evaluate_openrouter_endpoint_document(model, _document(model, cache_read_price=0.21))
+    capability = OPENROUTER_CAPABILITIES[f"openrouter/{model}"]
+    proof = evaluate_openrouter_endpoint_document(
+        model,
+        _document(model, cache_read_price=(capability.cached_input_cost_per_1m or 0.0) + 0.01),
+    )
     assert proof.catalog_eligible is False
     assert any("cache-read price" in failure for failure in proof.failures)
 
@@ -215,7 +219,10 @@ def test_route_fails_when_cache_read_price_exceeds_registered_cache_cap() -> Non
 @pytest.mark.parametrize(
     ("changes", "failure"),
     [
-        ({"reasoning_price": 10.01}, "reasoning price"),
+        (
+            {"reasoning_price": OPENROUTER_CAPABILITIES["openrouter/openai/gpt-5.6-sol"].output_cost_per_1m + 0.01},
+            "reasoning price",
+        ),
         ({"request_price": 0.001}, "fixed request price"),
     ],
 )
@@ -276,6 +283,8 @@ def test_reachable_override_uses_the_most_expensive_price() -> None:
 
 def test_reachable_override_uses_the_most_expensive_cache_write_price() -> None:
     model = "openai/gpt-5.6-sol"
+    capability = OPENROUTER_CAPABILITIES[f"openrouter/{model}"]
+    write_price = (capability.cache_write_cost_per_1m or 0.0) + 1.0
     proof = evaluate_openrouter_endpoint_document(
         model,
         _document(
@@ -283,21 +292,31 @@ def test_reachable_override_uses_the_most_expensive_cache_write_price() -> None:
             overrides=[
                 {
                     "min_prompt_tokens": 100_000,
-                    "input_cache_write": _per_token(3.0),
+                    "input_cache_write": _per_token(write_price),
                 }
             ],
         ),
     )
     assert proof.catalog_eligible is False
-    assert proof.observed_cache_write_cost_per_1m == 3.0
+    assert proof.observed_cache_write_cost_per_1m == write_price
     assert any("cache-write price" in failure for failure in proof.failures)
 
 
 @pytest.mark.parametrize(
     ("field", "value", "failure"),
     [
-        ("input_cache_read", _per_token(0.21), "cache-read price"),
-        ("internal_reasoning", _per_token(10.01), "reasoning price"),
+        (
+            "input_cache_read",
+            _per_token(
+                (OPENROUTER_CAPABILITIES["openrouter/openai/gpt-5.6-sol"].cached_input_cost_per_1m or 0.0) + 0.01
+            ),
+            "cache-read price",
+        ),
+        (
+            "internal_reasoning",
+            _per_token(OPENROUTER_CAPABILITIES["openrouter/openai/gpt-5.6-sol"].output_cost_per_1m + 0.01),
+            "reasoning price",
+        ),
         ("request", "0.001", "fixed request price"),
     ],
 )
@@ -446,3 +465,13 @@ def test_fetch_fails_closed_on_untrusted_response(
     monkeypatch.setattr("deepr.providers.openrouter_catalog_check.close_pinned_response", lambda value: None)
     with pytest.raises(OpenRouterCatalogCheckError, match=message):
         fetch_openrouter_endpoint_document("openai/gpt-5.6-sol")
+
+
+def test_openrouter_sol_cap_matches_the_2026_11_03_openai_route() -> None:
+    capability = OPENROUTER_CAPABILITIES["openrouter/openai/gpt-5.6-sol"]
+    assert capability.input_cost_per_1m == 4.0
+    assert capability.output_cost_per_1m == 20.0
+    assert capability.cached_input_cost_per_1m == 0.4
+    assert capability.cache_write_cost_per_1m == 5.0
+    assert capability.cost_per_query == 0.4
+    assert capability.preview_only is True

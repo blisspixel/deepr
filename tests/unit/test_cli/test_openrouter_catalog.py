@@ -71,7 +71,7 @@ def test_openrouter_check_json_is_explicitly_non_authorizing(monkeypatch: pytest
         "allow_fallbacks": False,
         "require_parameters": True,
         "data_collection": "deny",
-        "max_price": {"prompt": 2.0, "completion": 10.0, "request": 0.0},
+        "max_price": {"prompt": 4.0, "completion": 20.0, "request": 0.0},
     }
     assert payload["proofs"][0]["proposed_request_headers"] == {
         "X-OpenRouter-Cache": "false",
