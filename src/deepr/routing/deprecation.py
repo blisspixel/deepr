@@ -7,6 +7,7 @@ Prevents silent breakage when providers remove legacy endpoints.
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
@@ -276,6 +277,22 @@ DEPRECATION_REGISTRY: dict[str, DeprecationEntry] = {
         ),
         auto_migrate=False,
     ),
+    # Anthropic deprecations page, checked 2026-11-03:
+    # claude-sonnet-4-5-20250929 retires 2026-11-30. Successor is
+    # claude-sonnet-5-5. Prefix matching covers the dated snapshot.
+    # claude-sonnet-4-6 stays on its own row. Opus 4.5 and Haiku 4.5 are
+    # active, with "not sooner than" floors, so they have no entry.
+    # auto_migrate stays false: Sonnet 5.5 is $2/$10 and Sonnet 4.5 is $3/$15.
+    "claude-sonnet-4-5": DeprecationEntry(
+        old_model="claude-sonnet-4-5",
+        new_model="anthropic/claude-sonnet-5-5",
+        sunset_date="2026-11-30",
+        warning=(
+            "claude-sonnet-4-5 and claude-sonnet-4-5-20250929 retire on 2026-11-30. "
+            "Successor: anthropic/claude-sonnet-5-5. Explicit selection is unchanged."
+        ),
+        auto_migrate=False,
+    ),
 }
 
 
@@ -353,6 +370,29 @@ def is_shutdown(model: str, *, provider: str | None = None, today: date | None =
     return bool(
         entry and entry.sunset_date and date.fromisoformat(entry.sunset_date) <= (today or datetime.now(UTC).date())
     )
+
+
+def model_submission_error(
+    model: object,
+    allowed: Sequence[str],
+    *,
+    provider: str | None = None,
+    today: date | None = None,
+) -> dict[str, str] | None:
+    """Refuse a shut-down id before the allowlist, using the API error code.
+
+    A recorded sunset wins over allowlist membership so a stale copied list
+    cannot accept a model whose provider deadline has passed. Unknown ids keep
+    the allowlist error and do not invent a shutdown date.
+    """
+    if isinstance(model, str) and is_shutdown(model, provider=provider, today=today):
+        return {
+            "error": f"Model {model} is shut down by its provider",
+            "error_code": "model_shut_down",
+        }
+    if not isinstance(model, str) or model not in allowed:
+        return {"error": f"Invalid model. Valid options: {', '.join(allowed)}"}
+    return None
 
 
 def migrate_model(model: str, confidence: float = 1.0, provider: str | None = None) -> tuple[str, float, str | None]:

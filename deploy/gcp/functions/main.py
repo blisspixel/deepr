@@ -45,15 +45,11 @@ JOBS_COLLECTION = "jobs"
 # Input validation constants
 MAX_PROMPT_LENGTH = 10000
 MAX_METADATA_SIZE = 4096
+# Copy of deploy/shared/deepr_api_common/validation.py VALID_MODELS.
+# This reference bundle does not install that package.
 VALID_MODELS = [
     "gpt-5.6-sol",
     "gpt-5.6-terra",
-    "o4-mini-deep-research",
-    "o3-deep-research",
-    "gemini-2.0-flash-thinking-exp",
-    "gemini-2.5-pro-exp-03-25",
-    "grok-3-mini-fast",
-    "grok-3-fast",
 ]
 UUID_PATTERN = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
@@ -206,10 +202,14 @@ def submit_job(request):
 
     prompt = sanitize_string(prompt, MAX_PROMPT_LENGTH)
 
-    # Validate model
+    # Validate model. The sunset table lives in Deepr, which this reference
+    # bundle does not install. The import is reached only after the metered
+    # execution gate above.
     model = body.get("model", "gpt-5.6-sol")
-    if model not in VALID_MODELS:
-        return response(400, {"error": f"Invalid model. Valid options: {', '.join(VALID_MODELS)}"})
+    from deepr.routing.deprecation import model_submission_error
+
+    if error := model_submission_error(model, VALID_MODELS):
+        return response(400, error)
 
     # Validate priority
     priority = body.get("priority", 3)

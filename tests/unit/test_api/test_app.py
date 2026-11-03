@@ -333,6 +333,32 @@ class TestJobSubmission:
         assert after.status_code == 400
         assert after.get_json()["error_code"] == "model_shut_down"
 
+    def test_sonnet_4_5_snapshot_shuts_down_on_the_recorded_date(self, client, monkeypatch):
+        """claude-sonnet-4-5-20250929 is allowlisted and refused from 2026-11-30."""
+        from datetime import UTC, datetime
+
+        from deepr.routing import deprecation
+
+        class _Clock:
+            current = datetime(2026, 11, 29, tzinfo=UTC)
+
+            @classmethod
+            def now(cls, tz=None):
+                return cls.current
+
+        monkeypatch.setattr(deprecation, "datetime", _Clock)
+        payload = _paid_request(prompt="Research AI", model="claude-sonnet-4-5-20250929")
+
+        before = client.post("/api/jobs", json=payload, content_type="application/json")
+        # The snapshot is already deprecated, so research dispatch refuses it
+        # before the sunset. This assertion pins only the shutdown error code.
+        assert (before.get_json() or {}).get("error_code") != "model_shut_down"
+
+        _Clock.current = datetime(2026, 11, 30, tzinfo=UTC)
+        after = client.post("/api/jobs", json=payload, content_type="application/json")
+        assert after.status_code == 400
+        assert after.get_json()["error_code"] == "model_shut_down"
+
     @pytest.mark.parametrize(
         "model",
         ["gemini-4-argon", "gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-flash", "gemini-flash-lite"],
