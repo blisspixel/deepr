@@ -22,7 +22,8 @@ sha prefix that resolves without the prompt.
 **v2.51.6 locked decoder dependency:** transitive `pyasn1` is 0.6.5. Version
 0.6.4 is affected by CVE-2026-119194, CVE-2026-119195, CVE-2026-119196, and
 CVE-2026-119197 (high-severity denial of service while decoding BER, CER, or
-DER). `rsa` 4.7.2 and `pyasn1-modules` 0.4.2 are unchanged. This does not
+DER). `rsa` 4.7.2 and `pyasn1-modules` 0.4.2 are unchanged. The dashboard
+lock uses `follow-redirects` 1.16.2 (CVE-2026-116689). This does not
 change spend, provider, or consultation behavior.
 
 **v2.51.5 declared runtime imports:** opt-in preparation imports `packaging`,

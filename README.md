@@ -319,8 +319,9 @@ for tested behavior and the distinction from draft standards and host certificat
 
 v2.51.6 upgrades the locked transitive `pyasn1` from 0.6.4 to 0.6.5. The
 0.6.4 decoder has four high-severity denial-of-service advisories
-(CVE-2026-119194, CVE-2026-119195, CVE-2026-119196, CVE-2026-119197). No
-spend, provider, or consultation behavior changes.
+(CVE-2026-119194, CVE-2026-119195, CVE-2026-119196, CVE-2026-119197). The
+dashboard lock moves `follow-redirects` from 1.16.1 to 1.16.2
+(CVE-2026-116689). No spend, provider, or consultation behavior changes.
 
 v2.51.5 makes opt-in preparation importable on a clean public install by
 declaring `packaging`, which it imported without declaring (#309).

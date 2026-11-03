@@ -1079,8 +1079,9 @@ reliable product, not a four-language architecture diagram.
 v2.51.6 upgrades locked transitive `pyasn1` from 0.6.4 to 0.6.5. Four
 high-severity denial-of-service advisories in BER/CER/DER decoding
 (CVE-2026-119194, CVE-2026-119195, CVE-2026-119196, CVE-2026-119197) are
-fixed in 0.6.5. `rsa` 4.7.2 and `pyasn1-modules` 0.4.2 stay put. No spend,
-provider, or consultation behavior changes.
+fixed in 0.6.5. `rsa` 4.7.2 and `pyasn1-modules` 0.4.2 stay put. The
+dashboard lock moves `follow-redirects` from 1.16.1 to 1.16.2
+(CVE-2026-116689). No spend, provider, or consultation behavior changes.
 
 v2.51.5 declares `packaging` (and `urllib3`, and `werkzeug` for the web extra)
 so opt-in preparation imports on a clean public install (#309); from v2.51.0
