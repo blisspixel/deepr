@@ -444,7 +444,7 @@ both themes against isolated `$0` synthetic state. See the
 v2.50.38 supports maintained CPython 3.11 through 3.15, with 3.15 as the
 development and managed-install default. CI covers all five minors, native
 Windows/macOS installation and the three locked container builds. Node uses
-24.22.0 LTS. See the [runtime decision](docs/design/maintained-runtime-support.md).
+24.22.1 LTS. See the [runtime decision](docs/design/maintained-runtime-support.md).
 
 v2.50.37 adds explicit local embedding roles and profile/dimension compatibility
 checks. A frozen published-label comparison leaves defaults unchanged; all

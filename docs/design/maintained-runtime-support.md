@@ -76,7 +76,7 @@ Local Docker socket is inaccessible and sudo requires a password; use standard
 public hosted CI runners for the actual isolated image builds. No fabricated
 local container acceptance claim.
 
-Pin setup-uv v10.3.0 to its observed commit. Pin Node 24.22.0 LTS, retain npm
+Pin setup-uv v10.3.0 to its observed commit. Pin Node 24.22.1 LTS, retain npm
 12.0.1, change engines to >=24 and reconcile package-lock metadata. Run npm ci,
 lint, tests, build, existing browser workflows and archive byte verification.
 Node 26 is not LTS on the observation date and is not promoted in this change.

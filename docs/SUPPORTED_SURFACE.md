@@ -154,7 +154,7 @@ and public installer acceptance are separate publication requirements.
 supported; development, managed uv installation and single-version CI use 3.15.
 The 3.11 export boundary uses the native mount-point tag without following
 junctions. Native Windows/macOS wheel checks and all three container builds
-join the existing full-suite gates. Node is pinned to 24.22.0 LTS. No provider
+join the existing full-suite gates. Node is pinned to 24.22.1 LTS. No provider
 eligibility, research, spend or expert-quality gate changes.
 
 **v2.50.37 maintenance:** Explicit local embedding profiles distinguish query
