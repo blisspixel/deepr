@@ -112,6 +112,31 @@ def test_filelock_metadata_and_lock_exclude_known_vulnerable_releases() -> None:
     assert all(Version(package["version"]) >= Version("4.2.4") for package in packages)
 
 
+def test_playwright_python_and_npm_locks_resolve_the_same_release() -> None:
+    """The scrape extra and the frontend browser checks share one Playwright release."""
+    import json
+
+    project = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    requirement = next(
+        Requirement(dep)
+        for dep in project["project"]["optional-dependencies"]["scrape"]
+        if Requirement(dep).name == "playwright"
+    )
+    assert Version("1.64.1") in requirement.specifier
+    assert Version("2.0.0") not in requirement.specifier
+    lock = tomllib.loads((REPO_ROOT / "uv.lock").read_text(encoding="utf-8"))
+    packages = [package for package in lock["package"] if package["name"] == "playwright"]
+    assert packages
+    assert {package["version"] for package in packages} == {"1.64.1"}
+
+    frontend = REPO_ROOT / "src" / "deepr" / "web" / "frontend"
+    package_json = json.loads((frontend / "package.json").read_text(encoding="utf-8"))
+    assert package_json["devDependencies"]["playwright"] == "^1.64.1"
+    npm_lock = json.loads((frontend / "package-lock.json").read_text(encoding="utf-8"))
+    assert npm_lock["packages"]["node_modules/playwright"]["version"] == "1.64.1"
+    assert npm_lock["packages"]["node_modules/playwright-core"]["version"] == "1.64.1"
+
+
 def test_lock_excludes_vulnerable_pyasn1_decoder() -> None:
     """CVE-2026-119194 through CVE-2026-119197 affect pyasn1 before 0.6.5."""
     from importlib.metadata import version

@@ -20,6 +20,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   spend gate, or deploy allowlist changed. See
   [the currency review](design/provider-currency-2026-10.md).
 
+### Changed
+
+- Updated Playwright to 1.64.1 in the frontend npm lock and the Python
+  scrape extra. GitHub's latest release is still 1.64.1. This is a
+  currency bump: GHSA-7mvr-c777-76hp affects npm Playwright below 1.55.1,
+  and the previous pins were already outside that range. Browser fetch
+  stays disabled.
+
 ### Documentation
 
 - Clarify persistent domain agents with complementary temporal, conceptual,
