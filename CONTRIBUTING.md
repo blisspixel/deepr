@@ -156,9 +156,10 @@ not add day, sprint, week, quarter, or release-date estimates to active plans.
    `packages/deepr-agent-plugin/SHA256SUMS` after changing plugin content or
    versions, then run the plugin package tests before pushing. Run the full
    Definition of Done before merging.
-5. Tag only the exact green `main` commit. Build and verify the release
-   artifacts, publish the matching GitHub Release, validate the public
-   installer, and confirm the installed CLI reports that version.
+5. Tag only the exact green `main` commit. Pushing that version tag publishes
+   the wheel, sdist, plugin archive, and `SHA256SUMS` through
+   `.github/workflows/release.yml`. Validate the public installer and confirm
+   the installed CLI reports that version.
 6. Record a failed live validation in the roadmap and fix it in the next patch.
    Never move or reuse a published tag to hide the finding.
 

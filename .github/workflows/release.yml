@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          activate-environment: true
+          python-version: "3.15.1"
+          version: "0.13.5"
+
+      - name: Build wheel, sdist, and plugin archive
+        run: |
+          uv sync --frozen --extra dev
+          uv run python -m build
+          uv run python scripts/build_agent_plugin.py
+
+      - name: Write SHA256SUMS
+        run: uv run python scripts/write_release_checksums.py dist
+
+      - name: Publish release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          tag="${GITHUB_REF_NAME}"
+          version="${tag#v}"
+          assets=(
+            "dist/deepr_research-${version}-py3-none-any.whl"
+            "dist/deepr_research-${version}.tar.gz"
+            "dist/deepr-agent-plugin-${version}.tar.gz"
+            dist/SHA256SUMS
+          )
+          if [ "${#assets[@]}" -ne 4 ]; then
+            echo "Expected the wheel, sdist, plugin archive, and SHA256SUMS for ${tag}." >&2
+            exit 1
+          fi
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "${assets[@]}" --clobber
+          else
+            gh release create "$tag" "${assets[@]}" \
+              --verify-tag \
+              --title "$tag" \
+              --notes "See docs/CHANGELOG.md for this version."
+          fi

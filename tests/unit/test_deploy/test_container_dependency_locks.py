@@ -60,7 +60,10 @@ def test_http_native_build_tools_stay_out_of_the_runtime_stage():
     assert "USER deepr" in runtime
 
 
-@pytest.mark.parametrize("path", [".github/workflows/ci.yml", ".github/workflows/mutation.yml"])
+@pytest.mark.parametrize(
+    "path",
+    [".github/workflows/ci.yml", ".github/workflows/mutation.yml", ".github/workflows/release.yml"],
+)
 def test_maintained_acquisition_uses_patched_uv(path: str) -> None:
     workflow = yaml.safe_load((REPO_ROOT / path).read_text(encoding="utf-8"))
     steps = [step for job in workflow["jobs"].values() for step in job["steps"]]

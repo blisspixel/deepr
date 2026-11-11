@@ -7,6 +7,7 @@ write inside a temp dir, so no real .env is touched.
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import click
@@ -53,6 +54,7 @@ def _clear_env(monkeypatch, tmp_path):
         "DEEPR_MAX_COST_PER_JOB",
         "DEEPR_MAX_COST_PER_DAY",
         "DEEPR_MAX_COST_PER_MONTH",
+        "DEEPR_REPORTS_PATH",
     ):
         monkeypatch.delenv(var, raising=False)
 
@@ -141,6 +143,32 @@ class TestInitYes:
             assert env["DEEPR_DATA_DIR"] == str(expected)
             assert env["DEEPR_EXPERTS_PATH"] == str(expected / "experts")
             assert env["DEEPR_REPORTS_PATH"] == str(expected / "reports")
+
+    def test_yes_records_absolute_default_reports_path(self):
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            result = runner.invoke(init, ["--yes"])
+            assert result.exit_code == 0, result.output
+            env_path = Path.home() / ".deepr" / ".env"
+            env = _read_env_file(env_path)
+            expected = Path("data/reports").resolve()
+            assert env["DEEPR_REPORTS_PATH"] == str(expected)
+            assert expected.is_absolute()
+            assert "DEEPR_DATA_DIR" not in env
+            assert "DEEPR_EXPERTS_PATH" not in env
+            assert env["DEEPR_MAX_COST_PER_MONTH"] == "5.0"
+
+    def test_yes_keeps_existing_reports_path(self):
+        env_path = Path.home() / ".deepr" / ".env"
+        env_path.parent.mkdir(parents=True)
+        env_path.write_text("# keep\nDEEPR_REPORTS_PATH=/keep/reports\n", encoding="utf-8")
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            result = runner.invoke(init, ["--yes"])
+            assert result.exit_code == 0, result.output
+            env = _read_env_file(env_path)
+            assert env["DEEPR_REPORTS_PATH"] == "/keep/reports"
+            assert "# keep" in env_path.read_text(encoding="utf-8")
 
     def test_summary_uses_workflow_specific_safe_next_actions(self, monkeypatch):
         monkeypatch.setattr(
@@ -268,6 +296,7 @@ class TestInitInteractive:
             assert result.exit_code == 0
             env = _read_env_file(Path(".env"))
             assert "GEMINI_API_KEY" not in env
+            assert "DEEPR_REPORTS_PATH" not in env
             assert env["DEEPR_MAX_COST_PER_JOB"] == "5.0"
 
 

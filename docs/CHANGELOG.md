@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `deepr init --yes` records the default research reports path as an absolute
+  `data/reports` directory, so later commands do not follow the working
+  folder. An existing `DEEPR_REPORTS_PATH` is left unchanged. Interactive
+  init still leaves that path unset when the blank default is accepted.
+- A version tag publishes the GitHub Release wheel, sdist, agent plugin
+  archive, and `SHA256SUMS`. The installers still stop with a clear error,
+  and make no install change, when the latest release has no supported wheel.
 - Rechecked Anthropic, OpenAI, xAI, Google, and the pinned OpenRouter routes
   on 2026-11-03. Preview-only candidates now include `gpt-6.1-terra`,
   `gpt-6-sol`, and `claude-haiku-5-5`. Claude Sonnet 5.5 cache hits are

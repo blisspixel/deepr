@@ -41,9 +41,12 @@ then quarantined credentials retain precedence over selected then fallback
 files. Normal startup dotenv expansion remains unchanged; file inventory does
 not inject credentials or import the CLI from the provider layer.
 
-Keep existing expert, report, runtime and queue defaults when no relocation
-was selected. An explicit `--data-dir` stores a stable absolute directory so
-changing the working folder does not relocate initialized data. Preserve
+Keep existing expert, runtime and queue defaults when no relocation was
+selected. Non-interactive `init --yes` records the split-default reports path
+`data/reports` as an absolute directory so later commands do not follow the
+working folder. Interactive init still leaves that path unset when the blank
+default is accepted. An explicit `--data-dir` stores a stable absolute
+directory so changing the working folder does not relocate initialized data. Preserve
 existing file comments and settings, parse supported dotenv quoting, and keep
 new secret-bearing configuration files private where the platform supports
 POSIX permissions. Do not copy an unrelated folder's `.env.example` into
