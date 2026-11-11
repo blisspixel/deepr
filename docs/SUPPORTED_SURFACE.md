@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.51.7 current main, 2026-11-03. This document defines what users and host
+Status: v2.51.8 current main, 2026-11-11. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -18,6 +18,12 @@ local synthesis prompt is 20,000 characters and the expert's stored context
 keeps at least 4,000 of them; a prepared view that would breach that floor is
 refused before any answer call (#299). Brief excerpts are keyed by a corpus
 sha prefix that resolves without the prompt.
+
+**v2.51.8 release assets and init reports path:** a version tag publishes the
+wheel, sdist, plugin archive, and SHA256SUMS. The installers still stop
+before any install when the latest release has no supported wheel (#326).
+`deepr init --yes` stores the default reports path as an absolute
+`data/reports` directory and leaves an existing path unchanged (#327).
 
 **v2.51.7 model sunset:** `claude-sonnet-4-5` retires on 2026-11-30, including
 the dated snapshot `claude-sonnet-4-5-20250929`. The API returns

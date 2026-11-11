@@ -1075,7 +1075,12 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.51.7)
+## Current Status (v2.51.8)
+
+v2.51.8 publishes the wheel, sdist, plugin archive, and SHA256SUMS when a
+version tag is pushed, so the public installer finds a supported wheel
+(#326). `deepr init --yes` records the default reports directory as an
+absolute path (#327). An existing reports path is left unchanged.
 
 v2.51.7 records `claude-sonnet-4-5` sunset 2026-11-30. Prefix matching covers
 `claude-sonnet-4-5-20250929`, and the API returns `model_shut_down` from that
@@ -4512,7 +4517,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.51.7. The active release plan governs work and future criteria; older
+v2.51.8. The active release plan governs work and future criteria; older
 phase notes retained below it are historical context, not a competing sequence.
 Completed items move to the changelog at release.
 
