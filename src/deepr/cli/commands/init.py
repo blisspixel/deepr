@@ -48,16 +48,25 @@ _DEFAULT_MONTH_BUDGET = 5.0
 _DATA_DIR = "DEEPR_DATA_DIR"
 _EXPERTS_PATH = "DEEPR_EXPERTS_PATH"
 _REPORTS_PATH = "DEEPR_REPORTS_PATH"
+# Split default from AppConfig: reports stay under data/reports unless relocated.
+_DEFAULT_REPORTS_PATH = "data/reports"
+
+
+def _default_reports_path() -> str:
+    """Absolute form of the split-default reports directory at init time."""
+    return str(Path(_DEFAULT_REPORTS_PATH).expanduser().resolve())
 
 
 def _resolve_data_dir_updates(env_file: dict[str, str], *, yes: bool, data_dir: str | None) -> dict[str, str]:
     """Decide data-location env updates for a relocatable Deepr data root.
 
     A chosen directory sets DEEPR_DATA_DIR plus explicit experts/reports
-    subpaths so all three roots follow it. Blank input preserves the split
-    defaults: experts under ~/.deepr/experts, reports under data/reports, and
-    operational state under data. Never overwrite an existing DEEPR_DATA_DIR
-    silently.
+    subpaths so all three roots follow it. Blank interactive input preserves
+    the split defaults: experts under ~/.deepr/experts, reports under
+    data/reports, and operational state under data. Non-interactive init
+    records that same reports default as an absolute path so later commands
+    do not follow the working directory. Never overwrite an existing
+    DEEPR_DATA_DIR or DEEPR_REPORTS_PATH silently.
     """
     chosen = data_dir
     if chosen is None and not yes and not env_file.get(_DATA_DIR):
@@ -67,14 +76,16 @@ def _resolve_data_dir_updates(env_file: dict[str, str], *, yes: bool, data_dir: 
             show_default=False,
         ).strip()
         chosen = entered or None
-    if not chosen:
-        return {}
-    base = Path(chosen).expanduser().resolve()
-    return {
-        _DATA_DIR: str(base),
-        _EXPERTS_PATH: str(base / "experts"),
-        _REPORTS_PATH: str(base / "reports"),
-    }
+    if chosen:
+        base = Path(chosen).expanduser().resolve()
+        return {
+            _DATA_DIR: str(base),
+            _EXPERTS_PATH: str(base / "experts"),
+            _REPORTS_PATH: str(base / "reports"),
+        }
+    if yes and not _resolved(env_file, _REPORTS_PATH):
+        return {_REPORTS_PATH: _default_reports_path()}
+    return {}
 
 
 def _key_is_set(value: str | None) -> bool:

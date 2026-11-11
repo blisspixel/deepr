@@ -226,7 +226,9 @@ pipx requires an explicitly selected stable CPython 3.11, 3.12, 3.13, 3.14 or 3.
 Install uv or pipx first using its official instructions. The scripts do not bootstrap
 pip into a user site or system Python, and refuse conflicting managed copies.
 Repair, `deepr upgrade`, and uninstall keep the same tool manager. PyPI
-publication is not enabled.
+publication is not enabled. A version tag publishes the wheel, sdist, agent
+plugin archive, and `SHA256SUMS` on that GitHub Release. The installers stop
+with a clear error when the wheel asset is missing.
 
 ## Quick start
 

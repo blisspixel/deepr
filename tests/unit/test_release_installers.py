@@ -1,5 +1,6 @@
 """Regression checks for the public GitHub Releases install channel."""
 
+import hashlib
 import json
 import os
 import shutil
@@ -8,6 +9,10 @@ import sys
 from pathlib import Path
 
 import pytest
+import yaml
+
+from scripts.write_release_checksums import checksum_lines
+from scripts.write_release_checksums import main as write_checksums_main
 
 ROOT = Path(__file__).parents[2]
 
@@ -180,6 +185,138 @@ def test_makefile_exposes_only_explicit_manual_pypi_publication() -> None:
     assert "publish-pypi-manual:" in text
     assert "\npublish:" not in text
     assert "GitHub Releases is the current release channel" in text
+
+
+@pytest.mark.parametrize("family", ["powershell", "bash"])
+def test_installer_missing_release_assets_fails_clearly(tmp_path: Path, family: str) -> None:
+    """A release with no wheel exits before any install and names the missing asset."""
+    shell = _installer_shell(family)
+    release = {"tag_name": "v2.51.7", "assets": []}
+    operations = tmp_path / "operations.txt"
+    env = {
+        **os.environ,
+        "DEEPR_INSTALL_TEST_RELEASE": json.dumps(release),
+        "DEEPR_INSTALL_TEST_PYTHON": Path(sys.executable).as_posix(),
+        "DEEPR_INSTALL_TEST_OPERATIONS": operations.as_posix(),
+        "DEEPR_INSTALL_TEST_SCRIPT": (
+            ROOT / "scripts" / f"install.{'ps1' if family == 'powershell' else 'sh'}"
+        ).as_posix(),
+    }
+    if family == "powershell":
+        wrapper = tmp_path / "missing-assets.ps1"
+        wrapper.write_text(
+            r"""
+function python {
+    $global:LASTEXITCODE = 0
+    if ($args[0] -eq '-c') { & $env:DEEPR_INSTALL_TEST_PYTHON @args; return }
+    Add-Content -LiteralPath $env:DEEPR_INSTALL_TEST_OPERATIONS -Value ($args -join ' ')
+}
+function uv {
+    $global:LASTEXITCODE = 0
+    Add-Content -LiteralPath $env:DEEPR_INSTALL_TEST_OPERATIONS -Value ("uv " + ($args -join ' '))
+    if ($args[0] -eq '--version') { 'uv 0.13.7'; return }
+    if ($args[0] -eq 'tool' -and $args[1] -eq 'list') { return }
+}
+function Get-Command {
+    param($Name, $ErrorAction)
+    if ($Name -in @('uv', 'python')) { return [pscustomobject]@{ Source = "$Name.exe" } }
+    return $null
+}
+function Invoke-RestMethod { $env:DEEPR_INSTALL_TEST_RELEASE | ConvertFrom-Json }
+Invoke-Expression (Get-Content -LiteralPath $env:DEEPR_INSTALL_TEST_SCRIPT -Raw)
+""",
+            encoding="utf-8",
+        )
+        command = [shell, "-NoProfile", "-NonInteractive", "-File", str(wrapper)]
+    else:
+        wrapper = tmp_path / "missing-assets.sh"
+        wrapper.write_text(
+            """python3() {
+    if [ "$1" = '-c' ] && [[ "$2" == *sys.implementation.name* ]]; then return 0; fi
+    if [ "$1" = '-c' ]; then "$DEEPR_INSTALL_TEST_PYTHON" "$@"; return; fi
+    printf '%s\\n' "$*" >> "$DEEPR_INSTALL_TEST_OPERATIONS"
+}
+command() {
+    if [ "$1" = -v ]; then
+        case "$2" in
+            uv|python3|curl|grep) return 0 ;;
+            *) return 1 ;;
+        esac
+    fi
+    builtin command "$@"
+}
+uv() {
+    printf 'uv %s\\n' "$*" >> "$DEEPR_INSTALL_TEST_OPERATIONS"
+    if [ "$1" = --version ]; then printf 'uv 0.13.7\\n'; fi
+    return 0
+}
+curl() { printf '%s' "$DEEPR_INSTALL_TEST_RELEASE"; }
+source "$DEEPR_INSTALL_TEST_SCRIPT"
+""",
+            encoding="utf-8",
+            newline="\n",
+        )
+        command = [shell, str(wrapper)]
+    result = subprocess.run(command, env=env, cwd=tmp_path, capture_output=True, text=True, timeout=30, check=False)
+    output = result.stdout + result.stderr
+    recorded = operations.read_text(encoding="utf-8") if operations.exists() else ""
+    assert result.returncode != 0, output
+    assert "Traceback" not in output
+    assert "the latest GitHub release has no supported Deepr wheel asset." in output
+    assert "No installation changes were made" in output or "No Deepr installation changes were made" in output
+    assert "==> Done." not in output
+    assert "tool install" not in recorded
+    assert "python install" not in recorded
+
+
+def test_release_checksums_use_gnu_format_and_skip_themselves(tmp_path: Path) -> None:
+    wheel = tmp_path / "deepr_research-2.51.7-py3-none-any.whl"
+    plugin = tmp_path / "deepr-agent-plugin-2.51.7.tar.gz"
+    wheel.write_bytes(b"wheel-bytes")
+    plugin.write_bytes(b"plugin-bytes")
+    (tmp_path / "SHA256SUMS").write_text("stale\n", encoding="ascii")
+
+    assert write_checksums_main([str(tmp_path)]) == 0
+    text = (tmp_path / "SHA256SUMS").read_text(encoding="ascii")
+    expected = [
+        f"{hashlib.sha256(plugin.read_bytes()).hexdigest()}  {plugin.name}",
+        f"{hashlib.sha256(wheel.read_bytes()).hexdigest()}  {wheel.name}",
+    ]
+    assert text == "\n".join(expected) + "\n"
+    assert checksum_lines(tmp_path) == expected
+    assert "stale" not in text
+    assert "SHA256SUMS" not in text
+
+
+def test_release_checksums_reject_an_empty_directory(tmp_path: Path) -> None:
+    assert write_checksums_main([str(tmp_path)]) == 1
+
+
+def test_release_workflow_publishes_tag_assets_without_cancelling() -> None:
+    workflow_path = ROOT / ".github" / "workflows" / "release.yml"
+    text = workflow_path.read_text(encoding="utf-8")
+    workflow = yaml.safe_load(text)
+    steps = workflow["jobs"]["publish"]["steps"]
+    uses = [step["uses"].split("@", 1)[0] for step in steps if "uses" in step]
+    runs = "\n".join(step.get("run", "") for step in steps)
+
+    trigger = workflow.get("on", workflow.get(True))
+    assert trigger["push"]["tags"] == ["v*"]
+    assert workflow["permissions"]["contents"] == "write"
+    assert "concurrency" not in workflow
+    assert "cancel-in-progress" not in text
+    assert workflow["jobs"]["publish"]["timeout-minutes"] == 30
+    assert uses == ["actions/checkout", "astral-sh/setup-uv"]
+    assert "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" in text
+    assert "astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884" in text
+    assert "uv run python -m build" in runs
+    assert "scripts/build_agent_plugin.py" in runs
+    assert "scripts/write_release_checksums.py dist" in runs
+    assert "gh release upload" in runs
+    assert "gh release create" in runs
+    assert "SHA256SUMS" in runs
+    assert "pypi.org" not in text.lower()
+    assert "softprops/action-gh-release" not in text
 
 
 def test_scripts_readme_uses_real_make_targets_from_repository_root() -> None:

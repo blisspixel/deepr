@@ -360,12 +360,16 @@ def test_init_selected_project_file_and_existing_values_are_preserved(configurat
     assert not (configuration_home / ".deepr/.env").exists()
 
 
-def test_init_without_data_relocation_preserves_existing_split_defaults(configuration_home):
+def test_init_without_data_relocation_preserves_existing_split_defaults(configuration_home, monkeypatch):
     result = CliRunner().invoke(init, ["--yes"])
     assert result.exit_code == 0, result.output
+    reports = _read_env_file(configuration_home / ".deepr/.env")["DEEPR_REPORTS_PATH"]
+    assert reports == str((Path.cwd() / "data" / "reports").resolve())
+    monkeypatch.setattr(configuration, "_configuration_environment", None)
+    monkeypatch.setattr(Settings, "_instance", None)
     settings = Settings.load()
     assert settings.data_dir == "data"
-    assert settings.storage.local_path == "data/reports"
+    assert settings.storage.local_path == reports
     assert configuration.experts_root() == configuration_home / ".deepr/experts"
     assert configuration.queue_db_path() == "queue/research_queue.db"
 

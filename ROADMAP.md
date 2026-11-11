@@ -746,9 +746,10 @@ No configuration or payment control is raised by this plan.
 - Work accumulates under `Unreleased`. The package, plugin, fixtures, release
   docs, and lockfile receive one matching version only when the candidate is
   complete. The changelog states the evidence and any remaining block.
-- The exact `main` commit must pass blocking CI before it is tagged. Build and
-  plugin artifacts are then verified, the GitHub Release points to that commit,
-  the public installer is exercised, and the installed CLI version is checked.
+- The exact `main` commit must pass blocking CI before it is tagged. Pushing
+  that tag publishes the wheel, sdist, plugin archive, and `SHA256SUMS` on the
+  GitHub Release. The public installer is then exercised, and the installed
+  CLI version is checked.
   A failed live check becomes a roadmap finding and is fixed in a later patch.
 - Attended one-shot OpenRouter research is a separate existing capability.
   Extending paid authority to other surfaces requires its own reviewed scope,
