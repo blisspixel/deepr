@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.51.8] - 2026-11-11
+
+Patch release: a version tag publishes the wheel, sdist, agent plugin
+archive, and SHA256SUMS, so the README installer works (#326).
+`deepr init --yes` stores an absolute reports path (#327).
+
 ### Fixed
 
 - `deepr init --yes` records the default research reports path as an absolute
