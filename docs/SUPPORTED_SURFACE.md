@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.51.8 current main, 2026-11-11. This document defines what users and host
+Status: v2.51.9 current main, 2026-11-12. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -18,6 +18,13 @@ local synthesis prompt is 20,000 characters and the expert's stored context
 keeps at least 4,000 of them; a prepared view that would breach that floor is
 refused before any answer call (#299). Brief excerpts are keyed by a corpus
 sha prefix that resolves without the prompt.
+
+**v2.51.9 release assets on an immutable release:** the tag workflow creates
+the GitHub Release in one step with the wheel, sdist, plugin archive, and
+SHA256SUMS attached, and uses that version's changelog section as the notes.
+A published release cannot take new assets, so a new patch tag is required
+instead of uploading. v2.51.8 shipped without assets; the README installer
+works again when this release is published.
 
 **v2.51.8 release assets and init reports path:** a version tag publishes the
 wheel, sdist, plugin archive, and SHA256SUMS. The installers still stop

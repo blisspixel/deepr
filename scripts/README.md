@@ -64,8 +64,12 @@ make -f scripts/Makefile build
 make -f scripts/Makefile publish-pypi-manual
 ```
 
-The normal release channel is GitHub Releases. The PyPI target is retained only
-for a future, explicitly authorized manual publication workflow.
+The normal release channel is GitHub Releases. Pushing a version tag builds
+the wheel, sdist, plugin archive, and SHA256SUMS, then creates the release in
+one step with those assets attached. Notes come from that version's section in
+`docs/CHANGELOG.md`. A published immutable release cannot take new assets; ship
+them on a new patch tag. The PyPI target is retained only for a future,
+explicitly authorized manual publication workflow.
 
 ## Local Environment
 

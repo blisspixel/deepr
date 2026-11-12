@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.51.8-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.51.8)
+[![Version](https://img.shields.io/badge/version-2.51.9-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.51.9)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -226,9 +226,10 @@ pipx requires an explicitly selected stable CPython 3.11, 3.12, 3.13, 3.14 or 3.
 Install uv or pipx first using its official instructions. The scripts do not bootstrap
 pip into a user site or system Python, and refuse conflicting managed copies.
 Repair, `deepr upgrade`, and uninstall keep the same tool manager. PyPI
-publication is not enabled. A version tag publishes the wheel, sdist, agent
-plugin archive, and `SHA256SUMS` on that GitHub Release. The installers stop
-with a clear error when the wheel asset is missing.
+publication is not enabled. Pushing a version tag builds the wheel, sdist,
+agent plugin archive, and `SHA256SUMS`, then creates that GitHub Release in
+one step with those assets attached. A published release cannot take new
+assets. The installers stop with a clear error when the wheel asset is missing.
 
 ## Quick start
 
@@ -318,6 +319,10 @@ eras and published Agent Plugins `1.0.0`. See the
 for tested behavior and the distinction from draft standards and host certification.
 
 ## Direction
+
+v2.51.9 publishes the GitHub Release with the wheel and SHA256SUMS attached,
+so the README installer works again. v2.51.8 shipped without those assets
+because the release was already published before the workflow could upload.
 
 v2.51.8 publishes the wheel, sdist, agent plugin archive, and SHA256SUMS
 on a version tag, so the README installer works (#326). `deepr init --yes`

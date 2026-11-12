@@ -36,24 +36,39 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          shopt -s nullglob
           tag="${GITHUB_REF_NAME}"
           version="${tag#v}"
           assets=(
             "dist/deepr_research-${version}-py3-none-any.whl"
             "dist/deepr_research-${version}.tar.gz"
             "dist/deepr-agent-plugin-${version}.tar.gz"
-            dist/SHA256SUMS
+            "dist/SHA256SUMS"
           )
-          if [ "${#assets[@]}" -ne 4 ]; then
-            echo "Expected the wheel, sdist, plugin archive, and SHA256SUMS for ${tag}." >&2
+          for asset in "${assets[@]}"; do
+            if [ ! -f "$asset" ]; then
+              echo "Expected the wheel, sdist, plugin archive, and SHA256SUMS for ${tag}." >&2
+              echo "Missing ${asset}." >&2
+              exit 1
+            fi
+          done
+          # A published immutable release cannot accept assets. Create the
+          # release with the files in one step. `gh release create` uploads
+          # them while the release is still a draft, then publishes it.
+          if is_draft="$(gh release view "$tag" --json isDraft --jq .isDraft 2>/dev/null)"; then
+            if [ "$is_draft" != "true" ]; then
+              echo "Published release ${tag} already exists." >&2
+              echo "GitHub immutable releases cannot take new assets." >&2
+              echo "Push a new patch tag instead of uploading to ${tag}." >&2
+              exit 1
+            fi
+            echo "Draft release ${tag} already exists." >&2
+            echo "This workflow creates the release with its assets in one step and does not upload to an existing release." >&2
+            echo "Delete the draft and re-run this workflow, or push a new patch tag." >&2
             exit 1
           fi
-          if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" "${assets[@]}" --clobber
-          else
-            gh release create "$tag" "${assets[@]}" \
-              --verify-tag \
-              --title "$tag" \
-              --notes "See docs/CHANGELOG.md for this version."
-          fi
+          notes_file="${RUNNER_TEMP}/release-notes.md"
+          uv run python scripts/release_notes.py "$version" docs/CHANGELOG.md > "$notes_file"
+          gh release create "$tag" "${assets[@]}" \
+            --verify-tag \
+            --title "$tag" \
+            --notes-file "$notes_file"
