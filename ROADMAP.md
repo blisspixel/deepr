@@ -746,10 +746,14 @@ No configuration or payment control is raised by this plan.
 - Work accumulates under `Unreleased`. The package, plugin, fixtures, release
   docs, and lockfile receive one matching version only when the candidate is
   complete. The changelog states the evidence and any remaining block.
-- The exact `main` commit must pass blocking CI before it is tagged. Pushing
-  that tag publishes the wheel, sdist, plugin archive, and `SHA256SUMS` on the
-  GitHub Release. The public installer is then exercised, and the installed
-  CLI version is checked.
+- The exact `main` commit must pass blocking CI before it is tagged. Do not
+  publish the GitHub Release first. Pushing that tag runs
+  `.github/workflows/release.yml`, which builds the wheel, sdist, plugin
+  archive, and `SHA256SUMS`, then creates the release in one step with those
+  assets and the notes from that version's changelog section. A published
+  immutable release cannot take new assets; the workflow fails and the fix
+  ships on a new patch tag. The public installer is then exercised, and the
+  installed CLI version is checked.
   A failed live check becomes a roadmap finding and is fixed in a later patch.
 - Attended one-shot OpenRouter research is a separate existing capability.
   Extending paid authority to other surfaces requires its own reviewed scope,
@@ -1075,7 +1079,14 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.51.8)
+## Current Status (v2.51.9)
+
+v2.51.9 publishes the GitHub Release with the wheel, sdist, plugin archive,
+and SHA256SUMS attached when a version tag is pushed. The release notes come
+from that version's changelog section. A published immutable release cannot
+take new assets, so the workflow fails and asks for a new patch tag. v2.51.8
+shipped without assets, and the README installer works again once this
+release is published.
 
 v2.51.8 publishes the wheel, sdist, plugin archive, and SHA256SUMS when a
 version tag is pushed, so the public installer finds a supported wheel
@@ -4517,7 +4528,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.51.8. The active release plan governs work and future criteria; older
+v2.51.9. The active release plan governs work and future criteria; older
 phase notes retained below it are historical context, not a competing sequence.
 Completed items move to the changelog at release.
 

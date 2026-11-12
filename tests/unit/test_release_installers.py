@@ -11,6 +11,8 @@ from pathlib import Path
 import pytest
 import yaml
 
+from scripts.release_notes import changelog_section, fallback_summary, release_notes_text
+from scripts.release_notes import main as release_notes_main
 from scripts.write_release_checksums import checksum_lines
 from scripts.write_release_checksums import main as write_checksums_main
 
@@ -309,14 +311,59 @@ def test_release_workflow_publishes_tag_assets_without_cancelling() -> None:
     assert uses == ["actions/checkout", "astral-sh/setup-uv"]
     assert "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" in text
     assert "astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884" in text
+    publish = steps[-1]["run"]
     assert "uv run python -m build" in runs
     assert "scripts/build_agent_plugin.py" in runs
     assert "scripts/write_release_checksums.py dist" in runs
-    assert "gh release upload" in runs
-    assert "gh release create" in runs
+    assert 'uv run python scripts/release_notes.py "$version" docs/CHANGELOG.md' in publish
+    assert "gh release create" in publish
+    assert "--notes-file" in publish
+    assert "gh release upload" not in text
+    assert "--clobber" not in text
+    assert "GitHub immutable releases cannot take new assets." in publish
+    assert "Push a new patch tag instead of uploading to ${tag}." in publish
     assert "SHA256SUMS" in runs
     assert "pypi.org" not in text.lower()
     assert "softprops/action-gh-release" not in text
+
+
+def test_release_notes_use_the_version_section_and_stop_at_the_next_heading() -> None:
+    changelog = (ROOT / "docs" / "CHANGELOG.md").read_text(encoding="utf-8")
+    notes = release_notes_text(changelog, "2.51.9")
+
+    assert notes.startswith("## [2.51.9]")
+    assert "SHA256SUMS" in notes
+    assert "README installer works again" in notes
+    assert "v2.51.8 shipped without assets" in notes
+    assert "\n## [2.51.8]" not in notes
+    assert changelog_section(changelog, "v2.51.8") == release_notes_text(changelog, "2.51.8")
+    older = release_notes_text(changelog, "2.51.8")
+    assert older.startswith("## [2.51.8]")
+    assert "\n## [2.51.7]" not in older
+
+
+def test_release_notes_fall_back_when_the_section_is_missing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    changelog = "## [Unreleased]\n\n## [1.0.0] - 2026-01-01\n\nShipped.\n\n## [0.9.0] - 2025-01-01\n"
+    assert changelog_section(changelog, "1.0.0") == "## [1.0.0] - 2026-01-01\n\nShipped.\n"
+    assert changelog_section(changelog, "9.9.9") is None
+    assert release_notes_text(changelog, "9.9.9") == fallback_summary("9.9.9")
+    assert release_notes_text("no headings\n", "v1.2.3") == "Deepr 1.2.3. See docs/CHANGELOG.md.\n"
+
+    missing = tmp_path / "missing.md"
+    assert release_notes_main(["2.51.9", str(missing)]) == 0
+    captured = capsys.readouterr()
+    assert captured.out == fallback_summary("2.51.9")
+    assert "Changelog not found" in captured.err
+
+    present = tmp_path / "CHANGELOG.md"
+    present.write_text(changelog, encoding="utf-8")
+    assert release_notes_main(["9.9.9", str(present)]) == 0
+    captured = capsys.readouterr()
+    assert captured.out == fallback_summary("9.9.9")
+    assert "using a short summary" in captured.err
+    assert release_notes_main([]) == 2
 
 
 def test_scripts_readme_uses_real_make_targets_from_repository_root() -> None:

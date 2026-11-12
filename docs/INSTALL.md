@@ -31,9 +31,12 @@ venv remains unseeded and pip is not an application runtime dependency.
 **Deepr works on Windows, macOS, and Linux** (Python 3.11+). The distribution
 package is named `deepr-research`; the CLI command is `deepr`. Public packages
 currently ship as verified GitHub release assets. PyPI publication is not yet
-enabled. A push of a version tag publishes the wheel, sdist, agent plugin
-archive, and `SHA256SUMS` on that GitHub Release. The installers refuse the
-release, without changing an existing install, when the wheel asset is missing.
+enabled. Pushing a version tag builds the wheel, sdist, agent plugin archive,
+and `SHA256SUMS`, then creates that GitHub Release in one step with those
+assets attached. Notes come from that version's changelog section. A published
+release cannot take new assets, so a missing wheel needs a new patch tag. The
+installers refuse the release, without changing an existing install, when the
+wheel asset is missing.
 
 ### Recommended release install
 

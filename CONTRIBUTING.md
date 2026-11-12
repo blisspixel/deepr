@@ -156,10 +156,15 @@ not add day, sprint, week, quarter, or release-date estimates to active plans.
    `packages/deepr-agent-plugin/SHA256SUMS` after changing plugin content or
    versions, then run the plugin package tests before pushing. Run the full
    Definition of Done before merging.
-5. Tag only the exact green `main` commit. Pushing that version tag publishes
-   the wheel, sdist, plugin archive, and `SHA256SUMS` through
-   `.github/workflows/release.yml`. Validate the public installer and confirm
-   the installed CLI reports that version.
+5. Tag only the exact green `main` commit. Do not publish the GitHub Release
+   first. Pushing that version tag runs `.github/workflows/release.yml`, which
+   builds the wheel, sdist, plugin archive, and `SHA256SUMS`, then creates the
+   GitHub Release in one step with those assets attached. Notes are that
+   version's section in `docs/CHANGELOG.md`, or a short summary when the
+   section is missing. GitHub immutable releases cannot take new assets. If a
+   published release for the tag already exists, the workflow fails and a new
+   patch tag is required. Validate the public installer and confirm the
+   installed CLI reports that version.
 6. Record a failed live validation in the roadmap and fix it in the next patch.
    Never move or reuse a published tag to hide the finding.
 

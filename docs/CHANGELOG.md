@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.51.9] - 2026-11-12
+
+Patch release: the release workflow now publishes releases with the
+wheel and SHA256SUMS attached, so the README installer works again
+(v2.51.8 shipped without assets).
+
+### Fixed
+
+- The version-tag workflow builds the wheel, sdist, agent plugin archive,
+  and `SHA256SUMS`, then creates the GitHub Release in one step with those
+  assets and the notes from that version's changelog section. A published
+  release cannot take new assets, so the workflow fails and asks for a new
+  patch tag instead of uploading.
+
 ## [2.51.8] - 2026-11-11
 
 Patch release: a version tag publishes the wheel, sdist, agent plugin
