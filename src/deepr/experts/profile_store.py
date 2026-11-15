@@ -79,7 +79,7 @@ def migrate_v1_to_v2(data: dict[str, Any]) -> dict[str, Any]:
     if "provider" not in data:
         data["provider"] = "openai"
     if "model" not in data:
-        data["model"] = "gpt-5.2"
+        data["model"] = "gpt-6.1-terra"
 
     # Add refresh_history if missing
     if "refresh_history" not in data:

@@ -112,21 +112,21 @@ class TestProviderRouter:
 
     def test_get_model_openai_documentation(self, router_multi):
         """OpenAI documentation tasks use o4-mini."""
-        assert router_multi.get_model_for_task("openai", "documentation") == "o4-mini-deep-research"
+        assert router_multi.get_model_for_task("openai", "documentation") == "gpt-6-luna"
 
     def test_get_model_openai_analysis(self, router_multi):
         """OpenAI analysis tasks use o3."""
-        assert router_multi.get_model_for_task("openai", "analysis") == "o3-deep-research"
+        assert router_multi.get_model_for_task("openai", "analysis") == "gpt-6.1-sol"
 
     def test_get_model_azure_documentation(self, router_multi):
         """Azure documentation uses same models as OpenAI."""
-        assert router_multi.get_model_for_task("azure", "documentation") == "o4-mini-deep-research"
+        assert router_multi.get_model_for_task("azure", "documentation") == "gpt-6-luna"
 
     def test_get_model_anthropic(self, router_multi):
         """Anthropic returns Claude model."""
         result = router_multi.get_model_for_task("anthropic", "analysis")
-        assert result == "claude-opus-5"
-        assert router_multi.get_model_for_task("anthropic", "documentation") == "claude-sonnet-5"
+        assert result == "claude-opus-5-5"
+        assert router_multi.get_model_for_task("anthropic", "documentation") == "claude-sonnet-5-5"
 
     def test_get_model_unknown_provider_raises(self, router_multi):
         """Unknown provider raises ValueError."""

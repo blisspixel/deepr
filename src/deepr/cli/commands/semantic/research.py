@@ -185,7 +185,7 @@ def research(
     PREVIEW MODE (--preview):
         Show the model, provider, and maximum without dispatch. Works with or
         without --auto.
-        deepr research -m gpt-5.6-sol --preview "Quantum computing trends"
+        deepr research -m gpt-6.1-sol --preview "Quantum computing trends"
 
     \b
     COMPANY RESEARCH MODE:
@@ -195,7 +195,7 @@ def research(
 
     \b
     BOUNDED PREVIEW EXAMPLES:
-        deepr research "Analyze AI code editor market" --provider openai --model gpt-5.6-sol --preview
+        deepr research "Analyze AI code editor market" --provider openai --model gpt-6.1-sol --preview
         deepr research "Compare routes" --auto --preview
     """
     from deepr.cli.validation import validate_budget, validate_prompt, validate_upload_files
@@ -465,13 +465,13 @@ def research(
 @click.option(
     "--model",
     "-m",
-    default="gpt-5.6-sol",
-    help="Research model (default: gpt-5.6-sol)",
+    default="gpt-6.1-sol",
+    help="Research model (default: gpt-6.1-sol)",
 )
 @click.option(
     "--provider", default="openai", type=click.Choice(["openai", "azure", "gemini", "xai"]), help="Research provider"
 )
-@click.option("--lead", default="gpt-5.6-sol", help=model_help("Lead planner model", "gpt-5.6-sol"))
+@click.option("--lead", default="gpt-6.1-sol", help=model_help("Lead planner model", "gpt-6.1-sol"))
 @click.option("--phases", "-p", type=int, default=3, help="Number of learning phases")
 @click.option("--yes", "-y", is_flag=True, help="Run noninteractively; never bypasses a budget gate")
 def learn(
@@ -490,7 +490,7 @@ def learn(
     Examples:
         deepr learn "Ford EV strategy for 2026"
         deepr learn "Azure Landing Zones" --phases 4
-        deepr learn "Rust programming language" -m gpt-5.6-sol
+        deepr learn "Rust programming language" -m gpt-6.1-sol
         deepr learn "Machine learning fundamentals"
     """
     click.echo(f"[Learning Mode: Multi-phase research with {phases} phases]")
@@ -502,8 +502,8 @@ def learn(
 @click.option(
     "--model",
     "-m",
-    default="gpt-5.6-sol",
-    help="Research model (default: gpt-5.6-sol)",
+    default="gpt-6.1-sol",
+    help="Research model (default: gpt-6.1-sol)",
 )
 @click.option(
     "--provider", default="openai", type=click.Choice(["openai", "azure", "gemini", "xai"]), help="Research provider"

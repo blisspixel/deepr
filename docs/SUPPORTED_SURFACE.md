@@ -78,8 +78,9 @@ operational success nor matching evidence hashes qualifies advice. See the
 [preparation record](validation/prepared-consultation-2026-10-25.md) and
 [brief replay](validation/brief-clarification-2026-10-25.md).
 
-**v2.50.46 installer trust repair:** maintained uv is 0.13.5 and the dev-only
-pip floor is 26.2.2. Managed installation requests CPython 3.15.1. Old or unknown
+**v2.50.46 installer trust repair:** that release pinned uv 0.13.5 and managed
+CPython 3.15.1. Current acquisition uses uv 0.13.8 and CPython 3.15.2. The
+dev-only pip floor is 26.2.2. Old or unknown
 uv is refused before managed acquisition; uninstall and manager ownership stay
 intact. All container stages use the refreshed base and cold builds. Existing
 pip/pipx environments and deployed images require owner repair; application

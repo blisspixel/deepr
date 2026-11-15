@@ -106,7 +106,7 @@ Summary (bullet list, ~{target_words} words):"""
         from deepr.services.metered_call import execute_reserved_sync_call
         from deepr.services.metered_envelope import bounded_chat_envelope
 
-        model = "gpt-5.6-luna"
+        model = "gpt-6-luna"
         envelope = bounded_chat_envelope(
             provider="openai",
             model=model,

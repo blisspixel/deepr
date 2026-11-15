@@ -29,14 +29,14 @@ class ResearchReviewer:
     - Assign next round of research tasks
     """
 
-    def __init__(self, model: str = "gpt-5.6-sol"):
+    def __init__(self, model: str = "gpt-6.1-sol"):
         """
         Initialize research reviewer.
 
         Args:
-            model: GPT-5.6 model to use for reasoning (gpt-5.6-sol, gpt-5.6-terra)
+            model: GPT-5.6 model to use for reasoning (gpt-6.1-sol, gpt-6.1-terra)
         """
-        valid_models = ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5", "gpt-5-mini", "gpt-5-nano"]
+        valid_models = ["gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-luna", "gpt-6-astra"]
         if model not in valid_models:
             raise ValueError(f"Invalid model: {model}. Must be one of {valid_models}")
 

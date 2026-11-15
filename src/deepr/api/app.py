@@ -46,33 +46,18 @@ _allow_unauthenticated_loopback = http_auth.env_flag("DEEPR_API_ALLOW_UNAUTHENTI
 # cost controller and rate limiter). Sized to match deepr/web/app.py.
 _MAX_PROMPT_LENGTH = 50_000  # characters
 _ALLOWED_MODELS = {
-    "o3-deep-research",
-    "o4-mini-deep-research",
-    "gemini/deep-research",
-    "xai/grok-4-20-multi-agent",
-    "xai/grok-4-20-reasoning",
-    "xai/grok-4-20-non-reasoning",
-    "xai/grok-4-6",
-    "xai/grok-4-3",
-    "xai/grok-build-0-1",
-    "gpt-5.6-sol",
-    "gpt-5.6-terra",
-    "gpt-5.6-luna",
-    "gpt-5.2",
-    "gemini-4-argon",
+    "gpt-6.1-sol",
+    "gpt-6.1-terra",
+    "gpt-6-luna",
+    "gpt-6-astra",
+    "gemini-4-carbon",
     "gemini-3.8-flash",
     "gemini-3.5-flash-lite",
-    "gemini-flash",
-    "gemini-flash-lite",
-    "grok-4",
-    "grok-4-6",
-    "grok-4.6",
-    "grok-4-3",
-    "grok-4.3",
-    "grok-build-0.1",
-    "claude-opus-5",
-    "claude-sonnet-5",
-    "claude-sonnet-4-5-20250929",
+    "grok-4.7",
+    "claude-opus-5-5",
+    "claude-sonnet-5-5",
+    "claude-haiku-5-5",
+    "claude-fable-5-2",
 }
 
 
@@ -159,7 +144,7 @@ per client IP on top of authentication.
                     "description": "Research prompt/query",
                     "example": "What are the latest advances in quantum computing?",
                 },
-                "model": {"type": "string", "description": "LLM model to use", "example": "gpt-5.6-sol"},
+                "model": {"type": "string", "description": "LLM model to use", "example": "gpt-6.1-sol"},
                 "status": {
                     "type": "string",
                     "enum": ["queued", "processing", "completed", "failed", "cancelled"],
@@ -206,8 +191,8 @@ per client IP on top of authentication.
                 },
                 "model": {
                     "type": "string",
-                    "description": "LLM model to use (default: gpt-5.6-sol)",
-                    "example": "gpt-5.6-sol",
+                    "description": "LLM model to use (default: gpt-6.1-sol)",
+                    "example": "gpt-6.1-sol",
                 },
                 "priority": {"type": "integer", "description": "Job priority 1-5 (default: 3)", "example": 3},
                 "enable_web_search": {
@@ -403,7 +388,7 @@ def list_jobs():
             jobs:
               - id: "550e8400-e29b-41d4-a716-446655440000"
                 prompt: "Research quantum computing"
-                model: "gpt-5.6-sol"
+                model: "gpt-6.1-sol"
                 status: "completed"
                 priority: 3
                 cost: 0.50
@@ -494,7 +479,7 @@ def get_job(job_id):
             job:
               id: "550e8400-e29b-41d4-a716-446655440000"
               prompt: "Research quantum computing"
-              model: "gpt-5.6-sol"
+              model: "gpt-6.1-sol"
               status: "completed"
               priority: 3
               cost: 0.50
@@ -592,7 +577,7 @@ def submit_job():
             job:
               id: "550e8400-e29b-41d4-a716-446655440000"
               prompt: "Research quantum computing"
-              model: "gpt-5.6-sol"
+              model: "gpt-6.1-sol"
               status: "processing"
               provider_job_id: "resp_abc123"
             estimated_cost:
@@ -625,7 +610,7 @@ def submit_job():
         return jsonify({"error": "Request body must be JSON"}), 400
 
     prompt = data.get("prompt")
-    model = data.get("model", "gpt-5.6-sol")
+    model = data.get("model", "gpt-6.1-sol")
     priority = data.get("priority", 5)
     provider = data.get("provider")
     enable_web_search = admitted_web_search(model, data.get("enable_web_search"), provider)
@@ -637,10 +622,12 @@ def submit_job():
         return jsonify({"error": "Prompt required"}), 400
     if len(prompt) > _MAX_PROMPT_LENGTH:
         return jsonify({"error": f"Prompt exceeds {_MAX_PROMPT_LENGTH} character limit"}), 400
-    if not isinstance(model, str) or model not in _ALLOWED_MODELS:
+    if not isinstance(model, str):
         return jsonify({"error": "Invalid model"}), 400
     if is_shutdown(model, provider=provider if isinstance(provider, str) else None):  # provider-scoped date
         return jsonify({"error": f"Model {model} is shut down by its provider", "error_code": "model_shut_down"}), 400
+    if model not in _ALLOWED_MODELS:
+        return jsonify({"error": "Invalid model"}), 400
     if not isinstance(priority, int) or isinstance(priority, bool) or not (1 <= priority <= 10):
         return jsonify({"error": "priority must be an integer from 1 to 10"}), 400
 

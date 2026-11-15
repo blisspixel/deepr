@@ -253,7 +253,7 @@ def run():
 
 @run.command()
 @click.argument("query")
-@click.option("--model", "-m", default="gpt-5.6-sol", help="Research model to use")
+@click.option("--model", "-m", default="gpt-6.1-sol", help="Research model to use")
 @click.option(
     "--provider",
     "-p",
@@ -303,7 +303,7 @@ def focus(
 
     Examples:
         deepr run focus "Analyze AI code editor market 2025"
-        deepr run focus "Latest quantum computing trends" -m gpt-5.6-sol
+        deepr run focus "Latest quantum computing trends" -m gpt-6.1-sol
         deepr run focus "Query" --provider gemini -m gemini-3.8-flash
         deepr run focus "Latest from xAI" --provider grok -m grok-4.3
         deepr run focus "AI trends" --explain --timeline
@@ -1136,8 +1136,8 @@ async def _handle_background_job(
 
 @run.command()
 @click.argument("scenario")
-@click.option("--model", "-m", default="gpt-5.6-sol", help="Research model")
-@click.option("--lead", default="gpt-5.6-sol", help=model_help("Lead planner model", "gpt-5.6-sol"))
+@click.option("--model", "-m", default="gpt-6.1-sol", help="Research model")
+@click.option("--lead", default="gpt-6.1-sol", help=model_help("Lead planner model", "gpt-6.1-sol"))
 @click.option("--phases", "-p", type=click.IntRange(1, 10), default=3, help="Number of phases (1-10)")
 @click.option("--yes", "-y", is_flag=True, help="Skip budget confirmation")
 def project(
@@ -1155,7 +1155,7 @@ def project(
     Examples:
         deepr run project "Ford EV strategy for 2026"
         deepr run project "Market entry analysis" --phases 4
-        deepr run project "Competitive landscape" -m gpt-5.6-sol
+        deepr run project "Competitive landscape" -m gpt-6.1-sol
     """
     run_async_command(_run_campaign(scenario, model, lead, phases, yes), runner=asyncio.run)
 
@@ -1175,7 +1175,7 @@ async def _run_campaign(
 
 @run.command()
 @click.argument("question")
-@click.option("--model", "-m", default="gpt-5.6-sol", help="Research model")
+@click.option("--model", "-m", default="gpt-6.1-sol", help="Research model")
 @click.option("--perspectives", "-p", type=click.IntRange(1, 12), default=6, help="Number of perspectives (1-12)")
 @click.option("--yes", "-y", is_flag=True, help="Skip budget confirmation")
 def team(
@@ -1192,7 +1192,7 @@ def team(
     Examples:
         deepr run team "Should we pivot to enterprise?"
         deepr run team "Evaluate merger opportunity" --perspectives 8
-        deepr run team "Technology decision" -m gpt-5.6-sol
+        deepr run team "Technology decision" -m gpt-6.1-sol
     """
     run_async_command(_run_team(question, model, perspectives, yes), runner=asyncio.run)
 
@@ -1211,7 +1211,7 @@ async def _run_team(
 
 @run.command()
 @click.argument("topic")
-@click.option("--model", "-m", default="gpt-5.6-sol", help="Research model to use")
+@click.option("--model", "-m", default="gpt-6.1-sol", help="Research model to use")
 @click.option(
     "--provider",
     "-p",
@@ -1266,7 +1266,7 @@ def docs(
 # Aliases
 @click.command(name="r")
 @click.argument("query")
-@click.option("--model", "-m", default="gpt-5.6-sol")
+@click.option("--model", "-m", default="gpt-6.1-sol")
 @click.option("--provider", "-p", default="openai", type=click.Choice(["openai", "azure", "gemini", "grok"]))
 @click.option("--no-web", is_flag=True)
 @click.option("--no-code/--code", default=True)

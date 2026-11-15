@@ -28,7 +28,9 @@ def test_research_choices_hide_shutdown_ids_but_keep_explicit_notice(module, com
     option = next(p for p in cmd.params if p.name == "model")
     assert isinstance(option.type, click.Choice)
     assert all(not is_shutdown(model) for model in option.type.choices)
-    assert "gpt-5.6-sol" in option.type.choices
+    assert "gpt-6.1-sol" in option.type.choices
+    assert "gpt-5.6-sol" not in option.type.choices
+    assert "gpt-5" not in option.type.choices
     for retired in ("o3-deep-research", "o4-mini-deep-research"):
 
         @click.command()
@@ -40,7 +42,7 @@ def test_research_choices_hide_shutdown_ids_but_keep_explicit_notice(module, com
         assert result.exit_code == 0, result.output
         assert result.stdout.strip() == retired
         assert "2026-07-23" in result.stderr
-        assert "gpt-5.6-sol" in result.stderr
+        assert "gpt-6.1-sol" in result.stderr
 
 
 def test_choice_rejects_unknown_names_and_does_not_advertise_retired_completions():
@@ -57,6 +59,7 @@ def test_shutdown_boundary_and_family_notice_are_exact():
     assert model_note("gpt-5-mini-2025-08-07")
     assert not model_note("gpt-5-pro")
     assert not model_note("gpt-5.6-sol")
+    assert not model_note("gpt-6.1-sol")
     assert not model_note("gpt-5-made-up")
     assert ModelChoice(["gpt-5.6-sol"]).convert("gpt-5.6-sol", None, None) == "gpt-5.6-sol"
 
@@ -171,10 +174,11 @@ def test_planner_choices_stay_non_empty_after_gpt5_shutdown(module, command):
     cmd = getattr(import_module(f"deepr.cli.commands.{module}"), command)
     option = next(p for p in cmd.params if p.name == "planner")
     after_shutdown = [m for m in option.type.accepted if not is_shutdown(m, today=date(2026, 12, 12))]
-    assert {"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"} <= set(after_shutdown)
+    assert {"gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-luna", "gpt-6-astra"} <= set(after_shutdown)
     assert option.default in after_shutdown
-    assert option.default.startswith("gpt-5.6-")
+    assert option.default.startswith("gpt-6")
     assert "gpt-5" in option.type.accepted
+    assert "gpt-5" not in option.type.choices
 
 
 def test_executable_defaults_have_no_retirement_record():
@@ -237,7 +241,7 @@ def test_cli_model_defaults_have_no_retirement_record(module, command, option_na
     mod = import_module(f"deepr.cli.commands.{module}")
     cmd = getattr(mod, command)
     option = next(p for p in cmd.params if p.name == option_name)
-    assert option.default == "gpt-5.6-sol"
+    assert option.default == "gpt-6.1-sol"
     assert check_deprecation(option.default) is None
 
 

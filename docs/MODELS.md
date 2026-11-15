@@ -1,6 +1,6 @@
 # Model Selection Guide
 
-Status: Deepr v2.50.38. Lifecycle notices reviewed 2026-10-27. Gemini lineup reviewed 2026-10-14. Broader currency review 2026-10-06. Provider prices rechecked 2026-11-03.
+Status: Deepr v2.50.38. Lifecycle notices reviewed 2026-10-27. Gemini lineup reviewed 2026-10-14. Broader currency review 2026-10-06. Provider prices rechecked 2026-11-03. New-request defaults reviewed 2026-11-15.
 
 The source of truth for model IDs, pricing estimates, context windows, and
 routing metadata is [src/deepr/providers/registry.py](../src/deepr/providers/registry.py),
@@ -34,11 +34,13 @@ shut down 2026-10-23; `gpt-5`, `gpt-5-mini`, `gpt-5-nano` and `o3` shut down
 2027-01-14. Automatic routing and registry selectors never return an id with a
 direct-API retirement record (Azure rows follow Azure's dates) and fail closed
 when nothing current remains. Executable
-defaults use `gpt-5.6-sol` for planning and research, `gpt-5.6-terra` for
-balanced reasoning, `gpt-5.6-luna` for cheap utility calls, and
-`gemini-3.8-flash` as the Gemini environment default. OpenAI recommends the
-preview-only `gpt-6-luna` for the GPT-4 families; Deepr does not promote it
-without adapter and settlement proof. Retired rows keep their prices so
+the 2026-10-27 repair used `gpt-5.6-sol` for planning and research,
+`gpt-5.6-terra` for balanced reasoning, and `gpt-5.6-luna` for cheap utility
+calls. On 2026-11-15 those new-request roles moved to `gpt-6.1-sol`,
+`gpt-6.1-terra`, and `gpt-6-luna`. `gpt-6-astra` is the explicit flagship.
+`gemini-3.8-flash` stays the Gemini environment default, and Pro aliases
+resolve to `gemini-4-carbon`. `gpt-6-luna` is selectable. `gpt-6-sol` and
+`claude-fable-5-1` stay preview-only. Retired rows keep their prices so
 historical usage still settles.
 
 Latest public text-model listings and relevant prices were reviewed on
@@ -163,7 +165,7 @@ Pricing notes:
 - Anthropic made Sonnet 5's $2 input and $10 output per MTok launch rates
   permanent. Deepr uses those current rates plus $0.20 cache hits and $2.50
   five-minute cache writes. Sonnet 5.5 cache hits are $0.10 per MTok.
-  Haiku 5.5 is preview-only at the over-100,000-token rates.
+  Haiku 5.5 is selectable and still uses the over-100,000-token rates.
 - Gemini free-tier and quota-inclusive entries are useful for setup guidance,
   but automatic routing still depends on the local Deepr capacity profile,
   provider keys, quota posture, and budget gates.
@@ -175,6 +177,9 @@ Pricing notes:
   same order. Deepr retains the December 1, 2026 caps, `$4/$0.20/$20`. Argon
   is paid-only and rejects explicit context caches. It has no long-context
   multiplier.
+- Gemini 4 Carbon uses the same December 1, 2026 caps, `$4/$0.20/$20`.
+  Introductory rates through 2026-11-30 are `$2/$0.10/$10`. Cache is implicit
+  only. Carbon is the Pro alias target.
 
 ## Operating Rules
 
@@ -207,16 +212,19 @@ Pricing notes:
 
 ## Current Deepr Registry Snapshot
 
-The registry currently contains 85 models: 78 direct-provider entries across
+The registry currently contains 87 models: 80 direct-provider entries across
 OpenAI, Gemini, xAI, Anthropic, and Azure AI Foundry, plus seven OpenRouter
-routes that stay excluded from automatic routing. Ten direct-provider entries
-are reviewed preview-only candidates, also excluded from automatic routing.
-`gemini-3.8-flash` left that candidate set and is now selectable.
+routes that stay excluded from automatic routing. Two direct-provider entries
+remain reviewed preview-only candidates (`openai/gpt-6-sol` and
+`anthropic/claude-fable-5-1`), also excluded from automatic routing.
+`gemini-3.8-flash` left that candidate set and is now selectable. The
+2026-11-15 promotion made the current GPT-6, Claude, Grok 4.7, and Gemini 4
+Carbon rows selectable too.
 The lists below describe the established entries; run the
 offline command above for exact pricing and context values. The web
 Models page counts registry rows that are not deprecated or otherwise
 selection-blocked, not Azure AI Foundry deployments, and not image-generation
-entries. That count is 47, and it still includes preview-only rows.
+entries. That count is 49, and it still includes preview-only rows.
 
 ### OpenAI
 
@@ -251,15 +259,16 @@ Default posture:
 - Use GPT mainline models for synthesis, planning, and general research when
   OpenAI is the selected provider.
 - OpenAI shut down `o3-deep-research` and `o4-mini-deep-research` on 2026-07-23.
-  Use `gpt-5.6-sol` for those workloads. `o4-mini` and `gpt-4.1-nano` shut
+  Use `gpt-6.1-sol` for those workloads. `o4-mini` and `gpt-4.1-nano` shut
   down 2026-10-23; `gpt-5`, `gpt-5-mini`, `gpt-5-nano` and `o3` shut down
   2026-12-11; `gpt-4o-mini`, `gpt-4.1` and `gpt-4.1-mini` shut down
   2027-01-14. Those rows are deprecated, priced for settlement, and never
   auto-selected.
-- Use `gpt-5.6-luna` for cheap classification, summaries, and routing only
+- Use `gpt-6-luna` for cheap classification, summaries, and routing only
   when quality risk is acceptable.
-- GPT-5.6 Sol is the OpenAI task default. Terra is the balanced tier and Luna
-  is the cost-sensitive tier. The `gpt-5.6` provider alias is priced as Sol.
+- GPT-6.1 Sol is the OpenAI task default. Terra is the balanced tier, Luna
+  is the cost-sensitive tier, and Astra is the explicit flagship. The
+  `gpt-5.6` provider alias is still priced as Sol.
 - A 272K-token prompt is still base price. At 272,001 input tokens, Deepr
   applies the documented full-request long-context multipliers before a budget
   reservation can be admitted.
@@ -277,6 +286,7 @@ Environment variable: `GEMINI_API_KEY`
 
 Selectable IDs:
 
+- `gemini/gemini-4-carbon`
 - `gemini/gemini-4-argon`
 - `gemini/gemini-3.8-flash`
 - `gemini/gemini-3.5-flash-lite`
@@ -291,7 +301,7 @@ Older ids remain in the registry for historical settlement and are not selected:
 
 Default posture:
 
-- `gemini-pro` and `gemini-3.1-pro` resolve to `gemini-4-argon`.
+- `gemini-pro` and `gemini-3.1-pro` resolve to `gemini-4-carbon`.
   `gemini-flash` resolves to `gemini-3.8-flash`. `gemini-flash-lite` resolves
   to `gemini-3.5-flash-lite`. `deep-research` and `gemini-deep-research`
   resolve to `deep-research-max-preview-04-2026`. These aliases select a model

@@ -268,7 +268,7 @@ class ExpertSettings:
 
     # Synthesis
     auto_synthesis: bool = True
-    synthesis_model: str = "gpt-5.6-sol"
+    synthesis_model: str = "gpt-6.1-sol"
 
     # Freshness
     default_domain_velocity: DomainVelocity = DomainVelocity.MEDIUM
@@ -357,12 +357,12 @@ class SecuritySettings:
 TASK_MODEL_MAP: dict[str, tuple[str, str]] = {
     "quick_lookup": ("xai", "grok-4.3"),
     "fact_check": ("xai", "grok-4.3"),
-    "deep_research": ("openai", "gpt-5.6-sol"),
-    "synthesis": ("openai", "gpt-5.6-sol"),
-    "chat": ("openai", "gpt-5.6-sol"),
-    "planning": ("openai", "gpt-5.6-sol"),
-    "documentation": ("openai", "gpt-5.6-sol"),
-    "strategy": ("openai", "gpt-5.6-sol"),
+    "deep_research": ("openai", "gpt-6.1-sol"),
+    "synthesis": ("openai", "gpt-6.1-sol"),
+    "chat": ("openai", "gpt-6.1-sol"),
+    "planning": ("openai", "gpt-6.1-sol"),
+    "documentation": ("openai", "gpt-6.1-sol"),
+    "strategy": ("openai", "gpt-6.1-sol"),
 }
 
 
@@ -409,7 +409,7 @@ class Settings:
     default_provider: str = "xai"
     default_model: str = "grok-4.3"
     deep_research_provider: str = "openai"
-    deep_research_model: str = "gpt-5.6-sol"
+    deep_research_model: str = "gpt-6.1-sol"
 
     # Data directory
     data_dir: str = "data"
@@ -533,8 +533,8 @@ class Settings:
         self._apply_env("DEEPR_DATA_DIR", "data_dir")
 
         # Provider API keys
-        self._load_provider_from_env("openai", "OPENAI_API_KEY", "OPENAI_BASE_URL", "gpt-5.6-sol")
-        self._load_provider_from_env("anthropic", "ANTHROPIC_API_KEY", None, "claude-opus-5")
+        self._load_provider_from_env("openai", "OPENAI_API_KEY", "OPENAI_BASE_URL", "gpt-6.1-sol")
+        self._load_provider_from_env("anthropic", "ANTHROPIC_API_KEY", None, "claude-opus-5-5")
         self._load_provider_from_env("gemini", "GEMINI_API_KEY", None, "gemini-3.8-flash")
         self._load_provider_from_env("grok", "XAI_API_KEY", None, "grok-4.3")
         self._load_provider_from_env("xai", "XAI_API_KEY", None, "grok-4.3")

@@ -16,7 +16,7 @@ ALLOWLIST_FILES = (
     "deploy/azure/functions/function_app.py",
     "deploy/gcp/functions/main.py",
 )
-CURRENT_MODELS = ["gpt-5.6-sol", "gpt-5.6-terra"]
+CURRENT_MODELS = ["gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-luna", "gpt-6-astra"]
 REMOVED_MODELS = {
     "o3-deep-research",
     "o4-mini-deep-research",
@@ -69,10 +69,13 @@ def test_submission_error_uses_the_recorded_sunset_before_the_allowlist() -> Non
     assert grok is not None
     assert grok["error_code"] == "model_shut_down"
     unknown = model_submission_error("gemini-2.0-flash-thinking-exp", CURRENT_MODELS, today=date(2026, 11, 3))
-    assert unknown == {"error": "Invalid model. Valid options: gpt-5.6-sol, gpt-5.6-terra"}
-    assert model_submission_error("gpt-5.6-sol", CURRENT_MODELS, today=date(2026, 11, 3)) is None
+    assert unknown == {"error": "Invalid model. Valid options: gpt-6.1-sol, gpt-6.1-terra, gpt-6-luna, gpt-6-astra"}
+    assert model_submission_error("gpt-6.1-sol", CURRENT_MODELS, today=date(2026, 11, 3)) is None
+    assert model_submission_error("o3-deep-research", CURRENT_MODELS, today=date(2026, 11, 3))["error_code"] == (
+        "model_shut_down"
+    )
     assert model_submission_error(None, CURRENT_MODELS) == {
-        "error": "Invalid model. Valid options: gpt-5.6-sol, gpt-5.6-terra"
+        "error": "Invalid model. Valid options: gpt-6.1-sol, gpt-6.1-terra, gpt-6-luna, gpt-6-astra"
     }
 
 
@@ -96,5 +99,5 @@ def test_shared_validator_reports_the_shutdown_message() -> None:
     valid, _model, error = module.validate_model("o3-deep-research")
     assert valid is False
     assert error == "Model o3-deep-research is shut down by its provider"
-    valid, model, error = module.validate_model("gpt-5.6-terra")
-    assert (valid, model, error) == (True, "gpt-5.6-terra", None)
+    valid, model, error = module.validate_model("gpt-6.1-terra")
+    assert (valid, model, error) == (True, "gpt-6.1-terra", None)

@@ -216,7 +216,7 @@ function python {
 function uv {
     $global:LASTEXITCODE = 0
     Add-Content -LiteralPath $env:DEEPR_INSTALL_TEST_OPERATIONS -Value ("uv " + ($args -join ' '))
-    if ($args[0] -eq '--version') { 'uv 0.13.7'; return }
+    if ($args[0] -eq '--version') { 'uv 0.13.8'; return }
     if ($args[0] -eq 'tool' -and $args[1] -eq 'list') { return }
 }
 function Get-Command {
@@ -249,7 +249,7 @@ command() {
 }
 uv() {
     printf 'uv %s\\n' "$*" >> "$DEEPR_INSTALL_TEST_OPERATIONS"
-    if [ "$1" = --version ]; then printf 'uv 0.13.7\\n'; fi
+    if [ "$1" = --version ]; then printf 'uv 0.13.8\\n'; fi
     return 0
 }
 curl() { printf '%s' "$DEEPR_INSTALL_TEST_RELEASE"; }

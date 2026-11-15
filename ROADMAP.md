@@ -54,8 +54,15 @@ what the next comparison measures. In order:
    procedure or test result". That residue is semantic work for a later round,
    needing a new held-out world (worlds 1 to 3 are exposed).
 
-Not next: widening sources, promoting preview-only models, or any paid path.
+Not next: widening sources, promoting the remaining preview-only rows, or any paid path.
 Those stay behind their existing gates.
+
+**2026-11-15 (#328):** new-request defaults, allow-lists, and CLI choices use
+GPT-6.1 Sol, GPT-6.1 Terra, GPT-6 Luna, and GPT-6 Astra; Grok 4.7; Gemini 4
+Carbon for Pro. GPT-6 is selectable. Historical price rows remain. `gpt-6-sol`
+and `claude-fable-5-1` stay preview-only. Managed CPython is 3.15.2 with uv
+0.13.8. Locked `soupsieve` is 4.1.1 and the dashboard `minimatch` override is
+11.0.8.
 
 **2026-10-25 brief clarification:** generation instructions now distinguish
 future-event forecasts from standing advice, require same-claim revision
@@ -4323,13 +4330,16 @@ A mock panel (business buyer, indie hacker, enterprise AI architect, research sc
 
 ### Backlog (Not in Active Sequence)
 
-- [ ] **Provider currency follow-up (2026-10-06):** promote reviewed GPT-6,
-  Claude 5.5/Fable 5.1, Gemini 3.8 Flash, and Grok 4.7 candidates only after
-  adapter parameters, usage buckets, limits, and cost settlement are proved.
-  Defaults and frozen S0 arms remain pinned. OpenAI 3.26 and Anthropic 1.11
-  custom clients are migrated to HTTPX2; Azure AI Projects is updated to 2.8.
-  Offline transport checks preserve guards without proving new model quality.
-  See [the currency decision](docs/design/provider-currency-2026-10.md).
+- [~] **Provider currency follow-up (2026-10-06):** the October review kept
+  reviewed GPT-6, Claude 5.5/Fable 5.1, Gemini 3.8 Flash, and Grok 4.7
+  candidates unpromoted until adapter parameters, usage buckets, limits, and
+  cost settlement were proved. Frozen S0 arms stayed pinned. OpenAI 3.26 and
+  Anthropic 1.11 custom clients were migrated to HTTPX2; Azure AI Projects was
+  updated to 2.8. Offline transport checks preserve guards without proving new
+  model quality. See [the currency decision](docs/design/provider-currency-2026-10.md).
+  2026-11-15 (#328): new-request defaults, allow-lists, and CLI choices use the
+  current ids and GPT-6 is selectable. Live usage-bucket proof and the discovery
+  command remain open. See [the 2026-11-15 currency note](docs/design/model-currency-2026-11-15.md).
 - [ ] **Live validation finding (2026-10-06, no-key OpenRouter catalog):** six
   proposals pass, but `deepseek/deepseek-v4-flash-0731` has no endpoint for its
   pinned `deepseek` route. Keep it refused. Review a replacement only with exact
@@ -4351,7 +4361,7 @@ A mock panel (business buyer, indie hacker, enterprise AI architect, research sc
       observation handoffs, and the existing verified absorb path. This is
       knowledge integration, not permission to enact business workflows.
 - [x] Web-grounded local research (`research_web_local` + topic `deepr expert learn`, with `learn-web` as an explicit alias): a local model searches the live web (free DuckDuckGo) + scrapes pages + synthesizes a cited report, absorbed at $0. Fixes the "local research answers from stale parametric knowledge" gap so experts reflect the latest, not the training cutoff.
-- [ ] Model-freshness loop: periodically discover each provider's current models + pricing (provider model-list APIs) and update the model registry + cost tables, instead of hardcoding IDs like `gpt-5.2` and cost numbers that rot. A `--dry-run` diff + opt-in apply; surfaces "your default model is N versions behind." The 2026-07-01 docs pass refreshed `docs/MODELS.md`, fixed offline registry display, moved the Gemini Flash-Lite alias off a shut-down preview ID, and hid deprecated migration entries from benchmark-derived routing, routing fallbacks, and web benchmark target counts; the periodic discovery, pricing verification, and opt-in apply flow remain planned. A manual recheck on 2026-11-03 recorded `gpt-6.1-terra`, `gpt-6-sol`, and `claude-haiku-5-5` as preview-only, corrected the Sonnet 5.5 cache hit and the OpenRouter Sol cap, and left limited-access models and the discovery command unbuilt.
+- [ ] Model-freshness loop: periodically discover each provider's current models + pricing (provider model-list APIs) and update the model registry + cost tables, instead of hardcoding IDs like `gpt-5.2` and cost numbers that rot. A `--dry-run` diff + opt-in apply; surfaces "your default model is N versions behind." The 2026-07-01 docs pass refreshed `docs/MODELS.md`, fixed offline registry display, moved the Gemini Flash-Lite alias off a shut-down preview ID, and hid deprecated migration entries from benchmark-derived routing, routing fallbacks, and web benchmark target counts; the periodic discovery, pricing verification, and opt-in apply flow remain planned. A manual recheck on 2026-11-03 recorded `gpt-6.1-terra`, `gpt-6-sol`, and `claude-haiku-5-5` as preview-only, corrected the Sonnet 5.5 cache hit and the OpenRouter Sol cap, and left limited-access models and the discovery command unbuilt. On 2026-11-15 (#328) new-request defaults moved to the current GPT-6, Grok 4.7, Gemini 4 Carbon, and Claude 5.5/Fable 5.2 ids; `gpt-6-sol` and `claude-fable-5-1` stay preview-only. The discovery command remains unbuilt.
 - [ ] Local fleet daemon / tray app with quiet-hours: run background enrichment (topic learn, sync, gap-fill on local models) only in configurable windows (e.g. 18:00-05:00) or when the GPU is idle, so unattended $0 maintenance never contends with the user's foreground GPU work. Pairs with capacity admission + loop runs already in place.
 - [x] Portrait portability + overwrite-safety (2026-06-30): portraits now default to the configured runtime data root (`DEEPR_DATA_DIR` via `runtime_data_path("portraits")`) so they follow portable data, and forced regeneration archives the previous image before atomic replacement so a paid artifact is not silently clobbered.
 - [ ] Local model support beyond the Phase 6 `local-ollama` backend (DGX Spark, Jetson Orin Nano Super, multi-GPU); the core local backend + budget-exhausted offload now lives in Phase 6's capacity waterfall

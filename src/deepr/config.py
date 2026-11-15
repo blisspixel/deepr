@@ -205,7 +205,7 @@ class ProviderConfig(BaseModel):
     # Azure AI Foundry Configuration
     azure_foundry_endpoint: str | None = Field(default=None, description="Azure AI Foundry project endpoint URL")
     azure_foundry_deep_research_deployment: str = Field(
-        default="gpt-5.6-sol", description="Azure Foundry deep research model deployment"
+        default="gpt-6.1-sol", description="Azure Foundry deep research model deployment"
     )
     azure_foundry_gpt_deployment: str = Field(default="gpt-4o", description="Azure Foundry GPT model deployment")
     azure_foundry_bing_resource: str | None = Field(
@@ -221,19 +221,19 @@ class ProviderConfig(BaseModel):
     # Dual Provider Configuration
     default_provider: str = Field(default="xai", description="Default provider for general operations")
     deep_research_provider: str = Field(default="openai", description="Provider for deep research operations")
-    deep_research_model: str = Field(default="gpt-5.6-sol", description="Model for deep research")
+    deep_research_model: str = Field(default="gpt-6.1-sol", description="Model for deep research")
 
     # Task-specific model mappings
     # Maps task types to (provider, model) tuples
     TASK_MODEL_MAP: dict[str, tuple] = {
         "quick_lookup": ("xai", "grok-4.3"),  # Fast, cheap fact checks
         "fact_check": ("xai", "grok-4.3"),  # Fact verification
-        "deep_research": ("openai", "gpt-5.6-sol"),  # OpenAI substitute for shut-down deep research models
-        "synthesis": ("openai", "gpt-5.6-sol"),  # Knowledge synthesis
-        "chat": ("openai", "gpt-5.6-sol"),  # Expert chat
-        "planning": ("openai", "gpt-5.6-sol"),  # Research planning
-        "documentation": ("openai", "gpt-5.6-sol"),  # Doc generation
-        "strategy": ("openai", "gpt-5.6-sol"),  # Strategic analysis
+        "deep_research": ("openai", "gpt-6.1-sol"),  # Current research default
+        "synthesis": ("openai", "gpt-6.1-sol"),  # Knowledge synthesis
+        "chat": ("openai", "gpt-6.1-sol"),  # Expert chat
+        "planning": ("openai", "gpt-6.1-sol"),  # Research planning
+        "documentation": ("openai", "gpt-6.1-sol"),  # Doc generation
+        "strategy": ("openai", "gpt-6.1-sol"),  # Strategic analysis
     }
 
     @model_validator(mode="after")
@@ -338,7 +338,7 @@ class ProviderConfig(BaseModel):
     @classmethod
     def validate_deep_research_model(cls, v: Any) -> str:
         """Load deep research model from environment."""
-        return os.getenv("DEEPR_DEEP_RESEARCH_MODEL", v) if v else os.getenv("DEEPR_DEEP_RESEARCH_MODEL", "gpt-5.6-sol")
+        return os.getenv("DEEPR_DEEP_RESEARCH_MODEL", v) if v else os.getenv("DEEPR_DEEP_RESEARCH_MODEL", "gpt-6.1-sol")
 
     @model_validator(mode="after")
     def validate_api_keys(self) -> "ProviderConfig":
@@ -460,7 +460,7 @@ class ExpertConfig(BaseModel):
 
     # Synthesis
     auto_synthesis: bool = Field(default=True, description="Automatically synthesize knowledge after learning")
-    synthesis_model: str = Field(default="gpt-5.6-sol", description="Model for knowledge synthesis")
+    synthesis_model: str = Field(default="gpt-6.1-sol", description="Model for knowledge synthesis")
 
     # Domain Velocity Defaults
     default_domain_velocity: str = Field(default="medium", description="Default domain velocity (slow/medium/fast)")
@@ -556,8 +556,12 @@ class AppConfig(BaseModel):
             azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT") or None,
             azure_api_version=os.getenv("AZURE_API_VERSION", "2024-10-01-preview"),
             azure_use_managed_identity=os.getenv("AZURE_USE_MANAGED_IDENTITY", "false").lower() == "true",
-            default_model=os.getenv("DEEPR_DEFAULT_MODEL", "gpt-5.6-sol"),
+            default_model=os.getenv("DEEPR_DEFAULT_MODEL", "gpt-6.1-sol"),
             model_mappings={
+                "gpt-6.1-sol": os.getenv("AZURE_DEPLOYMENT_GPT61_SOL", "gpt-6.1-sol"),
+                "gpt-6.1-terra": os.getenv("AZURE_DEPLOYMENT_GPT61_TERRA", "gpt-6.1-terra"),
+                "gpt-6-luna": os.getenv("AZURE_DEPLOYMENT_GPT6_LUNA", "gpt-6-luna"),
+                "gpt-6-astra": os.getenv("AZURE_DEPLOYMENT_GPT6_ASTRA", "gpt-6-astra"),
                 "gpt-5.6-sol": os.getenv("AZURE_DEPLOYMENT_GPT56_SOL", "gpt-5.6-sol"),
                 "gpt-5.6-terra": os.getenv("AZURE_DEPLOYMENT_GPT56_TERRA", "gpt-5.6-terra"),
                 # Explicit retired ids keep their deployment names so the

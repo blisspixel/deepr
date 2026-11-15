@@ -57,7 +57,7 @@ logger = logging.getLogger(__name__)
 # Current Interactions agents and text models. Older ids stay in the registry
 # for settlement and are rejected before a provider call.
 DEEP_RESEARCH_AGENT = "deep-research-max-preview-04-2026"
-GEMINI_FLAGSHIP = "gemini-4-argon"
+GEMINI_FLAGSHIP = "gemini-4-carbon"
 GEMINI_DEFAULT = "gemini-3.8-flash"
 GEMINI_BUDGET = "gemini-3.5-flash-lite"
 
@@ -143,7 +143,7 @@ class GeminiProvider(DeepResearchProvider):
 
     provider_key = "gemini"
     _THINKING_LEVEL_MODELS = frozenset(
-        {"gemini-4-argon", "gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite"}
+        {"gemini-4-carbon", "gemini-4-argon", "gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite"}
     )
 
     def __init__(
@@ -287,8 +287,8 @@ class GeminiProvider(DeepResearchProvider):
 
     def _get_thinking_config(self, model: str, complexity: str = "medium") -> types.ThinkingConfig | None:
         """Get thinking configuration based on model and task complexity."""
-        if model == "gemini-4-argon":
-            # Argon rejects minimal. Easy work uses low.
+        if model in {"gemini-4-carbon", "gemini-4-argon"}:
+            # Carbon and Argon reject minimal. Easy work uses low.
             return types.ThinkingConfig(
                 thinking_level={"easy": types.ThinkingLevel.LOW, "hard": types.ThinkingLevel.HIGH}.get(
                     complexity, types.ThinkingLevel.MEDIUM

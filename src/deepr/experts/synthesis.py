@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Any
 
 from deepr.experts.metered_mutation_gate import require_metered_expert_mutation
 
-_SYNTHESIS_MODEL = "gpt-5.2"
+_SYNTHESIS_MODEL = "gpt-6.1-terra"
 _SYNTHESIS_CALL_CEILING_USD = 0.10
 _SYNTHESIS_OUTPUT_TOKENS = 4_000
 _EXTRACTION_CALL_CEILING_USD = 0.03

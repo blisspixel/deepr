@@ -145,7 +145,7 @@ class ResearchOrchestrator:
     async def submit_research(
         self,
         prompt: str,
-        model: str = "gpt-5.6-sol",
+        model: str = "gpt-6.1-sol",
         documents: list[str] | None = None,
         vector_store_id: str | None = None,
         webhook_url: str | None = None,
@@ -163,7 +163,7 @@ class ResearchOrchestrator:
 
         Args:
             prompt: Research prompt/question
-            model: Model to use (default: gpt-5.6-sol)
+            model: Model to use (default: gpt-6.1-sol)
             documents: List of document file paths to include
             vector_store_id: Existing vector store ID to use (for experts)
             webhook_url: Webhook URL for completion notification
@@ -215,7 +215,7 @@ class ResearchOrchestrator:
 
             original_model = model
             if cost_sensitive and "o3" in model:
-                model = "gpt-5.6-terra"
+                model = "gpt-6.1-terra"
                 op.add_event("model_downgraded", {"from": original_model, "to": model})
             enhanced_prompt = self._enhance_prompt(prompt, documents is not None)
 

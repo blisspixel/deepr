@@ -1,7 +1,9 @@
-"""Public releases reviewed 2026-10-06 and rechecked 2026-11-03.
+"""Public releases reviewed 2026-10-06, rechecked 2026-11-03, and promoted 2026-11-15.
 
-Owning sources and promotion limits: docs/design/provider-currency-2026-10.md.
-Metadata does not prove account access, request compatibility, or answer quality.
+Owning sources: docs/design/provider-currency-2026-10.md and
+docs/design/model-currency-2026-11-15.md. Metadata does not prove account
+access, request compatibility, or answer quality. Promoted rows are selectable.
+Preview rows stay priced and out of automatic selection.
 """
 
 from .model_capability import ModelCapability
@@ -19,27 +21,31 @@ def _candidate(
     qualification: str,
     *,
     reviewed_on: str = "2026-10-06",
+    preview_only: bool = True,
+    query_cost: float | None = None,
 ) -> ModelCapability:
+    weaknesses = [
+        "Latency placeholder (2500 ms), not benchmarked",
+        "Per-query estimate assumes 10K input and 1K output tokens",
+        qualification,
+    ]
+    if preview_only:
+        weaknesses.insert(0, "Preview only: request and settlement compatibility pending")
     return ModelCapability(
         provider=provider,
         model=model,
-        cost_per_query=round(input_rate * 0.01 + output_rate * 0.001, 6),
+        cost_per_query=(query_cost if query_cost is not None else round(input_rate * 0.01 + output_rate * 0.001, 6)),
         latency_ms=2500,
         context_window=context,
         specializations=["reasoning", "coding", "large_context"],
         strengths=[f"Public API model listed by its provider on {reviewed_on}"],
-        weaknesses=[
-            "Preview only: request and settlement compatibility pending",
-            "Latency placeholder (2500 ms), not benchmarked",
-            "Per-query estimate assumes 10K input and 1K output tokens",
-            qualification,
-        ],
+        weaknesses=weaknesses,
         input_cost_per_1m=input_rate,
         output_cost_per_1m=output_rate,
         cached_input_cost_per_1m=cached_rate,
         cache_write_cost_per_1m=cache_write_rate,
         max_output_tokens=output_limit,
-        preview_only=True,
+        preview_only=preview_only,
     )
 
 
@@ -54,6 +60,9 @@ REVIEWED_CAPABILITIES: dict[str, ModelCapability] = {
         50.0,
         12.5,
         "922K max input; long-context rates above 272K; reasoning none unsupported",
+        reviewed_on="2026-11-15",
+        preview_only=False,
+        query_cost=1.50,
     ),
     "openai/gpt-6.1-sol": _candidate(
         "openai",
@@ -65,6 +74,9 @@ REVIEWED_CAPABILITIES: dict[str, ModelCapability] = {
         10.0,
         2.5,
         "922K max input; long-context rates above 272K; tools require Responses",
+        reviewed_on="2026-11-15",
+        preview_only=False,
+        query_cost=0.30,
     ),
     "openai/gpt-6-luna": _candidate(
         "openai",
@@ -76,6 +88,9 @@ REVIEWED_CAPABILITIES: dict[str, ModelCapability] = {
         0.5,
         0.125,
         "922K max input; long-context rates above 272K; Chat tools require reasoning none",
+        reviewed_on="2026-11-15",
+        preview_only=False,
+        query_cost=0.05,
     ),
     "openai/gpt-6.1-terra": _candidate(
         "openai",
@@ -87,7 +102,9 @@ REVIEWED_CAPABILITIES: dict[str, ModelCapability] = {
         5.0,
         1.25,
         "922K max input; long-context rates above 272K; tools require Responses; 30-minute cache write",
-        reviewed_on="2026-11-03",
+        reviewed_on="2026-11-15",
+        preview_only=False,
+        query_cost=0.15,
     ),
     "openai/gpt-6-sol": _candidate(
         "openai",
@@ -98,8 +115,22 @@ REVIEWED_CAPABILITIES: dict[str, ModelCapability] = {
         0.20,
         10.0,
         2.5,
-        "922K max input; long-context rates above 272K; cache hit is $0.20; Chat tools require reasoning none",
+        "922K max input; long-context rates above 272K; cache hit is $0.20; kept for pricing, not a default",
         reviewed_on="2026-11-03",
+    ),
+    "anthropic/claude-fable-5-2": _candidate(
+        "anthropic",
+        "claude-fable-5-2",
+        1_000_000,
+        128_000,
+        8.0,
+        0.20,
+        40.0,
+        10.0,
+        "Adaptive thinking; 5-minute cache write is $10; 1-hour writes are $16; cache read is $0.20",
+        reviewed_on="2026-11-15",
+        preview_only=False,
+        query_cost=1.20,
     ),
     "anthropic/claude-fable-5-1": _candidate(
         "anthropic",
@@ -110,7 +141,7 @@ REVIEWED_CAPABILITIES: dict[str, ModelCapability] = {
         0.25,
         50.0,
         12.5,
-        "Adaptive thinking; cache write is 5-minute price; 1-hour writes cost more",
+        "Adaptive thinking; cache write is 5-minute price; 1-hour writes cost more; kept for pricing",
     ),
     "anthropic/claude-opus-5-5": _candidate(
         "anthropic",
@@ -122,6 +153,9 @@ REVIEWED_CAPABILITIES: dict[str, ModelCapability] = {
         20.0,
         5.0,
         "Adaptive thinking; cache write is 5-minute price; 1-hour writes cost more",
+        reviewed_on="2026-11-15",
+        preview_only=False,
+        query_cost=0.70,
     ),
     "anthropic/claude-sonnet-5-5": _candidate(
         "anthropic",
@@ -133,6 +167,9 @@ REVIEWED_CAPABILITIES: dict[str, ModelCapability] = {
         10.0,
         2.5,
         "Adaptive thinking; cache hit is $0.10; cache write is the 5-minute price; 1-hour writes cost more",
+        reviewed_on="2026-11-15",
+        preview_only=False,
+        query_cost=0.32,
     ),
     "anthropic/claude-haiku-5-5": _candidate(
         "anthropic",
@@ -144,17 +181,36 @@ REVIEWED_CAPABILITIES: dict[str, ModelCapability] = {
         2.50,
         0.625,
         "Over-100000-token tier is $0.50/$0.05/$2.50 with a $0.625 five-minute write. At or below 100000 tokens: $0.10/$0.01/$0.50 and a $0.125 write",
-        reviewed_on="2026-11-03",
+        reviewed_on="2026-11-15",
+        preview_only=False,
+        query_cost=0.04,
     ),
-    "xai/grok-4-7": _candidate(
+    "xai/grok-4.7": _candidate(
         "xai",
-        "grok-4-7",
+        "grok-4.7",
         500_000,
         None,
         2.0,
         0.5,
         6.0,
         None,
-        "Conservative long-context cap from 200K; encrypted reasoning needs adapter review",
+        "Input $2 and output $6 from the xAI models page. Cached input $0.50 is carried from the 2026-11-03 review. Long-context cap from 200K",
+        reviewed_on="2026-11-15",
+        preview_only=False,
+        query_cost=0.10,
+    ),
+    "gemini/gemini-4-carbon": _candidate(
+        "gemini",
+        "gemini-4-carbon",
+        1_048_576,
+        65_536,
+        4.00,
+        0.20,
+        20.00,
+        None,
+        "Registry uses the December 1, 2026 caps ($4/$20/$0.20). Introductory rates through November 30, 2026 are $2/$10/$0.10. Implicit cache only",
+        reviewed_on="2026-11-15",
+        preview_only=False,
+        query_cost=0.12,
     ),
 }

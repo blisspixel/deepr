@@ -129,12 +129,12 @@ class TestDeprecationTruth:
         # An empty sunset skipped the run.py warning.
         entry = DEPRECATION_REGISTRY["o3-deep-research"]
         assert entry.sunset_date == "2026-07-23"
-        assert entry.new_model == "gpt-5.6-sol"
+        assert entry.new_model == "gpt-6.1-sol"
 
     def test_check_deprecation_still_resolves_the_entry(self):
         entry = check_deprecation("o3-deep-research")
         assert entry is not None
-        assert entry.new_model == "gpt-5.6-sol"
+        assert entry.new_model == "gpt-6.1-sol"
 
 
 class TestDeepResearchPricing:

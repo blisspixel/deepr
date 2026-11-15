@@ -230,7 +230,7 @@ class ConflictResolver:
         prompt_parts.append("\nOutput ONLY a JSON array like [0, 3, 5] or [] if none contradict.")
 
         completion_kwargs = {
-            "model": "gpt-5.2",
+            "model": "gpt-6.1-terra",
             "messages": [
                 {"role": "system", "content": "Detect contradictions between belief pairs. Output only JSON."},
                 {"role": "user", "content": "\n".join(prompt_parts)},
@@ -293,7 +293,7 @@ class ConflictResolver:
         # try/except: a cost-admission or settlement failure must fail closed,
         # not be converted into a best-effort semantic result.
         completion_kwargs = {
-            "model": "gpt-5.2",
+            "model": "gpt-6.1-terra",
             "messages": [
                 {
                     "role": "system",

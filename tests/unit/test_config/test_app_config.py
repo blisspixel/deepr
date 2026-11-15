@@ -76,7 +76,7 @@ class TestProviderConfig:
         pc = ProviderConfig()
         provider, model = pc.get_model_for_task("deep_research")
         assert provider == "openai"
-        assert model == "gpt-5.6-sol"
+        assert model == "gpt-6.1-sol"
 
     def test_get_model_for_task_unknown(self):
         """Unknown task falls back to (default_provider, default_model)."""
@@ -174,7 +174,7 @@ class TestExpertConfig:
         assert ec.deep_research_topics == 5
         assert ec.quick_research_topics == 10
         assert ec.auto_synthesis is True
-        assert ec.synthesis_model == "gpt-5.6-sol"
+        assert ec.synthesis_model == "gpt-6.1-sol"
 
     def test_default_topics_from_env(self, monkeypatch):
         """DEEPR_EXPERT_DEFAULT_TOPICS overrides default."""

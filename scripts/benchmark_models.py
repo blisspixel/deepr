@@ -637,47 +637,41 @@ DOCS_EVAL_PROMPTS = [
 # Default: one model per routing tier. Tests the routing table, not duplicates.
 # Azure Foundry runs the same models as OpenAI - test it separately for latency.
 DEFAULT_MODELS = [
-    # Frontier models
-    "openai/gpt-5.6-sol",  # Current OpenAI frontier (July 2026, 1M+ context)
-    "openai/gpt-5.6-terra",  # Balanced GPT-5.6 tier
-    "openai/gpt-5.6-luna",  # Cost-sensitive GPT-5.6 tier
-    "openai/gpt-5.4",  # Previous OpenAI frontier (1M+ context)
-    "anthropic/claude-opus-5",  # Current Opus-tier Claude research model ($0.85/query)
-    "gemini/gemini-4-argon",  # Current Gemini flagship ($0.12/query planning estimate)
-    "gemini/gemini-3.8-flash",  # Current Gemini default
+    # Frontier models. Shut-down ids stay out of this send list.
+    "openai/gpt-6.1-sol",  # Current OpenAI research default
+    "openai/gpt-6.1-terra",  # Balanced GPT-6.1 tier
+    "openai/gpt-6-luna",  # Cost-sensitive GPT-6 tier
+    "openai/gpt-6-astra",  # Explicit flagship, not the silent default
+    "anthropic/claude-opus-5-5",  # Current Opus-tier Claude research model
+    "gemini/gemini-4-carbon",  # Current Gemini Pro
+    "gemini/gemini-3.8-flash",  # Current Gemini Flash default
     # Mid-tier
-    "anthropic/claude-sonnet-5",  # Current balanced Anthropic default ($0.32/query)
-    "openai/gpt-4.1",  # 1M context ($0.04/query)
-    "openai/o3",  # Reasoning model for complex tasks ($0.10/query)
-    "openai/o4-mini",  # Fast reasoning ($0.04/query)
+    "anthropic/claude-sonnet-5-5",  # Current balanced Anthropic default
+    "openai/gpt-4.1",  # Historical 1M context row, still priced
     # xAI flagship
-    "xai/grok-4-6",  # Current xAI frontier model
-    "xai/grok-4-3",  # Lower-cost current xAI reasoning model ($0.05/query)
+    "xai/grok-4.7",  # Current xAI frontier model
+    "xai/grok-4-3",  # Lower-cost xAI reasoning model ($0.05/query)
     "xai/grok-build-0-1",  # Current xAI coding model
     "xai/grok-4-20-reasoning",  # xAI multi-agent workhorse ($0.10/query)
     "xai/grok-4-20-non-reasoning",  # xAI flagship non-reasoning ($0.08/query)
     # Budget models
     "openai/gpt-5.4-mini",  # Newer-gen budget reasoning ($0.05/query)
-    "openai/gpt-5-mini",  # Budget reasoning ($0.03/query)
-    "openai/gpt-4.1-mini",  # Cheap 1M context ($0.01/query)
-    "openai/gpt-5.4-nano",  # Cheapest GPT-5.4 ($0.01/query)
-    "openai/gpt-5-nano",  # Cheapest GPT-5 ($0.005/query)
-    "openai/gpt-4.1-nano",  # Cheapest 1M context ($0.003/query)
+    "openai/gpt-4.1-mini",  # Historical cheap 1M context row, still priced
+    "openai/gpt-5.4-nano",  # Historical GPT-5.4 budget row, still priced
     "gemini/gemini-3.5-flash-lite",  # Current budget Gemini ($0.008/query)
-    "anthropic/claude-haiku-4-5",  # Budget Anthropic ($0.05/query)
+    "anthropic/claude-haiku-5-5",  # Current budget Anthropic
 ]
 
 EXPENSIVE_MODELS: list[str] = [
     "openai/gpt-5.5-pro",  # Highest-end GPT-5.5 variant; opt-in due high cost
     "openai/gpt-5.4-pro",  # Highest-end GPT-5.4 variant; opt-in due high cost
-    "anthropic/claude-fable-5",  # Frontier Claude tier; opt-in due high cost and retention constraints
+    "anthropic/claude-fable-5-2",  # Current Fable tier; opt-in due high cost
 ]
 
 NEWS_MODELS = [
     # OpenAI (via Responses API web_search tool)
-    "openai/gpt-5.6-sol",
+    "openai/gpt-6.1-sol",
     "openai/gpt-5.4",
-    "openai/gpt-5-mini",
     # Gemini web tiers stay off this list. Gemini 3 and 4 search has no flat
     # grounded-prompt ceiling in this script, and the 2.5 ids are not selected.
 ]

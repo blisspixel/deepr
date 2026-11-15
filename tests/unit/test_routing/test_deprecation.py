@@ -11,7 +11,7 @@ class TestCheckDeprecation:
     def test_exact_match(self):
         entry = check_deprecation("o3-deep-research")
         assert entry is not None
-        assert entry.new_model == "gpt-5.6-sol"
+        assert entry.new_model == "gpt-6.1-sol"
         assert entry.sunset_date == "2026-07-23"
 
     def test_grok3_deprecated(self):
@@ -22,16 +22,15 @@ class TestCheckDeprecation:
     def test_gpt4o_deprecated(self):
         entry = check_deprecation("gpt-4o")
         assert entry is not None
-        assert entry.new_model == "gpt-5.6-terra"
+        assert entry.new_model == "gpt-6.1-terra"
         assert entry.sunset_date == "2027-01-14"
         assert entry.auto_migrate is False
-        assert "gpt-6-luna" in entry.warning
-        assert "preview-only" in entry.warning
+        assert "preview-only" not in entry.warning
 
     def test_gpt4o_mini_deprecated(self):
         entry = check_deprecation("gpt-4o-mini")
         assert entry is not None
-        assert entry.new_model == "gpt-5.6-luna"
+        assert entry.new_model == "gpt-6-luna"
         assert entry.sunset_date == "2027-01-14"
         assert entry.auto_migrate is False
 
@@ -50,7 +49,7 @@ class TestCheckDeprecation:
         research = check_deprecation("deep-research-pro-preview-12-2025")
 
         assert pro is not None
-        assert pro.new_model == "gemini-4-argon"
+        assert pro.new_model == "gemini-4-carbon"
         assert pro.sunset_date == "2026-03-09"
         assert flash_lite is not None
         assert flash_lite.new_model == "gemini-3.5-flash-lite"
@@ -63,13 +62,13 @@ class TestCheckDeprecation:
         entry = check_deprecation("gpt-4o-mini-2024-08-06")
         assert entry is not None
         assert entry.old_model == "gpt-4o-mini"
-        assert entry.new_model == "gpt-5.6-luna"  # NOT the gpt-4o successor
+        assert entry.new_model == "gpt-6-luna"  # NOT the gpt-4o successor
 
     def test_versioned_gpt4o_matches_correctly(self):
         """gpt-4o-2024-08-06 should match gpt-4o."""
         entry = check_deprecation("gpt-4o-2024-08-06")
         assert entry is not None
-        assert entry.new_model == "gpt-5.6-terra"
+        assert entry.new_model == "gpt-6.1-terra"
         assert entry.sunset_date == "2027-01-14"
 
     def test_unknown_model(self):
@@ -82,7 +81,7 @@ class TestCheckDeprecation:
 class TestMigrateModel:
     def test_deprecated_auto_migrates(self):
         model, confidence, warning = migrate_model("o3-deep-research")
-        assert model == "gpt-5.6-sol"
+        assert model == "gpt-6.1-sol"
         assert confidence == 1.0
         assert warning is not None
         assert "2026-07-23" in warning
@@ -158,7 +157,7 @@ class TestRetiredOpenAIDefaults:
             entry = check_deprecation(model_id)
             assert entry is not None, model_id
             assert entry.sunset_date == "2026-07-23", model_id
-            assert entry.new_model == "gpt-5.6-sol", model_id
+            assert entry.new_model == "gpt-6.1-sol", model_id
 
     def test_o4_mini_shutdown_keeps_explicit_identity(self):
         assert migrate_model("o4-mini")[0] == "o4-mini"
@@ -168,7 +167,7 @@ class TestRetiredOpenAIDefaults:
             entry = check_deprecation(model_id)
             assert entry is not None, model_id
             assert entry.sunset_date == "2026-10-23", model_id
-            assert entry.new_model == "gpt-5.6-terra", model_id
+            assert entry.new_model == "gpt-6.1-terra", model_id
 
     def test_dated_deep_research_snapshot_does_not_match_o4_mini(self):
         entry = check_deprecation("o4-mini-deep-research-2025-06-26")
@@ -205,16 +204,17 @@ class TestRetiredOpenAIDefaults:
             resolve_research_route(None, None)[1],
             CostEstimator.estimate_cost("Hi").model,
         }
-        assert defaults == {"gpt-5.6-sol"}
+        assert defaults == {"gpt-6.1-sol"}
         for model_id in defaults:
             entry = check_deprecation(model_id)
             assert entry is None or entry.sunset_date == ""
 
         app = AppConfig.from_env()
-        assert app.provider.deep_research_model == "gpt-5.6-sol"
+        assert app.provider.deep_research_model == "gpt-6.1-sol"
+        assert app.provider.model_mappings["gpt-6.1-sol"] == "gpt-6.1-sol"
         assert app.provider.model_mappings["gpt-5.6-sol"] == "gpt-5.6-sol"
         assert app.provider.model_mappings["gpt-5.6-terra"] == "gpt-5.6-terra"
-        assert app.provider.default_model == "gpt-5.6-sol"
+        assert app.provider.default_model == "gpt-6.1-sol"
 
     def test_successor_web_search_stays_inside_the_reserved_input_ceiling(self):
         from deepr.cli.commands.research_support import bounded_tool_disable_flags
@@ -232,24 +232,24 @@ class TestOpenAILifecycle20261027:
     """OpenAI deprecations page checked 2026-10-27 (docs/design/model-lifecycle-2026-10-27.md)."""
 
     EXPECTED = {
-        "gpt-4.1-nano": ("2026-10-23", "gpt-5.6-luna"),
-        "o4-mini": ("2026-10-23", "gpt-5.6-terra"),
-        "o3-mini": ("2026-10-23", "gpt-5.6-terra"),
-        "gpt-4o-2024-05-13": ("2026-10-23", "gpt-5.6-terra"),
-        "o3": ("2026-12-11", "gpt-5.6-sol"),
-        "o3-2025-04-16": ("2026-12-11", "gpt-5.6-sol"),
-        "gpt-5": ("2026-12-11", "gpt-5.6-sol"),
-        "gpt-5-mini": ("2026-12-11", "gpt-5.6-terra"),
-        "gpt-5-nano": ("2026-12-11", "gpt-5.6-luna"),
-        "gpt-4o": ("2027-01-14", "gpt-5.6-terra"),
-        "gpt-4o-2024-08-06": ("2027-01-14", "gpt-5.6-terra"),
-        "gpt-4o-2024-11-20": ("2027-01-14", "gpt-5.6-terra"),
-        "gpt-4o-mini": ("2027-01-14", "gpt-5.6-luna"),
-        "gpt-4o-mini-2024-07-18": ("2027-01-14", "gpt-5.6-luna"),
-        "gpt-4.1": ("2027-01-14", "gpt-5.6-terra"),
-        "gpt-4.1-2025-04-14": ("2027-01-14", "gpt-5.6-terra"),
-        "gpt-4.1-mini": ("2027-01-14", "gpt-5.6-luna"),
-        "gpt-4.1-mini-2025-04-14": ("2027-01-14", "gpt-5.6-luna"),
+        "gpt-4.1-nano": ("2026-10-23", "gpt-6-luna"),
+        "o4-mini": ("2026-10-23", "gpt-6.1-terra"),
+        "o3-mini": ("2026-10-23", "gpt-6.1-terra"),
+        "gpt-4o-2024-05-13": ("2026-10-23", "gpt-6.1-terra"),
+        "o3": ("2026-12-11", "gpt-6.1-sol"),
+        "o3-2025-04-16": ("2026-12-11", "gpt-6.1-sol"),
+        "gpt-5": ("2026-12-11", "gpt-6.1-sol"),
+        "gpt-5-mini": ("2026-12-11", "gpt-6.1-terra"),
+        "gpt-5-nano": ("2026-12-11", "gpt-6-luna"),
+        "gpt-4o": ("2027-01-14", "gpt-6.1-terra"),
+        "gpt-4o-2024-08-06": ("2027-01-14", "gpt-6.1-terra"),
+        "gpt-4o-2024-11-20": ("2027-01-14", "gpt-6.1-terra"),
+        "gpt-4o-mini": ("2027-01-14", "gpt-6-luna"),
+        "gpt-4o-mini-2024-07-18": ("2027-01-14", "gpt-6-luna"),
+        "gpt-4.1": ("2027-01-14", "gpt-6.1-terra"),
+        "gpt-4.1-2025-04-14": ("2027-01-14", "gpt-6.1-terra"),
+        "gpt-4.1-mini": ("2027-01-14", "gpt-6-luna"),
+        "gpt-4.1-mini-2025-04-14": ("2027-01-14", "gpt-6-luna"),
     }
 
     def test_dates_and_successors(self):

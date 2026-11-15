@@ -233,7 +233,7 @@ class TestModelCapabilities:
         pro_preview = get_model_capability("gemini", "gemini-3-pro-preview")
         assert pro_preview is not None
         assert pro_preview.deprecated is True
-        assert pro_preview.successor == "gemini/gemini-4-argon"
+        assert pro_preview.successor == "gemini/gemini-4-carbon"
 
     def test_cost_ordering(self):
         """Test that model costs make sense relative to capabilities."""
@@ -278,17 +278,17 @@ class TestRetiredModelsNeverAutoSelected:
     """Issue #292: registry selectors returned openai/gpt-4.1-nano after its shutdown."""
 
     RETIRED_OPENAI = {
-        "gpt-4.1-nano": "openai/gpt-5.6-luna",
-        "o4-mini": "openai/gpt-5.6-terra",
-        "o3": "openai/gpt-5.6-sol",
-        "gpt-5": "openai/gpt-5.6-sol",
-        "gpt-5-mini": "openai/gpt-5.6-terra",
-        "gpt-5-nano": "openai/gpt-5.6-luna",
-        "gpt-4o-mini": "openai/gpt-5.6-luna",
-        "gpt-4.1": "openai/gpt-5.6-terra",
-        "gpt-4.1-mini": "openai/gpt-5.6-luna",
-        "o3-deep-research": "openai/gpt-5.6-sol",
-        "o4-mini-deep-research": "openai/gpt-5.6-sol",
+        "gpt-4.1-nano": "openai/gpt-6-luna",
+        "o4-mini": "openai/gpt-6.1-terra",
+        "o3": "openai/gpt-6.1-sol",
+        "gpt-5": "openai/gpt-6.1-sol",
+        "gpt-5-mini": "openai/gpt-6.1-terra",
+        "gpt-5-nano": "openai/gpt-6-luna",
+        "gpt-4o-mini": "openai/gpt-6-luna",
+        "gpt-4.1": "openai/gpt-6.1-terra",
+        "gpt-4.1-mini": "openai/gpt-6-luna",
+        "o3-deep-research": "openai/gpt-6.1-sol",
+        "o4-mini-deep-research": "openai/gpt-6.1-sol",
     }
 
     def test_retired_openai_rows_are_deprecated_with_validated_successor(self):
@@ -300,11 +300,16 @@ class TestRetiredModelsNeverAutoSelected:
             assert not target.deprecated and not target.preview_only, successor
             assert any(("2026-" in w or "2027-" in w) for w in cap.weaknesses), model
 
-    def test_gpt4_family_rows_disclose_preview_only_openai_recommendation(self):
-        for model in ("gpt-4o-mini", "gpt-4.1", "gpt-4.1-mini"):
+    def test_gpt4_family_rows_name_selectable_gpt6_successors(self):
+        expectations = {
+            "gpt-4o-mini": "GPT-6 Luna is selectable",
+            "gpt-4.1": "GPT-6.1 Terra is selectable",
+            "gpt-4.1-mini": "GPT-6 Luna is selectable",
+        }
+        for model, phrase in expectations.items():
             text = " ".join(MODEL_CAPABILITIES[f"openai/{model}"].weaknesses)
-            assert "gpt-6-luna" in text and "preview-only" in text, model
-        assert MODEL_CAPABILITIES["openai/gpt-6-luna"].preview_only
+            assert phrase in text and "preview-only" not in text, model
+        assert MODEL_CAPABILITIES["openai/gpt-6-luna"].preview_only is False
 
     def test_selectors_never_return_retired_or_retiring_ids(self):
         from deepr.routing.deprecation import check_deprecation

@@ -14,7 +14,7 @@ from deepr.experts.chat_backends import (
 )
 from deepr.providers.dispatch_authority import default_paid_endpoint
 
-DEFAULT_ANTHROPIC_EXPERT_CHAT_MODEL = "claude-sonnet-5"
+DEFAULT_ANTHROPIC_EXPERT_CHAT_MODEL = "claude-sonnet-5-5"
 
 
 def _load_anthropic_client_type() -> Any:

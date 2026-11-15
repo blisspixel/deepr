@@ -61,7 +61,7 @@ class TestAliasResolution:
         ("alias", "model", "input_rate", "output_rate", "cached_rate"),
         [
             ("gemini-flash", "gemini-3.8-flash", 1.50, 7.50, 0.15),
-            ("gemini-pro", "gemini-4-argon", 4.00, 20.00, 0.20),
+            ("gemini-pro", "gemini-4-carbon", 4.00, 20.00, 0.20),
             ("gemini-flash-lite", "gemini-3.5-flash-lite", 0.30, 2.50, 0.03),
         ],
     )

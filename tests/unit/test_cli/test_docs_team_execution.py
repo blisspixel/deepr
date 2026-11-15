@@ -88,8 +88,8 @@ async def test_docs_analysis_uses_real_service_methods_and_configured_queue(tmp_
             docs_path=str(docs_path),
             scenario="Close documentation gaps",
             max_topics=1,
-            planner_model="gpt-5-mini",
-            research_model="o4-mini-deep-research",
+            planner_model="gpt-6.1-sol",
+            research_model="gpt-6.1-sol",
             auto_execute=True,
         )
 

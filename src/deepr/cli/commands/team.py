@@ -34,7 +34,7 @@ async def _poll_team_job(provider: Any, provider_job_id: str) -> tuple[Any, bool
     return response, cancelled, None
 
 
-async def run_dream_team(question: str, model: str = "gpt-5.6-sol", perspectives: int = 6, provider: str | None = None):
+async def run_dream_team(question: str, model: str = "gpt-6.1-sol", perspectives: int = 6, provider: str | None = None):
     """
     Execute dream team research (async wrapper for new CLI).
 
@@ -101,7 +101,7 @@ async def run_dream_team(question: str, model: str = "gpt-5.6-sol", perspectives
         provider = "openai"
 
     # Phase 1: Design team
-    architect = TeamArchitect(model="gpt-5.6-sol")
+    architect = TeamArchitect(model="gpt-6.1-sol")
     team = architect.design_team(
         question=question,
         context=None,
@@ -354,9 +354,9 @@ def team():
 @click.option(
     "--model",
     "-m",
-    default="gpt-5.6-sol",
+    default="gpt-6.1-sol",
     type=research_model_choice(),
-    help="Research model for execution (default: gpt-5.6-sol)",
+    help="Research model for execution (default: gpt-6.1-sol)",
 )
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation and execute immediately")
 def analyze(
@@ -427,7 +427,7 @@ def analyze(
 
         click.echo("[Phase 1] GPT-5 assembling dream team for this question...\n")
 
-        architect = TeamArchitect(model="gpt-5.6-sol")
+        architect = TeamArchitect(model="gpt-6.1-sol")
         team = architect.design_team(
             question=question,
             context=context,
@@ -544,7 +544,7 @@ Provide analysis and insights from your unique perspective. Don't try to cover e
         # Phase 4: Synthesize with attribution
         click.echo("\n[Phase 4] Lead Researcher synthesizing team perspectives...\n")
 
-        synthesizer = TeamSynthesizer(model="gpt-5.6-sol")
+        synthesizer = TeamSynthesizer(model="gpt-6.1-sol")
         report = synthesizer.synthesize_with_conflict_analysis(question=question, team_results=results)
 
         # Save report

@@ -11,11 +11,11 @@ if TYPE_CHECKING:
     from deepr.experts.research_cost_gate import ResearchCostReservation
 
 _PROVIDER_DEFAULT_MODELS = {
-    "openai": "gpt-5.6-sol",
-    "azure": "gpt-5.6-sol",
+    "openai": "gpt-6.1-sol",
+    "azure": "gpt-6.1-sol",
     "gemini": "gemini-3.8-flash",
-    "xai": "grok-4.6",
-    "grok": "grok-4.6",
+    "xai": "grok-4.7",
+    "grok": "grok-4.7",
     # Cheap attended OpenRouter slug. Frontier OpenRouter slugs stay explicit.
     "openrouter": "qwen/qwen3.8-flash",
 }
@@ -120,7 +120,7 @@ def resolve_research_route(
     if model is None:
         model = env.get(
             "DEEPR_DEEP_RESEARCH_MODEL" if is_deep_research else "DEEPR_DEFAULT_MODEL",
-            "gpt-5.6-sol" if is_deep_research else _PROVIDER_DEFAULT_MODELS.get(provider, "grok-4.3"),
+            "gpt-6.1-sol" if is_deep_research else _PROVIDER_DEFAULT_MODELS.get(provider, "grok-4.3"),
         )
     return provider, model
 

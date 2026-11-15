@@ -15,8 +15,8 @@ _MODEL_ALIASES: dict[str, str] = {
     "grok-code-fast-1-0825": "grok-build-0.1",
     "gemini-deep-research": "deep-research-max-preview-04-2026",
     "deep-research": "deep-research-max-preview-04-2026",
-    "gemini-pro": "gemini-4-argon",
-    "gemini-3.1-pro": "gemini-4-argon",
+    "gemini-pro": "gemini-4-carbon",
+    "gemini-3.1-pro": "gemini-4-carbon",
     "gemini-flash": "gemini-3.8-flash",
     "gemini-flash-lite": "gemini-3.5-flash-lite",
 }

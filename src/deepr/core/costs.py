@@ -117,7 +117,7 @@ class CostEstimator:
     def estimate_cost(
         cls,
         prompt: str,
-        model: str = "gpt-5.6-sol",
+        model: str = "gpt-6.1-sol",
         documents: list[Any] | None = None,
         enable_web_search: bool = True,
     ) -> CostEstimate:

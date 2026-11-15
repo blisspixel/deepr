@@ -1,5 +1,33 @@
 # Maintained runtime support and verified installation
 
+## Runtime pin, 2026-11-15
+
+Decision before implementation: move the managed default to final CPython
+3.15.2 and the maintained uv pin from 0.13.5 to 0.13.8. uv 0.13.5 reports
+no download for `cpython-3.15.2`. uv 0.13.8, from the 20261110
+python-build-standalone release, installs that interpreter. This is a pin
+bump of the existing toolchain, not a new package.
+
+CI keeps job-local `astral-sh/setup-uv` v10.3.0 installs. The action
+downloads uv 0.13.8, and that uv installs 3.15.2. Jobs do not assume the
+runner image already has 3.15.2. The core matrix stays the 3.11 through
+3.15 minors. Container stages use the official `python:3.15.2-slim`
+multiarch index `sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928`.
+
+`soupsieve` 4.1.1 requires Python >=3.11.5. The application floor moves from
+`>=3.11` to `>=3.11.5` so the lock does not keep the vulnerable 2.10
+resolution for early 3.11 patches. The 3.11 classifier stays. The separate
+deploy helper package is unchanged.
+
+Rejected alternatives: staying on 3.15.1 leaves the managed pin behind the
+current GA interpreter; `--preview` is not a release channel; a prebaked
+runner image would hide the job-local install; adding `soupsieve` as a
+direct dependency is unnecessary when the existing `beautifulsoup4` pin
+already depends on it.
+
+Primary sources: [uv 0.13.8](https://github.com/astral-sh/uv/releases/tag/0.13.8),
+[CPython 3.15.2](https://www.python.org/downloads/release/python-3152/).
+
 ## Installer trust repair, 2026-10-22 (#283)
 
 Decision before implementation: advance maintained acquisition to uv 0.13.5,

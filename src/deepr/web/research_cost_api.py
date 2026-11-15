@@ -109,7 +109,7 @@ def prepare_web_batch_jobs(
     jobs: list[ResearchJob] = []
     for item, metadata in zip(items, metadata_items, strict=True):
         prompt = str(item.get("prompt", "")).strip()
-        model = str(item.get("model", "gpt-5.6-sol"))
+        model = str(item.get("model", "gpt-6.1-sol"))
         if model not in allowed_models:
             return None, ({"error": "Invalid model"}, 400)
         if not prompt or len(prompt) > max_prompt_length:

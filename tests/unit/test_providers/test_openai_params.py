@@ -22,6 +22,8 @@ def test_other_models_keep_their_parameters():
     assert compatible_chat_kwargs("qwen3.8:27b", kwargs) == kwargs
     assert accepts_sampling_params("grok-4.3")
     assert not accepts_sampling_params("gpt-5.6-terra")
+    assert not accepts_sampling_params("gpt-6.1-sol")
+    assert compatible_chat_kwargs("gpt-6-luna", {"temperature": 0.2, "max_tokens": 40}) == {"max_completion_tokens": 40}
 
 
 async def test_task_planner_utility_call_omits_temperature(monkeypatch):

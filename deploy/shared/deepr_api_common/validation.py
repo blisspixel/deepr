@@ -11,8 +11,10 @@ MAX_METADATA_SIZE = 4096
 # because those reference bundles do not install this package. A test rejects
 # any drift and any entry whose recorded sunset is already past.
 VALID_MODELS = [
-    "gpt-5.6-sol",
-    "gpt-5.6-terra",
+    "gpt-6.1-sol",
+    "gpt-6.1-terra",
+    "gpt-6-luna",
+    "gpt-6-astra",
 ]
 VALID_STATUSES = ["queued", "running", "completed", "failed", "cancelled"]
 UUID_PATTERN = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
@@ -56,7 +58,7 @@ def validate_model(model: str | None) -> tuple[bool, str, str | None]:
         Tuple of (valid, model_or_default, error_message)
     """
     if model is None:
-        return True, "gpt-5.6-sol", None
+        return True, "gpt-6.1-sol", None
     from deepr.routing.deprecation import model_submission_error
 
     error = model_submission_error(model, VALID_MODELS)

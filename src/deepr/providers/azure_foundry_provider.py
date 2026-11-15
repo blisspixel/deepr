@@ -102,12 +102,13 @@ class AzureFoundryProvider(DeepResearchProvider):
         self._paid_endpoint = self.project_endpoint
 
         self.deep_research_deployment = (
-            deep_research_deployment or os.getenv("AZURE_DEEP_RESEARCH_DEPLOYMENT") or "gpt-5.6-sol"
+            deep_research_deployment or os.getenv("AZURE_DEEP_RESEARCH_DEPLOYMENT") or "gpt-6.1-sol"
         )
         self.gpt_deployment = gpt_deployment or os.getenv("AZURE_GPT_DEPLOYMENT") or "gpt-4.1"
         self.bing_resource_name = bing_resource_name or os.getenv("AZURE_BING_RESOURCE_NAME")
 
         self.model_mappings = model_mappings or {
+            "gpt-6.1-sol": self.deep_research_deployment,
             "gpt-5.6-sol": self.deep_research_deployment,
             "o3-deep-research": self.deep_research_deployment,
             "gpt-5": "gpt-5",

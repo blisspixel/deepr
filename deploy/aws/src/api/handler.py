@@ -52,8 +52,10 @@ MAX_METADATA_SIZE = 4096
 # Copy of deploy/shared/deepr_api_common/validation.py VALID_MODELS.
 # This reference bundle does not install that package.
 VALID_MODELS = [
-    "gpt-5.6-sol",
-    "gpt-5.6-terra",
+    "gpt-6.1-sol",
+    "gpt-6.1-terra",
+    "gpt-6-luna",
+    "gpt-6-astra",
 ]
 UUID_PATTERN = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
@@ -212,7 +214,7 @@ def submit_job(event: dict) -> dict:
     # Validate model. The sunset table lives in Deepr, which this reference
     # bundle does not install. The import is reached only after the metered
     # execution gate above.
-    model = body.get("model", "gpt-5.6-sol")
+    model = body.get("model", "gpt-6.1-sol")
     from deepr.routing.deprecation import model_submission_error
 
     if error := model_submission_error(model, VALID_MODELS):

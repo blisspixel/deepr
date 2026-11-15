@@ -39,33 +39,33 @@ class DeprecationEntry:
 DEPRECATION_REGISTRY: dict[str, DeprecationEntry] = {
     "gpt-5": DeprecationEntry(
         old_model="gpt-5",
-        new_model="gpt-5.6-sol",
+        new_model="gpt-6.1-sol",
         sunset_date="2026-12-11",
         warning=(
             "gpt-5 uses snapshot gpt-5-2025-08-07, which shuts down on 2026-12-11. "
-            "Recommended successor: gpt-5.6-sol. Explicit selection is unchanged."
+            "Recommended successor: gpt-6.1-sol. Explicit selection is unchanged."
         ),
         auto_migrate=False,
         match_prefix=False,
     ),
     "gpt-5-mini": DeprecationEntry(
         old_model="gpt-5-mini",
-        new_model="gpt-5.6-terra",
+        new_model="gpt-6.1-terra",
         sunset_date="2026-12-11",
         warning=(
             "gpt-5-mini uses snapshot gpt-5-mini-2025-08-07, which shuts down on 2026-12-11. "
-            "Recommended successor: gpt-5.6-terra. Explicit selection is unchanged."
+            "Recommended successor: gpt-6.1-terra. Explicit selection is unchanged."
         ),
         auto_migrate=False,
         match_prefix=False,
     ),
     "gpt-5-nano": DeprecationEntry(
         old_model="gpt-5-nano",
-        new_model="gpt-5.6-luna",
+        new_model="gpt-6-luna",
         sunset_date="2026-12-11",
         warning=(
             "gpt-5-nano uses snapshot gpt-5-nano-2025-08-07, which shuts down on 2026-12-11. "
-            "Recommended successor: gpt-5.6-luna. Explicit selection is unchanged."
+            "Recommended successor: gpt-6-luna. Explicit selection is unchanged."
         ),
         auto_migrate=False,
         match_prefix=False,
@@ -76,41 +76,41 @@ DEPRECATION_REGISTRY: dict[str, DeprecationEntry] = {
     # o4-mini-deep-research snapshot, which is registered before o4-mini).
     "o3-deep-research": DeprecationEntry(
         old_model="o3-deep-research",
-        new_model="gpt-5.6-sol",
+        new_model="gpt-6.1-sol",
         sunset_date="2026-07-23",
-        warning=("o3-deep-research and o3-deep-research-2025-06-26 shut down on 2026-07-23. Successor: gpt-5.6-sol."),
+        warning=("o3-deep-research and o3-deep-research-2025-06-26 shut down on 2026-07-23. Successor: gpt-6.1-sol."),
     ),
     "o4-mini-deep-research": DeprecationEntry(
         old_model="o4-mini-deep-research",
-        new_model="gpt-5.6-sol",
+        new_model="gpt-6.1-sol",
         sunset_date="2026-07-23",
         warning=(
             "o4-mini-deep-research and o4-mini-deep-research-2025-06-26 shut down on 2026-07-23. "
-            "Successor: gpt-5.6-sol."
+            "Successor: gpt-6.1-sol."
         ),
     ),
     # Shut down on 2026-10-23. Substitute named on the deprecations page:
     # gpt-5.6-terra. Prefix matching covers o4-mini-2025-04-16.
     "o4-mini": DeprecationEntry(
         old_model="o4-mini",
-        new_model="gpt-5.6-terra",
+        new_model="gpt-6.1-terra",
         sunset_date="2026-10-23",
-        warning="o4-mini and o4-mini-2025-04-16 shut down on 2026-10-23. Successor: gpt-5.6-terra.",
+        warning="o4-mini and o4-mini-2025-04-16 shut down on 2026-10-23. Successor: gpt-6.1-terra.",
         auto_migrate=False,
     ),
     "gpt-4.1-nano": DeprecationEntry(
         old_model="gpt-4.1-nano",
-        new_model="gpt-5.6-luna",
+        new_model="gpt-6-luna",
         sunset_date="2026-10-23",
-        warning="gpt-4.1-nano shut down on 2026-10-23. Successor: gpt-5.6-luna.",
+        warning="gpt-4.1-nano shut down on 2026-10-23. Successor: gpt-6-luna.",
         auto_migrate=False,
     ),
     "o3": DeprecationEntry(
         old_model="o3",
-        new_model="gpt-5.6-sol",
+        new_model="gpt-6.1-sol",
         sunset_date="2026-12-11",
         warning=(
-            "o3 and o3-2025-04-16 shut down on 2026-12-11. Recommended successor: gpt-5.6-sol. "
+            "o3 and o3-2025-04-16 shut down on 2026-12-11. Recommended successor: gpt-6.1-sol. "
             "Explicit selection is unchanged."
         ),
         auto_migrate=False,
@@ -120,32 +120,31 @@ DEPRECATION_REGISTRY: dict[str, DeprecationEntry] = {
     ),
     "o3-mini": DeprecationEntry(
         old_model="o3-mini",
-        new_model="gpt-5.6-terra",
+        new_model="gpt-6.1-terra",
         sunset_date="2026-10-23",
-        warning="o3-mini shut down on 2026-10-23. Deepr successor: gpt-5.6-terra.",
+        warning="o3-mini shut down on 2026-10-23. Deepr successor: gpt-6.1-terra.",
         auto_migrate=False,
     ),
     # OpenAI announced on 2026-10-14 that the GPT-4o and GPT-4.1 families shut
-    # down on 2027-01-14 and recommends gpt-6-luna. Deepr holds gpt-6-luna as a
-    # preview-only candidate pending adapter validation, so the Deepr successor
-    # is the validated GPT-5.6 tier for the role.
+    # down on 2027-01-14 and recommends gpt-6-luna. Deepr's live successor is
+    # the current GPT-6 role id. Explicit selection is not rewritten.
     "gpt-4.1": DeprecationEntry(
         old_model="gpt-4.1",
-        new_model="gpt-5.6-terra",
+        new_model="gpt-6.1-terra",
         sunset_date="2027-01-14",
         warning=(
-            "gpt-4.1 shuts down on 2027-01-14. Deepr successor: gpt-5.6-terra. "
-            "OpenAI recommends gpt-6-luna, which Deepr lists as preview-only. Explicit selection is unchanged."
+            "gpt-4.1 shuts down on 2027-01-14. Deepr successor: gpt-6.1-terra. "
+            "Explicit selection is unchanged."
         ),
         auto_migrate=False,
     ),
     "gpt-4.1-mini": DeprecationEntry(
         old_model="gpt-4.1-mini",
-        new_model="gpt-5.6-luna",
+        new_model="gpt-6-luna",
         sunset_date="2027-01-14",
         warning=(
-            "gpt-4.1-mini shuts down on 2027-01-14. Deepr successor: gpt-5.6-luna. "
-            "OpenAI recommends gpt-6-luna, which Deepr lists as preview-only. Explicit selection is unchanged."
+            "gpt-4.1-mini shuts down on 2027-01-14. Deepr successor: gpt-6-luna. "
+            "Explicit selection is unchanged."
         ),
         auto_migrate=False,
     ),
@@ -221,15 +220,15 @@ DEPRECATION_REGISTRY: dict[str, DeprecationEntry] = {
     # Deepr simply does not select it. Dated shutdowns fail closed at dispatch.
     "gemini-3-pro": DeprecationEntry(
         old_model="gemini-3-pro",
-        new_model="gemini-4-argon",
+        new_model="gemini-4-carbon",
         sunset_date="",
-        warning="Gemini 3 Pro is superseded by Gemini 4 Argon.",
+        warning="Gemini 3 Pro is superseded by Gemini 4 Carbon.",
     ),
     "gemini-3-pro-preview": DeprecationEntry(
         old_model="gemini-3-pro-preview",
-        new_model="gemini-4-argon",
+        new_model="gemini-4-carbon",
         sunset_date="2026-03-09",
-        warning="gemini-3-pro-preview shut down on 2026-03-09. Use gemini-4-argon.",
+        warning="gemini-3-pro-preview shut down on 2026-03-09. Use gemini-4-carbon.",
         auto_migrate=True,
     ),
     "gemini-3.1-flash-lite-preview": DeprecationEntry(
@@ -252,11 +251,11 @@ DEPRECATION_REGISTRY: dict[str, DeprecationEntry] = {
     # GPT-4o family: see the 2027-01-14 note above.
     "gpt-4o": DeprecationEntry(
         old_model="gpt-4o",
-        new_model="gpt-5.6-terra",
+        new_model="gpt-6.1-terra",
         sunset_date="2027-01-14",
         warning=(
-            "gpt-4o shuts down on 2027-01-14. Deepr successor: gpt-5.6-terra. "
-            "OpenAI recommends gpt-6-luna, which Deepr lists as preview-only. Explicit selection is unchanged."
+            "gpt-4o shuts down on 2027-01-14. Deepr successor: gpt-6.1-terra. "
+            "Explicit selection is unchanged."
         ),
         auto_migrate=False,
     ),
@@ -264,19 +263,19 @@ DEPRECATION_REGISTRY: dict[str, DeprecationEntry] = {
     # would otherwise report the 2027 date.
     "gpt-4o-2024-05-13": DeprecationEntry(
         old_model="gpt-4o-2024-05-13",
-        new_model="gpt-5.6-terra",
+        new_model="gpt-6.1-terra",
         sunset_date="2026-10-23",
-        warning="gpt-4o-2024-05-13 shut down on 2026-10-23. Deepr successor: gpt-5.6-terra.",
+        warning="gpt-4o-2024-05-13 shut down on 2026-10-23. Deepr successor: gpt-6.1-terra.",
         auto_migrate=False,
         match_prefix=False,
     ),
     "gpt-4o-mini": DeprecationEntry(
         old_model="gpt-4o-mini",
-        new_model="gpt-5.6-luna",
+        new_model="gpt-6-luna",
         sunset_date="2027-01-14",
         warning=(
-            "gpt-4o-mini shuts down on 2027-01-14. Deepr successor: gpt-5.6-luna. "
-            "OpenAI recommends gpt-6-luna, which Deepr lists as preview-only. Explicit selection is unchanged."
+            "gpt-4o-mini shuts down on 2027-01-14. Deepr successor: gpt-6-luna. "
+            "Explicit selection is unchanged."
         ),
         auto_migrate=False,
     ),
@@ -321,20 +320,20 @@ def _azure_entry(model: str, new_model: str, sunset: str, *, match_prefix: bool 
 # (page date 2026-09-21). Lookups for the azure and azure-foundry providers use
 # only this table, never the direct OpenAI API dates above.
 AZURE_DEPRECATION_REGISTRY: dict[str, DeprecationEntry] = {
-    "o1": _azure_entry("o1", "gpt-5.6-sol", "2026-11-19"),
-    "o3": _azure_entry("o3", "gpt-5.6-sol", "2026-11-19", match_prefix=False),
-    "o3-deep-research": _azure_entry("o3-deep-research", "gpt-5.6-sol", "2026-11-19"),
-    "o3-mini": _azure_entry("o3-mini", "gpt-5.6-terra", "2026-11-19"),
-    "o4-mini": _azure_entry("o4-mini", "gpt-5.6-terra", "2026-11-19"),
-    "gpt-4o-2024-05-13": _azure_entry("gpt-4o-2024-05-13", "gpt-5.6-terra", "2026-12-09", match_prefix=False),
-    "gpt-5": _azure_entry("gpt-5", "gpt-5.6-sol", "2027-02-09", match_prefix=False),
-    "gpt-5-mini": _azure_entry("gpt-5-mini", "gpt-5.6-terra", "2027-02-09", match_prefix=False),
-    "gpt-5-nano": _azure_entry("gpt-5-nano", "gpt-5.6-luna", "2027-02-09", match_prefix=False),
-    "gpt-4o": _azure_entry("gpt-4o", "gpt-5.6-terra", "2027-04-14"),
-    "gpt-4o-mini": _azure_entry("gpt-4o-mini", "gpt-5.6-luna", "2027-04-14"),
-    "gpt-4.1": _azure_entry("gpt-4.1", "gpt-5.6-terra", "2027-04-14"),
-    "gpt-4.1-mini": _azure_entry("gpt-4.1-mini", "gpt-5.6-luna", "2027-04-14"),
-    "gpt-4.1-nano": _azure_entry("gpt-4.1-nano", "gpt-5.6-luna", "2027-04-14"),
+    "o1": _azure_entry("o1", "gpt-6.1-sol", "2026-11-19"),
+    "o3": _azure_entry("o3", "gpt-6.1-sol", "2026-11-19", match_prefix=False),
+    "o3-deep-research": _azure_entry("o3-deep-research", "gpt-6.1-sol", "2026-11-19"),
+    "o3-mini": _azure_entry("o3-mini", "gpt-6.1-terra", "2026-11-19"),
+    "o4-mini": _azure_entry("o4-mini", "gpt-6.1-terra", "2026-11-19"),
+    "gpt-4o-2024-05-13": _azure_entry("gpt-4o-2024-05-13", "gpt-6.1-terra", "2026-12-09", match_prefix=False),
+    "gpt-5": _azure_entry("gpt-5", "gpt-6.1-sol", "2027-02-09", match_prefix=False),
+    "gpt-5-mini": _azure_entry("gpt-5-mini", "gpt-6.1-terra", "2027-02-09", match_prefix=False),
+    "gpt-5-nano": _azure_entry("gpt-5-nano", "gpt-6-luna", "2027-02-09", match_prefix=False),
+    "gpt-4o": _azure_entry("gpt-4o", "gpt-6.1-terra", "2027-04-14"),
+    "gpt-4o-mini": _azure_entry("gpt-4o-mini", "gpt-6-luna", "2027-04-14"),
+    "gpt-4.1": _azure_entry("gpt-4.1", "gpt-6.1-terra", "2027-04-14"),
+    "gpt-4.1-mini": _azure_entry("gpt-4.1-mini", "gpt-6-luna", "2027-04-14"),
+    "gpt-4.1-nano": _azure_entry("gpt-4.1-nano", "gpt-6-luna", "2027-04-14"),
 }
 
 AZURE_PROVIDERS = frozenset({"azure", "azure-foundry"})

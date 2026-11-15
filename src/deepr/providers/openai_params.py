@@ -1,6 +1,6 @@
-"""OpenAI chat parameter compatibility for the GPT-5 family.
+"""OpenAI chat parameter compatibility for the GPT-5 and GPT-6 families.
 
-GPT-5 family models accept only the default sampling temperature and take
+Those families accept only the default sampling temperature and take
 ``max_completion_tokens`` instead of the legacy ``max_tokens``.
 """
 
@@ -10,7 +10,7 @@ from typing import Any
 
 def accepts_sampling_params(model: str) -> bool:
     """Whether ``model`` accepts non-default temperature/top_p."""
-    return not model.startswith("gpt-5")
+    return not model.startswith(("gpt-5", "gpt-6"))
 
 
 def compatible_chat_kwargs(model: str, kwargs: Mapping[str, Any]) -> dict[str, Any]:

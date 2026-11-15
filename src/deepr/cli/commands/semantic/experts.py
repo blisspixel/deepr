@@ -278,7 +278,7 @@ def make_expert(
             expert_config = temp_config.expert
 
             # docs and quick are both FOCUS mode (current cheapest capable model)
-            # deep is CAMPAIGN mode (o4-mini-deep-research / Gemini deep research: ~$2.50)
+            # deep is CAMPAIGN mode (gpt-6.1-sol; budget uses deep_research_cost, about $2.50)
             calculated_budget = (
                 (docs_count * expert_config.quick_research_cost)
                 + (quick_count * expert_config.quick_research_cost)
@@ -662,7 +662,7 @@ def expert_info(name: str):
 @click.option(
     "--model",
     default=None,
-    help=model_help("Override the validation model (default: gpt-5.6-luna, cheap+fast)", "gpt-5.6-luna"),
+    help=model_help("Override the validation model (default: gpt-6-luna, cheap+fast)", "gpt-6-luna"),
 )
 @click.option(
     "--json",

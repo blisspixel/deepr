@@ -214,7 +214,7 @@ def run_installer(
     owned_python="13",
     host_python="13",
     libyaml=None,
-    uv_version="0.13.5",
+    uv_version="0.13.8",
 ):
     suffix = "ps1" if family == "powershell" else "sh"
     wrapper = tmp_path / f"run.{suffix}"
@@ -277,7 +277,7 @@ def test_installer_preserves_owner_and_pins_interpreter(tmp_path, family, owner,
         assert "--force" not in installs[1].split(), installs
     assert all(op.startswith(expected) and "--python " in op for op in installs)
     if expected == "uv":
-        assert all("--python 3.15.1 --managed-python" in op for op in installs)
+        assert all("--python 3.15.2 --managed-python" in op for op in installs)
     assert all(not op.startswith("pip ") for op in operations)
     assert all(op.startswith(expected) for op in operations)
 
@@ -420,11 +420,11 @@ def test_optional_yaml_build_setting_is_scoped_and_preserves_operator_choice(tmp
 
 
 @pytest.mark.parametrize("family", ["bash", "powershell"])
-@pytest.mark.parametrize("uv_version", ["0.13.0", "0.13.4", "0.13.5rc1", "unknown"])
+@pytest.mark.parametrize("uv_version", ["0.13.0", "0.13.4", "0.13.5", "0.13.5rc1", "0.13.7", "unknown"])
 def test_unsafe_or_unknown_uv_refuses_before_download_or_mutation(tmp_path, family, uv_version):
     result, operations = run_installer(tmp_path, family, "uv", uv_version=uv_version)
     assert result.returncode == 1
-    assert "uv 0.13.5 or newer" in result.stdout + result.stderr
+    assert "uv 0.13.8 or newer" in result.stdout + result.stderr
     assert operations == []
     assert not (tmp_path / "release-requests.txt").exists()
 

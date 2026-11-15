@@ -42,7 +42,7 @@ class TestUnifiedConfig:
     def test_defaults(self):
         config = UnifiedConfig()
         assert config.default_provider == "openai"
-        assert config.default_model == "gpt-5.6-sol"
+        assert config.default_model == "gpt-6.1-sol"
         assert config.data_dir == "data"
         assert config.log_level == "INFO"
         assert config.providers == {}
@@ -162,7 +162,7 @@ class TestUnifiedConfigApplyCli:
     def test_apply_cli_none_ignored(self):
         config = UnifiedConfig()
         config._apply_cli({"default_model": None, "log_level": "DEBUG"})
-        assert config.default_model == "gpt-5.6-sol"  # Unchanged
+        assert config.default_model == "gpt-6.1-sol"  # Unchanged
         assert config.log_level == "DEBUG"
 
 

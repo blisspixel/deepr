@@ -11,7 +11,7 @@ from packaging.requirements import Requirement
 from packaging.version import Version
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-PYTHON_IMAGE = "python:3.15.1-slim@sha256:08275f764e022331c6d3e3ca55d8cce01fa4684b02111adf0445d71806fe7941"
+PYTHON_IMAGE = "python:3.15.2-slim@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928"
 
 
 @pytest.mark.parametrize(
@@ -35,7 +35,7 @@ def test_application_containers_use_one_frozen_dependency_authority(
     dockerfile = (REPO_ROOT / path).read_text(encoding="utf-8")
 
     assert dockerfile.splitlines()[0] in {f"FROM {PYTHON_IMAGE}", f"FROM {PYTHON_IMAGE} AS build"}
-    assert "python -m pip install --no-cache-dir uv==0.13.5" in dockerfile
+    assert "python -m pip install --no-cache-dir uv==0.13.8" in dockerfile
     assert "COPY pyproject.toml uv.lock setup.py README.md LICENSE MANIFEST.in ./" in dockerfile
     assert "COPY src/ src/" in dockerfile
     assert sync_command in dockerfile
@@ -69,7 +69,7 @@ def test_maintained_acquisition_uses_patched_uv(path: str) -> None:
     steps = [step for job in workflow["jobs"].values() for step in job["steps"]]
     uv_steps = [step for step in steps if str(step.get("uses", "")).startswith("astral-sh/setup-uv@")]
     assert uv_steps
-    assert all(Version(step["with"]["version"]) >= Version("0.13.5") for step in uv_steps)
+    assert all(Version(step["with"]["version"]) >= Version("0.13.8") for step in uv_steps)
 
 
 def test_lock_and_dev_tooling_require_repaired_pip_without_runtime_dependency() -> None:
@@ -77,7 +77,7 @@ def test_lock_and_dev_tooling_require_repaired_pip_without_runtime_dependency() 
     lock = tomllib.loads((REPO_ROOT / "uv.lock").read_text(encoding="utf-8"))
     assert "pip>=26.2.2" in project["project"]["optional-dependencies"]["dev"]
     assert not any(Requirement(dep).name == "pip" for dep in project["project"]["dependencies"])
-    assert project["tool"]["uv"]["required-version"] == ">=0.13.5"
+    assert project["tool"]["uv"]["required-version"] == ">=0.13.8"
     pip = next(package for package in lock["package"] if package["name"] == "pip")
     assert Version(pip["version"]) >= Version("26.2.2")
 

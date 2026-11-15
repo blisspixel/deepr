@@ -68,7 +68,7 @@ class ResearchJob:
 
     id: str
     prompt: str
-    model: str = "gpt-5.6-sol"
+    model: str = "gpt-6.1-sol"
     provider: str = "openai"  # openai, azure, gemini
     status: JobStatus = JobStatus.QUEUED
     priority: int = 5  # 1-10, higher = more priority

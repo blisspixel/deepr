@@ -26,12 +26,12 @@ class PromptRefiner:
     Uses GPT-5.6 Luna for fast, cheap prompt optimization.
     """
 
-    def __init__(self, model: str = "gpt-5.6-luna"):
+    def __init__(self, model: str = "gpt-6-luna"):
         """
         Initialize prompt refiner.
 
         Args:
-            model: Model to use for refinement (gpt-5.6-luna recommended for speed/cost)
+            model: Model to use for refinement (gpt-6-luna recommended for speed/cost)
         """
         self.model = model
         api_key = os.getenv("OPENAI_API_KEY")

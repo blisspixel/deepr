@@ -3,7 +3,7 @@ from typing import Any
 """
 Research Planner Service
 
-Uses GPT-5.6 models (gpt-5.6-sol, gpt-5.6-terra, gpt-5.6-luna) to decompose high-level scenarios
+Uses GPT-5.6 models (gpt-6.1-sol, gpt-6.1-terra, gpt-6-luna) to decompose high-level scenarios
 into multiple targeted research tasks. This is the "Prep" feature.
 
 Example:
@@ -24,8 +24,8 @@ from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
-# Current planning family (docs/design/model-lifecycle-2026-10-27.md).
-PLANNER_MODELS: tuple[str, ...] = ("gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna")
+# Current planning family (docs/design/model-currency-2026-11-15.md).
+PLANNER_MODELS: tuple[str, ...] = ("gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-luna", "gpt-6-astra")
 
 
 class ResearchPlanner:
@@ -37,7 +37,7 @@ class ResearchPlanner:
 
     def __init__(
         self,
-        model: str = "gpt-5.6-sol",
+        model: str = "gpt-6.1-sol",
         use_azure: bool = False,
         azure_endpoint: str | None = None,
     ):
@@ -45,14 +45,13 @@ class ResearchPlanner:
         Initialize the research planner.
 
         Args:
-            model: GPT-5.6 model to use (gpt-5.6-sol, gpt-5.6-terra, gpt-5.6-luna)
+            model: GPT-5.6 model to use (gpt-6.1-sol, gpt-6.1-terra, gpt-6-luna)
             use_azure: Whether to use Azure OpenAI
             azure_endpoint: Azure OpenAI endpoint (if using Azure)
         """
-        # GPT-5.6 is the default family. The original GPT-5 ids remain
-        # accepted for explicit callers until OpenAI shuts them down on
-        # 2026-12-11; registry pricing and dispatch gates still apply.
-        valid_models = [*PLANNER_MODELS, "gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-5-chat"]
+        # New plans use the current GPT-6 family. Historical ids stay priced
+        # in the registry and are refused by the dispatch gate.
+        valid_models = list(PLANNER_MODELS)
         if model not in valid_models:
             raise ValueError(f"Invalid model: {model}. Must be one of {valid_models}.")
 
@@ -165,18 +164,18 @@ Return your response as a JSON array of objects with this structure:
 
 Example:
 [
-  {"title": "Latest EV sales data", "prompt": "Document latest EV sales numbers and projections for 2025", "type": "documentation", "model": "gpt-5.6-sol", "phase": 1, "depends_on": []},
-  {"title": "Key players market share", "prompt": "Document market share and financials for top EV manufacturers", "type": "documentation", "model": "gpt-5.6-sol", "phase": 1, "depends_on": []},
-  {"title": "Technology landscape", "prompt": "Research battery tech and charging infrastructure trends", "type": "analysis", "model": "gpt-5.6-sol", "phase": 1, "depends_on": []},
-  {"title": "Competitive dynamics", "prompt": "Using market data and player profiles, analyze competitive dynamics and strategic positioning", "type": "analysis", "model": "gpt-5.6-sol", "phase": 2, "depends_on": [1,2]},
-  {"title": "Strategic synthesis", "prompt": "Synthesize all findings into strategic implications", "type": "analysis", "model": "gpt-5.6-sol", "phase": 3, "depends_on": [1,2,3,4]}
+  {"title": "Latest EV sales data", "prompt": "Document latest EV sales numbers and projections for 2025", "type": "documentation", "model": "gpt-6.1-sol", "phase": 1, "depends_on": []},
+  {"title": "Key players market share", "prompt": "Document market share and financials for top EV manufacturers", "type": "documentation", "model": "gpt-6.1-sol", "phase": 1, "depends_on": []},
+  {"title": "Technology landscape", "prompt": "Research battery tech and charging infrastructure trends", "type": "analysis", "model": "gpt-6.1-sol", "phase": 1, "depends_on": []},
+  {"title": "Competitive dynamics", "prompt": "Using market data and player profiles, analyze competitive dynamics and strategic positioning", "type": "analysis", "model": "gpt-6.1-sol", "phase": 2, "depends_on": [1,2]},
+  {"title": "Strategic synthesis", "prompt": "Synthesize all findings into strategic implications", "type": "analysis", "model": "gpt-6.1-sol", "phase": 3, "depends_on": [1,2,3,4]}
 ]
 
 MODEL SELECTION RULES:
-- Documentation (facts): Use gpt-5.6-terra (balanced, sufficient for factual gathering)
-- Simple analysis: Use gpt-5.6-terra (good for straightforward comparisons)
-- Deep analysis: Use gpt-5.6-sol (thorough reasoning, complex trade-offs)
-- Synthesis: Use gpt-5.6-sol (integrates multiple sources, strategic insights)
+- Documentation (facts): Use gpt-6.1-terra (balanced, sufficient for factual gathering)
+- Simple analysis: Use gpt-6.1-terra (good for straightforward comparisons)
+- Deep analysis: Use gpt-6.1-sol (thorough reasoning, complex trade-offs)
+- Synthesis: Use gpt-6.1-sol (integrates multiple sources, strategic insights)
 
 Be thorough but cost-conscious. Maximum value, zero waste."""
 
@@ -329,7 +328,7 @@ Please analyze this scenario and generate {max_tasks} distinct research tasks th
 
 
 def create_planner(
-    model: str = "gpt-5.6-terra",
+    model: str = "gpt-6.1-terra",
     provider: str = "openai",
     azure_endpoint: str | None = None,
 ) -> ResearchPlanner:
@@ -337,7 +336,7 @@ def create_planner(
     Factory function to create a research planner.
 
     Args:
-        model: GPT-5.6 model (gpt-5.6-sol, gpt-5.6-terra, gpt-5.6-luna)
+        model: GPT-5.6 model (gpt-6.1-sol, gpt-6.1-terra, gpt-6-luna)
         provider: 'openai' or 'azure'
         azure_endpoint: Azure endpoint if using Azure
 

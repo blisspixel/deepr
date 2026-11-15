@@ -132,7 +132,7 @@ class ElicitationHandler:
         job_id: str,
         estimated_cost: float,
         budget_limit: float,
-        current_model: str = "gpt-5.6-terra",
+        current_model: str = "gpt-6.1-terra",
         timeout_seconds: int = 300,
     ) -> ElicitationRequest:
         """
@@ -417,16 +417,16 @@ class CostOptimizer:
     # Suggestions name only current models: o3, o4-mini and grok-3-mini are
     # retired or retiring (docs/design/model-lifecycle-2026-10-27.md).
     MODEL_COSTS = {
-        "gpt-5.6-terra": max(get_token_pricing("gpt-5.6-terra").values()),
-        "gpt-5.6-luna": max(get_token_pricing("gpt-5.6-luna").values()),
+        "gpt-6.1-terra": max(get_token_pricing("gpt-6.1-terra").values()),
+        "gpt-6-luna": max(get_token_pricing("gpt-6-luna").values()),
         "grok-4.3": 2.50,
         "gemini-flash": _GEMINI_FLASH_MAX_TOKEN_RATE,
     }
 
     # Model capability tiers
     MODEL_CAPABILITIES = {
-        "gpt-5.6-terra": {"reasoning": "excellent", "speed": "medium", "depth": "high"},
-        "gpt-5.6-luna": {"reasoning": "good", "speed": "fast", "depth": "medium"},
+        "gpt-6.1-terra": {"reasoning": "excellent", "speed": "medium", "depth": "high"},
+        "gpt-6-luna": {"reasoning": "good", "speed": "fast", "depth": "medium"},
         "grok-4.3": {"reasoning": "good", "speed": "fast", "depth": "medium"},
         "gemini-flash": {"reasoning": "good", "speed": "very_fast", "depth": "high"},
     }

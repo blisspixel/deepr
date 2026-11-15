@@ -60,7 +60,7 @@ def test_haiku_5_5_keeps_the_over_100k_cap_for_short_prompts():
     assert capability.cache_write_cost_per_1m == pytest.approx(0.625)
     assert capability.context_window == 1_000_000
     assert capability.max_output_tokens == 128_000
-    assert capability.preview_only
+    assert capability.preview_only is False
 
 
 def test_gpt_6_sol_cache_stays_distinct_from_gpt_6_1_sol():
@@ -74,22 +74,35 @@ def test_reviewed_grok_uses_conservative_long_context_cap():
     assert get_cached_input_pricing("grok-4.7", input_tokens=200_000) == 1.0
 
 
-def test_reviewed_releases_cannot_enter_automatic_rankings_or_selectors():
-    candidates = set(REVIEWED_CAPABILITIES)
+def test_promoted_releases_are_selectable_and_preview_rows_stay_out():
+    promoted = {key for key, cap in REVIEWED_CAPABILITIES.items() if not cap.preview_only}
+    preview = {key for key, cap in REVIEWED_CAPABILITIES.items() if cap.preview_only}
+    assert "openai/gpt-6.1-sol" in promoted
+    assert "openai/gpt-6-sol" in preview
+    assert "anthropic/claude-fable-5-1" in preview
     rankings = _enrich_with_provisional(None)
     assert rankings is not None
-    assert candidates.isdisjoint(f"{provider}/{model}" for rows in rankings.values() for provider, model, _, _ in rows)
+    ranked = {f"{provider}/{model}" for rows in rankings.values() for provider, model, _, _ in rows}
+    assert preview.isdisjoint(ranked)
     for selector in (get_cheapest_model, get_fastest_model, get_largest_context_model):
         selected = selector()
-        assert f"{selected.provider}/{selected.model}" not in candidates
+        assert f"{selected.provider}/{selected.model}" not in preview
+        assert not selected.preview_only
     assert all(not model.preview_only for model in get_models_by_specialization("reasoning"))
-    assert all(model.preview_only for model in REVIEWED_CAPABILITIES.values())
+
+
+def test_historical_rows_stay_priced_and_embeddings_stay_put():
+    assert get_token_pricing("gpt-5.6-sol") == {"input": 4.0, "output": 20.0}
+    assert get_token_pricing("o3-deep-research")["input"] > 0
+    assert get_token_pricing("text-embedding-3-small") == {"input": 0.02, "output": 0.0}
+    assert get_token_pricing("grok-4.6")["input"] == 2.0
+    assert get_model_capability("openai", "gpt-5.6-sol") is not None
 
 
 def test_currency_review_preserves_workload_aliases():
     assert get_resolved_model_contract_identity("gpt-5.6") == ("openai", "gpt-5.6-sol")
     assert get_resolved_model_contract_identity("gemini-flash") == ("gemini", "gemini-3.8-flash")
-    assert get_resolved_model_contract_identity("gemini-pro") == ("gemini", "gemini-4-argon")
+    assert get_resolved_model_contract_identity("gemini-pro") == ("gemini", "gemini-4-carbon")
 
 
 def test_deprecated_sonnet_retains_historical_pricing_without_provisional_promotion():

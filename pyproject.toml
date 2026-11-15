@@ -12,7 +12,7 @@ license-files = ["LICENSE"]
 authors = [
     {name = "Nick Seal"}
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.11.5"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -457,7 +457,8 @@ tests_dir = ["tests/unit/"]
 # and containers. setuptools remains the build backend for wheel compatibility,
 # so `pip install deepr-research` keeps working for downstream consumers.
 resolution = "highest"
-required-version = ">=0.13.5"
+required-version = ">=0.13.8"
+constraint-dependencies = ["soupsieve>=4.1.1"]
 
 [tool.setuptools.package-data]
 deepr = [

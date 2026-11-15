@@ -221,8 +221,8 @@ class TestModelSelection:
     def test_research_uses_deep_research_model(self, router):
         """Test that research queries use deep research model."""
         config = router.select_model("Research the latest AI trends comprehensively")
-        # Research uses the retained gpt-5.6-sol default when budget allows.
-        assert config.model == "gpt-5.6-sol" or config.cost_estimate >= 0.5
+        # Research uses the current gpt-6.1-sol default when budget allows.
+        assert config.model == "gpt-6.1-sol" or config.cost_estimate >= 0.5
 
     def test_complex_uses_high_reasoning(self, router):
         """Test that complex queries use high reasoning effort."""
@@ -249,19 +249,19 @@ class TestModelSelection:
         assert config.provider == "openai"
 
     def test_openai_constraint_research_uses_deep_research(self, router):
-        """OpenAI research uses the retained gpt-5.6-sol default (o3-deep-research shut down 2026-07-23)."""
+        """OpenAI research uses gpt-6.1-sol (o3-deep-research shut down 2026-07-23)."""
         config = router.select_model(
             "Research the latest AI trends comprehensively", provider_constraint="openai", budget_remaining=5.0
         )
         assert config.provider == "openai"
-        assert config.model == "gpt-5.6-sol"
+        assert config.model == "gpt-6.1-sol"
 
     def test_large_context_uses_gemini(self, router):
         """Test that large context uses Gemini."""
         config = router.select_model("Analyze this document", context_size=150_000)
         # Should use Gemini for large context
         assert config.provider == "gemini"
-        assert config.model == "gemini-4-argon"
+        assert config.model == "gemini-4-carbon"
 
     def test_research_with_no_budget_and_research_disallowed_avoids_deep_research(self, router):
         """Regression: a non-agentic chat turn (no explicit budget) must not be
@@ -292,7 +292,7 @@ class TestModelSelection:
             provider_constraint="openai",
             budget_remaining=5.0,
         )
-        assert config.model == "gpt-5.6-sol"
+        assert config.model == "gpt-6.1-sol"
 
 
 class TestFallbackModel:
@@ -314,7 +314,7 @@ class TestFallbackModel:
         """Test fallback model with OpenAI constraint."""
         config = router._fallback_free_model("test query", "simple", provider_constraint="openai")
         assert config.provider == "openai"
-        assert config.model == "gpt-5.2"
+        assert config.model == "gpt-6.1-terra"
         assert config.reasoning_effort == "low"
 
 

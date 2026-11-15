@@ -4,7 +4,7 @@ import click
 
 from deepr.cli.async_runner import run_async_command
 from deepr.cli.colors import console, print_error, print_section_header, print_success, print_warning
-from deepr.cli.model_choices import ModelChoice, model_help, research_model_choice
+from deepr.cli.model_choices import model_help, planner_model_choice, research_model_choice
 
 
 @click.group()
@@ -20,16 +20,16 @@ def docs():
 @click.option(
     "--planner",
     "-p",
-    default="gpt-5.6-terra",
-    type=ModelChoice(["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5", "gpt-5-mini", "gpt-5-nano"]),
-    help=model_help("GPT-5.6 model for analysis and planning", "gpt-5.6-terra"),
+    default="gpt-6.1-terra",
+    type=planner_model_choice(),
+    help=model_help("GPT-6 model for analysis and planning", "gpt-6.1-terra"),
 )
 @click.option(
     "--model",
     "-m",
-    default="gpt-5.6-sol",
+    default="gpt-6.1-sol",
     type=research_model_choice(),
-    help="Research model for execution (default: gpt-5.6-sol)",
+    help="Research model for execution (default: gpt-6.1-sol)",
 )
 @click.option("--execute", "-e", is_flag=True, help="Automatically execute without review")
 def analyze(docs_path: str, scenario: str, topics: int, planner: str, model: str, execute: bool):

@@ -228,7 +228,7 @@ class ModelRouter:
         query: str,
         context_size: int = 0,
         budget_remaining: float | None = None,
-        current_model: str = "gpt-5.2",
+        current_model: str = "gpt-6.1-terra",
         provider_constraint: str | None = None,
         allow_research_model: bool = True,
     ) -> ModelConfig:
@@ -267,7 +267,7 @@ class ModelRouter:
                 and task_type == "research"
                 and (budget_remaining is None or budget_remaining >= 2.0)
             ):
-                return ModelConfig(provider="openai", model="gpt-5.6-sol", cost_estimate=2.0, confidence=0.9)
+                return ModelConfig(provider="openai", model="gpt-6.1-sol", cost_estimate=2.0, confidence=0.9)
 
             # Try benchmark-driven selection first
             bench_result = self._select_openai_from_benchmarks(complexity, task_type, budget_remaining)
@@ -277,7 +277,7 @@ class ModelRouter:
             if complexity == "complex" and (budget_remaining is None or budget_remaining >= 0.01):
                 return ModelConfig(
                     provider="openai",
-                    model="gpt-5.2",
+                    model="gpt-6.1-terra",
                     cost_estimate=0.01,  # ~5K tokens @ $1.75/$14 per 1M
                     reasoning_effort="high",
                     confidence=0.9,
@@ -286,7 +286,7 @@ class ModelRouter:
             if complexity == "moderate" or task_type == "reasoning":
                 return ModelConfig(
                     provider="openai",
-                    model="gpt-5.2",
+                    model="gpt-6.1-terra",
                     cost_estimate=0.005,  # ~2K tokens @ $1.75/$14 per 1M
                     reasoning_effort="medium",
                     confidence=0.85,
@@ -295,7 +295,7 @@ class ModelRouter:
             # Simple queries - use GPT-5.2 with low reasoning effort for speed (1-3 seconds)
             return ModelConfig(
                 provider="openai",
-                model="gpt-5.2",
+                model="gpt-6.1-terra",
                 cost_estimate=0.001,  # ~500 tokens @ $1.75/$14 per 1M
                 reasoning_effort="low",
                 confidence=0.9,  # High confidence for simple queries
@@ -307,17 +307,17 @@ class ModelRouter:
             return ModelConfig(provider="xai", model="grok-4.3", cost_estimate=0.05, confidence=0.95)
 
         if allow_research_model and task_type == "research" and (budget_remaining is None or budget_remaining >= 2.0):
-            # Deep research -> gpt-5.6-sol (retained research default; o3-deep-research shut down 2026-07-23)
-            return ModelConfig(provider="openai", model="gpt-5.6-sol", cost_estimate=2.0, confidence=0.9)
+            # Deep research -> gpt-6.1-sol (retained research default; o3-deep-research shut down 2026-07-23)
+            return ModelConfig(provider="openai", model="gpt-6.1-sol", cost_estimate=2.0, confidence=0.9)
 
         if context_size > 100_000 and (budget_remaining is None or budget_remaining >= 0.12):
             # Large context -> current Gemini flagship
-            return ModelConfig(provider="gemini", model="gemini-4-argon", cost_estimate=0.12, confidence=0.85)
+            return ModelConfig(provider="gemini", model="gemini-4-carbon", cost_estimate=0.12, confidence=0.85)
 
         if complexity == "complex" and (budget_remaining is None or budget_remaining >= 0.25):
             # Complex reasoning -> GPT-5 with high reasoning effort
             return ModelConfig(
-                provider="openai", model="gpt-5.2", cost_estimate=0.30, reasoning_effort="high", confidence=0.9
+                provider="openai", model="gpt-6.1-terra", cost_estimate=0.30, reasoning_effort="high", confidence=0.9
             )
 
         if complexity == "moderate":
@@ -325,7 +325,7 @@ class ModelRouter:
             if budget_remaining is not None and budget_remaining < 0.20:
                 return ModelConfig(provider="xai", model="grok-4.3", cost_estimate=0.05, confidence=0.75)
             return ModelConfig(
-                provider="openai", model="gpt-5.2", cost_estimate=0.20, reasoning_effort="medium", confidence=0.85
+                provider="openai", model="gpt-6.1-terra", cost_estimate=0.20, reasoning_effort="medium", confidence=0.85
             )
 
         # Default: Keep current model with adaptive reasoning
@@ -410,7 +410,7 @@ class ModelRouter:
         if provider_constraint == "openai":
             return ModelConfig(
                 provider="openai",
-                model="gpt-5.2",
+                model="gpt-6.1-terra",
                 cost_estimate=0.001,  # Minimal cost for simple query
                 reasoning_effort="low",
                 confidence=0.6,
@@ -447,7 +447,7 @@ class ModelRouter:
         # Add reasoning
         if complexity == "simple" and selected_model.model == "grok-4.3":
             explanation += "Reason: Simple query routed to fast, cheap model for cost efficiency\n"
-        elif task_type == "research" and selected_model.model == "gpt-5.6-sol":
+        elif task_type == "research" and selected_model.model == "gpt-6.1-sol":
             explanation += "Reason: Research task routed to deep reasoning model for quality\n"
         elif selected_model.reasoning_effort:
             explanation += f"Reason: {complexity.capitalize()} query using adaptive reasoning (effort: {selected_model.reasoning_effort})\n"

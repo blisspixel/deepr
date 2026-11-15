@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 # Model used for cheap utility calls (plan decomposition, synthesis, follow-ups)
-UTILITY_MODEL = "gpt-5.6-luna"
+UTILITY_MODEL = "gpt-6-luna"
 
 # Autonomous learning research models (docs/design/model-lifecycle-2026-10-27.md).
-LEARN_FOCUS_MODEL = "gpt-5.6-terra"
-LEARN_CAMPAIGN_MODEL = "gpt-5.6-sol"
+LEARN_FOCUS_MODEL = "gpt-6.1-terra"
+LEARN_CAMPAIGN_MODEL = "gpt-6.1-sol"
 
 
 def learn_topic_cost(model: str) -> float:
