@@ -474,7 +474,7 @@ class CurriculumGenerator:
                     curriculum_models = [
                         item for item in get_models_by_specialization("reasoning") if item.provider == "openai"
                     ]
-                model_name = curriculum_models[0].model if curriculum_models else "gpt-5.2"
+                model_name = curriculum_models[0].model if curriculum_models else "gpt-6.1-terra"
                 request_kwargs, worst_case_cost = bounded_metered_completion_kwargs(
                     operation="curriculum_plan",
                     model=model_name,
@@ -938,7 +938,7 @@ SMART ALLOCATION (optimized for budget and quality):
 
 AVAILABLE MODELS:
 
-1. **CAMPAIGN** (o4-mini-deep-research): ${deep_cost:.2f}, 30-45 min
+1. **CAMPAIGN** (gpt-6.1-sol): ${deep_cost:.2f}, 30-45 min
    - Extended reasoning + web browsing
    - Use for: WHY questions, architectural reasoning, foundational principles
    - Best for: Core concepts that require deep understanding

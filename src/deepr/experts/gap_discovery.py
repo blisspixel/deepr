@@ -16,7 +16,7 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-_CHAT_MODEL = "gpt-5.2"
+_CHAT_MODEL = "gpt-6.1-terra"
 _CHAT_CALL_CEILING_USD = 0.02
 _CHAT_OUTPUT_TOKENS = 800
 _EMBEDDING_MODEL = "text-embedding-3-small"

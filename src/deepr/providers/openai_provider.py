@@ -82,6 +82,10 @@ class OpenAIProvider(DeepResearchProvider):
             # The bare "o3" and "o4-mini" ids are their own (retiring) models
             # and are never expanded to a shut-down deep-research id; that
             # expansion also mismatched the reserved price.
+            "gpt-6.1-sol": "gpt-6.1-sol",
+            "gpt-6.1-terra": "gpt-6.1-terra",
+            "gpt-6-luna": "gpt-6-luna",
+            "gpt-6-astra": "gpt-6-astra",
             "gpt-5.6-sol": "gpt-5.6-sol",
             "gpt-5.6-terra": "gpt-5.6-terra",
             "o3-deep-research": "o3-deep-research-2025-06-26",

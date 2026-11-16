@@ -16,7 +16,7 @@ def test_default_configuration():
     assert config.default_provider == "xai", "Default provider should be xai"
     assert config.default_model == "grok-4.3", "Default model should be grok-4.3"
     assert config.deep_research_provider == "openai", "Deep research provider should be openai"
-    assert config.deep_research_model == "gpt-5.6-sol", "Deep research model should be gpt-5.6-sol (live substitute)"
+    assert config.deep_research_model == "gpt-6.1-sol", "Deep research model should be gpt-6.1-sol"
 
     print("[OK] Default configuration verified:")
     print(f"  General operations: {config.default_provider} / {config.default_model}")

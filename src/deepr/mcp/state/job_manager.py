@@ -140,7 +140,7 @@ class JobPlan:
     steps: list[dict[str, Any]] = field(default_factory=list)
     estimated_cost: float = 0.0
     estimated_time: str = "unknown"
-    model: str = "gpt-5.6-terra"
+    model: str = "gpt-6.1-terra"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -310,7 +310,7 @@ class JobManager:
         self,
         job_id: str,
         goal: str,
-        model: str = "gpt-5.6-terra",
+        model: str = "gpt-6.1-terra",
         estimated_cost: float = 0.0,
         estimated_time: str = "unknown",
         owner_id: str | None = None,

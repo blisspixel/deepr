@@ -13,7 +13,7 @@ Usage: deepr [OPTIONS] COMMAND [ARGS]...
 
   Preview metered research without dispatch:
 
-    deepr research "your question" --provider openai --model gpt-5.6-sol --preview
+    deepr research "your question" --provider openai --model gpt-6.1-sol --preview
 
   Explicit attended OpenRouter can run one pinned completion after setup:
 

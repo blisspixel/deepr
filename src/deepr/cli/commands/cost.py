@@ -32,7 +32,7 @@ def cost(ctx: click.Context):
 @click.option(
     "--model",
     "-m",
-    default="gpt-5.6-sol",
+    default="gpt-6.1-sol",
     type=research_model_choice(),
     help="Research model",
 )
@@ -43,7 +43,7 @@ def estimate(prompt: str, model: str, web_search: bool):
 
     Example:
         deepr cost estimate "What are AI trends?"
-        deepr cost estimate "Kubernetes guide" --model gpt-5.6-sol
+        deepr cost estimate "Kubernetes guide" --model gpt-6.1-sol
     """
     print_section_header("Cost Estimation")
 

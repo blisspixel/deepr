@@ -35,7 +35,7 @@ class ProviderCapability:
 PROVIDER_CAPABILITIES = {
     "openai": ProviderCapability(
         name="openai",
-        supports_deep_research=True,  # o3/o4-mini-deep-research
+        supports_deep_research=True,  # GPT-6 research ids
         supports_extended_thinking=True,  # o1/o3 reasoning
         supports_web_search=True,  # Built into deep research
         supports_tool_use=True,
@@ -115,11 +115,11 @@ class ProviderRouter:
         Examples:
             # Documentation gathering (cheap, fast)
             router.route_task("documentation", "simple", prefer_cost=True)
-            # -> "openai" (o4-mini-deep-research)
+            # -> "openai" (gpt-6-luna)
 
             # Deep analysis (thorough)
             router.route_task("analysis", "complex")
-            # -> "anthropic" (Extended Thinking) or "openai" (o3)
+            # -> "anthropic" (claude-opus-5-5) or "openai" (gpt-6.1-sol)
 
             # Final synthesis
             router.route_task("synthesis", "complex")
@@ -201,28 +201,24 @@ class ProviderRouter:
 
         Examples:
             get_model_for_task("openai", "documentation")
-            # -> "o4-mini-deep-research" (fast, cheap)
+            # -> "gpt-6-luna" (fast, cheap)
 
             get_model_for_task("openai", "analysis")
-            # -> "o3-deep-research" (thorough)
+            # -> "gpt-6.1-sol" (thorough)
 
             get_model_for_task("anthropic", "analysis")
-            # -> "claude-opus-5" (Adaptive Thinking flagship)
+            # -> "claude-opus-5-5" (flagship)
         """
         if provider == "openai" or provider == "azure":
             if task_type == "documentation":
-                return "o4-mini-deep-research"  # Fast, cheap
+                return "gpt-6-luna"  # Fast, cheap
             else:
-                return "o3-deep-research"  # Thorough
+                return "gpt-6.1-sol"  # Thorough
 
         elif provider == "anthropic":
-            # Resolved against the current registry (June 2026 set).
-            # The previous hardcode (``claude-3-5-sonnet-20250131``)
-            # was a model no longer in the registry; calls would 404 or
-            # silently route to a default.
             if task_type == "documentation":
-                return "claude-sonnet-5"  # Balanced cost
-            return "claude-opus-5"  # Flagship for analysis
+                return "claude-sonnet-5-5"  # Balanced cost
+            return "claude-opus-5-5"  # Flagship for analysis
 
         else:
             raise ValueError(f"Unknown provider: {provider}")

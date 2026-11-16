@@ -182,6 +182,28 @@ def upsert_configuration_env_file(path: Path, updates: dict[str, str]) -> None:
 load_configuration_environment()
 
 
+def accepted_benchmark_task_model(config_task: str, model_key: object) -> tuple[str, str] | None:
+    """Return a saved best_value when it may replace a shipped task default.
+
+    Deep research still requires a model name containing ``deep-research``.
+    That name check is not a lifecycle check. The id must also be a
+    registered capability that automatic routing may select, so a shut-down
+    id such as ``o3-deep-research`` or an unregistered name such as bare
+    ``grok-4`` cannot become the task default.
+    """
+    if not isinstance(model_key, str) or "/" not in model_key:
+        return None
+    provider, model = model_key.split("/", 1)
+    if config_task == "deep_research" and "deep-research" not in model:
+        return None
+    # Local import: provider modules also load this configuration module.
+    from deepr.providers.registry import get_model_capability, is_auto_selectable
+
+    if get_model_capability(provider, model) is None or not is_auto_selectable(provider, model):
+        return None
+    return provider, model
+
+
 class ProviderConfig(BaseModel):
     """Configuration for AI provider (OpenAI or Azure)."""
 
@@ -205,9 +227,9 @@ class ProviderConfig(BaseModel):
     # Azure AI Foundry Configuration
     azure_foundry_endpoint: str | None = Field(default=None, description="Azure AI Foundry project endpoint URL")
     azure_foundry_deep_research_deployment: str = Field(
-        default="gpt-5.6-sol", description="Azure Foundry deep research model deployment"
+        default="gpt-6.1-sol", description="Azure Foundry deep research model deployment"
     )
-    azure_foundry_gpt_deployment: str = Field(default="gpt-4o", description="Azure Foundry GPT model deployment")
+    azure_foundry_gpt_deployment: str = Field(default="gpt-4.1", description="Azure Foundry GPT model deployment")
     azure_foundry_bing_resource: str | None = Field(
         default=None, description="Azure Foundry Bing grounding connection name"
     )
@@ -221,27 +243,30 @@ class ProviderConfig(BaseModel):
     # Dual Provider Configuration
     default_provider: str = Field(default="xai", description="Default provider for general operations")
     deep_research_provider: str = Field(default="openai", description="Provider for deep research operations")
-    deep_research_model: str = Field(default="gpt-5.6-sol", description="Model for deep research")
+    deep_research_model: str = Field(default="gpt-6.1-sol", description="Model for deep research")
 
     # Task-specific model mappings
     # Maps task types to (provider, model) tuples
     TASK_MODEL_MAP: dict[str, tuple] = {
         "quick_lookup": ("xai", "grok-4.3"),  # Fast, cheap fact checks
         "fact_check": ("xai", "grok-4.3"),  # Fact verification
-        "deep_research": ("openai", "gpt-5.6-sol"),  # OpenAI substitute for shut-down deep research models
-        "synthesis": ("openai", "gpt-5.6-sol"),  # Knowledge synthesis
-        "chat": ("openai", "gpt-5.6-sol"),  # Expert chat
-        "planning": ("openai", "gpt-5.6-sol"),  # Research planning
-        "documentation": ("openai", "gpt-5.6-sol"),  # Doc generation
-        "strategy": ("openai", "gpt-5.6-sol"),  # Strategic analysis
+        "deep_research": ("openai", "gpt-6.1-sol"),  # Current research default
+        "synthesis": ("openai", "gpt-6.1-sol"),  # Knowledge synthesis
+        "chat": ("openai", "gpt-6.1-sol"),  # Expert chat
+        "planning": ("openai", "gpt-6.1-sol"),  # Research planning
+        "documentation": ("openai", "gpt-6.1-sol"),  # Doc generation
+        "strategy": ("openai", "gpt-6.1-sol"),  # Strategic analysis
     }
 
     @model_validator(mode="after")
     def _apply_benchmark_preferences(self) -> "ProviderConfig":
         """Override TASK_MODEL_MAP from benchmark results if available.
 
-        Reads routing_preferences.json and overrides task-specific model
-        selections with benchmark-recommended models (best_value strategy).
+        Reads routing_preferences.json and may override a task with its
+        best_value model when that id is a registered capability that
+        automatic routing may select and the provider key is set. A
+        shut-down, preview-only, or unregistered id leaves the shipped
+        default.
         Env var DEEPR_DEEP_RESEARCH_MODEL takes priority for deep_research.
         """
         use_benchmark_routing = os.getenv("DEEPR_USE_BENCHMARK_ROUTING", "true").lower() in {"1", "true", "yes", "on"}
@@ -284,15 +309,13 @@ class ProviderConfig(BaseModel):
             # Env var override for deep_research takes priority
             if config_task == "deep_research" and os.getenv("DEEPR_DEEP_RESEARCH_MODEL"):
                 continue
-            if bench_task not in task_prefs:
+            preference = task_prefs.get(bench_task)
+            if not isinstance(preference, dict):
                 continue
-            model_key = task_prefs[bench_task].get("best_value", "")
-            if "/" not in model_key:
+            chosen = accepted_benchmark_task_model(config_task, preference.get("best_value", ""))
+            if chosen is None:
                 continue
-            provider, model = model_key.split("/", 1)
-            # Keep deep_research pinned to deep-research-capable models only.
-            if config_task == "deep_research" and "deep-research" not in model:
-                continue
+            provider, model = chosen
             env_var = provider_env.get(provider)
             if env_var and os.environ.get(env_var):
                 self.TASK_MODEL_MAP[config_task] = (provider, model)
@@ -338,7 +361,7 @@ class ProviderConfig(BaseModel):
     @classmethod
     def validate_deep_research_model(cls, v: Any) -> str:
         """Load deep research model from environment."""
-        return os.getenv("DEEPR_DEEP_RESEARCH_MODEL", v) if v else os.getenv("DEEPR_DEEP_RESEARCH_MODEL", "gpt-5.6-sol")
+        return os.getenv("DEEPR_DEEP_RESEARCH_MODEL", v) if v else os.getenv("DEEPR_DEEP_RESEARCH_MODEL", "gpt-6.1-sol")
 
     @model_validator(mode="after")
     def validate_api_keys(self) -> "ProviderConfig":
@@ -460,7 +483,7 @@ class ExpertConfig(BaseModel):
 
     # Synthesis
     auto_synthesis: bool = Field(default=True, description="Automatically synthesize knowledge after learning")
-    synthesis_model: str = Field(default="gpt-5.6-sol", description="Model for knowledge synthesis")
+    synthesis_model: str = Field(default="gpt-6.1-sol", description="Model for knowledge synthesis")
 
     # Domain Velocity Defaults
     default_domain_velocity: str = Field(default="medium", description="Default domain velocity (slow/medium/fast)")
@@ -556,8 +579,12 @@ class AppConfig(BaseModel):
             azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT") or None,
             azure_api_version=os.getenv("AZURE_API_VERSION", "2024-10-01-preview"),
             azure_use_managed_identity=os.getenv("AZURE_USE_MANAGED_IDENTITY", "false").lower() == "true",
-            default_model=os.getenv("DEEPR_DEFAULT_MODEL", "gpt-5.6-sol"),
+            default_model=os.getenv("DEEPR_DEFAULT_MODEL", "gpt-6.1-sol"),
             model_mappings={
+                "gpt-6.1-sol": os.getenv("AZURE_DEPLOYMENT_GPT61_SOL", "gpt-6.1-sol"),
+                "gpt-6.1-terra": os.getenv("AZURE_DEPLOYMENT_GPT61_TERRA", "gpt-6.1-terra"),
+                "gpt-6-luna": os.getenv("AZURE_DEPLOYMENT_GPT6_LUNA", "gpt-6-luna"),
+                "gpt-6-astra": os.getenv("AZURE_DEPLOYMENT_GPT6_ASTRA", "gpt-6-astra"),
                 "gpt-5.6-sol": os.getenv("AZURE_DEPLOYMENT_GPT56_SOL", "gpt-5.6-sol"),
                 "gpt-5.6-terra": os.getenv("AZURE_DEPLOYMENT_GPT56_TERRA", "gpt-5.6-terra"),
                 # Explicit retired ids keep their deployment names so the
@@ -649,6 +676,10 @@ class AppConfig(BaseModel):
                     f"AZURE_OPENAI_ENDPOINT={self.provider.azure_endpoint or 'https://your-resource.openai.azure.com/'}",
                     f"AZURE_API_VERSION={self.provider.azure_api_version}",
                     f"AZURE_USE_MANAGED_IDENTITY={str(self.provider.azure_use_managed_identity).lower()}",
+                    "AZURE_DEPLOYMENT_GPT61_SOL=your-gpt-6.1-sol-deployment",
+                    "AZURE_DEPLOYMENT_GPT61_TERRA=your-gpt-6.1-terra-deployment",
+                    "AZURE_DEPLOYMENT_GPT6_LUNA=your-gpt-6-luna-deployment",
+                    "AZURE_DEPLOYMENT_GPT6_ASTRA=your-gpt-6-astra-deployment",
                     "AZURE_DEPLOYMENT_GPT56_SOL=your-gpt-5.6-sol-deployment",
                     "AZURE_DEPLOYMENT_GPT56_TERRA=your-gpt-5.6-terra-deployment",
                     "AZURE_DEPLOYMENT_O3=your-o3-deployment",

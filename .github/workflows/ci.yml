@@ -24,8 +24,8 @@ jobs:
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           activate-environment: true
-          python-version: "3.15.1"
-          version: "0.13.5"
+          python-version: "3.15.2"
+          version: "0.13.8"
 
       - name: Install lint tooling
         # uv.lock is the dependency authority used by every Python CI job.
@@ -97,8 +97,8 @@ jobs:
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           activate-environment: true
-          python-version: "3.15.1"
-          version: "0.13.5"
+          python-version: "3.15.2"
+          version: "0.13.8"
 
       - name: Secret scan (Gitleaks, blocking)
         run: |
@@ -149,7 +149,7 @@ jobs:
         with:
           activate-environment: true
           python-version: ${{ matrix.python-version }}
-          version: "0.13.5"
+          version: "0.13.8"
 
       - name: Install CORE only (no extras)
         run: uv sync --frozen
@@ -193,8 +193,8 @@ jobs:
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           activate-environment: true
-          python-version: "3.15.1"
-          version: "0.13.5"
+          python-version: "3.15.2"
+          version: "0.13.8"
 
       - name: Build Python and Agent Plugin distributions
         run: |
@@ -219,7 +219,7 @@ jobs:
             --wheel-dir "${RUNNER_TEMP}/deepr-wheelhouse" \
             -r "${RUNNER_TEMP}/deepr-core-requirements.txt"
           cp "$(find dist -maxdepth 1 -name '*.whl' -print -quit)" "${RUNNER_TEMP}/deepr-wheelhouse/"
-          uv venv .agent-plugin-venv --python 3.15.1
+          uv venv .agent-plugin-venv --python 3.15.2
           uv pip install \
             --offline \
             --no-index \
@@ -291,8 +291,8 @@ jobs:
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           activate-environment: true
-          python-version: "3.15.1"
-          version: "0.13.5"
+          python-version: "3.15.2"
+          version: "0.13.8"
 
       - name: Verify committed frontend archive is current
         working-directory: ${{ github.workspace }}
@@ -342,7 +342,7 @@ jobs:
         with:
           activate-environment: true
           python-version: ${{ matrix.python-version }}
-          version: "0.13.5"
+          version: "0.13.8"
       - name: Install the frozen full test environment
         run: uv sync --frozen --extra dev --extra full
       - name: Exercise export boundaries and installer ownership
@@ -439,7 +439,7 @@ jobs:
         with:
           activate-environment: true
           python-version: ${{ matrix.python-version }}
-          version: "0.13.5"
+          version: "0.13.8"
 
       - name: Install dependencies
         run: uv sync --frozen --extra dev --extra full

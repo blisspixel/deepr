@@ -26,6 +26,12 @@ A published release cannot take new assets, so a new patch tag is required
 instead of uploading. v2.51.8 shipped without assets; the README installer
 works again when this release is published.
 
+**Unreleased model currency:** new-request defaults and reference deploy
+allowlists are `gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6-luna`, and
+`gpt-6-astra`. Saved benchmark routing preferences cannot install a model
+that automatic routing already refuses. The package version stays 2.51.9.
+The v2.51.7 note below records what that release shipped.
+
 **v2.51.8 release assets and init reports path:** a version tag publishes the
 wheel, sdist, plugin archive, and SHA256SUMS. The installers still stop
 before any install when the latest release has no supported wheel (#326).
@@ -35,8 +41,8 @@ before any install when the latest release has no supported wheel (#326).
 **v2.51.7 model sunset:** `claude-sonnet-4-5` retires on 2026-11-30, including
 the dated snapshot `claude-sonnet-4-5-20250929`. The API returns
 `model_shut_down`. Explicit requests stay on the requested id. Opus 4.5 and
-Haiku 4.5 have no recorded sunset. The reference deploy allowlists are
-`gpt-5.6-sol` and `gpt-5.6-terra`.
+Haiku 4.5 have no recorded sunset. That release's reference deploy
+allowlists were `gpt-5.6-sol` and `gpt-5.6-terra`.
 
 **v2.51.6 locked decoder dependency:** transitive `pyasn1` is 0.6.5. Version
 0.6.4 is affected by CVE-2026-119194, CVE-2026-119195, CVE-2026-119196, and
@@ -78,8 +84,9 @@ operational success nor matching evidence hashes qualifies advice. See the
 [preparation record](validation/prepared-consultation-2026-10-25.md) and
 [brief replay](validation/brief-clarification-2026-10-25.md).
 
-**v2.50.46 installer trust repair:** maintained uv is 0.13.5 and the dev-only
-pip floor is 26.2.2. Managed installation requests CPython 3.15.1. Old or unknown
+**v2.50.46 installer trust repair:** that release pinned uv 0.13.5 and managed
+CPython 3.15.1. Current acquisition uses uv 0.13.8 and CPython 3.15.2. The
+dev-only pip floor is 26.2.2. Old or unknown
 uv is refused before managed acquisition; uninstall and manager ownership stay
 intact. All container stages use the refreshed base and cold builds. Existing
 pip/pipx environments and deployed images require owner repair; application

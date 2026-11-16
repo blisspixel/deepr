@@ -30,7 +30,7 @@ class CitationValidator:
         model: Model to use for validation
     """
 
-    def __init__(self, client: Any | None = None, model: str = "gpt-5.2"):
+    def __init__(self, client: Any | None = None, model: str = "gpt-6-luna"):
         self.client = client
         self.model = model
 

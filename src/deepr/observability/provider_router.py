@@ -391,27 +391,27 @@ class AutonomousProviderRouter:
     # Default fallback chain (provider, model) tuples
     # Only includes actually supported providers: openai, azure, gemini, xai
     DEFAULT_FALLBACK_CHAIN = [
-        ("openai", "gpt-5.6-sol"),
-        ("openai", "gpt-5.6-terra"),
+        ("openai", "gpt-6.1-sol"),
+        ("openai", "gpt-6.1-terra"),
         ("xai", "grok-4.3"),
         ("gemini", "gemini-3.5-flash-lite"),
     ]
 
     # Task-specific preferences (only supported providers)
     TASK_PREFERENCES = {
-        "research": [("openai", "gpt-5.6-sol"), ("openai", "gpt-5.6-terra")],
+        "research": [("openai", "gpt-6.1-sol"), ("openai", "gpt-6.1-terra")],
         "chat": [
-            ("openai", "gpt-5.6-terra"),
+            ("openai", "gpt-6.1-terra"),
             ("xai", "grok-4.3"),
-            ("anthropic", "claude-sonnet-5"),
+            ("anthropic", "claude-sonnet-5-5"),
         ],
         "synthesis": [
-            ("openai", "gpt-5.6-terra"),
+            ("openai", "gpt-6.1-terra"),
             ("xai", "grok-4.3"),
-            ("anthropic", "claude-sonnet-5"),
+            ("anthropic", "claude-sonnet-5-5"),
         ],
-        "fact_check": [("xai", "grok-4.3"), ("openai", "gpt-5.6-terra")],
-        "quick": [("xai", "grok-4.3"), ("openai", "gpt-5.6-terra")],
+        "fact_check": [("xai", "grok-4.3"), ("openai", "gpt-6.1-terra")],
+        "quick": [("xai", "grok-4.3"), ("openai", "gpt-6.1-terra")],
     }
 
     # Auto-disable settings
@@ -615,7 +615,7 @@ class AutonomousProviderRouter:
             for fallback in self.fallback_chain:
                 if fallback not in exclude:
                     return fallback
-            return ("openai", "gpt-5.6-sol")
+            return ("openai", "gpt-6.1-sol")
 
         # Score candidates
         scored = []

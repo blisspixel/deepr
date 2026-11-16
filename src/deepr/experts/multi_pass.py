@@ -21,7 +21,7 @@ from deepr.services.context_chainer import ContextChainer, StructuredPhaseOutput
 
 logger = logging.getLogger(__name__)
 
-_MODEL = "gpt-5.2"
+_MODEL = "gpt-6.1-terra"
 _EXTRACT_CALL_CEILING_USD = 0.10
 _EXTRACT_OUTPUT_TOKENS = 1_600
 _CROSS_REFERENCE_CALL_CEILING_USD = 0.04

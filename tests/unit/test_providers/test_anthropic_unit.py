@@ -140,7 +140,7 @@ class TestAnthropicProviderInit:
                 with patch("deepr.providers.anthropic_provider.ToolRegistry"):
                     provider = AnthropicProvider()
 
-                    assert provider.model == "claude-opus-5"
+                    assert provider.model == "claude-opus-5-5"
                     assert provider.thinking_budget >= 1024
 
     def test_init_custom_model(self):
@@ -180,23 +180,23 @@ class TestAnthropicProviderModelMapping:
 
     def test_map_opus(self, provider):
         """Should map opus variants."""
-        assert provider.get_model_name("claude-opus") == "claude-opus-5"
-        assert provider.get_model_name("claude-5-opus") == "claude-opus-5"
+        assert provider.get_model_name("claude-opus") == "claude-opus-5-5"
+        assert provider.get_model_name("claude-5-opus") == "claude-opus-5-5"
         assert provider.get_model_name("claude-4-opus") == "claude-opus-4-8"
 
     def test_map_fable(self, provider):
         """Should map fable to the frontier model."""
-        assert provider.get_model_name("claude-fable") == "claude-fable-5"
+        assert provider.get_model_name("claude-fable") == "claude-fable-5-2"
 
     def test_map_sonnet(self, provider):
         """Should map sonnet variants."""
-        assert provider.get_model_name("claude-sonnet") == "claude-sonnet-5"
-        assert provider.get_model_name("claude-5-sonnet") == "claude-sonnet-5"
+        assert provider.get_model_name("claude-sonnet") == "claude-sonnet-5-5"
+        assert provider.get_model_name("claude-5-sonnet") == "claude-sonnet-5-5"
         assert provider.get_model_name("claude-sonnet-5") == "claude-sonnet-5"
 
     def test_map_haiku(self, provider):
         """Should map haiku variants."""
-        assert provider.get_model_name("claude-haiku") == "claude-haiku-4-5"
+        assert provider.get_model_name("claude-haiku") == "claude-haiku-5-5"
 
     def test_map_unknown_returns_default(self, provider):
         """Should return default model for unknown keys."""

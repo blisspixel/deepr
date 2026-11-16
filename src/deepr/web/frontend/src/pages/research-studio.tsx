@@ -5,7 +5,7 @@ import { jobsApi } from '@/api/jobs'
 import { costApi } from '@/api/cost'
 import { configApi } from '@/api/config'
 import { cn, formatCurrency } from '@/lib/utils'
-import { RESEARCH_MODES, MODELS, PRIORITIES } from '@/lib/constants'
+import { DEFAULT_RESEARCH_MODEL, RESEARCH_MODES, MODELS, PRIORITIES } from '@/lib/constants'
 import {
   loadResearchDraft,
   removeResearchDraft,
@@ -34,7 +34,7 @@ import {
 } from 'lucide-react'
 
 const RESEARCH_DRAFT_KEY = 'deepr.research-draft.v1'
-const DEFAULT_MODEL = 'gpt-5.6-sol'
+const DEFAULT_MODEL = DEFAULT_RESEARCH_MODEL
 const draftStorage = () => window.sessionStorage
 const DRAFT_CONSTRAINTS: DraftConstraints = {
   modes: RESEARCH_MODES.map((mode) => mode.value),
@@ -682,7 +682,7 @@ export default function ResearchStudio() {
             <li>Prefer local expert consult when paid dispatch is frozen or the task is domain maintenance</li>
             <li>Be specific about what information you need and desired output format</li>
             <li>Mention preferred sources (peer-reviewed, government data, industry reports)</li>
-            <li>When metered research is enabled, o4-mini is faster; o3 is deeper (and more expensive)</li>
+            <li>GPT-6 Luna is the cost-sensitive tier. GPT-6.1 Sol is the research default. GPT-6 Astra is the explicit flagship</li>
             <li>Open Configuration to upload reference documents for this submission</li>
           </ul>
         </div>

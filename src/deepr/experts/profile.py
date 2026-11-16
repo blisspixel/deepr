@@ -102,7 +102,7 @@ class ExpertProfile:
 
     # Provider preferences
     provider: str = "openai"
-    model: str = "gpt-5.2"
+    model: str = "gpt-6.1-terra"
 
     # Installed skills (skill names referencing skill directories)
     installed_skills: list[str] = field(default_factory=list)

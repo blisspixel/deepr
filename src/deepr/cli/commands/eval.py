@@ -710,9 +710,9 @@ def _calibration_grade_fn(grader_model: str):
 )
 @click.option(
     "--grader-model",
-    default="gpt-5.6-sol",
+    default="gpt-6.1-sol",
     show_default=True,
-    help=model_help("Strong model used to pre-grade grounding.", "gpt-5.6-sol"),
+    help=model_help("Strong model used to pre-grade grounding.", "gpt-6.1-sol"),
 )
 @click.option("--sample", type=int, default=0, help="Cap the number of corpus reports (0 = all).")
 @click.option(

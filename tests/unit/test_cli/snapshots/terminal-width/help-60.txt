@@ -16,7 +16,7 @@ Usage: deepr [OPTIONS] COMMAND [ARGS]...
 
     deepr research "your question" --preview
 
-  Shipped preview baseline: openai / gpt-5.6-sol.
+  Shipped preview baseline: openai / gpt-6.1-sol.
 
   Explicit attended OpenRouter can run one pinned completion
   after setup:

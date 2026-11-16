@@ -408,7 +408,7 @@ def test_retired_openai_model_is_previewable_but_never_admitted(model: str) -> N
     with pytest.raises(ResearchRequestBoundsError) as raised:
         bounded_research_cost_estimate(request=request, provider="openai")
     assert raised.value.code == "research_model_deprecated"
-    assert "gpt-5.6-" in str(raised.value)
+    assert "gpt-6" in str(raised.value)
 
     preview = bounded_research_cost_estimate(request=request, provider="openai", allow_preview_only=True)
     assert preview.max_cost > 0

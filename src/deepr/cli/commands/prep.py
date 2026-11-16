@@ -14,7 +14,7 @@ from deepr.cli.colors import (
     print_warning,
 )
 from deepr.cli.commands.research_safety import require_parent_budget
-from deepr.cli.model_choices import ModelChoice, model_help, research_model_choice
+from deepr.cli.model_choices import model_help, planner_model_choice, research_model_choice
 
 
 @click.group()
@@ -31,16 +31,16 @@ def prep():
 @click.option(
     "--planner",
     "-p",
-    default="gpt-5.6-sol",
-    type=ModelChoice(["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5", "gpt-5-mini", "gpt-5-nano"]),
-    help=model_help("Reasoning model for planning (default: gpt-5.6-sol)", "gpt-5.6-sol"),
+    default="gpt-6.1-sol",
+    type=planner_model_choice(),
+    help=model_help("Reasoning model for planning (default: gpt-6.1-sol)", "gpt-6.1-sol"),
 )
 @click.option(
     "--model",
     "-m",
-    default="gpt-5.6-sol",
+    default="gpt-6.1-sol",
     type=research_model_choice(),
-    help="Research model (default: gpt-5.6-sol)",
+    help="Research model (default: gpt-6.1-sol)",
 )
 @click.option(
     "--check-docs",
@@ -72,7 +72,7 @@ def plan(
     """
     Generate multi-phase research plan with dependencies.
 
-    Uses GPT-5 (cheap, fast) to decompose high-level goal into phased research tasks.
+    Uses GPT-6.1 Sol to decompose a high-level goal into phased research tasks.
     Shows what research depends on what, lets you review before executing.
 
     Agentic Levels (Multi-Agent System depth):
@@ -798,7 +798,7 @@ def continue_research(topics: int, yes: bool):
         click.echo(f"Found {len(completed_results)} completed research tasks")
 
         # Review with GPT-5
-        reviewer = ResearchReviewer(model="gpt-5.6-sol")
+        reviewer = ResearchReviewer(model="gpt-6.1-sol")
         review_result = reviewer.review_and_plan_next(
             scenario=scenario, completed_results=completed_results, current_phase=current_phase, max_tasks=topics
         )
@@ -873,7 +873,7 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
 
     Runs complete research campaign without user intervention:
     - Round 1: Foundation research
-    - Round 2+: GPT-5 reviews, identifies gaps, plans next phase
+    - Round 2+: GPT-6.1 Sol reviews, identifies gaps, plans next phase
     - Final round: Synthesis and recommendations
 
     Example:
@@ -907,8 +907,8 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
         print_header("ROUND 1: Foundation Research")
 
         # Generate initial plan
-        console.print(f"Using GPT-5 to generate {topics_per_round} research topics...")
-        planner_service = ResearchPlanner(model="gpt-5.6-sol")
+        console.print(f"Using GPT-6.1 Sol to generate {topics_per_round} research topics...")
+        planner_service = ResearchPlanner(model="gpt-6.1-sol")
         tasks = planner_service.plan_research(scenario=scenario, max_tasks=topics_per_round, context=None)
 
         # Add IDs and phases to tasks
@@ -920,7 +920,7 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
             "scenario": scenario,
             "created_at": datetime.now().isoformat(),
             "tasks": tasks,
-            "metadata": {"model": "gpt-5.6-sol", "total_tasks": len(tasks), "planner_type": "openai"},
+            "metadata": {"model": "gpt-6.1-sol", "total_tasks": len(tasks), "planner_type": "openai"},
         }
 
         # Save plan
@@ -943,8 +943,8 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
             print_header(f"ROUND {round_num}: {'Synthesis' if round_num == rounds else 'Analysis'}")
 
             # Review and plan next phase
-            console.print("GPT-5 reviewing completed research...")
-            reviewer = ResearchReviewer(model="gpt-5.6-sol")
+            console.print("GPT-6.1 Sol reviewing completed research...")
+            reviewer = ResearchReviewer(model="gpt-6.1-sol")
 
             # Load completed results
             completed_results = _load_completed_results()
@@ -1008,6 +1008,7 @@ def _execute_plan_sync(plan_data: dict, provider_name: str | None = None) -> dic
     import os
     import time
 
+    from deepr.cli.commands.research_support import uses_openai_research_provider
     from deepr.config import load_config
     from deepr.providers import create_provider
     from deepr.queue.local_queue import SQLiteQueue
@@ -1019,10 +1020,9 @@ def _execute_plan_sync(plan_data: dict, provider_name: str | None = None) -> dic
     config = load_config()
 
     # Determine provider based on model if not specified
-    model = plan_data.get("model", "gpt-5.6-sol")
+    model = plan_data.get("model", "gpt-6.1-sol")
     if provider_name is None:
-        # Substitutes do not contain "deep-research", so match them by id too.
-        is_deep_research = "deep-research" in model.lower() or model in {"gpt-5.6-sol", "gpt-5.6-terra"}
+        is_deep_research = uses_openai_research_provider(model)
         if is_deep_research:
             provider_name = os.getenv("DEEPR_DEEP_RESEARCH_PROVIDER", "openai")
         else:

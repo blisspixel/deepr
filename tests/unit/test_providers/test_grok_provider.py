@@ -49,12 +49,14 @@ class TestGrokProvider:
         # Grok 4 full reasoning model
         assert provider.get_model_name("grok-4") == "grok-4"
 
-        # Aliases - map to the canonical dotted flagship id so cost lookups
-        # match the pricing table. Flagship moved to grok-4.6 on August 12, 2026.
-        assert provider.get_model_name("grok") == "grok-4.6"
+        # Aliases map to the canonical dotted flagship id so cost lookups
+        # match the pricing table. Flagship is grok-4.7.
+        assert provider.get_model_name("grok-4.7") == "grok-4.7"
+        assert provider.get_model_name("grok-4-7") == "grok-4.7"
+        assert provider.get_model_name("grok") == "grok-4.7"
         assert provider.get_model_name("grok-fast") == "grok-4.20-0309-non-reasoning"
-        assert provider.get_model_name("grok-flagship") == "grok-4.6"
-        assert provider.get_model_name("grok-reasoning") == "grok-4.6"
+        assert provider.get_model_name("grok-flagship") == "grok-4.7"
+        assert provider.get_model_name("grok-reasoning") == "grok-4.7"
         assert provider.get_model_name("grok-multi-agent") == "grok-4.20-multi-agent-0309"
 
         # Legacy models
@@ -332,7 +334,7 @@ class TestGrokCapabilities:
         assert provider.pricing["grok-4-1-fast-reasoning"]["output"] == 0.50
 
         # Verify model mappings (flagship alias tracks the newest model)
-        assert provider.get_model_name("grok") == "grok-4.6"
+        assert provider.get_model_name("grok") == "grok-4.7"
         assert provider.get_model_name("grok-fast") == "grok-4.20-0309-non-reasoning"
 
     def test_grok_use_cases(self, provider):

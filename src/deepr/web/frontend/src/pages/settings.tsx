@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { configApi } from '@/api/config'
 import type { Config } from '@/types'
+import { DEFAULT_RESEARCH_MODEL, MODELS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { useUIStore, ACCENTS, type Accent } from '@/stores/ui-store'
 import { toast } from 'sonner'
@@ -82,7 +83,7 @@ export default function Settings() {
 
   const [activeSection, setActiveSection] = useState('general')
   const [formData, setFormData] = useState({
-    default_model: 'gpt-5.6-sol',
+    default_model: DEFAULT_RESEARCH_MODEL,
     default_priority: '1',
     enable_web_search: false,
     daily_limit: '0',
@@ -93,7 +94,9 @@ export default function Settings() {
     if (config) {
       setFormData(prev => ({
         ...prev,
-        default_model: config.default_model || prev.default_model,
+        default_model: MODELS.some((model) => model.value === config.default_model)
+          ? config.default_model
+          : prev.default_model,
         default_priority: config.default_priority?.toString() ?? prev.default_priority,
         enable_web_search: config.enable_web_search ?? prev.enable_web_search,
         daily_limit: config.daily_limit?.toString() ?? prev.daily_limit,
@@ -210,10 +213,11 @@ export default function Settings() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="gpt-5.6-sol">GPT-5.6 Sol (current default)</SelectItem>
-                        <SelectItem value="gpt-5.6-terra">GPT-5.6 Terra</SelectItem>
-                        <SelectItem value="o4-mini-deep-research">o4-mini (shut down 2026-07-23)</SelectItem>
-                        <SelectItem value="o3-deep-research">o3 (shut down 2026-07-23)</SelectItem>
+                        {MODELS.map((model) => (
+                          <SelectItem key={model.value} value={model.value}>
+                            {model.value === DEFAULT_RESEARCH_MODEL ? `${model.label} (current default)` : model.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>

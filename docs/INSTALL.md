@@ -4,12 +4,13 @@ Complete installation guide for Deepr on Linux, macOS, and Windows.
 
 ## Installer trust repair (2026-10-22)
 
-Use uv 0.13.5 or newer, pip 26.2.2 or newer, and certifi 2026.10.19 or newer.
+Use uv 0.13.8 or newer, pip 26.2.2 or newer, and certifi 2026.10.19 or newer.
 These repair independent certificate bundles after the
 [emSign incident](https://discuss.python.org/t/information-for-python-users-regarding-emudhra-emsign-ca-certificate-security-incident/109576).
 Updating application certifi does not update pip, uv, existing environments,
 base interpreters or previously built images. Managed installation now requests
-CPython 3.15.1, including its repaired ensurepip bundle. Old or unparseable uv is
+CPython 3.15.2. The 2026-10-22 repair used 3.15.1 and uv 0.13.5; uv 0.13.5
+cannot download CPython 3.15.2. Old or unparseable uv is
 refused before managed installation; uninstall remains available.
 
 Update uv using its official installation instructions and verify `uv --version`.
@@ -54,7 +55,7 @@ curl -fsSL https://raw.githubusercontent.com/blisspixel/deepr/main/scripts/insta
 
 The installers resolve the latest supported wheel from GitHub Releases and
 preserve an existing uv or pipx owner. A fresh install prefers uv and explicitly
-requires managed stable CPython 3.15.1. A Python version request alone does not
+requires managed stable CPython 3.15.2. A Python version request alone does not
 require a managed interpreter. If uv is unavailable, an existing pipx uses an
 explicit stable CPython 3.11, 3.12, 3.13, 3.14 or 3.15 interpreter.
 Install a manager first:
@@ -62,7 +63,7 @@ Install a manager first:
 [pipx installation](https://pipx.pypa.io/stable/installation/). The scripts never
 bootstrap pipx with `pip --user` into a venv or externally managed interpreter.
 
-Managed installation requests final CPython 3.15.1 exactly. CI uses uv 0.13.5;
+Managed installation requests final CPython 3.15.2 exactly. CI uses uv 0.13.8;
 if an older manager cannot find that release, update uv through its owning
 installation method. A beta is not a supported substitute. Optional full/search
 dependencies still include source-only Brotli at 3.15 and need a C toolchain;
@@ -206,10 +207,10 @@ deepr budget set 5
 
 ```bash
 # Free preflight
-deepr research "What is 2+2?" --provider openai --model gpt-5.6-sol --preview
+deepr research "What is 2+2?" --provider openai --model gpt-6.1-sol --preview
 
 # A positive budget still produces no live request while metered dispatch is quarantined
-deepr research "What are the latest developments in quantum computing?" --provider openai --model gpt-5.6-sol --budget 1 --preview
+deepr research "What are the latest developments in quantum computing?" --provider openai --model gpt-6.1-sol --budget 1 --preview
 
 # Bounded xAI text without unpriced server-side tools
 deepr research "Explain transformer architecture" --provider xai -m grok-4.3 --no-web --no-code --preview
@@ -301,7 +302,7 @@ python -m pytest tests/unit/ --ignore=tests/data -q --timeout=120
 docker build -t deepr .
 
 # Run with environment variables
-docker run -e OPENAI_API_KEY=sk-... deepr research "Your query" --provider openai --model gpt-5.6-sol --preview
+docker run -e OPENAI_API_KEY=sk-... deepr research "Your query" --provider openai --model gpt-6.1-sol --preview
 ```
 
 ## Configuration Details
@@ -457,7 +458,7 @@ deepr --help
 deepr research --help
 
 # Test bounded planning without a provider call
-deepr research "What is 2+2?" --provider openai --model gpt-5.6-sol --preview
+deepr research "What is 2+2?" --provider openai --model gpt-6.1-sol --preview
 
 # Check budget status
 deepr budget status

@@ -11,7 +11,7 @@ import click
 from deepr.providers.registry_pricing import get_resolved_model_capability
 from deepr.routing.deprecation import check_deprecation, is_shutdown
 
-__all__ = ["ModelChoice", "is_shutdown", "model_help", "model_note"]
+__all__ = ["ModelChoice", "is_shutdown", "model_help", "model_note", "planner_model_choice", "research_model_choice"]
 
 
 def model_note(model: str) -> str:
@@ -29,10 +29,10 @@ def model_help(description: str, default: str) -> str:
 
 
 class ModelChoice(click.Choice[str]):
-    """Advertise live members; recognize only the original historical set."""
+    """Advertise current members; still accept historical ids for notice or refusal."""
 
-    def __init__(self, models: list[str]) -> None:
-        self.accepted = tuple(models)
+    def __init__(self, models: list[str], *, historical: list[str] | None = None) -> None:
+        self.accepted = tuple(dict.fromkeys([*models, *(historical or [])]))
         super().__init__([model for model in models if not is_shutdown(model)])
 
     def convert(self, value: Any, param: click.Parameter | None, ctx: click.Context | None) -> str:
@@ -43,9 +43,27 @@ class ModelChoice(click.Choice[str]):
         return str(selected)
 
 
+_CURRENT_OPENAI = ["gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-luna", "gpt-6-astra"]
+_HISTORICAL_OPENAI = [
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "gpt-5.6-luna",
+    "gpt-5",
+    "gpt-5-mini",
+    "gpt-5-nano",
+    "o4-mini-deep-research",
+    "o3-deep-research",
+]
+
+
 def research_model_choice() -> ModelChoice:
-    """The established finite research contract, with historical compatibility."""
-    return ModelChoice(["gpt-5.6-sol", "gpt-5.6-terra", "o4-mini-deep-research", "o3-deep-research"])
+    """Current OpenAI research ids, plus historical ids that still price or refuse."""
+    return ModelChoice(_CURRENT_OPENAI, historical=_HISTORICAL_OPENAI)
+
+
+def planner_model_choice() -> ModelChoice:
+    """Current planner ids. Retiring GPT-5 ids stay accepted and unadvertised."""
+    return ModelChoice(_CURRENT_OPENAI, historical=_HISTORICAL_OPENAI[:6])
 
 
 def retained_task_models() -> dict[str, tuple[str, str]]:

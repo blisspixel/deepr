@@ -227,7 +227,7 @@ class BatchExecutor:
                 prompt=full_prompt,
                 task_id=task_id,
                 campaign_id=campaign_id,
-                model=task.get("model", "gpt-5.6-sol"),
+                model=task.get("model", "gpt-6.1-sol"),
                 metadata={
                     "phase": phase_num,
                     "title": task["title"],
@@ -319,7 +319,7 @@ class BatchExecutor:
         task_id: int,
         campaign_id: str,
         metadata: dict[str, Any],
-        model: str = "gpt-5.6-sol",
+        model: str = "gpt-6.1-sol",
     ) -> str:
         """Submit a single task to the queue."""
 

@@ -56,7 +56,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         latency_ms=2500,
         context_window=1_050_000,
         specializations=["reasoning", "coding", "agentic", "tool_calling", "synthesis", "large_context"],
-        strengths=["Retained OpenAI task default", "1.05M context and 128K max output", "GPT-5.6 alias target"],
+        strengths=["Priced GPT-5.6 research row", "1.05M context and 128K max output", "GPT-5.6 alias target"],
         weaknesses=["Higher cost than Terra or Luna", "Long-context rates apply above 272K input tokens"],
         input_cost_per_1m=4.00,
         output_cost_per_1m=20.00,
@@ -197,13 +197,13 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         specializations=["reasoning", "planning", "analysis", "synthesis"],
         strengths=["Retained so historical usage can still be priced and settled"],
         weaknesses=[
-            "Retiring: OpenAI shuts down gpt-5 on 2026-12-11. Not selected. Use gpt-5.6-sol.",
+            "Retiring: OpenAI shuts down gpt-5 on 2026-12-11. Not selected. Use gpt-6.1-sol.",
         ],
         input_cost_per_1m=1.25,
         output_cost_per_1m=10.00,
         cached_input_cost_per_1m=0.125,
         deprecated=True,
-        successor="openai/gpt-5.6-sol",
+        successor="openai/gpt-6.1-sol",
     ),
     "openai/gpt-5-mini": ModelCapability(
         provider="openai",
@@ -214,13 +214,13 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         specializations=["reasoning", "speed", "balanced"],
         strengths=["Retained so historical usage can still be priced and settled"],
         weaknesses=[
-            "Retiring: OpenAI shuts down gpt-5-mini on 2026-12-11. Not selected. Use gpt-5.6-terra.",
+            "Retiring: OpenAI shuts down gpt-5-mini on 2026-12-11. Not selected. Use gpt-6.1-terra.",
         ],
         input_cost_per_1m=0.25,
         output_cost_per_1m=2.00,
         cached_input_cost_per_1m=0.025,
         deprecated=True,
-        successor="openai/gpt-5.6-terra",
+        successor="openai/gpt-6.1-terra",
     ),
     "openai/gpt-4o-mini": ModelCapability(
         provider="openai",
@@ -231,14 +231,14 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         specializations=["speed", "cost", "general", "synthesis"],
         strengths=["Retained so historical usage can still be priced and settled"],
         weaknesses=[
-            "Retiring: OpenAI shuts down gpt-4o-mini on 2027-01-14. Not selected. Use gpt-5.6-luna.",
-            "OpenAI recommends gpt-6-luna; Deepr lists it as preview-only pending adapter validation.",
+            "Retiring: OpenAI shuts down gpt-4o-mini on 2027-01-14. Not selected. Use gpt-6-luna.",
+            "GPT-6 Luna is selectable. Explicit selection of this retired id is unchanged.",
         ],
         input_cost_per_1m=0.15,
         output_cost_per_1m=0.60,
         cached_input_cost_per_1m=0.075,
         deprecated=True,
-        successor="openai/gpt-5.6-luna",
+        successor="openai/gpt-6-luna",
     ),
     "openai/gpt-4.1": ModelCapability(
         provider="openai",
@@ -249,14 +249,14 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         specializations=["reasoning", "planning", "synthesis", "large_context"],
         strengths=["Retained so historical usage can still be priced and settled"],
         weaknesses=[
-            "Retiring: OpenAI shuts down gpt-4.1 on 2027-01-14. Not selected. Use gpt-5.6-terra.",
-            "OpenAI recommends gpt-6-luna; Deepr lists it as preview-only pending adapter validation.",
+            "Retiring: OpenAI shuts down gpt-4.1 on 2027-01-14. Not selected. Use gpt-6.1-terra.",
+            "GPT-6.1 Terra is selectable. Explicit selection of this retired id is unchanged.",
         ],
         input_cost_per_1m=2.00,
         output_cost_per_1m=8.00,
         cached_input_cost_per_1m=0.50,
         deprecated=True,
-        successor="openai/gpt-5.6-terra",
+        successor="openai/gpt-6.1-terra",
     ),
     "openai/gpt-4.1-mini": ModelCapability(
         provider="openai",
@@ -267,14 +267,14 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         specializations=["speed", "cost", "general", "large_context"],
         strengths=["Retained so historical usage can still be priced and settled"],
         weaknesses=[
-            "Retiring: OpenAI shuts down gpt-4.1-mini on 2027-01-14. Not selected. Use gpt-5.6-luna.",
-            "OpenAI recommends gpt-6-luna; Deepr lists it as preview-only pending adapter validation.",
+            "Retiring: OpenAI shuts down gpt-4.1-mini on 2027-01-14. Not selected. Use gpt-6-luna.",
+            "GPT-6 Luna is selectable. Explicit selection of this retired id is unchanged.",
         ],
         input_cost_per_1m=0.40,
         output_cost_per_1m=1.60,
         cached_input_cost_per_1m=0.10,
         deprecated=True,
-        successor="openai/gpt-5.6-luna",
+        successor="openai/gpt-6-luna",
     ),
     "openai/gpt-4.1-nano": ModelCapability(
         provider="openai",
@@ -285,13 +285,13 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         specializations=["speed", "cost", "general", "large_context"],
         strengths=["Retained so historical usage can still be priced and settled"],
         weaknesses=[
-            "Shut down by OpenAI on 2026-10-23. Not selected. Use gpt-5.6-luna.",
+            "Shut down by OpenAI on 2026-10-23. Not selected. Use gpt-6-luna.",
         ],
         input_cost_per_1m=0.10,
         output_cost_per_1m=0.40,
         cached_input_cost_per_1m=0.025,
         deprecated=True,
-        successor="openai/gpt-5.6-luna",
+        successor="openai/gpt-6-luna",
     ),
     "openai/gpt-5-nano": ModelCapability(
         provider="openai",
@@ -302,13 +302,13 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         specializations=["speed", "cost", "general", "summarization"],
         strengths=["Retained so historical usage can still be priced and settled"],
         weaknesses=[
-            "Retiring: OpenAI shuts down gpt-5-nano on 2026-12-11. Not selected. Use gpt-5.6-luna.",
+            "Retiring: OpenAI shuts down gpt-5-nano on 2026-12-11. Not selected. Use gpt-6-luna.",
         ],
         input_cost_per_1m=0.05,
         output_cost_per_1m=0.40,
         cached_input_cost_per_1m=0.005,
         deprecated=True,
-        successor="openai/gpt-5.6-luna",
+        successor="openai/gpt-6-luna",
     ),
     # OpenAI Reasoning Models (o-series, non-deep-research)
     "openai/o3": ModelCapability(
@@ -320,12 +320,12 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         specializations=["reasoning", "math", "science", "coding"],
         strengths=["Retained so historical usage can still be priced and settled"],
         weaknesses=[
-            "Retiring: OpenAI shuts down o3 on 2026-12-11. Not selected. Use gpt-5.6-sol.",
+            "Retiring: OpenAI shuts down o3 on 2026-12-11. Not selected. Use gpt-6.1-sol.",
         ],
         input_cost_per_1m=2.00,
         output_cost_per_1m=8.00,
         deprecated=True,
-        successor="openai/gpt-5.6-sol",
+        successor="openai/gpt-6.1-sol",
     ),
     "openai/o4-mini": ModelCapability(
         provider="openai",
@@ -336,12 +336,12 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         specializations=["reasoning", "speed", "cost", "math", "science"],
         strengths=["Retained so historical usage can still be priced and settled"],
         weaknesses=[
-            "Shut down by OpenAI on 2026-10-23. Not selected. Use gpt-5.6-terra.",
+            "Shut down by OpenAI on 2026-10-23. Not selected. Use gpt-6.1-terra.",
         ],
         input_cost_per_1m=1.10,
         output_cost_per_1m=4.40,
         deprecated=True,
-        successor="openai/gpt-5.6-terra",
+        successor="openai/gpt-6.1-terra",
     ),
     # OpenAI Deep Research Models
     "openai/o3-deep-research": ModelCapability(
@@ -353,7 +353,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         specializations=["research", "analysis", "strategic_planning"],
         strengths=["Retained so historical usage can still be priced and settled"],
         weaknesses=[
-            "Shut down by OpenAI on 2026-07-23. Not selected. Use gpt-5.6-sol.",
+            "Shut down by OpenAI on 2026-07-23. Not selected. Use gpt-6.1-sol.",
             "No direct OpenAI deep-research successor model.",
         ],
         # $5/$20 standard. Source checked 2026-07-12:
@@ -361,7 +361,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         input_cost_per_1m=5.0,
         output_cost_per_1m=20.0,
         deprecated=True,
-        successor="openai/gpt-5.6-sol",
+        successor="openai/gpt-6.1-sol",
     ),
     "openai/o4-mini-deep-research": ModelCapability(
         provider="openai",
@@ -372,7 +372,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         specializations=["research", "analysis", "strategic_planning"],
         strengths=["Retained so historical usage can still be priced and settled"],
         weaknesses=[
-            "Shut down by OpenAI on 2026-07-23. Not selected. Use gpt-5.6-sol.",
+            "Shut down by OpenAI on 2026-07-23. Not selected. Use gpt-6.1-sol.",
             "No direct OpenAI deep-research successor model.",
         ],
         # $1/$4 standard. Source checked 2026-07-12:
@@ -380,7 +380,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         input_cost_per_1m=1.00,
         output_cost_per_1m=4.00,
         deprecated=True,
-        successor="openai/gpt-5.6-sol",
+        successor="openai/gpt-6.1-sol",
     ),
     # xAI Models (Grok)
     # Grok 4.20 - Flagship (March 2026)
@@ -760,7 +760,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
     ),
     "gemini/gemini-3.1-pro-preview": _legacy_gemini(
         "gemini-3.1-pro-preview",
-        "gemini/gemini-4-argon",
+        "gemini/gemini-4-carbon",
         2.00,
         12.00,
         0.20,
@@ -769,7 +769,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
     ),
     "gemini/gemini-3-pro-preview": _legacy_gemini(
         "gemini-3-pro-preview",
-        "gemini/gemini-4-argon",
+        "gemini/gemini-4-carbon",
         2.00,
         12.00,
         0.20,
@@ -796,7 +796,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
     ),
     "gemini/gemini-2.5-pro": _legacy_gemini(
         "gemini-2.5-pro",
-        "gemini/gemini-4-argon",
+        "gemini/gemini-4-carbon",
         1.25,
         10.00,
         0.15,

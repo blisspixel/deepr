@@ -104,6 +104,8 @@ class GrokProvider(DeepResearchProvider):
             # Current Grok frontier models
             "grok-4-6": "grok-4.6",
             "grok-4.6": "grok-4.6",
+            "grok-4-7": "grok-4.7",
+            "grok-4.7": "grok-4.7",
             "grok-4-5": "grok-4.5",
             "grok-4.5": "grok-4.5",
             "grok-4-3": "grok-4.3",
@@ -121,10 +123,10 @@ class GrokProvider(DeepResearchProvider):
             # Aliases - map to a canonical dotted id so the pricing table lookup
             # matches and cost accounting does not silently fall back to the
             # much cheaper Grok 4.1 Fast pricing.
-            "grok": "grok-4.6",
+            "grok": "grok-4.7",
             "grok-fast": "grok-4.20-0309-non-reasoning",  # Fast non-reasoning
-            "grok-flagship": "grok-4.6",
-            "grok-reasoning": "grok-4.6",
+            "grok-flagship": "grok-4.7",
+            "grok-reasoning": "grok-4.7",
             "grok-multi-agent": "grok-4.20-multi-agent-0309",  # Multi-agent stays 4.20
             "grok-mini": "grok-3-mini",
         }
@@ -143,6 +145,7 @@ class GrokProvider(DeepResearchProvider):
 
         _grok_4_20 = _rates("grok-4-20-reasoning")
         _grok_4_6 = _rates("grok-4-6")
+        _grok_4_7 = _rates("grok-4.7")
         _grok_4_5 = _rates("grok-4-5")
         _grok_4_3 = _rates("grok-4-3")
         _grok_build = _rates("grok-build-0.1")
@@ -165,6 +168,8 @@ class GrokProvider(DeepResearchProvider):
             "grok-4-20-multi-agent": _grok_4_20,
             "grok-4.6": _grok_4_6,
             "grok-4-6": _grok_4_6,
+            "grok-4.7": _grok_4_7,
+            "grok-4-7": _grok_4_7,
             # Grok 4.5 flagship. Dotted API id and hyphenated registry form both
             # keyed so cost accounting is correct regardless of caller spelling.
             "grok-4.5": _grok_4_5,

@@ -152,7 +152,7 @@ register_spend_disposition_commands(costs)
 @click.option(
     "--model",
     "-m",
-    default="gpt-5.6-sol",
+    default="gpt-6.1-sol",
     type=research_model_choice(),
     help="Research model",
 )
@@ -162,7 +162,7 @@ def estimate(prompt: str, model: str, web_search: bool):
 
     Example:
         deepr costs estimate "What are AI trends?"
-        deepr costs estimate "Kubernetes guide" --model gpt-5.6-sol
+        deepr costs estimate "Kubernetes guide" --model gpt-6.1-sol
     """
     from deepr.core.costs import CostEstimator
 

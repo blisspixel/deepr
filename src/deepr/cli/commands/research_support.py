@@ -11,11 +11,11 @@ if TYPE_CHECKING:
     from deepr.experts.research_cost_gate import ResearchCostReservation
 
 _PROVIDER_DEFAULT_MODELS = {
-    "openai": "gpt-5.6-sol",
-    "azure": "gpt-5.6-sol",
+    "openai": "gpt-6.1-sol",
+    "azure": "gpt-6.1-sol",
     "gemini": "gemini-3.8-flash",
-    "xai": "grok-4.6",
-    "grok": "grok-4.6",
+    "xai": "grok-4.7",
+    "grok": "grok-4.7",
     # Cheap attended OpenRouter slug. Frontier OpenRouter slugs stay explicit.
     "openrouter": "qwen/qwen3.8-flash",
 }
@@ -96,6 +96,15 @@ def provider_for_model(model: str) -> str | None:
     return capability.provider if capability is not None else None
 
 
+def uses_openai_research_provider(model: str) -> bool:
+    """Return whether this id stays on the OpenAI deep-research provider.
+
+    Current GPT-6 ids and retained GPT-5.6 ids do not contain "deep-research".
+    Shutdown deep-research ids still match by name.
+    """
+    return model.startswith(("gpt-6", "gpt-5.6")) or "deep-research" in model.lower()
+
+
 def resolve_research_route(
     provider: str | None,
     model: str | None,
@@ -111,7 +120,7 @@ def resolve_research_route(
         if inferred_provider is not None:
             return inferred_provider, model
 
-    is_deep_research = model is None or "deep-research" in model.lower()
+    is_deep_research = model is None or uses_openai_research_provider(model)
     if provider is None:
         provider = env.get(
             "DEEPR_DEEP_RESEARCH_PROVIDER" if is_deep_research else "DEEPR_DEFAULT_PROVIDER",
@@ -120,7 +129,7 @@ def resolve_research_route(
     if model is None:
         model = env.get(
             "DEEPR_DEEP_RESEARCH_MODEL" if is_deep_research else "DEEPR_DEFAULT_MODEL",
-            "gpt-5.6-sol" if is_deep_research else _PROVIDER_DEFAULT_MODELS.get(provider, "grok-4.3"),
+            "gpt-6.1-sol" if is_deep_research else _PROVIDER_DEFAULT_MODELS.get(provider, "grok-4.3"),
         )
     return provider, model
 

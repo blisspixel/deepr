@@ -32,19 +32,19 @@ class TestResearchReviewer:
             return ResearchReviewer()
 
     def test_init_default_model(self, mock_openai_env):
-        """Default model is gpt-5.6-sol."""
+        """Default model is gpt-6.1-sol."""
         with patch("deepr.services.research_reviewer.OpenAI"):
             from deepr.services.research_reviewer import ResearchReviewer
 
             r = ResearchReviewer()
-            assert r.model == "gpt-5.6-sol"
+            assert r.model == "gpt-6.1-sol"
 
     def test_init_valid_models(self, mock_openai_env):
-        """All valid models accepted."""
+        """Current GPT-6 models are accepted."""
         with patch("deepr.services.research_reviewer.OpenAI"):
             from deepr.services.research_reviewer import ResearchReviewer
 
-            for model in ["gpt-5", "gpt-5-mini", "gpt-5-nano"]:
+            for model in ["gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-luna", "gpt-6-astra"]:
                 r = ResearchReviewer(model=model)
                 assert r.model == model
 

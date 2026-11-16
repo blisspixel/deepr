@@ -70,14 +70,14 @@ def _get_available_models() -> list[dict[str, Any]]:
     """Get available models with cost estimates."""
     return [
         {
-            "name": "gpt-5.6-sol",
+            "name": "gpt-6.1-sol",
             "provider": "OpenAI",
             "description": "Flagship substitute for shut-down deep research",
             "cost": "$4/$20 per MTok",
             "speed": "Varies",
         },
         {
-            "name": "gpt-5.6-terra",
+            "name": "gpt-6.1-terra",
             "provider": "OpenAI",
             "description": "Balanced substitute for o4-mini",
             "cost": "$2/$12 per MTok",
@@ -352,7 +352,7 @@ def _research_menu():
     if 1 <= model_choice <= len(models):
         model = models[model_choice - 1]["name"]
     else:
-        model = "gpt-5.6-sol"
+        model = "gpt-6.1-sol"
 
     # Web search option
     web_search = click.confirm(style_role("Enable web search?", "accent"), default=True)

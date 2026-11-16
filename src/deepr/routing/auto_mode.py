@@ -902,22 +902,22 @@ class AutoModeRouter:
         """
         # Try gemini as fallback for complex queries
         if complexity == "complex" and self._is_provider_usable("gemini"):
-            if self._provider_router.is_circuit_available("gemini", "gemini-4-argon"):
+            if self._provider_router.is_circuit_available("gemini", "gemini-4-carbon"):
                 return (
                     "gemini",
-                    "gemini-4-argon",
+                    "gemini-4-carbon",
                     0.12,
-                    "Fallback to gemini-4-argon (primary provider unavailable)",
+                    "Fallback to gemini-4-carbon (primary provider unavailable)",
                 )
 
         # Retained OpenAI research default (o4-mini-deep-research shut down 2026-07-23).
         if complexity in ("complex", "moderate") and self._is_provider_usable("openai"):
-            if self._provider_router.is_circuit_available("openai", "gpt-5.6-sol"):
+            if self._provider_router.is_circuit_available("openai", "gpt-6.1-sol"):
                 return (
                     "openai",
-                    "gpt-5.6-sol",
-                    MODEL_CAPABILITIES["openai/gpt-5.6-sol"].cost_per_query,
-                    "Fallback to gpt-5.6-sol (primary circuit open)",
+                    "gpt-6.1-sol",
+                    MODEL_CAPABILITIES["openai/gpt-6.1-sol"].cost_per_query,
+                    "Fallback to gpt-6.1-sol (primary circuit open)",
                 )
 
         # Try grok as universal fallback

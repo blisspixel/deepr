@@ -34,7 +34,7 @@ async def _poll_team_job(provider: Any, provider_job_id: str) -> tuple[Any, bool
     return response, cancelled, None
 
 
-async def run_dream_team(question: str, model: str = "gpt-5.6-sol", perspectives: int = 6, provider: str | None = None):
+async def run_dream_team(question: str, model: str = "gpt-6.1-sol", perspectives: int = 6, provider: str | None = None):
     """
     Execute dream team research (async wrapper for new CLI).
 
@@ -56,6 +56,7 @@ async def run_dream_team(question: str, model: str = "gpt-5.6-sol", perspectives
     import uuid
     from datetime import datetime
 
+    from deepr.cli.commands.research_support import uses_openai_research_provider
     from deepr.config import load_config
     from deepr.experts.research_cost_gate import (
         refund_research_cost,
@@ -81,7 +82,7 @@ async def run_dream_team(question: str, model: str = "gpt-5.6-sol", perspectives
 
     # Determine provider based on model if not specified
     if provider is None:
-        is_deep_research = "deep-research" in model.lower()
+        is_deep_research = uses_openai_research_provider(model)
         if is_deep_research:
             provider = os.getenv("DEEPR_DEEP_RESEARCH_PROVIDER", "openai")
         else:
@@ -101,7 +102,7 @@ async def run_dream_team(question: str, model: str = "gpt-5.6-sol", perspectives
         provider = "openai"
 
     # Phase 1: Design team
-    architect = TeamArchitect(model="gpt-5.6-sol")
+    architect = TeamArchitect(model="gpt-6.1-sol")
     team = architect.design_team(
         question=question,
         context=None,
@@ -354,9 +355,9 @@ def team():
 @click.option(
     "--model",
     "-m",
-    default="gpt-5.6-sol",
+    default="gpt-6.1-sol",
     type=research_model_choice(),
-    help="Research model for execution (default: gpt-5.6-sol)",
+    help="Research model for execution (default: gpt-6.1-sol)",
 )
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation and execute immediately")
 def analyze(
@@ -372,7 +373,7 @@ def analyze(
     """
     Dynamically assemble optimal research team for your question.
 
-    GPT-5 determines what perspectives this question needs, then each team
+    GPT-6.1 Sol determines what perspectives this question needs, then each team
     member researches independently from their role. Final synthesis shows
     where they agree, where they conflict, and makes balanced recommendation.
 
@@ -425,9 +426,9 @@ def analyze(
         if not yes:
             click.confirm("Run the metered, budget-gated team architecture call?", abort=True)
 
-        click.echo("[Phase 1] GPT-5 assembling dream team for this question...\n")
+        click.echo("[Phase 1] GPT-6.1 Sol assembling dream team for this question...\n")
 
-        architect = TeamArchitect(model="gpt-5.6-sol")
+        architect = TeamArchitect(model="gpt-6.1-sol")
         team = architect.design_team(
             question=question,
             context=context,
@@ -544,7 +545,7 @@ Provide analysis and insights from your unique perspective. Don't try to cover e
         # Phase 4: Synthesize with attribution
         click.echo("\n[Phase 4] Lead Researcher synthesizing team perspectives...\n")
 
-        synthesizer = TeamSynthesizer(model="gpt-5.6-sol")
+        synthesizer = TeamSynthesizer(model="gpt-6.1-sol")
         report = synthesizer.synthesize_with_conflict_analysis(question=question, team_results=results)
 
         # Save report

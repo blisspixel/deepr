@@ -1,6 +1,6 @@
 # Model Selection Guide
 
-Status: Deepr v2.50.38. Lifecycle notices reviewed 2026-10-27. Gemini lineup reviewed 2026-10-14. Broader currency review 2026-10-06. Provider prices rechecked 2026-11-03.
+Status: Deepr v2.50.38. Lifecycle notices reviewed 2026-10-27. Gemini lineup reviewed 2026-10-14. Broader currency review 2026-10-06. Provider prices rechecked 2026-11-03. New-request defaults reviewed 2026-11-15.
 
 The source of truth for model IDs, pricing estimates, context windows, and
 routing metadata is [src/deepr/providers/registry.py](../src/deepr/providers/registry.py),
@@ -33,13 +33,16 @@ shut down 2026-10-23; `gpt-5`, `gpt-5-mini`, `gpt-5-nano` and `o3` shut down
 2026-12-11; `gpt-4o`, `gpt-4o-mini`, `gpt-4.1` and `gpt-4.1-mini` shut down
 2027-01-14. Automatic routing and registry selectors never return an id with a
 direct-API retirement record (Azure rows follow Azure's dates) and fail closed
-when nothing current remains. Executable
-defaults use `gpt-5.6-sol` for planning and research, `gpt-5.6-terra` for
-balanced reasoning, `gpt-5.6-luna` for cheap utility calls, and
-`gemini-3.8-flash` as the Gemini environment default. OpenAI recommends the
-preview-only `gpt-6-luna` for the GPT-4 families; Deepr does not promote it
-without adapter and settlement proof. Retired rows keep their prices so
-historical usage still settles.
+when nothing current remains. The 2026-10-27 repair used `gpt-5.6-sol` for
+planning and research, `gpt-5.6-terra` for balanced reasoning, and
+`gpt-5.6-luna` for cheap utility calls. On 2026-11-15 those new-request roles
+moved to `gpt-6.1-sol`, `gpt-6.1-terra`, and `gpt-6-luna`. `gpt-6-astra` is
+the explicit flagship. Dashboard research and settings choices, and a saved
+web default, use the same four OpenAI ids. `gemini-3.8-flash` stays the
+Gemini environment default, and Pro aliases resolve to `gemini-4-carbon`.
+`gpt-6-luna` is
+selectable. `gpt-6-sol` and `claude-fable-5-1` stay preview-only. Retired
+rows keep their prices so historical usage still settles.
 
 Latest public text-model listings and relevant prices were reviewed on
 2026-10-06. This does not establish every historical model's currency. The
@@ -79,17 +82,19 @@ current-key and spend-control documentation were also rechecked on that date:
 
 ## 2026-10-06 Currency Review
 
-The newest reviewed models are catalog candidates, excluded from automatic
-routing and new benchmark targets. Existing defaults and the frozen expert
-comparison stay pinned. A provider listing establishes availability in its
-documentation; account access and Deepr compatibility still need proof.
+On 2026-10-06 the newest reviewed models were catalog candidates, excluded
+from automatic routing and new benchmark targets. On 2026-11-15 the current
+GPT-6, Claude 5.5, Grok 4.7, and Gemini 4 Carbon rows became selectable.
+`gpt-6-sol` and `claude-fable-5-1` stay preview-only. A provider listing
+establishes availability in its documentation; account access and Deepr
+compatibility still need proof.
 
 | Provider | Newest reviewed public candidates | Remaining compatibility work |
 |----------|----------------------------------|------------------------------|
 | OpenAI | `gpt-6-astra`, `gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6-sol`, `gpt-6-luna` | Reasoning settings, Responses versus Chat tool constraints, 922K input limit, cache writes, and settlement. |
-| Anthropic | `claude-fable-5-1`, `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5` | Adaptive thinking, refusal accounting, and cache duration prices. Haiku 5.5 uses the over-100,000-token rates as its stored cap. Mythos 5.1 stays absent while access is limited. |
-| Google | `gemini-3.8-flash` | On 2026-10-06 this was still a preview candidate. It is now the selectable Gemini default. |
-| xAI | `grok-4-7` | Encrypted reasoning and long-context accounting. Product-only Grok 4.7 Fast is absent. |
+| Anthropic | `claude-fable-5-2`, `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`. `claude-fable-5-1` stays preview-only. | Adaptive thinking, refusal accounting, and cache duration prices. Haiku 5.5 uses the over-100,000-token rates as its stored cap. Mythos 5.1 stays absent while access is limited. |
+| Google | `gemini-4-carbon`, `gemini-3.8-flash` | Carbon is the Pro alias target. On 2026-10-06 Flash was still a preview candidate. Flash is now the selectable Gemini default. |
+| xAI | `grok-4.7` | Encrypted reasoning and long-context accounting. Product-only Grok 4.7 Fast is absent. |
 | Azure | Deployment-specific inventory | Published GPT-6 entries do not create verified deployments or globally selectable routes. |
 | OpenRouter | Four pinned routes passed the 2026-11-03 no-key check | Sol's cap now matches the observed OpenAI route. Qwen matches two Alibaba endpoints, Kimi's `mxfp4` tag is absent, and DeepSeek's pinned tag is absent. Those three stay refused. No replacement upstream or new dispatch authority is introduced. |
 
@@ -106,7 +111,9 @@ access or the answer quality of the new candidate models.
 ## Retained 2026-08-13 Implementation Matrix
 
 This historical matrix explains the established entries below. The October
-review above supersedes its external-currentness descriptions.
+review above supersedes its external-currentness descriptions. Its
+task-default cells record August 2026. Current new-request ids are in the
+2026-11-15 posture above.
 
 | Provider | Current external signal | Deepr status | Action |
 |----------|-------------------------|--------------|--------|
@@ -126,8 +133,9 @@ explicitly updated.
 - Anthropic lists Claude Mythos 5 and the Mythos preview as limited
   availability. Keep them out of Deepr's public registry and auto-routing until
   API access and pricing are normal enough to test and settle.
-- Selectable Gemini text models are `gemini-4-argon`, `gemini-3.8-flash`, and
-  `gemini-3.5-flash-lite`. The provider omits sampling parameters for these
+- Selectable Gemini text models are `gemini-4-carbon`, `gemini-4-argon`,
+  `gemini-3.8-flash`, and `gemini-3.5-flash-lite`. Carbon is the Pro alias
+  target. The provider omits sampling parameters for these
   models and sends `thinking_level`. Argon also rejects `thinking_budget`.
   Regular generation stays on generateContent. Moving that path to the
   Interactions API still needs a separate contract review for usage, tools,
@@ -163,7 +171,7 @@ Pricing notes:
 - Anthropic made Sonnet 5's $2 input and $10 output per MTok launch rates
   permanent. Deepr uses those current rates plus $0.20 cache hits and $2.50
   five-minute cache writes. Sonnet 5.5 cache hits are $0.10 per MTok.
-  Haiku 5.5 is preview-only at the over-100,000-token rates.
+  Haiku 5.5 is selectable and still uses the over-100,000-token rates.
 - Gemini free-tier and quota-inclusive entries are useful for setup guidance,
   but automatic routing still depends on the local Deepr capacity profile,
   provider keys, quota posture, and budget gates.
@@ -175,6 +183,9 @@ Pricing notes:
   same order. Deepr retains the December 1, 2026 caps, `$4/$0.20/$20`. Argon
   is paid-only and rejects explicit context caches. It has no long-context
   multiplier.
+- Gemini 4 Carbon uses the same December 1, 2026 caps, `$4/$0.20/$20`.
+  Introductory rates through 2026-11-30 are `$2/$0.10/$10`. Cache is implicit
+  only. Carbon is the Pro alias target.
 
 ## Operating Rules
 
@@ -207,16 +218,19 @@ Pricing notes:
 
 ## Current Deepr Registry Snapshot
 
-The registry currently contains 85 models: 78 direct-provider entries across
+The registry currently contains 87 models: 80 direct-provider entries across
 OpenAI, Gemini, xAI, Anthropic, and Azure AI Foundry, plus seven OpenRouter
-routes that stay excluded from automatic routing. Ten direct-provider entries
-are reviewed preview-only candidates, also excluded from automatic routing.
-`gemini-3.8-flash` left that candidate set and is now selectable.
+routes that stay excluded from automatic routing. Two direct-provider entries
+remain reviewed preview-only candidates (`openai/gpt-6-sol` and
+`anthropic/claude-fable-5-1`), also excluded from automatic routing.
+`gemini-3.8-flash` left that candidate set and is now selectable. The
+2026-11-15 promotion made the current GPT-6, Claude, Grok 4.7, and Gemini 4
+Carbon rows selectable too.
 The lists below describe the established entries; run the
 offline command above for exact pricing and context values. The web
 Models page counts registry rows that are not deprecated or otherwise
 selection-blocked, not Azure AI Foundry deployments, and not image-generation
-entries. That count is 47, and it still includes preview-only rows.
+entries. That count is 49, and it still includes preview-only rows.
 
 ### OpenAI
 
@@ -224,6 +238,11 @@ Environment variable: `OPENAI_API_KEY`
 
 Registered IDs:
 
+- `openai/gpt-6.1-sol`
+- `openai/gpt-6.1-terra`
+- `openai/gpt-6-luna`
+- `openai/gpt-6-astra`
+- `openai/gpt-6-sol` (preview-only)
 - `openai/gpt-5.6-sol`
 - `openai/gpt-5.6-terra`
 - `openai/gpt-5.6-luna`
@@ -251,15 +270,16 @@ Default posture:
 - Use GPT mainline models for synthesis, planning, and general research when
   OpenAI is the selected provider.
 - OpenAI shut down `o3-deep-research` and `o4-mini-deep-research` on 2026-07-23.
-  Use `gpt-5.6-sol` for those workloads. `o4-mini` and `gpt-4.1-nano` shut
+  Use `gpt-6.1-sol` for those workloads. `o4-mini` and `gpt-4.1-nano` shut
   down 2026-10-23; `gpt-5`, `gpt-5-mini`, `gpt-5-nano` and `o3` shut down
   2026-12-11; `gpt-4o-mini`, `gpt-4.1` and `gpt-4.1-mini` shut down
   2027-01-14. Those rows are deprecated, priced for settlement, and never
   auto-selected.
-- Use `gpt-5.6-luna` for cheap classification, summaries, and routing only
+- Use `gpt-6-luna` for cheap classification, summaries, and routing only
   when quality risk is acceptable.
-- GPT-5.6 Sol is the OpenAI task default. Terra is the balanced tier and Luna
-  is the cost-sensitive tier. The `gpt-5.6` provider alias is priced as Sol.
+- GPT-6.1 Sol is the OpenAI task default. Terra is the balanced tier, Luna
+  is the cost-sensitive tier, and Astra is the explicit flagship. The
+  `gpt-5.6` provider alias is still priced as Sol.
 - A 272K-token prompt is still base price. At 272,001 input tokens, Deepr
   applies the documented full-request long-context multipliers before a budget
   reservation can be admitted.
@@ -277,6 +297,7 @@ Environment variable: `GEMINI_API_KEY`
 
 Selectable IDs:
 
+- `gemini/gemini-4-carbon`
 - `gemini/gemini-4-argon`
 - `gemini/gemini-3.8-flash`
 - `gemini/gemini-3.5-flash-lite`
@@ -291,13 +312,17 @@ Older ids remain in the registry for historical settlement and are not selected:
 
 Default posture:
 
-- `gemini-pro` and `gemini-3.1-pro` resolve to `gemini-4-argon`.
+- `gemini-pro` and `gemini-3.1-pro` resolve to `gemini-4-carbon`.
   `gemini-flash` resolves to `gemini-3.8-flash`. `gemini-flash-lite` resolves
   to `gemini-3.5-flash-lite`. `deep-research` and `gemini-deep-research`
   resolve to `deep-research-max-preview-04-2026`. These aliases select a model
   but do not bypass explicit budget, tool, or provider gates. Alias resolution
   is shared by adapter dispatch, canonical pricing, bounded preflight, and the
   REST API.
+- Gemini 4 Carbon is the Pro alias target. Stored rates are the December 1,
+  2026 caps, `$4` input, `$20` output, and `$0.20` cached input per million
+  tokens. Introductory rates through November 30, 2026 are `$2` / `$10` /
+  `$0.10`.
 - Gemini 4 Argon is paid-only. Stored rates are the December 1, 2026 caps,
   `$4` input, `$20` output, and `$0.20` cached input per million tokens.
   Explicit context caches are rejected. Deepr omits `temperature`, `top_p`,
@@ -333,6 +358,7 @@ Environment variable: `XAI_API_KEY`
 
 Registered IDs:
 
+- `xai/grok-4.7`
 - `xai/grok-4-6`
 - `xai/grok-4-5`
 - `xai/grok-4-3`
@@ -353,8 +379,9 @@ Default posture:
 
 - Prefer current Grok text models only for explicitly selected bounded xAI work
   without unpriced server-side tools.
-- Generic `grok`, `grok-flagship`, and `grok-reasoning` aliases resolve to Grok
-  4.6. Quick and fact-check routing retains Grok 4.3 because it is cheaper.
+- Generic `grok`, `grok-flagship`, and `grok-reasoning` aliases resolve to
+  `grok-4.7`. Explicit `grok-4.6` still resolves to `grok-4.6`. Quick and
+  fact-check routing retains Grok 4.3 because it is cheaper.
 - Grok Build 0.1 is the current coding-specific entry. The documented
   `grok-code-fast`, `grok-code-fast-1`, and dated alias settle against the same
   $1/$2 standard rate and $0.20 cached-input rate.
@@ -379,6 +406,11 @@ Environment variable: `ANTHROPIC_API_KEY`
 
 Registered IDs:
 
+- `anthropic/claude-opus-5-5`
+- `anthropic/claude-sonnet-5-5`
+- `anthropic/claude-haiku-5-5`
+- `anthropic/claude-fable-5-2`
+- `anthropic/claude-fable-5-1` (preview-only)
 - `anthropic/claude-fable-5`
 - `anthropic/claude-sonnet-5`
 - `anthropic/claude-opus-5`
@@ -392,11 +424,14 @@ Registered IDs:
 
 Default posture:
 
-- `claude-sonnet-5` is Deepr's balanced Anthropic chat and synthesis default.
-- `claude-opus-5` is the registered Anthropic research flagship when an
-  explicit budget supports a higher-cost call.
-- `claude-fable-5` is a frontier, premium tier. It should be selected
-  deliberately, not by background routing.
+- `claude-sonnet-5-5` is the balanced Anthropic chat and synthesis default.
+  `claude-sonnet` and `claude-5-sonnet` resolve to it. Explicit
+  `claude-sonnet-5` stays that id.
+- `claude-opus-5-5` is the Anthropic research default. `claude-opus` and
+  `claude-5-opus` resolve to it. Explicit `claude-opus-5` stays that id.
+- `claude-haiku-5-5` is the fast tier. `claude-haiku` resolves to it.
+- `claude-fable-5-2` is the current frontier tier. Select it deliberately.
+  `claude-fable` resolves to it. `claude-fable-5-1` stays preview-only.
 - Adaptive-thinking capable models are handled by the Anthropic provider. Do
   not hardcode unsupported sampling or thinking parameters outside the provider
   adapter.
@@ -544,12 +579,13 @@ Default posture:
   in a given subscription.
 - Azure Foundry retires `azure-foundry/o3-deep-research` on 2026-11-19; the row
   is deprecated. New Azure deep-research deployments should target
-  `gpt-5.6-sol`. Azure keeps its own schedule for the other rows: the GPT-5
-  family retires 2027-02-09 and `gpt-4o`/`gpt-4o-mini`/GPT-4.1 on 2027-04-14,
-  later than the direct OpenAI API dates. Lifecycle lookups are
-  provider-scoped, so automatic selection keeps Azure rows until their Azure
-  date. Foundry dispatch stays
-  gated until the agent run exposes the complete output and tool ceiling.
+  `gpt-6.1-sol`. Historical deployment map keys, including `gpt-5.6-sol`,
+  remain so old records still resolve. Azure keeps its own schedule for the
+  other rows: the GPT-5 family retires 2027-02-09 and
+  `gpt-4o`/`gpt-4o-mini`/GPT-4.1 on 2027-04-14, later than the direct OpenAI
+  API dates. Lifecycle lookups are provider-scoped, so automatic selection
+  keeps Azure rows until their Azure date. Foundry dispatch stays gated until
+  the agent run exposes the complete output and tool ceiling.
 - Refresh Azure registry entries only after adapter behavior and deployment
   names are tested locally or in CI-like validation.
 

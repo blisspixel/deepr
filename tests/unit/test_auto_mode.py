@@ -611,6 +611,6 @@ class TestRetiredModelsNeverAutoSelected:
     def test_open_circuit_fallback_uses_current_research_default(self, openai_only):
         provider, model, cost, _ = openai_only._get_fallback("complex", "research", budget=None)
 
-        assert (provider, model) == ("openai", "gpt-5.6-sol")
+        assert (provider, model) == ("openai", "gpt-6.1-sol")
         assert cost > 0
         self._assert_current(provider, model)

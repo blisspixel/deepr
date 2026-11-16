@@ -138,9 +138,9 @@ def _upgrade_command(origin: str, wheel_url: str) -> list[str] | None:
     if origin == "uv":
         if not _patched_uv_available():
             raise click.ClickException(
-                "uv 0.13.5 or newer is required. Update uv through its official instructions, then retry. No changes were made."
+                "uv 0.13.8 or newer is required. Update uv through its official instructions, then retry. No changes were made."
             )
-        return ["uv", "tool", "install", "--force", "--python", "3.15.1", "--managed-python", wheel_url]
+        return ["uv", "tool", "install", "--force", "--python", "3.15.2", "--managed-python", wheel_url]
     if origin == "pipx":
         if (
             sys.implementation.name != "cpython"
@@ -175,7 +175,7 @@ def _patched_uv_available() -> bool:
     except (OSError, subprocess.TimeoutExpired):
         return False
     match = re.fullmatch(r"uv ([0-9]+)\.([0-9]+)\.([0-9]+)(?: .*)?", result.stdout.strip())
-    return result.returncode == 0 and match is not None and tuple(map(int, match.groups())) >= (0, 13, 5)
+    return result.returncode == 0 and match is not None and tuple(map(int, match.groups())) >= (0, 13, 8)
 
 
 def _release_for_command(ctx: click.Context, *, check: bool) -> ReleaseInfo | None:

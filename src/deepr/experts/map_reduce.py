@@ -43,8 +43,8 @@ class MapReduceIngester:
     def __init__(
         self,
         client: Any | None = None,
-        map_model: str = "gpt-5.6-luna",
-        reduce_model: str = "gpt-5.2",
+        map_model: str = "gpt-6-luna",
+        reduce_model: str = "gpt-6.1-terra",
         chunk_size: int = DEFAULT_CHUNK_SIZE,
         max_parallel: int = DEFAULT_MAX_PARALLEL,
     ):

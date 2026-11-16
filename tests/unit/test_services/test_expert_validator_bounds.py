@@ -47,9 +47,10 @@ class TestModelAllowlist:
         # An expensive flagship override must fall back to the cheap default.
         assert _validator(model="o3-deep-research").model == DEFAULT_VALIDATION_MODEL
         assert _validator(model="gpt-5.2-pro").model == DEFAULT_VALIDATION_MODEL
+        assert _validator(model="gpt-4.1-mini").model == DEFAULT_VALIDATION_MODEL
 
     def test_allowlisted_override_preserved(self):
-        assert _validator(model="gpt-4.1-mini").model == "gpt-4.1-mini"
+        assert _validator(model="gemini-3.5-flash-lite").model == "gemini-3.5-flash-lite"
 
 
 class TestClaimLengthCap:

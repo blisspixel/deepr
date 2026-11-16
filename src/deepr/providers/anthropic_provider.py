@@ -63,9 +63,13 @@ class AnthropicProvider(DeepResearchProvider):
     """
 
     SUPPORTED_MODELS = [
-        "claude-fable-5",  # Frontier tier - $10/$50 per MTok (new tokenizer ~30% more tokens)
-        "claude-opus-5",  # Newest Opus flagship (GA 2026-07-24) - $5/$25 per MTok
-        "claude-sonnet-5",  # Current Sonnet - $2/$10 per MTok
+        "claude-fable-5-2",  # Current frontier - $8/$40 per MTok
+        "claude-opus-5-5",  # Current Opus - $4/$20 per MTok
+        "claude-sonnet-5-5",  # Current Sonnet - $2/$10 per MTok
+        "claude-haiku-5-5",  # Current Haiku - conservative over-100k tier $0.50/$2.50
+        "claude-fable-5",  # Previous frontier tier - $10/$50 per MTok
+        "claude-opus-5",  # Previous Opus flagship - $5/$25 per MTok
+        "claude-sonnet-5",  # Previous Sonnet - $2/$10 per MTok
         "claude-opus-4-8",  # Previous Opus flagship - $5/$25 per MTok (adaptive thinking only)
         "claude-opus-4-7",  # Previous flagship - $5/$25 per MTok (adaptive thinking only)
         "claude-opus-4-6",  # $5/$25 per MTok (adaptive thinking recommended)
@@ -92,15 +96,18 @@ class AnthropicProvider(DeepResearchProvider):
 
     # Recommended models by use case
     RECOMMENDED_MODELS = {
-        "research": "claude-opus-5",  # Newest Opus flagship, same rate as 4.8 (~$0.85/query)
-        "frontier": "claude-fable-5",  # Most capable, premium price (~$2.20/query)
-        "balanced": "claude-sonnet-5",  # Current Sonnet (~$0.32/query)
-        "fast": "claude-haiku-4-5",  # Quick answers, cheapest (no Extended Thinking)
+        "research": "claude-opus-5-5",
+        "frontier": "claude-fable-5-2",
+        "balanced": "claude-sonnet-5-5",
+        "fast": "claude-haiku-5-5",
     }
 
     # Models where thinking is adaptive-only: sending budget_tokens returns 400.
     # claude-fable-5 additionally rejects an explicit {"type": "disabled"}.
     ADAPTIVE_THINKING_MODELS = (
+        "claude-fable-5-2",
+        "claude-opus-5-5",
+        "claude-sonnet-5-5",
         "claude-fable-5",
         "claude-opus-5",
         "claude-sonnet-5",
@@ -111,14 +118,14 @@ class AnthropicProvider(DeepResearchProvider):
     )
 
     # Models with no Extended Thinking support at all - omit the param.
-    NO_THINKING_MODELS = ("claude-haiku-4-5",)
+    NO_THINKING_MODELS = ("claude-haiku-4-5", "claude-haiku-5-5")
 
     provider_key = "anthropic"
 
     def __init__(
         self,
         api_key: str | None = None,
-        model: str = "claude-opus-5",  # Default to the current Opus research model
+        model: str = "claude-opus-5-5",  # Default to the current Opus research model
         thinking_budget: int = 32000,  # Higher budget for Opus research tasks
         web_search_backend: str = "auto",  # brave, tavily, duckduckgo, auto
     ):
@@ -127,17 +134,17 @@ class AnthropicProvider(DeepResearchProvider):
 
         Args:
             api_key: Anthropic API key (defaults to ANTHROPIC_API_KEY env var)
-            model: Claude model (default: claude-opus-5 for best research quality)
+            model: Claude model (default: claude-opus-5-5 for best research quality)
             thinking_budget: Token budget for Extended Thinking on legacy models.
                 Adaptive-thinking models (4.6+/Fable) ignore the budget but still
                 use it to size max_tokens headroom.
             web_search_backend: Web search backend (brave, tavily, duckduckgo, auto)
 
         Model recommendations:
-            - Research tasks: claude-opus-5 (~$0.85/query) - current Opus flagship
-            - Frontier: claude-fable-5 (~$2.20/query) - most capable, 2x token rate
-            - Balanced: claude-sonnet-5 (~$0.32/query) - current Sonnet
-            - Fast/cheap: claude-haiku-4-5 - no Extended Thinking support
+            - Research tasks: claude-opus-5-5 - current Opus flagship
+            - Frontier: claude-fable-5-2 - most capable current Fable
+            - Balanced: claude-sonnet-5-5 - current Sonnet
+            - Fast/cheap: claude-haiku-5-5 - no Extended Thinking support
         """
         if not ANTHROPIC_AVAILABLE:
             raise ImportError("Anthropic SDK not installed. Run: pip install anthropic")
@@ -512,9 +519,9 @@ class AnthropicProvider(DeepResearchProvider):
         Map generic model key to Anthropic model name.
 
         Examples:
-            "claude-opus" -> "claude-opus-5"
-            "claude-sonnet" -> "claude-sonnet-5"
-            "claude-haiku" -> "claude-haiku-4-5"
+            "claude-opus" -> "claude-opus-5-5"
+            "claude-sonnet" -> "claude-sonnet-5-5"
+            "claude-haiku" -> "claude-haiku-5-5"
         """
         if model_key in self.SUPPORTED_MODELS:
             return model_key
@@ -528,13 +535,13 @@ class AnthropicProvider(DeepResearchProvider):
 
         model_mapping = {
             # Current generation
-            "claude-fable": "claude-fable-5",
-            "claude-opus": "claude-opus-5",
-            "claude-5-opus": "claude-opus-5",
+            "claude-fable": "claude-fable-5-2",
+            "claude-opus": "claude-opus-5-5",
+            "claude-5-opus": "claude-opus-5-5",
             "claude-4-opus": "claude-opus-4-8",
-            "claude-sonnet": "claude-sonnet-5",
-            "claude-5-sonnet": "claude-sonnet-5",
-            "claude-haiku": "claude-haiku-4-5",
+            "claude-sonnet": "claude-sonnet-5-5",
+            "claude-5-sonnet": "claude-sonnet-5-5",
+            "claude-haiku": "claude-haiku-5-5",
         }
 
         return model_mapping.get(model_key, self.model)

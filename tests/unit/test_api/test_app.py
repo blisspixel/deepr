@@ -288,13 +288,13 @@ class TestJobSubmission:
         """Test that POST /api/jobs accepts custom model."""
         response = client.post(
             "/api/jobs",
-            json=_paid_request(prompt="Research AI", model="gpt-5.6-terra"),
+            json=_paid_request(prompt="Research AI", model="gpt-6.1-terra"),
             content_type="application/json",
         )
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert data["job"]["model"] == "gpt-5.6-terra"
+        assert data["job"]["model"] == "gpt-6.1-terra"
 
     @pytest.mark.parametrize("model", ["o3-deep-research", "o4-mini-deep-research"])
     def test_submit_job_refuses_shut_down_allowlisted_models(self, client, model):
@@ -361,7 +361,7 @@ class TestJobSubmission:
 
     @pytest.mark.parametrize(
         "model",
-        ["gemini-4-argon", "gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-flash", "gemini-flash-lite"],
+        ["gemini-4-carbon", "gemini-3.8-flash", "gemini-3.5-flash-lite"],
     )
     def test_submit_job_accepts_current_gemini_models_and_aliases(self, client, model):
         response = client.post(
@@ -376,12 +376,15 @@ class TestJobSubmission:
     @pytest.mark.parametrize(
         ("provider", "model"),
         [
-            ("openai", "gpt-5.6-sol"),
-            ("openai", "gpt-5.6-terra"),
-            ("openai", "gpt-5.6-luna"),
-            ("xai", "grok-4.6"),
-            ("xai", "grok-build-0.1"),
-            ("anthropic", "claude-opus-5"),
+            ("openai", "gpt-6.1-sol"),
+            ("openai", "gpt-6.1-terra"),
+            ("openai", "gpt-6-luna"),
+            ("openai", "gpt-6-astra"),
+            ("xai", "grok-4.7"),
+            ("anthropic", "claude-opus-5-5"),
+            ("anthropic", "claude-sonnet-5-5"),
+            ("anthropic", "claude-haiku-5-5"),
+            ("anthropic", "claude-fable-5-2"),
         ],
     )
     def test_submit_job_accepts_current_provider_models(self, client, provider, model):

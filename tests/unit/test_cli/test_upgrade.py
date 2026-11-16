@@ -229,13 +229,13 @@ def test_uv_upgrade_keeps_manager_and_requires_managed_stable_python(monkeypatch
     monkeypatch.setattr(
         subprocess,
         "run",
-        lambda cmd, **_: calls.append(cmd) or subprocess.CompletedProcess(cmd, 0, stdout="uv 0.13.5\n"),
+        lambda cmd, **_: calls.append(cmd) or subprocess.CompletedProcess(cmd, 0, stdout="uv 0.13.8\n"),
     )
     result = CliRunner().invoke(upgrade, [])
     assert result.exit_code == 0
     assert calls == [
         ["uv", "--version"],
-        ["uv", "tool", "install", "--force", "--python", "3.15.1", "--managed-python", WHEEL_URL],
+        ["uv", "tool", "install", "--force", "--python", "3.15.2", "--managed-python", WHEEL_URL],
     ]
 
 
@@ -266,7 +266,7 @@ def test_upgrade_defaults_optional_yaml_build_without_changing_caller_environmen
 
     def run(cmd, **kwargs):
         if cmd == ["uv", "--version"]:
-            return subprocess.CompletedProcess(cmd, 0, stdout="uv 0.13.5\n")
+            return subprocess.CompletedProcess(cmd, 0, stdout="uv 0.13.8\n")
         observed.append(dict(kwargs.get("env", os.environ)))
         return subprocess.CompletedProcess(cmd, 0)
 
@@ -277,7 +277,7 @@ def test_upgrade_defaults_optional_yaml_build_without_changing_caller_environmen
     assert os.environ.get("PYYAML_FORCE_LIBYAML") == explicit
 
 
-@pytest.mark.parametrize("output", ["uv 0.13.0", "uv 0.13.4", "uv 0.13.5rc1", "unknown"])
+@pytest.mark.parametrize("output", ["uv 0.13.0", "uv 0.13.4", "uv 0.13.5", "uv 0.13.5rc1", "uv 0.13.7", "unknown"])
 def test_uv_upgrade_refuses_unsafe_tool_before_install(monkeypatch, output):
     monkeypatch.setattr(upgrade_mod, "_fetch_latest_release", lambda: _release())
     monkeypatch.setattr(upgrade_mod, "_detect_origin", lambda: "uv")
@@ -291,7 +291,7 @@ def test_uv_upgrade_refuses_unsafe_tool_before_install(monkeypatch, output):
     monkeypatch.setattr(subprocess, "run", run)
     result = CliRunner().invoke(upgrade, [])
     assert result.exit_code == 1
-    assert "uv 0.13.5 or newer" in result.output
+    assert "uv 0.13.8 or newer" in result.output
     assert calls == [["uv", "--version"]]
 
 
@@ -309,11 +309,11 @@ def test_uv_probe_failure_refuses_without_install(monkeypatch, failure):
     monkeypatch.setattr(subprocess, "run", run)
     result = CliRunner().invoke(upgrade, [])
     assert result.exit_code == 1
-    assert "uv 0.13.5 or newer" in result.output
+    assert "uv 0.13.8 or newer" in result.output
     assert calls == [["uv", "--version"]]
 
 
-@pytest.mark.parametrize("output", ["uv 0.13.5 (build)", "uv 0.14.0", "uv 1.0.0"])
+@pytest.mark.parametrize("output", ["uv 0.13.8 (build)", "uv 0.14.0", "uv 1.0.0"])
 def test_newer_stable_uv_is_eligible_without_changing_install_owner(monkeypatch, output):
     monkeypatch.setattr(upgrade_mod, "_fetch_latest_release", lambda: _release())
     monkeypatch.setattr(upgrade_mod, "_detect_origin", lambda: "uv")

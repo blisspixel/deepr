@@ -34,9 +34,9 @@ def research():
 @click.option(
     "--model",
     "-m",
-    default="gpt-5.6-sol",
+    default="gpt-6.1-sol",
     type=research_model_choice(),
-    help="Research model (default: gpt-5.6-sol; retired deep-research ids warn)",
+    help="Research model (default: gpt-6.1-sol; retired deep-research ids warn)",
 )
 @click.option("--priority", "-p", default=3, type=click.IntRange(1, 5), help="Priority (1=high, 5=low)")
 @click.option("--web-search/--no-web-search", default=True, help="Enable web search (default: enabled)")
@@ -95,8 +95,8 @@ def submit(
             # Only use router selection if user didn't specify
             if provider is None:
                 provider = resolved_provider
-            if model == "gpt-5.6-sol":  # default value
-                model = resolved_model if resolved_model in ["gpt-5.6-sol", "gpt-5.6-terra"] else model
+            if model == "gpt-6.1-sol":  # default value
+                model = resolved_model if resolved_model in ["gpt-6.1-sol", "gpt-6.1-terra"] else model
             console.print(f"[muted]Provider router selected: {resolved_provider}/{resolved_model}[/muted]")
         except Exception:
             pass  # Fall back to config (router optional)

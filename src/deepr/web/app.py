@@ -83,9 +83,10 @@ _MAX_PROMPT_LENGTH = 50_000  # characters
 _MAX_BATCH_SIZE = 50
 _MAX_QUERY_LIMIT = 1000
 _WEB_OPENAI_RESEARCH_MODELS = {
-    "gpt-5.6-sol",
-    "gpt-5.6-terra",
-    "gpt-5.2",
+    "gpt-6.1-sol",
+    "gpt-6.1-terra",
+    "gpt-6-luna",
+    "gpt-6-astra",
 }
 
 app = Flask(
@@ -876,7 +877,7 @@ def submit_job():
         if not data:
             return jsonify({"error": "JSON body required"}), 400
         prompt = str(data.get("prompt", "")).strip()
-        model = str(data.get("model", "gpt-5.6-sol"))
+        model = str(data.get("model", "gpt-6.1-sol"))
         priority = max(1, min(10, _safe_int(data.get("priority", 3), 3)))
         from deepr.services.research_bounds import admitted_builtin_web_search
 
@@ -1353,7 +1354,7 @@ def estimate_cost():
         if not data:
             return jsonify({"error": "JSON body required"}), 400
         prompt = data.get("prompt", "")
-        model = data.get("model", "gpt-5.6-sol")
+        model = data.get("model", "gpt-6.1-sol")
 
         if not prompt:
             return jsonify({"error": "Prompt required"}), 400
@@ -1675,7 +1676,7 @@ def search_results():
 # In-memory config (would normally be persisted)
 _config_lock = threading.Lock()
 _config = {
-    "default_model": "gpt-5.6-sol",
+    "default_model": "gpt-6.1-sol",
     "default_priority": 1,
     "enable_web_search": False,
     "provider": "openai",
@@ -1718,6 +1719,10 @@ def update_config():
         data = request.json
         if not isinstance(data, dict) or not data:
             return jsonify({"error": "Request body required"}), 400
+        if "default_model" in data and (
+            not isinstance(data["default_model"], str) or data["default_model"] not in _WEB_OPENAI_RESEARCH_MODELS
+        ):
+            return jsonify({"error": "Invalid model"}), 400
 
         caps: dict[str, float] | None = None
         if cost_controller and ("daily_limit" in data or "monthly_limit" in data):

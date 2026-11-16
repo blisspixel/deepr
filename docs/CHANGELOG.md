@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- New-request defaults, allow-lists, advertised CLI choices, and dashboard
+  research and settings choices use
+  `gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6-luna`, and `gpt-6-astra`; `grok-4.7`;
+  `gemini-4-carbon`, `gemini-3.8-flash`, and `gemini-3.5-flash-lite`; and
+  `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`, and
+  `claude-fable-5-2` (#328). GPT-6 is selectable. Historical price rows still
+  settle, and recorded shutdown ids are still refused. A saved dashboard
+  default outside the four GPT-6 ids is rejected before any other setting
+  changes. Embeddings are unchanged.
+- Managed CPython is 3.15.2 and maintained uv is 0.13.8. The application
+  Python floor is 3.11.5 so the lock can require `soupsieve` 4.1.1
+  (GHSA-6655-6qjp-jx7x, GHSA-mmhr-3c5m-f64f, GHSA-7g44-g9rc-x53w,
+  GHSA-4j63-6c4x-wfg4). The dashboard lock overrides `minimatch` to 11.0.8
+  (GHSA-g3hv-75wg-m249). No new direct dependencies.
+
+### Fixed
+
+- Saved benchmark routing preferences cannot replace a task default with a
+  model automatic routing already refuses, including a shut-down id such as
+  `o3-deep-research`, or with an unregistered name such as bare `grok-4`.
+  A registered selectable id can still override that task when its provider
+  key is set. `DEEPR_DEEP_RESEARCH_MODEL` still wins for deep research.
+- The GPT-5.6 Sol registry strength no longer calls that row the OpenAI
+  task default. The shipped task default remains `gpt-6.1-sol`. The August
+  2026 model matrix keeps its original cells and says they record that date.
+
 ## [2.51.9] - 2026-11-12
 
 Patch release: the release workflow now publishes releases with the

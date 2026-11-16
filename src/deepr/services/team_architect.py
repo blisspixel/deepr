@@ -1,7 +1,7 @@
 """
 Team Architect - Dynamically assemble optimal research teams.
 
-Uses GPT-5 to determine what perspectives a question needs, then assembles
+Uses GPT-6.1 Sol to determine what perspectives a question needs, then assembles
 diverse team with relevant expertise.
 
 No static personas. Each question gets a custom dream team.
@@ -23,19 +23,19 @@ class TeamArchitect:
     """
     Assembles optimal research teams for specific questions.
 
-    Uses GPT-5.6 Sol to reason about:
+    Uses GPT-6.1 Sol to reason about:
     - What expertise this question needs
     - What perspectives create best analysis
     - What cognitive diversity prevents blind spots
     """
 
-    def __init__(self, api_key: str | None = None, model: str = "gpt-5.6-sol"):
+    def __init__(self, api_key: str | None = None, model: str = "gpt-6.1-sol"):
         """
         Initialize team architect.
 
         Args:
             api_key: OpenAI API key
-            model: GPT-5.6 model for team design
+            model: Model for team design (default gpt-6.1-sol)
         """
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         if not self.api_key:
@@ -199,7 +199,7 @@ Only include people you find with actual research. If unable to find information
             system_prompt = "You are a research analyst. Find factual information about company leadership."
             envelope = bounded_chat_envelope(
                 provider="openai",
-                model="gpt-5.6-sol",
+                model="gpt-6.1-sol",
                 prompt_parts=(system_prompt, prompt),
                 budget_usd=0.50,
                 maximum_output_tokens=3_000,
@@ -211,11 +211,11 @@ Only include people you find with actual research. If unable to find information
             response = execute_reserved_sync_call(
                 operation_prefix="company-leadership",
                 provider="openai",
-                model="gpt-5.6-sol",
+                model="gpt-6.1-sol",
                 source="services.team_architect.research_company_people",
                 max_cost_per_job=envelope.cost_usd,
                 request_envelope={
-                    "model": "gpt-5.6-sol",
+                    "model": "gpt-6.1-sol",
                     "messages": [
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": prompt},
@@ -224,7 +224,7 @@ Only include people you find with actual research. If unable to find information
                     "max_completion_tokens": envelope.output_tokens,
                 },
                 call=lambda: self.client.chat.completions.create(
-                    model="gpt-5.6-sol",
+                    model="gpt-6.1-sol",
                     messages=[
                         {
                             "role": "system",
@@ -251,7 +251,7 @@ Only include people you find with actual research. If unable to find information
         perspective_lens: str | None = None,
         adversarial: bool = False,
     ) -> str:
-        """Build prompt for GPT-5 to design team."""
+        """Build the team-design prompt."""
 
         parts = ["# Research Question", f"\n{question}\n"]
 
@@ -366,7 +366,7 @@ class TeamSynthesizer:
     Shows where perspectives agree, where they conflict, weighs evidence.
     """
 
-    def __init__(self, api_key: str | None = None, model: str = "gpt-5.6-sol"):
+    def __init__(self, api_key: str | None = None, model: str = "gpt-6.1-sol"):
         """Initialize synthesizer."""
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         if not self.api_key:

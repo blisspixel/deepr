@@ -34,10 +34,10 @@ _PROVIDER_KEY_ENV = {
 
 # Provider -> preferred model for web research
 _PROVIDER_MODELS = {
-    "xai": "grok-4.3",
-    "openai": "gpt-5.2",
+    "xai": "grok-4.7",
+    "openai": "gpt-6.1-sol",
     "gemini": "gemini-3.8-flash",
-    "anthropic": "claude-sonnet-5",
+    "anthropic": "claude-sonnet-5-5",
 }
 
 # Rough cost per query by provider (used for budget planning). Gemini uses the
@@ -421,7 +421,7 @@ class ConsensusEngine:
             client = AsyncOpenAI(base_url=default_paid_endpoint("openai"))
             require_official_paid_client(client, "openai")
             response = await client.chat.completions.create(
-                model="gpt-5.2",
+                model="gpt-6.1-terra",
                 messages=[
                     {"role": "system", "content": "Output only a single decimal number between 0.0 and 1.0."},
                     {"role": "user", "content": prompt},
