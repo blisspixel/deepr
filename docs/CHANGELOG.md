@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The README states that an outside orchestrator is optional. A fleet-seat
+  consultation grants no spend, mutation, or workflow authority, and a listed
+  seat consumer is not certified (#321).
 - CI no longer cancels an older run when a newer commit is pushed. The
   workflow has no concurrency group, so every commit runs to completion.
   The mutation workflow still serializes on its ref, with
