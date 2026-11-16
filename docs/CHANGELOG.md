@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A restarted polling worker runs the existing reservation reconciliation
+  on every cycle. A processing claim with no provider id stays in place
+  during the grace period, then reaches the unresolved outcome. The worker
+  does not submit another job or refund that ambiguous hold (#325).
+
 ### Changed
 
 - CI no longer cancels an older run when a newer commit is pushed. The
