@@ -72,7 +72,7 @@ def plan(
     """
     Generate multi-phase research plan with dependencies.
 
-    Uses GPT-5 (cheap, fast) to decompose high-level goal into phased research tasks.
+    Uses GPT-6.1 Sol to decompose a high-level goal into phased research tasks.
     Shows what research depends on what, lets you review before executing.
 
     Agentic Levels (Multi-Agent System depth):
@@ -873,7 +873,7 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
 
     Runs complete research campaign without user intervention:
     - Round 1: Foundation research
-    - Round 2+: GPT-5 reviews, identifies gaps, plans next phase
+    - Round 2+: GPT-6.1 Sol reviews, identifies gaps, plans next phase
     - Final round: Synthesis and recommendations
 
     Example:
@@ -907,7 +907,7 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
         print_header("ROUND 1: Foundation Research")
 
         # Generate initial plan
-        console.print(f"Using GPT-5 to generate {topics_per_round} research topics...")
+        console.print(f"Using GPT-6.1 Sol to generate {topics_per_round} research topics...")
         planner_service = ResearchPlanner(model="gpt-6.1-sol")
         tasks = planner_service.plan_research(scenario=scenario, max_tasks=topics_per_round, context=None)
 
@@ -943,7 +943,7 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
             print_header(f"ROUND {round_num}: {'Synthesis' if round_num == rounds else 'Analysis'}")
 
             # Review and plan next phase
-            console.print("GPT-5 reviewing completed research...")
+            console.print("GPT-6.1 Sol reviewing completed research...")
             reviewer = ResearchReviewer(model="gpt-6.1-sol")
 
             # Load completed results
@@ -1008,6 +1008,7 @@ def _execute_plan_sync(plan_data: dict, provider_name: str | None = None) -> dic
     import os
     import time
 
+    from deepr.cli.commands.research_support import uses_openai_research_provider
     from deepr.config import load_config
     from deepr.providers import create_provider
     from deepr.queue.local_queue import SQLiteQueue
@@ -1021,8 +1022,7 @@ def _execute_plan_sync(plan_data: dict, provider_name: str | None = None) -> dic
     # Determine provider based on model if not specified
     model = plan_data.get("model", "gpt-6.1-sol")
     if provider_name is None:
-        # Substitutes do not contain "deep-research", so match them by id too.
-        is_deep_research = "deep-research" in model.lower() or model in {"gpt-6.1-sol", "gpt-6.1-terra"}
+        is_deep_research = uses_openai_research_provider(model)
         if is_deep_research:
             provider_name = os.getenv("DEEPR_DEEP_RESEARCH_PROVIDER", "openai")
         else:

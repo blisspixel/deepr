@@ -119,7 +119,7 @@ async function fixture(width, theme) {
         : []
       return json({ results: reports, total: reports.length })
     }
-    if (url.pathname === '/api/config') return json({ config: { has_api_key: state.hasKey, default_model: 'gpt-5.6-sol', monthly_limit: 5 } })
+    if (url.pathname === '/api/config') return json({ config: { has_api_key: state.hasKey, default_model: 'gpt-6.1-sol', monthly_limit: 5 } })
     if (url.pathname === '/api/benchmarks') return json({ benchmarks: [] })
     if (url.pathname === '/api/benchmarks/latest') return json({ result: null })
     if (url.pathname === '/api/benchmarks/status') return json({ status: 'idle' })
@@ -305,6 +305,33 @@ async function fixture(width, theme) {
   await page.getByRole('checkbox', { name: /Approve metered OpenAI API use/ }).check()
   assert.ok(await page.getByRole('button', { name: 'Submit', exact: true }).isDisabled())
   await checkLayout('research-preview-funded')
+  await page.getByText('GPT-6 Luna is the cost-sensitive tier. GPT-6.1 Sol is the research default.').waitFor()
+  await page.getByRole('button', { name: 'Configuration' }).click()
+  const currentResearchModels = ['gpt-6.1-sol', 'gpt-6.1-terra', 'gpt-6-luna', 'gpt-6-astra']
+  const researchValues = await page.locator('#research-configuration select').first().locator('option').evaluateAll((options) => options.map((option) => option.value))
+  assert.deepEqual(researchValues, currentResearchModels)
+  await page.locator('#research-configuration').getByRole('combobox').first().click()
+  await page.getByRole('listbox').getByText('GPT-6 Astra (Explicit flagship)').waitFor()
+  await page.keyboard.press('Escape')
+  await page.goto(`${base}/settings`)
+  await page.getByRole('heading', { name: 'Settings', exact: true }).waitFor()
+  await page.getByText('Default Model').waitFor()
+  await page.getByRole('combobox').filter({ hasText: 'GPT-6.1 Sol (current default)' }).click()
+  await page.getByRole('listbox').getByText('GPT-6 Astra', { exact: true }).waitFor()
+  const settingsOptions = await page.getByRole('listbox').getByRole('option').allTextContents()
+  assert.deepEqual(settingsOptions, [
+    'GPT-6.1 Sol (current default)',
+    'GPT-6.1 Terra',
+    'GPT-6 Luna',
+    'GPT-6 Astra',
+  ])
+  await page.keyboard.press('Escape')
+  await page.goto(`${base}/help`)
+  await page.getByText('grok-4.7').waitFor()
+  await page.getByText('claude-opus-5-5').waitFor()
+  await page.getByText('gemini-4-carbon').waitFor()
+  assert.equal(await page.getByText('gpt-5.6-sol').count(), 0)
+  assert.equal(await page.getByText('o3-deep-research').count(), 0)
   await context.close()
 }
 

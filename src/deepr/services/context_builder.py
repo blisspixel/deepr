@@ -69,7 +69,7 @@ class ContextBuilder:
         """
         Summarize a research report for use as context.
 
-        Uses GPT-5.6 Luna (fast, cheap model) to extract key findings.
+        Uses GPT-6 Luna (fast, cheap model) to extract key findings.
 
         Args:
             report_content: Full research report (could be 10+ pages)

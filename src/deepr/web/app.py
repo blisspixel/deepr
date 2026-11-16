@@ -1719,6 +1719,10 @@ def update_config():
         data = request.json
         if not isinstance(data, dict) or not data:
             return jsonify({"error": "Request body required"}), 400
+        if "default_model" in data and (
+            not isinstance(data["default_model"], str) or data["default_model"] not in _WEB_OPENAI_RESEARCH_MODELS
+        ):
+            return jsonify({"error": "Invalid model"}), 400
 
         caps: dict[str, float] | None = None
         if cost_controller and ("daily_limit" in data or "monthly_limit" in data):

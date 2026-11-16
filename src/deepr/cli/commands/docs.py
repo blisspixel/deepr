@@ -38,7 +38,7 @@ def analyze(docs_path: str, scenario: str, topics: int, planner: str, model: str
 
     Agentic workflow:
     1. Scan docs at given path
-    2. Use GPT-5 to analyze what's missing for the scenario
+    2. Use the planner model to analyze what's missing for the scenario
     3. Generate research plan to fill gaps
     4. Submit research jobs (after user approval unless --execute)
 
@@ -102,7 +102,7 @@ async def _analyze_and_queue(
                 abort=True,
             )
 
-        # Step 1: Scan and analyze docs with GPT-5
+        # Step 1: Scan and analyze docs with the planner model
         console.print("Step 1: Analyzing existing documentation...")
         reviewer = DocReviewer(model=planner_model, docs_path=str(docs_dir))
 
@@ -127,7 +127,7 @@ async def _analyze_and_queue(
             if len(gaps) > 3:
                 console.print(f"  ... and {len(gaps) - 3} more")
 
-        # Step 2: Generate research plan with GPT-5
+        # Step 2: Generate research plan with the planner model
         console.print("\nStep 2: Generating research plan...")
 
         context = json.dumps(analysis, sort_keys=True)

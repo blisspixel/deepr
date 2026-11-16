@@ -23,7 +23,7 @@ class PromptRefiner:
     """
     Refines research prompts to follow best practices.
 
-    Uses GPT-5.6 Luna for fast, cheap prompt optimization.
+    Uses GPT-6 Luna for fast, cheap prompt optimization.
     """
 
     def __init__(self, model: str = "gpt-6-luna"):

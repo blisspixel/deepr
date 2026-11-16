@@ -96,6 +96,15 @@ def provider_for_model(model: str) -> str | None:
     return capability.provider if capability is not None else None
 
 
+def uses_openai_research_provider(model: str) -> bool:
+    """Return whether this id stays on the OpenAI deep-research provider.
+
+    Current GPT-6 ids and retained GPT-5.6 ids do not contain "deep-research".
+    Shutdown deep-research ids still match by name.
+    """
+    return model.startswith(("gpt-6", "gpt-5.6")) or "deep-research" in model.lower()
+
+
 def resolve_research_route(
     provider: str | None,
     model: str | None,
@@ -111,7 +120,7 @@ def resolve_research_route(
         if inferred_provider is not None:
             return inferred_provider, model
 
-    is_deep_research = model is None or "deep-research" in model.lower()
+    is_deep_research = model is None or uses_openai_research_provider(model)
     if provider is None:
         provider = env.get(
             "DEEPR_DEEP_RESEARCH_PROVIDER" if is_deep_research else "DEEPR_DEFAULT_PROVIDER",

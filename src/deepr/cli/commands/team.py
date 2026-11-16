@@ -56,6 +56,7 @@ async def run_dream_team(question: str, model: str = "gpt-6.1-sol", perspectives
     import uuid
     from datetime import datetime
 
+    from deepr.cli.commands.research_support import uses_openai_research_provider
     from deepr.config import load_config
     from deepr.experts.research_cost_gate import (
         refund_research_cost,
@@ -81,7 +82,7 @@ async def run_dream_team(question: str, model: str = "gpt-6.1-sol", perspectives
 
     # Determine provider based on model if not specified
     if provider is None:
-        is_deep_research = "deep-research" in model.lower()
+        is_deep_research = uses_openai_research_provider(model)
         if is_deep_research:
             provider = os.getenv("DEEPR_DEEP_RESEARCH_PROVIDER", "openai")
         else:
@@ -372,7 +373,7 @@ def analyze(
     """
     Dynamically assemble optimal research team for your question.
 
-    GPT-5 determines what perspectives this question needs, then each team
+    GPT-6.1 Sol determines what perspectives this question needs, then each team
     member researches independently from their role. Final synthesis shows
     where they agree, where they conflict, and makes balanced recommendation.
 
@@ -425,7 +426,7 @@ def analyze(
         if not yes:
             click.confirm("Run the metered, budget-gated team architecture call?", abort=True)
 
-        click.echo("[Phase 1] GPT-5 assembling dream team for this question...\n")
+        click.echo("[Phase 1] GPT-6.1 Sol assembling dream team for this question...\n")
 
         architect = TeamArchitect(model="gpt-6.1-sol")
         team = architect.design_team(

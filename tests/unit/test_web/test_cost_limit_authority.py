@@ -91,6 +91,54 @@ def test_config_endpoint_validates_atomically_before_mutation(client, monkeypatc
     assert controller.max_monthly_cost == 3.0
 
 
+def test_config_default_model_stays_on_the_research_allow_list(client) -> None:
+    original_model = web_app._config["default_model"]
+    original_web_search = web_app._config["enable_web_search"]
+    try:
+        rejected = client.patch(
+            "/api/config",
+            json={
+                "default_model": "o3-deep-research",
+                "enable_web_search": not original_web_search,
+            },
+            headers=_headers(),
+        )
+        assert rejected.status_code == 400
+        assert rejected.get_json() == {"error": "Invalid model"}
+        assert web_app._config["default_model"] == original_model
+        assert web_app._config["enable_web_search"] is original_web_search
+
+        non_string = client.patch(
+            "/api/config",
+            json={"default_model": 6, "enable_web_search": not original_web_search},
+            headers=_headers(),
+        )
+        assert non_string.status_code == 400
+        assert web_app._config["default_model"] == original_model
+        assert web_app._config["enable_web_search"] is original_web_search
+
+        superseded = client.patch(
+            "/api/config",
+            json={"default_model": "gpt-5.6-sol", "enable_web_search": not original_web_search},
+            headers=_headers(),
+        )
+        assert superseded.status_code == 400
+        assert web_app._config["default_model"] == original_model
+        assert web_app._config["enable_web_search"] is original_web_search
+
+        accepted = client.patch(
+            "/api/config",
+            json={"default_model": "gpt-6.1-terra"},
+            headers=_headers(),
+        )
+        assert accepted.status_code == 200
+        assert accepted.get_json()["config"]["default_model"] == "gpt-6.1-terra"
+        assert web_app._config["default_model"] == "gpt-6.1-terra"
+    finally:
+        web_app._config["default_model"] = original_model
+        web_app._config["enable_web_search"] = original_web_search
+
+
 def test_web_monthly_limit_below_provider_hard_limit_freezes_paid_authority(client, monkeypatch) -> None:
     controller = web_app.cost_controller
     assert controller is not None

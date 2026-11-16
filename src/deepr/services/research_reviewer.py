@@ -34,7 +34,7 @@ class ResearchReviewer:
         Initialize research reviewer.
 
         Args:
-            model: GPT-5.6 model to use for reasoning (gpt-6.1-sol, gpt-6.1-terra)
+            model: GPT-6 model to use for reasoning (gpt-6.1-sol, gpt-6.1-terra, gpt-6-luna, or gpt-6-astra)
         """
         valid_models = ["gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-luna", "gpt-6-astra"]
         if model not in valid_models:
@@ -197,7 +197,7 @@ Return ONLY valid JSON, no other text."""
         return "\n".join(lines)
 
     def _extract_response_text(self, response: Any) -> str:
-        """Extract text from GPT-5 response object."""
+        """Extract text from the model response."""
         # Try different response formats
         if hasattr(response, "output_text"):
             return str(response.output_text)

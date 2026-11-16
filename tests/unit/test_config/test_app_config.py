@@ -294,6 +294,9 @@ class TestAppConfigToEnvFile:
         content = (tmp_path / ".env.example").read_text()
         assert "AZURE_OPENAI_KEY=***" in content
         assert "DEEPR_PROVIDER=azure" in content
+        assert "AZURE_DEPLOYMENT_GPT61_SOL=your-gpt-6.1-sol-deployment" in content
+        assert "AZURE_DEPLOYMENT_GPT6_ASTRA=your-gpt-6-astra-deployment" in content
+        assert "AZURE_DEPLOYMENT_GPT56_SOL=your-gpt-5.6-sol-deployment" in content
 
 
 class TestLoadConfig:

@@ -196,6 +196,7 @@ class TestCreatePlanner:
 
                     p = create_planner(provider="openai")
                     assert p.use_azure is False
+                    assert p.model == "gpt-6.1-sol"
 
     def test_create_azure(self, mock_openai_env):
         """Creates ResearchPlanner with use_azure=True."""

@@ -1,7 +1,7 @@
 """
 Team Architect - Dynamically assemble optimal research teams.
 
-Uses GPT-5 to determine what perspectives a question needs, then assembles
+Uses GPT-6.1 Sol to determine what perspectives a question needs, then assembles
 diverse team with relevant expertise.
 
 No static personas. Each question gets a custom dream team.
@@ -23,7 +23,7 @@ class TeamArchitect:
     """
     Assembles optimal research teams for specific questions.
 
-    Uses GPT-5.6 Sol to reason about:
+    Uses GPT-6.1 Sol to reason about:
     - What expertise this question needs
     - What perspectives create best analysis
     - What cognitive diversity prevents blind spots
@@ -35,7 +35,7 @@ class TeamArchitect:
 
         Args:
             api_key: OpenAI API key
-            model: GPT-5.6 model for team design
+            model: Model for team design (default gpt-6.1-sol)
         """
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         if not self.api_key:
@@ -251,7 +251,7 @@ Only include people you find with actual research. If unable to find information
         perspective_lens: str | None = None,
         adversarial: bool = False,
     ) -> str:
-        """Build prompt for GPT-5 to design team."""
+        """Build the team-design prompt."""
 
         parts = ["# Research Question", f"\n{question}\n"]
 

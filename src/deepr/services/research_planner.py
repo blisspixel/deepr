@@ -3,8 +3,8 @@ from typing import Any
 """
 Research Planner Service
 
-Uses GPT-5.6 models (gpt-6.1-sol, gpt-6.1-terra, gpt-6-luna) to decompose high-level scenarios
-into multiple targeted research tasks. This is the "Prep" feature.
+Uses the current GPT-6 planning models (gpt-6.1-sol, gpt-6.1-terra, gpt-6-luna, gpt-6-astra)
+to decompose high-level scenarios into multiple targeted research tasks. This is the "Prep" feature.
 
 Example:
     User: "Meeting with Company X about Topic Y tomorrow"
@@ -30,9 +30,9 @@ PLANNER_MODELS: tuple[str, ...] = ("gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-luna",
 
 class ResearchPlanner:
     """
-    Uses GPT-5.6 models to plan multi-angle research strategies.
+    Uses the current GPT-6 planning models to plan multi-angle research strategies.
 
-    Only the GPT-5.6 family and the retiring GPT-5 ids are accepted.
+    Only gpt-6.1-sol, gpt-6.1-terra, gpt-6-luna, and gpt-6-astra are accepted.
     """
 
     def __init__(
@@ -45,7 +45,7 @@ class ResearchPlanner:
         Initialize the research planner.
 
         Args:
-            model: GPT-5.6 model to use (gpt-6.1-sol, gpt-6.1-terra, gpt-6-luna)
+            model: Planning model (gpt-6.1-sol, gpt-6.1-terra, gpt-6-luna, or gpt-6-astra)
             use_azure: Whether to use Azure OpenAI
             azure_endpoint: Azure OpenAI endpoint (if using Azure)
         """
@@ -297,7 +297,7 @@ Please analyze this scenario and generate {max_tasks} distinct research tasks th
 
     def _fallback_plan(self, scenario: str, max_tasks: int) -> list[dict[str, Any]]:
         """
-        Fallback plan if GPT-5 call fails.
+        Fallback plan if the planner call fails.
         Generates generic but useful research tasks.
         """
         # Basic research angles
@@ -328,7 +328,7 @@ Please analyze this scenario and generate {max_tasks} distinct research tasks th
 
 
 def create_planner(
-    model: str = "gpt-6.1-terra",
+    model: str = "gpt-6.1-sol",
     provider: str = "openai",
     azure_endpoint: str | None = None,
 ) -> ResearchPlanner:
@@ -336,7 +336,7 @@ def create_planner(
     Factory function to create a research planner.
 
     Args:
-        model: GPT-5.6 model (gpt-6.1-sol, gpt-6.1-terra, gpt-6-luna)
+        model: Planning model. The default is gpt-6.1-sol.
         provider: 'openai' or 'azure'
         azure_endpoint: Azure endpoint if using Azure
 

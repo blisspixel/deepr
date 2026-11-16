@@ -207,7 +207,7 @@ class ProviderConfig(BaseModel):
     azure_foundry_deep_research_deployment: str = Field(
         default="gpt-6.1-sol", description="Azure Foundry deep research model deployment"
     )
-    azure_foundry_gpt_deployment: str = Field(default="gpt-4o", description="Azure Foundry GPT model deployment")
+    azure_foundry_gpt_deployment: str = Field(default="gpt-4.1", description="Azure Foundry GPT model deployment")
     azure_foundry_bing_resource: str | None = Field(
         default=None, description="Azure Foundry Bing grounding connection name"
     )
@@ -653,6 +653,10 @@ class AppConfig(BaseModel):
                     f"AZURE_OPENAI_ENDPOINT={self.provider.azure_endpoint or 'https://your-resource.openai.azure.com/'}",
                     f"AZURE_API_VERSION={self.provider.azure_api_version}",
                     f"AZURE_USE_MANAGED_IDENTITY={str(self.provider.azure_use_managed_identity).lower()}",
+                    "AZURE_DEPLOYMENT_GPT61_SOL=your-gpt-6.1-sol-deployment",
+                    "AZURE_DEPLOYMENT_GPT61_TERRA=your-gpt-6.1-terra-deployment",
+                    "AZURE_DEPLOYMENT_GPT6_LUNA=your-gpt-6-luna-deployment",
+                    "AZURE_DEPLOYMENT_GPT6_ASTRA=your-gpt-6-astra-deployment",
                     "AZURE_DEPLOYMENT_GPT56_SOL=your-gpt-5.6-sol-deployment",
                     "AZURE_DEPLOYMENT_GPT56_TERRA=your-gpt-5.6-terra-deployment",
                     "AZURE_DEPLOYMENT_O3=your-o3-deployment",

@@ -1,8 +1,10 @@
+export const DEFAULT_RESEARCH_MODEL = 'gpt-6.1-sol'
+
 export const MODELS = [
-  { value: 'gpt-5.6-sol', label: 'GPT-5.6 Sol', description: 'Current deep research default' },
-  { value: 'gpt-5.6-terra', label: 'GPT-5.6 Terra', description: 'Balanced substitute' },
-  { value: 'o4-mini-deep-research', label: 'o4-mini Deep Research', description: 'Shut down 2026-07-23' },
-  { value: 'o3-deep-research', label: 'o3 Deep Research', description: 'Shut down 2026-07-23' },
+  { value: 'gpt-6.1-sol', label: 'GPT-6.1 Sol', description: 'Current deep research default' },
+  { value: 'gpt-6.1-terra', label: 'GPT-6.1 Terra', description: 'Balanced tier' },
+  { value: 'gpt-6-luna', label: 'GPT-6 Luna', description: 'Cost-sensitive tier' },
+  { value: 'gpt-6-astra', label: 'GPT-6 Astra', description: 'Explicit flagship' },
 ] as const
 
 export const PRIORITIES = [

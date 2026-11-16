@@ -40,6 +40,14 @@ Chat sampling for GPT-6 follows the GPT-5 rule: omit `temperature` and
 `top_p`, and send `max_completion_tokens`. This does not migrate callers to
 the Responses API.
 
+## Advertised surfaces
+
+CLI choices, dashboard research and settings choices, and `PATCH /api/config`
+`default_model` use the four current OpenAI ids. Help text names the current
+provider ids. A saved default outside that list is rejected before any other
+configuration field changes. Explicit GPT-6 and retained GPT-5.6 research ids
+stay on the OpenAI deep-research provider when the caller does not name one.
+
 ## What stays refused
 
 Shut-down ids, including `o3-deep-research`, `o4-mini-deep-research`, and the

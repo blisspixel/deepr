@@ -211,10 +211,23 @@ class TestRetiredOpenAIDefaults:
 
         app = AppConfig.from_env()
         assert app.provider.deep_research_model == "gpt-6.1-sol"
+        assert provider_config.azure_foundry_gpt_deployment == "gpt-4.1"
         assert app.provider.model_mappings["gpt-6.1-sol"] == "gpt-6.1-sol"
         assert app.provider.model_mappings["gpt-5.6-sol"] == "gpt-5.6-sol"
         assert app.provider.model_mappings["gpt-5.6-terra"] == "gpt-5.6-terra"
         assert app.provider.default_model == "gpt-6.1-sol"
+
+    def test_unlisted_gpt6_id_stays_on_the_deep_research_provider(self, monkeypatch):
+        from deepr.cli.commands.research_support import resolve_research_route, uses_openai_research_provider
+
+        monkeypatch.setenv("DEEPR_DEFAULT_PROVIDER", "xai")
+        monkeypatch.delenv("DEEPR_DEEP_RESEARCH_PROVIDER", raising=False)
+        for model_id in ("gpt-6.1-sol", "gpt-6-luna", "gpt-6-astra", "gpt-5.6-sol", "o3-deep-research"):
+            assert uses_openai_research_provider(model_id) is True
+        assert uses_openai_research_provider("grok-4.7") is False
+        assert uses_openai_research_provider("gemini-4-carbon") is False
+        assert resolve_research_route(None, "gpt-6-unlisted") == ("openai", "gpt-6-unlisted")
+        assert resolve_research_route(None, "grok-unlisted") == ("xai", "grok-unlisted")
 
     def test_successor_web_search_stays_inside_the_reserved_input_ceiling(self):
         from deepr.cli.commands.research_support import bounded_tool_disable_flags

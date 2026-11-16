@@ -37,8 +37,10 @@ when nothing current remains. The 2026-10-27 repair used `gpt-5.6-sol` for
 planning and research, `gpt-5.6-terra` for balanced reasoning, and
 `gpt-5.6-luna` for cheap utility calls. On 2026-11-15 those new-request roles
 moved to `gpt-6.1-sol`, `gpt-6.1-terra`, and `gpt-6-luna`. `gpt-6-astra` is
-the explicit flagship. `gemini-3.8-flash` stays the Gemini environment
-default, and Pro aliases resolve to `gemini-4-carbon`. `gpt-6-luna` is
+the explicit flagship. Dashboard research and settings choices, and a saved
+web default, use the same four OpenAI ids. `gemini-3.8-flash` stays the
+Gemini environment default, and Pro aliases resolve to `gemini-4-carbon`.
+`gpt-6-luna` is
 selectable. `gpt-6-sol` and `claude-fable-5-1` stay preview-only. Retired
 rows keep their prices so historical usage still settles.
 
