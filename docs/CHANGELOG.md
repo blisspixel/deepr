@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- CI no longer cancels an older run when a newer commit is pushed. The
+  workflow has no concurrency group, so every commit runs to completion.
+  The mutation workflow still serializes on its ref, with
+  `cancel-in-progress: false` and `queue: max`, so a pending run waits
+  instead of being replaced (#324).
+
 ## [2.51.11] - 2026-11-16
 
 Patch release: Gemini 2.5 Pro and Flash record the 2026-12-01 shutdown.
