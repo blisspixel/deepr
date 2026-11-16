@@ -526,7 +526,7 @@ def list():
     table.add_column("Specialization")
     table.add_column("Cost/Query", justify="right", style="money")
     table.add_column("Latency", justify="right")
-    table.add_column("Status")
+    table.add_column("Status", overflow="fold")
 
     for _key, cap in sorted(MODEL_CAPABILITIES.items()):
         specializations = ", ".join(cap.specializations[:2]) if cap.specializations else "-"

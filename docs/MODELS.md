@@ -1,6 +1,6 @@
 # Model Selection Guide
 
-Status: Deepr v2.50.38. Lifecycle notices reviewed 2026-10-27. Gemini lineup reviewed 2026-10-14. Broader currency review 2026-10-06. Provider prices rechecked 2026-11-03. New-request defaults reviewed 2026-11-15.
+Status: Deepr v2.50.38. Lifecycle notices reviewed 2026-10-27. Gemini lineup reviewed 2026-10-14. Broader currency review 2026-10-06. Provider prices rechecked 2026-11-03. New-request defaults reviewed 2026-11-15. Gemini 2.5 shutdown rechecked 2026-11-16.
 
 The source of truth for model IDs, pricing estimates, context windows, and
 routing metadata is [src/deepr/providers/registry.py](../src/deepr/providers/registry.py),
@@ -21,9 +21,12 @@ The [lifecycle correction](design/model-lifecycle-presentation.md) records the
 2026-10-18 primary-source check. Shut-down IDs disappear from advertised CLI
 choices; typing a known historical ID retains its notice and identity. Original
 GPT-5 snapshots have a 2026-12-11 deadline; the notice does not migrate them.
-Stable Gemini 2.5 models are `legacy_access_only`, not provider-deprecated.
-Their exact IDs and historical prices remain inspectable, but Deepr still
-refuses dispatch without account eligibility proof. New-project guidance names
+`gemini-2.5-pro` and `gemini-2.5-flash` are provider-deprecated and shut down
+on 2026-12-01. Google routes those API requests to `gemini-3.8-flash` and
+`gemini-3.5-flash-lite`. Deepr keeps the exact ids and historical prices,
+names that date, and does not send Google's substitute. `gemini-2.5-flash-lite`
+stays `legacy_access_only` with no announced shutdown. Dispatch for all three
+stays blocked without account eligibility proof. New-project guidance names
 Gemini 3.5 Flash-Lite or 3.8 Flash. No new-project credential was exercised.
 
 The [2026-10-27 lifecycle repair](design/model-lifecycle-2026-10-27.md)
@@ -338,10 +341,13 @@ Default posture:
   `deep-research-pro-preview-12-2025`, shuts down on 2026-10-23.
 - Use Gemini for large-context document work and cost-sensitive multimodal or
   research workflows when the registry price and quality floor fit the task.
-- Do not select an older Gemini id for a new run. Bounded research and provider
-  submission refuse it and name the successor. Historical rows can still be
-  priced. `gemini-3.1-pro-preview` is still served by Google; Deepr does not
-  select it, and no shutdown date is invented for it.
+- Do not select an older Gemini id for a new run. `gemini-2.5-pro` and
+  `gemini-2.5-flash` shut down on 2026-12-01; Google routes them to
+  `gemini-3.8-flash` and `gemini-3.5-flash-lite`. `gemini-2.5-flash-lite`
+  has no announced shutdown. Bounded research and provider submission refuse
+  an older id and name the successor. Historical rows can still be priced.
+  `gemini-3.1-pro-preview` is still served by Google; Deepr does not select
+  it, and no shutdown date is invented for it.
 - Keep Gemini image generation explicit. The registry's text/research support
   does not mean portraits or other image calls should run automatically.
 - Do not target Gemini 3.5 Flash Cyber. Its announced CodeMender pilot is not a

@@ -127,7 +127,7 @@ def test_web_allowlist_excludes_shutdown_models():
     assert all(not is_shutdown(model) for model in _WEB_OPENAI_RESEARCH_MODELS)
 
 
-async def test_doctor_reports_access_without_claiming_shutdown(monkeypatch):
+async def test_doctor_reports_gemini_25_flash_shutdown_date(monkeypatch):
     from types import SimpleNamespace
 
     from deepr.cli.commands.doctor import check_deprecated_models
@@ -147,7 +147,9 @@ async def test_doctor_reports_access_without_claiming_shutdown(monkeypatch):
     assert len(checks) == 1
     assert checks[0].category == "Model Access"
     assert "eligibility unverified" in checks[0].message
-    assert "no announced shutdown" in checks[0].details[0]
+    assert "2026-12-01" in checks[0].details[0]
+    assert "gemini-3.5-flash-lite" in checks[0].details[0]
+    assert "no announced shutdown" not in checks[0].details[0]
 
 
 def test_explicit_restricted_preview_keeps_json_stdout_and_access_notice():
@@ -166,6 +168,8 @@ def test_explicit_restricted_preview_keeps_json_stdout_and_access_notice():
     assert payload["model_access"]["state"] == "legacy_access_only"
     assert payload["model_access"]["account_verified"] is False
     assert "prior users only" in payload["model_access"]["note"]
+    assert "2026-12-01" in payload["model_access"]["note"]
+    assert "gemini-3.5-flash-lite" in payload["model_access"]["note"]
 
 
 @pytest.mark.parametrize(("module", "command"), [("prep", "plan"), ("docs", "analyze")])
