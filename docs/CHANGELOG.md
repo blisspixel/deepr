@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `gemini-2.5-pro` and `gemini-2.5-flash` record the 2026-12-01 shutdown.
+  Google routes those requests to `gemini-3.8-flash` and
+  `gemini-3.5-flash-lite`. Deepr names that date and does not silently
+  substitute either id. `gemini-2.5-flash-lite` stays prior-users-only with
+  no shutdown date (#337).
+
 ## [2.51.10] - 2026-11-16
 
 Patch release: new-request defaults, allow-lists, advertised choices, and

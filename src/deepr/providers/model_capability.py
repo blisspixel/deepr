@@ -38,8 +38,21 @@ class ModelCapability:
         """Provider policy is evidence about access, not account verification."""
         if self.access_state != "legacy_access_only":
             return ""
+        source = f"Source: {self.access_source} (checked {self.access_checked})."
+        # Local import: the deprecation table imports nothing from this module.
+        from deepr.routing.deprecation import check_deprecation
+
+        entry = check_deprecation(self.model, self.provider)
+        if entry is not None and entry.sunset_date:
+            route = entry.new_model.split("/", 1)[-1]
+            advice = f"shuts down {entry.sunset_date}. Google routes requests to {route}."
+            if self.successor:
+                recommendation = self.successor.split("/", 1)[-1]
+                if recommendation != route:
+                    advice = f"{advice} Recommended upgrade: {recommendation}."
+            return f"{self.model}: prior users only; {advice} Account access unverified. {source}"
         return (
             f"{self.model}: prior users only; no announced shutdown. "
             "New projects: gemini-3.5-flash-lite or gemini-3.8-flash. "
-            f"Account access unverified. Source: {self.access_source} (checked {self.access_checked})."
+            f"Account access unverified. {source}"
         )

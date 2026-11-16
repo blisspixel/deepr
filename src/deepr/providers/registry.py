@@ -39,11 +39,11 @@ def _legacy_gemini(
         output_cost_per_1m=output_cost,
         cached_input_cost_per_1m=cached,
         max_output_tokens=output_limit,
-        deprecated=not prior_users_only,
+        deprecated=not prior_users_only or model in {"gemini-2.5-pro", "gemini-2.5-flash"},
         successor=successor,
         access_state="legacy_access_only" if prior_users_only else "unrestricted",
         access_source="https://ai.google.dev/gemini-api/docs/deprecations" if prior_users_only else "",
-        access_checked="2026-10-18" if prior_users_only else "",
+        access_checked="2026-11-16" if prior_users_only else "",
     )
 
 

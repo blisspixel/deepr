@@ -285,6 +285,37 @@ DEPRECATION_REGISTRY: dict[str, DeprecationEntry] = {
         ),
         auto_migrate=False,
     ),
+    # Gemini deprecations page, checked 2026-11-16:
+    # https://ai.google.dev/gemini-api/docs/deprecations
+    # Both ids shut down 2026-12-01. Google routes pro requests to
+    # gemini-3.8-flash and flash requests to gemini-3.5-flash-lite.
+    # gemini-2.5-flash-lite has no shutdown date, so it has no entry.
+    # Exact ids only: the flash key must not capture flash-lite.
+    # auto_migrate stays false so Deepr does not send Google's substitute.
+    "gemini-2.5-pro": DeprecationEntry(
+        old_model="gemini-2.5-pro",
+        new_model="gemini-3.8-flash",
+        sunset_date="2026-12-01",
+        warning=(
+            "gemini-2.5-pro shuts down on 2026-12-01. Google routes API requests to "
+            "gemini-3.8-flash on that date. Recommended upgrade: gemini-4-carbon. "
+            "Explicit selection is unchanged until the shutdown date."
+        ),
+        auto_migrate=False,
+        match_prefix=False,
+    ),
+    "gemini-2.5-flash": DeprecationEntry(
+        old_model="gemini-2.5-flash",
+        new_model="gemini-3.5-flash-lite",
+        sunset_date="2026-12-01",
+        warning=(
+            "gemini-2.5-flash shuts down on 2026-12-01. Google routes API requests to "
+            "gemini-3.5-flash-lite on that date. Recommended upgrade: gemini-3.8-flash. "
+            "Explicit selection is unchanged until the shutdown date."
+        ),
+        auto_migrate=False,
+        match_prefix=False,
+    ),
 }
 
 
