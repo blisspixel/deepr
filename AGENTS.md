@@ -123,6 +123,7 @@ Develop and review expert behavior against these requirements:
 - Generated artifacts (expert digests, SKILL.md exports, reports, linked knowledge) are **derived views**: regenerable from their owning canonical state, including corpus, study, brief, belief and history stores, never hand-edited as authoritative.
 - The reports root is config-sourced: `load_config()["results_dir"]` (env `DEEPR_REPORTS_PATH`, default `data/reports`). Never hardcode a `reports/` path - divergent roots was a real shipped bug.
 - `xfail` is disallowed in CI. Don't skip-to-green.
+- Workflow runs are not canceled, including a superseded pull request. Do not set `cancel-in-progress` to a value that can be true. Keep a concurrency group only for a real shared resource, such as the mutation run, and then set `cancel-in-progress: false` and `queue: max`. Remove a group that exists only to drop an older result. The unit suite rejects a workflow that breaks this (#324).
 - Windows is a first-class dev platform: UTF-8 console handling, cross-platform paths, no POSIX-only assumptions.
 
 ## Conventions

@@ -305,13 +305,61 @@ def test_every_hosted_ci_job_has_a_finite_timeout(workflow_name: str) -> None:
         assert 1 <= timeout <= 120
 
 
-@pytest.mark.parametrize("workflow_name", ["ci.yml", "mutation.yml"])
-def test_hosted_ci_cancels_superseded_runs(workflow_name: str) -> None:
-    workflow_path = Path(__file__).parents[2] / ".github" / "workflows" / workflow_name
-    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+def _concurrency_blocks(node: object) -> list[object]:
+    """Return every workflow or job concurrency value, including nested ones."""
+    found: list[object] = []
+    if isinstance(node, dict):
+        if "concurrency" in node:
+            found.append(node["concurrency"])
+        for value in node.values():
+            found.extend(_concurrency_blocks(value))
+    elif isinstance(node, list):
+        for item in node:
+            found.extend(_concurrency_blocks(item))
+    return found
 
-    assert workflow["concurrency"]["group"]
-    assert workflow["concurrency"]["cancel-in-progress"] is True
+
+def _assert_never_cancel(document: object, label: str) -> None:
+    """A concurrency block may queue. It may not cancel."""
+    for block in _concurrency_blocks(document):
+        assert isinstance(block, dict), label
+        assert block.get("cancel-in-progress") is False, label
+        assert block.get("queue") == "max", label
+
+
+def test_workflows_do_not_cancel_runs() -> None:
+    """Every commit keeps its result. Only a real shared resource may queue."""
+    workflow_dir = Path(__file__).parents[2] / ".github" / "workflows"
+    documents = {
+        path.name: yaml.safe_load(path.read_text(encoding="utf-8")) for path in sorted(workflow_dir.glob("*.yml"))
+    }
+
+    assert set(documents) == {"ci.yml", "mutation.yml", "release.yml"}
+    assert "concurrency" not in documents["ci.yml"]
+    assert "concurrency" not in documents["release.yml"]
+    for name, document in documents.items():
+        _assert_never_cancel(document, name)
+
+
+@pytest.mark.parametrize(
+    "document",
+    [
+        {"concurrency": {"group": "ci", "cancel-in-progress": True, "queue": "max"}},
+        {"concurrency": {"group": "ci", "cancel-in-progress": False}},
+        {
+            "concurrency": {
+                "group": "ci",
+                "cancel-in-progress": "${{ github.ref == 'refs/heads/main' }}",
+                "queue": "max",
+            }
+        },
+        {"concurrency": "ci-${{ github.ref }}"},
+        {"jobs": {"lint": {"concurrency": {"group": "lint", "cancel-in-progress": True}}}},
+    ],
+)
+def test_never_cancel_check_rejects_a_cancelling_or_unbounded_group(document: dict[str, object]) -> None:
+    with pytest.raises(AssertionError):
+        _assert_never_cancel(document, "fixture")
 
 
 def test_sbom_artifact_has_short_explicit_retention() -> None:

@@ -9,9 +9,7 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+# No concurrency group. A newer commit must not cancel an older run (#324).
 
 jobs:
   lint:

@@ -13,9 +13,11 @@ on:
 permissions:
   contents: read
 
+# Serialize this long job without dropping a pending or running result (#324).
 concurrency:
   group: mutation-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
+  queue: max
 
 jobs:
   mutmut:
