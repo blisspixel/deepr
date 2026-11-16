@@ -16,9 +16,15 @@ _PROVIDER_DEFAULT_MODELS = {
     "gemini": "gemini-3.8-flash",
     "xai": "grok-4.7",
     "grok": "grok-4.7",
+    # Shown by an explicit preview. This does not admit Anthropic research dispatch.
+    "anthropic": "claude-sonnet-5-5",
     # Cheap attended OpenRouter slug. Frontier OpenRouter slugs stay explicit.
     "openrouter": "qwen/qwen3.8-flash",
 }
+ANTHROPIC_RESEARCH_NOT_ADMITTED = (
+    "Anthropic is registered, not admitted. Metered Anthropic research stays blocked "
+    "until an account-control verifier is installed. No provider call is made."
+)
 _BOUNDED_TOOL_PROVIDERS = frozenset({"openai", "azure"})
 
 

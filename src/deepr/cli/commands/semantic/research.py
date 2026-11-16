@@ -19,6 +19,7 @@ from deepr.cli.commands.research_safety import (
     research_failure_boundary,
 )
 from deepr.cli.commands.research_support import (
+    ANTHROPIC_RESEARCH_NOT_ADMITTED,
     bounded_tool_disable_flags,
     research_tool_posture,
     resolve_research_route,
@@ -70,7 +71,7 @@ def detect_research_mode(prompt: str) -> str:
     "--provider",
     "-p",
     default=None,
-    type=click.Choice(["openai", "azure", "gemini", "xai", "openrouter"]),
+    type=click.Choice(["openai", "azure", "gemini", "xai", "openrouter", "anthropic"]),
     help="Research provider (defaults: deep-research=openai, general=xai)",
 )
 @click.option(
@@ -211,6 +212,9 @@ def research(
 
     if upload:
         upload = tuple(str(f) for f in validate_upload_files(upload))
+
+    if provider == "anthropic" and not preview:
+        raise click.UsageError(ANTHROPIC_RESEARCH_NOT_ADMITTED)
 
     if upload or scrape:
         require_storage()

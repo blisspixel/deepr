@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `deepr research --provider anthropic --preview` accepts the registered
+  provider and reports that it is not admitted. A run without `--preview`
+  refuses before any provider call (#329).
 - `gemini-2.5-pro` and `gemini-2.5-flash` record the 2026-12-01 shutdown.
   Google routes those requests to `gemini-3.8-flash` and
   `gemini-3.5-flash-lite`. Deepr names that date and does not silently

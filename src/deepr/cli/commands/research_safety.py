@@ -198,7 +198,7 @@ def print_explicit_research_preview(
         no_code=no_code,
         allow_preview_only=True,
     )
-    from deepr.cli.commands.research_support import research_tool_posture
+    from deepr.cli.commands.research_support import ANTHROPIC_RESEARCH_NOT_ADMITTED, research_tool_posture
 
     tools = research_tool_posture(provider, model, no_web=no_web, no_code=no_code, requested_no_web=requested_no_web)
     capability = get_resolved_model_capability(model)
@@ -224,13 +224,27 @@ def print_explicit_research_preview(
                 "account_verified": False,
             },
         }
+        if provider == "anthropic":
+            payload["admission"] = "registered_not_admitted"
+            payload["admission_reason"] = ANTHROPIC_RESEARCH_NOT_ADMITTED
         click.echo(json.dumps(payload, indent=2))
         return
+
+    anthropic_not_admitted = provider == "anthropic"
     console.print()
     console.print("[bold]Research Preview[/bold]")
     console.print(f"[muted]{'─' * 40}[/muted]")
     console.print(f"  Provider:   {provider}")
     console.print(f"  Model:      {model}")
+    if anthropic_not_admitted:
+        # Folding this sentence puts "made." on the next row, so a narrow log
+        # no longer contains the block reason as one line.
+        console.print(
+            f"  [warning]{ANTHROPIC_RESEARCH_NOT_ADMITTED}[/warning]",
+            no_wrap=True,
+            overflow="ignore",
+            crop=False,
+        )
     console.print(f"  Web search: {'enabled' if not no_web else 'disabled'}")
     console.print(f"    {tools['web_search_reason']}")
     if no_web:
