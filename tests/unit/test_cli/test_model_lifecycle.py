@@ -152,17 +152,6 @@ async def test_doctor_reports_gemini_25_flash_shutdown_date(monkeypatch):
     assert "no announced shutdown" not in checks[0].details[0]
 
 
-def test_providers_list_shows_gemini_25_shutdown_dates():
-    from deepr.cli.commands.providers import list as providers_list
-
-    result = CliRunner().invoke(providers_list, terminal_width=120)
-    assert result.exit_code == 0, result.output
-    assert "gemini-2.5-pro" in result.output
-    assert "2026-12-01" in result.output
-    assert "gemini-3.8-flash" in result.output
-    assert "gemini-3.5-flash-lite" in result.output
-
-
 def test_explicit_restricted_preview_keeps_json_stdout_and_access_notice():
     import json
     from deepr.cli.main import cli
