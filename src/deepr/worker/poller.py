@@ -82,6 +82,7 @@ class JobPoller:
 
         # Load config
         config = load_config()
+        self._reservation_provider = str(config.get("provider") or "openai")
 
         # Initialize components
         self.queue: QueueBackend = queue or create_queue(
@@ -125,6 +126,7 @@ class JobPoller:
 
     async def _poll_cycle(self) -> None:
         """Execute one poll cycle."""
+        await self._recover_interrupted_submission_claims()
         # Page through every PROCESSING job. A single limit=100 newest-first
         # slice starved older jobs once the backlog exceeded one page.
         page_size = 100
@@ -161,6 +163,23 @@ class JobPoller:
         for offset in range(0, len(unique_jobs), _MAX_CONCURRENT_POLLS):
             batch = unique_jobs[offset : offset + _MAX_CONCURRENT_POLLS]
             await asyncio.gather(*(self._poll_job(job) for job in batch))
+
+    async def _recover_interrupted_submission_claims(self) -> None:
+        """Recheck claims this process did not submit.
+
+        A startup-only pass would leave an in-grace claim processing forever.
+        The existing reconciler keeps the grace period, does not submit, and
+        does not refund ambiguous work.
+        """
+        from deepr.services.research_cost_reconciliation import reconcile_research_cost_reservations
+
+        try:
+            await reconcile_research_cost_reservations(
+                self.queue,
+                default_provider=self._reservation_provider,
+            )
+        except Exception:
+            logger.exception("Interrupted submission reconciliation failed")
 
     async def _poll_job(self, job: ResearchJob) -> None:
         """Check one job while isolating non-cancellation failures."""
