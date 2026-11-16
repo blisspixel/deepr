@@ -1086,7 +1086,14 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.51.10)
+## Current Status (v2.51.11)
+
+v2.51.11 records the 2026-12-01 shutdown for `gemini-2.5-pro` and
+`gemini-2.5-flash`. Deepr names Google's route and does not silently
+substitute either id. `gemini-2.5-flash-lite` stays prior-users-only with
+no shutdown date (#337). `deepr research --provider anthropic --preview`
+reports that the provider is registered, not admitted. A run without
+`--preview` refuses before any provider call (#329).
 
 v2.51.10 moves new-request defaults, allow-lists, advertised CLI choices,
 and dashboard research and settings choices to the current model ids.
@@ -4545,7 +4552,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.51.10. The active release plan governs work and future criteria; older
+v2.51.11. The active release plan governs work and future criteria; older
 phase notes retained below it are historical context, not a competing sequence.
 Completed items move to the changelog at release.
 

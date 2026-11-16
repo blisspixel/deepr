@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.51.11] - 2026-11-16
+
+Patch release: Gemini 2.5 Pro and Flash record the 2026-12-01 shutdown.
+`deepr research --provider anthropic --preview` reports that the provider
+is registered, not admitted, and a run without `--preview` refuses before
+a provider call.
+
 ### Fixed
 
 - `deepr research --provider anthropic --preview` accepts the registered

@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.51.10 current main, 2026-11-16. This document defines what users and host
+Status: v2.51.11 current main, 2026-11-16. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -25,6 +25,14 @@ SHA256SUMS attached, and uses that version's changelog section as the notes.
 A published release cannot take new assets, so a new patch tag is required
 instead of uploading. v2.51.8 shipped without assets; the README installer
 works again when this release is published.
+
+**v2.51.11 lifecycle and Anthropic preview:** `gemini-2.5-pro` and
+`gemini-2.5-flash` shut down on 2026-12-01. Deepr records that date and
+does not silently substitute either id. `gemini-2.5-flash-lite` stays
+prior-users-only with no shutdown date (#337). `deepr research --provider
+anthropic --preview` reports that Anthropic is registered, not admitted.
+A run without `--preview` refuses before a provider call (#329). No
+Anthropic research route is admitted.
 
 **v2.51.10 model currency:** new-request defaults and reference deploy
 allowlists are `gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6-luna`, and
