@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.51.10] - 2026-11-16
+
+Patch release: new-request defaults, allow-lists, advertised choices, and
+dashboard research settings use the current model ids. Locked Soup Sieve
+is 4.1.1 and the dashboard minimatch override is 11.0.8.
+
 ### Changed
 
 - New-request defaults, allow-lists, advertised CLI choices, and dashboard

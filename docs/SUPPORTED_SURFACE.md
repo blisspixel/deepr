@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.51.9 current main, 2026-11-12. This document defines what users and host
+Status: v2.51.10 current main, 2026-11-16. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -26,10 +26,10 @@ A published release cannot take new assets, so a new patch tag is required
 instead of uploading. v2.51.8 shipped without assets; the README installer
 works again when this release is published.
 
-**Unreleased model currency:** new-request defaults and reference deploy
+**v2.51.10 model currency:** new-request defaults and reference deploy
 allowlists are `gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6-luna`, and
 `gpt-6-astra`. Saved benchmark routing preferences cannot install a model
-that automatic routing already refuses. The package version stays 2.51.9.
+that automatic routing already refuses. Historical price rows remain.
 The v2.51.7 note below records what that release shipped.
 
 **v2.51.8 release assets and init reports path:** a version tag publishes the
