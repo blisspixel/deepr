@@ -80,17 +80,19 @@ current-key and spend-control documentation were also rechecked on that date:
 
 ## 2026-10-06 Currency Review
 
-The newest reviewed models are catalog candidates, excluded from automatic
-routing and new benchmark targets. Existing defaults and the frozen expert
-comparison stay pinned. A provider listing establishes availability in its
-documentation; account access and Deepr compatibility still need proof.
+On 2026-10-06 the newest reviewed models were catalog candidates, excluded
+from automatic routing and new benchmark targets. On 2026-11-15 the current
+GPT-6, Claude 5.5, Grok 4.7, and Gemini 4 Carbon rows became selectable.
+`gpt-6-sol` and `claude-fable-5-1` stay preview-only. A provider listing
+establishes availability in its documentation; account access and Deepr
+compatibility still need proof.
 
 | Provider | Newest reviewed public candidates | Remaining compatibility work |
 |----------|----------------------------------|------------------------------|
 | OpenAI | `gpt-6-astra`, `gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6-sol`, `gpt-6-luna` | Reasoning settings, Responses versus Chat tool constraints, 922K input limit, cache writes, and settlement. |
-| Anthropic | `claude-fable-5-1`, `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5` | Adaptive thinking, refusal accounting, and cache duration prices. Haiku 5.5 uses the over-100,000-token rates as its stored cap. Mythos 5.1 stays absent while access is limited. |
-| Google | `gemini-3.8-flash` | On 2026-10-06 this was still a preview candidate. It is now the selectable Gemini default. |
-| xAI | `grok-4-7` | Encrypted reasoning and long-context accounting. Product-only Grok 4.7 Fast is absent. |
+| Anthropic | `claude-fable-5-2`, `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`. `claude-fable-5-1` stays preview-only. | Adaptive thinking, refusal accounting, and cache duration prices. Haiku 5.5 uses the over-100,000-token rates as its stored cap. Mythos 5.1 stays absent while access is limited. |
+| Google | `gemini-4-carbon`, `gemini-3.8-flash` | Carbon is the Pro alias target. On 2026-10-06 Flash was still a preview candidate. Flash is now the selectable Gemini default. |
+| xAI | `grok-4.7` | Encrypted reasoning and long-context accounting. Product-only Grok 4.7 Fast is absent. |
 | Azure | Deployment-specific inventory | Published GPT-6 entries do not create verified deployments or globally selectable routes. |
 | OpenRouter | Four pinned routes passed the 2026-11-03 no-key check | Sol's cap now matches the observed OpenAI route. Qwen matches two Alibaba endpoints, Kimi's `mxfp4` tag is absent, and DeepSeek's pinned tag is absent. Those three stay refused. No replacement upstream or new dispatch authority is introduced. |
 
@@ -127,8 +129,9 @@ explicitly updated.
 - Anthropic lists Claude Mythos 5 and the Mythos preview as limited
   availability. Keep them out of Deepr's public registry and auto-routing until
   API access and pricing are normal enough to test and settle.
-- Selectable Gemini text models are `gemini-4-argon`, `gemini-3.8-flash`, and
-  `gemini-3.5-flash-lite`. The provider omits sampling parameters for these
+- Selectable Gemini text models are `gemini-4-carbon`, `gemini-4-argon`,
+  `gemini-3.8-flash`, and `gemini-3.5-flash-lite`. Carbon is the Pro alias
+  target. The provider omits sampling parameters for these
   models and sends `thinking_level`. Argon also rejects `thinking_budget`.
   Regular generation stays on generateContent. Moving that path to the
   Interactions API still needs a separate contract review for usage, tools,

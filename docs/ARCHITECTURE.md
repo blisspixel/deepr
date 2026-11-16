@@ -193,16 +193,16 @@ automatic metered fallback, and metered multi-call fan-out also fail closed.
 - **Location**: `src/deepr/providers/`
 - **Purpose**: Unified interface to AI providers
 - **Providers**:
-  - OpenAI (GPT-5.6 family, GPT-5.5 family, GPT-5.4 family, GPT-5 family, GPT-4.1 family, o3/o4-mini deep research)
-  - Azure OpenAI (same models, Azure-hosted)
+  - OpenAI (GPT-6.1 Sol, Terra, and Luna, GPT-6 Astra, retained GPT-5.6 and earlier families, o3/o4-mini deep research metadata)
+  - Azure OpenAI (deployment metadata, Azure-hosted)
   - Azure AI Foundry model metadata (Agent/Thread/Run execution gated)
-  - xAI (Grok 4.6, Grok 4.3, Grok Build 0.1, explicit premium image generation)
-  - Google (Gemini 3.6 Flash, Gemini 3.5 Flash-Lite, and retained 3.5/3.1/2.5 models; managed Deep Research gated)
-  - Anthropic (Claude Sonnet 5, Opus 5, Fable 5, Haiku 4.5)
+  - xAI (Grok 4.7, Grok 4.6, Grok 4.3, Grok Build 0.1, explicit premium image generation)
+  - Google (Gemini 4 Carbon, Gemini 3.8 Flash, Gemini 3.5 Flash-Lite, and retained earlier models; managed Deep Research gated)
+  - Anthropic (Claude Opus 5.5, Sonnet 5.5, Haiku 5.5, Fable 5.2, and retained earlier Claude ids)
 
 ### 4. Model Registry
-- **Location**: `src/deepr/providers/registry.py`
-- **Purpose**: Single source of truth for model capabilities
+- **Location**: `src/deepr/providers/registry.py`, merged with `reviewed_catalog.py` and the OpenRouter catalog
+- **Purpose**: Source of truth for model capabilities
 - **Contains**:
   - Model costs
   - Latency estimates
@@ -261,18 +261,18 @@ storage side effects share one durable parent transaction.
 
 ## Model Selection
 
-**CRITICAL**: All models are defined in `src/deepr/providers/registry.py`. This
-is the single source of truth. When providers release new models, update the
-registry first, then add provider mapping, pricing, usage-settlement, and
-routing tests as needed. Do not hardcode model names in feature code or
-secondary docs.
+**CRITICAL**: Model capabilities live in `src/deepr/providers/registry.py` and
+are merged with `reviewed_catalog.py` and the OpenRouter catalog. When
+providers release new models, update that registry first, then add provider
+mapping, pricing, usage-settlement, and routing tests as needed. Do not
+hardcode model names in feature code or secondary docs.
 
 ### Current Registry Highlights
 
-- **OpenAI**: GPT-5.6 Sol, Terra, and Luna lead the synthesis and planning metadata, with retained GPT-5.5 and GPT-5.4 families plus o3/o4-mini deep-research metadata. Finite requests support write-free preview.
-- **xAI**: Grok 4.6 and Grok Build 0.1 are registered with current standard token prices; multi-agent research remains gated.
-- **Google Gemini**: Gemini 3.6 Flash and Gemini 3.5 Flash-Lite are the current stable Flash entries; retained 3.5/3.1/2.5 metadata remains available, and the managed Deep Research Agent is gated. Gemini 3.5 Flash Cyber is not registered because it is not general Gemini API capacity.
-- **Anthropic**: Claude Sonnet 5 is the balanced default, Opus 5 is the research default, and Fable 5 is premium opt-in capacity.
+- **OpenAI**: GPT-6.1 Sol, Terra, and Luna are the synthesis, balanced, and cheap tiers. Astra is the explicit flagship. GPT-5.6 and earlier rows stay for pricing and refusal. Finite requests support write-free preview.
+- **xAI**: Grok 4.7 is the flagship alias target. Grok 4.6, Grok 4.3, and Grok Build 0.1 stay registered. Multi-agent research remains gated.
+- **Google Gemini**: Gemini 4 Carbon is the Pro alias target. Gemini 3.8 Flash is the default and Gemini 3.5 Flash-Lite is the budget entry. Retained earlier metadata remains available, and the managed Deep Research Agent is gated. Gemini 3.5 Flash Cyber is not registered because it is not general Gemini API capacity.
+- **Anthropic**: Claude Sonnet 5.5 is the balanced default, Opus 5.5 is the research default, Haiku 5.5 is the fast tier, and Fable 5.2 is premium opt-in capacity.
 - **Azure AI Foundry**: Deployment metadata remains available; Agent/Thread/Run work with Bing grounding is gated until the multi-call and tool-cost envelope is complete.
 
 Run `python scripts/discover_models.py --show-registry` for the current exact
