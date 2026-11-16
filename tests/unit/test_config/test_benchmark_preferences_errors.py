@@ -107,6 +107,25 @@ def test_benchmark_preferences_apply_selectable_registered_models(tmp_path, monk
     _shipped_default_unchanged()
 
 
+def test_benchmark_preferences_ignore_a_non_string_best_value(tmp_path, monkeypatch):
+    _isolate_routing(monkeypatch, tmp_path)
+    monkeypatch.setenv("OPENAI_API_KEY", "present")
+    bench_dir = tmp_path / "data" / "benchmarks"
+    bench_dir.mkdir(parents=True)
+    payload = {
+        "task_preferences": {
+            "synthesis": {"best_value": None},
+            "comprehensive_research": {"best_value": 6},
+            "reasoning": "openai/gpt-6.1-terra",
+        }
+    }
+    (bench_dir / "routing_preferences.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    config = ProviderConfig()
+
+    assert config.TASK_MODEL_MAP == _SHIPPED_TASK_MODELS
+
+
 def test_benchmark_preferences_need_the_provider_key(tmp_path, monkeypatch):
     _isolate_routing(monkeypatch, tmp_path)
     _write_preferences(tmp_path, {"synthesis": "openai/gpt-6.1-terra"})

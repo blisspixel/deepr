@@ -182,6 +182,28 @@ def upsert_configuration_env_file(path: Path, updates: dict[str, str]) -> None:
 load_configuration_environment()
 
 
+def accepted_benchmark_task_model(config_task: str, model_key: object) -> tuple[str, str] | None:
+    """Return a saved best_value when it may replace a shipped task default.
+
+    Deep research still requires a model name containing ``deep-research``.
+    That name check is not a lifecycle check. The id must also be a
+    registered capability that automatic routing may select, so a shut-down
+    id such as ``o3-deep-research`` or an unregistered name such as bare
+    ``grok-4`` cannot become the task default.
+    """
+    if not isinstance(model_key, str) or "/" not in model_key:
+        return None
+    provider, model = model_key.split("/", 1)
+    if config_task == "deep_research" and "deep-research" not in model:
+        return None
+    # Local import: provider modules also load this configuration module.
+    from deepr.providers.registry import get_model_capability, is_auto_selectable
+
+    if get_model_capability(provider, model) is None or not is_auto_selectable(provider, model):
+        return None
+    return provider, model
+
+
 class ProviderConfig(BaseModel):
     """Configuration for AI provider (OpenAI or Azure)."""
 
@@ -283,26 +305,17 @@ class ProviderConfig(BaseModel):
             "azure-foundry": "AZURE_PROJECT_ENDPOINT",
         }
 
-        # Local import: provider modules also load this configuration module.
-        from deepr.providers.registry import get_model_capability, is_auto_selectable
-
         for config_task, bench_task in config_to_bench.items():
             # Env var override for deep_research takes priority
             if config_task == "deep_research" and os.getenv("DEEPR_DEEP_RESEARCH_MODEL"):
                 continue
-            if bench_task not in task_prefs:
+            preference = task_prefs.get(bench_task)
+            if not isinstance(preference, dict):
                 continue
-            model_key = task_prefs[bench_task].get("best_value", "")
-            if "/" not in model_key:
+            chosen = accepted_benchmark_task_model(config_task, preference.get("best_value", ""))
+            if chosen is None:
                 continue
-            provider, model = model_key.split("/", 1)
-            # Keep deep_research pinned to deep-research-capable models only.
-            # The name check is not a lifecycle check: o3-deep-research still
-            # contains the substring and is already shut down.
-            if config_task == "deep_research" and "deep-research" not in model:
-                continue
-            if get_model_capability(provider, model) is None or not is_auto_selectable(provider, model):
-                continue
+            provider, model = chosen
             env_var = provider_env.get(provider)
             if env_var and os.environ.get(env_var):
                 self.TASK_MODEL_MAP[config_task] = (provider, model)
