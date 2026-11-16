@@ -231,6 +231,11 @@ Environment variable: `OPENAI_API_KEY`
 
 Registered IDs:
 
+- `openai/gpt-6.1-sol`
+- `openai/gpt-6.1-terra`
+- `openai/gpt-6-luna`
+- `openai/gpt-6-astra`
+- `openai/gpt-6-sol` (preview-only)
 - `openai/gpt-5.6-sol`
 - `openai/gpt-5.6-terra`
 - `openai/gpt-5.6-luna`
@@ -307,6 +312,10 @@ Default posture:
   but do not bypass explicit budget, tool, or provider gates. Alias resolution
   is shared by adapter dispatch, canonical pricing, bounded preflight, and the
   REST API.
+- Gemini 4 Carbon is the Pro alias target. Stored rates are the December 1,
+  2026 caps, `$4` input, `$20` output, and `$0.20` cached input per million
+  tokens. Introductory rates through November 30, 2026 are `$2` / `$10` /
+  `$0.10`.
 - Gemini 4 Argon is paid-only. Stored rates are the December 1, 2026 caps,
   `$4` input, `$20` output, and `$0.20` cached input per million tokens.
   Explicit context caches are rejected. Deepr omits `temperature`, `top_p`,
@@ -342,6 +351,7 @@ Environment variable: `XAI_API_KEY`
 
 Registered IDs:
 
+- `xai/grok-4.7`
 - `xai/grok-4-6`
 - `xai/grok-4-5`
 - `xai/grok-4-3`
@@ -362,8 +372,9 @@ Default posture:
 
 - Prefer current Grok text models only for explicitly selected bounded xAI work
   without unpriced server-side tools.
-- Generic `grok`, `grok-flagship`, and `grok-reasoning` aliases resolve to Grok
-  4.6. Quick and fact-check routing retains Grok 4.3 because it is cheaper.
+- Generic `grok`, `grok-flagship`, and `grok-reasoning` aliases resolve to
+  `grok-4.7`. Explicit `grok-4.6` still resolves to `grok-4.6`. Quick and
+  fact-check routing retains Grok 4.3 because it is cheaper.
 - Grok Build 0.1 is the current coding-specific entry. The documented
   `grok-code-fast`, `grok-code-fast-1`, and dated alias settle against the same
   $1/$2 standard rate and $0.20 cached-input rate.
@@ -388,6 +399,11 @@ Environment variable: `ANTHROPIC_API_KEY`
 
 Registered IDs:
 
+- `anthropic/claude-opus-5-5`
+- `anthropic/claude-sonnet-5-5`
+- `anthropic/claude-haiku-5-5`
+- `anthropic/claude-fable-5-2`
+- `anthropic/claude-fable-5-1` (preview-only)
 - `anthropic/claude-fable-5`
 - `anthropic/claude-sonnet-5`
 - `anthropic/claude-opus-5`
@@ -401,11 +417,14 @@ Registered IDs:
 
 Default posture:
 
-- `claude-sonnet-5` is Deepr's balanced Anthropic chat and synthesis default.
-- `claude-opus-5` is the registered Anthropic research flagship when an
-  explicit budget supports a higher-cost call.
-- `claude-fable-5` is a frontier, premium tier. It should be selected
-  deliberately, not by background routing.
+- `claude-sonnet-5-5` is the balanced Anthropic chat and synthesis default.
+  `claude-sonnet` and `claude-5-sonnet` resolve to it. Explicit
+  `claude-sonnet-5` stays that id.
+- `claude-opus-5-5` is the Anthropic research default. `claude-opus` and
+  `claude-5-opus` resolve to it. Explicit `claude-opus-5` stays that id.
+- `claude-haiku-5-5` is the fast tier. `claude-haiku` resolves to it.
+- `claude-fable-5-2` is the current frontier tier. Select it deliberately.
+  `claude-fable` resolves to it. `claude-fable-5-1` stays preview-only.
 - Adaptive-thinking capable models are handled by the Anthropic provider. Do
   not hardcode unsupported sampling or thinking parameters outside the provider
   adapter.
@@ -553,12 +572,13 @@ Default posture:
   in a given subscription.
 - Azure Foundry retires `azure-foundry/o3-deep-research` on 2026-11-19; the row
   is deprecated. New Azure deep-research deployments should target
-  `gpt-5.6-sol`. Azure keeps its own schedule for the other rows: the GPT-5
-  family retires 2027-02-09 and `gpt-4o`/`gpt-4o-mini`/GPT-4.1 on 2027-04-14,
-  later than the direct OpenAI API dates. Lifecycle lookups are
-  provider-scoped, so automatic selection keeps Azure rows until their Azure
-  date. Foundry dispatch stays
-  gated until the agent run exposes the complete output and tool ceiling.
+  `gpt-6.1-sol`. Historical deployment map keys, including `gpt-5.6-sol`,
+  remain so old records still resolve. Azure keeps its own schedule for the
+  other rows: the GPT-5 family retires 2027-02-09 and
+  `gpt-4o`/`gpt-4o-mini`/GPT-4.1 on 2027-04-14, later than the direct OpenAI
+  API dates. Lifecycle lookups are provider-scoped, so automatic selection
+  keeps Azure rows until their Azure date. Foundry dispatch stays gated until
+  the agent run exposes the complete output and tool ceiling.
 - Refresh Azure registry entries only after adapter behavior and deployment
   names are tested locally or in CI-like validation.
 
