@@ -1086,11 +1086,14 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.51.9)
+## Current Status (v2.51.10)
 
-Unreleased (#328): new-request defaults and reference deploy allowlists use
-`gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6-luna`, and `gpt-6-astra`. The package
-version stays 2.51.9. The v2.51.7 paragraph below records that release.
+v2.51.10 moves new-request defaults, allow-lists, advertised CLI choices,
+and dashboard research and settings choices to the current model ids.
+Saved benchmark routing preferences cannot install a model that automatic
+routing already refuses. Historical price rows remain. Managed CPython is
+3.15.2, uv is 0.13.8, locked soupsieve is 4.1.1, and the dashboard
+minimatch override is 11.0.8 (#328).
 
 v2.51.9 publishes the GitHub Release with the wheel, sdist, plugin archive,
 and SHA256SUMS attached when a version tag is pushed. The release notes come
@@ -4542,7 +4545,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.51.9. The active release plan governs work and future criteria; older
+v2.51.10. The active release plan governs work and future criteria; older
 phase notes retained below it are historical context, not a competing sequence.
 Completed items move to the changelog at release.
 

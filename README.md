@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.51.9-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.51.9)
+[![Version](https://img.shields.io/badge/version-2.51.10-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.51.10)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -320,9 +320,8 @@ for tested behavior and the distinction from draft standards and host certificat
 
 ## Direction
 
-Unreleased work moves new-request defaults and reference deploy allowlists
-to `gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6-luna`, and `gpt-6-astra`. The
-package version stays 2.51.9.
+v2.51.10 moves new-request defaults and reference deploy allowlists
+to `gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6-luna`, and `gpt-6-astra`.
 
 v2.51.9 publishes the GitHub Release with the wheel and SHA256SUMS attached,
 so the README installer works again. v2.51.8 shipped without those assets
