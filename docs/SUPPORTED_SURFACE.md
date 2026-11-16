@@ -28,8 +28,9 @@ works again when this release is published.
 
 **Unreleased model currency:** new-request defaults and reference deploy
 allowlists are `gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6-luna`, and
-`gpt-6-astra`. The package version stays 2.51.9. The v2.51.7 note below
-records what that release shipped.
+`gpt-6-astra`. Saved benchmark routing preferences cannot install a model
+that automatic routing already refuses. The package version stays 2.51.9.
+The v2.51.7 note below records what that release shipped.
 
 **v2.51.8 release assets and init reports path:** a version tag publishes the
 wheel, sdist, plugin archive, and SHA256SUMS. The installers still stop

@@ -240,8 +240,11 @@ class ProviderConfig(BaseModel):
     def _apply_benchmark_preferences(self) -> "ProviderConfig":
         """Override TASK_MODEL_MAP from benchmark results if available.
 
-        Reads routing_preferences.json and overrides task-specific model
-        selections with benchmark-recommended models (best_value strategy).
+        Reads routing_preferences.json and may override a task with its
+        best_value model when that id is a registered capability that
+        automatic routing may select and the provider key is set. A
+        shut-down, preview-only, or unregistered id leaves the shipped
+        default.
         Env var DEEPR_DEEP_RESEARCH_MODEL takes priority for deep_research.
         """
         use_benchmark_routing = os.getenv("DEEPR_USE_BENCHMARK_ROUTING", "true").lower() in {"1", "true", "yes", "on"}
@@ -280,6 +283,9 @@ class ProviderConfig(BaseModel):
             "azure-foundry": "AZURE_PROJECT_ENDPOINT",
         }
 
+        # Local import: provider modules also load this configuration module.
+        from deepr.providers.registry import get_model_capability, is_auto_selectable
+
         for config_task, bench_task in config_to_bench.items():
             # Env var override for deep_research takes priority
             if config_task == "deep_research" and os.getenv("DEEPR_DEEP_RESEARCH_MODEL"):
@@ -291,7 +297,11 @@ class ProviderConfig(BaseModel):
                 continue
             provider, model = model_key.split("/", 1)
             # Keep deep_research pinned to deep-research-capable models only.
+            # The name check is not a lifecycle check: o3-deep-research still
+            # contains the substring and is already shut down.
             if config_task == "deep_research" and "deep-research" not in model:
+                continue
+            if get_model_capability(provider, model) is None or not is_auto_selectable(provider, model):
                 continue
             env_var = provider_env.get(provider)
             if env_var and os.environ.get(env_var):

@@ -24,6 +24,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   GHSA-4j63-6c4x-wfg4). The dashboard lock overrides `minimatch` to 11.0.8
   (GHSA-g3hv-75wg-m249). No new direct dependencies.
 
+### Fixed
+
+- Saved benchmark routing preferences cannot replace a task default with a
+  model automatic routing already refuses, including a shut-down id such as
+  `o3-deep-research`, or with an unregistered name such as bare `grok-4`.
+  A registered selectable id can still override that task when its provider
+  key is set. `DEEPR_DEEP_RESEARCH_MODEL` still wins for deep research.
+
 ## [2.51.9] - 2026-11-12
 
 Patch release: the release workflow now publishes releases with the

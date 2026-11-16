@@ -48,6 +48,15 @@ provider ids. A saved default outside that list is rejected before any other
 configuration field changes. Explicit GPT-6 and retained GPT-5.6 research ids
 stay on the OpenAI deep-research provider when the caller does not name one.
 
+Saved `routing_preferences.json` may replace a task default only when
+`best_value` is a registered capability that automatic routing may select
+and that provider's key is set. A shut-down id such as `o3-deep-research`,
+a preview-only id, or an unregistered name such as bare `grok-4` leaves the
+shipped task entry in place. Deep research still ignores a preference whose
+model name does not contain `deep-research`, and `DEEPR_DEEP_RESEARCH_MODEL`
+still takes priority. GPT-5.6 rows remain eligible for this path because
+they have no deprecation record.
+
 ## What stays refused
 
 Shut-down ids, including `o3-deep-research`, `o4-mini-deep-research`, and the
