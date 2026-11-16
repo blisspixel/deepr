@@ -31,6 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `o3-deep-research`, or with an unregistered name such as bare `grok-4`.
   A registered selectable id can still override that task when its provider
   key is set. `DEEPR_DEEP_RESEARCH_MODEL` still wins for deep research.
+- The GPT-5.6 Sol registry strength no longer calls that row the OpenAI
+  task default. The shipped task default remains `gpt-6.1-sol`. The August
+  2026 model matrix keeps its original cells and says they record that date.
 
 ## [2.51.9] - 2026-11-12
 

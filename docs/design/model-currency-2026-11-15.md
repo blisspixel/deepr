@@ -29,7 +29,9 @@ embedding models. Do not enable a new metered dispatch path.
   `claude-fable-5-1` stays preview-only. Retired Claude ids stay refused
   rather than swapped. Limited-access Mythos models stay out.
 
-GPT-5.6 rows stay in the registry and are not mass-deprecated. Deprecation
+GPT-5.6 rows stay in the registry and are not mass-deprecated. The Sol
+strength calls the row a priced research record, not the task default.
+Deprecation
 successor text for already-retired OpenAI ids names the GPT-6 role, with
 `auto_migrate` left false. Registry `cost_per_query` for the promoted rows
 uses the existing query-scale overrides (Luna 0.05, Terra 0.15, Sol 0.30,

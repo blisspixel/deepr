@@ -111,7 +111,9 @@ access or the answer quality of the new candidate models.
 ## Retained 2026-08-13 Implementation Matrix
 
 This historical matrix explains the established entries below. The October
-review above supersedes its external-currentness descriptions.
+review above supersedes its external-currentness descriptions. Its
+task-default cells record August 2026. Current new-request ids are in the
+2026-11-15 posture above.
 
 | Provider | Current external signal | Deepr status | Action |
 |----------|-------------------------|--------------|--------|

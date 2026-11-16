@@ -23,6 +23,8 @@ class TestModelCapabilities:
         """Test that registry contains model definitions."""
         assert len(MODEL_CAPABILITIES) > 0
         assert "openai/gpt-5.6-sol" in MODEL_CAPABILITIES
+        sol = MODEL_CAPABILITIES["openai/gpt-5.6-sol"]
+        assert "task default" not in " ".join(sol.strengths).lower()
         assert "openai/gpt-5.4" in MODEL_CAPABILITIES
         assert "openai/gpt-5.4-pro" in MODEL_CAPABILITIES
         assert "xai/grok-4-6" in MODEL_CAPABILITIES
