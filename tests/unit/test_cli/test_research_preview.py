@@ -142,10 +142,54 @@ class TestPreviewExplicitModel:
         assert payload["executed"] is False
         assert payload["provider"] == "openai"
         assert payload["model"] == "o4-mini-deep-research"
-        assert {key: payload["tools"][key] for key in ("web_search", "code_interpreter")} == {"web_search": True, "code_interpreter": False}
+        assert {key: payload["tools"][key] for key in ("web_search", "code_interpreter")} == {
+            "web_search": True,
+            "code_interpreter": False,
+        }
         ce = payload["cost_estimate"]
         assert {"min", "expected", "max"} <= set(ce.keys())
         assert 0.0 <= ce["min"] <= ce["expected"] <= ce["max"]
+
+    def test_anthropic_preview_reports_registered_not_admitted(self, runner: CliRunner) -> None:
+        import sys
+
+        research_mod = sys.modules["deepr.cli.commands.semantic.research"]
+        with patch.object(research_mod, "_run_single") as mock_single:
+            result = runner.invoke(cli, ["research", "q", "--provider", "anthropic", "--preview"])
+
+        assert result.exit_code == 0, result.output
+        mock_single.assert_not_called()
+        assert "claude-sonnet-5-5" in result.output
+        assert "registered, not admitted" in result.output
+        assert "No provider call is made." in result.output
+        assert "preview only" in result.output.lower()
+
+    def test_anthropic_preview_json_keeps_the_route_unexecuted(self, runner: CliRunner) -> None:
+        result = runner.invoke(cli, ["research", "q", "--provider", "anthropic", "--preview", "--json"])
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["executed"] is False
+        assert payload["provider"] == "anthropic"
+        assert payload["model"] == "claude-sonnet-5-5"
+        assert payload["admission"] == "registered_not_admitted"
+        assert "registered, not admitted" in payload["admission_reason"]
+
+    def test_anthropic_execution_refuses_before_dispatch(self, runner: CliRunner) -> None:
+        import sys
+
+        research_mod = sys.modules["deepr.cli.commands.semantic.research"]
+        with (
+            patch.object(research_mod, "_run_single") as mock_single,
+            patch("deepr.cli.commands.run._reserve_job_submission") as reserve,
+        ):
+            result = runner.invoke(cli, ["research", "q", "--provider", "anthropic"])
+
+        assert result.exit_code != 0
+        mock_single.assert_not_called()
+        reserve.assert_not_called()
+        assert "registered, not admitted" in result.output
+        assert "No provider call is made." in result.output
 
     def test_provider_only_gemini_preview_uses_safe_current_default(self, runner: CliRunner) -> None:
         result = runner.invoke(
@@ -157,7 +201,10 @@ class TestPreviewExplicitModel:
         payload = json.loads(result.output)
         assert payload["provider"] == "gemini"
         assert payload["model"] == "gemini-3.8-flash"
-        assert {key: payload["tools"][key] for key in ("web_search", "code_interpreter")} == {"web_search": False, "code_interpreter": False}
+        assert {key: payload["tools"][key] for key in ("web_search", "code_interpreter")} == {
+            "web_search": False,
+            "code_interpreter": False,
+        }
 
     def test_openrouter_preview_uses_exact_slug_and_disables_tools(self, runner: CliRunner) -> None:
         result = runner.invoke(
@@ -178,7 +225,10 @@ class TestPreviewExplicitModel:
         payload = json.loads(result.output)
         assert payload["provider"] == "openrouter"
         assert payload["model"] == "qwen/qwen3.8-flash"
-        assert {key: payload["tools"][key] for key in ("web_search", "code_interpreter")} == {"web_search": False, "code_interpreter": False}
+        assert {key: payload["tools"][key] for key in ("web_search", "code_interpreter")} == {
+            "web_search": False,
+            "code_interpreter": False,
+        }
         assert payload["executed"] is False
 
     def test_provider_only_openrouter_preview_uses_bounded_default(self, runner: CliRunner) -> None:
@@ -340,7 +390,10 @@ class TestPreviewAutoMode:
         assert payload["executed"] is False
         assert payload["model"] == "o3-deep-research"
         assert payload["provider"] == "openai"
-        assert {key: payload["tools"][key] for key in ("web_search", "code_interpreter")} == {"web_search": True, "code_interpreter": False}
+        assert {key: payload["tools"][key] for key in ("web_search", "code_interpreter")} == {
+            "web_search": True,
+            "code_interpreter": False,
+        }
         assert payload["admission_max_cost"] >= payload["routing_cost_estimate"]
 
     def test_auto_preview_disables_unpriced_xai_tools(self, runner: CliRunner) -> None:
@@ -362,4 +415,7 @@ class TestPreviewAutoMode:
 
         assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
-        assert {key: payload["tools"][key] for key in ("web_search", "code_interpreter")} == {"web_search": False, "code_interpreter": False}
+        assert {key: payload["tools"][key] for key in ("web_search", "code_interpreter")} == {
+            "web_search": False,
+            "code_interpreter": False,
+        }
