@@ -20,7 +20,7 @@ Region availability (Agent Service, Feb 2026):
 
 Environment variables:
     AZURE_PROJECT_ENDPOINT - Project endpoint URL
-    AZURE_DEEP_RESEARCH_DEPLOYMENT - Deep research model deployment (default: gpt-5.6-sol)
+    AZURE_DEEP_RESEARCH_DEPLOYMENT - Deep research model deployment (default: gpt-6.1-sol)
     AZURE_GPT_DEPLOYMENT - Default GPT model for the agent (default: gpt-4.1)
     AZURE_BING_RESOURCE_NAME - Bing grounding connection name
 """
@@ -82,9 +82,9 @@ class AzureFoundryProvider(DeepResearchProvider):
             project_endpoint: Azure AI project endpoint URL
                 (defaults to AZURE_PROJECT_ENDPOINT env var)
             deep_research_deployment: Deep research model deployment name
-                (defaults to AZURE_DEEP_RESEARCH_DEPLOYMENT or "gpt-5.6-sol")
+                (defaults to AZURE_DEEP_RESEARCH_DEPLOYMENT or "gpt-6.1-sol")
             gpt_deployment: GPT model deployment for the agent
-                (defaults to AZURE_GPT_DEPLOYMENT or "gpt-4o")
+                (defaults to AZURE_GPT_DEPLOYMENT or "gpt-4.1")
             bing_resource_name: Bing grounding connection name
                 (defaults to AZURE_BING_RESOURCE_NAME)
             model_mappings: Custom model name mappings (optional)

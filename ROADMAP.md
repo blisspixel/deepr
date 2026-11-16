@@ -1088,6 +1088,10 @@ reliable product, not a four-language architecture diagram.
 
 ## Current Status (v2.51.9)
 
+Unreleased (#328): new-request defaults and reference deploy allowlists use
+`gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6-luna`, and `gpt-6-astra`. The package
+version stays 2.51.9. The v2.51.7 paragraph below records that release.
+
 v2.51.9 publishes the GitHub Release with the wheel, sdist, plugin archive,
 and SHA256SUMS attached when a version tag is pushed. The release notes come
 from that version's changelog section. A published immutable release cannot
@@ -1103,8 +1107,8 @@ absolute path (#327). An existing reports path is left unchanged.
 v2.51.7 records `claude-sonnet-4-5` sunset 2026-11-30. Prefix matching covers
 `claude-sonnet-4-5-20250929`, and the API returns `model_shut_down` from that
 date. The successor is `anthropic/claude-sonnet-5-5`. Explicit requests keep
-the requested id. Opus 4.5 and Haiku 4.5 stay undated. The reference deploy
-allowlists name `gpt-5.6-sol` and `gpt-5.6-terra`.
+the requested id. Opus 4.5 and Haiku 4.5 stay undated. That release's
+reference deploy allowlists named `gpt-5.6-sol` and `gpt-5.6-terra`.
 
 v2.51.6 upgrades locked transitive `pyasn1` from 0.6.4 to 0.6.5. Four
 high-severity denial-of-service advisories in BER/CER/DER decoding

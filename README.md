@@ -320,6 +320,10 @@ for tested behavior and the distinction from draft standards and host certificat
 
 ## Direction
 
+Unreleased work moves new-request defaults and reference deploy allowlists
+to `gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6-luna`, and `gpt-6-astra`. The
+package version stays 2.51.9.
+
 v2.51.9 publishes the GitHub Release with the wheel and SHA256SUMS attached,
 so the README installer works again. v2.51.8 shipped without those assets
 because the release was already published before the workflow could upload.
@@ -332,8 +336,8 @@ stores the default reports path as an absolute `data/reports` directory
 v2.51.7 records the Claude Sonnet 4.5 retirement on 2026-11-30, including
 `claude-sonnet-4-5-20250929`. From that date the API returns
 `model_shut_down`. Explicit requests stay on the requested id. Opus 4.5 and
-Haiku 4.5 stay undated. The reference deploy allowlists name `gpt-5.6-sol`
-and `gpt-5.6-terra`.
+Haiku 4.5 stay undated. That release's reference deploy allowlists named
+`gpt-5.6-sol` and `gpt-5.6-terra`.
 
 v2.51.6 upgrades the locked transitive `pyasn1` from 0.6.4 to 0.6.5. The
 0.6.4 decoder has four high-severity denial-of-service advisories

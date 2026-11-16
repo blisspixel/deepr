@@ -99,6 +99,19 @@ class TestAzureFoundryProvider:
             assert p.gpt_deployment == "gpt-4o-custom"
             assert p.bing_resource_name == "env-bing"
 
+    def test_constructor_defaults_name_current_deployments(self, mock_azure_modules):
+        """Unset deployment env uses the current new-request ids."""
+        from deepr.providers.azure_foundry_provider import AzureFoundryProvider
+
+        with patch.dict(os.environ, {}, clear=True):
+            provider = AzureFoundryProvider(
+                project_endpoint="https://test.services.ai.azure.com/api/projects/test",
+            )
+
+        assert provider.deep_research_deployment == "gpt-6.1-sol"
+        assert provider.gpt_deployment == "gpt-4.1"
+        assert provider.get_model_name("gpt-6.1-sol") == "gpt-6.1-sol"
+
     def test_model_name_mapping(self, provider):
         """Test model name mapping."""
         assert provider.get_model_name("o3-deep-research") == "o3-deep-research"

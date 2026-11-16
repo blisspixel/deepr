@@ -26,6 +26,11 @@ A published release cannot take new assets, so a new patch tag is required
 instead of uploading. v2.51.8 shipped without assets; the README installer
 works again when this release is published.
 
+**Unreleased model currency:** new-request defaults and reference deploy
+allowlists are `gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6-luna`, and
+`gpt-6-astra`. The package version stays 2.51.9. The v2.51.7 note below
+records what that release shipped.
+
 **v2.51.8 release assets and init reports path:** a version tag publishes the
 wheel, sdist, plugin archive, and SHA256SUMS. The installers still stop
 before any install when the latest release has no supported wheel (#326).
@@ -35,8 +40,8 @@ before any install when the latest release has no supported wheel (#326).
 **v2.51.7 model sunset:** `claude-sonnet-4-5` retires on 2026-11-30, including
 the dated snapshot `claude-sonnet-4-5-20250929`. The API returns
 `model_shut_down`. Explicit requests stay on the requested id. Opus 4.5 and
-Haiku 4.5 have no recorded sunset. The reference deploy allowlists are
-`gpt-5.6-sol` and `gpt-5.6-terra`.
+Haiku 4.5 have no recorded sunset. That release's reference deploy
+allowlists were `gpt-5.6-sol` and `gpt-5.6-terra`.
 
 **v2.51.6 locked decoder dependency:** transitive `pyasn1` is 0.6.5. Version
 0.6.4 is affected by CVE-2026-119194, CVE-2026-119195, CVE-2026-119196, and

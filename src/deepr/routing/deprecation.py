@@ -132,10 +132,7 @@ DEPRECATION_REGISTRY: dict[str, DeprecationEntry] = {
         old_model="gpt-4.1",
         new_model="gpt-6.1-terra",
         sunset_date="2027-01-14",
-        warning=(
-            "gpt-4.1 shuts down on 2027-01-14. Deepr successor: gpt-6.1-terra. "
-            "Explicit selection is unchanged."
-        ),
+        warning=("gpt-4.1 shuts down on 2027-01-14. Deepr successor: gpt-6.1-terra. Explicit selection is unchanged."),
         auto_migrate=False,
     ),
     "gpt-4.1-mini": DeprecationEntry(
@@ -143,8 +140,7 @@ DEPRECATION_REGISTRY: dict[str, DeprecationEntry] = {
         new_model="gpt-6-luna",
         sunset_date="2027-01-14",
         warning=(
-            "gpt-4.1-mini shuts down on 2027-01-14. Deepr successor: gpt-6-luna. "
-            "Explicit selection is unchanged."
+            "gpt-4.1-mini shuts down on 2027-01-14. Deepr successor: gpt-6-luna. Explicit selection is unchanged."
         ),
         auto_migrate=False,
     ),
@@ -253,10 +249,7 @@ DEPRECATION_REGISTRY: dict[str, DeprecationEntry] = {
         old_model="gpt-4o",
         new_model="gpt-6.1-terra",
         sunset_date="2027-01-14",
-        warning=(
-            "gpt-4o shuts down on 2027-01-14. Deepr successor: gpt-6.1-terra. "
-            "Explicit selection is unchanged."
-        ),
+        warning=("gpt-4o shuts down on 2027-01-14. Deepr successor: gpt-6.1-terra. Explicit selection is unchanged."),
         auto_migrate=False,
     ),
     # The original snapshot shut down earlier; prefix matching on gpt-4o
@@ -273,10 +266,7 @@ DEPRECATION_REGISTRY: dict[str, DeprecationEntry] = {
         old_model="gpt-4o-mini",
         new_model="gpt-6-luna",
         sunset_date="2027-01-14",
-        warning=(
-            "gpt-4o-mini shuts down on 2027-01-14. Deepr successor: gpt-6-luna. "
-            "Explicit selection is unchanged."
-        ),
+        warning=("gpt-4o-mini shuts down on 2027-01-14. Deepr successor: gpt-6-luna. Explicit selection is unchanged."),
         auto_migrate=False,
     ),
     # Anthropic deprecations page, checked 2026-11-03:

@@ -33,15 +33,14 @@ shut down 2026-10-23; `gpt-5`, `gpt-5-mini`, `gpt-5-nano` and `o3` shut down
 2026-12-11; `gpt-4o`, `gpt-4o-mini`, `gpt-4.1` and `gpt-4.1-mini` shut down
 2027-01-14. Automatic routing and registry selectors never return an id with a
 direct-API retirement record (Azure rows follow Azure's dates) and fail closed
-when nothing current remains. Executable
-the 2026-10-27 repair used `gpt-5.6-sol` for planning and research,
-`gpt-5.6-terra` for balanced reasoning, and `gpt-5.6-luna` for cheap utility
-calls. On 2026-11-15 those new-request roles moved to `gpt-6.1-sol`,
-`gpt-6.1-terra`, and `gpt-6-luna`. `gpt-6-astra` is the explicit flagship.
-`gemini-3.8-flash` stays the Gemini environment default, and Pro aliases
-resolve to `gemini-4-carbon`. `gpt-6-luna` is selectable. `gpt-6-sol` and
-`claude-fable-5-1` stay preview-only. Retired rows keep their prices so
-historical usage still settles.
+when nothing current remains. The 2026-10-27 repair used `gpt-5.6-sol` for
+planning and research, `gpt-5.6-terra` for balanced reasoning, and
+`gpt-5.6-luna` for cheap utility calls. On 2026-11-15 those new-request roles
+moved to `gpt-6.1-sol`, `gpt-6.1-terra`, and `gpt-6-luna`. `gpt-6-astra` is
+the explicit flagship. `gemini-3.8-flash` stays the Gemini environment
+default, and Pro aliases resolve to `gemini-4-carbon`. `gpt-6-luna` is
+selectable. `gpt-6-sol` and `claude-fable-5-1` stay preview-only. Retired
+rows keep their prices so historical usage still settles.
 
 Latest public text-model listings and relevant prices were reviewed on
 2026-10-06. This does not establish every historical model's currency. The
