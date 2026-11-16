@@ -237,7 +237,14 @@ def print_explicit_research_preview(
     console.print(f"  Provider:   {provider}")
     console.print(f"  Model:      {model}")
     if anthropic_not_admitted:
-        console.print(f"  [warning]{ANTHROPIC_RESEARCH_NOT_ADMITTED}[/warning]")
+        # Folding this sentence puts "made." on the next row, so a narrow log
+        # no longer contains the block reason as one line.
+        console.print(
+            f"  [warning]{ANTHROPIC_RESEARCH_NOT_ADMITTED}[/warning]",
+            no_wrap=True,
+            overflow="ignore",
+            crop=False,
+        )
     console.print(f"  Web search: {'enabled' if not no_web else 'disabled'}")
     console.print(f"    {tools['web_search_reason']}")
     if no_web:
