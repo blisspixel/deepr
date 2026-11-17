@@ -1086,7 +1086,15 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.51.11)
+## Current Status (v2.51.12)
+
+v2.51.12 recovers an interrupted submission claim on every polling
+cycle. The claim stays in place during the grace period, then reaches
+the unresolved outcome. The worker does not submit another job or
+refund that hold (#325). CI no longer cancels an older run when a
+newer commit is pushed (#324). The README states that an outside
+orchestrator is optional and that a fleet-seat consultation grants no
+spend, mutation, or workflow authority (#321).
 
 v2.51.11 records the 2026-12-01 shutdown for `gemini-2.5-pro` and
 `gemini-2.5-flash`. Deepr names Google's route and does not silently
@@ -4552,7 +4560,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.51.11. The active release plan governs work and future criteria; older
+v2.51.12. The active release plan governs work and future criteria; older
 phase notes retained below it are historical context, not a competing sequence.
 Completed items move to the changelog at release.
 

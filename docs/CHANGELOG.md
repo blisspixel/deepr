@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.51.12] - 2026-11-17
+
+Patch release: a restarted polling worker recovers an interrupted
+submission claim without a second submit or a refund. CI keeps each
+workflow run until it finishes. The README states that an outside
+orchestrator consults without spend, mutation, or workflow authority.
+
 ### Fixed
 
 - The consult inventory-discovery regression enters discovery, then
