@@ -212,6 +212,31 @@ closed; disclose reviewer carryover and any source-scope ambiguity. Do not
 rewrite generated answers, silently remove a truncated brief, or count a
 reviewed snippet as a completed structured result.
 
+## Source-bundle coverage (2026-11-17, #323)
+
+A finding may cite more than one retained document. `finding_sources` still
+keeps the first retained nonempty window, and `resolved` still means that one
+anchored passage was read under a matched study. That label is not all-source
+completeness.
+
+`ConsultContext.source_bundles` records, per finding, the selected window
+hashes in `corpus_shas` order, cited hashes whose retained bytes are missing,
+and readable hashes left out by the eight-source cap. An empty mapping means
+a capture from before this field. Those captures still render one window.
+
+When a finding has one selected window and nothing missing or unselected, that
+window stays inside the finding block. When it has several windows, missing
+bytes, or a capped source, the finding block names every cited hash and each
+selected window is its own `window:<finding id>:<sha>` block. The block keeps
+the passage, publisher, and fetch time. A tight prompt may omit a window
+block. The finding's coverage line still names that hash. The manifest
+`source_bundles` status is `complete`, `partial`, or `unknown`. Position
+status can stay `complete` while that status does not. Missing retained bytes
+are not described as the source being silent. Source order does not drop the
+other side. A later fetch time does not replace an earlier passage. The
+prompt limit stays 16,000 characters. Nothing here decides that the
+relationship holds.
+
 ## Alternatives rejected
 
 - **Raise the caps.** Moves the cliff without making it visible, and a larger

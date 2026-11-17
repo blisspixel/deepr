@@ -103,6 +103,15 @@ class ConsultContext:
     Contexts captured before this field existed restore with an empty mapping
     and keep their original rendering.
     """
+    source_bundles: dict[str, dict[str, list[str]]] = field(default_factory=dict)
+    """finding_id -> windows, missing_bytes, and not_selected.
+
+    windows are selected retained hashes in corpus_shas order. missing_bytes
+    names cited hashes with no retained text. not_selected names readable
+    hashes left out by the source cap. Empty means a capture from before
+    this field existed; those captures still render one window. Membership
+    is not necessity or truth.
+    """
 
     studied_at: str = ""
     study_fingerprint: str = ""
@@ -307,6 +316,41 @@ def gather_finding_sources(context: ConsultContext, corpus: CorpusStore) -> dict
     return windows
 
 
+def _source_readable(corpus: CorpusStore, sha: str) -> bool:
+    entry = corpus.entries.get(sha)
+    return entry is not None and bool(corpus.read(sha))
+
+
+def gather_source_bundles(context: ConsultContext, corpus: CorpusStore) -> dict[str, dict[str, list[str]]]:
+    """Which cited sources were selected, missing, or left past the cap.
+
+    Selection follows gather_sources: a readable document that is not in
+    ``context.sources`` missed the eight-source cap. This records membership.
+    It does not decide that a source is necessary or that it is silent.
+    """
+    selected = {sha for sha, _, _ in context.sources}
+    bundles: dict[str, dict[str, list[str]]] = {}
+    for finding in context.findings:
+        if not finding.finding_id or not finding.corpus_shas:
+            continue
+        windows: list[str] = []
+        missing: list[str] = []
+        parked: list[str] = []
+        seen: set[str] = set()
+        for sha in finding.corpus_shas:
+            if sha in seen:
+                continue
+            seen.add(sha)
+            if not _source_readable(corpus, sha):
+                missing.append(sha)
+            elif sha in selected:
+                windows.append(sha)
+            else:
+                parked.append(sha)
+        bundles[finding.finding_id] = {"windows": windows, "missing_bytes": missing, "not_selected": parked}
+    return bundles
+
+
 def gather_reference_passages(question: str, corpus: CorpusStore) -> list[tuple[str, str, str]]:
     """Route into a bounded reference library by overlap, never assert entailment."""
     query = _tokens(question)
@@ -440,6 +484,7 @@ def build_consult_context(
         if corpus is not None:
             context.sources = gather_sources(context.findings, corpus)
             context.finding_sources = gather_finding_sources(context, corpus)
+            context.source_bundles = gather_source_bundles(context, corpus)
     if corpus is not None:
         context.reference_passages = gather_reference_passages(question, corpus)
         context.source_observed = gather_source_observations(context, corpus)
