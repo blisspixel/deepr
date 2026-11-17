@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `deepr mcp serve` in stdio mode keeps stdout for JSON-RPC only. The
+  startup banner, and a startup interrupt or error, go to stderr. HTTP
+  serve banners stay on stdout (#348).
+
 ## [2.51.13] - 2026-11-17
 
 Patch release: a consult finding that cites more than one retained

@@ -4358,6 +4358,13 @@ A mock panel (business buyer, indie hacker, enterprise AI architect, research sc
 
 ### Backlog (Not in Active Sequence)
 
+- [x] **Live-validation finding (2026-11-17, v2.51.12 MCP playtest, #348):**
+  `deepr mcp serve` wrote a three-line startup banner and a blank line to
+  stdout before the first JSON-RPC message. The same banner was present on
+  v2.51.7. Stdio mode now writes that banner, and a startup interrupt or
+  error, to stderr. Stdout stays JSON-RPC. HTTP serve banners stay on
+  stdout. The `deepr-mcp` entry point already called the server directly
+  and did not print this banner.
 - [~] **Provider currency follow-up (2026-10-06):** the October review kept
   reviewed GPT-6, Claude 5.5/Fable 5.1, Gemini 3.8 Flash, and Grok 4.7
   candidates unpromoted until adapter parameters, usage buckets, limits, and
