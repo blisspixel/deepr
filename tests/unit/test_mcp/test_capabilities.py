@@ -42,6 +42,14 @@ def test_payload_is_versioned_and_shaped():
     assert caps["experts"]["count"] == 2
     assert {"free", "low", "medium", "high"} == set(caps["cost_tiers"])
     assert caps["error_contract"]["fields"] == ["error_code", "category", "retryable", "message"]
+    assert caps["error_contract"]["categories"] == [
+        "not_found",
+        "validation",
+        "budget",
+        "confirmation",
+        "timeout",
+        "internal",
+    ]
     assert "local" == caps["zero_cost_synthesis"]["owned"]
     assert caps["zero_cost_synthesis"]["prepaid_plans"] == []
     assert caps["zero_cost_synthesis"]["executable"] == ["local"]

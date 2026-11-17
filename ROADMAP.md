@@ -4358,6 +4358,13 @@ A mock panel (business buyer, indie hacker, enterprise AI architect, research sc
 
 ### Backlog (Not in Active Sequence)
 
+- [x] **Live-validation finding (2026-11-17, v2.51.12 MCP playtest, #350):**
+  every MCP tool error reported `category: internal`, including
+  not-found lookups, budget refusals, invalid budgets, and missing
+  confirmation. The default category now follows the error code:
+  `not_found`, `validation`, `budget`, `confirmation`, `timeout`, or
+  `internal`. An explicit category is kept. The same behavior was present
+  on v2.51.7.
 - [x] **Live-validation finding (2026-11-17, v2.51.12 MCP playtest, #349):**
   an unknown MCP tool name, and `deepr_research` with a negative budget,
   returned `CONFIRMATION_REQUIRED` before lookup. The same calls were

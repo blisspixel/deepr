@@ -611,6 +611,9 @@ All four projects (Deepr, Recon, Distillr, Primr) should follow:
 1. **MCP tool naming:** `verb_noun` format (e.g., `domain_lookup`, `ingest_papers`, `research_company`)
 2. **Response envelope:** Every MCP response includes `{ cost, trace_id, duration_ms, ...payload }`
 3. **Error format:** `{ error: true, category: "budget_exceeded"|"timeout"|"not_found"|..., message: "...", retryable: bool }`
+   Deepr MCP tool errors use `not_found`, `validation`, `budget`,
+   `confirmation`, `timeout`, and `internal`. The `budget_exceeded` sketch
+   above is the `budget` group. Hosts still branch on `error_code` (#350).
 4. **Budget param:** Tools that spend money accept `budget: float` and refuse to exceed it
 5. **Trace ID:** All tools accept optional `trace_id: string` and echo it back (enables cross-tool tracing in Deepr's observability layer)
 
