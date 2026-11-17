@@ -34,8 +34,10 @@ _MAX_NAMED_MISSING = 6
 class PacketBlock:
     """One whole unit of synthesis context and what it depends on.
 
-    ``key`` is ``position:<rank>``, ``finding:<id>``, ``reference:<sha>`` or a
-    fixed section name. ``cites`` lists the finding ids a position rests on.
+    ``key`` is ``position:<rank>``, ``finding:<id>``, ``window:<finding>:<sha>``,
+    ``reference:<sha>`` or a fixed section name. ``cites`` lists the finding ids
+    a position rests on. Bundle tuples name every window a multi-source finding
+    expected to pack. They stay empty when the one window is embedded.
     """
 
     text: str
@@ -45,6 +47,9 @@ class PacketBlock:
     label: str = ""
     unresolved: tuple[str, ...] = ()
     """Cited ids whose support did not resolve to this study and a read passage."""
+    bundle_windows: tuple[str, ...] = ()
+    bundle_missing_bytes: tuple[str, ...] = ()
+    bundle_not_selected: tuple[str, ...] = ()
 
 
 _INSTRUCTIONS = (
@@ -139,6 +144,67 @@ def _caveat_blocks(context: ConsultContext) -> list[PacketBlock]:
     return blocks
 
 
+def _bundle_lists(bundle: dict[str, list[str]] | None) -> tuple[list[str], list[str], list[str]]:
+    if not bundle:
+        return [], [], []
+    return (
+        [str(sha) for sha in bundle.get("windows") or []],
+        [str(sha) for sha in bundle.get("missing_bytes") or []],
+        [str(sha) for sha in bundle.get("not_selected") or []],
+    )
+
+
+def _bundle_needs_windows(bundle: dict[str, list[str]] | None) -> bool:
+    """Several windows, missing bytes, or a capped source need their own record.
+
+    A single selected window with nothing missing stays inside the finding
+    block. Empty means a capture from before source bundles existed.
+    """
+    windows, missing, parked = _bundle_lists(bundle)
+    return len(windows) > 1 or bool(missing) or bool(parked)
+
+
+def _coverage_line(finding_id: str, bundle: dict[str, list[str]]) -> str:
+    windows, missing, parked = _bundle_lists(bundle)
+    parts = []
+    if windows:
+        parts.append("retained windows " + ", ".join(windows))
+    if missing:
+        parts.append("retained bytes missing " + ", ".join(missing))
+    if parked:
+        parts.append("not selected within the source cap " + ", ".join(parked))
+    return (
+        f"Source-bundle coverage for [{finding_id}]: {'; '.join(parts)}. "
+        "Missing retained bytes are not proof the source is silent. "
+        "This names packed windows only, not whether the relationship holds."
+    )
+
+
+def _window_blocks(
+    context: ConsultContext, finding: StudyFinding, sources: dict[str, tuple[str, str]]
+) -> list[PacketBlock]:
+    """One block per selected window, in corpus_shas order.
+
+    Creating the block does not promise it fits. A tight prompt can omit it
+    and the finding's coverage line still names the hash.
+    """
+    bundle = context.source_bundles.get(finding.finding_id)
+    if not _bundle_needs_windows(bundle):
+        return []
+    blocks = []
+    for sha in _bundle_lists(bundle)[0]:
+        if sha not in sources:
+            continue
+        origin, passage = sources[sha]
+        excerpt = _source_passage(passage, finding.anchors, 1200)
+        text = (
+            f"Window {finding.finding_id} {sha[:16]}\n"
+            f"Retained passage [{sha}] ({passage_heading(context, sha, origin)}):\n{excerpt}"
+        )
+        blocks.append(PacketBlock(text, key=f"window:{finding.finding_id}:{sha}", passages=(sha,)))
+    return blocks
+
+
 def _finding_block(
     context: ConsultContext,
     finding: StudyFinding,
@@ -151,6 +217,17 @@ def _finding_block(
     elif finding.ungrounded_anchor_count:
         lines.append("Some recorded excerpts did not match the retained source.")
     key = f"finding:{finding.finding_id}"
+    bundle = context.source_bundles.get(finding.finding_id)
+    if bundle is not None and _bundle_needs_windows(bundle):
+        lines.append(_coverage_line(finding.finding_id, bundle))
+        windows, missing, parked = _bundle_lists(bundle)
+        return PacketBlock(
+            "\n".join(lines),
+            key=key,
+            bundle_windows=tuple(windows),
+            bundle_missing_bytes=tuple(missing),
+            bundle_not_selected=tuple(parked),
+        )
     if own_source:
         sha, origin, passage = own_source
         lines.append(f"Retained passage [{sha}] ({passage_heading(context, sha, origin)}):\n{passage}")
@@ -190,6 +267,7 @@ def brief_synthesis_blocks(context: ConsultContext) -> list[PacketBlock]:
         finding.finding_id: _finding_block(context, finding, sources, context.finding_sources.get(finding.finding_id))
         for finding in context.findings
     }
+    windows = {finding.finding_id: _window_blocks(context, finding, sources) for finding in context.findings}
     blocks = [PacketBlock(_notice(context), key="notice")]
     blocks.extend(_caveat_blocks(context))
     blocks.extend(
@@ -215,7 +293,11 @@ def brief_synthesis_blocks(context: ConsultContext) -> list[PacketBlock]:
             if finding_id in findings and finding_id not in placed:
                 placed.add(finding_id)
                 blocks.append(findings[finding_id])
-    blocks.extend(block for finding_id, block in findings.items() if finding_id not in placed)
+                blocks.extend(windows.get(finding_id, []))
+    for finding_id, block in findings.items():
+        if finding_id not in placed:
+            blocks.append(block)
+            blocks.extend(windows.get(finding_id, []))
     if context.orientation:
         blocks.append(PacketBlock(f"Orientation: {context.orientation}", key="orientation"))
     if context.integrity_warnings or context.limitations:
@@ -393,6 +475,29 @@ class _Packer:
             self.selected.append(_omission_notice(self.omitted))
         return "\n\n".join(self.selected)
 
+    def _bundle_row(self, block: PacketBlock) -> dict[str, object] | None:
+        """Window packing for one finding. Separate from position resolution."""
+        if not (block.bundle_windows or block.bundle_missing_bytes or block.bundle_not_selected):
+            return None
+        finding_id = block.key.split(":", 1)[1]
+        delivered = [sha for sha in block.bundle_windows if f"window:{finding_id}:{sha}" in self.delivered]
+        omitted = [sha for sha in block.bundle_windows if sha not in delivered]
+        if delivered and not omitted and not block.bundle_missing_bytes and not block.bundle_not_selected:
+            status = "complete"
+        elif delivered:
+            status = "partial"
+        else:
+            status = "unknown"
+        return {
+            "finding_id": finding_id,
+            "status": status,
+            "windows": list(block.bundle_windows),
+            "windows_delivered": delivered,
+            "windows_omitted": omitted,
+            "missing_bytes": list(block.bundle_missing_bytes),
+            "not_selected": list(block.bundle_not_selected),
+        }
+
     def manifest(self) -> dict[str, object]:
         delivered = [block for block in self.blocks if block.key in self.delivered]
         return {
@@ -400,6 +505,7 @@ class _Packer:
             "findings_delivered": [b.key.split(":", 1)[1] for b in delivered if b.key.startswith("finding:")],
             "findings_omitted": [b.key.split(":", 1)[1] for b in self.omitted if b.key.startswith("finding:")],
             "passages_delivered": sorted({sha for block in delivered for sha in block.passages}),
+            "source_bundles": [row for block in self.blocks if (row := self._bundle_row(block)) is not None],
             "blocks_omitted": len(self.omitted),
             "omitted_keys": [block.key for block in self.omitted if block.key],
         }
