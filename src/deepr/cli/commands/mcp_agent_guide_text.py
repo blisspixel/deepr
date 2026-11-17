@@ -45,9 +45,9 @@ def build_agent_guide_text(
         else "2. Call deepr_list_experts and select one to three relevant experts."
     )
     info_step = (
-        "3. If confirmation is required, stop and ask the operator. Otherwise call deepr_get_expert_info for one allowed expert."
+        "3. Call deepr_get_expert_info for one allowed expert."
         if experts
-        else "3. If confirmation is required, stop and ask the operator. Otherwise call deepr_get_expert_info for at least one selected expert."
+        else "3. Call deepr_get_expert_info for at least one selected expert."
     )
     key_line = f"Key id: {key_id}" if key_id else "Key id: shared token"
     budget_line = "none" if budget is None else f"${budget:.2f}"
@@ -101,6 +101,8 @@ Authorization: Bearer {token}
 ```
 
 Rules:
+
+If any call returns CONFIRMATION_REQUIRED, stop and refer the action to the operator.
 
 1. First call deepr_tool_search with query "expert list handoff consult".
 {list_step}
