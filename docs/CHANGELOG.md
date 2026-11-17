@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The consult inventory-discovery regression enters discovery, then
+  expires the real consult timeout. A slow Windows startup can no longer
+  fail that test before discovery starts.
 - A restarted polling worker runs the existing reservation reconciliation
   on every cycle. A processing claim with no provider id stays in place
   during the grace period, then reaches the unresolved outcome. The worker

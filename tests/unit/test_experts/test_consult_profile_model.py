@@ -107,8 +107,23 @@ async def test_inventory_discovery_is_cancelled_inside_consult_deadline(local_pr
     path.write_text(json.dumps(data))
     monkeypatch.delenv("DEEPR_LOCAL_MODEL")
     cancelled = asyncio.Event()
+    entered = asyncio.Event()
+    deadlines = []
+    real_timeout = asyncio.timeout
+
+    def observe_timeout(delay):
+        deadline = real_timeout(delay)
+        deadlines.append(deadline)
+        return deadline
+
+    # The consult deadline is the real asyncio.timeout. Observe it, then expire
+    # that same object once discovery is waiting. A 100ms budget can elapse
+    # during Windows lifecycle setup before discovery starts.
+    monkeypatch.setattr(asyncio, "timeout", observe_timeout)
 
     async def blocked_inventory():
+        entered.set()
+        deadlines[0].reschedule(asyncio.get_running_loop().time())
         try:
             await asyncio.Event().wait()
         finally:
@@ -118,8 +133,10 @@ async def test_inventory_discovery_is_cancelled_inside_consult_deadline(local_pr
     monkeypatch.setattr(
         "deepr.backends.local.default_local_model", lambda: pytest.fail("cannot run sync discovery after cancellation")
     )
-    result = await consult_experts_tool(question="q", experts=["Risk Expert"], max_elapsed_seconds=0.1)
+    result = await consult_experts_tool(question="q", experts=["Risk Expert"], max_elapsed_seconds=30)
     assert result["error_code"] == "CONSULT_ELAPSED_LIMIT"
+    assert len(deadlines) == 1
+    assert entered.is_set()
     assert cancelled.is_set()
     assert calls == []
 
