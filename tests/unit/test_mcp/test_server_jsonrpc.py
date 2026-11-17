@@ -316,6 +316,39 @@ class TestToolsCall:
         assert result["isError"] is False
 
     @pytest.mark.asyncio
+    async def test_empty_tool_search_is_an_error_envelope(self, mock_server):
+        for arguments in ({"query": ""}, {}, {"query": "   "}):
+            result = await _handle_tools_call(
+                mock_server,
+                {"name": "deepr_tool_search", "arguments": arguments},
+            )
+            assert result["isError"] is True
+            data = json.loads(result["content"][0]["text"])
+            assert data["error_code"] == "INVALID_PARAMS"
+            assert data["category"] == "validation"
+            assert data["message"] == "Query cannot be empty"
+            assert "tools" not in data
+            assert result["structuredContent"]["error_code"] == "INVALID_PARAMS"
+
+    @pytest.mark.asyncio
+    async def test_install_skill_missing_expert_is_an_error_envelope(self, mock_server):
+        with patch("deepr.mcp.server.ExpertStore") as store_cls:
+            store_cls.return_value.load.return_value = None
+            result = await _handle_tools_call(
+                mock_server,
+                {
+                    "name": "deepr_install_skill",
+                    "arguments": {"expert_name": "Nobody", "skill_name": "x", "_approved": True},
+                },
+            )
+        assert result["isError"] is True
+        data = json.loads(result["content"][0]["text"])
+        assert data["error_code"] == "EXPERT_NOT_FOUND"
+        assert data["category"] == "not_found"
+        assert data["message"] == "Expert not found: Nobody"
+        assert "error" not in data
+
+    @pytest.mark.asyncio
     async def test_call_deepr_cancel_nonexistent(self, mock_server):
         # deepr_cancel_job is a WRITE tool that requires confirmation in
         # standard mode; supply explicit approval so the cancel dispatch

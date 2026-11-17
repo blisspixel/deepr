@@ -4358,6 +4358,12 @@ A mock panel (business buyer, indie hacker, enterprise AI architect, research sc
 
 ### Backlog (Not in Active Sequence)
 
+- [x] **Live-validation finding (2026-11-17, v2.51.12 MCP playtest, #351):**
+  an empty `deepr_tool_search` query and `deepr_install_skill` for a
+  missing expert returned `isError` false with a bare `error` string.
+  Those failures now use the `error_code` envelope, so a host that checks
+  `isError` does not treat them as success. The same behavior was present
+  on v2.51.7.
 - [x] **Live-validation finding (2026-11-17, v2.51.12 MCP playtest, #350):**
   every MCP tool error reported `category: internal`, including
   not-found lookups, budget refusals, invalid budgets, and missing

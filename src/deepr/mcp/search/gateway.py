@@ -7,6 +7,7 @@ enabling ~85% context reduction by loading tool schemas on demand.
 
 from typing import Any
 
+from ..tool_errors import make_tool_error
 from .registry import ToolRegistry, ToolSchema
 
 
@@ -70,13 +71,14 @@ class GatewayTool:
         Returns:
             Dict with tools array and metadata
         """
+        if not query or not query.strip():
+            return make_tool_error("INVALID_PARAMS", "Query cannot be empty")
+
         available_count = (
             self._registry.count()
             if allowed_names is None
             else sum(tool.name in allowed_names for tool in self._registry.all_tools())
         )
-        if not query or not query.strip():
-            return {"error": "Query cannot be empty", "tools": [], "total_available": available_count}
 
         # Clamp limit
         limit = max(1, min(10, limit))
