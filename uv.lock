@@ -1019,7 +1019,7 @@ wheels = [
 
 [[package]]
 name = "deepr-research"
-version = "2.51.12"
+version = "2.51.13"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
