@@ -21,13 +21,48 @@ def test_mcp_serve_help_is_local_first_without_provider_keys() -> None:
     assert "OPENAI_API_KEY" not in help_text
 
 
+def test_mcp_serve_help_keeps_stdio_stdout_for_json_rpc() -> None:
+    result = CliRunner().invoke(mcp, ["serve", "--help"])
+    help_text = " ".join(result.output.split())
+
+    assert result.exit_code == 0, result.output
+    assert "stdout carries only JSON-RPC messages" in help_text
+    assert "startup banner is written to stderr" in help_text
+
+
 def test_mcp_serve_defaults_to_stdio_server():
     with patch("deepr.mcp.server.main") as main:
         result = CliRunner().invoke(mcp, ["serve"])
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 0, result.stdout + result.stderr
     main.assert_called_once_with()
-    assert "Starting Deepr MCP Server" in result.output
+    assert result.stdout == ""
+    for line in (
+        "Starting Deepr MCP Server...",
+        "AI agents can now access your experts via MCP protocol",
+        "Press Ctrl+C to stop",
+    ):
+        assert line in result.stderr
+        assert line not in result.stdout
+
+
+def test_mcp_serve_stdio_interrupt_stays_off_stdout():
+    with patch("deepr.mcp.server.main", side_effect=KeyboardInterrupt):
+        result = CliRunner().invoke(mcp, ["serve"])
+
+    assert result.exit_code == 0, result.stdout + result.stderr
+    assert result.stdout == ""
+    assert "MCP server stopped" in result.stderr
+    assert "Starting Deepr MCP Server..." in result.stderr
+
+
+def test_mcp_serve_stdio_startup_error_stays_off_stdout():
+    with patch("deepr.mcp.server.main", side_effect=RuntimeError("boom")):
+        result = CliRunner().invoke(mcp, ["serve"])
+
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert "Error starting MCP server: boom" in result.stderr
 
 
 def test_mcp_serve_http_uses_http_runner(tmp_path):
@@ -75,7 +110,9 @@ def test_mcp_serve_http_uses_http_runner(tmp_path):
         }
     ]
     run_async.assert_called_once_with("http-coro")
-    assert "http://127.0.0.1:18888/x" in result.output
+    assert "http://127.0.0.1:18888/x" in result.stdout
+    assert "Starting Deepr MCP HTTP Server" in result.stdout
+    assert "Press Ctrl+C to stop" in result.stdout
 
 
 def test_mcp_smoke_http_outputs_json_success():

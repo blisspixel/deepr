@@ -617,6 +617,9 @@ def serve(
 
     The MCP server exposes Deepr experts via stdin/stdout protocol,
     allowing any compatible host to list and consult local domain experts.
+    In stdio mode, stdout carries only JSON-RPC messages. The startup
+    banner is written to stderr. HTTP mode keeps its listener banner
+    on stdout.
     No provider API key is required to list experts or to consult with the
     explicit local synthesis backend. Paid API capacity remains fail-closed.
 
@@ -664,18 +667,19 @@ def serve(
             )
             return
 
-        # Import and run server
+        # Import and run server. The banner stays on stderr so stdout
+        # remains a JSON-RPC stream from the first byte (#348).
         from deepr.mcp.server import main as run_server
 
-        click.echo("Starting Deepr MCP Server...")
-        click.echo("AI agents can now access your experts via MCP protocol")
-        click.echo("Press Ctrl+C to stop")
-        click.echo("")
+        click.echo("Starting Deepr MCP Server...", err=True)
+        click.echo("AI agents can now access your experts via MCP protocol", err=True)
+        click.echo("Press Ctrl+C to stop", err=True)
+        click.echo("", err=True)
 
         run_server()
 
     except KeyboardInterrupt:
-        click.echo("\nMCP server stopped")
+        click.echo("\nMCP server stopped", err=True)
     except Exception as e:
         click.echo(f"Error starting MCP server: {e}", err=True)
         sys.exit(1)

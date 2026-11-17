@@ -28,6 +28,9 @@ A copy-ready modern probe over stdio:
 {"jsonrpc": "2.0", "id": 1, "method": "server/discover", "params": {"_meta": {"io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientCapabilities": {}}}}
 ```
 
+Pipe that object to `deepr mcp serve` on one line. Stdio mode writes only
+JSON-RPC messages on stdout. The startup banner goes to stderr (#348).
+
 Over Streamable HTTP, modern POSTs must also carry matching
 `MCP-Protocol-Version` and `Mcp-Method` headers (plus `Mcp-Name` for
 `tools/call`, `resources/read`, and `prompts/get`); mismatches return
