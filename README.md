@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.51.11-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.51.11)
+[![Version](https://img.shields.io/badge/version-2.51.12-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.51.12)
 
 **Persistent domain experts built from bounded, auditable research.**
 

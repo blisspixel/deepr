@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.51.11 current main, 2026-11-16. This document defines what users and host
+Status: v2.51.12 current main, 2026-11-17. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -8,6 +8,15 @@ path is structurally complete but remains execution-blocked without verified
 provider prepaid-no-overage or hard-stop evidence. Attended OpenRouter research
 is the exception: one pinned no-tool completion after wallet credits and
 `deepr budget authorize openrouter`.
+
+**v2.51.12 worker recovery and orchestrator boundary:** a restarted
+polling worker runs reservation reconciliation on every cycle. A
+processing claim with no provider id stays in place during the grace
+period, then reaches the unresolved outcome. The worker does not
+submit another job or refund that hold (#325). CI does not cancel an
+older run when a newer commit is pushed (#324). An outside orchestrator
+is optional. A fleet-seat consultation grants no spend, mutation, or
+workflow authority, and a listed seat consumer is not certified (#321).
 
 **v2.51.2 delivery priority:** under a tight synthesis prompt, room for the
 expert's positions is reserved before uncited reference passages; concurrent
