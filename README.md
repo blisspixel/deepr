@@ -17,6 +17,13 @@ keep changing. Instead of rebuilding context for every run, they consult the
 same inspectable expert state through the CLI or MCP and can see what changed,
 what supports a position, and what remains unknown.
 
+An outside orchestrator is optional. It may consult Deepr as a domain advisor
+through the CLI or the local-only fleet-seat profile (`deepr mcp seat-profile`).
+That consultation grants no spend, mutation, or workflow authority. Deepr does
+not require a particular orchestrator, and listing a seat consumer does not
+certify it. The [supported surface](docs/SUPPORTED_SURFACE.md) records the
+seat limits.
+
 The expert's knowledge base connects research, concepts, explanations, and
 reasoned positions. Temporal records preserve changes; readable notebooks and
 memory views make the accumulated understanding inspectable. The product goal
