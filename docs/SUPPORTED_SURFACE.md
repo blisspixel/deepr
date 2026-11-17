@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.51.12 current main, 2026-11-17. This document defines what users and host
+Status: v2.51.13 current main, 2026-11-17. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops. Unattended metered dispatch remains
 frozen until provider account-control adapters land. The narrow attended absorb
@@ -8,6 +8,13 @@ path is structurally complete but remains execution-blocked without verified
 provider prepaid-no-overage or hard-stop evidence. Attended OpenRouter research
 is the exception: one pinned no-tool completion after wallet credits and
 `deepr budget authorize openrouter`.
+
+**v2.51.13 source-bundle coverage:** a consult finding that cites more
+than one retained source delivers each selected window, or names the
+window that did not fit. One read passage still resolves the citation.
+Source-bundle coverage is separate from that label and does not claim
+the relationship holds (#323). The synthesis prompt limit stays 16,000
+characters.
 
 **v2.51.12 worker recovery and orchestrator boundary:** a restarted
 polling worker runs reservation reconciliation on every cycle. A

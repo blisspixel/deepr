@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.51.13] - 2026-11-17
+
+Patch release: a consult finding that cites more than one retained
+source delivers each selected window, or names the window that did
+not fit. One read passage still resolves the citation.
+
 ### Fixed
 
 - A consult finding that cites more than one retained source delivers each

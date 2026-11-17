@@ -1086,7 +1086,13 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.51.12)
+## Current Status (v2.51.13)
+
+v2.51.13 delivers each selected window for a consult finding that
+cites more than one retained source, or names the window that did
+not fit. One read passage still resolves the citation. Source-bundle
+coverage is separate from that label and does not claim the
+relationship holds (#323).
 
 v2.51.12 recovers an interrupted submission claim on every polling
 cycle. The claim stays in place during the grace period, then reaches
@@ -4560,7 +4566,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.51.12. The active release plan governs work and future criteria; older
+v2.51.13. The active release plan governs work and future criteria; older
 phase notes retained below it are historical context, not a competing sequence.
 Completed items move to the changelog at release.
 
