@@ -107,6 +107,7 @@ from deepr.mcp.state.async_dispatcher import AsyncTaskDispatcher
 from deepr.mcp.state.job_manager import JobPhase
 from deepr.mcp.state.resource_handler import get_resource_handler
 from deepr.mcp.state.task_durability import TaskDurabilityManager
+from deepr.mcp.tool_call_admission import invalid_argument_response, unknown_tool_response
 from deepr.mcp.tool_errors import ToolError
 from deepr.mcp.tool_errors import make_tool_error as _make_error
 from deepr.mcp.transport.stdio import StdioServer
@@ -1388,13 +1389,20 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
     """Handle tools/call - dispatch to appropriate tool method.
 
     Integrates security checks:
-    1. Tool allowlist - checks if tool is allowed in current research mode
-    2. Instruction signing - signs the instruction for audit trail
-    3. Output verification - records output hash for integrity verification
+    1. Tool lookup - an unknown name returns TOOL_NOT_FOUND
+    2. Tool allowlist - checks if tool is allowed in current research mode
+    3. Argument checks that fail closed without running the tool
+    4. Confirmation, only after the tool is known and those checks pass
+    5. Instruction signing - signs the instruction for audit trail
+    6. Output verification - records output hash for integrity verification
     """
     name = params.get("name", "")
     arguments = params.get("arguments", {})
     job_id = arguments.get("job_id") or arguments.get("workflow_id")
+
+    unknown = unknown_tool_response(name)
+    if unknown is not None:
+        return unknown
 
     # Security: Check tool allowlist
     validation = server.tool_allowlist.validate_tool_call(name)
@@ -1415,6 +1423,10 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
             ],
             "isError": True,
         }
+
+    invalid = invalid_argument_response(name, arguments)
+    if invalid is not None:
+        return invalid
 
     # Security: Enforce confirmation requirement before dispatch. Previously
     # this branch only logged that confirmation was required and proceeded,
@@ -1570,29 +1582,6 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
             args.get("skill_name", ""),
         ),
     }
-
-    # Validate job_id is not empty for tools that require it
-    if name in ("deepr_cancel_job", "deepr_check_status", "deepr_get_result") and not arguments.get("job_id"):
-        return {
-            "content": [
-                {
-                    "type": "text",
-                    "text": json.dumps(_make_error("INVALID_PARAMS", "job_id is required and must not be empty")),
-                }
-            ],
-            "isError": True,
-        }
-
-    # Validate report_id for tools that resolve a report by id. An empty or
-    # whitespace value would otherwise reach ContextIndex's prefix lookup and
-    # (historically) match an arbitrary report. Reject it at the boundary.
-    if name in ("deepr_reflect", "deepr_expert_absorb") and not str(arguments.get("report_id") or "").strip():
-        err = _make_error("INVALID_PARAMS", "report_id is required and must not be empty")
-        return {
-            "content": [{"type": "text", "text": json.dumps(err)}],
-            "isError": True,
-            "structuredContent": err,
-        }
 
     handler = tool_dispatch.get(name)
     if not handler:

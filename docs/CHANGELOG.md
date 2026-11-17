@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `deepr mcp serve` in stdio mode keeps stdout for JSON-RPC only. The
   startup banner, and a startup interrupt or error, go to stderr. HTTP
   serve banners stay on stdout (#348).
+- An MCP tool call looks up the tool and checks arguments before asking
+  for confirmation. An unknown name returns `TOOL_NOT_FOUND`. An invalid
+  budget or a missing required id returns that validation error. A known
+  call that passes those checks still requires confirmation before it
+  runs (#349).
 
 ## [2.51.13] - 2026-11-17
 

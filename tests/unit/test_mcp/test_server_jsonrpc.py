@@ -212,9 +212,6 @@ class TestToolsList:
 class TestToolsCall:
     @pytest.mark.asyncio
     async def test_call_unknown_tool(self, mock_server):
-        # Unknown tools are now blocked by the confirmation gate before
-        # dispatch in standard mode. With explicit approval the call
-        # reaches the dispatcher and falls through to TOOL_NOT_FOUND.
         result = await _handle_tools_call(
             mock_server,
             {"name": "nonexistent_tool", "arguments": {"_approved": True}},
@@ -224,11 +221,11 @@ class TestToolsCall:
         assert data["error_code"] == "TOOL_NOT_FOUND"
 
     @pytest.mark.asyncio
-    async def test_call_unknown_tool_blocked_without_approval(self, mock_server):
+    async def test_call_unknown_tool_is_not_found_before_confirmation(self, mock_server):
         result = await _handle_tools_call(mock_server, {"name": "nonexistent_tool", "arguments": {}})
         assert result["isError"] is True
         data = json.loads(result["content"][0]["text"])
-        assert data["error_code"] == "CONFIRMATION_REQUIRED"
+        assert data["error_code"] == "TOOL_NOT_FOUND"
 
     @pytest.mark.asyncio
     async def test_call_deepr_status(self, mock_server):
