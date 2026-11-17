@@ -17,6 +17,7 @@ from collections.abc import Set
 from typing import Any
 
 from deepr.mcp.search.registry import ToolRegistry
+from deepr.mcp.tool_errors import TOOL_ERROR_CATEGORIES
 
 CAPABILITIES_SCHEMA_VERSION = "deepr-capabilities-v1"
 CAPABILITIES_KIND = "deepr.capabilities"
@@ -93,7 +94,11 @@ def build_capabilities(
         },
         "error_contract": {
             "fields": ["error_code", "category", "retryable", "message"],
-            "how": "branch on error_code; do not retry in a loop when retryable is false",
+            "categories": list(TOOL_ERROR_CATEGORIES),
+            "how": (
+                "branch on error_code. category is the default group for that code. "
+                "Do not retry in a loop when retryable is false"
+            ),
         },
         "discovery": {
             "free_orientation": ["deepr_status", "deepr_list_experts"],

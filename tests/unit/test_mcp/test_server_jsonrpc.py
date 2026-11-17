@@ -110,6 +110,38 @@ class TestToolError:
         assert d["retryable"] is False
         assert "retry_after" not in d  # only when known
 
+
+class TestToolErrorCategory:
+    """Playtest table: category names the cause instead of always saying internal."""
+
+    @pytest.mark.parametrize(
+        ("code", "category"),
+        [
+            ("EXPERT_NOT_FOUND", "not_found"),
+            ("JOB_NOT_FOUND", "not_found"),
+            ("TOOL_NOT_FOUND", "not_found"),
+            ("BUDGET_EXCEEDED", "budget"),
+            ("BUDGET_EXCEEDS_MAX", "budget"),
+            ("KEY_BUDGET_EXCEEDED", "budget"),
+            ("INVALID_BUDGET", "validation"),
+            ("INVALID_PARAMS", "validation"),
+            ("INVALID_TIMEOUT", "validation"),
+            ("CONFIRMATION_REQUIRED", "confirmation"),
+            ("TIMEOUT", "timeout"),
+            ("TOOL_EXECUTION_FAILED", "internal"),
+        ],
+    )
+    def test_make_tool_error_groups_the_playtest_codes(self, code: str, category: str) -> None:
+        from deepr.mcp.tool_errors import make_tool_error
+
+        assert make_tool_error(code, "detail")["category"] == category
+
+    def test_explicit_category_is_kept(self) -> None:
+        from deepr.mcp.tool_errors import make_tool_error
+
+        assert make_tool_error("EXPERT_NOT_FOUND", "missing", category="internal")["category"] == "internal"
+        assert make_tool_error("ABSORB_OVERLAP_LOCKED", "busy", category="conflict")["category"] == "conflict"
+
     def test_from_exception_reads_classification(self):
         from deepr.core.errors import ProviderRateLimitError
 

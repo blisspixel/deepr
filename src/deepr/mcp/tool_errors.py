@@ -56,23 +56,50 @@ class ToolError:
         )
 
 
+# Default groups a host can branch on. An adapter may pass a more specific
+# category. These names match the Deepr error classes and the shared
+# integration sketch: not-found, validation, budget, confirmation, timeout,
+# and an unclassified internal failure (#350).
+TOOL_ERROR_CATEGORIES = ("not_found", "validation", "budget", "confirmation", "timeout", "internal")
+
+
+def category_for_tool_error(code: str) -> str:
+    """Return the default category for a tool error code."""
+    if code == "CONFIRMATION_REQUIRED":
+        return "confirmation"
+    if code.endswith("_NOT_FOUND"):
+        return "not_found"
+    if code.startswith("INVALID_"):
+        return "validation"
+    if code.startswith("BUDGET_") or code.endswith("_BUDGET_EXCEEDED"):
+        return "budget"
+    if code == "TIMEOUT" or code.endswith("_TIMEOUT"):
+        return "timeout"
+    return "internal"
+
+
 def make_tool_error(
     code: str,
     message: str,
     retry_hint: str | None = None,
     fallback: str | None = None,
     *,
-    category: str = "internal",
+    category: str | None = None,
     retryable: bool = False,
     retry_after: int | None = None,
 ) -> dict[str, Any]:
-    """Build the canonical dictionary representation returned by MCP tools."""
+    """Build the canonical dictionary representation returned by MCP tools.
+
+    When category is omitted, it is derived from the error code. An explicit
+    category is kept, including a caller that still means internal.
+    """
+    resolved = category_for_tool_error(code) if category is None else category
     return ToolError(
         error_code=code,
         message=sanitize_log_message(message),
         retry_hint=retry_hint,
         fallback_suggestion=fallback,
-        category=category,
+        category=resolved,
         retryable=retryable,
         retry_after=retry_after,
     ).to_dict()

@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   budget or a missing required id returns that validation error. A known
   call that passes those checks still requires confirmation before it
   runs (#349).
+- MCP tool errors set `category` from the cause. Not-found codes use
+  `not_found`, invalid arguments use `validation`, budget refusals use
+  `budget`, and a missing confirmation uses `confirmation`. An unexpected
+  tool failure stays `internal`. An explicit category is kept (#350).
 
 ## [2.51.13] - 2026-11-17
 

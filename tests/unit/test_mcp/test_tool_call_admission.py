@@ -43,7 +43,9 @@ async def test_playtest_unknown_tool_is_not_found_before_confirmation() -> None:
     result = await _handle_tools_call(server, {"name": "deepr_nonexistent_tool", "arguments": {}})
 
     assert result["isError"] is True
-    assert _error_code(result) == "TOOL_NOT_FOUND"
+    payload = json.loads(result["content"][0]["text"])
+    assert payload["error_code"] == "TOOL_NOT_FOUND"
+    assert payload["category"] == "not_found"
     assert "deepr_nonexistent_tool" in result["content"][0]["text"]
     server.deepr_research.assert_not_awaited()
 
@@ -56,6 +58,7 @@ async def test_playtest_invalid_budget_precedes_confirmation() -> None:
     assert result["isError"] is True
     data = json.loads(result["content"][0]["text"])
     assert data["error_code"] == "INVALID_BUDGET"
+    assert data["category"] == "validation"
     assert "finite positive budget" in data["message"]
     server.deepr_research.assert_not_awaited()
 
@@ -88,6 +91,7 @@ async def test_valid_research_contract_still_requires_confirmation() -> None:
     )
 
     assert _error_code(result) == "CONFIRMATION_REQUIRED"
+    assert json.loads(result["content"][0]["text"])["category"] == "confirmation"
     server.deepr_research.assert_not_awaited()
 
 
