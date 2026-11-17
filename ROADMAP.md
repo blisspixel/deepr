@@ -4358,6 +4358,13 @@ A mock panel (business buyer, indie hacker, enterprise AI architect, research sc
 
 ### Backlog (Not in Active Sequence)
 
+- [x] **Live-validation finding (2026-11-17, v2.51.12 MCP playtest, #349):**
+  an unknown MCP tool name, and `deepr_research` with a negative budget,
+  returned `CONFIRMATION_REQUIRED` before lookup. The same calls were
+  `TOOL_NOT_FOUND` and `INVALID_BUDGET` only after approval. Lookup and
+  the existing argument checks now happen first. A known call that passes
+  those checks still requires confirmation before it runs. The same
+  behavior was present on v2.51.7.
 - [x] **Live-validation finding (2026-11-17, v2.51.12 MCP playtest, #348):**
   `deepr mcp serve` wrote a three-line startup banner and a blank line to
   stdout before the first JSON-RPC message. The same banner was present on

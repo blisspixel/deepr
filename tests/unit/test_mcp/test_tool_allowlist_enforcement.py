@@ -172,6 +172,15 @@ async def test_jsonrpc_handler_blocks_before_dispatch_for_declared_gates(
     assert result["isError"] is True
     if not expected_allowed:
         assert _error_code(result) == "TOOL_BLOCKED"
-    else:
-        assert expected_confirmation
-        assert _error_code(result) == "CONFIRMATION_REQUIRED"
+        return
+    assert expected_confirmation
+    code = _error_code(result)
+    if code == "CONFIRMATION_REQUIRED":
+        return
+    assert code in {
+        "INVALID_PARAMS",
+        "INVALID_BUDGET",
+        "METERED_API_NOT_APPROVED",
+        "BUDGET_EXCEEDED",
+        "BUDGET_UNAVAILABLE",
+    }

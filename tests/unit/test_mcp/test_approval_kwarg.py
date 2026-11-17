@@ -58,7 +58,9 @@ async def test_approved_kwarg_is_stripped_before_handler_dispatch():
             "arguments": {
                 "prompt": "test prompt",
                 "model": "gpt-5",
-                "budget": 5.0,
+                "budget": 1.0,
+                "allow_metered_api": True,
+                "confirm_metered_cost": True,
                 "_approved": True,  # The token the gate checks
             },
         },
