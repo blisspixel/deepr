@@ -1086,7 +1086,9 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.51.13)
+## Current Status (v2.51.14)
+
+Gated stdio MCP tools now require the trusted local operator opt-in.
 
 v2.51.13 delivers each selected window for a consult finding that
 cites more than one retained source, or names the window that did
@@ -4587,7 +4589,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 
 Completed release history lives in [docs/CHANGELOG.md](docs/CHANGELOG.md), with
 Git tags and GitHub releases as the published commit references. Current main is
-v2.51.13. The active release plan governs work and future criteria; older
+v2.51.14. The active release plan governs work and future criteria; older
 phase notes retained below it are historical context, not a competing sequence.
 Completed items move to the changelog at release.
 

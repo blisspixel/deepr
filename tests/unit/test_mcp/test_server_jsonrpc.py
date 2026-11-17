@@ -317,13 +317,13 @@ class TestToolsCall:
 
     @pytest.mark.asyncio
     async def test_call_deepr_cancel_nonexistent(self, mock_server):
-        # deepr_cancel_job is a WRITE tool that requires confirmation in
-        # standard mode; supply explicit approval so the cancel dispatch
-        # runs and falls through to JOB_NOT_FOUND.
-        result = await _handle_tools_call(
-            mock_server,
-            {"name": "deepr_cancel_job", "arguments": {"job_id": "fake", "_approved": True}},
-        )
+        from deepr.mcp.request_context import trusted_stdio_request
+
+        with trusted_stdio_request(), patch.dict("os.environ", {"DEEPR_MCP_AUTO_APPROVE": "1"}):
+            result = await _handle_tools_call(
+                mock_server,
+                {"name": "deepr_cancel_job", "arguments": {"job_id": "fake"}},
+            )
         data = json.loads(result["content"][0]["text"])
         assert data["error_code"] == "JOB_NOT_FOUND"
         assert result["isError"] is True

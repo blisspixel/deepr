@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.51.14] - 2026-11-17
+
 ### Fixed
+
+- Gated MCP tools require trusted local operator configuration. Clients receive an operator handoff when confirmation is required.
 
 - `deepr mcp serve` in stdio mode keeps stdout for JSON-RPC only. The
   startup banner, and a startup interrupt or error, go to stderr. HTTP

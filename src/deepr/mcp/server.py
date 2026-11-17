@@ -1428,19 +1428,16 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
     if invalid is not None:
         return invalid
 
-    # Security: Enforce confirmation requirement before dispatch. Previously
-    # this branch only logged that confirmation was required and proceeded,
-    # which defeated the allowlist's risk gating for write/sensitive tools.
-    # Callers must either:
-    #   - run in DEEPR_RESEARCH_MODE=unrestricted (no confirmation required),
-    #   - supply an explicit approval token in arguments["_approved"]=True,
-    #     or
-    #   - set DEEPR_MCP_AUTO_APPROVE=1 to opt back into the legacy log-only
-    #     behaviour for trusted local-stdio environments.
     if validation["requires_confirmation"]:
-        approved = bool(arguments.get("_approved"))
-        auto_approve = os.environ.get("DEEPR_MCP_AUTO_APPROVE", "").strip().lower() in ("1", "true", "yes")
-        if not approved and not auto_approve:
+        identity = current_mcp_request_identity()
+        trusted_stdio = (
+            identity is not None
+            and identity.transport == "stdio"
+            and identity.authenticated
+            and identity.authentication == "stdio"
+        )
+        operator_opt_in = os.environ.get("DEEPR_MCP_AUTO_APPROVE", "").strip().lower() in ("1", "true", "yes")
+        if not (trusted_stdio and operator_opt_in):
             logger.warning(
                 "Tool '%s' blocked: confirmation required in mode '%s'",
                 name,
@@ -1454,10 +1451,7 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
                             _make_error(
                                 "CONFIRMATION_REQUIRED",
                                 validation["reason"],
-                                retry_hint=(
-                                    "Re-invoke with arguments._approved=true after operator review, or "
-                                    "set DEEPR_MCP_AUTO_APPROVE=1 in trusted environments."
-                                ),
+                                retry_hint="Ask the operator to perform this action or configure a trusted local stdio session.",
                                 fallback=f"Current research mode: {validation['mode']}",
                             )
                         ),
@@ -1465,18 +1459,9 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
                 ],
                 "isError": True,
             }
-        logger.info(
-            "Tool '%s' confirmation %s in mode '%s'",
-            name,
-            "auto-approved" if auto_approve else "approved by caller",
-            validation["mode"],
-        )
+        logger.info("Tool '%s' approved by local operator configuration in mode '%s'", name, validation["mode"])
 
-    # Strip the confirmation token before it reaches handler signatures.
-    # Several dispatch entries below use **args; passing _approved through
-    # would raise TypeError on handlers that don't declare it, which would
-    # turn every approved deepr_research/deepr_agentic_research call into
-    # a generic TOOL_EXECUTION_FAILED.
+    # Older clients may still send this field. Handlers accept only tool arguments.
     if "_approved" in arguments:
         arguments = {k: v for k, v in arguments.items() if k != "_approved"}
 

@@ -28,7 +28,6 @@ def build_agent_guide_text(
 ) -> str:
     """Return the redacted or live agent trial guide body."""
     arguments: dict[str, object] = {
-        "_approved": True,
         "question": "What should the current project do next?",
         "max_experts": 3,
         "synthesis_backend": synthesis_backend,
@@ -46,9 +45,9 @@ def build_agent_guide_text(
         else "2. Call deepr_list_experts and select one to three relevant experts."
     )
     info_step = (
-        "3. Call deepr_get_expert_info for one allowed expert with _approved=true."
+        "3. If confirmation is required, stop and ask the operator. Otherwise call deepr_get_expert_info for one allowed expert."
         if experts
-        else "3. Call deepr_get_expert_info for at least one selected expert with _approved=true."
+        else "3. If confirmation is required, stop and ask the operator. Otherwise call deepr_get_expert_info for at least one selected expert."
     )
     key_line = f"Key id: {key_id}" if key_id else "Key id: shared token"
     budget_line = "none" if budget is None else f"${budget:.2f}"
@@ -106,8 +105,8 @@ Rules:
 1. First call deepr_tool_search with query "expert list handoff consult".
 {list_step}
 {info_step}
-4. Prefer deepr_expert_handoff for context. Include _approved=true.
-5. Prefer deepr_consult_experts for questions. Use one expert for focused advice or multiple experts for council guidance. Include _approved=true.
+4. Prefer deepr_expert_handoff for context.
+5. Prefer deepr_consult_experts for questions. Use one expert for focused advice or multiple experts for council guidance.
 6. Do not call deepr_query_expert, deepr_research, deepr_agentic_research, deepr_expert_absorb, deepr_reflect, deepr_install_skill, or mutating tools.
 7. For consults, force no-metered execution with synthesis_backend="{synthesis_backend}" and budget=0.
 8. Verify capacity.live_metered_fallback=false and cost_usd=0.
