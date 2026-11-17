@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `not_found`, invalid arguments use `validation`, budget refusals use
   `budget`, and a missing confirmation uses `confirmation`. An unexpected
   tool failure stays `internal`. An explicit category is kept (#350).
+- An empty `deepr_tool_search` query, and `deepr_install_skill` for a
+  missing expert or skill, return `isError` true with the `error_code`
+  envelope. They no longer look like an empty catalog or a completed
+  install (#351).
 
 ## [2.51.13] - 2026-11-17
 

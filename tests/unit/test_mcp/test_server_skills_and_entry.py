@@ -113,21 +113,27 @@ class TestListSkills:
     async def test_internal_error_wrapped(self):
         with patch("deepr.experts.skills.SkillManager", side_effect=RuntimeError("boom")):
             out = await _list_skills("alice")
-        assert "boom" in out["error"]
+        assert out["error_code"] == "TOOL_EXECUTION_FAILED"
+        assert out["message"] == "Tool execution failed safely."
+        assert "boom" not in out["message"]
 
 
 class TestInstallSkill:
     @pytest.mark.asyncio
     async def test_missing_args(self):
         out = await _install_skill("", "x")
-        assert "required" in out["error"]
+        assert out["error_code"] == "INVALID_PARAMS"
+        assert out["category"] == "validation"
+        assert "required" in out["message"]
         out2 = await _install_skill("alice", "")
-        assert "required" in out2["error"]
+        assert out2["error_code"] == "INVALID_PARAMS"
+        assert "required" in out2["message"]
 
     @pytest.mark.asyncio
     async def test_traversal_blocked(self):
         out = await _install_skill("../etc", "x")
-        assert "illegal path" in out["error"]
+        assert out["error_code"] == "INVALID_PARAMS"
+        assert "illegal path" in out["message"]
 
     @pytest.mark.asyncio
     async def test_unknown_expert(self):
@@ -136,7 +142,9 @@ class TestInstallSkill:
             store.load.return_value = None
             ES.return_value = store
             out = await _install_skill("alice", "skill_x")
-        assert "Expert not found" in out["error"]
+        assert out["error_code"] == "EXPERT_NOT_FOUND"
+        assert out["category"] == "not_found"
+        assert out["message"] == "Expert not found: alice"
 
     @pytest.mark.asyncio
     async def test_unknown_skill(self):
@@ -152,7 +160,23 @@ class TestInstallSkill:
             manager.get_skill.return_value = None
             SM.return_value = manager
             out = await _install_skill("alice", "ghost")
-        assert "Skill not found" in out["error"]
+        assert out["error_code"] == "SKILL_NOT_FOUND"
+        assert out["category"] == "not_found"
+        assert out["message"] == "Skill not found: ghost"
+
+    @pytest.mark.asyncio
+    async def test_internal_error_is_a_safe_envelope(self):
+        with (
+            patch("deepr.mcp.server.ExpertStore") as ES,
+            patch("deepr.experts.skills.SkillManager", side_effect=RuntimeError("boom")),
+        ):
+            store = MagicMock()
+            store.load.return_value = MagicMock(installed_skills=[])
+            ES.return_value = store
+            out = await _install_skill("alice", "skill_x")
+        assert out["error_code"] == "TOOL_EXECUTION_FAILED"
+        assert out["message"] == "Tool execution failed safely."
+        assert "boom" not in out["message"]
 
     @pytest.mark.asyncio
     async def test_already_installed_is_idempotent(self):

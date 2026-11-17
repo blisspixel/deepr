@@ -80,7 +80,8 @@ Yes. The safe default path is:
 1. Discover tools with `deepr_tool_search`. A name that is not registered
    returns `TOOL_NOT_FOUND`. Invalid arguments return that validation
    error. Confirmation is requested only after the tool is known and those
-   checks pass (#349).
+   checks pass (#349). An empty `deepr_tool_search` query is
+   `INVALID_PARAMS` with `isError` true, not an empty catalog (#351).
 2. List experts with `deepr_list_experts`.
 3. Read one expert's state with `deepr_get_expert_info`,
    `deepr_expert_handoff`, and `deepr_expert_loop_status`.

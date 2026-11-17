@@ -211,8 +211,13 @@ class TestGatewayTool:
 
         result = gateway.search("")
 
-        assert "error" in result
-        assert result["tools"] == []
+        assert result["error_code"] == "INVALID_PARAMS"
+        assert result["category"] == "validation"
+        assert result["message"] == "Query cannot be empty"
+        assert "tools" not in result
+
+        blank = gateway.search("   ")
+        assert blank["error_code"] == "INVALID_PARAMS"
 
     def test_gateway_search_limit_clamped(self):
         """Gateway should clamp limit to valid range."""

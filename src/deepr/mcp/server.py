@@ -1301,29 +1301,30 @@ async def _list_skills(expert_name: str) -> dict[str, Any]:
                 }
             )
         return {"skills": skills, "expert_name": expert_name or None}
-    except Exception as e:
-        return {"error": str(e)}
+    except Exception:
+        logger.exception("Skill listing failed")
+        return _make_error("TOOL_EXECUTION_FAILED", "Tool execution failed safely.")
 
 
 async def _install_skill(expert_name: str, skill_name: str) -> dict[str, Any]:
     """Install a skill on an expert."""
     if not expert_name or not skill_name:
-        return {"error": "expert_name and skill_name are required"}
+        return _make_error("INVALID_PARAMS", "expert_name and skill_name are required")
     err = _validate_expert_name_component(expert_name)
     if err:
-        return {"error": err}
+        return _make_error("INVALID_PARAMS", err)
     try:
         from deepr.experts.skills import SkillManager
 
         store = ExpertStore()
         profile = store.load(expert_name)
         if not profile:
-            return {"error": f"Expert not found: {expert_name}"}
+            return _make_error("EXPERT_NOT_FOUND", f"Expert not found: {expert_name}")
 
         manager = SkillManager(expert_name=expert_name)
         skill_def = manager.get_skill(skill_name)
         if not skill_def:
-            return {"error": f"Skill not found: {skill_name}"}
+            return _make_error("SKILL_NOT_FOUND", f"Skill not found: {skill_name}")
 
         installed = getattr(profile, "installed_skills", [])
         if skill_name in installed:
@@ -1332,8 +1333,9 @@ async def _install_skill(expert_name: str, skill_name: str) -> dict[str, Any]:
         profile.installed_skills = [*installed, skill_name]
         store.save(profile)
         return {"status": "installed", "expert_name": expert_name, "skill_name": skill_name}
-    except Exception as e:
-        return {"error": str(e)}
+    except Exception:
+        logger.exception("Skill install failed")
+        return _make_error("TOOL_EXECUTION_FAILED", "Tool execution failed safely.")
 
 
 # ------------------------------------------------------------------ #
