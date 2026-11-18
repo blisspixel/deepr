@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.51.13-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.51.13)
+[![Version](https://img.shields.io/badge/version-2.51.14-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.51.14)
 
 **Persistent domain experts built from bounded, auditable research.**
 
@@ -469,7 +469,7 @@ both themes against isolated `$0` synthetic state. See the
 v2.50.38 supports maintained CPython 3.11 through 3.15, with 3.15 as the
 development and managed-install default. CI covers all five minors, native
 Windows/macOS installation and the three locked container builds. Node uses
-24.22.1 LTS. See the [runtime decision](docs/design/maintained-runtime-support.md).
+24.22.3 LTS. See the [runtime decision](docs/design/maintained-runtime-support.md).
 
 v2.50.37 adds explicit local embedding roles and profile/dimension compatibility
 checks. A frozen published-label comparison leaves defaults unchanged; all

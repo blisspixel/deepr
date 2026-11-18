@@ -11,6 +11,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from deepr.mcp.request_context import trusted_stdio_request
+
 
 @pytest.mark.asyncio
 async def test_approved_kwarg_is_stripped_before_handler_dispatch():
@@ -61,14 +63,23 @@ async def test_approved_kwarg_is_stripped_before_handler_dispatch():
                 "budget": 1.0,
                 "allow_metered_api": True,
                 "confirm_metered_cost": True,
-                "_approved": True,  # The token the gate checks
+                "_approved": True,
             },
         },
     }
 
-    # Force UNRESTRICTED mode so the confirmation gate path isn't taken,
-    # OR auto-approve so _approved IS the relevant arg-stripping path.
-    with patch.dict("os.environ", {"DEEPR_MCP_AUTO_APPROVE": "1"}):
+    fake_server.tool_allowlist.validate_tool_call.return_value = {
+        "mode": "standard",
+        "allowed": True,
+        "requires_confirmation": True,
+        "reason": "Operator confirmation required",
+    }
+    with trusted_stdio_request(), patch.dict("os.environ", {"DEEPR_MCP_AUTO_APPROVE": "0"}):
+        denied = await server_module._handle_tools_call(fake_server, request["params"])
+        assert denied["isError"]
+        assert not handler_calls
+
+    with trusted_stdio_request(), patch.dict("os.environ", {"DEEPR_MCP_AUTO_APPROVE": "1"}):
         response = await server_module._handle_tools_call(fake_server, request["params"])
 
     # The handler was called and ``_approved`` was NOT passed through.

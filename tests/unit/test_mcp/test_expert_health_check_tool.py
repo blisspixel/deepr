@@ -113,7 +113,13 @@ class TestHealthCheckTool:
         from deepr.mcp.server import _handle_tools_call
 
         mock_server.store.load = MagicMock(return_value=MagicMock(name="Test Expert"))
-        with patch("deepr.experts.health_check.ExpertHealthChecker") as mock_cls:
+        from deepr.mcp.request_context import trusted_stdio_request
+
+        with (
+            trusted_stdio_request(),
+            patch.dict("os.environ", {"DEEPR_MCP_AUTO_APPROVE": "1"}),
+            patch("deepr.experts.health_check.ExpertHealthChecker") as mock_cls,
+        ):
             inst = MagicMock()
             inst.run.return_value = _stub_report()
             mock_cls.return_value = inst

@@ -153,7 +153,13 @@ class TestExpertLoopStatusTool:
         profile.name = "Test Expert"
         mock_server.store.load = MagicMock(return_value=profile)
 
-        with patch("deepr.mcp.expert_loop_status.build_loop_status_rollup") as build_rollup:
+        from deepr.mcp.request_context import trusted_stdio_request
+
+        with (
+            trusted_stdio_request(),
+            patch.dict("os.environ", {"DEEPR_MCP_AUTO_APPROVE": "1"}),
+            patch("deepr.mcp.expert_loop_status.build_loop_status_rollup") as build_rollup,
+        ):
             build_rollup.return_value = _loop_status_payload()
             result = await _handle_tools_call(
                 mock_server,

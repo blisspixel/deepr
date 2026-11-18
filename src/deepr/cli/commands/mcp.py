@@ -456,7 +456,7 @@ def summarize_audit(
     type=click.Choice(["read_only", "standard", "extended", "unrestricted"], case_sensitive=False),
     default="standard",
     show_default=True,
-    help="Scoped-key mode. Standard is needed for approved expert handoff and consult calls.",
+    help="Scoped-key mode. Tools requiring confirmation are unavailable over HTTP in standard mode.",
 )
 @click.option("--budget", type=click.FloatRange(min=0.0), default=0.0, show_default=True)
 @click.option("--rate-limit", type=click.IntRange(min=1), default=30, show_default=True)
