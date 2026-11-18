@@ -11,6 +11,9 @@ dist
 build
 .eggs
 
+# Local frontend dependencies
+src/deepr/web/frontend/node_modules/
+
 # Tests and docs
 tests/
 docs/

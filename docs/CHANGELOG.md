@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Build and validate the dashboard with Node.js 24.22.3 LTS and npm 12.2.2.
+- Application container builds exclude the dashboard's local npm dependencies and use the packaged dashboard. Dashboard builds use Vite 8.3.8 and TypeScript ESLint 8.73.0.
 - Gated MCP tools require trusted local operator configuration. Clients receive an operator handoff when confirmation is required.
 
 - `deepr mcp serve` in stdio mode keeps stdout for JSON-RPC only. The

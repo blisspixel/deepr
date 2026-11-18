@@ -255,12 +255,12 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: "24.22.1"
+          node-version: "24.22.3"
           cache: npm
           cache-dependency-path: src/deepr/web/frontend/package-lock.json
 
       - name: Install npm
-        run: npm install --global npm@12.0.1
+        run: npm install --global npm@12.2.2
 
       - name: Install frontend dependencies
         run: npm ci
@@ -399,8 +399,20 @@ jobs:
             dockerfile: deploy/mcp-http/Dockerfile
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Simulate a locally installed frontend dependency
+        run: |
+          mkdir -p src/deepr/web/frontend/node_modules/deepr-context-test
+          touch src/deepr/web/frontend/node_modules/deepr-context-test/marker
       - name: Build the locked image without deployment
         run: docker build --pull --no-cache --file "${{ matrix.dockerfile }}" --tag "deepr-platform:${{ matrix.surface }}" .
+      - name: Verify the packaged dashboard and excluded development tools
+        run: |
+          docker run --rm --network none --entrypoint python "deepr-platform:${{ matrix.surface }}" -c '
+          from pathlib import Path
+          import deepr
+          assert not Path("/app/src/deepr/web/frontend/node_modules").exists()
+          assert (Path(deepr.__file__).parent / "web/frontend/dist/index.html").is_file()
+          '
       - name: Verify repaired base installer trust without network access
         run: >-
           docker run --rm --network none --entrypoint /usr/local/bin/python "deepr-platform:${{ matrix.surface }}"
